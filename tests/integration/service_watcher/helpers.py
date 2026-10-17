@@ -98,19 +98,28 @@ def mark_failed(service: Service) -> None:
     service._status = ResourceStatus.FAILED
 
 
+async def restart_once(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
+    """Mark the event's service FAILED and deliver the event to restart_service, without waiting.
+
+    Returns once restart_service does: exhaustion and drop decisions have been made, but a
+    spawned restart episode may still be running (see restart_and_await).
+    """
+    service = watcher.get_service(event.payload.data.resource_name, event.payload.data.role)
+    assert service is not None, f"No service registered for {event.payload.data.resource_name}"
+    mark_failed(service)
+    await watcher.restart_service(event)
+
+
 async def restart_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
-    """Mark the service FAILED, call restart_service, and wait for the restart episode to end.
+    """Like restart_once, then wait for any restart episode it spawned to end.
 
     restart_service spawns the backoff+restart episode as a detached task and returns
     immediately. Tests that call restart_service sequentially need to wait for the
     in-restart flag to clear before the next call.
     """
     key = watcher.service_key(event.payload.data.resource_name, event.payload.data.role)
-    service = watcher.get_service(event.payload.data.resource_name, event.payload.data.role)
-    if service is not None:
-        mark_failed(service)
     was_restarting = key in watcher._restarting
-    await watcher.restart_service(event)
+    await restart_once(watcher, event)
     if not was_restarting and key in watcher._restarting:
         await wait_for(
             lambda: key not in watcher._restarting,

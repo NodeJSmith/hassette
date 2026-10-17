@@ -19,9 +19,9 @@ from .helpers import (
     budget_entries,
     crashed_events,
     isolated_watcher,
-    mark_failed,
     register_dummy_service,
     restart_and_await,
+    restart_once,
 )
 
 if TYPE_CHECKING:
@@ -37,9 +37,8 @@ async def exhaust_budget(watcher: ServiceWatcher, dummy: DummyServiceSetup, rest
     for _ in range(restarts):
         await restart_and_await(watcher, dummy.failed_event)
 
-    mark_failed(dummy.service)
     with EventCapture.capturing(watcher.hassette) as capture:
-        await watcher.restart_service(dummy.failed_event)
+        await restart_once(watcher, dummy.failed_event)
 
     return capture.events
 
@@ -107,8 +106,7 @@ async def test_permanent_exhaustion_triggers_shutdown(
         assert not hassette.shutdown_event.is_set(), "Should not shutdown until budget exhausted"
 
         # Exhaust budget (budget check is synchronous — no spawn needed)
-        mark_failed(dummy.service)
-        await watcher.restart_service(dummy.failed_event)
+        await restart_once(watcher, dummy.failed_event)
         assert hassette.shutdown_event.is_set()
 
 
@@ -129,8 +127,7 @@ async def test_permanent_exhaustion_records_fatal_reason(
 
         await restart_and_await(watcher, dummy.failed_event)
         await restart_and_await(watcher, dummy.failed_event)
-        mark_failed(dummy.service)
-        await watcher.restart_service(dummy.failed_event)  # exhausts → handle_exhaustion (PERMANENT, no spawn)
+        await restart_once(watcher, dummy.failed_event)  # exhausts → handle_exhaustion (PERMANENT, no spawn)
 
         assert hassette._fatal_shutdown_reason is not None
         assert dummy.service.class_name in hassette._fatal_shutdown_reason
@@ -217,8 +214,7 @@ async def test_cooldown_then_recovery(watcher: ServiceWatcher):
     await restart_and_await(watcher, dummy.failed_event)
 
     # Exhaust budget — should schedule cooldown task (budget check is synchronous)
-    mark_failed(dummy.service)
-    await watcher.restart_service(dummy.failed_event)
+    await restart_once(watcher, dummy.failed_event)
 
     assert dummy.key in watcher._cooldown_tasks
     cooldown_task = watcher._cooldown_tasks[dummy.key]

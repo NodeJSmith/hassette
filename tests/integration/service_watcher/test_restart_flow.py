@@ -7,7 +7,7 @@ import asyncio
 from typing import ClassVar
 from unittest.mock import patch
 
-from hassette_wire import ResourceStatus
+from hassette_wire import ResourceRole, ResourceStatus
 
 from hassette import context
 from hassette.core.service_watcher import ServiceWatcher
@@ -107,6 +107,7 @@ async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
     await on_running_and_await(watcher, make_service_running_event(dummy.service))
 
     assert budget_entries(watcher, dummy.key) == 0  # budget reset
+    assert dummy.key not in watcher._restarting  # in-restart cleared
 
 
 async def test_in_restart_guard_prevents_double_budget(watcher: ServiceWatcher):
@@ -180,30 +181,6 @@ async def test_shutdown_safe_sleep_aborts_on_shutdown(watcher: ServiceWatcher):
     assert dummy.calls["start"] == 0, "Service should not restart when shutdown is requested during backoff"
     # In-restart flag should be cleared
     assert dummy.key not in watcher._restarting
-
-
-async def test_budget_reset_on_recovery_confirmed(watcher: ServiceWatcher):
-    """Budget resets when service reaches RUNNING and signals readiness."""
-    context.PROTECT_TASK.set(False)
-    dummy = register_dummy_service(
-        watcher,
-        fail_times=1,
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        startup_timeout_seconds=1.0,
-    )
-
-    # Accumulate 2 restart attempts: the first fails, the second succeeds
-    await restart_and_await(watcher, dummy.failed_event)
-
-    assert budget_entries(watcher, dummy.key) == 2
-
-    # Mark the service ready, then fire RUNNING event — budget should reset
-    mark_ready(dummy.service, reason="test")
-    await on_running_and_await(watcher, make_service_running_event(dummy.service))
-
-    assert budget_entries(watcher, dummy.key) == 0  # budget.reset() was called
-    assert dummy.key not in watcher._restarting  # in-restart cleared
 
 
 async def test_readiness_timeout_no_budget_impact(watcher: ServiceWatcher):
@@ -332,7 +309,7 @@ async def test_late_failed_event_during_exhaustion_does_not_exhaust_twice(watche
     exhaustion_calls = 0
     late_event_delivered = False
 
-    async def dispatch_with_late_event(name, role, event) -> None:
+    async def dispatch_with_late_event(name: str, role: ResourceRole, event: HassetteServiceEvent) -> None:
         nonlocal late_event_delivered
         if not late_event_delivered:
             late_event_delivered = True
@@ -340,7 +317,7 @@ async def test_late_failed_event_during_exhaustion_does_not_exhaust_twice(watche
             await watcher.restart_service(dummy.failed_event)
         await real_dispatch(name, role, event)
 
-    async def counting_exhaustion(*args, **kwargs) -> None:
+    async def counting_exhaustion(*args: object, **kwargs: object) -> None:
         nonlocal exhaustion_calls
         exhaustion_calls += 1
         await real_exhaustion(*args, **kwargs)
@@ -372,10 +349,8 @@ async def test_bus_recovery_reconciliation(watcher: ServiceWatcher):
     """BusService restarts, another service is in FAILED state during blind window → reconciliation picks it up."""
     dummy = register_dummy_service(watcher, restart_type=RestartType.TRANSIENT, budget_intensity=5)
 
-    # Simulate the service being in FAILED state with no budget entry
-    # (as if FAILED event was dropped during BusService restart).
-    # Use ._status bypass — this is deliberate test fixture setup, not a lifecycle operation.
-    dummy.service._status = ResourceStatus.FAILED
+    # register_dummy_service leaves the service FAILED with no budget entry, as if its FAILED
+    # event was dropped during the BusService restart window.
     assert dummy.key not in watcher._budgets  # no budget entry — dropped during blind window
 
     # Run reconciliation
