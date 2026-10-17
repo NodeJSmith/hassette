@@ -34,8 +34,10 @@ import sys
 from pathlib import Path
 
 from lint_helpers import REPO_ROOT, git_changed_line_ranges, git_file_line_count_at, git_merge_base, git_renamed_from
+from pr_labels import apply_label_override
 
 HSL102_MESSAGE_RE = re.compile(r"^(\d+) lines \(threshold: (\d+)\)$")
+ALLOW_LABEL = "lint:file-size-allowed"
 
 
 class HouseLintError(RuntimeError):
@@ -129,7 +131,7 @@ def main() -> int:
             "touch aren't blocked here -- see the informational 'file-sizes' job for the full\n"
             "backlog."
         )
-        return 1
+        return apply_label_override(1, ALLOW_LABEL)
 
     print("OK: no file grew past the size threshold in this PR.")
     return 0

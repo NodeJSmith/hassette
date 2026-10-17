@@ -124,6 +124,7 @@ from lint_helpers import (
     iter_py_files,
     iter_ts_files,
 )
+from pr_labels import apply_label_override
 
 PMD_VERSION = "7.26.0"
 PMD_DIST_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/pmd-dist-{PMD_VERSION}-bin.zip"
@@ -136,6 +137,7 @@ TYPESCRIPT_SCAN_PATHS = ["frontend/src"]
 MIN_LINES = 5
 MIN_TOKENS = 20
 MIN_OCCURRENCES = 3
+ALLOW_LABEL = "lint:duplicate-code-allowed"
 MARKER_HEADER_LINES = 6
 
 DOWNLOAD_TIMEOUT_SECONDS = 30
@@ -727,7 +729,7 @@ def main() -> int:
         print(f"ERROR: malformed dup-ignore marker in merge-base tree ({merge_base}): {exc}")
         return 1
     introduced = new_code_violations(head_violations, base_cluster_counts, renames, REPO_ROOT)
-    return report_new_code_gate(introduced)
+    return apply_label_override(report_new_code_gate(introduced), ALLOW_LABEL)
 
 
 if __name__ == "__main__":

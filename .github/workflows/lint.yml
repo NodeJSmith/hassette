@@ -356,6 +356,10 @@ jobs:
         needs: changes
         if: needs.changes.outputs.python == 'true' || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            # `gh pr view` in the gate step reads the PR's labels.
+            pull-requests: read
         steps:
             - name: Checkout code
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -402,7 +406,12 @@ jobs:
               # push to main (which only happens via a PR merge, already gated once as a PR).
               # The script resolves the actual merge-base itself from these raw refs.
               if: github.event_name == 'pull_request'
+              # A failing result passes when the PR carries the script's ALLOW_LABEL; labels are
+              # read live via `gh pr view` (PR_NUMBER), not from the event payload, which a re-run
+              # reuses unchanged.
               env:
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  GH_TOKEN: ${{ github.token }}
                   BASE_SHA: ${{ github.event.pull_request.base.sha }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
               run: uv run python tools/check_file_size_regressions.py "$BASE_SHA" "$HEAD_SHA"
@@ -412,6 +421,10 @@ jobs:
         needs: changes
         if: needs.changes.outputs.python == 'true' || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            # `gh pr view` in the gate step reads the PR's labels.
+            pull-requests: read
         steps:
             - name: Checkout code
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -451,7 +464,12 @@ jobs:
             - name: Check duplicate code (new-code gate)
               # The script resolves the actual merge-base itself from these raw refs.
               if: github.event_name == 'pull_request'
+              # A failing result passes when the PR carries the script's ALLOW_LABEL; labels are
+              # read live via `gh pr view` (PR_NUMBER), not from the event payload, which a re-run
+              # reuses unchanged.
               env:
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  GH_TOKEN: ${{ github.token }}
                   BASE_SHA: ${{ github.event.pull_request.base.sha }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
               run: uv run python tools/check_duplicate_code.py --gate-new-code "$BASE_SHA" "$HEAD_SHA"
