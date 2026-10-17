@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-10
+Last reviewed: 2026-10-17
 
 ## How the pieces fit
 
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Start with the discovery spike (#2663) and the ingress base-path gate (#2664). Spans three repos: hassette, `hassette-addon` (new) and `hass-hassette` (NodeJSmith/hass-hassette#6, which a hassette milestone can't hold) |
+| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Start with the discovery spike (#2663) and the ingress base-path gate (#2664). Spans three repos: hassette, `hassette-addon` and `hass-hassette` (NodeJSmith/hass-hassette#6, which a hassette milestone can't hold). The add-on repo, release bump, install docs and discovery pairing (hass-hassette v0.2.0) have shipped; #2711 (service restart retry) is the last open issue. Close the milestone and move this row out when it lands |
 
 ## Next
 
@@ -61,15 +61,15 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | **Standalone CLI** | *Standalone CLI* (tracker #1540) | Needs #2386. Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the `wait_for` races (#2302, #2303, #2304, #2309). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
-| **HACS v0.2** | pool: #1449, #2439 (`epic:hacs`) | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439) |
+| **HACS app entities** | pool: #1449, #2439 (`epic:hacs`) | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439) |
 
 ## Later
 
 | Initiative | Milestone / pool | Blocked on / note |
 |---|---|---|
-| **HACS v0.3+** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store |
+| **HACS webhooks & templates** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store |
 | **DB as source of truth** | *DB as Source of Truth* | Design: `design/specs/132-db-source-of-truth/design.md`. #2695 lands first; the tail (WS invalidations, snapshot mode) is frontend-heavy. Makes the seed scripts servable to the UI |
-| **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS v0.2 app API) |
+| **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS app-entities API) |
 | **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
 | **Frontend quality & facelift** | pool: `area:ui` | Same. Rescope from scratch into a milestone with a Done-when if promoted. Individual UI *bugs* can still come in as interrupts |
 | **Feature ideas** | unlabeled `type:enhancement` | The icebox. Promote an idea by making it an initiative, not by starting it |
@@ -84,8 +84,8 @@ These are the only forced orderings. Anything not on a chain can go in any order
 #2448 naming + docs (126) ──> #2386 client transport ──> client release ──> hass-hassette v0.1 ──> #2506 pinned E2E
                                                      client release ──> #2485 cross-version CI
                          #2386 client transport ──> standalone CLI (#2387 ──> #2388)
-hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks
-#2663 discovery spike ──> #2671 add-on announce + hass-hassette#6 discovery pairing (pulled forward from HACS v0.4)
+hass-hassette v0.1 ──> HACS app entities ──> HACS webhooks
+#2663 discovery spike ──> #2671 add-on announce + hass-hassette#6 discovery pairing (pulled forward from a later HACS release; shipped as hass-hassette v0.2.0)
 #2664 ingress base-path e2e ──> #2672 hassette-addon repo
 #2665, #2666, #2667 ──> #2669 add-on image ──> #2670 DB backup, #2671 announce, #2673 release bump
 testing redesign + all breaking changes ──> v1.0 tag
