@@ -205,6 +205,48 @@ async def test_non_retryable_error_from_restart_attempt_ends_episode(watcher: Se
     assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
 
 
+async def test_episode_failed_event_with_non_retryable_error_is_not_routed_twice(watcher: ServiceWatcher):
+    """The attempt's own FAILED event, carrying a non-retryable error and delivered while the
+    episode is still routing that same failure (service still FAILED), is dropped by the
+    in-restart guard instead of being routed a second time.
+    """
+    dummy = register_dummy_service(
+        watcher,
+        fail_times=ALWAYS_FAIL,
+        restart_type=RestartType.TEMPORARY,
+        budget_intensity=5,
+        non_retryable_error_names=("RuntimeError",),
+    )
+    attempt_event = make_service_failed_event(dummy.service, exception=RuntimeError("initialize failed"))
+    real_dispatch = watcher.dispatch_status_event_best_effort
+    real_exhaustion = watcher.handle_exhaustion
+    exhaustion_calls = 0
+    late_event_delivered = False
+
+    async def dispatch_with_late_event(name: str, role: ResourceRole, event: HassetteServiceEvent) -> None:
+        nonlocal late_event_delivered
+        if not late_event_delivered:
+            late_event_delivered = True
+            assert dummy.service.status == ResourceStatus.FAILED, "precondition: status not yet moved on"
+            await watcher.restart_service(attempt_event)
+        await real_dispatch(name, role, event)
+
+    async def counting_exhaustion(*args: object, **kwargs: object) -> None:
+        nonlocal exhaustion_calls
+        exhaustion_calls += 1
+        await real_exhaustion(*args, **kwargs)
+
+    with (
+        patch.object(watcher, "dispatch_status_event_best_effort", side_effect=dispatch_with_late_event),
+        patch.object(watcher, "handle_exhaustion", side_effect=counting_exhaustion),
+    ):
+        await restart_and_await(watcher, dummy.failed_event)
+
+    assert late_event_delivered
+    assert exhaustion_calls == 1, "The episode-owned FAILED event must not route the failure again"
+    assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
+
+
 async def test_fatal_error_from_restart_attempt_triggers_shutdown(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
 ):
