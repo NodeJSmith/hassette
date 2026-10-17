@@ -14,7 +14,7 @@ Tests verify:
 import time
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.commands import InvokeHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
@@ -22,7 +22,7 @@ from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.factories import make_mock_listener
 from tests.support.helpers import create_listener
 
-from .conftest import pop_execution_record
+from .conftest import execute_job_and_pop_record, pop_execution_record
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
@@ -385,18 +385,7 @@ async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
     async def _callable() -> None:
         pass
 
-    cmd = ExecuteJob(
-        job=job,
-        callable=_callable,
-        job_db_id=55,
-        source_tier="app",
-        effective_timeout=None,
-    )
-
-    await executor.execute(cmd)
-
-    record = pop_execution_record(executor)
-    assert record.kind == "job"
+    record = await execute_job_and_pop_record(executor, job, _callable, job_db_id=55)
     assert record.job_id == 55
     assert record.status == "success"
     assert record.source_tier == "app"
@@ -410,17 +399,6 @@ async def test_pre_registration_job_produces_orphan_record(executor: CommandExec
     async def _callable() -> None:
         pass
 
-    cmd = ExecuteJob(
-        job=job,
-        callable=_callable,
-        job_db_id=None,
-        source_tier="app",
-        effective_timeout=None,
-    )
-
-    await executor.execute(cmd)
-
-    record = pop_execution_record(executor)
-    assert record.kind == "job"
+    record = await execute_job_and_pop_record(executor, job, _callable, job_db_id=None)
     assert record.job_id is None
     assert record.status == "success"

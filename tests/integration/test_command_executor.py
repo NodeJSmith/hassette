@@ -22,7 +22,13 @@ from tests.support.factories import (
     make_mock_listener,
 )
 
-from .conftest import invoke_cmd, make_mock_job, pop_execution_record, pop_user_timeout_error_record
+from .conftest import (
+    execute_job_and_pop_record,
+    invoke_cmd,
+    make_mock_job,
+    pop_execution_record,
+    pop_user_timeout_error_record,
+)
 
 
 def queue_record(
@@ -303,11 +309,7 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
     job = make_mock_job()
     callable_mock = AsyncMock(return_value=None)
 
-    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
-    await executor.execute(cmd)
-
-    record = pop_execution_record(executor)
-    assert record.kind == "job"
+    record = await execute_job_and_pop_record(executor, job, callable_mock, job_db_id=42)
     assert record.status == "success"
     assert record.job_id == 42
     assert record.duration_ms >= 0
@@ -318,11 +320,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     job = make_mock_job()
     callable_mock = AsyncMock(side_effect=RuntimeError("job failed"))
 
-    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
-    await executor.execute(cmd)
-
-    record = pop_execution_record(executor)
-    assert record.kind == "job"
+    record = await execute_job_and_pop_record(executor, job, callable_mock, job_db_id=42)
     assert record.status == "error"
     assert record.error_type == "RuntimeError"
     assert record.error_message == "job failed"

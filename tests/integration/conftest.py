@@ -12,7 +12,7 @@ import pytest
 from hassette_wire import ExecutionMode
 
 from hassette import Hassette
-from hassette.commands import InvokeHandler
+from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.config.config import HassetteConfig
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
@@ -204,6 +204,17 @@ def pop_execution_record(executor: CommandExecutor) -> ExecutionRecord:
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
     assert isinstance(record, ExecutionRecord)
+    return record
+
+
+async def execute_job_and_pop_record(
+    executor: CommandExecutor, job: Any, func: Callable[..., Any], *, job_db_id: int | None
+) -> ExecutionRecord:
+    """Execute an app-tier ``ExecuteJob`` for ``job`` and pop the ``kind="job"`` record it queued."""
+    cmd = ExecuteJob(job=job, callable=func, job_db_id=job_db_id, source_tier="app", effective_timeout=None)
+    await executor.execute(cmd)
+    record = pop_execution_record(executor)
+    assert record.kind == "job"
     return record
 
 
