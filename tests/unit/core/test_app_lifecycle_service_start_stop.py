@@ -14,9 +14,9 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
-from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.testing import EventCapture
 from hassette.types import Topic
+from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
 
 
@@ -225,7 +225,7 @@ class TestStartApp:
         event_capture.install(mock_hassette)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_running_apps = Mock(return_value={})
-        pruned_info = AppInstanceInfo(
+        pruned_info = make_app_instance_info(
             app_key="test_app",
             index=2,
             instance_name="test_app.2",
@@ -268,7 +268,7 @@ class TestStartApp:
         event_capture.install(mock_hassette)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_running_apps = Mock(return_value={})
-        failure_info = AppInstanceInfo(
+        failure_info = make_app_instance_info(
             app_key="test_app",
             index=0,
             instance_name="test_app.0",
@@ -451,7 +451,7 @@ class TestStopApp:
         where the running instances stopped cleanly and correctly emitted their own events.
         """
         event_capture.install(mock_hassette)
-        failed_info = AppInstanceInfo(
+        failed_info = make_app_instance_info(
             app_key="mixed_app",
             index=1,
             instance_name="mixed_app.1",

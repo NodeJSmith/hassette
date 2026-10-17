@@ -16,7 +16,6 @@ from hassette_wire import (
 )
 from pydantic import ValidationError
 
-from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.web.mappers import (
@@ -26,24 +25,13 @@ from hassette.web.mappers import (
     listener_summary_from,
     readiness_response_from,
 )
-from tests.support.web_manifest_helpers import make_full_snapshot, make_manifest
+from tests.support.web_manifest_helpers import make_app_instance_info, make_full_snapshot, make_manifest
 from tests.support.web_telemetry_helpers import make_listener_summary_row
-
-
-def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstanceInfo:
-    return AppInstanceInfo(
-        app_key=app_key,
-        index=index,
-        instance_name=f"{app_key}.{index}",
-        class_name="MyApp",
-        status=status,
-        error=Exception("boom") if status == ResourceStatus.FAILED else None,
-    )
 
 
 def test_app_instance_from_copies_all_fields():
     """Every AppInstance field is copied from the source AppInstanceInfo by name."""
-    info = AppInstanceInfo(
+    info = make_app_instance_info(
         app_key="app_a",
         index=2,
         instance_name="app_a.2",
@@ -69,7 +57,12 @@ def test_app_instance_from_copies_all_fields():
 
 def test_app_instance_from_ignores_source_error_attribute():
     """The source's ``error`` Exception attribute has no AppInstance field and is dropped."""
-    info = dataclasses.replace(make_instance("app_a", 0, ResourceStatus.FAILED), error=ValueError("kaboom"))
+    info = dataclasses.replace(
+        make_app_instance_info(
+            app_key="app_a", index=0, instance_name="app_a.0", status=ResourceStatus.FAILED, error=Exception("boom")
+        ),
+        error=ValueError("kaboom"),
+    )
 
     result = app_instance_from(info)
 
@@ -95,8 +88,8 @@ def test_listener_summary_row_fields_are_subset_of_wire_model():
 
 def test_app_list_response_from_builds_nested_instances():
     """Verify nested AppInstance objects are built correctly."""
-    inst0 = make_instance("app_a", 0, ResourceStatus.RUNNING)
-    inst1 = make_instance("app_a", 1, ResourceStatus.RUNNING)
+    inst0 = make_app_instance_info(app_key="app_a", index=0, instance_name="app_a.0", status=ResourceStatus.RUNNING)
+    inst1 = make_app_instance_info(app_key="app_a", index=1, instance_name="app_a.1", status=ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
     full = make_full_snapshot([manifest])
 
@@ -114,7 +107,7 @@ def test_app_list_response_from_builds_nested_instances():
 
 def test_app_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
-    inst = make_instance("app_a", 0, ResourceStatus.RUNNING)
+    inst = make_app_instance_info(app_key="app_a", index=0, instance_name="app_a.0", status=ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst], instance_count=1)
     full = make_full_snapshot([manifest])
 
