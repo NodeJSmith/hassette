@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Spans three repos: hassette, `hassette-addon` and `hass-hassette`. All the code has shipped, including discovery pairing in hass-hassette v0.2.0, except #2711 (service restart retry). The design's `## Build` checklist still has unchecked real-HAOS verifications (STARTUP held until HEALTHCHECK passes, direct-port proxy trust, clean exit, ingress WebSocket) and the ship-time challenge. When #2711 has landed and those are checked off or explicitly dropped, close #71 and the milestone and promote the first Next row |
+| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Spans three repos: hassette, `hassette-addon` and `hass-hassette`. All the code has shipped, including discovery pairing in hass-hassette v0.2.0, except #2711 (service restart retry). When it lands, close #71 and the milestone and promote the first Next row |
 
 ## Next
 
