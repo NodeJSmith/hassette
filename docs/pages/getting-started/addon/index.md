@@ -49,15 +49,13 @@ On first start, the log includes these lines. Your timestamps differ, and you ca
 ```text
 The config folder is empty; adding a starter hassette.toml and an example app
 Port mappings: none (ingress only)
-2026-10-17T08:19:58.690526 [info     ] Generated new web API auth_token, written to /config/.web_api_token. Open http://127.0.0.1:8126 to log in. [hassette.web.auth.tokens] execution_id=None
+2026-10-17T08:19:58.690526 [info     ] Generated new web API auth_token, written to /config/.web_api_token. Open Hassette from the Home Assistant sidebar or the add-on's "Open Web UI" button; the token is only needed for the hassette CLI or a published port. [hassette.web.auth.tokens] execution_id=None
 2026-10-17T08:19:58.690609 [info     ] Hassette is running.           [hassette] execution_id=None
 2026-10-17T08:19:58.690670 [info     ] Hello from Hassette! Edit example_app.py in the apps folder of the add-on's config folder. [hassette.ExampleApp.0] execution_id=None
 Announced hassette to Home Assistant; the hassette integration can now be set up from its Discovered card
 ```
 
 The first line means the add-on filled your empty config folder with starter files. It added a `hassette.toml` and an `apps/` folder holding one example app. If the folder already holds files, the add-on writes nothing. The announce line can land before or after the app's greeting.
-
-Ignore the `Open http://127.0.0.1:8126` part of the token line. The sidebar serves the UI, so you don't log in at that address. The log never prints the token itself. You need it only for the direct port or the `hassette` CLI; see [Web API Token](configuration.md#web-api-token) to find it.
 
 Home Assistant's own login covers the web UI, so Hassette has no separate login. The sidebar entry shows for admin users only, so sign in as an admin if you don't see it. See [Web UI and Direct Port](configuration.md#web-ui-and-direct-port) for access details.
 

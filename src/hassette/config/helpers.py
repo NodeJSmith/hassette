@@ -46,6 +46,15 @@ def get_dev_mode() -> bool:
     return enabled
 
 
+def is_addon_runtime() -> bool:
+    """Whether hassette runs as the Home Assistant add-on.
+
+    ``docker/addon/run.sh`` exports ``HASSETTE_DOCKER_RUNTIME=addon``. ``SUPERVISOR_TOKEN`` is not
+    used because other Supervisor-managed containers also have it.
+    """
+    return os.environ.get("HASSETTE_DOCKER_RUNTIME") == "addon"
+
+
 def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | set[Path] | None) -> set[Path]:
     """Filter the provided paths to only include unique existing paths.
 

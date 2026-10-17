@@ -25,7 +25,7 @@ TOKEN_BYTE_LENGTH = 32
 """Byte length passed to ``secrets.token_urlsafe()`` when generating a fresh token."""
 
 
-def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
+def resolve_auth_token(config: WebApiConfig, data_dir: Path, *, addon_runtime: bool) -> str:
     """Resolve the web API's bearer-token/session-cookie credential.
 
     Tries, in order:
@@ -57,6 +57,9 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
         data_dir: Directory holding the default token file when ``config.token_file`` is
             unset. Callers pass ``HassetteConfig.data_dir`` — this function does not
             resolve it itself.
+        addon_runtime: Whether hassette runs as the Home Assistant add-on. Selects the
+            generate-branch log line; see :func:`token_generated_message`. Callers detect
+            it — this function never reads the environment.
 
     Returns:
         The plaintext token, unwrapped from ``SecretStr`` when it came from config.
@@ -88,12 +91,23 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
     token = secrets.token_urlsafe(TOKEN_BYTE_LENGTH)
     _write_token_atomic(token_path, token)
     login_url = f"http://{format_host(config.host)}:{config.port}"
-    LOGGER.info(
-        "Generated new web API auth_token, written to %s. Open %s to log in.",
-        token_path,
-        login_url,
-    )
+    LOGGER.info(token_generated_message(token_path, login_url, addon_runtime=addon_runtime))
     return token
+
+
+def token_generated_message(token_path: Path, login_url: str, *, addon_runtime: bool) -> str:
+    """The log line announcing a freshly generated token.
+
+    Under the add-on, ``login_url`` is unreachable (ingress only, no port mappings), so the
+    line points at the sidebar and "Open Web UI" button instead.
+    """
+    if addon_runtime:
+        return (
+            f"Generated new web API auth_token, written to {token_path}. Open Hassette from the Home Assistant "
+            'sidebar or the add-on\'s "Open Web UI" button; the token is only needed for the hassette CLI '
+            "or a published port."
+        )
+    return f"Generated new web API auth_token, written to {token_path}. Open {login_url} to log in."
 
 
 def web_api_token_path(config: WebApiConfig, data_dir: Path) -> Path:
