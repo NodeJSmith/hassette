@@ -14,9 +14,12 @@ Run `hassette app` to see each app's key and display name. Every app device show
 
 ## Prerequisites
 
-- **Hassette 0.56.0 or newer**, running where Home Assistant can reach its web API over the network. Hassette does not run as a Home Assistant add-on, so it runs on another machine or in its own container.
+- **Hassette 0.56.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
 - **HACS** installed in Home Assistant.
 - **Home Assistant 2026.9 or newer**.
+
+!!! tip "Running the Hassette add-on?"
+    Do step 1 below, then skip steps 2 and 3. The add-on announces itself, so Home Assistant shows a **Discovered** Hassette card under **Settings → Devices & services**. Choose **Configure** and confirm; the add-on supplies the address and token. See [Add-on Setup](addon/index.md#step-5-pair-the-integration).
 
 ## Step 1: Add the Repository in HACS
 

@@ -1,0 +1,4 @@
+log_level: DEBUG
+python_packages:
+  - requests
+  - httpx>=0.27

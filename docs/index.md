@@ -72,7 +72,7 @@ You need Python 3.11+ and [uv](https://docs.astral.sh/uv/getting-started/install
 --8<-- "pages/getting-started/snippets/install.sh"
 ```
 
-The [Quickstart](pages/getting-started/index.md) takes you from an empty directory to a running app, including creating the Home Assistant token. To run Hassette in a container, see [Docker Setup](pages/getting-started/docker/index.md). Not sure Hassette fits? Read [Is Hassette Right for You?](pages/getting-started/is-hassette-right-for-you.md)
+The [Quickstart](pages/getting-started/index.md) takes you from an empty directory to a running app, including creating the Home Assistant token. To run Hassette in a container, see [Docker Setup](pages/getting-started/docker/index.md). On Home Assistant OS or Supervised, the [Hassette add-on](pages/getting-started/addon/index.md) runs it next to Home Assistant. Not sure Hassette fits? Read [Is Hassette Right for You?](pages/getting-started/is-hassette-right-for-you.md)
 
 ## Coming from AppDaemon?
 

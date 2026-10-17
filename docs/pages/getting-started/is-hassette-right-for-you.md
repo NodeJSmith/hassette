@@ -39,7 +39,7 @@ Hassette does not replace Home Assistant integrations, dashboards, or add-ons. I
 
 **Python 3.11 or later.** Hassette uses modern Python features and will not run on older versions.
 
-**A machine to run the process.** Hassette runs outside Home Assistant. The same box works fine, or you can run it in Docker. It does not run as a Home Assistant add-on yet. The [Docker Setup guide](docker/index.md) covers the recommended path.
+**A place to run the process.** On Home Assistant OS or Supervised, the [Hassette add-on](addon/index.md) runs it next to Home Assistant, with no token to create. Anywhere else, Hassette runs as its own process, on the same box or another one. The [Docker Setup guide](docker/index.md) covers that path.
 
 **A long-lived access token.** Hassette connects to Home Assistant via a token (one that does not expire) you generate in your HA profile settings (Profile → Security → Long-Lived Access Tokens). It needs read and write access to call services and read state.
 

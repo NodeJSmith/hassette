@@ -32,7 +32,7 @@ My time goes to the parts an agent can't own:
 - Tooling. When a mistake shows up twice, I add a linter or a check so it gets caught automatically next time. My [Claude Code setup](https://github.com/NodeJSmith/Claudefiles) grew out of building Hassette, and it improves every time Hassette exposes a gap in it.
 - Research. Before a design decision, I look at how other projects solved the same problem.
 - The backlog. An autofix pipeline turns small, well-specified issues into pull requests without me supervising each one, so simple fixes don't pile up. Its pull requests go through the same checks as everything else.
-- What's next. The [Home Assistant integration](getting-started/home-assistant-integration.md) is early and will do much more, and a [Home Assistant app](https://github.com/NodeJSmith/hassette-addon) (formerly add-on) will run Hassette on Home Assistant OS.
+- What's next. The [Home Assistant integration](getting-started/home-assistant-integration.md) is early and will do much more. The [Home Assistant add-on](getting-started/addon/index.md), which runs Hassette on Home Assistant OS, is new too.
 
 I think about Hassette constantly, and I'm proud of it.
 
