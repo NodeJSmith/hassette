@@ -1,6 +1,7 @@
 # hassette.toml
 [hassette.database]
 path = "/path/to/hassette.db"   # default: {data_dir}/hassette.db
+shutdown_snapshot_path = "/backups/hassette.db"  # default: unset (no copy)
 retention_days = 30             # default: 30 (minimum: 1)
 framework_retention_days = 30   # default: 30 (must be <= retention_days)
 max_size_mb = 500               # default: 500 (live data, not file size; 0 = no size limit)

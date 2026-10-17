@@ -1,4 +1,4 @@
-"""aiosqlite lifecycle helpers: daemon-thread connection opening and async/sync teardown."""
+"""aiosqlite lifecycle helpers: daemon-thread connection opening, async/sync teardown, and deleting database files."""
 
 import asyncio
 import logging
@@ -180,3 +180,10 @@ async def _join_worker_thread_or_cancellation(
             CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS,
         )
     return None
+
+
+def delete_db_files(db_path: Path) -> None:
+    """Delete a SQLite database file and its ``-wal``/``-shm`` sidecars, ignoring any that are missing."""
+    db_path.unlink(missing_ok=True)
+    for suffix in ("-wal", "-shm"):
+        Path(str(db_path) + suffix).unlink(missing_ok=True)

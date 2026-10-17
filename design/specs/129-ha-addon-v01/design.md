@@ -536,7 +536,7 @@ inline. Only the telemetry DB has options worth a table.
   and D4's offline fallback has something to install from (per-start pruning is off, D4). `backup_exclude` keeps it out of backups. Behavior
   to pin: a backup contains no uv cache files.
 - **Telemetry DB:** the table below. The DB at `/data/hassette.db` runs in WAL mode
-  (`src/hassette/core/database_service.py:445`). Supervisor's default `backup: hot` tars `/data` while
+  (`set_pragmas()` in `src/hassette/core/database_service.py`). Supervisor's default `backup: hot` tars `/data` while
   hassette writes, so the main file and `-wal` can be captured at different moments and restore torn. The DB
   matters to users now and will matter more, so dropping it from backups isn't the answer.
 
@@ -550,7 +550,8 @@ inline. Only the telemetry DB has options worth a table.
 
 **Recommendation (telemetry DB):** D. It is the only option that keeps history, restores consistently, and leaves
 automations running. The snapshot command is a short glue script using the venv's Python `sqlite3`, run inside
-the container by `backup_pre` (Assumed), so hassette gains no add-on code.
+the container by `backup_pre` (Assumed), so hassette gains no add-on code. (Superseded in part: see the
+2026-10-16 D10 addendum.)
 
 Behavior to pin for D:
 
@@ -975,3 +976,25 @@ hand against Supervisor 2026.10.1's schemas and options validator, which reject 
 (`--extra-index-url`, `-r`), VCS URLs, and environment markers with quoted values.
 `backup_pre` names `/app/docker/addon/backup_pre.sh`, so the variant image (#2669) must put #2670's snapshot
 script at that path; today's `Dockerfile` copies no `docker/` directory.
+
+**2026-10-16 — D10 snapshot mechanics settled; failure policy and stopped backups changed (#2670).** Prior
+art: `design/research/2026-10-16-addon-sqlite-backup-snapshot/prior-art.md`. Four add-ons
+(OpenAmpere, HomeHoard, Alarm Actions, ClearVenue) independently use this option D shape; the popular SQLite
+add-ons take hot backups with no hook.
+
+- **Confirmed from Supervisor source** (`supervisor/apps/app.py`, `backups/backup.py`): a restore deletes the
+  add-on's data folder before extracting, so "live DB missing" reliably means a restore happened; and a
+  non-zero `backup_pre` drops only this add-on from that backup, `/config` included, while the rest completes.
+- **Failure exits 1, not 0.** The database is becoming hassette's source of truth, so a backup silently
+  carrying an older snapshot is the worse failure. Supervisor logs hook output only at debug level, so
+  `backup_pre.sh` also writes the reason to the add-on log. The failed backup shows "Failed apps" on its
+  details page, and an automatic backup raises a repair issue.
+- **Stopped add-on:** Supervisor runs no hook for a stopped add-on, so hassette writes the snapshot itself on
+  clean shutdown (`database.shutdown_snapshot_path`, pinned by `run.sh` to the snapshot path). A backup
+  taken while stopped then holds the database as of the stop. No surveyed add-on does this; HomeHoard covers
+  the case by shipping the live files plus a write freeze during backups, which needs more hassette code.
+  This adds a small hassette setting, which the earlier "hassette gains no add-on code" did not foresee.
+- **Mechanics:** SQLite's online backup API in one step (`hassette.core.database_snapshot`), written to
+  `hassette-snapshot.db.tmp` and renamed, with any leftover temp removed first. Restore deletes leftover
+  `-wal`/`-shm` before placing the snapshot and keeps the snapshot on disk. There is no `backup_post` and no
+  integrity check.

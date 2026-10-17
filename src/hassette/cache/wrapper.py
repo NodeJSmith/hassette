@@ -26,6 +26,7 @@ from hassette.utils.aiosqlite_utils import (
     CHECKPOINT_TRUNCATE_SQL,
     close_connection_pair,
     connect_daemon,
+    delete_db_files,
     stop_connection_sync,
 )
 
@@ -112,7 +113,7 @@ class AsyncCache:
             )
             with contextlib.suppress(Exception):
                 await self._close_connections()
-            self._delete_db_files()
+            delete_db_files(self.db_path)
             await self._open_connections()
             await self._run_schema()
             await self._check_integrity()
@@ -151,11 +152,6 @@ class AsyncCache:
         cancellation mechanics.
         """
         await close_connection_pair(self, self.CONN_ATTRS, logger)
-
-    def _delete_db_files(self) -> None:
-        self.db_path.unlink(missing_ok=True)
-        for suffix in ("-wal", "-shm"):
-            Path(str(self.db_path) + suffix).unlink(missing_ok=True)
 
     async def _delete_stale(self, key: str, value_blob: bytes) -> None:
         """Delete a cache row only if it still holds the observed value blob.

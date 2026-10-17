@@ -13,6 +13,7 @@ from hassette_wire import LogLevel
 from hassette.config.models import DatabaseConfig
 from hassette.core.database_failsafe import DatabaseSizeFailsafeMixin
 from hassette.core.database_retention import DatabaseRetentionMixin
+from hassette.core.database_snapshot import write_snapshot
 from hassette.core.database_sql import SQL_BEGIN, safe_rollback
 from hassette.core.database_write_queue import (
     DatabaseWriteQueueMixin,
@@ -27,7 +28,12 @@ from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, 
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
-from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
+from hassette.utils.aiosqlite_utils import (
+    close_connection_pair,
+    connect_daemon,
+    delete_db_files,
+    stop_connection_sync,
+)
 from hassette.utils.service_utils import cancel_and_drain
 
 if typing.TYPE_CHECKING:
@@ -321,7 +327,9 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 size_failsafe_attempt = CleanupAttempt(attempted_at=time.monotonic(), enqueued=enqueued)
 
     async def on_shutdown(self) -> None:
-        """Drain the write queue, cancel the worker, then close the database connection."""
+        """Drain the write queue, cancel the worker, close the database connections, then write the shutdown
+        snapshot if one is configured.
+        """
         queue: asyncio.Queue[_WriteQueueItem] | None = None
         try:
             if self._db_worker_task is not None:
@@ -337,7 +345,31 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
             self.close_remaining_queue_items(queue)
-            await self.close_connections()
+            try:
+                await self.close_connections()
+            finally:
+                await self.write_shutdown_snapshot()
+
+    async def write_shutdown_snapshot(self) -> None:
+        """Write ``database.shutdown_snapshot_path`` at the end of shutdown, after the drain and close are attempted.
+
+        Runs even when draining or closing failed, so the snapshot then holds every write that committed. A
+        failure is logged, never raised: shutdown carries on, and the previous snapshot stays in place. The copy
+        runs in a worker thread with no deadline, because a thread can't be cancelled mid-copy; a process killed
+        during it leaves the previous snapshot intact.
+        """
+        snapshot_path = self.hassette.config.database.shutdown_snapshot_path
+        if snapshot_path is None:
+            return
+        try:
+            written = await asyncio.to_thread(write_snapshot, self._db_path, snapshot_path)
+        except (sqlite3.Error, OSError):
+            self.logger.exception("Couldn't write the shutdown snapshot to %s", snapshot_path)
+            return
+        if written:
+            self.logger.info("Wrote the shutdown snapshot to %s", snapshot_path)
+        else:
+            self.logger.debug("No database at %s; skipped the shutdown snapshot", self._db_path)
 
     async def close_connections(self) -> None:
         """Close both database connections. Idempotent -- safe to call multiple times.
@@ -612,10 +644,3 @@ def maintenance_deadlines(
         retention_attempt.next_due(config.retention_interval_seconds, retry_interval=retry),
         size_failsafe_attempt.next_due(config.size_failsafe_interval_seconds, retry_interval=retry),
     )
-
-
-def delete_db_files(db_path: Path) -> None:
-    """Delete a SQLite database file and its ``-wal``/``-shm`` sidecars, ignoring any that are missing."""
-    db_path.unlink(missing_ok=True)
-    for suffix in ("-wal", "-shm"):
-        Path(str(db_path) + suffix).unlink(missing_ok=True)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The Home Assistant add-on's entrypoint (design/specs/129-ha-addon-v01/design.md, D4). It seeds an empty
-# config folder, pins the settings the add-on owns, maps the add-on options, then hands off to the image's
-# own docker_start.sh. Values hassette resolves itself (config locations, the token's contents) are never
+# config folder, pins the settings the add-on owns, restores the database after a backup restore, maps the
+# add-on options, then hands off to the image's own docker_start.sh. Values hassette resolves itself (config locations, the token's contents) are never
 # computed here.
 
 set -euo pipefail
@@ -60,6 +60,15 @@ export HASSETTE__WEB_API__RUN_UI=true
 export HASSETTE__WEB_API__AUTH_ENABLED=true
 export HASSETTE__WEB_API__TOKEN_FILE=/config/.web_api_token
 export HASSETTE__DATABASE__PATH=/data/hassette.db
+export HASSETTE__DATABASE__SHUTDOWN_SNAPSHOT_PATH=/data/backup/hassette-snapshot.db
+
+# Backups exclude the live database files and carry the snapshot backup_pre.sh (or the last clean stop) wrote.
+# A restore empties /data first, so a missing database beside a snapshot means one just happened; the
+# snapshot becomes the database (D10).
+"${VENV_PYTHON}" -m hassette.core.database_snapshot_cli restore \
+    "${HASSETTE__DATABASE__PATH}" "${HASSETTE__DATABASE__SHUTDOWN_SNAPSHOT_PATH}" \
+    || addon_halt "couldn't restore the database from the backup's snapshot" \
+        "Restart the add-on from its page; if that doesn't help, report it at ${ISSUES_URL}"
 
 # Add-on options (D9). Supervisor validates them against config.yaml's schema before the start, and the
 # image has no jq, so the venv's Python prints them as shell-quoted assignments.
