@@ -1,11 +1,13 @@
 """Shared helpers for bus integration tests."""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock
 
 from hassette.events import RawStateChangeEvent
+from hassette.events.base import Event
 from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict, wait_for
 
 if TYPE_CHECKING:
@@ -187,6 +189,38 @@ async def send_live_event_and_wait_drain(
     event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
     await hassette.send_event(event)
     await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
+
+
+async def send_through_mock_executor(
+    harness: HassetteHarness,
+    topic: str,
+    handled: asyncio.Event,
+    *,
+    payloads: Sequence[str] = ("test-payload",),
+    drained: Callable[[], bool] | None = None,
+    drained_desc: str = "dispatch drained",
+) -> MagicMock:
+    """Reset the bus executor mock, send one ``Event`` per payload on ``topic``, and wait for dispatch.
+
+    Returns the executor's ``execute`` mock for the caller's assertions. The ``reset_mock()`` runs
+    after the caller registers its listener and before any event is sent: ``hassette_with_bus`` is
+    module-scoped, so without it ``execute`` would still carry calls from earlier tests in the file.
+    Waits for the handler to set ``handled`` (1s timeout), then, if ``drained`` is given, for that
+    predicate too. The drain conditions in use (``not task_bucket.pending_tasks()``,
+    ``len(task_bucket) == 0``, ``execute.called``) are not interchangeable, so each call site passes
+    its own rather than this helper picking one. Pass several ``payloads`` to send a rapid burst for
+    debounce/throttle tests.
+    """
+    execute = harness.bus_service._executor.execute
+    execute.reset_mock()
+
+    for payload in payloads:
+        await harness.send_event(Event(topic=topic, payload=payload))
+
+    await asyncio.wait_for(handled.wait(), timeout=1.0)
+    if drained is not None:
+        await wait_for(drained, desc=drained_desc)
+    return execute
 
 
 async def pump_event_loop() -> None:
