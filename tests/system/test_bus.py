@@ -8,7 +8,13 @@ from hassette.events import RawStateChangeEvent
 from hassette.testing import wait_for
 from tests.support.helpers import entity_topic
 
-from .conftest import SHUTDOWN_TIMEOUT, make_system_config, startup_context, toggle_and_capture
+from .conftest import (
+    SHUTDOWN_TIMEOUT,
+    make_event_collector,
+    make_system_config,
+    startup_context,
+    toggle_and_capture,
+)
 
 pytestmark = [pytest.mark.system]
 
@@ -33,10 +39,7 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path) -> No
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         api = hassette.api
 
-        received: list[RawStateChangeEvent] = []
-
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
+        received, capture = make_event_collector(RawStateChangeEvent)
 
         # Set a known starting state BEFORE registering the handler
         await api.call_service(DOMAIN, "turn_on", {"entity_id": ENTITY}, brightness=50)
@@ -50,7 +53,7 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path) -> No
             desc="brightness settled to 50",
         )
 
-        sub = await bus.on_attribute_change(ENTITY, "brightness", handler=_capture, name="brightness_change")
+        sub = await bus.on_attribute_change(ENTITY, "brightness", handler=capture, name="brightness_change")
         assert sub.listener.db_id is not None
 
         # Change brightness to a distinctly different value — guaranteed attribute change
@@ -72,12 +75,9 @@ async def test_glob_pattern_matching(ha_container: str, tmp_path) -> None:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         api = hassette.api
 
-        received: list[RawStateChangeEvent] = []
+        received, capture = make_event_collector(RawStateChangeEvent)
 
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
-
-        sub = await bus.on_state_change("light.*", handler=_capture, name="glob_light")
+        sub = await bus.on_state_change("light.*", handler=capture, name="glob_light")
         assert sub.listener.db_id is not None
 
         await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
@@ -98,12 +98,9 @@ async def test_changed_to_predicate(ha_container: str, tmp_path) -> None:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         api = hassette.api
 
-        received: list[RawStateChangeEvent] = []
+        received, capture = make_event_collector(RawStateChangeEvent)
 
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
-
-        await bus.on_state_change(ENTITY, changed_to="on", handler=_capture, name="changed_to_on")
+        await bus.on_state_change(ENTITY, changed_to="on", handler=capture, name="changed_to_on")
 
         # Ensure a known starting state — light is off
         await api.call_service(DOMAIN, "turn_off", {"entity_id": ENTITY})
@@ -138,12 +135,9 @@ async def test_debounce(ha_container: str, tmp_path) -> None:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         api = hassette.api
 
-        received: list[RawStateChangeEvent] = []
+        received, capture = make_event_collector(RawStateChangeEvent)
 
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
-
-        await bus.on_state_change(ENTITY, handler=_capture, debounce=1.0, name="debounce_handler")
+        await bus.on_state_change(ENTITY, handler=capture, debounce=1.0, name="debounce_handler")
 
         # Toggle 3 times rapidly — debounce window resets each time
         for _ in range(3):
@@ -170,12 +164,9 @@ async def test_throttle(ha_container: str, tmp_path) -> None:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         api = hassette.api
 
-        received: list[RawStateChangeEvent] = []
+        received, capture = make_event_collector(RawStateChangeEvent)
 
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
-
-        await bus.on_state_change(ENTITY, handler=_capture, throttle=2.0, name="throttle_handler")
+        await bus.on_state_change(ENTITY, handler=capture, throttle=2.0, name="throttle_handler")
 
         # Toggle 3 times with 0.3s gaps — all within the 2s throttle window
         for _ in range(3):
@@ -202,12 +193,9 @@ async def test_once_handler(ha_container: str, tmp_path) -> None:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         api = hassette.api
 
-        received: list[RawStateChangeEvent] = []
+        received, capture = make_event_collector(RawStateChangeEvent)
 
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
-
-        sub = await bus.on_state_change(ENTITY, handler=_capture, once=True, name="once_handler")
+        sub = await bus.on_state_change(ENTITY, handler=capture, once=True, name="once_handler")
         assert sub.listener.db_id is not None
 
         # First toggle — handler fires
@@ -235,17 +223,11 @@ async def test_multiple_handlers_same_entity(ha_container: str, tmp_path) -> Non
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         api = hassette.api
 
-        received_a: list[RawStateChangeEvent] = []
-        received_b: list[RawStateChangeEvent] = []
+        received_a, capture_a = make_event_collector(RawStateChangeEvent)
+        received_b, capture_b = make_event_collector(RawStateChangeEvent)
 
-        async def _capture_a(event: RawStateChangeEvent) -> None:
-            received_a.append(event)
-
-        async def _capture_b(event: RawStateChangeEvent) -> None:
-            received_b.append(event)
-
-        await bus.on_state_change(ENTITY, handler=_capture_a, name="handler_a")
-        await bus.on_state_change(ENTITY, handler=_capture_b, name="handler_b")
+        await bus.on_state_change(ENTITY, handler=capture_a, name="handler_a")
+        await bus.on_state_change(ENTITY, handler=capture_b, name="handler_b")
 
         await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
 
@@ -265,12 +247,9 @@ async def test_immediate_fires_with_current_state(ha_container: str, tmp_path) -
     async with startup_context(config) as hassette:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
 
-        received: list[RawStateChangeEvent] = []
+        received, capture = make_event_collector(RawStateChangeEvent)
 
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
-
-        await bus.on_state_change(ENTITY, handler=_capture, immediate=True, name="immediate_handler")
+        await bus.on_state_change(ENTITY, handler=capture, immediate=True, name="immediate_handler")
 
         await wait_for(
             lambda: len(received) >= 1,
@@ -297,12 +276,9 @@ async def test_duration_handler_fires_after_hold(ha_container: str, tmp_path) ->
             desc="light off before duration test",
         )
 
-        received: list[RawStateChangeEvent] = []
+        received, capture = make_event_collector(RawStateChangeEvent)
 
-        async def _capture(event: RawStateChangeEvent) -> None:
-            received.append(event)
-
-        await bus.on_state_change(ENTITY, handler=_capture, duration=2.0, name="duration_handler")
+        await bus.on_state_change(ENTITY, handler=capture, duration=2.0, name="duration_handler")
 
         # Turn on — starts the duration timer
         await api.call_service(DOMAIN, "turn_on", {"entity_id": ENTITY})

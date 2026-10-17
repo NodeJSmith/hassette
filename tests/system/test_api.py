@@ -6,7 +6,7 @@ from whenever import Instant
 from hassette.events import AnyEvent
 from hassette.testing import wait_for
 
-from .conftest import make_system_config, startup_context
+from .conftest import make_event_collector, make_system_config, startup_context
 
 pytestmark = [pytest.mark.system]
 
@@ -63,13 +63,10 @@ async def test_fire_event_received_by_bus(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
-        captured: list[AnyEvent] = []
-
-        async def _capture(event: AnyEvent) -> None:
-            captured.append(event)
+        captured, capture = make_event_collector(AnyEvent)
 
         # Custom HA events are dispatched on topic "hass.event.<event_type>"
-        await bus.on(topic="hass.event.custom_test_event", handler=_capture, name="custom_test_event")
+        await bus.on(topic="hass.event.custom_test_event", handler=capture, name="custom_test_event")
 
         await hassette.api.fire_event("custom_test_event", {"key": "value"})
 
