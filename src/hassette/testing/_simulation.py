@@ -7,15 +7,16 @@ machinery extracted from ``app_harness.py``.
 import asyncio
 import math
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from hassette_wire import ResourceRole, ResourceStatus
 
-from hassette.events import CallServiceEvent, ComponentLoadedEvent, RawStateChangeEvent, ServiceRegisteredEvent
+from hassette.events import CallServiceEvent, ComponentLoadedEvent, Event, RawStateChangeEvent, ServiceRegisteredEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing._factories import (
     create_call_service_event,
-    create_hass_event,
+    create_component_loaded_event,
+    create_service_registered_event,
     create_state_change_event,
 )
 from hassette.testing.exceptions import DrainError, DrainTimeout
@@ -29,39 +30,7 @@ if TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 DEFAULT_SIMULATE_TIMEOUT = 2.0
 
-
-def create_component_loaded_event(
-    component: str,
-) -> ComponentLoadedEvent:
-    """Create a component_loaded event for testing.
-
-    Args:
-        component: The component name (e.g., "mqtt", "zwave").
-
-    Returns:
-        ComponentLoadedEvent instance.
-    """
-    event = create_hass_event("component_loaded", {"component": component})
-    assert isinstance(event, ComponentLoadedEvent)
-    return event
-
-
-def create_service_registered_event(
-    domain: str,
-    service: str,
-) -> ServiceRegisteredEvent:
-    """Create a service_registered event for testing.
-
-    Args:
-        domain: The service domain (e.g., "light").
-        service: The service name (e.g., "turn_on").
-
-    Returns:
-        ServiceRegisteredEvent instance.
-    """
-    event = create_hass_event("service_registered", {"domain": domain, "service": service})
-    assert isinstance(event, ServiceRegisteredEvent)
-    return event
+SimulatedEventT = TypeVar("SimulatedEventT", bound=Event[Any])
 
 
 class SimulationMixin:
@@ -93,11 +62,64 @@ class SimulationMixin:
             raise RuntimeError("AppTestHarness is not active")
         return harness
 
+    def require_app(self) -> "App":
+        """Return the app under test or raise RuntimeError.
+
+        Raises:
+            RuntimeError: If the harness is not active, or its app has not been
+                created yet.
+        """
+        self.require_harness()
+        app = self._app
+        if app is None:
+            raise RuntimeError("AppTestHarness is not active — no app available")
+        return app
+
     @staticmethod
     def _validate_timeout(timeout: float) -> None:
         """Reject deadlines that cannot bound a simulation."""
         if not math.isfinite(timeout) or timeout < 0:
             raise ValueError(f"timeout must be finite and non-negative, got {timeout!r}.")
+
+    async def simulate_event(
+        self,
+        event: SimulatedEventT,
+        *,
+        timeout: float = DEFAULT_SIMULATE_TIMEOUT,
+    ) -> SimulatedEventT:
+        """Send an arbitrary event through the bus and wait for triggered handlers.
+
+        Escape hatch for event shapes the ``simulate_*`` helpers do not build, such
+        as a ``HassetteAppStateEvent`` for an app other than the one under test.
+        Prefer a dedicated ``simulate_*`` helper when one covers the event: it
+        fills in harness context (seeded attributes, the app's own key) for you.
+
+        Args:
+            event: The event to dispatch. Listeners match it on topic and payload,
+                as they would an event Hassette emitted itself.
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The same ``event`` object, returned after handlers have drained.
+
+        Raises:
+            ValueError: If timeout is non-finite or negative.
+            RuntimeError: If called outside ``async with AppTestHarness(...)``.
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
+
+        Note:
+            Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
+            ``throttle=``, pass a ``timeout=`` larger than the debounce window.
+            See :meth:`drain_task_bucket` for details.
+        """
+        self._validate_timeout(timeout)
+        harness = self.require_harness()
+        self.require_app()
+
+        await harness.hassette.send_event(event)
+        await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_state_change(
         self,
@@ -158,9 +180,7 @@ class SimulationMixin:
             old_attrs=old_attrs,
             new_attrs=new_attrs,
         )
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_attribute_change(
         self,
@@ -246,13 +266,8 @@ class SimulationMixin:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        self._validate_timeout(timeout)
-        harness = self.require_harness()
-
         event = create_call_service_event(domain=domain, service=service, service_data=data)
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_component_loaded(
         self,
@@ -273,13 +288,8 @@ class SimulationMixin:
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If the drain does not reach quiescence within ``timeout``.
         """
-        self._validate_timeout(timeout)
-        harness = self.require_harness()
-
         event = create_component_loaded_event(component)
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_service_registered(
         self,
@@ -301,13 +311,8 @@ class SimulationMixin:
             DrainError: If any handler task raised a non-cancellation exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        self._validate_timeout(timeout)
-        harness = self.require_harness()
-
         event = create_service_registered_event(domain, service)
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_hassette_service_status(
         self,
@@ -345,9 +350,6 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`drain_task_bucket` for details.
         """
-        self._validate_timeout(timeout)
-        harness = self.require_harness()
-
         event = HassetteServiceEvent.from_service_status(
             resource_name=resource_name,
             role=role,
@@ -357,9 +359,7 @@ class SimulationMixin:
             ready=ready,
             ready_phase=ready_phase,
         )
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_hassette_service_ready(
         self,
@@ -468,13 +468,8 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`drain_task_bucket` for details.
         """
-        self._validate_timeout(timeout)
-        harness = self.require_harness()
-
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_websocket_disconnected(
         self,
@@ -497,13 +492,8 @@ class SimulationMixin:
             ``throttle=``, pass a ``timeout=`` larger than the debounce window.
             See :meth:`drain_task_bucket` for details.
         """
-        self._validate_timeout(timeout)
-        harness = self.require_harness()
-
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_app_state_changed(
         self,
@@ -515,9 +505,9 @@ class SimulationMixin:
     ) -> HassetteAppStateEvent:
         """Create an app state changed event and send it through the bus.
 
-        Always emits for the harness's own app. For cross-app coordination tests,
-        construct ``HassetteAppStateEvent`` manually and call
-        ``harness._harness.hassette.send_event(...)`` directly.
+        Always emits for the harness's own app. To test a listener that reacts to
+        another app's status, build a ``HassetteAppStateEvent`` for that app and
+        pass it to :meth:`simulate_event`.
 
         Args:
             status: The new app status.
@@ -538,20 +528,13 @@ class SimulationMixin:
             See :meth:`drain_task_bucket` for details.
         """
         self._validate_timeout(timeout)
-        harness = self.require_harness()
-        app = self._app
-        if app is None:
-            raise RuntimeError("AppTestHarness is not active — no app available")
-
         event = HassetteAppStateEvent.from_app(
-            app=app,
+            app=self.require_app(),
             status=status,
             previous_status=previous_status,
             exception=exception,
         )
-        await harness.hassette.send_event(event)
-        await self.drain_task_bucket(timeout=timeout)
-        return event
+        return await self.simulate_event(event, timeout=timeout)
 
     async def simulate_app_running(
         self,

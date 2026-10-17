@@ -4,7 +4,9 @@ Contains the eight public factory functions exposed via ``hassette.testing.__all
 (``create_state_change_event``, ``create_call_service_event``, ``make_state_dict``,
 ``make_light_state_dict``, ``make_sensor_state_dict``, ``make_switch_state_dict``,
 ``make_typed_state``, ``make_full_state_change_event``) plus the private helpers they
-depend on (``create_hass_event``, ``split_state_kwargs``, ``STATE_DICT_KEYS``).
+depend on (``create_hass_event``, ``split_state_kwargs``, ``STATE_DICT_KEYS``), and the
+non-exported ``create_component_loaded_event`` / ``create_service_registered_event``
+builders used by the harness ``simulate_*`` helpers.
 """
 
 from typing import TYPE_CHECKING, Any, cast
@@ -12,7 +14,13 @@ from uuid import uuid4
 
 import hassette.utils.date_utils as date_utils
 from hassette.conversion import STATE_REGISTRY
-from hassette.events import CallServiceEvent, RawStateChangeEvent, create_event_from_hass
+from hassette.events import (
+    CallServiceEvent,
+    ComponentLoadedEvent,
+    RawStateChangeEvent,
+    ServiceRegisteredEvent,
+    create_event_from_hass,
+)
 from hassette.types import StateT
 
 if TYPE_CHECKING:
@@ -80,6 +88,40 @@ def create_call_service_event(
         {"domain": domain, "service": service, "service_data": service_data or {}},
     )
     assert isinstance(event, CallServiceEvent)
+    return event
+
+
+def create_component_loaded_event(
+    component: str,
+) -> ComponentLoadedEvent:
+    """Create a component_loaded event for testing.
+
+    Args:
+        component: The component name (e.g., "mqtt", "zwave").
+
+    Returns:
+        ComponentLoadedEvent instance.
+    """
+    event = create_hass_event("component_loaded", {"component": component})
+    assert isinstance(event, ComponentLoadedEvent)
+    return event
+
+
+def create_service_registered_event(
+    domain: str,
+    service: str,
+) -> ServiceRegisteredEvent:
+    """Create a service_registered event for testing.
+
+    Args:
+        domain: The service domain (e.g., "light").
+        service: The service name (e.g., "turn_on").
+
+    Returns:
+        ServiceRegisteredEvent instance.
+    """
+    event = create_hass_event("service_registered", {"domain": domain, "service": service})
+    assert isinstance(event, ServiceRegisteredEvent)
     return event
 
 

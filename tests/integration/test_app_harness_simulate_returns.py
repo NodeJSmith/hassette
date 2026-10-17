@@ -20,6 +20,7 @@ from hassette.events import (
 )
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing import AppTestHarness
+from hassette.types import Topic
 
 
 class CaptureConfig(AppConfig):
@@ -76,6 +77,11 @@ SIMULATIONS: list[tuple[str, Simulate, type[AnyEvent]]] = [
     ("homeassistant_restart", lambda h: h.simulate_homeassistant_restart(), CallServiceEvent),
     ("homeassistant_start", lambda h: h.simulate_homeassistant_start(), CallServiceEvent),
     ("homeassistant_stop", lambda h: h.simulate_homeassistant_stop(), CallServiceEvent),
+    (
+        "event",
+        lambda h: h.simulate_event(HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)),
+        HassetteSimpleEvent,
+    ),
 ]
 
 

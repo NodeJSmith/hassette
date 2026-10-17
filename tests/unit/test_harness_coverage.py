@@ -9,9 +9,11 @@ import pytest
 from hassette_wire import ResourceStatus
 
 from hassette.bus import Bus
+from hassette.events.hassette import HassetteSimpleEvent
 from hassette.resources.base import Resource
 from hassette.testing import AppTestHarness
 from hassette.testing._simulation import SimulationMixin
+from hassette.types import Topic
 
 SIMULATION_TIMEOUT_CASES: list[tuple[str, tuple, dict]] = [
     ("simulate_state_change", ("sensor.test",), {"old_value": "off", "new_value": "on"}),
@@ -27,6 +29,7 @@ SIMULATION_TIMEOUT_CASES: list[tuple[str, tuple, dict]] = [
     ("simulate_websocket_connected", (), {}),
     ("simulate_websocket_disconnected", (), {}),
     ("simulate_app_state_changed", (ResourceStatus.RUNNING,), {}),
+    ("simulate_event", (HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED),), {}),
     ("drain_task_bucket", (), {}),
 ]
 
