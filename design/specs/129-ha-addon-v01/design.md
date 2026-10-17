@@ -998,3 +998,5 @@ add-ons take hot backups with no hook.
   `hassette-snapshot.db.tmp` and renamed, with any leftover temp removed first. Restore deletes leftover
   `-wal`/`-shm` before placing the snapshot and keeps the snapshot on disk. There is no `backup_post` and no
   integrity check.
+- **Stop timeout:** D4's `timeout: 45` becomes 60 (NodeJSmith/hassette-addon#2). The shutdown snapshot runs at
+  the end of hassette's 30 s shutdown budget and can't be cancelled once started.
