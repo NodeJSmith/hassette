@@ -1,0 +1,1 @@
+../../../../../docker/addon/seed/apps/example_app.py

@@ -87,6 +87,8 @@ def test_pinned_settings_outrank_hassette_toml(monkeypatch: pytest.MonkeyPatch, 
         "[hassette.database]\n"
         'path = "/config/other.db"\n'
         'shutdown_snapshot_path = "/config/other-snapshot.db"\n'
+        "[hassette.logging]\n"
+        'log_format = "json"\n'
         "[hassette.web_api]\n"
         'host = "127.0.0.1"\n'
         "port = 9999\n"
@@ -113,6 +115,7 @@ def test_pinned_settings_outrank_hassette_toml(monkeypatch: pytest.MonkeyPatch, 
     assert config.token.get_secret_value() == "supervisor-token"
     assert config.database.path == Path("/data/hassette.db")
     assert config.database.shutdown_snapshot_path == Path("/data/backup/hassette-snapshot.db")
+    assert config.logging.log_format == "console"
     assert (web_api.host, web_api.port) == ("0.0.0.0", 8126)
     assert web_api.run
     assert web_api.run_ui

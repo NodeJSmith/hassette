@@ -1,6 +1,6 @@
 # Quickstart
 
-Install Hassette, write a one-file app that logs a greeting on startup, and see it connect to Home Assistant. For a containerized setup, see [Docker Setup](docker/index.md) instead.
+Install Hassette, write a one-file app that logs a greeting on startup, and see it connect to Home Assistant. For a containerized setup, see [Docker Setup](docker/index.md) instead. On Home Assistant OS or Supervised, install the [Hassette add-on](addon/index.md) instead.
 
 ## Prerequisites
 
