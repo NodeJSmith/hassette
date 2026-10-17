@@ -14,7 +14,6 @@ Tests verify:
 import time
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.commands import InvokeHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
@@ -22,20 +21,13 @@ from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.factories import make_mock_listener
 from tests.support.helpers import create_listener
 
-from .conftest import execute_job_and_pop_record, pop_execution_record
+from .conftest import execute_job_and_pop_record, invoke_cmd, pop_execution_record
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
     """All listeners produce an ExecutionRecord when fired, even when db_id is set."""
     listener = make_mock_listener(db_id=42)
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="hass.event.test",
-        listener_id=42,
-        source_tier="app",
-        effective_timeout=None,
-    )
+    cmd = invoke_cmd(listener, listener_id=42, topic="hass.event.test")
 
     await executor.execute(cmd)
 
@@ -48,14 +40,7 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
 async def test_pre_registration_listener_produces_orphan_record(executor: CommandExecutor) -> None:
     """Pre-registration listeners (db_id=None at fire time) produce records with listener_id=None."""
     listener = make_mock_listener(db_id=None)
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="hass.event.test",
-        listener_id=None,
-        source_tier="app",
-        effective_timeout=None,
-    )
+    cmd = invoke_cmd(listener, listener_id=None, topic="hass.event.test")
 
     await executor.execute(cmd)
 
@@ -109,14 +94,7 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
     """Framework listeners produce execution records with source_tier='framework'."""
     executor.hassette.config.database.framework_record_sample_rate = 1.0
     listener = make_mock_listener(db_id=99)
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="hassette.event.service_status",
-        listener_id=99,
-        source_tier="framework",
-        effective_timeout=None,
-    )
+    cmd = invoke_cmd(listener, listener_id=99, topic="hassette.event.service_status", source_tier="framework")
 
     await executor.execute(cmd)
 

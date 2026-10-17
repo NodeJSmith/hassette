@@ -1,19 +1,18 @@
 """Integration tests for CommandExecutor error handler invocation paths."""
 
 import asyncio
-from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.bus.error_context import BusErrorContext
-from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.commands import ExecuteJob
 from hassette.core.command_executor import CommandExecutor
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.testing import wait_for
 from tests.support.factories import make_mock_listener
 from tests.support.helpers import settle
 
-from .conftest import make_mock_job, pop_execution_record
+from .conftest import invoke_cmd, make_mock_job, pop_execution_record
 
 WAIT_TIMEOUT = 2.0
 
@@ -39,15 +38,7 @@ async def test_error_handler_runs_after_framework_log(executor: CommandExecutor)
 
     # dup-ignore-end
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test.topic",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=None,
-        app_level_error_handler=error_handler,
-    )
+    cmd = invoke_cmd(listener, topic="test.topic", app_level_error_handler=error_handler)
 
     await executor.execute(cmd)
 
@@ -77,15 +68,7 @@ async def test_sync_error_handler_wraps_in_thread(executor: CommandExecutor) -> 
         received_ctx.append(ctx)
         loop.call_soon_threadsafe(handler_called.set)
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test.sync",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=None,
-        app_level_error_handler=sync_error_handler,
-    )
+    cmd = invoke_cmd(listener, topic="test.sync", app_level_error_handler=sync_error_handler)
 
     await executor.execute(cmd)
 
@@ -107,15 +90,7 @@ async def test_double_failure_logged_and_counted(executor: CommandExecutor) -> N
         handler_ran.set()
         raise RuntimeError("error handler also failed")
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test.double_fail",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=None,
-        app_level_error_handler=failing_error_handler,
-    )
+    cmd = invoke_cmd(listener, topic="test.double_fail", app_level_error_handler=failing_error_handler)
 
     await executor.execute(cmd)
 
@@ -136,15 +111,7 @@ async def test_cancelled_error_not_routed_to_handler(executor: CommandExecutor) 
     async def error_handler(_ctx: BusErrorContext) -> None:
         handler_called.set()
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test.cancelled",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=None,
-        app_level_error_handler=error_handler,
-    )
+    cmd = invoke_cmd(listener, topic="test.cancelled", app_level_error_handler=error_handler)
 
     with pytest.raises(asyncio.CancelledError):
         await executor.execute(cmd)
@@ -174,15 +141,7 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
 
     # dup-ignore-end
 
-    cmd = InvokeHandler(
-        listener=listener,
-        event=MagicMock(),
-        topic="test.timeout",
-        listener_id=1,
-        source_tier="app",
-        effective_timeout=0.05,
-        app_level_error_handler=error_handler,
-    )
+    cmd = invoke_cmd(listener, effective_timeout=0.05, topic="test.timeout", app_level_error_handler=error_handler)
 
     await executor.execute(cmd)
 
