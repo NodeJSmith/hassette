@@ -11,17 +11,19 @@ import sys
 import threading
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import dataclass
 from io import StringIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import structlog
 import structlog.processors
 import structlog.stdlib
+from pydantic import BaseModel
 
 from hassette import context
 from hassette.api.api import Api
@@ -36,6 +38,7 @@ from hassette.logging_ import (
     _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
     add_execution_id,
 )
+from hassette.models.entities.base import BaseEntity
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
@@ -57,6 +60,9 @@ WORKER_READY_TIMEOUT = 2.0
 #: Default duration for a simulated C-blocked (``time.sleep``) worker — see
 #: ``c_blocked_worker``'s docstring for why this is short rather than long.
 C_BLOCKED_WORKER_DEFAULT_SECONDS = 2.0
+
+EntityT = TypeVar("EntityT", bound=BaseEntity)
+StateModelT = TypeVar("StateModelT", bound=BaseModel)
 
 
 def make_sync_executor_config(
@@ -154,19 +160,39 @@ def make_api() -> Api:
     return api
 
 
-def make_light_entity(api: Api) -> "tuple[LightEntity, Token[Hassette]]":
-    """Create a LightEntity wired to the given api via HASSETTE_INSTANCE context.
+def make_domain_entity(
+    api: Api, *, entity_id: str, state: str, entity_cls: type[EntityT], state_cls: type[StateModelT]
+) -> "tuple[EntityT, Token[Hassette]]":
+    """Create a domain entity wired to the given api via HASSETTE_INSTANCE context.
 
-    Shared factory: used by test_entity_coroutine_conversion and
-    test_sync_entity_facade. The caller resets the returned token in a finally block.
+    The caller resets the returned token, normally by wrapping the result in ``entity_session``.
     """
     hassette_mock = MagicMock()
     hassette_mock.api = api
     token = context.HASSETTE_INSTANCE.set(hassette_mock)
 
-    state = LightState.model_validate({"entity_id": "light.kitchen", "state": "off", "attributes": {}, "context": {}})
-    entity = LightEntity(state=state)
+    entity_state = state_cls.model_validate({"entity_id": entity_id, "state": state, "attributes": {}, "context": {}})
+    entity = entity_cls(state=entity_state)
     return entity, token
+
+
+def make_light_entity(api: Api) -> "tuple[LightEntity, Token[Hassette]]":
+    """Create a ``light.kitchen`` LightEntity wired to the given api via HASSETTE_INSTANCE context."""
+    return make_domain_entity(api, entity_id="light.kitchen", state="off", entity_cls=LightEntity, state_cls=LightState)
+
+
+@contextmanager
+def entity_session(entity_and_token: "tuple[EntityT, Token[Hassette]]") -> Iterator[EntityT]:
+    """Yield the entity from a (entity, token) pair and reset the context var on exit.
+
+    Wraps the output of make_domain_entity / make_light_entity so tests don't repeat
+    the try/finally reset boilerplate.
+    """
+    entity, token = entity_and_token
+    try:
+        yield entity
+    finally:
+        context.HASSETTE_INSTANCE.reset(token)
 
 
 def public_async_methods(cls: type) -> set[str]:

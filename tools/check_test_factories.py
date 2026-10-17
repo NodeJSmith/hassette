@@ -97,6 +97,8 @@ SHARED_FACTORIES = {
     "make_task_bucket": "tests.support.helpers",
     "async_noop": "tests.support.helpers",
     "noop": "tests.support.helpers",
+    "make_domain_entity": "tests.unit.conftest",
+    "make_light_entity": "tests.unit.conftest",
 }
 
 ANNOTATION = "# factory-local:"

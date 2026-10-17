@@ -14,22 +14,31 @@ import gc
 import inspect
 import sys
 import warnings
+from collections.abc import Callable, Coroutine
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from hassette import context
+from hassette.api.api import Api
 from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.models.entities.humidifier import HumidifierEntity
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import HumidifierState
-from tests.unit.conftest import make_api, make_light_entity
+from tests.unit.conftest import entity_session, make_api, make_domain_entity, make_light_entity
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENTITIES_DIR = _REPO_ROOT / "src" / "hassette" / "models" / "entities"
 _MANIFEST = _REPO_ROOT / ".generated-manifest"
+
+if TYPE_CHECKING:
+    from contextvars import Token
+
+    from hassette import Hassette
+
+EntityFactory = Callable[[Api], "tuple[Any, Token[Hassette]]"]
+ServiceCall = Callable[[Any], Coroutine[Any, Any, None]]
 
 
 # dup-ignore-start: documented per-file opt-in pattern (see drain_forgotten_await_handles docstring
@@ -40,24 +49,10 @@ def _drain(drain_forgotten_await_handles: None) -> None:
     # dup-ignore-end
 
 
-if TYPE_CHECKING:
-    from contextvars import Token
-
-    from hassette import Hassette
-    from hassette.api.api import Api
-
-
-def make_humidifier_entity(api: "Api") -> tuple[HumidifierEntity, "Token[Hassette]"]:
-    """Create a HumidifierEntity wired to the given api via HASSETTE_INSTANCE context."""
-    hassette_mock = MagicMock()
-    hassette_mock.api = api
-    token = context.HASSETTE_INSTANCE.set(hassette_mock)
-
-    state = HumidifierState.model_validate(
-        {"entity_id": "humidifier.bedroom", "state": "off", "attributes": {}, "context": {}}
+def make_bedroom_humidifier(api: Api) -> "tuple[HumidifierEntity, Token[Hassette]]":
+    return make_domain_entity(
+        api, entity_id="humidifier.bedroom", state="off", entity_cls=HumidifierEntity, state_cls=HumidifierState
     )
-    entity = HumidifierEntity(state=state)
-    return entity, token
 
 
 # Regen check — generated files use def -> Coroutine[...], not async def
@@ -155,14 +150,27 @@ def test_humidifier_entity_set_humidity_return_annotation_is_coroutine() -> None
 
 # Forgotten await warns; attribution points at caller (this test file)
 
+# Each call lambda is defined in this module, so it is the frame that creates the
+# coroutine — the warning must name this file, not conftest or the entity module.
+FORGOTTEN_AWAIT_CASES = [
+    pytest.param(make_light_entity, lambda e: e.turn_on(), id="light-turn_on"),
+    pytest.param(make_bedroom_humidifier, lambda e: e.set_humidity(humidity=60), id="humidifier-set_humidity"),
+    pytest.param(make_light_entity, lambda e: e.toggle(), id="light-toggle"),
+]
 
-def test_light_entity_turn_on_forgotten_await_warns() -> None:
-    """Dropping un-awaited LightEntity.turn_on() emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    entity, token = make_light_entity(api)
-    try:
+AWAITED_CASES = [
+    pytest.param(make_light_entity, lambda e: e.turn_on(brightness=200), id="light-turn_on"),
+    pytest.param(make_bedroom_humidifier, lambda e: e.set_humidity(humidity=60), id="humidifier-set_humidity"),
+    pytest.param(make_light_entity, lambda e: e.toggle(), id="light-toggle"),
+]
+
+
+@pytest.mark.parametrize(("factory", "call"), FORGOTTEN_AWAIT_CASES)
+def test_entity_service_forgotten_await_warns(factory: EntityFactory, call: ServiceCall) -> None:
+    """Dropping an un-awaited entity service call emits HassetteForgottenAwaitWarning attributed to the caller."""
+    with entity_session(factory(make_api())) as entity:
         with pytest.warns(HassetteForgottenAwaitWarning) as record:
-            _ = entity.turn_on()
+            _ = call(entity)
             del _
             gc.collect()
         assert len(record) >= 1
@@ -170,86 +178,19 @@ def test_light_entity_turn_on_forgotten_await_warns() -> None:
         assert __file__ in warning_msg or Path(__file__).stem in warning_msg, (
             f"Warning not attributed to caller: {warning_msg!r}"
         )
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
-
-
-def test_humidifier_entity_set_humidity_forgotten_await_warns() -> None:
-    """Dropping un-awaited HumidifierEntity.set_humidity() emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    entity, token = make_humidifier_entity(api)
-    try:
-        with pytest.warns(HassetteForgottenAwaitWarning) as record:
-            _ = entity.set_humidity(humidity=60)
-            del _
-            gc.collect()
-        assert len(record) >= 1
-        warning_msg = str(record[0].message)
-        assert __file__ in warning_msg or Path(__file__).stem in warning_msg, (
-            f"Warning not attributed to caller: {warning_msg!r}"
-        )
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
-
-
-def test_light_entity_toggle_forgotten_await_warns() -> None:
-    """Dropping un-awaited LightEntity.toggle() emits HassetteForgottenAwaitWarning."""
-    api = make_api()
-    entity, token = make_light_entity(api)
-    try:
-        with pytest.warns(HassetteForgottenAwaitWarning) as record:
-            _ = entity.toggle()
-            del _
-            gc.collect()
-        assert len(record) >= 1
-        warning_msg = str(record[0].message)
-        assert __file__ in warning_msg or Path(__file__).stem in warning_msg, (
-            f"Warning not attributed to caller: {warning_msg!r}"
-        )
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
 
 
 # Awaited call acts correctly (no warning, None returned)
 
 
-async def test_light_entity_turn_on_awaited_returns_none_no_warning() -> None:
-    """Awaiting LightEntity.turn_on() returns None and emits no warning."""
-    api = make_api()
-    entity, token = make_light_entity(api)
-    try:
+@pytest.mark.parametrize(("factory", "call"), AWAITED_CASES)
+async def test_entity_service_awaited_returns_none_no_warning(factory: EntityFactory, call: ServiceCall) -> None:
+    """Awaiting an entity service call returns None and emits no warning."""
+    with entity_session(factory(make_api())) as entity:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            result = await entity.turn_on(brightness=200)
+            result = await call(entity)
         assert result is None
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
-
-
-async def test_humidifier_entity_set_humidity_awaited_returns_none_no_warning() -> None:
-    """Awaiting HumidifierEntity.set_humidity() returns None and emits no warning."""
-    api = make_api()
-    entity, token = make_humidifier_entity(api)
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            result = await entity.set_humidity(humidity=60)
-        assert result is None
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
-
-
-async def test_light_entity_toggle_awaited_returns_none_no_warning() -> None:
-    """Awaiting LightEntity.toggle() returns None and emits no warning."""
-    api = make_api()
-    entity, token = make_light_entity(api)
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            result = await entity.toggle()
-        assert result is None
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
 
 
 # entity.sync.turn_on() still registers (via the domain facade)
@@ -263,8 +204,7 @@ def test_entity_sync_turn_on_registers() -> None:
     api.sync.call_service(...) — matching the async LightEntity.turn_on delegation.
     """
     api = make_api()
-    entity, token = make_light_entity(api)
-    try:
+    with entity_session(make_light_entity(api)) as entity:
         # Patch api.sync to a mock so we don't need a real event loop here.
         mock_sync = MagicMock()
         api.sync = mock_sync
@@ -279,5 +219,3 @@ def test_entity_sync_turn_on_registers() -> None:
         assert kwargs["service"] == "turn_on"
         assert kwargs["target"] == {"entity_id": entity.entity_id}
         assert kwargs["brightness"] == 100
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
