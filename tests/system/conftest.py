@@ -26,6 +26,7 @@ from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config.config import HassetteConfig
 from hassette.events import Event, RawStateChangeEvent
+from hassette.scheduler import Scheduler
 from hassette.testing import wait_for
 
 logger = logging.getLogger(__name__)
@@ -297,6 +298,23 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
         web_api={"run": False},
         lifecycle={"startup_timeout_seconds": 30},
     )
+
+
+def get_scheduler(hassette: Hassette) -> Scheduler:
+    """Return the running Hassette instance's framework-level Scheduler.
+
+    Shared by scheduler system tests so the private ``_scheduler`` access lives in one place;
+    pair it with ``make_fired_recorder()`` when the test only needs to observe "did this job fire."
+
+    Args:
+        hassette: A running Hassette instance, e.g. the one yielded by ``startup_context()``.
+
+    Returns:
+        The Scheduler the instance wired up during ``wire_services()``.
+    """
+    scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
+    assert scheduler is not None, "Hassette.wire_services() has not created the scheduler"
+    return scheduler
 
 
 def make_fired_recorder() -> tuple[list[int], Callable[[], Awaitable[None]]]:
