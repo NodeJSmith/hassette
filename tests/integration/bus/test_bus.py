@@ -11,7 +11,6 @@ import pytest
 from hassette import RawStateChangeEvent
 from hassette.bus.listeners import Subscription
 from hassette.bus.rate_limiter import RateLimiter
-from hassette.commands import InvokeHandler
 from hassette.event_handling.conditions import IsOrContains
 from hassette.event_handling.predicates import (
     AllOf,
@@ -23,6 +22,8 @@ from hassette.event_handling.predicates import (
 )
 from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_call_service_event, create_state_change_event, wait_for
+
+from .helpers import last_invoke_handler, send_through_mock_executor
 
 if TYPE_CHECKING:
     from hassette.bus import Bus
@@ -423,19 +424,9 @@ async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> 
         if listener.db_id is None:
             listener.mark_registered(99)
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
+    execute = await send_through_mock_executor(hassette, "custom.exec_test", event_handled)
 
-    payload_event = Event(topic="custom.exec_test", payload="test-payload")
-    await hassette.send_event(payload_event)
-
-    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-
-    executor.execute.assert_called()
-    call_args = executor.execute.call_args_list
-    assert len(call_args) >= 1
-    cmd = call_args[-1].args[0]
-    assert isinstance(cmd, InvokeHandler), f"Expected InvokeHandler, got {type(cmd)}"
+    last_invoke_handler(execute)
 
 
 async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -452,18 +443,9 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
 
     await hassette.bus.on(topic="custom.internal_test", handler=handler, name="internal_test")
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
+    execute = await send_through_mock_executor(hassette, "custom.internal_test", event_handled)
 
-    payload_event = Event(topic="custom.internal_test", payload="test-payload")
-    await hassette.send_event(payload_event)
-
-    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-
-    executor.execute.assert_called()
-    cmd = executor.execute.call_args_list[-1].args[0]
-    assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id is not None
+    assert last_invoke_handler(execute).listener_id is not None
 
 
 async def test_dispatch_handler_exception_routed_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -481,19 +463,10 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
 
     await hassette.bus.on(topic="custom.error_test", handler=failing_handler, name="error_test")
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
-
-    payload_event = Event(topic="custom.error_test", payload="test-payload")
-    await hassette.send_event(payload_event)
-
-    await asyncio.wait_for(error_raised.wait(), timeout=1.0)
-    await wait_for(lambda: executor.execute.called, desc="executor called")
+    execute = await send_through_mock_executor(hassette, "custom.error_test", error_raised, drain="execute_called")
 
     # Executor MUST be called — it captures the error in the execution record
-    executor.execute.assert_called()
-    cmd = executor.execute.call_args_list[-1].args[0]
-    assert isinstance(cmd, InvokeHandler)
+    last_invoke_handler(execute)
 
 
 async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -510,24 +483,14 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 
     await hassette.bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1, name="debounce_test")
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
-
     # Send 3 rapid events — debounce should coalesce into 1 executor call
-    for i in range(3):
-        await hassette.send_event(Event(topic="custom.debounce_test", payload=f"event-{i}"))
-
-    # Wait for debounce to fire
-    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="bus tasks drained")
+    execute = await send_through_mock_executor(
+        hassette, "custom.debounce_test", event_handled, burst=True, drain="pending_tasks"
+    )
 
     # Executor should have been called exactly once (debounce coalesced)
-    assert executor.execute.call_count == 1, (
-        f"Expected executor called once (debounce coalesce), got {executor.execute.call_count}"
-    )
-    cmd = executor.execute.call_args.args[0]
-    assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id is not None
+    assert execute.call_count == 1, f"Expected executor called once (debounce coalesce), got {execute.call_count}"
+    assert last_invoke_handler(execute).listener_id is not None
 
 
 async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -544,23 +507,14 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
 
     await hassette.bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0, name="throttle_test")
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
-
     # Send 3 rapid events — throttle should allow only the first
-    for i in range(3):
-        await hassette.send_event(Event(topic="custom.throttle_test", payload=f"event-{i}"))
-
-    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
+    execute = await send_through_mock_executor(
+        hassette, "custom.throttle_test", event_handled, burst=True, drain="bucket_empty"
+    )
 
     # Executor should have been called exactly once (throttle dropped the rest)
-    assert executor.execute.call_count == 1, (
-        f"Expected executor called once (throttle), got {executor.execute.call_count}"
-    )
-    cmd = executor.execute.call_args.args[0]
-    assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id is not None
+    assert execute.call_count == 1, f"Expected executor called once (throttle), got {execute.call_count}"
+    assert last_invoke_handler(execute).listener_id is not None
 
 
 async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bus: "HassetteHarness") -> None:
@@ -582,19 +536,14 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
     # Internal bus (no app_key) — listener gets db_id=None, but still routes through executor
     await hassette.bus.on(topic="custom.internal_debounce", handler=handler, debounce=0.1, name="internal_debounce")
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
-
     # Send 3 rapid events — debounce should coalesce into 1 handler call
-    for i in range(3):
-        await hassette.send_event(Event(topic="custom.internal_debounce", payload=f"event-{i}"))
-
-    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks drained")
+    execute = await send_through_mock_executor(
+        hassette, "custom.internal_debounce", event_handled, burst=True, drain="bucket_empty"
+    )
 
     assert call_count == 1, f"Expected 1 call (debounce coalesce), got {call_count}"
     # Unified dispatch: executor IS called once (coalesced event)
-    executor.execute.assert_called_once()
+    execute.assert_called_once()
 
 
 async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "HassetteHarness") -> None:
@@ -615,19 +564,14 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
 
     await hassette.bus.on(topic="custom.internal_throttle", handler=handler, throttle=5.0, name="internal_throttle")
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
-
     # Send 3 rapid events — throttle should allow only the first
-    for i in range(3):
-        await hassette.send_event(Event(topic="custom.internal_throttle", payload=f"event-{i}"))
-
-    await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
+    execute = await send_through_mock_executor(
+        hassette, "custom.internal_throttle", event_handled, burst=True, drain="bucket_empty"
+    )
 
     assert call_count == 1, f"Expected 1 call (throttle), got {call_count}"
     # Unified dispatch: executor IS called (once, for the event that passed the throttle)
-    executor.execute.assert_called_once()
+    execute.assert_called_once()
 
 
 async def test_internal_dispatch_with_debounce_routes_through_executor(
@@ -650,18 +594,12 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
         topic="custom.internal_debounce_error", handler=failing_handler, debounce=0.05, name="internal_debounce_error"
     )
 
-    executor = hassette.bus_service._executor
-    executor.execute.reset_mock()
-
-    await hassette.send_event(
-        Event(topic="custom.internal_debounce_error", payload="test"),
+    execute = await send_through_mock_executor(
+        hassette, "custom.internal_debounce_error", error_raised, drain="bucket_empty"
     )
 
-    await asyncio.wait_for(error_raised.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks drained")
-
     # Unified dispatch: executor IS called even for debounced non-app handlers
-    executor.execute.assert_called_once()
+    execute.assert_called_once()
 
 
 async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "HassetteHarness") -> None:
