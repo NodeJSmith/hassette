@@ -12,9 +12,9 @@ from hassette_wire import ResourceStatus
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError
-from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
+from tests.support.web_manifest_helpers import make_app_instance_info
 
 from .conftest import assert_acquires_app_key_lock_once
 
@@ -41,7 +41,7 @@ class TestReloadInstanceEvents:
         load_error = ValueError("boom")
         mock_factory.get_load_error = Mock(return_value=load_error)
 
-        failure_info = AppInstanceInfo(
+        failure_info = make_app_instance_info(
             app_key="app_a",
             index=1,
             instance_name="inst_1",
@@ -443,7 +443,7 @@ class TestCreateInstanceUnlockedSynchronousFailure:
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         mock_factory.load_class = Mock(return_value=MagicMock())
 
-        failure_info = AppInstanceInfo(
+        failure_info = make_app_instance_info(
             app_key="test_app",
             index=0,
             instance_name="test_app.0",
