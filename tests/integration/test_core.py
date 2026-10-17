@@ -39,6 +39,7 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.testing import wait_for
 from hassette.utils.service_utils import topological_sort, validate_dependency_graph
+from tests.support.run_forever import stub_run_forever_collaborators
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -158,14 +159,8 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
     """run_forever uses phased startup: DB first, session, then wave-based remaining services."""
-    hassette_instance.wait_for_ready = AsyncMock(return_value=True)
-    hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
-    hassette_instance.session_manager.create_session = AsyncMock()
+    stub_run_forever_collaborators(hassette_instance)
 
-    # start() is a module-level function (hassette.resources.lifecycle), not a method —
-    # patch it at the call site (core.py) rather than reassigning instance attributes,
-    # since run_forever() calls the free function directly for every child.
     with patch("hassette.core.core.start") as mock_start:
         task = asyncio.create_task(hassette_instance.run_forever())
         asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
@@ -202,9 +197,7 @@ async def test_run_forever_restores_prior_task_factory_on_shutdown(hassette_inst
     "TaskBucket ... is sealed" -- confirmed as the exact mechanism behind CI's `system` test
     failures, where pytest-asyncio's own end-of-session ``loop.shutdown_asyncgens()`` hit it.
     """
-    hassette_instance.wait_for_ready = AsyncMock(return_value=True)
-    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
-    hassette_instance.session_manager.create_session = AsyncMock()
+    stub_run_forever_collaborators(hassette_instance, stub_shutdown=False)
 
     loop = asyncio.get_running_loop()
 
@@ -229,13 +222,9 @@ async def test_run_forever_restores_prior_task_factory_on_shutdown(hassette_inst
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when session initialization raises."""
-    hassette_instance.wait_for_ready = AsyncMock(return_value=True)
-    hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
-    hassette_instance.session_manager.create_session = AsyncMock()
+    stub_run_forever_collaborators(hassette_instance)
+    hassette_instance.session_manager.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
 
-    # start() is a module-level function (hassette.resources.lifecycle), not a method —
-    # patch it at the call site (core.py) so real children never actually spawn.
     with patch("hassette.core.core.start"), pytest.raises(FatalError):
         await hassette_instance.run_forever()
 
@@ -247,13 +236,9 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when resources fail to become ready."""
     # DB wait succeeds (True), all-children wait fails (False)
-    hassette_instance.wait_for_ready = AsyncMock(side_effect=[True, False])
-    hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    hassette_instance.session_manager.mark_orphaned_sessions = AsyncMock()
-    hassette_instance.session_manager.create_session = AsyncMock()
+    stub_run_forever_collaborators(hassette_instance)
+    hassette_instance.wait_for_ready.side_effect = [True, False]
 
-    # start() is a module-level function (hassette.resources.lifecycle), not a method —
-    # patch it at the call site (core.py) so real children never actually spawn.
     with patch("hassette.core.core.start"), pytest.raises(FatalError):
         await hassette_instance.run_forever()
 
@@ -277,9 +262,6 @@ async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_inst
     real_install = core_module.install_block_io_guard
     try:
         with (
-            # start() is a module-level function (hassette.resources.lifecycle), not a
-            # method — patch it at the call site (core.py) rather than reassigning an
-            # instance attribute, since run_forever() calls the free function directly.
             patch("hassette.core.core.start", side_effect=RuntimeError("db start broke")),
             patch.object(core_module, "install_block_io_guard", wraps=real_install) as install_spy,
             pytest.raises(FatalError),
