@@ -14,6 +14,7 @@ from hassette.types import Topic
 from hassette.types.enums import RestartType
 
 from .helpers import (
+    ALWAYS_FAIL,
     DummyServiceSetup,
     budget_entries,
     crashed_events,
@@ -49,7 +50,9 @@ async def test_always_failing_service_stops_after_max_attempts(
         hassette = watcher.hassette
 
         # budget_intensity=3 means 3 restarts before exhaustion
-        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=3)
+        dummy = register_dummy_service(
+            watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.PERMANENT, budget_intensity=3
+        )
 
         # Each call to restart_service increments budget and spawns a restart task. The service
         # fails on restart; the 3rd attempt both records the last budget entry and, failing from
@@ -70,7 +73,9 @@ async def test_crashed_event_emitted_before_shutdown(
 ):
     """When budget is exhausted for PERMANENT service, a CRASHED event is emitted before shutdown."""
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
-        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
+        dummy = register_dummy_service(
+            watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.PERMANENT, budget_intensity=1
+        )
 
         # The single allowed attempt both records the last budget entry (Step 5) and fails from
         # within execute_restart() -- exhaustion fires directly from that failure, not a
@@ -186,7 +191,9 @@ async def test_execute_restart_own_failure_triggers_exhaustion(
     Uses isolated_watcher because the PERMANENT exhaustion path drives a real hassette.shutdown().
     """
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
-        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
+        dummy = register_dummy_service(
+            watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.PERMANENT, budget_intensity=1
+        )
 
         with EventCapture.capturing(watcher.hassette) as capture:
             await restart_and_await(watcher, dummy.failed_event)

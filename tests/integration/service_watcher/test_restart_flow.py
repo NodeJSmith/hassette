@@ -23,6 +23,7 @@ from tests.support.helpers import (
 )
 
 from .helpers import (
+    ALWAYS_FAIL,
     AWAIT_TIMEOUT,
     budget_entries,
     make_call_counts,
@@ -61,7 +62,7 @@ async def test_exponential_backoff(watcher: ServiceWatcher):
     """Backoff delay increases exponentially between restart attempts (using shutdown-safe sleep)."""
     dummy = register_dummy_service(
         watcher,
-        fail=True,
+        fail_times=ALWAYS_FAIL,
         restart_type=RestartType.TRANSIENT,
         budget_intensity=10,
         backoff_base_seconds=1.0,
@@ -89,7 +90,11 @@ async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
     """Budget resets when a service transitions to RUNNING and becomes ready."""
     context.PROTECT_TASK.set(False)
     dummy = register_dummy_service(
-        watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0
+        watcher,
+        fail_times=ALWAYS_FAIL,
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=5,
+        startup_timeout_seconds=1.0,
     )
 
     # Accumulate 2 restart attempts
@@ -182,7 +187,11 @@ async def test_budget_reset_on_recovery_confirmed(watcher: ServiceWatcher):
     """Budget resets when service reaches RUNNING and signals readiness."""
     context.PROTECT_TASK.set(False)
     dummy = register_dummy_service(
-        watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0
+        watcher,
+        fail_times=ALWAYS_FAIL,
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=5,
+        startup_timeout_seconds=1.0,
     )
 
     # Accumulate 2 restart attempts
@@ -202,7 +211,11 @@ async def test_budget_reset_on_recovery_confirmed(watcher: ServiceWatcher):
 async def test_readiness_timeout_no_budget_impact(watcher: ServiceWatcher):
     """Readiness timeout after RUNNING does NOT increment restart budget."""
     dummy = register_dummy_service(
-        watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=0.05
+        watcher,
+        fail_times=ALWAYS_FAIL,
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=5,
+        startup_timeout_seconds=0.05,
     )
 
     # Accumulate 1 restart attempt
@@ -281,7 +294,9 @@ async def test_concurrent_failures_independent_budgets(watcher: ServiceWatcher):
 
 async def test_restart_exception_caught_no_double_count(watcher: ServiceWatcher):
     """on_initialize raises → exception caught and logged, budget not double-counted."""
-    dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=10)
+    dummy = register_dummy_service(
+        watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.TRANSIENT, budget_intensity=10
+    )
 
     await restart_and_await(watcher, dummy.failed_event)
 
@@ -290,6 +305,46 @@ async def test_restart_exception_caught_no_double_count(watcher: ServiceWatcher)
 
     # In-restart flag should be cleared after exception
     assert dummy.key not in watcher._restarting
+
+
+async def test_failed_restart_attempt_retries_while_budget_remains(watcher: ServiceWatcher):
+    """A restart attempt whose initialize() raises is followed by the next attempt, not abandoned.
+
+    The attempt's own FAILED event arrives while the episode still holds `_restarting`, so the
+    in-restart guard drops it; the retry has to come from execute_restart() itself.
+    """
+    dummy = register_dummy_service(watcher, fail_times=1, restart_type=RestartType.TRANSIENT, budget_intensity=5)
+
+    await restart_and_await(watcher, dummy.failed_event)
+
+    assert dummy.calls["start"] == 2, "The failed first attempt should be followed by exactly one more"
+    assert budget_entries(watcher, dummy.key) == 2, "Each attempt counts against the budget exactly once"
+    assert dummy.service.status == ResourceStatus.RUNNING
+
+
+async def test_failed_restart_attempts_walk_budget_then_exhaust(watcher: ServiceWatcher):
+    """One FAILED event drives a service that never initializes through its whole budget, then exhaustion."""
+    dummy = register_dummy_service(
+        watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.TEMPORARY, budget_intensity=3
+    )
+
+    await restart_and_await(watcher, dummy.failed_event)
+
+    assert dummy.calls["start"] == 3, "Every budgeted attempt should run"
+    assert budget_entries(watcher, dummy.key) == 3
+    assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
+
+
+async def test_stale_failed_event_dropped_when_service_not_failed(watcher: ServiceWatcher):
+    """A FAILED event for a service that is no longer FAILED (recovered, cooling, dead) is stale."""
+    dummy = register_dummy_service(watcher, restart_type=RestartType.TRANSIENT, budget_intensity=5)
+    dummy.service._status = ResourceStatus.EXHAUSTED_COOLING
+
+    await watcher.restart_service(dummy.failed_event)
+
+    assert dummy.key not in watcher._budgets, "A stale FAILED event must not touch the budget"
+    assert dummy.key not in watcher._restarting
+    assert dummy.calls["start"] == 0
 
 
 async def test_bus_recovery_reconciliation(watcher: ServiceWatcher):
