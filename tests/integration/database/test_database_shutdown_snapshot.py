@@ -79,3 +79,13 @@ async def test_failed_shutdown_snapshot_does_not_fail_shutdown(tmp_path: Path) -
 
     assert snapshot.is_dir()
     assert not service.is_db_ready
+
+
+async def test_shutdown_snapshot_skips_a_database_that_was_never_opened(tmp_path: Path) -> None:
+    """A service whose initialization never ran has no database file, so nothing is written."""
+    snapshot = tmp_path / "backup" / "hassette-snapshot.db"
+    service = build_service(tmp_path, snapshot)
+
+    await service.write_shutdown_snapshot()
+
+    assert not await asyncio.to_thread(snapshot.exists)

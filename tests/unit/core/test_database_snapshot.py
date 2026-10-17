@@ -204,6 +204,37 @@ def test_main_snapshot_failure_exits_1(tmp_path: Path) -> None:
     assert main(["snapshot", str(db), str(tmp_path / "hassette-snapshot.db")]) == 1
 
 
+def test_main_snapshot_and_restore_round_trip(tmp_path: Path) -> None:
+    db = tmp_path / "hassette.db"
+    create_db(db, rows=3)
+    snapshot = tmp_path / "backup" / "hassette-snapshot.db"
+
+    assert main(["snapshot", str(db), str(snapshot)]) == 0
+    db.unlink()
+    assert main(["restore", str(db), str(snapshot)]) == 0
+
+    assert row_count(db) == 3
+
+
+def test_main_succeeds_when_there_is_nothing_to_do(tmp_path: Path) -> None:
+    db = tmp_path / "hassette.db"
+    snapshot = tmp_path / "hassette-snapshot.db"
+
+    assert main(["snapshot", str(db), str(snapshot)]) == 0
+    assert main(["restore", str(db), str(snapshot)]) == 0
+
+    assert not db.exists()
+    assert not snapshot.exists()
+
+
+def test_main_restore_failure_exits_1(tmp_path: Path) -> None:
+    snapshot = tmp_path / "hassette-snapshot.db"
+    snapshot.write_bytes(b"snapshot")
+    db = tmp_path / "no-such-dir" / "hassette.db"  # the copy can't be written here
+
+    assert main(["restore", str(db), str(snapshot)]) == 1
+
+
 def test_module_entry_point_writes_and_restores(tmp_path: Path) -> None:
     """The add-on's backup_pre.sh and run.sh call the module with `python -m`."""
     source = tmp_path / "hassette.db"
