@@ -27,7 +27,9 @@ from tests.support.helpers import (
 )
 
 from .helpers import (
+    ALWAYS_FAIL,
     AWAIT_TIMEOUT,
+    budget_entries,
     crashed_events,
     isolated_watcher,
     make_call_counts,
@@ -180,6 +182,49 @@ async def test_non_retryable_error_skips_restart(watcher: ServiceWatcher):
     # TEMPORARY exhaustion → EXHAUSTED_DEAD emitted
     assert len(capture.events) == 1
     assert capture.events[0].payload.data.status == ResourceStatus.EXHAUSTED_DEAD
+
+
+async def test_non_retryable_error_from_restart_attempt_ends_episode(watcher: ServiceWatcher):
+    """A restart attempt that raises a non-retryable error goes straight to exhaustion, not a retry.
+
+    The attempt's own FAILED event is dropped while the episode runs, so the episode itself must
+    route the error the way restart_service() routes one carried by a FAILED event.
+    """
+    dummy = register_dummy_service(
+        watcher,
+        fail_times=ALWAYS_FAIL,
+        restart_type=RestartType.TEMPORARY,
+        budget_intensity=5,
+        non_retryable_error_names=("RuntimeError",),
+    )
+
+    await restart_and_await(watcher, dummy.failed_event)
+
+    assert dummy.calls["start"] == 1, "A non-retryable failure must not be retried"
+    assert budget_entries(watcher, dummy.key) == 1
+    assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
+
+
+async def test_fatal_error_from_restart_attempt_triggers_shutdown(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """A restart attempt that raises a configured fatal error shuts down instead of retrying."""
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        dummy = register_dummy_service(
+            watcher,
+            fail_times=ALWAYS_FAIL,
+            restart_type=RestartType.TRANSIENT,
+            budget_intensity=5,
+            fatal_error_names=("RuntimeError",),
+        )
+
+        await restart_and_await(watcher, dummy.failed_event)
+
+        assert dummy.calls["start"] == 1, "A fatal failure must not be retried"
+        assert hassette.fatal_shutdown_reason is not None
+        assert "RuntimeError" in hassette.fatal_shutdown_reason
+        assert hassette.shutdown_event.is_set()
 
 
 async def test_restart_refused_during_backoff_escalates_to_fatal_shutdown(
