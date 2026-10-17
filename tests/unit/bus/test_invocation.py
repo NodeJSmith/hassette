@@ -135,6 +135,8 @@ class TestInvokeHandlerConstruction:
         listener = create_listener(topic="test.topic")
         event = make_mock_event()
 
+        # Built and fired inline rather than via invoke_and_get_cmd: db_id must change between
+        # building the invoke_fn and firing it, and the helper does both in one call.
         # db_id is None at build time
         assert listener.db_id is None
 
@@ -149,14 +151,11 @@ class TestInvokeHandlerConstruction:
         # Set db_id after building the invoke_fn (simulates async registration completing)
         listener.db_id = 42
 
-        # dup-ignore-start: fire-and-extract-cmd tail — see the matching comment in
-        # invoke_and_get_cmd above.
         await invoke_fn()
 
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.listener_id == 42
-        # dup-ignore-end
 
     async def test_executor_execute_called_with_command(self) -> None:
         """executor.execute is called exactly once with the InvokeHandler command."""
