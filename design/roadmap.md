@@ -12,7 +12,7 @@ Last reviewed: 2026-10-17
 | **Milestone** | An initiative. Its description holds the **Done when** line. Being in the milestone means the Done-when needs it |
 | **`epic:*` label** | Topic only ("related to HACS"). Apply freely; it never adds scope |
 | **`topic:*` / `epic:correctness` labels** | Buckets. Never in a milestone unless an initiative's Done-when needs them |
-| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#45, #1336, #1540, #1427) |
+| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#71, #1336, #1540, #1427) |
 | **This file** | Which milestone is Now / Next / Later, and the forced orderings |
 
 An initiative gets its milestone when it enters Now, or earlier once its Done-when can be
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Start with the discovery spike (#2663) and the ingress base-path gate (#2664). Spans three repos: hassette, `hassette-addon` and `hass-hassette` (NodeJSmith/hass-hassette#6, which a hassette milestone can't hold). The add-on repo, release bump, install docs and discovery pairing (hass-hassette v0.2.0) have shipped; #2711 (service restart retry) is the last open issue. Close the milestone and move this row out when it lands |
+| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Spans three repos: hassette, `hassette-addon` and `hass-hassette`. Everything has shipped, including discovery pairing in hass-hassette v0.2.0, except #2711 (service restart retry). When it lands, close #71 and the milestone and promote the first Next row |
 
 ## Next
 
@@ -58,8 +58,8 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
-| **Standalone CLI** | *Standalone CLI* (tracker #1540) | Needs #2386. Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
-| **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the `wait_for` races (#2302, #2303, #2304, #2309). Any can be pulled forward as an interrupt |
+| **Standalone CLI** | *Standalone CLI* (tracker #1540) | Unblocked (#2386 shipped). Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
+| **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
 | **HACS app entities** | pool: #1449, #2439 (`epic:hacs`) | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439) |
 
@@ -79,18 +79,15 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 These are the only forced orderings. Anything not on a chain can go in any order.
 
 ```
-#2508 app health ──> #2509 apps resource + grid ──> #2448 naming + docs (126)
-#2448 vocabulary (123) ─────────────────────────> #2448 naming + docs (126)
-#2448 naming + docs (126) ──> #2386 client transport ──> client release ──> hass-hassette v0.1 ──> #2506 pinned E2E
-                                                     client release ──> #2485 cross-version CI
-                         #2386 client transport ──> standalone CLI (#2387 ──> #2388)
-hass-hassette v0.1 ──> HACS app entities ──> HACS webhooks
-#2663 discovery spike ──> #2671 add-on announce + hass-hassette#6 discovery pairing (pulled forward from a later HACS release; shipped as hass-hassette v0.2.0)
-#2664 ingress base-path e2e ──> #2672 hassette-addon repo
-#2665, #2666, #2667 ──> #2669 add-on image ──> #2670 DB backup, #2671 announce, #2673 release bump
+#2387 CLI into hassette-client[cli] ──> #2388 named remote targets
+HACS app entities ──> HACS webhooks & templates
 testing redesign + all breaking changes ──> v1.0 tag
 #2695 required DB ──> #2992 WebContext, #1446 projector ──> #2806 issues registry ──> #2994 status from DB ──> #2995 WS invalidations ──> #2996 snapshot mode
+#2992, #1446, #2991 job timing, #2555 apps cleanup ──> #2993 apps from DB ──> #2996 snapshot mode
+#2989 seed anchor, #2890 mixed-instance scenario ──> #2996 snapshot mode
 ```
+
+Remove a chain once every step on it has closed.
 
 ## Buckets (never "done", never a milestone)
 
@@ -100,4 +97,4 @@ testing redesign + all breaking changes ──> v1.0 tag
 | Code quality | `topic:code-quality`, `source:quality-scanner` | Small mechanical fixes |
 | Architecture | `topic:architecture` | Structural work; promote to an initiative if a cluster grows (e.g. restart hardening: #1689, #1767, #1721) |
 | Docs | `type:documentation` | Followability and accuracy fixes |
-| Test/CI infra | `area:testing`, `type:CICD` | Flakes (#2363, #2364) become interrupts when they block merges |
+| Test/CI infra | `area:testing`, `type:CICD` | Flakes (e.g. #2364) become interrupts when they block merges |
