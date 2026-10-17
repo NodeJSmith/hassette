@@ -2,11 +2,17 @@
 
 import asyncio
 import sqlite3
+import threading
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
+
+import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.core.database_snapshot import write_snapshot
+from hassette.testing import wait_for
 from tests.support.helpers import (
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
@@ -89,3 +95,30 @@ async def test_shutdown_snapshot_skips_a_database_that_was_never_opened(tmp_path
     await service.write_shutdown_snapshot()
 
     assert not await asyncio.to_thread(snapshot.exists)
+
+
+async def test_cancelled_shutdown_snapshot_still_finishes(tmp_path: Path) -> None:
+    """The shutdown hook budget can cancel the await; the copy runs on in its thread and still lands."""
+    snapshot = tmp_path / "backup" / "hassette-snapshot.db"
+    service = build_service(tmp_path, snapshot)
+    await service.on_initialize()
+    await service.close_connections()
+    entered = threading.Event()
+    release = threading.Event()
+
+    def gated_write_snapshot(db_path: Path, snapshot_path: Path) -> bool:
+        entered.set()
+        release.wait(timeout=30)
+        return write_snapshot(db_path, snapshot_path)
+
+    with patch("hassette.core.database_service.write_snapshot", gated_write_snapshot):
+        waiter = asyncio.create_task(service.write_shutdown_snapshot())
+        assert await asyncio.to_thread(entered.wait, 10)  # the copy has started in its thread
+        waiter.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiter
+        release.set()
+
+        await wait_for(lambda: snapshot.exists(), timeout=10, desc="snapshot written after cancellation")
+
+    assert session_count(snapshot) == 0

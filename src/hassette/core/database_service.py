@@ -4,6 +4,7 @@ import sqlite3
 import time
 import typing
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -352,22 +353,25 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         """Write ``database.shutdown_snapshot_path`` at the end of shutdown, after the drain and close are attempted.
 
         Runs even when draining or closing failed, so the snapshot then holds every write that committed. A
-        failure is logged, never raised: shutdown carries on, and the previous snapshot stays in place. The copy
-        runs in a worker thread with no deadline, because a thread can't be cancelled mid-copy; a process killed
-        during it leaves the previous snapshot intact.
+        failure is logged, never raised: shutdown carries on, and the previous snapshot stays in place.
+
+        The shutdown hook budget doesn't bound the copy. It runs in a worker thread inside a shielded task, so if
+        the budget cancels this await, the copy still finishes and logs its outcome, and ``asyncio.run`` waits for
+        the thread before the process exits. Only a kill (Supervisor's stop timeout under the add-on) cuts it
+        short, which leaves the previous snapshot in place.
         """
         snapshot_path = self.hassette.config.database.shutdown_snapshot_path
         if snapshot_path is None:
             return
-        try:
-            written = await asyncio.to_thread(write_snapshot, self._db_path, snapshot_path)
-        except (sqlite3.Error, OSError):
-            self.logger.exception("Couldn't write the shutdown snapshot to %s", snapshot_path)
-            return
-        if written:
-            self.logger.info("Wrote the shutdown snapshot to %s", snapshot_path)
-        else:
-            self.logger.debug("No database at %s; skipped the shutdown snapshot", self._db_path)
+        # A lifecycle task, not a bare shield(coro): the TaskBucket factory is sealed this late in shutdown.
+        copy = create_lifecycle_task(
+            asyncio.to_thread(write_snapshot, self._db_path, snapshot_path),
+            name=f"shutdown_snapshot:{self.unique_name}",
+        )
+        copy.add_done_callback(partial(log_shutdown_snapshot_outcome, self, snapshot_path))
+        # failures are logged by the callback, which also runs if this await is cancelled
+        with contextlib.suppress(sqlite3.Error, OSError):
+            await asyncio.shield(copy)
 
     async def close_connections(self) -> None:
         """Close both database connections. Idempotent -- safe to call multiple times.
@@ -642,3 +646,17 @@ def maintenance_deadlines(
         retention_attempt.next_due(config.retention_interval_seconds, retry_interval=retry),
         size_failsafe_attempt.next_due(config.size_failsafe_interval_seconds, retry_interval=retry),
     )
+
+
+def log_shutdown_snapshot_outcome(service: DatabaseService, snapshot_path: Path, copy: "asyncio.Task[bool]") -> None:
+    """Log how ``DatabaseService.write_shutdown_snapshot()``'s copy ended."""
+    if copy.cancelled():
+        service.logger.warning("The shutdown snapshot to %s was cancelled", snapshot_path)
+        return
+    exc = copy.exception()
+    if exc is not None:
+        service.logger.error("Couldn't write the shutdown snapshot to %s", snapshot_path, exc_info=exc)
+    elif copy.result():
+        service.logger.info("Wrote the shutdown snapshot to %s", snapshot_path)
+    else:
+        service.logger.debug("No database at %s; skipped the shutdown snapshot", service.resolve_db_path())
