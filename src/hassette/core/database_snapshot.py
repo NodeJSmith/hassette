@@ -9,20 +9,28 @@ Assistant add-on runs it from its ``backup_pre`` hook and its start glue through
 ``hassette.core.database_snapshot_cli`` (design/specs/129-ha-addon-v01/design.md, D10).
 """
 
+import contextlib
+import glob
+import os
 import shutil
 import sqlite3
+import tempfile
+import time
 from pathlib import Path
 
 from hassette.utils.aiosqlite_utils import SQLITE_BUSY_TIMEOUT_MS, delete_db_files
+
+# A snapshot copy takes seconds, so a temp file this old belongs to a run that was killed, not a live writer.
+STALE_TEMP_SECONDS = 3600
 
 
 def write_snapshot(db_path: Path, snapshot_path: Path) -> bool:
     """Write a consistent copy of ``db_path`` to ``snapshot_path``. Safe while another process writes.
 
-    The copy goes to a ``.tmp`` sibling first and is renamed into place, so ``snapshot_path`` is always either the
-    previous snapshot or a complete new one. A leftover ``.tmp`` from a run that was killed is removed first.
-    The ``.tmp`` name is fixed, so two writers of the same snapshot at once (a backup hook racing a shutdown)
-    can delete each other's copy; the loser raises and the previous snapshot is kept.
+    The copy goes to a temp file of its own beside ``snapshot_path`` and is renamed into place, so
+    ``snapshot_path`` is always either the previous snapshot or a complete new one. Writers that overlap (a
+    backup hook racing a shutdown) each rename their own complete copy, and the last rename wins. Temp files
+    older than ``STALE_TEMP_SECONDS``, left by runs that were killed, are removed first.
 
     Returns:
         False when ``db_path`` doesn't exist (nothing to snapshot, any previous snapshot is kept), True otherwise.
@@ -33,8 +41,10 @@ def write_snapshot(db_path: Path, snapshot_path: Path) -> bool:
     if not db_path.is_file():
         return False
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = snapshot_path.with_name(snapshot_path.name + ".tmp")
-    delete_db_files(tmp_path)
+    remove_stale_temps(snapshot_path)
+    fd, tmp_name = tempfile.mkstemp(dir=snapshot_path.parent, prefix=f"{snapshot_path.name}.", suffix=".tmp")
+    os.close(fd)
+    tmp_path = Path(tmp_name)
     try:
         # mode=ro so a database deleted between the check above and here raises instead of being created empty
         source = sqlite3.connect(
@@ -54,6 +64,15 @@ def write_snapshot(db_path: Path, snapshot_path: Path) -> bool:
         # removes a partial copy after a failure; nothing is left to remove after the rename
         delete_db_files(tmp_path)
     return True
+
+
+def remove_stale_temps(snapshot_path: Path) -> None:
+    """Delete ``write_snapshot`` temp files for ``snapshot_path`` old enough that no live writer owns them."""
+    cutoff = time.time() - STALE_TEMP_SECONDS
+    for tmp_path in snapshot_path.parent.glob(f"{glob.escape(snapshot_path.name)}.*.tmp"):
+        with contextlib.suppress(FileNotFoundError):  # another writer's cleanup got there first
+            if tmp_path.stat().st_mtime < cutoff:
+                delete_db_files(tmp_path)
 
 
 def restore_snapshot(db_path: Path, snapshot_path: Path) -> bool:

@@ -995,7 +995,8 @@ add-ons take hot backups with no hook.
   the case by shipping the live files plus a write freeze during backups, which needs more hassette code.
   This adds a small hassette setting, which the earlier "hassette gains no add-on code" did not foresee.
 - **Mechanics:** SQLite's online backup API in one step (`hassette.core.database_snapshot`), written to
-  `hassette-snapshot.db.tmp` and renamed, with any leftover temp removed first. Restore deletes leftover
+  a per-writer temp file beside the snapshot and renamed, so a `backup_pre` overlapping a shutdown snapshot
+  can't publish a half-written file; temps over an hour old (killed runs) are removed first. Restore deletes leftover
   `-wal`/`-shm` before placing the snapshot and keeps the snapshot on disk. There is no `backup_post` and no
   integrity check.
 - **Stop timeout:** D4's `timeout: 45` becomes 60 (NodeJSmith/hassette-addon#2). The shutdown snapshot runs at

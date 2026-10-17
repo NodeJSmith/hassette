@@ -1,19 +1,22 @@
 """Tests for hassette.core.database_snapshot: consistent snapshots of a live WAL database and restoring them."""
 
+import os
 import sqlite3
 import subprocess
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
-from hassette.core.database_snapshot import restore_snapshot, write_snapshot
+from hassette.core.database_snapshot import STALE_TEMP_SECONDS, restore_snapshot, write_snapshot
 from hassette.core.database_snapshot_cli import main
 
 # Rows committed before the snapshot starts; every one must be in it.
 COMMITTED_ROWS = 200
+OVERLAPPING_WRITERS = 4
 
 
 def create_db(path: Path, rows: int) -> None:
@@ -24,6 +27,11 @@ def create_db(path: Path, rows: int) -> None:
     conn.executemany("INSERT INTO t (v) VALUES (?)", [(f"row-{i}",) for i in range(rows)])
     conn.commit()
     conn.close()
+
+
+def temp_files(snapshot: Path) -> list[Path]:
+    """write_snapshot's temp files for ``snapshot`` still on disk."""
+    return sorted(snapshot.parent.glob(f"{snapshot.name}.*.tmp"))
 
 
 def query_one(path: Path, sql: str) -> object:
@@ -68,7 +76,7 @@ def test_snapshot_reads_commits_still_in_the_wal(live_db: tuple[Path, sqlite3.Co
 
     # checked before anything opens the snapshot, which would create its own -wal
     assert not Path(f"{snapshot}-wal").exists()
-    assert not snapshot.with_name(snapshot.name + ".tmp").exists()
+    assert temp_files(snapshot) == []
     assert row_count(snapshot) == COMMITTED_ROWS
     assert integrity(snapshot) == "ok"
 
@@ -112,19 +120,42 @@ def test_snapshot_skips_a_missing_database_and_keeps_the_previous_snapshot(tmp_p
     assert not (tmp_path / "hassette.db").exists()
 
 
-def test_snapshot_replaces_a_leftover_temp_file(live_db: tuple[Path, sqlite3.Connection], tmp_path: Path) -> None:
+def test_snapshot_removes_only_stale_temp_files(live_db: tuple[Path, sqlite3.Connection], tmp_path: Path) -> None:
+    """A killed run's old temp file is removed; a fresh one may belong to a live writer and is kept."""
     db, writer = live_db
     writer.close()
     snapshot = tmp_path / "hassette-snapshot.db"
-    leftover = snapshot.with_name(snapshot.name + ".tmp")
-    leftover.write_bytes(b"half-written by a killed run")
-    Path(f"{leftover}-wal").write_bytes(b"stale")
+    stale = snapshot.with_name(snapshot.name + ".killed.tmp")
+    stale.write_bytes(b"half-written by a killed run")
+    Path(f"{stale}-wal").write_bytes(b"stale")
+    old = time.time() - STALE_TEMP_SECONDS - 60
+    os.utime(stale, (old, old))
+    live = snapshot.with_name(snapshot.name + ".live.tmp")
+    live.write_bytes(b"another writer's copy in progress")
 
     assert write_snapshot(db, snapshot)
 
     assert row_count(snapshot) == COMMITTED_ROWS
-    assert not leftover.exists()
-    assert not Path(f"{leftover}-wal").exists()
+    assert not stale.exists()
+    assert not Path(f"{stale}-wal").exists()
+    assert live.exists()
+
+
+def test_overlapping_writers_each_publish_a_complete_snapshot(
+    live_db: tuple[Path, sqlite3.Connection], tmp_path: Path
+) -> None:
+    """A backup hook racing a shutdown snapshot must never publish a half-written file."""
+    db, writer = live_db
+    writer.close()
+    snapshot = tmp_path / "hassette-snapshot.db"
+
+    with ThreadPoolExecutor(max_workers=OVERLAPPING_WRITERS) as pool:
+        results = list(pool.map(lambda _: write_snapshot(db, snapshot), range(OVERLAPPING_WRITERS)))
+
+    assert results == [True] * OVERLAPPING_WRITERS
+    assert integrity(snapshot) == "ok"
+    assert row_count(snapshot) == COMMITTED_ROWS
+    assert temp_files(snapshot) == []
 
 
 def test_failed_snapshot_keeps_the_previous_snapshot(tmp_path: Path) -> None:
@@ -137,7 +168,7 @@ def test_failed_snapshot_keeps_the_previous_snapshot(tmp_path: Path) -> None:
         write_snapshot(db, snapshot)
 
     assert snapshot.read_bytes() == b"previous"
-    assert not snapshot.with_name(snapshot.name + ".tmp").exists()
+    assert temp_files(snapshot) == []
 
 
 def test_restore_copies_the_snapshot_when_the_database_is_missing(tmp_path: Path) -> None:
