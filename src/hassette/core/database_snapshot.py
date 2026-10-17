@@ -13,12 +13,7 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-from hassette.utils.aiosqlite_utils import delete_db_files
-
-# How long the snapshot's read connection waits on a locked database before failing. Matches
-# _BUSY_TIMEOUT_MS in database_service.py (which imports this module, so it can't be imported here), so a
-# snapshot never gives up on a lock a healthy write would wait out.
-SNAPSHOT_BUSY_TIMEOUT_SECONDS = 5.0
+from hassette.utils.aiosqlite_utils import SQLITE_BUSY_TIMEOUT_MS, delete_db_files
 
 
 def write_snapshot(db_path: Path, snapshot_path: Path) -> bool:
@@ -43,7 +38,7 @@ def write_snapshot(db_path: Path, snapshot_path: Path) -> bool:
     try:
         # mode=ro so a database deleted between the check above and here raises instead of being created empty
         source = sqlite3.connect(
-            f"{db_path.resolve().as_uri()}?mode=ro", uri=True, timeout=SNAPSHOT_BUSY_TIMEOUT_SECONDS
+            f"{db_path.resolve().as_uri()}?mode=ro", uri=True, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000
         )
         try:
             target = sqlite3.connect(tmp_path)

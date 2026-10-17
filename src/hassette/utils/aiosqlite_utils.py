@@ -8,6 +8,10 @@ from typing import Any
 
 import aiosqlite
 
+SQLITE_BUSY_TIMEOUT_MS = 5000
+"""SQLite busy_timeout (ms) for every hassette connection: the telemetry database, the app cache, and
+database snapshots."""
+
 STOP_JOIN_TIMEOUT_SECONDS = 0.1
 """Bound on ``Thread.join()`` while stopping a connection synchronously.
 

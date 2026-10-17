@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Any, TypeVar, cast, overload
 
 from hassette.cache._helpers import (
-    BUSY_TIMEOUT_MS,
     DESERIALIZE_FAILED,
     MISSING,
     deserialize,
@@ -27,7 +26,7 @@ from hassette.cache._helpers import (
     serialize,
     validate_key,
 )
-from hassette.utils.aiosqlite_utils import CHECKPOINT_TRUNCATE_SQL
+from hassette.utils.aiosqlite_utils import CHECKPOINT_TRUNCATE_SQL, SQLITE_BUSY_TIMEOUT_MS
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +45,9 @@ class SyncCache:
         self.default_ttl = default_ttl
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
+        conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
         conn.execute("PRAGMA journal_mode = WAL")
-        conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        conn.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
         return conn
 
     # dup-ignore-start: @overloads and user-facing docstring must repeat on each cache class

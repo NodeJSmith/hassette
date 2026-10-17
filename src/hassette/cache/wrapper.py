@@ -11,7 +11,6 @@ from typing import Any, TypeVar, cast, overload
 import aiosqlite
 
 from hassette.cache._helpers import (
-    BUSY_TIMEOUT_MS,
     DESERIALIZE_FAILED,
     MISSING,
     SCHEMA_DDL,
@@ -24,6 +23,7 @@ from hassette.cache._helpers import (
 from hassette.cache.sync import SyncCache
 from hassette.utils.aiosqlite_utils import (
     CHECKPOINT_TRUNCATE_SQL,
+    SQLITE_BUSY_TIMEOUT_MS,
     close_connection_pair,
     connect_daemon,
     delete_db_files,
@@ -121,15 +121,15 @@ class AsyncCache:
         self.sync = SyncCache(self.db_path, self.default_ttl)
 
     async def _open_connections(self) -> None:
-        self._write = await connect_daemon(self.db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
+        self._write = await connect_daemon(self.db_path, isolation_level=None, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
         self._write.row_factory = aiosqlite.Row
         await self._write.execute("PRAGMA journal_mode = WAL")
-        await self._write.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        await self._write.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
 
-        self._read = await connect_daemon(self.db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
+        self._read = await connect_daemon(self.db_path, isolation_level=None, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
         self._read.row_factory = aiosqlite.Row
         await self._read.execute("PRAGMA query_only = ON")
-        await self._read.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        await self._read.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
 
     async def _run_schema(self) -> None:
         for statement in SCHEMA_DDL:

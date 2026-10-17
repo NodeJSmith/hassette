@@ -29,6 +29,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.utils.aiosqlite_utils import (
+    SQLITE_BUSY_TIMEOUT_MS,
     close_connection_pair,
     connect_daemon,
     delete_db_files,
@@ -43,15 +44,12 @@ if typing.TYPE_CHECKING:
 # Maximum seconds update_heartbeat() waits for its write to be queued and executed.
 # A wedged write worker stops draining the queue without ever raising, so an unbounded
 # await would park serve() forever and never reach its failure-count escalation.
-# Sized between the two clocks it sits between: comfortably above _BUSY_TIMEOUT_MS (5s), so a
+# Sized between the two clocks it sits between: comfortably above SQLITE_BUSY_TIMEOUT_MS (5s), so a
 # healthy write merely blocked on the SQLite lock is never mistaken for a wedge, and well under
 # the default heartbeat interval (300s, see DatabaseConfig.heartbeat_interval_seconds), so a
 # timed-out attempt cannot overlap the next tick. Three strikes therefore escalate roughly
 # DatabaseConfig.max_consecutive_heartbeat_failures intervals in.
 _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
-
-_BUSY_TIMEOUT_MS = 5000
-"""SQLite busy_timeout (ms) applied to both read and write connections."""
 
 _STARTUP_CLEANUP_BUDGET_FRACTION = 0.5
 """Share of ``startup_timeout_seconds`` the startup cleanup catch-up may spend before it yields
@@ -229,7 +227,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._read_db = await connect_daemon(self._db_path, isolation_level=None)
         self._read_db.row_factory = aiosqlite.Row
         await self._read_db.execute("PRAGMA query_only = ON")
-        await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
+        await self._read_db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
 
         await self.set_pragmas()
         await self.catch_up_cleanup_at_startup()
@@ -522,7 +520,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         # This is acceptable for operational telemetry — the orphan-session mechanism
         # compensates for session rows but not for individual telemetry records.
         await db.execute("PRAGMA synchronous = NORMAL")
-        await db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
+        await db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
         await db.execute("PRAGMA foreign_keys = ON")
         # Intentionally a no-op — auto_vacuum is set by the migration runner before table creation.
         # This line documents intent only.

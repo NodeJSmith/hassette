@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The Home Assistant add-on's entrypoint (design/specs/129-ha-addon-v01/design.md, D4). It seeds an empty
 # config folder, pins the settings the add-on owns, restores the database after a backup restore, maps the
-# add-on options, then hands off to the image's own docker_start.sh. Values hassette resolves itself (config locations, the token's contents) are never
-# computed here.
+# add-on options, then hands off to the image's own docker_start.sh. Values hassette resolves itself (config
+# locations, the token's contents) are never computed here.
 
 set -euo pipefail
 
