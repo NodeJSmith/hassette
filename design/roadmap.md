@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Spans three repos: hassette, `hassette-addon` and `hass-hassette`. Everything has shipped, including discovery pairing in hass-hassette v0.2.0, except #2711 (service restart retry). When it lands, close #71 and the milestone and promote the first Next row |
+| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Spans three repos: hassette, `hassette-addon` and `hass-hassette`. All the code has shipped, including discovery pairing in hass-hassette v0.2.0, except #2711 (service restart retry). The design's `## Build` checklist still has unchecked real-HAOS verifications (STARTUP held until HEALTHCHECK passes, direct-port proxy trust, clean exit, ingress WebSocket) and the ship-time challenge. When #2711 has landed and those are checked off or explicitly dropped, close #71 and the milestone and promote the first Next row |
 
 ## Next
 
@@ -82,9 +82,11 @@ These are the only forced orderings. Anything not on a chain can go in any order
 #2387 CLI into hassette-client[cli] ──> #2388 named remote targets
 HACS app entities ──> HACS webhooks & templates
 testing redesign + all breaking changes ──> v1.0 tag
-#2695 required DB ──> #2992 WebContext, #1446 projector ──> #2806 issues registry ──> #2994 status from DB ──> #2995 WS invalidations ──> #2996 snapshot mode
+#2695 required DB ──> #2992 WebContext ──> #2994 status from DB
+#2695, #2990 write path, #2938 service_status scope ──> #1446 projector ──> #2806 issues registry ──> #2994 status from DB ──> #2995 WS invalidations ──> #2996 snapshot mode
 #2992, #1446, #2991 job timing, #2555 apps cleanup ──> #2993 apps from DB ──> #2996 snapshot mode
-#2989 seed anchor, #2890 mixed-instance scenario ──> #2996 snapshot mode
+#1446 projector ──> #2890 mixed-instance scenario ──> #2996 snapshot mode
+#2989 seed anchor ──> #2996 snapshot mode
 ```
 
 Remove a chain once every step on it has closed.
