@@ -29,6 +29,7 @@ from hassette.testing import wait_for
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 from tests.support.factories import make_log_record
 from tests.support.harness import preserve_config
+from tests.support.run_forever import stub_run_forever_collaborators
 
 # wire_services() creates anyio memory streams that are closed explicitly in the
 # fixture teardown. However, pytest holds internal references to fixture results,
@@ -196,14 +197,8 @@ class TestRunForeverEdgeCases:
     async def test_skips_loop_watchdog_when_disabled(self, wired_hassette: Hassette) -> None:
         """run_forever() never installs the loop watchdog when watchdog_enabled is False."""
         hassette = wired_hassette
-        hassette.wait_for_ready = AsyncMock(return_value=True)
-        hassette._session_manager.mark_orphaned_sessions = AsyncMock()
-        hassette._session_manager.create_session = AsyncMock()
-        hassette.shutdown = AsyncMock()
+        stub_run_forever_collaborators(hassette)
 
-        # start() is a module-level function (hassette.resources.lifecycle), not a
-        # method — patch it at the call site (core.py) rather than reassigning instance
-        # attributes, since run_forever() calls the free function directly for every child.
         with (
             patch("hassette.core.core.start") as mock_start,
             preserve_config(hassette.config),
@@ -219,10 +214,7 @@ class TestRunForeverEdgeCases:
     async def test_cancelled_during_shutdown_wait_converts_to_graceful_shutdown(self, wired_hassette: Hassette) -> None:
         """run_forever() catches CancelledError while waiting for shutdown and completes without raising."""
         hassette = wired_hassette
-        hassette.wait_for_ready = AsyncMock(return_value=True)
-        hassette._session_manager.mark_orphaned_sessions = AsyncMock()
-        hassette._session_manager.create_session = AsyncMock()
-        hassette.shutdown = AsyncMock()
+        stub_run_forever_collaborators(hassette)
 
         with patch("hassette.core.core.start"):
             task = asyncio.create_task(hassette.run_forever())
@@ -240,10 +232,7 @@ class TestRunForeverEdgeCases:
     ) -> None:
         """run_forever() logs (not raises) an unexpected exception from shutdown_event.wait()."""
         hassette = wired_hassette
-        hassette.wait_for_ready = AsyncMock(return_value=True)
-        hassette._session_manager.mark_orphaned_sessions = AsyncMock()
-        hassette._session_manager.create_session = AsyncMock()
-        hassette.shutdown = AsyncMock()
+        stub_run_forever_collaborators(hassette)
         hassette.shutdown_event.wait = AsyncMock(side_effect=RuntimeError("event loop primitive broke"))
         error_mock = Mock()
         hassette.logger.error = error_mock
