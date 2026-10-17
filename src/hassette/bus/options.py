@@ -17,7 +17,7 @@ class Options(TypedDict, total=False):
     once: bool
     """Whether the listener should be removed after one invocation."""
 
-    mode: ExecutionMode | str
+    mode: ExecutionMode | str | None
     """Overlap behavior when a trigger fires while a prior invocation still runs.
 
     ``"single"`` drops the re-fire (the app-tier default), ``"restart"`` cancels the running
@@ -39,7 +39,7 @@ class Options(TypedDict, total=False):
     timeout_disabled: bool
     """When True, disables timeout enforcement for this listener regardless of config."""
 
-    backpressure: BackpressurePolicy | str
+    backpressure: BackpressurePolicy | str | None
     """Saturation policy for this listener when the dispatch concurrency semaphore is at capacity.
 
     ``"block"`` (default) waits for a slot, preserving today's blocking behavior unchanged.
