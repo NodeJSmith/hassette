@@ -13,7 +13,7 @@ from hassette.testing import wait_for
 from tests.support.factories import make_mock_listener
 from tests.support.helpers import settle
 
-from .conftest import make_mock_job
+from .conftest import make_mock_job, pop_execution_record
 
 WAIT_TIMEOUT = 2.0
 
@@ -57,8 +57,7 @@ async def test_error_handler_runs_after_framework_log(executor: CommandExecutor)
     assert isinstance(received_ctx[0].exception, ValueError)
     assert received_ctx[0].topic == "test.topic"
     # Framework still recorded the error in the write queue
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
+    record = pop_execution_record(executor)
     assert record.status == "error"
 
 
@@ -192,8 +191,7 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
     assert isinstance(received_ctx[0].exception, TimeoutError)
 
     # Write queue should have a timed_out record
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
+    record = pop_execution_record(executor)
     assert record.status == "timed_out"
 
 

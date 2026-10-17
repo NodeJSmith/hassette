@@ -17,10 +17,10 @@ from hassette.commands import InvokeHandler
 from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
-from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.testing import HassetteHarness
 from hassette.testing.config import TEST_TOKEN
+from tests.integration.conftest import pop_execution_record
 from tests.support.factories import make_job_registration, make_listener_registration
 from tests.support.helpers import DB_HASSETTE_DATABASE_MAX_SIZE_MB, DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
@@ -146,9 +146,7 @@ async def test_command_executor_records_source_tier_on_error(framework_hassette:
     await executor.execute(cmd)
 
     # Verify record was queued with correct source_tier
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.kind == "handler"
     assert record.source_tier == "framework"
     assert record.status == "error"

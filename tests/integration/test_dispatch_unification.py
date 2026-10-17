@@ -14,24 +14,15 @@ Tests verify:
 import time
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
-from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.factories import make_mock_listener
 from tests.support.helpers import create_listener
 
-
-@pytest.fixture
-async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
-    """Create and prepare a CommandExecutor with real DB wired in."""
-    exc = CommandExecutor(db_hassette, parent=db_hassette)
-    await exc.on_initialize()
-    return exc
+from .conftest import pop_execution_record
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
@@ -48,9 +39,7 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
 
     await executor.execute(cmd)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.listener_id == 42
     assert record.status == "success"
     assert record.source_tier == "app"
@@ -70,9 +59,7 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
 
     await executor.execute(cmd)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.listener_id is None
     assert record.status == "success"
 
@@ -133,9 +120,7 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
 
     await executor.execute(cmd)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.listener_id == 99
     assert record.source_tier == "framework"
     assert record.status == "success"
@@ -410,9 +395,7 @@ async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
 
     await executor.execute(cmd)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.kind == "job"
     assert record.job_id == 55
     assert record.status == "success"
@@ -437,9 +420,7 @@ async def test_pre_registration_job_produces_orphan_record(executor: CommandExec
 
     await executor.execute(cmd)
 
-    assert not executor._write_queue.empty()
-    record = executor._write_queue.get_nowait()
-    assert isinstance(record, ExecutionRecord)
+    record = pop_execution_record(executor)
     assert record.kind == "job"
     assert record.job_id is None
     assert record.status == "success"
