@@ -46,6 +46,8 @@ The release workflow builds each package into its own `dist/<name>/` directory a
 - `renovate.json`, if the member is pinned exactly by another workspace member (stops Renovate from bumping a pin release-please owns)
 - `release-please.yml`: a new `publish-pypi-<name>` job reusing the `publish-pypi-steps` YAML anchor with its own `PACKAGE_NAME`/`PACKAGES_DIR` env (the comment above those jobs says why it can't be a reusable workflow or composite action), chained after the member it depends on via `needs:`, with its own GitHub Environment (created the same way as `release-wire`/`release-client`, same branch policy) — and add the job to `release-verify`'s `needs:` and result checks
 
+After `publish-docker`, the `bump-addon` job commits the add-on's `version` and a CHANGELOG entry to `NodeJSmith/hassette-addon` (spec 129 D12), using the release-please app's token scoped to that repo; `tools/release/bump_addon.py` holds its stable-only, no-downgrade and equal-is-a-no-op rules, and `release-verify` fails the release if it fails.
+
 ## Architecture
 
 | Component | Location | Role |

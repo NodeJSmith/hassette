@@ -620,10 +620,10 @@ publishes, with no manual step.
 
 Behavior to pin:
 
-- The bump job is in `release-verify`'s `needs:` and result checks (`.github/workflows/release-please.yml:369-388`),
+- The bump job is in `release-verify`'s `needs:` and result checks (`.github/workflows/release-please.yml`),
   so a failed bump fails the release the same way a failed PyPI or Docker publish does.
 - The job refuses a version lower than `hassette-addon`'s current `version`. `workflow_dispatch` accepts any
-  `tag_name` (`release-please.yml:6-11`), and a re-run of an old tag must not downgrade add-on users. An equal
+  `tag_name` (`release-please.yml`'s `on:` inputs), and a re-run of an old tag must not downgrade add-on users. An equal
   version is a successful no-op, so re-running a release whose bump already landed (after a later step failed)
   passes without committing.
 - Before committing, an anonymous `docker manifest inspect` confirms the add-on image exists for amd64 and
@@ -895,7 +895,7 @@ docs should. **Pick "both out" instead if** you'd rather keep the milestone to t
 - [ ] Verify on real HAOS that a client of the mapped direct port is never presented as `172.30.32.2`; record the result in the Addendum (D7)
 - [ ] Verify the add-on container stops with exit 0 on `ha apps stop`, both while hassette serves and during the pre-serve install (D4)
 - [ ] Verify on real HAOS that the UI's WebSocket (`frontend/src/hooks/use-websocket.ts`) connects through ingress (D1)
-- [ ] Make the `hassette-addon` GHCR package public before the first release (D12)
+- [x] Make the `hassette-addon` GHCR package public before the first release (D12). Verified 2026-10-17: an anonymous `docker manifest inspect` of `ghcr.io/nodejsmith/hassette-addon:main` succeeds
 - [ ] Implementation and tests committed
 - [ ] Docs
 - [ ] Ship-time challenge
