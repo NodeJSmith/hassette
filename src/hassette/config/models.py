@@ -58,6 +58,12 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Path to the SQLite database file: absolute, or relative to the config file that sets it. Defaults to
     data_dir / "hassette.db" when None."""
 
+    shutdown_snapshot_path: Path | None = Field(default=None)
+    """Where to write a consistent single-file copy of the database on a clean shutdown: absolute, or relative
+    to the config file that sets it. The copy is written to a ``.tmp`` sibling first and renamed into place, so
+    the file is always complete. None (the default) writes no copy. The Home Assistant add-on sets it, so a
+    backup taken while the add-on is stopped carries the database as of its last stop."""
+
     retention_days: int = Field(default=30, ge=1)
     """Number of days to retain app-tier execution records in the ``executions`` table.
     Framework-tier records use ``framework_retention_days`` instead."""

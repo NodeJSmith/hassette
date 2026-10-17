@@ -4,6 +4,7 @@ import sqlite3
 import time
 import typing
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -13,6 +14,7 @@ from hassette_wire import LogLevel
 from hassette.config.models import DatabaseConfig
 from hassette.core.database_failsafe import DatabaseSizeFailsafeMixin
 from hassette.core.database_retention import DatabaseRetentionMixin
+from hassette.core.database_snapshot import write_snapshot
 from hassette.core.database_sql import SQL_BEGIN, safe_rollback
 from hassette.core.database_write_queue import (
     DatabaseWriteQueueMixin,
@@ -27,7 +29,13 @@ from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, 
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
-from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
+from hassette.utils.aiosqlite_utils import (
+    SQLITE_BUSY_TIMEOUT_MS,
+    close_connection_pair,
+    connect_daemon,
+    delete_db_files,
+    stop_connection_sync,
+)
 from hassette.utils.service_utils import cancel_and_drain
 
 if typing.TYPE_CHECKING:
@@ -37,15 +45,12 @@ if typing.TYPE_CHECKING:
 # Maximum seconds update_heartbeat() waits for its write to be queued and executed.
 # A wedged write worker stops draining the queue without ever raising, so an unbounded
 # await would park serve() forever and never reach its failure-count escalation.
-# Sized between the two clocks it sits between: comfortably above _BUSY_TIMEOUT_MS (5s), so a
+# Sized between the two clocks it sits between: comfortably above SQLITE_BUSY_TIMEOUT_MS (5s), so a
 # healthy write merely blocked on the SQLite lock is never mistaken for a wedge, and well under
 # the default heartbeat interval (300s, see DatabaseConfig.heartbeat_interval_seconds), so a
 # timed-out attempt cannot overlap the next tick. Three strikes therefore escalate roughly
 # DatabaseConfig.max_consecutive_heartbeat_failures intervals in.
 _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
-
-_BUSY_TIMEOUT_MS = 5000
-"""SQLite busy_timeout (ms) applied to both read and write connections."""
 
 _STARTUP_CLEANUP_BUDGET_FRACTION = 0.5
 """Share of ``startup_timeout_seconds`` the startup cleanup catch-up may spend before it yields
@@ -223,7 +228,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._read_db = await connect_daemon(self._db_path, isolation_level=None)
         self._read_db.row_factory = aiosqlite.Row
         await self._read_db.execute("PRAGMA query_only = ON")
-        await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
+        await self._read_db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
 
         await self.set_pragmas()
         await self.catch_up_cleanup_at_startup()
@@ -321,7 +326,9 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 size_failsafe_attempt = CleanupAttempt(attempted_at=time.monotonic(), enqueued=enqueued)
 
     async def on_shutdown(self) -> None:
-        """Drain the write queue, cancel the worker, then close the database connection."""
+        """Drain the write queue, cancel the worker, close the database connections, then write the shutdown
+        snapshot if one is configured.
+        """
         queue: asyncio.Queue[_WriteQueueItem] | None = None
         try:
             if self._db_worker_task is not None:
@@ -337,7 +344,34 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
             self.close_remaining_queue_items(queue)
-            await self.close_connections()
+            try:
+                await self.close_connections()
+            finally:
+                await self.write_shutdown_snapshot()
+
+    async def write_shutdown_snapshot(self) -> None:
+        """Write ``database.shutdown_snapshot_path`` at the end of shutdown, after the drain and close are attempted.
+
+        Runs even when draining or closing failed, so the snapshot then holds every write that committed. A
+        failure is logged, never raised: shutdown carries on, and the previous snapshot stays in place.
+
+        The shutdown hook budget doesn't bound the copy. It runs in a worker thread inside a shielded task, so if
+        the budget cancels this await, the copy still finishes and logs its outcome, and ``asyncio.run`` waits for
+        the thread before the process exits. Only a kill (Supervisor's stop timeout under the add-on) cuts it
+        short, which leaves the previous snapshot in place.
+        """
+        snapshot_path = self.hassette.config.database.shutdown_snapshot_path
+        if snapshot_path is None:
+            return
+        # A lifecycle task, not a bare shield(coro): the TaskBucket factory is sealed this late in shutdown.
+        copy = create_lifecycle_task(
+            asyncio.to_thread(write_snapshot, self._db_path, snapshot_path),
+            name=f"shutdown_snapshot:{self.unique_name}",
+        )
+        copy.add_done_callback(partial(log_shutdown_snapshot_outcome, self, snapshot_path))
+        # failures are logged by the callback, which also runs if this await is cancelled
+        with contextlib.suppress(sqlite3.Error, OSError):
+            await asyncio.shield(copy)
 
     async def close_connections(self) -> None:
         """Close both database connections. Idempotent -- safe to call multiple times.
@@ -490,7 +524,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         # This is acceptable for operational telemetry — the orphan-session mechanism
         # compensates for session rows but not for individual telemetry records.
         await db.execute("PRAGMA synchronous = NORMAL")
-        await db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
+        await db.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
         await db.execute("PRAGMA foreign_keys = ON")
         # Intentionally a no-op — auto_vacuum is set by the migration runner before table creation.
         # This line documents intent only.
@@ -614,8 +648,15 @@ def maintenance_deadlines(
     )
 
 
-def delete_db_files(db_path: Path) -> None:
-    """Delete a SQLite database file and its ``-wal``/``-shm`` sidecars, ignoring any that are missing."""
-    db_path.unlink(missing_ok=True)
-    for suffix in ("-wal", "-shm"):
-        Path(str(db_path) + suffix).unlink(missing_ok=True)
+def log_shutdown_snapshot_outcome(service: DatabaseService, snapshot_path: Path, copy: "asyncio.Task[bool]") -> None:
+    """Log how ``DatabaseService.write_shutdown_snapshot()``'s copy ended."""
+    if copy.cancelled():
+        service.logger.warning("The shutdown snapshot to %s was cancelled", snapshot_path)
+        return
+    exc = copy.exception()
+    if exc is not None:
+        service.logger.error("Couldn't write the shutdown snapshot to %s", snapshot_path, exc_info=exc)
+    elif copy.result():
+        service.logger.info("Wrote the shutdown snapshot to %s", snapshot_path)
+    else:
+        service.logger.debug("No database at %s; skipped the shutdown snapshot", service.resolve_db_path())

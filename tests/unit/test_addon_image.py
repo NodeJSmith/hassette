@@ -12,6 +12,7 @@ from hassette.config.config import HassetteConfig
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ADDON_DOCKERFILE = REPO_ROOT / "docker" / "addon" / "Dockerfile"
 ADDON_RUN_SH = REPO_ROOT / "docker" / "addon" / "run.sh"
+ADDON_BACKUP_PRE_SH = REPO_ROOT / "docker" / "addon" / "backup_pre.sh"
 DOCKER_START_SH = REPO_ROOT / "scripts" / "docker_start.sh"
 
 # run.sh's unconditional hassette settings: literal single-line exports at the start of a line. The value is
@@ -85,6 +86,7 @@ def test_pinned_settings_outrank_hassette_toml(monkeypatch: pytest.MonkeyPatch, 
         'token = "toml-token"\n'
         "[hassette.database]\n"
         'path = "/config/other.db"\n'
+        'shutdown_snapshot_path = "/config/other-snapshot.db"\n'
         "[hassette.web_api]\n"
         'host = "127.0.0.1"\n'
         "port = 9999\n"
@@ -110,9 +112,31 @@ def test_pinned_settings_outrank_hassette_toml(monkeypatch: pytest.MonkeyPatch, 
     assert config.token is not None
     assert config.token.get_secret_value() == "supervisor-token"
     assert config.database.path == Path("/data/hassette.db")
+    assert config.database.shutdown_snapshot_path == Path("/data/backup/hassette-snapshot.db")
     assert (web_api.host, web_api.port) == ("0.0.0.0", 8126)
     assert web_api.run
     assert web_api.run_ui
     assert web_api.auth_enabled
     assert list(web_api.trusted_proxies) == ["172.30.32.2"]
     assert web_api.token_file == Path("/config/.web_api_token")
+
+
+def test_backup_hook_snapshots_the_paths_run_sh_pins() -> None:
+    """backup_pre.sh runs with the image's environment, not run.sh's exports, so its literal paths must name the
+    database hassette opens and the snapshot run.sh restores (D10).
+    """
+    pins = dict(HASSETTE_EXPORT.findall(ADDON_RUN_SH.read_text(encoding="utf-8")))
+    hook = ADDON_BACKUP_PRE_SH.read_text(encoding="utf-8")
+
+    assert f'DB_PATH="{pins["HASSETTE__DATABASE__PATH"]}"' in hook
+    assert f'SNAPSHOT_PATH="{pins["HASSETTE__DATABASE__SHUTDOWN_SNAPSHOT_PATH"]}"' in hook
+    assert os.access(ADDON_BACKUP_PRE_SH, os.X_OK), "Supervisor execs backup_pre.sh directly"
+
+
+def test_snapshot_restore_runs_before_hassette_starts() -> None:
+    """A restored snapshot has to be in place before hassette opens (or creates) the database (D10)."""
+    script = ADDON_RUN_SH.read_text(encoding="utf-8")
+
+    restore = script.index('"${VENV_PYTHON}" -m hassette.core.database_snapshot_cli restore')
+
+    assert restore < script.index("exec /app/scripts/docker_start.sh")

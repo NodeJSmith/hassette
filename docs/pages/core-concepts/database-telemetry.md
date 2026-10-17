@@ -32,6 +32,7 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `path` | path or null | `null` | Location of the SQLite database file. When null, Hassette stores the database at `{data_dir}/hassette.db` (`~/.local/share/hassette/v0/hassette.db` on Linux). |
+| `shutdown_snapshot_path` | path or null | `null` | Where Hassette writes a single-file copy of the database on each clean shutdown, for backup setups that leave out the live database files. The copy is written under a temporary name and renamed into place, so the file is always complete. The Home Assistant add-on sets it so a backup taken while the add-on is stopped still holds the database. The add-on also restores this copy at start whenever the database file is missing, so deleting the database alone brings the copy back; delete both to start fresh. |
 | `retention_days` | integer | `30` | Days of app-tier execution records to retain. Records older than this value are deleted automatically. Minimum: 1. Lowering it below 30 also requires lowering `framework_retention_days` and `logging.log_retention_days` to at most the new value. |
 | `framework_retention_days` | integer | `30` | Days of framework-tier execution records to retain. Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are tracked separately from app handlers, so lowering this window trims framework history without touching app records. Must be `<= retention_days`. |
 | `max_size_mb` | float | `500` | Maximum live data in megabytes: the in-use pages of the database, not the file on disk. Free pages and the WAL don't count, so the file can sit above this value until unused pages are reclaimed. When exceeded, the oldest records are deleted in batches, highest-volume tier first: framework executions, then blocking events, then app executions. Log records are never deleted by this failsafe — only by `logging.log_retention_days`. A value of `0` disables the size limit. |
@@ -124,7 +125,7 @@ Three steps resolve most degraded states.
 
 1. **Disk space.** In Docker: `docker compose exec hassette df -h /data`.
 2. **File permissions.** The Hassette process must be able to write to the database path.
-3. **Delete and restart.** If the database is corrupted, deleting it is safe. Only telemetry history is lost; automations and configuration are unaffected.
+3. **Delete and restart.** If the database is corrupted, deleting it is safe. Only telemetry history is lost; automations and configuration are unaffected. If `shutdown_snapshot_path` is set (the Home Assistant add-on sets it), delete that copy too, or the add-on restores it at the next start.
 
 ```bash
 --8<-- "pages/core-concepts/snippets/database-telemetry/db_recovery.sh"

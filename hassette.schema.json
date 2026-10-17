@@ -525,6 +525,20 @@
           "description": "Path to the SQLite database file: absolute, or relative to the config file that sets it. Defaults to\ndata_dir / \"hassette.db\" when None.",
           "title": "Path"
         },
+        "shutdown_snapshot_path": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where to write a consistent single-file copy of the database on a clean shutdown: absolute, or relative\nto the config file that sets it. The copy is written to a ``.tmp`` sibling first and renamed into place, so\nthe file is always complete. None (the default) writes no copy. The Home Assistant add-on sets it, so a\nbackup taken while the add-on is stopped carries the database as of its last stop.",
+          "title": "Shutdown Snapshot Path"
+        },
         "retention_days": {
           "default": 30,
           "description": "Number of days to retain app-tier execution records in the ``executions`` table.\nFramework-tier records use ``framework_retention_days`` instead.",
