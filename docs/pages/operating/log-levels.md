@@ -17,7 +17,7 @@ Find your symptom and set the field it maps to. Leave everything else at `INFO`.
 | Noisy file-change messages during development | `logging.file_watcher` |
 | Web UI not responding or showing errors | `logging.web_api` |
 
-At `DEBUG`, `logging.web_api` also logs one line per HTTP request (uvicorn's access log); at any other level those lines are off.
+At `DEBUG`, `logging.web_api` also logs one line per HTTP request (uvicorn's access log). At any other level, those lines are off.
 
 ## How It Works
 
