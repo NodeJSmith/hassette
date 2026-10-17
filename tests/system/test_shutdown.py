@@ -11,7 +11,6 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import wait_for
 from hassette.types.enums import RestartType
-from tests.support.helpers import make_service_failed_event
 
 from .conftest import make_system_config, startup_context
 
@@ -98,10 +97,12 @@ async def test_failed_service_cascade_triggers_fatal_shutdown(ha_container: str,
             failing_service = _AlwaysFailingService(hassette, parent=hassette)
             hassette.children.append(failing_service)
 
-            # Fire a FAILED event — ServiceWatcher restarts once (budget_intensity=1), then exhausts the
-            # budget, records the fatal reason, emits CRASHED, and triggers shutdown. run_forever()
-            # unblocks and raises FatalError, which startup_context re-raises on context exit.
-            await hassette.send_event(make_service_failed_event(failing_service))
+            # Fail it for real: initialize() moves it to FAILED and emits the FAILED event on the bus.
+            # ServiceWatcher restarts once (budget_intensity=1), then exhausts the budget, records the
+            # fatal reason, emits CRASHED, and triggers shutdown. run_forever() unblocks and raises
+            # FatalError, which startup_context re-raises on context exit.
+            with pytest.raises(RuntimeError, match="always fails"):
+                await failing_service.initialize()
 
             await wait_for(
                 hassette.shutdown_event.is_set,
