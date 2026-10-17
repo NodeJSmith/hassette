@@ -111,6 +111,28 @@ def multi_instance_manifest() -> AppManifest:
     return make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
 
 
+@pytest.fixture
+async def running_multi_instance(
+    app_factory: AppFactory,
+    app_lifecycle: AppLifecycleService,
+    app_registry: AppRegistry,
+    multi_instance_manifest: AppManifest,
+) -> dict[int, "App[AppConfig]"]:
+    """``MultiInstanceApp`` created and initialized; returns its instances."""
+    return await bring_up_app(app_factory, app_lifecycle, app_registry, multi_instance_manifest)
+
+
+@pytest.fixture
+async def initialized_failing(
+    app_factory: AppFactory,
+    app_lifecycle: AppLifecycleService,
+    app_registry: AppRegistry,
+    failing_manifest: AppManifest,
+) -> dict[int, "App[AppConfig]"]:
+    """``FailingInitApp`` created and put through its (failing) initialization; returns its instances."""
+    return await bring_up_app(app_factory, app_lifecycle, app_registry, failing_manifest)
+
+
 @pytest.fixture(autouse=True)
 def clear_cache():
     """Clear the class cache before each test."""
@@ -314,16 +336,9 @@ class TestAppFactoryIntegration:
 class TestAppLifecycleServiceIntegration:
     """Integration tests for AppLifecycleService with real app instances."""
 
-    async def test_lifecycle_initializes_real_app(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        multi_instance_manifest: AppManifest,
-    ):
+    @pytest.mark.usefixtures("running_multi_instance")
+    async def test_lifecycle_initializes_real_app(self, app_registry: AppRegistry):
         """Calls real on_initialize() hook."""
-        await bring_up_app(app_factory, app_lifecycle, app_registry, multi_instance_manifest)
-
         # Verify the app was initialized (status should be RUNNING after mark_ready)
         app_instance = get_app(app_registry, "multi_instance", 0)
         assert app_instance.status == ResourceStatus.RUNNING
@@ -374,33 +389,19 @@ class TestAppLifecycleServiceIntegration:
         assert instance_1.status == ResourceStatus.RUNNING
 
     async def test_lifecycle_handles_init_exception(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        failing_manifest: AppManifest,
+        self, app_registry: AppRegistry, initialized_failing: dict[int, "App[AppConfig]"]
     ):
-        """App raising in on_initialize() is caught."""
-        # Should not raise
-        instances = await bring_up_app(app_factory, app_lifecycle, app_registry, failing_manifest)
-
+        """App raising in on_initialize() is caught (the fixture's initialization did not raise)."""
         # App should be marked as stopped
         app_instance = app_registry.get("failing", 0)
         assert app_instance is None, "Failed app instance should be removed from registry after init failure"
-        assert instances[0].status == ResourceStatus.STOPPED, (
+        assert initialized_failing[0].status == ResourceStatus.STOPPED, (
             "Failed app instance should be marked as STOPPED after init failure"
         )
 
-    async def test_lifecycle_records_exception_failure(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        failing_manifest: AppManifest,
-    ):
+    @pytest.mark.usefixtures("initialized_failing")
+    async def test_lifecycle_records_exception_failure(self, app_registry: AppRegistry):
         """Exception recorded in registry."""
-        await bring_up_app(app_factory, app_lifecycle, app_registry, failing_manifest)
-
         # Failure should be recorded
         failed = get_failed_by_key(app_registry, "failing")
         assert len(failed) == 1
@@ -499,32 +500,20 @@ class TestAppLifecycleServiceIntegration:
         success_instance = get_app(app_registry, "multi_instance", 0)
         assert success_instance.status == ResourceStatus.RUNNING
 
-    async def test_lifecycle_shuts_down_real_app(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        multi_instance_manifest: AppManifest,
-    ):
+    @pytest.mark.usefixtures("running_multi_instance")
+    async def test_lifecycle_shuts_down_real_app(self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry):
         """Calls real shutdown() and cleanup() methods."""
-        await bring_up_app(app_factory, app_lifecycle, app_registry, multi_instance_manifest)
-
         app_instance = get_app(app_registry, "multi_instance", 0)
         assert app_instance.status == ResourceStatus.RUNNING
 
         # Shutdown should not raise
         await app_lifecycle.shutdown_instance(app_instance)
 
+    @pytest.mark.usefixtures("running_multi_instance")
     async def test_lifecycle_shutdown_all_clears_registry(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        multi_instance_manifest: AppManifest,
+        self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """After shutdown_all, registry is empty."""
-        await bring_up_app(app_factory, app_lifecycle, app_registry, multi_instance_manifest)
-
         assert len(app_registry.all_apps()) > 0
 
         await app_lifecycle.shutdown_all()
@@ -620,30 +609,16 @@ class TestFullIntegrationFlow:
         assert multi1_instance.status == ResourceStatus.RUNNING
         assert my_app_instance.status == ResourceStatus.RUNNING
 
-    async def test_snapshot_shows_running_apps(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        multi_instance_manifest: AppManifest,
-    ):
+    @pytest.mark.usefixtures("running_multi_instance")
+    async def test_snapshot_shows_running_apps(self, app_registry: AppRegistry):
         """Running apps appear in snapshot.instances (running_count/running_apps)."""
-        await bring_up_app(app_factory, app_lifecycle, app_registry, multi_instance_manifest)
-
         snapshot = app_registry.get_snapshot()
         assert snapshot.running_count == 1
         assert "multi_instance" in snapshot.running_apps
 
-    async def test_snapshot_shows_failed_apps(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        failing_manifest: AppManifest,
-    ):
+    @pytest.mark.usefixtures("initialized_failing")
+    async def test_snapshot_shows_failed_apps(self, app_registry: AppRegistry):
         """Failed apps appear in snapshot.instances (failed_count/failed_apps)."""
-        await bring_up_app(app_factory, app_lifecycle, app_registry, failing_manifest)
-
         snapshot = app_registry.get_snapshot()
         assert snapshot.failed_count == 1
         assert "failing" in snapshot.failed_apps
@@ -652,16 +627,9 @@ class TestFullIntegrationFlow:
 class TestAppRestartPreservesChildren:
     """Verify that an App's children survive a shutdown + re-initialize cycle."""
 
-    async def test_restart_round_trip(
-        self,
-        app_factory: AppFactory,
-        app_lifecycle: AppLifecycleService,
-        app_registry: AppRegistry,
-        multi_instance_manifest: AppManifest,
-    ):
+    @pytest.mark.usefixtures("running_multi_instance")
+    async def test_restart_round_trip(self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry):
         """Shutdown propagates to children, re-initialize restores them all to ready."""
-        await bring_up_app(app_factory, app_lifecycle, app_registry, multi_instance_manifest)
-
         app_instance = get_app(app_registry, "multi_instance", 0)
         assert app_instance.status == ResourceStatus.RUNNING
 
