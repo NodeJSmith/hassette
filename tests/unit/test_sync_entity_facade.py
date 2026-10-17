@@ -14,24 +14,20 @@ Covers:
       exist for the lock domain in HA).
 """
 
-from contextlib import contextmanager
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic import BaseModel
 
-from hassette import context
-from hassette.models.entities.base import BaseEntity, BaseEntitySyncFacade
+from hassette.models.entities.base import BaseEntitySyncFacade
 from hassette.models.entities.climate import ClimateEntity, ClimateEntitySyncFacade
 from hassette.models.entities.cover import CoverEntity, CoverEntitySyncFacade
 from hassette.models.entities.light import LightEntitySyncFacade
 from hassette.models.entities.lock import LockEntity, LockEntitySyncFacade
 from hassette.models.states import ClimateState, CoverState, LockState
-from tests.unit.conftest import make_api, make_light_entity
+from tests.unit.conftest import entity_session, make_api, make_domain_entity, make_light_entity
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from contextvars import Token
 
     from hassette import Hassette
@@ -41,43 +37,7 @@ COVER_ENTITY_ID = "cover.garage"
 CLIMATE_ENTITY_ID = "climate.living_room"
 LOCK_ENTITY_ID = "lock.front_door"
 
-EntityT = TypeVar("EntityT", bound=BaseEntity)
-StateModelT = TypeVar("StateModelT", bound=BaseModel)
-
-
 # Entity construction helpers
-
-
-def make_domain_entity(
-    api: "Api", *, entity_id: str, state: str, entity_cls: type[EntityT], state_cls: type[StateModelT]
-) -> "tuple[EntityT, Token[Hassette]]":
-    """Create a domain entity wired to the given api via HASSETTE_INSTANCE context.
-
-    Parameterized factory covering cover/climate/lock — the three domains this module
-    tests beyond light. make_light_entity (imported from conftest) stays separate since
-    it is also shared with test_entity_coroutine_conversion.
-    """
-    hassette_mock = MagicMock()
-    hassette_mock.api = api
-    token = context.HASSETTE_INSTANCE.set(hassette_mock)
-
-    entity_state = state_cls.model_validate({"entity_id": entity_id, "state": state, "attributes": {}, "context": {}})
-    entity = entity_cls(state=entity_state)
-    return entity, token
-
-
-@contextmanager
-def entity_session(entity_and_token: "tuple[EntityT, Token[Hassette]]") -> "Iterator[EntityT]":
-    """Yield the entity from a (entity, token) pair and reset the context var on exit.
-
-    Wraps the output of make_domain_entity / make_light_entity so tests don't repeat
-    the try/finally reset boilerplate.
-    """
-    entity, token = entity_and_token
-    try:
-        yield entity
-    finally:
-        context.HASSETTE_INSTANCE.reset(token)
 
 
 def make_cover_entity(api: "Api") -> "tuple[CoverEntity, Token[Hassette]]":
