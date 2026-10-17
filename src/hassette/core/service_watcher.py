@@ -420,20 +420,20 @@ class ServiceWatcher(Resource):
 
         spec = service.restart_spec
 
-        # Steps 1-2: fatal and non-retryable errors skip the restart entirely
-        if await self.route_unretryable_failure(name, role, key, spec, status_payload):
-            return
-
-        # Step 3: In-restart guard -- prevent double budget depletion from concurrent FAILED events.
-        # While a restart episode holds the key, every FAILED event is either a duplicate of the
-        # failure that started it or a failed attempt's own failure; execute_restart() observes the
-        # latter directly and decides whether to retry or exhaust, so the event adds nothing here.
+        # Step 1: In-restart guard -- while a restart episode holds the key, every FAILED event is
+        # either a duplicate of the failure that started it or a failed attempt's own failure.
+        # attempt_restart() routes the latter directly (retry, exhaust, or fatal/non-retryable), so
+        # acting on the event too would route the same failure twice. Checked before Steps 2-3.
         if key in self._restarting:
             self.logger.debug(
                 "%s '%s' restart already in progress, dropping duplicate FAILED event",
                 role,
                 name,
             )
+            return
+
+        # Steps 2-3: fatal and non-retryable errors skip the restart entirely
+        if await self.route_unretryable_failure(name, role, key, spec, status_payload):
             return
 
         # Step 4: Check budget exhaustion
