@@ -72,6 +72,18 @@ class TestUvicornConfig:
         config_call = mock_uvicorn.Config.call_args
         assert config_call.kwargs["proxy_headers"] is False
 
+    @pytest.mark.parametrize(("level", "expected"), [("INFO", False), ("DEBUG", True)])
+    async def test_access_log_enabled_only_at_debug(
+        self, unused_tcp_port_factory, tmp_path, level: str, expected: bool
+    ) -> None:
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path)
+        service.hassette.config.logging.web_api = level  # pyright: ignore[reportAttributeAccessIssue]
+        with patch_uvicorn_serve() as (mock_uvicorn, _mock_server):
+            await service.serve()
+
+        config_call = mock_uvicorn.Config.call_args
+        assert config_call.kwargs["access_log"] is expected
+
     async def test_serve_passes_resolved_credentials_to_app_factory(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
 
