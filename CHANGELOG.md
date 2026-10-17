@@ -5,6 +5,100 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.58.0](https://github.com/NodeJSmith/hassette/compare/v0.57.0...v0.58.0) (2026-10-17)
+
+### Breaking Changes
+
+Run `hassette run --check` after upgrading. Removed settings fail it as unknown keys, with the closest real setting suggested.
+
+- **A path in `base_url` is kept as a prefix** — REST requests go to `<base_url>/api/` and the WebSocket to `<base_url>/api/websocket`, so Home Assistant served under a sub-path (or the add-on's `http://supervisor/core`) now works. A `base_url` with a leftover page path, such as a browser URL like `http://ha.local:8123/lovelace/0`, now connects under that path and fails. Remove the path, or keep it only if a reverse proxy serves HA there. A lone `/` or trailing slash isn't a prefix. The resolved REST and WebSocket URLs are logged at startup. See [`base_url` Paths](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/#base_url-paths) in the upgrading guide. (#2974)
+- **Config settings removed or given one meaning** — (#2784, #2783)
+  - `apps.extend_exclude_dirs` is removed. Move its entries to `apps.exclude_dirs`, which now adds to the built-in exclusions instead of replacing them.
+  - `logging.all_events` is removed. Replace `all_events = true` with `all_hass_events = true` and `all_hassette_events = true`. Events are now classed by payload type, so `all_hassette_events` also covers topics apps publish with `Bus.emit`.
+  - A `logging.log_persistence_level` stricter than `logging.log_level` is now a configuration error instead of being silently clamped. Unset, it defaults to `log_level`.
+  - `lifecycle.registration_await_timeout` and `web_api.job_history_size` are removed. Nothing read them; job history is governed by `database.retention_days` and `database.max_size_mb`.
+  - App entries must use `filename` and `class_name`. The `file_name`, `class`, `module` and `module_name` spellings are no longer accepted, and an entry using them is dropped with the "missing required keys" warning.
+- **Retention defaults are 30 days, so lowering `retention_days` alone fails validation** — `database.retention_days` (was 7), `database.framework_retention_days` (was 1) and `logging.log_retention_days` (was 3) all default to 30, so logs and framework history no longer expire before the executions they belong to. The other two must stay at or below `retention_days`, so a config that sets only `retention_days = 14` now fails. Lower all three together. (#2814)
+- **Legacy environment variable spellings are no longer read** — `LOG_LEVEL` and `HASSETTE_LOG_LEVEL` become `HASSETTE__LOGGING__LOG_LEVEL` (the old names never set the level past bootstrap anyway), `HASSETTE_CONFIG_DIR` becomes `HASSETTE__CONFIG_DIR`, and `HASSETTE_DATA_DIR` becomes `HASSETTE__DATA_DIR`. (#2777)
+- **REST failures other than 404 raise `HttpRequestError`** — REST-backed `Api` methods raised a bare `aiohttp.ClientResponseError` for statuses such as a 503 during an HA restart, which apps catching `HassetteError` missed. Catch `HttpRequestError` (a `HassetteError` carrying `status`, `message`, `method` and `url`) instead. 404s still raise `EntityNotFoundError`, and retries are unchanged. (#2939)
+- **`FalseySentinel` is a closed `Enum`** — `MISSING_VALUE`, `NOT_PROVIDED` and `ANY_VALUE` behave as before (`is` checks, falsiness, `isinstance`, pickling), but `FalseySentinel("NAME")` now raises `ValueError` and subclassing raises `TypeError`. Define your own `Enum` with a `__bool__` returning `False` if you need a custom falsey sentinel. Pyright can now narrow `is` checks against individual members. (#2834)
+- **Hassette requires `whenever` 0.11** (`>=0.11,<0.12`) — apps that use `whenever` directly must move off the APIs 0.11 deprecates or removes: the system-timezone helpers become the `SYSTEM_TZ` spellings, `timestamp_nanos()` becomes `timestamp(unit="nanosecond")`, `ZonedDateTime.tz` becomes `tz_id`, and `Time.py_time` / `Date.py_date` become `to_stdlib()`. (#2779)
+- **CLI usage errors exit with code 2** — an unknown option, missing argument or bad value now exits 2 instead of 1, so scripts can tell a usage error from a command that ran and failed. (#3022)
+
+### For App Authors: You Can Now Delete
+
+- **Converting minutes or hours to seconds for `run_in`** (`run_in(func, 5 * 60)`) — write `run_in(func, minutes=5)` or `hours=`. (#2808)
+- **Handlers that store the previous reading to detect a threshold crossing** — use `changed=C.CrossedAbove(threshold)` or `C.CrossedBelow(threshold)`, which fire only on the transition. (#2943)
+- **A separate `on_attribute_change` listener that reschedules an `EntityTime` job** because `attribute=` ignored attribute-only changes — `EntityTime(..., attribute=...)` now follows the attribute itself. (#2978)
+- **Reaching into `AppTestHarness._harness` to send an event the `simulate_*` helpers don't build** — use `harness.simulate_event(event)`. (#3006)
+- **A hand-rolled `asyncio.Semaphore` around `task_bucket.spawn()`** — pass `max_tasks=` to the `TaskBucket`. (#2833)
+- **`cast()` or a pyright ignore on a `call_service` `target` that mixes one ID with a list** — `target` is typed `Mapping[str, str | list[str]]`, so `{"entity_id": "light.kitchen", "area_id": ["hall", "den"]}` type-checks. (#2832)
+- **Deleting or moving `.venv` / `node_modules` out of a bind-mounted Docker project** so the entrypoint's copy wouldn't fail on them — the copy now skips environment dirs at the project root and caches at any depth. (#2800)
+
+### Home Assistant Add-on
+
+Hassette can now run as a Home Assistant add-on. Add `https://github.com/NodeJSmith/hassette-addon` as a custom repository; the [add-on guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/addon/) covers install, configuration and troubleshooting. (#3028)
+
+- The add-on image, `ghcr.io/nodejsmith/hassette-addon`, builds on the hassette image with a glue entrypoint and a `HEALTHCHECK` on `/api/health/live`. It connects to HA through the Supervisor proxy with no token pasting, seeds an empty `/config` with a commented `hassette.toml` and an example app, and pins the settings the add-on owns so `hassette.toml` can't move the listener, the HA connection, the token file or the database. Log lines render as plain text in the Log tab. (#3002, #3028)
+- The `python_packages` option is installed on every start, with the same constraints and conflict handling as the other installs. (#3003)
+- Dependency installs that can't reach the network at boot retry offline from the uv cache. If that fails too, hassette starts anyway with a banner listing each install that didn't run. Conflicts and 404 dependency URLs still halt. (#2960)
+- Home Assistant backups carry a consistent database snapshot taken by a `backup_pre` hook, and a restore puts it back on start. The new `database.shutdown_snapshot_path` setting writes the same snapshot on clean shutdown, so a backup of a stopped add-on is current. (#3008)
+- The add-on announces itself to the `hass-hassette` integration through Supervisor discovery, so a "Discovered" card appears with no connection details to enter, and every start re-announces a rotated token. Needs hass-hassette 0.2.0. (#3025)
+- New `web_api.token_file` setting chooses where the server reads and writes its generated token (default `<data_dir>/.web_api_token`). The add-on points it at `/config` so the token is reachable from File Editor or Samba, and the CLI reads the same path. (#3001)
+
+### Bus, Scheduler & Apps
+
+- `C.CrossedAbove(threshold)` and `C.CrossedBelow(threshold)` fire only when a value crosses the threshold, not on every update past it. A missing or non-numeric old or new value never counts as a crossing. (#2943)
+- `run_in` takes keyword-only `minutes=` and `hours=` alongside its positional `delay` in seconds; the parts add up. (#2808)
+- `EntityTime` with `attribute=` reschedules when that attribute changes. Each change to the watched value replaces the pending run, as HA's own time trigger does, so a positive offset on an entity that names "the next occurrence" (`sun.sun`'s `next_*` attributes, a next-alarm sensor) never fires; the docs say so and suggest a negative offset or an `input_datetime`. (#2978)
+- `TaskBucket` takes an optional `max_tasks` that bounds how many spawned coroutines run at once. `spawn()` stays synchronous. (#2833)
+- New `AnyEvent` alias (`Event[EventPayload[Any]]`), exported from `hassette.events`, types `event.payload` in handlers that accept any event. A handler annotated `AnyEvent | None` gets the event injected like `Event | None`. (#2807)
+- Cancelling a listener registration mid-add no longer leaves its name reserved, so registering the same name again works instead of reporting a duplicate. (#2829)
+- `StateComparison` and `AttrComparison` raise `TypeError` when passed a condition class such as `Increased` instead of an instance. Before, they logged a warning and instantiated it. (#2828)
+- An app whose class fails validation, such as an invalid base-class order, now fails the startup precheck and is marked failed when started, and the precheck log includes the error. Before, it slipped past the precheck. (#2819)
+
+### Api, States & Errors
+
+- User-facing errors end with a `Suggestion:` line saying how to fix the problem: `base_url` errors, a rejected token, dependency-injection errors (with a docs link) and the state-registry domain errors. (#2809)
+- State conversion that falls back to `BaseState` now logs a WARNING naming the entity, the class that failed and the error. It was logged at DEBUG, so a broken state model only showed up as a plain `BaseState`. (#2912)
+
+### Telemetry & Retention
+
+- Retention cleanup deletes old `sessions` rows once nothing references them. Before, every start left a row behind forever. (#2812)
+- An app removed from config disappears from the app list, and from the HA integration's entities, once its history has aged out of retention. Until then it's listed as "not in current config". (#2761)
+- `GET /api/logs/recent` takes an optional `instance_index` to scope a multi-instance app's logs to one instance. (#2940)
+- Listener and job summaries include `last_error_execution_id`, the execution behind the most recent error. (#2942)
+
+### Startup, Logging & Docker
+
+- The startup line includes the running version and the time since hassette was imported, e.g. `Starting Hassette v0.58.0... (0.42s since hassette import)`. (#2986, #2805)
+- A default-level `hassette run` shows only the config, apps, web API and HA connection lines. Startup internals log at DEBUG, "Found 0 inactive apps" is suppressed, and the default non-loopback web API bind logs at INFO instead of warning. The logging service's shutdown notice logs at DEBUG. (#2821, #2810)
+- A `trusted_proxies` hostname that doesn't resolve at startup no longer stops Hassette. It logs a warning, trusts nothing from that entry, and the refresh job adds its addresses once DNS answers. Malformed IP/CIDR literals and match-all ranges still fail startup. (#2941)
+- The Docker image ships precompiled bytecode, roughly halving cold-start import time (about 3.8 s to 2.0 s in testing) for a 10 MB larger image. (#2805)
+- User dependency installs in Docker can no longer downgrade hassette's own dependencies; a pin like `pydantic<2` now stops with the DEPENDENCY CONFLICT banner instead of producing an image that can't import hassette. (#2973)
+- An unreachable package index is reported as a network error instead of "DEPENDENCY CONFLICT", and stopping the container exits 0 in every phase, including during a dependency install. (#2960)
+
+### Web UI & CLI
+
+- `hassette job trigger <id>` fires a scheduled job once, right now. (#3004)
+- In `--json` mode, a command against a non-loopback target prints the `Target:` line, and the TLS warning when verification is off, to stderr. stdout still carries only the JSON. (#2816)
+- The CLI's auth-failure messages name the token source `web_api.token_file`. (#3001)
+- Config help popovers render docstring markup as readable text instead of literal backticks and `:class:` roles. (#2813)
+- Copying from the app Code tab pastes one line per source line instead of one per token. (#2910)
+- The sidebar's RUNNING group stays open when stopped apps exist, and can be collapsed by hand. (#2911)
+- App lifecycle transitions no longer appear in the Diagnostics Services panel, where instances of the same app class overwrote each other. (#2913)
+- Buttons share one set of styles, so a few controls shift slightly: hamburger and close icons are 16px, secondary text actions underline on hover only, and "Log in to Hassette" is an outlined button. (#2972)
+
+### Documentation
+
+- New Home Assistant add-on section: setup, configuration, and watchdog, backups and troubleshooting. (#3028)
+- README and docs landing page rewritten around one working motion-lights app, with the `hass-hassette` integration and a "Coming from AppDaemon?" section. A new "How Hassette Is Built" page explains how AI agents write the code and how it's checked. (#2785, #2820)
+- The `motion_lights` example and the debounce recipe no longer turn a light off when motion returns; they use `duration=` instead of `debounce=`. (#2797, #2785)
+- Scheduling relative to sunrise and sunset with `EntityTime`. (#2957)
+- Which state-conversion paths fall back to `BaseState` and which raise. (#2937)
+- `call_service`'s `target=` and targeting keys in `**data` are equivalent; `target=` is preferred. (#2827)
+- Terms defined on first use in the API methods, Apps and Task Bucket pages, and corrected `hassette app` sample output in Getting Started. (#2998, #2980)
+
 ## [0.57.0](https://github.com/NodeJSmith/hassette/compare/v0.56.0...v0.57.0) (2026-10-13)
 
 ### Breaking Changes
