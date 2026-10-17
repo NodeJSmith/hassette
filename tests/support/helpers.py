@@ -31,7 +31,7 @@ from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEv
 from hassette.exceptions import RestartRefusedError, TaskBucketSealedError
 from hassette.execution_mode import run_through_guard
 from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.testing import create_state_change_event, make_full_state_change_event, wait_for
+from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._simulation import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import TEST_SOURCE_LOCATION
@@ -47,7 +47,6 @@ if TYPE_CHECKING:
     from hassette.events import HassStateDict
     from hassette.execution_mode import ExecutionModeGuard
     from hassette.resources.service import Service
-    from hassette.testing import HassetteHarness
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate
 
 PLACEHOLDER_SERVICE_NAME = "TestService"
@@ -152,18 +151,6 @@ async def settle(seconds: float = SETTLE_SECONDS) -> None:
     """Give a stray extra handler call time to land before a negative assertion."""
     # negative-assertion: no event-driven alternative
     await asyncio.sleep(seconds)
-
-
-async def send_and_wait(
-    hassette: "HassetteHarness", entity_id: str, old_state: dict | None, new_state: dict | None
-) -> None:
-    """Send a state change event and wait for the proxy to record the entity."""
-    event = make_full_state_change_event(entity_id, old_state, new_state)
-    await hassette.send_event(event)
-    await wait_for(
-        lambda: hassette.state_proxy.get_state(entity_id) is not None,
-        desc=f"{entity_id} state arrived",
-    )
 
 
 def create_attr_change_event(

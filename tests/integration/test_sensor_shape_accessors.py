@@ -21,7 +21,7 @@ from hassette.models.states import (
 )
 from hassette.state_manager import DomainStates, StateManager
 from hassette.testing import make_full_state_change_event, make_sensor_state_dict, wait_for
-from tests.support.helpers import send_and_wait
+from tests.support.harness import send_and_wait
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness

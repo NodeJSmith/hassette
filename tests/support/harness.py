@@ -2,8 +2,13 @@
 
 import contextlib
 from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from hassette import HassetteConfig
+from hassette.testing import make_full_state_change_event, wait_for
+
+if TYPE_CHECKING:
+    from hassette.testing import HassetteHarness
 
 
 @contextlib.contextmanager
@@ -25,3 +30,15 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
     finally:
         for key in type(config).model_fields:
             setattr(config, key, getattr(snapshot, key))
+
+
+async def send_and_wait(
+    hassette: "HassetteHarness", entity_id: str, old_state: dict | None, new_state: dict | None
+) -> None:
+    """Send a state change event and wait for the proxy to record the entity."""
+    event = make_full_state_change_event(entity_id, old_state, new_state)
+    await hassette.send_event(event)
+    await wait_for(
+        lambda: hassette.state_proxy.get_state(entity_id) is not None,
+        desc=f"{entity_id} state arrived",
+    )

@@ -19,7 +19,7 @@ from hassette.testing import (
     make_switch_state_dict,
     wait_for,
 )
-from tests.support.helpers import send_and_wait
+from tests.support.harness import send_and_wait
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
