@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from hassette_codegen.extractors._common import parse_module_or_none
+from hassette_codegen.extractors._common import iter_classdef_literal_members, parse_module_or_none
 
 
 @dataclass
@@ -98,30 +98,8 @@ def _is_strenum_subclass(node: ast.ClassDef) -> bool:
 
 
 def _extract_int_members(node: ast.ClassDef) -> list[tuple[str, int]]:
-    members: list[tuple[str, int]] = []
-    for item in node.body:
-        if not isinstance(item, ast.Assign):
-            continue
-        for target in item.targets:
-            if not isinstance(target, ast.Name):
-                continue
-            if target.id.startswith("_"):
-                continue
-            if isinstance(item.value, ast.Constant) and isinstance(item.value.value, int):
-                members.append((target.id, item.value.value))
-    return members
+    return list(iter_classdef_literal_members(node, int, skip_private=True))
 
 
 def _extract_str_members(node: ast.ClassDef) -> list[tuple[str, str]]:
-    members: list[tuple[str, str]] = []
-    for item in node.body:
-        if not isinstance(item, ast.Assign):
-            continue
-        for target in item.targets:
-            if not isinstance(target, ast.Name):
-                continue
-            if target.id.startswith("_"):
-                continue
-            if isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
-                members.append((target.id, item.value.value))
-    return members
+    return list(iter_classdef_literal_members(node, str, skip_private=True))

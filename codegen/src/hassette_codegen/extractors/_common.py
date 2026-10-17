@@ -1,9 +1,13 @@
 """Shared AST utilities for entity extraction."""
 
 import ast
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TypeVar
 
 ENTITY_BASES = {"Entity", "ToggleEntity", "RestoreEntity"}
+
+T = TypeVar("T")
 
 
 def find_entity_class(tree: ast.Module) -> ast.ClassDef | None:
@@ -34,3 +38,26 @@ def parse_module_or_none(filepath: Path) -> ast.Module | None:
         return ast.parse(source, filename=str(filepath))
     except (OSError, SyntaxError):
         return None
+
+
+def iter_classdef_literal_members(
+    node: ast.ClassDef, literal_type: type[T], *, skip_private: bool = False
+) -> Iterator[tuple[str, T]]:
+    """Yield ``(name, value)`` for each simple ``NAME = <literal>`` assignment in a class body.
+
+    Only assignments whose value is a constant of ``literal_type`` are yielded; an assignment with
+    several ``Name`` targets yields once per target. ``skip_private=True`` drops names starting
+    with ``_``.
+    """
+    for item in node.body:
+        if not isinstance(item, ast.Assign):
+            continue
+        if not (isinstance(item.value, ast.Constant) and isinstance(item.value.value, literal_type)):
+            continue
+        value = item.value.value
+        for target in item.targets:
+            if not isinstance(target, ast.Name):
+                continue
+            if skip_private and target.id.startswith("_"):
+                continue
+            yield target.id, value

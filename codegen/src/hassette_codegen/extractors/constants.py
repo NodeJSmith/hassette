@@ -4,7 +4,7 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
-from hassette_codegen.extractors._common import parse_module_or_none
+from hassette_codegen.extractors._common import iter_classdef_literal_members, parse_module_or_none
 
 _NUMERIC_STATE_EXPECTED_FUNC_NAME = "_numeric_state_expected"
 """Name of HA's numeric-branch predicate, matched by ``extract_numeric_state_expected_source``
@@ -116,16 +116,7 @@ def _extract_strenum_name_to_value(filepath: Path, class_name: str) -> dict[str,
         if node.name != class_name:
             continue
 
-        mapping: dict[str, str] = {}
-        for item in node.body:
-            if not isinstance(item, ast.Assign):
-                continue
-            for target in item.targets:
-                if not isinstance(target, ast.Name):
-                    continue
-                if isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
-                    mapping[target.id] = item.value.value
-        return mapping
+        return dict(iter_classdef_literal_members(node, str))
     return {}
 
 
@@ -176,13 +167,9 @@ def _extract_unit_enums(ha_const: Path) -> list[str]:
         if not node.name.startswith("UnitOf"):
             continue
 
-        for item in node.body:
-            if not isinstance(item, ast.Assign):
-                continue
-            if isinstance(item.value, ast.Constant) and isinstance(item.value.value, str):
-                val = item.value.value
-                if val not in seen:
-                    units.append(val)
-                    seen.add(val)
+        for _name, val in iter_classdef_literal_members(node, str):
+            if val not in seen:
+                units.append(val)
+                seen.add(val)
 
     return units
