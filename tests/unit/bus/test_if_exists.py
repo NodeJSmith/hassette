@@ -18,7 +18,7 @@ Covers:
 
 import asyncio
 import typing
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -27,7 +27,7 @@ from hassette.exceptions import DuplicateListenerError
 from hassette.types import HandlerType
 from tests.support.helpers import create_listener
 
-from .conftest import mock_add_listener
+from .conftest import capture_bus_spawns, listener_key, mock_add_listener
 
 if typing.TYPE_CHECKING:
     from hassette.bus.bus import Bus
@@ -50,11 +50,6 @@ def make_bus_listener(bus: "Bus", *, handler: HandlerType = handler_a, name: str
         name=name,
         owner_id=bus.owner_id,
     )
-
-
-def listener_key(bus: "Bus", *, name: str = "my_listener", topic: str = "test.topic") -> tuple[str, int, str, str]:
-    """Return the natural key `bus._registered_listeners` stores a listener under."""
-    return (bus.parent.app_key, bus.parent.index, name, topic)
 
 
 async def test_error_default_raises_on_duplicate(bus: "Bus") -> None:
@@ -367,68 +362,32 @@ async def test_cancel_subscription_spawns_mark_cancelled(bus: "Bus") -> None:
     async def mock_mark_cancelled(db_id: int) -> None:
         cancelled_db_ids.append(db_id)
 
-    original_add = bus.bus_service.add_listener
-    original_mark = bus.bus_service.mark_listener_cancelled
-    bus.bus_service.add_listener = mock_add
-    bus.bus_service.mark_listener_cancelled = mock_mark_cancelled
-
-    try:
+    with capture_bus_spawns(bus, add_listener=mock_add, mark_listener_cancelled=mock_mark_cancelled) as spawned:
         sub = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         assert sub.listener.db_id == 99
 
-        # Mock the task_bucket.spawn to actually run the coroutine
-        original_spawn = bus.bus_service.task_bucket.spawn
-        spawned_coros: list = []
-
-        def capture_spawn(coro, **_kwargs):
-            spawned_coros.append(coro)
-            return MagicMock()
-
-        bus.bus_service.task_bucket.spawn = capture_spawn
-        try:
-            sub.cancel()
-            # Run the spawned coroutine
-            for coro in spawned_coros:
-                await coro
-        finally:
-            bus.bus_service.task_bucket.spawn = original_spawn
-    finally:
-        bus.bus_service.add_listener = original_add
-        bus.bus_service.mark_listener_cancelled = original_mark
+        sub.cancel()
+        # Run the spawned coroutine
+        for coro in spawned:
+            await coro
 
     assert 99 in cancelled_db_ids, "mark_listener_cancelled should have been called with db_id=99"
 
 
 async def test_cancel_no_db_id_no_spawn(bus: "Bus") -> None:
     """If db_id is not set (None), mark_listener_cancelled is not spawned."""
-    spawn_calls: list = []
 
     async def mock_add(_listener):
         # Do NOT call mark_registered — db_id stays None
         return 0
 
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = mock_add
-
-    try:
+    with capture_bus_spawns(bus, add_listener=mock_add) as spawned:
         sub = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         assert sub.listener.db_id is None
 
-        original_spawn = bus.bus_service.task_bucket.spawn
+        sub.cancel()
 
-        def capture_spawn(coro, **_kwargs):
-            spawn_calls.append(coro)
-            return MagicMock()
-
-        bus.bus_service.task_bucket.spawn = capture_spawn
-        try:
-            sub.cancel()
-        finally:
-            bus.bus_service.task_bucket.spawn = original_spawn
-    finally:
-        bus.bus_service.add_listener = original_add
-
-    assert len(spawn_calls) == 0, "No spawn should occur when db_id is None"
+    assert len(spawned) == 0, "No spawn should occur when db_id is None"
 
 
 async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
@@ -446,20 +405,7 @@ async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
     async def mock_mark_cancelled(db_id: int) -> None:
         cancelled_db_ids.append(db_id)
 
-    original_add = bus.bus_service.add_listener
-    original_mark = bus.bus_service.mark_listener_cancelled
-    bus.bus_service.add_listener = mock_add
-    bus.bus_service.mark_listener_cancelled = mock_mark_cancelled
-
-    spawned_coros: list = []
-    original_spawn = bus.bus_service.task_bucket.spawn
-
-    def capture_spawn(coro, **_kwargs):
-        spawned_coros.append(coro)
-        return MagicMock()
-
-    bus.bus_service.task_bucket.spawn = capture_spawn
-    try:
+    with capture_bus_spawns(bus, add_listener=mock_add, mark_listener_cancelled=mock_mark_cancelled) as spawned:
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         old_db_id = sub1.listener.db_id
         assert old_db_id == 10
@@ -467,12 +413,8 @@ async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
         await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
 
         # Run all spawned coroutines
-        for coro in spawned_coros:
+        for coro in spawned:
             await coro
-    finally:
-        bus.bus_service.task_bucket.spawn = original_spawn
-        bus.bus_service.add_listener = original_add
-        bus.bus_service.mark_listener_cancelled = original_mark
 
     assert old_db_id in cancelled_db_ids, f"mark_listener_cancelled should have been called with db_id={old_db_id}"
 
