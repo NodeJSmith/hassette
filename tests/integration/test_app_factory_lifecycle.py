@@ -16,6 +16,7 @@ from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppPrecheckFailedError, InvalidInheritanceError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.utils import app_utils
+from tests.support.app_staging_helpers import clear_loaded_class_caches
 
 if TYPE_CHECKING:
     from hassette import HassetteConfig
@@ -36,12 +37,6 @@ def get_failed_by_key(registry: AppRegistry, app_key: str) -> list[AppInstanceIn
     """Get failed app instances for a specific app_key."""
     snapshot = registry.get_snapshot()
     return [info for info in snapshot.instances if info.error is not None and info.app_key == app_key]
-
-
-def clear_class_cache():
-    """Clear the loaded and failed class caches."""
-    app_utils.LOADED_CLASSES.clear()
-    app_utils.FAILED_TO_LOAD_CLASSES.clear()
 
 
 @pytest.fixture
@@ -136,9 +131,9 @@ async def initialized_failing(
 @pytest.fixture(autouse=True)
 def clear_cache():
     """Clear the class cache before each test."""
-    clear_class_cache()
+    clear_loaded_class_caches()
     yield
-    clear_class_cache()
+    clear_loaded_class_caches()
 
 
 class TestAppFactoryIntegration:
