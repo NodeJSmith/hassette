@@ -21,9 +21,12 @@ from tests.conftest import TestConfig as HassetteTestConfig  # aliased so pytest
 from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
 
 
-def _make_web_api_service(unused_tcp_port_factory, tmp_path, **web_api_overrides: Any) -> WebApiService:
+def _make_web_api_service(
+    unused_tcp_port_factory, tmp_path, *, logging: dict[str, Any] | None = None, **web_api_overrides: Any
+) -> WebApiService:
     web_api_config = {"port": unused_tcp_port_factory(), **web_api_overrides}
-    config = HassetteTestConfig(web_api=web_api_config, data_dir=tmp_path)
+    logging_kwargs: dict[str, Any] = {} if logging is None else {"logging": logging}
+    config = HassetteTestConfig(web_api=web_api_config, data_dir=tmp_path, **logging_kwargs)
     hassette = Hassette(config)
 
     # WebApiService.__init__ creates its Scheduler child (self.add_child(Scheduler)), which
@@ -71,6 +74,17 @@ class TestUvicornConfig:
 
         config_call = mock_uvicorn.Config.call_args
         assert config_call.kwargs["proxy_headers"] is False
+
+    @pytest.mark.parametrize(("level", "expected"), [("INFO", False), ("DEBUG", True)])
+    async def test_access_log_enabled_only_at_debug(
+        self, unused_tcp_port_factory, tmp_path, level: str, expected: bool
+    ) -> None:
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, logging={"web_api": level})
+        with patch_uvicorn_serve() as (mock_uvicorn, _mock_server):
+            await service.serve()
+
+        config_call = mock_uvicorn.Config.call_args
+        assert config_call.kwargs["access_log"] is expected
 
     async def test_serve_passes_resolved_credentials_to_app_factory(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")

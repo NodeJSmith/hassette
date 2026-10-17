@@ -17,6 +17,8 @@ Find your symptom and set the field it maps to. Leave everything else at `INFO`.
 | Noisy file-change messages during development | `logging.file_watcher` |
 | Web UI not responding or showing errors | `logging.web_api` |
 
+At `DEBUG`, `logging.web_api` also logs one line per HTTP request (uvicorn's access log). At any other level, those lines are off.
+
 ## How It Works
 
 All log level settings live under `[hassette.logging]` in `hassette.toml`. Each service has a dedicated field. Set it to a Python log level string: `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` (case-insensitive).

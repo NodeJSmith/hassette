@@ -164,6 +164,8 @@ class WebApiService(Service):
             host=self.host,
             port=self.port,
             log_level=self.config_log_level.lower(),
+            # One access line per request (health pollers hit every 30s) drowns real events; keep them for DEBUG only.
+            access_log=self.config_log_level == "DEBUG",
             lifespan="off",
             ws="websockets-sansio",
             timeout_graceful_shutdown=_GRACEFUL_SHUTDOWN_TIMEOUT,
