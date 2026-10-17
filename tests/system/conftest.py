@@ -13,7 +13,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import IO
+from typing import IO, Any, TypeVar
 
 import httpx2 as httpx
 import pytest
@@ -25,7 +25,7 @@ from hassette import Hassette
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config.config import HassetteConfig
-from hassette.events import RawStateChangeEvent
+from hassette.events import Event, RawStateChangeEvent
 from hassette.testing import wait_for
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,8 @@ if not _HASS_HASSETTE_VERSION:
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = 30  # seconds — matches Hassette's total_shutdown_timeout_seconds
+
+EventT = TypeVar("EventT", bound=Event[Any])
 
 
 class SystemTestConfig(HassetteConfig):
@@ -310,6 +312,25 @@ def make_fired_recorder() -> tuple[list[int], Callable[[], Awaitable[None]]]:
     return fired, _callback
 
 
+def make_event_collector(event_type: type[EventT]) -> tuple[list[EventT], Callable[[EventT], Awaitable[None]]]:
+    """Return a list and an async bus handler that appends every event it receives to that list.
+
+    Register the handler with any ``bus.on_*`` call; the registration kwargs stay with the caller.
+
+    Args:
+        event_type: The event type the handler is annotated with (e.g. ``RawStateChangeEvent``).
+            The bus injects the event by the handler's parameter annotation, and a TypeVar
+            annotation matches nothing, so the concrete type is set on the handler at runtime.
+    """
+    received: list[EventT] = []
+
+    async def _capture(event: EventT) -> None:
+        received.append(event)
+
+    _capture.__annotations__["event"] = event_type
+    return received, _capture
+
+
 def free_port() -> int:
     """Find a free TCP port by binding a socket and releasing it.
 
@@ -413,12 +434,9 @@ async def toggle_and_capture(
     Returns:
         The list of captured ``RawStateChangeEvent`` objects (at least one).
     """
-    captured: list[RawStateChangeEvent] = []
+    captured, capture = make_event_collector(RawStateChangeEvent)
 
-    async def _handler(event: RawStateChangeEvent) -> None:
-        captured.append(event)
-
-    sub = await bus.on_state_change(entity_id, handler=_handler, name="toggle_and_capture")
+    sub = await bus.on_state_change(entity_id, handler=capture, name="toggle_and_capture")
     assert sub.listener.db_id is not None
     await api.call_service(service_domain, service_action, {"entity_id": entity_id})
     await wait_for(lambda: len(captured) >= 1, timeout=timeout, desc=f"state_changed event for {entity_id}")
