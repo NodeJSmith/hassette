@@ -420,36 +420,8 @@ class ServiceWatcher(Resource):
 
         spec = service.restart_spec
 
-        # Step 1: Check fatal errors — immediate shutdown regardless of restart type
-        if status_payload.exception_type and status_payload.exception_type in spec.fatal_error_names:
-            self.logger.error(
-                "%s '%s' raised fatal error '%s', triggering immediate shutdown",
-                role,
-                name,
-                status_payload.exception_type,
-            )
-            # Record the fatal reason synchronously (see handle_exhaustion for rationale).
-            self.hassette.record_fatal_reason(f"{role} '{name}' raised fatal error '{status_payload.exception_type}'")
-            crashed_event = self.emit_service_status_event(
-                name=name,
-                role=role,
-                status=ResourceStatus.CRASHED,
-                previous_status=ResourceStatus.FAILED,
-                source_payload=status_payload,
-            )
-            await self.dispatch_status_event_best_effort(name, role, crashed_event)
-            await self.hassette.shutdown()
-            return
-
-        # Step 2: Check non-retryable errors — skip restart, go to exhaustion handling
-        if status_payload.exception_type and status_payload.exception_type in spec.non_retryable_error_names:
-            self.logger.warning(
-                "%s '%s' raised non-retryable error '%s', skipping restart",
-                role,
-                name,
-                status_payload.exception_type,
-            )
-            await self.handle_exhaustion(name, role, key, spec, status_payload)
+        # Steps 1-2: fatal and non-retryable errors skip the restart entirely
+        if await self.route_unretryable_failure(name, role, key, spec, status_payload):
             return
 
         # Step 3: In-restart guard -- prevent double budget depletion from concurrent FAILED events.
@@ -482,6 +454,48 @@ class ServiceWatcher(Resource):
             self.execute_restart(name, role, key, spec, service, budget),
             name=f"service_watcher:restart:{key}",
         )
+
+    async def route_unretryable_failure(
+        self,
+        name: str,
+        role: ResourceRole,
+        key: str,
+        spec: RestartSpec,
+        status_payload: ServiceStatusPayload,
+    ) -> bool:
+        """Route a failure whose exception type the spec says must not be retried.
+
+        A fatal error shuts the process down regardless of restart type; a non-retryable error goes
+        straight to exhaustion handling. Applies both to a failure carried by a FAILED event and to
+        one a restart attempt raises inside an episode, whose own FAILED event is dropped.
+
+        Returns:
+            True if the failure was routed (the caller must not restart), False if it is retryable.
+        """
+        exception_type = status_payload.exception_type
+        if exception_type and exception_type in spec.fatal_error_names:
+            self.logger.error(
+                "%s '%s' raised fatal error '%s', triggering immediate shutdown", role, name, exception_type
+            )
+            # Record the fatal reason synchronously (see handle_exhaustion for rationale).
+            self.hassette.record_fatal_reason(f"{role} '{name}' raised fatal error '{exception_type}'")
+            crashed_event = self.emit_service_status_event(
+                name=name,
+                role=role,
+                status=ResourceStatus.CRASHED,
+                previous_status=ResourceStatus.FAILED,
+                source_payload=status_payload,
+            )
+            await self.dispatch_status_event_best_effort(name, role, crashed_event)
+            await self.hassette.shutdown()
+            return True
+
+        if exception_type and exception_type in spec.non_retryable_error_names:
+            self.logger.warning("%s '%s' raised non-retryable error '%s', skipping restart", role, name, exception_type)
+            await self.handle_exhaustion(name, role, key, spec, status_payload)
+            return True
+
+        return False
 
     async def execute_restart(
         self,
@@ -520,8 +534,8 @@ class ServiceWatcher(Resource):
 
         Returns:
             True if the attempt failed with budget remaining and the episode should retry; False
-            if the episode is over -- the attempt succeeded, restart was refused, or the budget
-            is exhausted and handle_exhaustion() has run.
+            if the episode is over -- the attempt succeeded, restart was refused, the failure was
+            fatal or non-retryable, or the budget is exhausted and handle_exhaustion() has run.
         """
         self.logger.debug("%s '%s' is being restarted", role, name)
         try:
@@ -530,16 +544,20 @@ class ServiceWatcher(Resource):
             await self.handle_restart_refused(name, role, exc)
             return False
         except Exception as exc:
+            # The caller keeps the key held through every handoff below: each awaits event
+            # dispatch before moving the service out of FAILED, and a FAILED event arriving in
+            # that window must hit the in-restart guard, not route the failure a second time.
+            self.logger.debug("%s '%s' restart attempt %d failed: %s", role, name, budget.current_attempts(), exc)
+            status_payload = create_service_status_event(service, ResourceStatus.FAILED, exc).payload.data
+            if await self.route_unretryable_failure(name, role, key, spec, status_payload):
+                return False
+
             attempts = budget.current_attempts()
             if budget.is_exhausted():
                 self.logger.error(
                     "%s '%s' restart attempt %d failed and budget exhausted: %s", role, name, attempts, exc
                 )
-                # The caller keeps the key held through handle_exhaustion(): it awaits event
-                # dispatch before moving the service out of FAILED, and a FAILED event arriving in
-                # that window must hit the in-restart guard, not exhaust a second time.
-                status_event = create_service_status_event(service, ResourceStatus.FAILED, exc)
-                await self.handle_exhaustion(name, role, key, spec, status_event.payload.data)
+                await self.handle_exhaustion(name, role, key, spec, status_payload)
                 return False
 
             self.logger.error("%s '%s' restart attempt %d failed, retrying: %s", role, name, attempts, exc)
