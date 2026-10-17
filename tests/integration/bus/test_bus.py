@@ -11,7 +11,6 @@ import pytest
 from hassette import RawStateChangeEvent
 from hassette.bus.listeners import Subscription
 from hassette.bus.rate_limiter import RateLimiter
-from hassette.commands import InvokeHandler
 from hassette.event_handling.conditions import IsOrContains
 from hassette.event_handling.predicates import (
     AllOf,
@@ -24,7 +23,7 @@ from hassette.event_handling.predicates import (
 from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_call_service_event, create_state_change_event, wait_for
 
-from .helpers import send_through_mock_executor
+from .helpers import last_invoke_handler, send_through_mock_executor
 
 if TYPE_CHECKING:
     from hassette.bus import Bus
@@ -41,8 +40,6 @@ GLOB_CASES = [
     ("*", {"sensor.kitchen", "light.living_room", "switch.garage", "light.kitchen", "sensor.living_room"}),
 ]
 GLOB_ENTITIES = ["sensor.kitchen", "light.kitchen", "light.living_room", "sensor.living_room", "switch.garage"]
-# Rapid-fire payloads for the debounce/throttle executor tests: enough to prove coalescing/dropping.
-BURST_PAYLOADS = ("event-0", "event-1", "event-2")
 
 
 @pytest.fixture
@@ -429,11 +426,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> 
 
     execute = await send_through_mock_executor(hassette, "custom.exec_test", event_handled)
 
-    execute.assert_called()
-    call_args = execute.call_args_list
-    assert len(call_args) >= 1
-    cmd = call_args[-1].args[0]
-    assert isinstance(cmd, InvokeHandler), f"Expected InvokeHandler, got {type(cmd)}"
+    last_invoke_handler(execute)
 
 
 async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -452,10 +445,7 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
 
     execute = await send_through_mock_executor(hassette, "custom.internal_test", event_handled)
 
-    execute.assert_called()
-    cmd = execute.call_args_list[-1].args[0]
-    assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id is not None
+    assert last_invoke_handler(execute).listener_id is not None
 
 
 async def test_dispatch_handler_exception_routed_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -473,18 +463,10 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
 
     await hassette.bus.on(topic="custom.error_test", handler=failing_handler, name="error_test")
 
-    execute = await send_through_mock_executor(
-        hassette,
-        "custom.error_test",
-        error_raised,
-        drained=lambda: hassette.bus_service._executor.execute.called,
-        drained_desc="executor called",
-    )
+    execute = await send_through_mock_executor(hassette, "custom.error_test", error_raised, drain="execute_called")
 
     # Executor MUST be called — it captures the error in the execution record
-    execute.assert_called()
-    cmd = execute.call_args_list[-1].args[0]
-    assert isinstance(cmd, InvokeHandler)
+    last_invoke_handler(execute)
 
 
 async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -503,19 +485,12 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 
     # Send 3 rapid events — debounce should coalesce into 1 executor call
     execute = await send_through_mock_executor(
-        hassette,
-        "custom.debounce_test",
-        event_handled,
-        payloads=BURST_PAYLOADS,
-        drained=lambda: not hassette.bus.task_bucket.pending_tasks(),
-        drained_desc="bus tasks drained",
+        hassette, "custom.debounce_test", event_handled, burst=True, drain="pending_tasks"
     )
 
     # Executor should have been called exactly once (debounce coalesced)
     assert execute.call_count == 1, f"Expected executor called once (debounce coalesce), got {execute.call_count}"
-    cmd = execute.call_args.args[0]
-    assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id is not None
+    assert last_invoke_handler(execute).listener_id is not None
 
 
 async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
@@ -534,19 +509,12 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
 
     # Send 3 rapid events — throttle should allow only the first
     execute = await send_through_mock_executor(
-        hassette,
-        "custom.throttle_test",
-        event_handled,
-        payloads=BURST_PAYLOADS,
-        drained=lambda: len(hassette.bus.task_bucket) == 0,
-        drained_desc="bus tasks cleaned up",
+        hassette, "custom.throttle_test", event_handled, burst=True, drain="bucket_empty"
     )
 
     # Executor should have been called exactly once (throttle dropped the rest)
     assert execute.call_count == 1, f"Expected executor called once (throttle), got {execute.call_count}"
-    cmd = execute.call_args.args[0]
-    assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id is not None
+    assert last_invoke_handler(execute).listener_id is not None
 
 
 async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bus: "HassetteHarness") -> None:
@@ -570,12 +538,7 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
 
     # Send 3 rapid events — debounce should coalesce into 1 handler call
     execute = await send_through_mock_executor(
-        hassette,
-        "custom.internal_debounce",
-        event_handled,
-        payloads=BURST_PAYLOADS,
-        drained=lambda: len(hassette.bus.task_bucket) == 0,
-        drained_desc="bus tasks drained",
+        hassette, "custom.internal_debounce", event_handled, burst=True, drain="bucket_empty"
     )
 
     assert call_count == 1, f"Expected 1 call (debounce coalesce), got {call_count}"
@@ -603,12 +566,7 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
 
     # Send 3 rapid events — throttle should allow only the first
     execute = await send_through_mock_executor(
-        hassette,
-        "custom.internal_throttle",
-        event_handled,
-        payloads=BURST_PAYLOADS,
-        drained=lambda: len(hassette.bus.task_bucket) == 0,
-        drained_desc="bus tasks cleaned up",
+        hassette, "custom.internal_throttle", event_handled, burst=True, drain="bucket_empty"
     )
 
     assert call_count == 1, f"Expected 1 call (throttle), got {call_count}"
@@ -637,11 +595,7 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
     )
 
     execute = await send_through_mock_executor(
-        hassette,
-        "custom.internal_debounce_error",
-        error_raised,
-        drained=lambda: len(hassette.bus.task_bucket) == 0,
-        drained_desc="bus tasks drained",
+        hassette, "custom.internal_debounce_error", error_raised, drain="bucket_empty"
     )
 
     # Unified dispatch: executor IS called even for debounced non-app handlers

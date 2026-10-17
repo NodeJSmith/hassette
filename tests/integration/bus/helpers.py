@@ -1,11 +1,12 @@
 """Shared helpers for bus integration tests."""
 
 import asyncio
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from unittest.mock import MagicMock
 
+from hassette.commands import InvokeHandler
 from hassette.events import RawStateChangeEvent
 from hassette.events.base import Event
 from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict, wait_for
@@ -21,6 +22,12 @@ ENTITY = "sensor.overlap"
 # (stream → serve → dispatch → guard → child-task spawn) all run without waiting on wall-clock
 # time. Used where there is no completion signal to await on.
 EVENT_LOOP_YIELDS = 10
+
+BURST_PAYLOADS = ("event-0", "event-1", "event-2")
+"""Rapid-fire payloads ``send_through_mock_executor(burst=True)`` sends to prove debounce/throttle coalescing."""
+
+ExecutorDrain = Literal["pending_tasks", "bucket_empty", "execute_called"]
+"""Drain condition names accepted by ``send_through_mock_executor``."""
 
 
 async def seed(
@@ -196,31 +203,45 @@ async def send_through_mock_executor(
     topic: str,
     handled: asyncio.Event,
     *,
-    payloads: Sequence[str] = ("test-payload",),
-    drained: Callable[[], bool] | None = None,
-    drained_desc: str = "dispatch drained",
+    burst: bool = False,
+    drain: ExecutorDrain | None = None,
 ) -> MagicMock:
-    """Reset the bus executor mock, send one ``Event`` per payload on ``topic``, and wait for dispatch.
+    """Reset the bus executor mock, send events on ``topic``, and wait for dispatch.
 
     Returns the executor's ``execute`` mock for the caller's assertions. The ``reset_mock()`` runs
     after the caller registers its listener and before any event is sent: ``hassette_with_bus`` is
     module-scoped, so without it ``execute`` would still carry calls from earlier tests in the file.
-    Waits for the handler to set ``handled`` (1s timeout), then, if ``drained`` is given, for that
-    predicate too. The drain conditions in use (``not task_bucket.pending_tasks()``,
-    ``len(task_bucket) == 0``, ``execute.called``) are not interchangeable, so each call site passes
-    its own rather than this helper picking one. Pass several ``payloads`` to send a rapid burst for
-    debounce/throttle tests.
+
+    Sends one event, or ``BURST_PAYLOADS`` back to back when ``burst`` is set (debounce/throttle
+    tests). Waits for the handler to set ``handled`` (1s timeout), then for ``drain`` if given:
+    ``"pending_tasks"`` waits until ``bus.task_bucket.pending_tasks()`` is empty, ``"bucket_empty"``
+    until ``len(bus.task_bucket) == 0``, and ``"execute_called"`` until ``execute.called``. These
+    are not interchangeable, so each call site names the condition it was written against.
     """
     execute = harness.bus_service._executor.execute
     execute.reset_mock()
 
-    for payload in payloads:
+    for payload in BURST_PAYLOADS if burst else ("test-payload",):
         await harness.send_event(Event(topic=topic, payload=payload))
 
     await asyncio.wait_for(handled.wait(), timeout=1.0)
-    if drained is not None:
-        await wait_for(drained, desc=drained_desc)
+
+    drain_conditions: dict[ExecutorDrain, Callable[[], bool]] = {
+        "pending_tasks": lambda: not harness.bus.task_bucket.pending_tasks(),
+        "bucket_empty": lambda: len(harness.bus.task_bucket) == 0,
+        "execute_called": lambda: execute.called,
+    }
+    if drain is not None:
+        await wait_for(drain_conditions[drain], desc=f"executor dispatch drained ({drain})")
     return execute
+
+
+def last_invoke_handler(execute: MagicMock) -> InvokeHandler:
+    """Assert ``execute`` was called and return its most recent command, checked to be an ``InvokeHandler``."""
+    execute.assert_called()
+    cmd = execute.call_args.args[0]
+    assert isinstance(cmd, InvokeHandler), f"Expected InvokeHandler, got {type(cmd)}"
+    return cmd
 
 
 async def pump_event_loop() -> None:
