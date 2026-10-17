@@ -565,6 +565,11 @@ class ServiceWatcher(Resource):
             # recorded here, so every attempt counts against the budget exactly once.
             budget.record_restart()
             return True
+        # restart() returned, so initialization finished. A service already ready has fully
+        # recovered; one that marks ready later (in serve()) is reset by await_service_readiness()
+        # once this episode releases the key.
+        if service.is_ready():
+            budget.reset()
         return False
 
     async def backoff_before_attempt(
@@ -666,7 +671,7 @@ class ServiceWatcher(Resource):
             raise
 
     async def on_service_running(self, event: HassetteServiceEvent) -> None:
-        """Reset restart budget when a service transitions to RUNNING and becomes ready."""
+        """Reset restart budget when a service transitions to RUNNING and becomes ready outside a restart episode."""
         status_payload = event.payload.data
         name = status_payload.resource_name
         role = status_payload.role
@@ -699,7 +704,13 @@ class ServiceWatcher(Resource):
         key: str,
         readiness_timeout: float,
     ) -> None:
-        """Wait for a restarted service to become ready and reset its budget (runs as a detached task)."""
+        """Wait for a service to become ready and reset its budget unless an episode owns it (detached task).
+
+        A key held in `_restarting` belongs to a restart episode: only that episode's
+        execute_restart() releases it, and attempt_restart() resets the budget once an attempt
+        fully succeeds. Readiness reached mid-attempt does not reset the budget here, since the attempt
+        can still fail after the service is ready; attempt_restart() checks it once initialize() returns.
+        """
         try:
             await service.wait_ready(timeout=readiness_timeout)
         except TimeoutError:
@@ -711,13 +722,15 @@ class ServiceWatcher(Resource):
             )
             return
 
+        if key in self._restarting:
+            self.logger.debug("%s '%s' is ready mid-episode, leaving budget and key to the episode", role, name)
+            return
+
         self.logger.debug("%s '%s' is running and ready, resetting restart budget", role, name)
 
         budget = self._budgets.get(key)
         if budget:
             budget.reset()
-
-        self._restarting.discard(key)
 
     async def reconcile_after_bus_recovery(self) -> None:
         """After BusService recovery, check for services that FAILED during the blind window.

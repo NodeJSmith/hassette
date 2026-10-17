@@ -41,7 +41,9 @@ repeated Codex finding.
 FAILED events for services no longer in FAILED. Does every path that retries,
 exhausts, or changes a supervised service's status keep the key held until the
 service has left FAILED, so a FAILED event delivered during an `await` cannot
-start a second episode or run `handle_exhaustion()` twice?
+start a second episode or run `handle_exhaustion()` twice? Does anything other
+than the episode itself release the key or reset the budget while the episode
+holds it (readiness can arrive mid-attempt, before `initialize()` returns)?
 
 ## Bus Recovery Reconciliation
 After `BusService` restarts, `reconcile_after_bus_recovery()` in

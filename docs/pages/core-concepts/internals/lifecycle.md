@@ -10,7 +10,7 @@ When a `Service` raises an unhandled exception, Hassette transitions it to `FAIL
 
 The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and, depending on `restart_type`, enter a long cooldown period (`TRANSIENT`), stop that service permanently while Hassette keeps running (`TEMPORARY`), or shut the system down entirely (`PERMANENT`).
 
-`ServiceWatcher` keeps one [`RestartBudget`][hassette.core.restart_budget.RestartBudget] per service. A `RestartBudget` caps how many restarts a service gets within a sliding time window. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets as soon as the restarted service reaches `RUNNING` and signals readiness with `mark_ready()`. `ServiceWatcher` waits up to that service's `startup_timeout_seconds` (default 30 s) for the signal.
+`ServiceWatcher` keeps one [`RestartBudget`][hassette.core.restart_budget.RestartBudget] per service. A `RestartBudget` caps how many restarts a service gets within a sliding time window. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets once a restart attempt fully succeeds: its `initialize()` returns and the service has signaled readiness with `mark_ready()`. A service that marks ready later, from `serve()`, resets when that signal arrives; `ServiceWatcher` waits up to the service's `startup_timeout_seconds` (default 30 s) for it. Readiness signaled mid-attempt does not reset the budget by itself, because the attempt can still fail; it counts only if the service is still ready when `initialize()` returns.
 
 ## Restart Types
 
@@ -38,7 +38,7 @@ The outcome depends on three things: the exception type, how many restarts have 
 
 The budget uses a sliding window defined by two fields: `budget_intensity` (maximum restarts allowed) and `budget_period_seconds` (the window size in seconds). Timestamps older than `budget_period_seconds` are evicted before each check.
 
-When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `handle_exhaustion()`. Two mechanisms clear entries: they age out of the sliding window, and a restarted service that reaches running and ready clears them all at once. Until then, every restart attempt records another entry via `record_restart()`, so repeated failed recoveries add up toward exhaustion.
+When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `handle_exhaustion()`. Two mechanisms clear entries: they age out of the sliding window, and a restart that fully succeeds clears them all at once. Until then, every restart attempt records another entry via `record_restart()`, so repeated failed recoveries add up toward exhaustion.
 
 Backoff between restart attempts uses exponential growth: `backoff_base_seconds * (backoff_multiplier ** (attempt - 1))`, capped at `backoff_max_seconds`. The defaults produce delays of 2 s, 4 s, 8 s, and so on up to 60 s.
 
