@@ -4,6 +4,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -78,27 +79,25 @@ def test_snapshot_is_consistent_while_a_writer_commits(
     db, writer = live_db
     snapshot = tmp_path / "hassette-snapshot.db"
     stop = threading.Event()
-    errors: list[Exception] = []
 
-    def keep_writing() -> None:
+    def keep_writing() -> int:
+        commits = 0
+        while not stop.is_set():
+            writer.execute("INSERT INTO t (v) VALUES ('concurrent')")
+            writer.commit()
+            commits += 1
+        return commits
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        writing = pool.submit(keep_writing)
         try:
-            while not stop.is_set():
-                writer.execute("INSERT INTO t (v) VALUES ('concurrent')")
-                writer.commit()
-        except Exception as exc:  # surfaced by the assertion below
-            errors.append(exc)
+            assert write_snapshot(db, snapshot)
+        finally:
+            stop.set()
+        writing.result(timeout=30)  # re-raises anything the writer hit
+    final_rows = writer.execute("SELECT count(*) FROM t").fetchone()[0]
+    writer.close()
 
-    thread = threading.Thread(target=keep_writing)
-    thread.start()
-    try:
-        assert write_snapshot(db, snapshot)
-    finally:
-        stop.set()
-        thread.join()
-        final_rows = writer.execute("SELECT count(*) FROM t").fetchone()[0]
-        writer.close()
-
-    assert errors == []
     assert COMMITTED_ROWS <= row_count(snapshot) <= final_rows
     assert integrity(snapshot) == "ok"
 
