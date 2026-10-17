@@ -364,10 +364,105 @@ jobs:
             packages: write
             id-token: write
 
+    # Commits the add-on's `version` and a CHANGELOG entry to NodeJSmith/hassette-addon once its image has published
+    # (design/specs/129-ha-addon-v01/design.md, D12), so a stable release reaches the add-on store with no manual
+    # step. tools/release/bump_addon.py owns the stable-only, no-downgrade, and equal-is-a-no-op rules. The token
+    # comes from the release-please app scoped to hassette-addon, whose ruleset lists the app as a bypass actor so
+    # the commit can land on main directly.
+    bump-addon:
+        needs: [release-please, publish-docker]
+        if: >-
+            always()
+            && needs.publish-docker.result == 'success'
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+        steps:
+            # The script comes from the workflow's own commit, not the release tag: it reads only the tag's name,
+            # and a workflow_dispatch of a tag cut before the script existed must still reach its downgrade check.
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  sparse-checkout: tools/release/bump_addon.py
+                  persist-credentials: false
+
+            - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+              id: app-token
+              with:
+                  app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+                  private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+                  owner: NodeJSmith
+                  repositories: hassette-addon
+
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  repository: NodeJSmith/hassette-addon
+                  path: addon
+                  token: ${{ steps.app-token.outputs.token }}
+                  persist-credentials: false
+
+            - name: Update version and CHANGELOG
+              id: bump
+              env:
+                  TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
+              run: python3 ./tools/release/bump_addon.py --tag "$TAG_NAME" --addon-dir addon --release-repo "$GITHUB_REPOSITORY"
+
+            # Anonymous, as Supervisor pulls: a private or missing package fails the release here instead of the
+            # store offering a version nobody can install.
+            - name: Verify add-on image is publicly pullable for amd64 and arm64
+              if: steps.bump.outputs.action == 'bump'
+              env:
+                  IMAGE: ${{ steps.bump.outputs.image }}
+                  VERSION: ${{ steps.bump.outputs.version }}
+              run: |
+                  set -euo pipefail
+                  # An empty docker config, so no runner login can make a private package look pullable.
+                  DOCKER_CONFIG=$(mktemp -d)
+                  export DOCKER_CONFIG
+                  if ! manifest=$(docker manifest inspect "$IMAGE:$VERSION"); then
+                      echo "::error::$IMAGE:$VERSION can't be pulled anonymously — is the GHCR package public?"
+                      exit 1
+                  fi
+                  for arch in amd64 arm64; do
+                      if ! jq -e --arg arch "$arch" 'any(.manifests[]?.platform.architecture; . == $arch)' <<<"$manifest" >/dev/null; then
+                          echo "::error::$IMAGE:$VERSION has no $arch image"
+                          exit 1
+                      fi
+                  done
+                  echo "$IMAGE:$VERSION is public for amd64 and arm64"
+
+            - name: Commit and push the bump
+              if: steps.bump.outputs.action == 'bump'
+              working-directory: addon
+              env:
+                  APP_TOKEN: ${{ steps.app-token.outputs.token }}
+                  VERSION: ${{ steps.bump.outputs.version }}
+              run: |
+                  set -euo pipefail
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/NodeJSmith/hassette-addon.git"
+                  git add hassette/config.yaml hassette/CHANGELOG.md
+                  git commit -m "chore: bump hassette to ${VERSION}"
+
+                  # The workflow concurrency group serializes releases, but hassette-addon's main can still move
+                  # mid-run (a merged PR there), so each retry rebases onto it first. A rebase conflict means someone
+                  # else touched the version or CHANGELOG, and fails the job rather than guessing.
+                  for attempt in 1 2 3; do
+                      git push origin HEAD:main && break
+                      if [ "$attempt" = 3 ]; then
+                          echo "::error::failed to push the add-on bump after 3 attempts"
+                          exit 1
+                      fi
+                      echo "::warning::push attempt ${attempt} failed; rebasing and retrying in $((attempt * 3))s"
+                      sleep $((attempt * 3))
+                      git pull --rebase origin main
+                  done
+
     # Verify even when build-pypi is skipped in a release context — a skipped build
     # during a release is itself the bug (see #998), and verification must catch it.
     release-verify:
-        needs: [release-please, build-pypi, publish-pypi-wire, publish-pypi-client, publish-pypi-hassette, publish-docker]
+        needs: [release-please, build-pypi, publish-pypi-wire, publish-pypi-client, publish-pypi-hassette, publish-docker, bump-addon]
         if: >-
             always()
             && (
@@ -385,6 +480,7 @@ jobs:
                   PYPI_CLIENT_RESULT: ${{ needs.publish-pypi-client.result }}
                   PYPI_RESULT: ${{ needs.publish-pypi-hassette.result }}
                   DOCKER_RESULT: ${{ needs.publish-docker.result }}
+                  ADDON_RESULT: ${{ needs.bump-addon.result }}
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: |
                   # Detect unexpected state where release was created but every publish job was skipped
@@ -408,6 +504,9 @@ jobs:
                   fi
                   if [ "$DOCKER_RESULT" != "success" ]; then
                       failed="$failed Docker($DOCKER_RESULT)"
+                  fi
+                  if [ "$ADDON_RESULT" != "success" ]; then
+                      failed="$failed Addon-bump($ADDON_RESULT)"
                   fi
                   if [ -n "$failed" ]; then
                       echo "::error::Partial release $TAG_NAME — failed:$failed"
