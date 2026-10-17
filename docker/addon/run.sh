@@ -116,4 +116,9 @@ else
     echo "WARNING: couldn't ask Supervisor for the port mappings: ${info_or_error}"
 fi
 
+# Announce hassette to the integration through Supervisor discovery once it serves (D13). It runs in the
+# background and outlives the exec below; a failed announce is logged and never stops the add-on.
+/app/docker/addon/discovery_announce.sh \
+    "${SUPERVISOR_URL}" "${HASSETTE__WEB_API__PORT}" "${HASSETTE__WEB_API__TOKEN_FILE}" &
+
 exec /app/scripts/docker_start.sh "$@"
