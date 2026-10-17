@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.58.1](https://github.com/NodeJSmith/hassette/compare/v0.58.0...v0.58.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* only log web API access lines when logging.web_api is DEBUG ([#3050](https://github.com/NodeJSmith/hassette/issues/3050)) ([f034757](https://github.com/NodeJSmith/hassette/commit/f0347576e48c41718b0bf89cb855c12b454111a9))
+* point the add-on's first-run token log at the sidebar instead of localhost ([#3047](https://github.com/NodeJSmith/hassette/issues/3047)) ([21a46d5](https://github.com/NodeJSmith/hassette/commit/21a46d50ff6b8090f2ed3ba4cc7991a396a2c84a))
+
 ## [0.58.0](https://github.com/NodeJSmith/hassette/compare/v0.57.0...v0.58.0) (2026-10-17)
 
 ### Breaking Changes
