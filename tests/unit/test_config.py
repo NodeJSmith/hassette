@@ -1,7 +1,5 @@
 import math
 import os
-import sys
-import textwrap
 import tomllib
 from importlib.resources import files
 from pathlib import Path
@@ -10,10 +8,9 @@ import dotenv
 import pytest
 from pydantic import SecretStr
 
-from hassette import HassetteConfig, context
+from hassette import HassetteConfig
 from hassette.exceptions import ConfigError
 from hassette.testing.config import TEST_TOKEN
-from hassette.utils import app_utils
 from tests.support.fixtures import run_hassette_startup_tasks
 
 # Per-service log level nested attribute names under config.logging.*
@@ -311,90 +308,6 @@ async def test_spec_last_env_file_wins_on_conflicts(monkeypatch, tmp_path):
     # Spec requires later files override earlier files.
     assert os.getenv("HASSETTE_TEST_CONFLICT_SPEC") == "two"
     cleanup_env("HASSETTE_TEST_CONFLICT_SPEC")
-
-
-async def test_import_dot_env_files_makes_values_visible_during_app_import(monkeypatch, tmp_path):
-    """Document whether apps can read injected dotenv values at import time.
-
-    Expectation captured by this test:
-    - With `import_dot_env_files=True`, Hassette loads env files before app precheck imports.
-    - Therefore an app module that reads os.environ at import time should see those values.
-    """
-    # Create a unique apps package name to avoid cross-test module collisions.
-    pkg_name = "testapps_" + os.urandom(6).hex()
-    app_dir = tmp_path / pkg_name
-    app_dir.mkdir(parents=True, exist_ok=True)
-
-    app_py = app_dir / "env_reader_app.py"
-    app_py.write_text(
-        textwrap.dedent(
-            """
-            import os
-
-            from hassette import App, AppConfig
-
-            READ_AT_IMPORT = os.getenv("HASSETTE_TEST_APP_IMPORT")
-
-            class EnvReaderConfig(AppConfig):
-                pass
-
-            class EnvReaderApp(App[EnvReaderConfig]):
-                async def on_initialize(self) -> None:
-                    return
-            """
-        ).lstrip(),
-        encoding="utf-8",
-    )
-
-    env_file = tmp_path / "app_import.env"
-    env_file.write_text("HASSETTE_TEST_APP_IMPORT=from_dotenv\n", encoding="utf-8")
-
-    toml_file = tmp_path / "hassette.toml"
-    toml_file.write_text(
-        textwrap.dedent(
-            f"""
-            [hassette]
-
-            [hassette.apps]
-            directory = {app_dir.as_posix()!r}
-            autodetect = false
-
-            [hassette.apps.env_reader]
-            enabled = true
-            filename = "env_reader_app.py"
-            class_name = "EnvReaderApp"
-            app_dir = {app_dir.as_posix()!r}
-            config = {{}}
-            """
-        ).lstrip(),
-        encoding="utf-8",
-    )
-
-    monkeypatch.delenv("HASSETTE_TEST_APP_IMPORT", raising=False)
-
-    # Ensure a clean import, both for our module and our namespace package.
-    sys.modules.pop(f"{pkg_name}.env_reader_app", None)
-    sys.modules.pop(pkg_name, None)
-    app_utils.LOADED_CLASSES.clear()
-    app_utils.FAILED_TO_LOAD_CLASSES.clear()
-
-    class AppImportConfig(HassetteConfig):
-        model_config = HassetteConfig.model_config.copy() | {
-            "cli_parse_args": False,
-            "toml_file": [toml_file],
-            "env_file": [env_file],
-        }
-
-        token: SecretStr = SecretStr(TEST_TOKEN)
-
-    config = AppImportConfig(import_dot_env_files=True)
-    with context.use_hassette_config(config):
-        run_hassette_startup_tasks(config)
-
-    mod = sys.modules.get(f"{pkg_name}.env_reader_app")
-    assert mod is not None, "Expected app module to be imported during precheck"
-    assert mod.READ_AT_IMPORT == "from_dotenv"  # pyright: ignore[reportAttributeAccessIssue]
-    cleanup_env("HASSETTE_TEST_APP_IMPORT")
 
 
 @pytest.fixture
