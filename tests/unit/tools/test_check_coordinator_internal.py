@@ -9,8 +9,9 @@ internals can be reworked without changing what the guard reports.
 from collections.abc import Callable
 from pathlib import Path
 
-import pytest
 from check_coordinator_internal import check_file
+
+from tests.unit.tools.conftest import guard_cases
 
 # Each case: (id, source, expected violations as [(lineno, attr), ...]).
 CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
@@ -92,6 +93,6 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
 ]
 
 
-@pytest.mark.parametrize(("source", "expected"), [(c[1], c[2]) for c in CASES], ids=[c[0] for c in CASES])
+@guard_cases(CASES)
 def test_guard_behavior(write_sample: Callable[[str], Path], source: str, expected: list[tuple[int, str]]) -> None:
     assert check_file(write_sample(source)) == expected

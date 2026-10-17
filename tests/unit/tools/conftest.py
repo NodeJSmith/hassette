@@ -93,3 +93,17 @@ def make_frontend_src(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, module: M
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(module, "FRONTEND_SRC", src)
     return src
+
+
+def guard_cases(cases: list[tuple[str, str, list[tuple[int, str]]]]) -> pytest.MarkDecorator:
+    """Build the ``(source, expected)`` parametrize decorator for a guard's ``(id, source, expected)`` case table.
+
+    Each case's first element becomes its pytest ID, so a failing case stays identifiable by name.
+
+    Args:
+        cases: The guard's case table — ``(case_id, source, expected_findings)`` tuples.
+
+    Returns:
+        A ``pytest.mark.parametrize`` decorator supplying ``source`` and ``expected`` to the test.
+    """
+    return pytest.mark.parametrize(("source", "expected"), [(c[1], c[2]) for c in cases], ids=[c[0] for c in cases])
