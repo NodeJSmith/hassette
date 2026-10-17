@@ -177,6 +177,25 @@ without a live instance:
 All drain triggered handlers before returning, like the other `simulate_*`
 methods.
 
+### Arbitrary Events
+
+`simulate_event(event)` sends any Hassette event through the bus and drains
+the handlers it triggers. It covers event shapes the dedicated helpers do not
+build. Another app's status change is the common case, since
+`simulate_app_state_changed()` always reports the app under test.
+
+```python
+--8<-- "pages/testing/snippets/testing_simulate_event.py"
+```
+
+Listeners match the event on its `topic` and payload, just as they match
+events Hassette emits. The method returns the same event object and accepts
+the same `timeout=` as the other `simulate_*` methods.
+
+The dedicated helpers stay the better choice when one fits. They fill in
+harness context, such as seeded attributes and the app's own key.
+`simulate_event()` sends the event exactly as built.
+
 ### Draining Manually
 
 An app's [task bucket](../core-concepts/apps/task-bucket.md) is the tracker
