@@ -42,6 +42,8 @@ When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `handle_exha
 
 Backoff between restart attempts uses exponential growth: `backoff_base_seconds * (backoff_multiplier ** (attempt - 1))`, capped at `backoff_max_seconds`. The defaults produce delays of 2 s, 4 s, 8 s, and so on up to 60 s.
 
+One `FAILED` event starts a restart episode. When a restart attempt's `initialize()` raises, the episode records the next attempt and backs off again. It ends when an attempt succeeds or the budget runs out. While the episode runs, `ServiceWatcher` ignores further `FAILED` events for that service. It also drops a `FAILED` event for a service that is no longer `FAILED`, such as one that already recovered or entered cooldown.
+
 ## Error Routing
 
 `ServiceWatcher` checks the exception type name before consulting the budget. Three routing layers apply, from least to most severe.

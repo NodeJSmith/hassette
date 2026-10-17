@@ -28,6 +28,7 @@ from .helpers import (
     budget_entries,
     make_call_counts,
     make_fast_spec,
+    mark_failed,
     register_dummy_service,
     restart_and_await,
 )
@@ -59,12 +60,12 @@ async def test_restart_service_cancels_then_starts(watcher: ServiceWatcher):
 
 
 async def test_exponential_backoff(watcher: ServiceWatcher):
-    """Backoff delay increases exponentially between restart attempts (using shutdown-safe sleep)."""
+    """Backoff delay increases exponentially across an episode's attempts (using shutdown-safe sleep)."""
     dummy = register_dummy_service(
         watcher,
         fail_times=ALWAYS_FAIL,
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=10,
+        restart_type=RestartType.TEMPORARY,
+        budget_intensity=3,
         backoff_base_seconds=1.0,
         backoff_multiplier=2.0,
         backoff_max_seconds=60.0,
@@ -77,8 +78,7 @@ async def test_exponential_backoff(watcher: ServiceWatcher):
         return True  # sleep completed normally
 
     with patch.object(watcher, "shutdown_safe_sleep", side_effect=mock_shutdown_safe_sleep):
-        for _ in range(3):
-            await restart_and_await(watcher, dummy.failed_event)
+        await restart_and_await(watcher, dummy.failed_event)
 
     # attempt 1: backoff = 1.0 * 2^0 = 1.0
     # attempt 2: backoff = 1.0 * 2^1 = 2.0
@@ -91,15 +91,14 @@ async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
     context.PROTECT_TASK.set(False)
     dummy = register_dummy_service(
         watcher,
-        fail_times=ALWAYS_FAIL,
+        fail_times=1,
         restart_type=RestartType.TRANSIENT,
         budget_intensity=5,
         startup_timeout_seconds=1.0,
     )
 
-    # Accumulate 2 restart attempts
-    for _ in range(2):
-        await restart_and_await(watcher, dummy.failed_event)
+    # Accumulate 2 restart attempts: the first fails, the second succeeds
+    await restart_and_await(watcher, dummy.failed_event)
 
     assert budget_entries(watcher, dummy.key) == 2
 
@@ -188,14 +187,13 @@ async def test_budget_reset_on_recovery_confirmed(watcher: ServiceWatcher):
     context.PROTECT_TASK.set(False)
     dummy = register_dummy_service(
         watcher,
-        fail_times=ALWAYS_FAIL,
+        fail_times=1,
         restart_type=RestartType.TRANSIENT,
         budget_intensity=5,
         startup_timeout_seconds=1.0,
     )
 
-    # Accumulate 2 restart attempts
-    await restart_and_await(watcher, dummy.failed_event)
+    # Accumulate 2 restart attempts: the first fails, the second succeeds
     await restart_and_await(watcher, dummy.failed_event)
 
     assert budget_entries(watcher, dummy.key) == 2
@@ -212,7 +210,6 @@ async def test_readiness_timeout_no_budget_impact(watcher: ServiceWatcher):
     """Readiness timeout after RUNNING does NOT increment restart budget."""
     dummy = register_dummy_service(
         watcher,
-        fail_times=ALWAYS_FAIL,
         restart_type=RestartType.TRANSIENT,
         budget_intensity=5,
         startup_timeout_seconds=0.05,
@@ -271,6 +268,8 @@ async def test_concurrent_failures_independent_budgets(watcher: ServiceWatcher):
     service_a = _DummyA(hassette)
     service_b = _DummyB(hassette)
     hassette.children.extend([service_a, service_b])
+    mark_failed(service_a)
+    mark_failed(service_b)
 
     event_a = make_service_failed_event(service_a)
     event_b = make_service_failed_event(service_b)
@@ -292,21 +291,6 @@ async def test_concurrent_failures_independent_budgets(watcher: ServiceWatcher):
     assert budget_entries(watcher, key_b) == 1
 
 
-async def test_restart_exception_caught_no_double_count(watcher: ServiceWatcher):
-    """on_initialize raises → exception caught and logged, budget not double-counted."""
-    dummy = register_dummy_service(
-        watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.TRANSIENT, budget_intensity=10
-    )
-
-    await restart_and_await(watcher, dummy.failed_event)
-
-    # Only 1 budget entry recorded (before restart), not 2
-    assert budget_entries(watcher, dummy.key) == 1
-
-    # In-restart flag should be cleared after exception
-    assert dummy.key not in watcher._restarting
-
-
 async def test_failed_restart_attempt_retries_while_budget_remains(watcher: ServiceWatcher):
     """A restart attempt whose initialize() raises is followed by the next attempt, not abandoned.
 
@@ -320,6 +304,7 @@ async def test_failed_restart_attempt_retries_while_budget_remains(watcher: Serv
     assert dummy.calls["start"] == 2, "The failed first attempt should be followed by exactly one more"
     assert budget_entries(watcher, dummy.key) == 2, "Each attempt counts against the budget exactly once"
     assert dummy.service.status == ResourceStatus.RUNNING
+    assert dummy.key not in watcher._restarting, "The episode releases the in-restart guard when it ends"
 
 
 async def test_failed_restart_attempts_walk_budget_then_exhaust(watcher: ServiceWatcher):
@@ -332,6 +317,42 @@ async def test_failed_restart_attempts_walk_budget_then_exhaust(watcher: Service
 
     assert dummy.calls["start"] == 3, "Every budgeted attempt should run"
     assert budget_entries(watcher, dummy.key) == 3
+    assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
+
+
+async def test_late_failed_event_during_exhaustion_does_not_exhaust_twice(watcher: ServiceWatcher):
+    """The exhausting attempt's own FAILED event, delivered while handle_exhaustion() is still
+    dispatching its status event (service still FAILED), is dropped -- exhaustion runs once.
+    """
+    dummy = register_dummy_service(
+        watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.TEMPORARY, budget_intensity=1
+    )
+    real_dispatch = watcher.dispatch_status_event_best_effort
+    real_exhaustion = watcher.handle_exhaustion
+    exhaustion_calls = 0
+    late_event_delivered = False
+
+    async def dispatch_with_late_event(name, role, event) -> None:
+        nonlocal late_event_delivered
+        if not late_event_delivered:
+            late_event_delivered = True
+            assert dummy.service.status == ResourceStatus.FAILED, "precondition: status not yet moved on"
+            await watcher.restart_service(dummy.failed_event)
+        await real_dispatch(name, role, event)
+
+    async def counting_exhaustion(*args, **kwargs) -> None:
+        nonlocal exhaustion_calls
+        exhaustion_calls += 1
+        await real_exhaustion(*args, **kwargs)
+
+    with (
+        patch.object(watcher, "dispatch_status_event_best_effort", side_effect=dispatch_with_late_event),
+        patch.object(watcher, "handle_exhaustion", side_effect=counting_exhaustion),
+    ):
+        await restart_and_await(watcher, dummy.failed_event)
+
+    assert late_event_delivered
+    assert exhaustion_calls == 1, "A late FAILED event during exhaustion must not run exhaustion again"
     assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
 
 

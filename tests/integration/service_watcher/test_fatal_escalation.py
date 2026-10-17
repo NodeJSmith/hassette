@@ -32,6 +32,7 @@ from .helpers import (
     isolated_watcher,
     make_call_counts,
     make_fast_spec,
+    mark_failed,
     register_dummy_service,
     restart_and_await,
 )
@@ -255,6 +256,7 @@ async def test_restart_refused_during_cooldown_escalates_to_fatal_shutdown(
         assert hassette.fatal_shutdown_reason is None
 
         # Second FAILED event exceeds budget (intensity=1) -> TRANSIENT cooldown scheduled.
+        mark_failed(service)
         with EventCapture.capturing(hassette) as capture:
             await watcher.restart_service(failed_event)
             cooldown_task = watcher._cooldown_tasks[key]
