@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from hassette_wire import ExecutionMode
+from hassette_wire import ExecutionMode, SourceTier
 
 from hassette import Hassette
 from hassette.commands import ExecuteJob, InvokeHandler
@@ -28,6 +28,7 @@ from tests.support.mock_hassette import make_mock_hassette
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
+    from hassette.types.types import BusErrorHandlerType
 
 _HARNESS_FIXTURES = frozenset(
     {
@@ -183,15 +184,28 @@ async def executor(
         await exc.on_shutdown()
 
 
-def invoke_cmd(listener: MagicMock, *, listener_id: int = 1, effective_timeout: float | None = None) -> InvokeHandler:
-    """Build the InvokeHandler command the executor receives for a bus dispatch."""
+def invoke_cmd(
+    listener: MagicMock,
+    *,
+    listener_id: int | None = 1,
+    effective_timeout: float | None = None,
+    topic: str = "test",
+    source_tier: SourceTier = "app",
+    event: MagicMock | None = None,
+    app_level_error_handler: "BusErrorHandlerType | None" = None,
+) -> InvokeHandler:
+    """Build the InvokeHandler command the executor receives for a bus dispatch.
+
+    ``event`` defaults to a fresh ``MagicMock()``.
+    """
     return InvokeHandler(
         listener=listener,
-        event=MagicMock(),
-        topic="test",
+        event=event if event is not None else MagicMock(),
+        topic=topic,
         listener_id=listener_id,
-        source_tier="app",
+        source_tier=source_tier,
         effective_timeout=effective_timeout,
+        app_level_error_handler=app_level_error_handler,
     )
 
 
