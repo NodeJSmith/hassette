@@ -21,21 +21,10 @@ from hassette.models.states import (
 )
 from hassette.state_manager import DomainStates, StateManager
 from hassette.testing import make_full_state_change_event, make_sensor_state_dict, wait_for
+from tests.support.harness import send_and_wait
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
-
-
-async def send_and_wait(
-    hassette: "HassetteHarness", entity_id: str, old_state: dict | None, new_state: dict | None
-) -> None:
-    """Send a state change event and wait for the proxy to record the entity."""
-    event = make_full_state_change_event(entity_id, old_state, new_state)
-    await hassette.send_event(event)
-    await wait_for(
-        lambda: hassette.state_proxy.get_state(entity_id) is not None,
-        desc=f"{entity_id} state arrived",
-    )
 
 
 async def seed_multi_shape_sensors(hassette: "HassetteHarness") -> None:
