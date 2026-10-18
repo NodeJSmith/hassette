@@ -3,6 +3,7 @@
 # dup-ignore-file: per-app scenario blocks repeat the same seed-helper call shape by design
 # -- see the package docstring in __init__.py.
 
+from hassette.types import FRAMEWORK_APP_KEY_PREFIX
 from seed_scenarios.base import (
     APP_TIME_SPACING_SECONDS,
     MONKEYPATCH_TIER,
@@ -22,7 +23,11 @@ from seed_scenarios.base import (
 def scenario_adversarial(ctx: SeedContext) -> None:
     """3 fictional apps that stress UI rendering: 100+ character handler/topic strings, a
     100+ listener fan-out on one app, and Unicode identifiers -- plus DI failures, a
-    thread-leaked execution, and both blocking-event tiers.
+    thread-leaked execution, both blocking-event tiers, and a framework component's
+    listener, job, executions, and logs.
+
+    The framework rows make ``source_tier=all`` responses (the client-compat fixtures) carry
+    framework-tier rows. No screenshot or demo seeds this scenario, so they change no visuals.
     """
     seq = 1
 
@@ -184,3 +189,59 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         source_tier="framework",
         stall_duration_ms=None,
     )
+
+    # -- Framework component: framework-tier listener, job, executions, and logs. Seeded last so
+    # every "first row" lookup (tools/client_compat_live_state.py's read_seed_ids) still lands on an app.
+    framework_key = f"{FRAMEWORK_APP_KEY_PREFIX}ServiceWatcher"
+    base = 3 * APP_TIME_SPACING_SECONDS
+    listener_id = seed_listener(
+        ctx,
+        app_key=framework_key,
+        handler_method="ServiceWatcher.on_service_status",
+        topic="hassette.event.service_status",
+        name="service_watcher_status",
+        source_location="hassette/core/service_watcher.py:80",
+        source_tier="framework",
+    )
+    job_id = seed_job(
+        ctx,
+        app_key=framework_key,
+        job_name="service_watcher_health_sweep",
+        handler_method="ServiceWatcher.health_sweep",
+        trigger_type="interval",
+        trigger_label="every 5 minutes",
+        source_location="hassette/core/service_watcher.py:120",
+        source_tier="framework",
+    )
+    seed_executions(
+        ctx,
+        scenario="adversarial",
+        app_key=framework_key,
+        session_id=session_id,
+        listener_id=listener_id,
+        count=2,
+        base_offset=base,
+        source_tier="framework",
+    )
+    seed_executions(
+        ctx,
+        scenario="adversarial",
+        app_key=framework_key,
+        session_id=session_id,
+        kind="job",
+        job_id=job_id,
+        count=2,
+        start_index=2,
+        base_offset=base,
+        source_tier="framework",
+    )
+    # Framework log lines carry no app context (logging_.py stamps source_tier='framework' when app_key is unset).
+    for i in range(2):
+        ctx.add_log_record(
+            seq=seq + i,
+            timestamp=ts(base + i * 60.0),
+            level="INFO",
+            logger_name="hassette.core.service_watcher",
+            message=f"service status sweep #{i + 1}",
+            source_tier="framework",
+        )

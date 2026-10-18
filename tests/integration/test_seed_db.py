@@ -83,6 +83,7 @@ def test_app_manifests_cover_all_listener_and_job_app_keys(scenario: str, tmp_pa
     or scheduled jobs for an app but forgets the corresponding ``add_app_manifest()`` call,
     which would silently reproduce the "seeded DB has no visible apps" bug. ``empty`` has no
     app_keys anywhere, so the superset check holds trivially (both sides are empty sets).
+    Framework-tier rows are excluded: framework components have no manifest.
     """
     output = tmp_path / "test.db"
 
@@ -92,13 +93,36 @@ def test_app_manifests_cover_all_listener_and_job_app_keys(scenario: str, tmp_pa
     conn = sqlite3.connect(output)
     try:
         manifest_keys = {row[0] for row in conn.execute("SELECT app_key FROM app_manifests")}
-        listener_keys = {row[0] for row in conn.execute("SELECT DISTINCT app_key FROM listeners")}
-        job_keys = {row[0] for row in conn.execute("SELECT DISTINCT app_key FROM scheduled_jobs")}
+        listener_keys = {
+            row[0] for row in conn.execute("SELECT DISTINCT app_key FROM listeners WHERE source_tier = 'app'")
+        }
+        job_keys = {
+            row[0] for row in conn.execute("SELECT DISTINCT app_key FROM scheduled_jobs WHERE source_tier = 'app'")
+        }
     finally:
         conn.close()
 
     missing = (listener_keys | job_keys) - manifest_keys
     assert not missing, f"scenario={scenario!r} has listeners/jobs with no app_manifests row: {missing}"
+
+
+@pytest.mark.parametrize("table", ["listeners", "scheduled_jobs", "executions", "log_records"])
+def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path):
+    """``adversarial`` seeds framework-tier rows in every tier-filtered table, so ``source_tier=all``
+    responses (the client-compat fixtures) carry framework rows too.
+    """
+    output = tmp_path / "test.db"
+
+    result = _run_seed_script("adversarial", output)
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    conn = sqlite3.connect(output)
+    try:
+        count = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE source_tier = 'framework'").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert count > 0, f"adversarial has no framework-tier rows in {table}"
 
 
 def test_healthy_scenario_generates_file(tmp_path: Path):
