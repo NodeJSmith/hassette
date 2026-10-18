@@ -4,10 +4,11 @@ import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import tomli_w
 from fastapi import APIRouter, Request
+from fastapi.types import DecoratedCallable
 from hassette_wire import (
     ActionResponse,
     AppAction,
@@ -22,42 +23,30 @@ from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.schemas.app_config_shape import normalize_app_config
-from hassette.schemas.app_snapshots import AppFullSnapshot, tally_app_statuses
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, tally_app_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
 from hassette.web.mappers import app_list_response_from, app_summary_from
 
-if TYPE_CHECKING:
-    from hassette.schemas.app_snapshots import AppInstanceInfo
-
 LOGGER = getLogger(__name__)
 
-_VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
+MAX_APP_KEY_LENGTH = 128
+VALID_APP_KEY = re.compile(rf"^[a-zA-Z_][a-zA-Z0-9_.]{{0,{MAX_APP_KEY_LENGTH - 1}}}$")
 
 #: Past-tense verb for each action's success log line.
-_ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "Started", "stop": "Stopped", "reload": "Reloaded"}
+ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "Started", "stop": "Stopped", "reload": "Reloaded"}
 
-# Keep in sync with the manifest fields on AppConfigResponse in hassette_wire/apps.py.
-_MANIFEST_FIELD_SCHEMAS: dict[str, dict[str, Any]] = {
-    "enabled": {
-        "type": "boolean",
-        "title": "Enabled",
-        "description": "Whether the app is enabled.",
-        "default": True,
-    },
-    "autostart": {
-        "type": "boolean",
-        "title": "Autostart",
-        "description": "Whether the app starts automatically when Hassette starts.",
-        "default": True,
-    },
+#: ``AppManifest`` fields injected into the config view's schema (see ``_build_app_config_view``).
+MANIFEST_FIELDS = ("enabled", "autostart")
+MANIFEST_FIELD_SCHEMAS: dict[str, dict[str, Any]] = {
+    name: schema for name, schema in AppManifest.model_json_schema()["properties"].items() if name in MANIFEST_FIELDS
 }
 
 # Base AppConfig fields are already in the schema via class inheritance; manifest fields
 # are injected by _build_app_config_view. Both groups land in the frontend's "Hassette Settings" section.
-_FRAMEWORK_FIELDS: list[str] = sorted(set(AppConfig.model_fields.keys()) | set(_MANIFEST_FIELD_SCHEMAS.keys()))
+FRAMEWORK_FIELDS: list[str] = sorted(set(AppConfig.model_fields.keys()) | set(MANIFEST_FIELDS))
 
 
 # Operation-specific problem codes each shared helper below can raise. Routes compose their
@@ -88,6 +77,19 @@ ACTION_CODES = (*STOP_ACTION_CODES, ProblemCode.BOOTSTRAP_NOT_RELEASED, ProblemC
 router = APIRouter(tags=["apps"])
 
 
+def action_route(path: str, *codes: ProblemCode) -> Callable[[DecoratedCallable], DecoratedCallable]:
+    """Register an app lifecycle action route: a POST answering 202 with an ``ActionResponse``."""
+    return router.post(path, status_code=202, response_model=ActionResponse, responses=problem_responses(*codes))
+
+
+def app_not_found(app_key: str) -> WebApiError:
+    return WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
+
+
+def source_not_found(app_key: str) -> WebApiError:
+    return WebApiError(ProblemCode.SOURCE_NOT_FOUND, f"Source file not found for app {app_key!r}")
+
+
 def _generic_action_failure_detail(action: AppAction, app_key: str) -> str:
     """Shared fallback 500 detail for an action failure with no more specific message —
     used both when ``operation()`` itself raises and when a swallowed failure's
@@ -97,7 +99,7 @@ def _generic_action_failure_detail(action: AppAction, app_key: str) -> str:
 
 
 def _validate_app_key(app_key: str) -> None:
-    if not _VALID_APP_KEY.match(app_key):
+    if not VALID_APP_KEY.match(app_key):
         raise WebApiError(ProblemCode.INVALID_APP_KEY, f"Invalid app_key: {app_key!r}")
 
 
@@ -145,7 +147,7 @@ def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -
         return
     if _orphan_app_permitted(app_key, hassette, action):
         return
-    raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
+    raise app_not_found(app_key)
 
 
 def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> None:
@@ -171,7 +173,7 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
     if manifest is None:
         if _orphan_app_permitted(app_key, hassette, action):
             return
-        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
+        raise app_not_found(app_key)
     valid_index_count = len(normalize_app_config(manifest.app_config))
     if index < 0 or index >= valid_index_count:
         if _orphan_instance_permitted(app_key, index, hassette, action):
@@ -181,7 +183,7 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
 
 def _failed_target_instances(
     hassette: HassetteDep, app_key: str, instance_index: int | None
-) -> dict[int, "AppInstanceInfo"]:
+) -> dict[int, AppInstanceInfo]:
     """FAILED instance snapshots among the instance(s) an action targeted.
 
     ``start``/``reload`` (whole-app or single-instance) can fail during class loading, config
@@ -260,7 +262,7 @@ async def _run_app_action(
     _require_known_app(app_key, hassette, action)
     await _await_operation(action, app_key, operation)
     _raise_if_target_failed(action, app_key, hassette, instance_index)
-    LOGGER.info("%s app %s (source=%s)", _ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
+    LOGGER.info("%s app %s (source=%s)", ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
     return ActionResponse(status="accepted", app_key=app_key, action=action, instance_index=instance_index)
 
 
@@ -308,6 +310,57 @@ def _raise_if_target_failed(action: AppAction, app_key: str, hassette: HassetteD
     raise WebApiError(ProblemCode.ACTION_FAILED, detail)
 
 
+def _strip_none(obj: Any) -> Any:
+    """Recursively drop None-valued keys — TOML has no null type."""
+    if isinstance(obj, dict):
+        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none(v) for v in obj if v is not None]
+    return obj
+
+
+def _build_config_response(
+    app_key: str,
+    manifest: AppManifest,
+    app_config: dict[str, Any] | list[dict[str, Any]],
+    config_schema: dict[str, Any] | None,
+) -> AppConfigResponse:
+    toml_wrapper: dict[str, Any] = {"hassette": {"apps": {app_key: {"config": _strip_none(app_config)}}}}
+    try:
+        config_toml = tomli_w.dumps(toml_wrapper)
+    except (TypeError, ValueError):
+        LOGGER.warning("Failed to render TOML for %s", app_key, exc_info=True)
+        config_toml = ""
+    return AppConfigResponse(
+        app_key=app_key,
+        filename=manifest.filename,
+        class_name=manifest.class_name,
+        enabled=manifest.enabled,
+        autostart=manifest.autostart,
+        framework_fields=FRAMEWORK_FIELDS,
+        app_config=app_config,
+        config_toml=config_toml,
+        config_schema=config_schema,
+    )
+
+
+def _build_app_config_view(
+    schema: dict[str, Any], app_config: dict[str, Any] | list[dict[str, Any]]
+) -> tuple[dict[str, Any], dict[str, Any] | list[dict[str, Any]]]:
+    """Build the deref'd schema and masked values for a single- or multi-instance app config.
+
+    The schema is dereferenced once and reused across every instance; only the per-instance
+    masking differs. Manifest-level fields (enabled, autostart) are injected into the schema
+    so the frontend can render them alongside config fields in the framework section.
+    """
+    plain_schema = deref_schema(schema)
+    config_props = plain_schema.get("properties", {})
+    enriched_schema = {**plain_schema, "properties": {**MANIFEST_FIELD_SCHEMAS, **config_props}}
+    if isinstance(app_config, list):
+        return enriched_schema, [mask_values(config_props, inst) for inst in app_config]
+    return enriched_schema, mask_values(config_props, app_config)
+
+
 @router.get(
     "/apps",
     response_model=AppListResponse,
@@ -350,37 +403,22 @@ async def get_app(app_key: str, runtime: RuntimeDep, telemetry: TelemetryDep) ->
 
     db_row = await telemetry.get_app_manifest(app_key)
     if db_row is None:
-        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
+        raise app_not_found(app_key)
 
     return app_summary_from(runtime.overlay_manifest_rows([db_row])[0])
 
 
-@router.post(
-    "/apps/{app_key}/start",
-    status_code=202,
-    response_model=ActionResponse,
-    responses=problem_responses(*ACTION_CODES),
-)
+@action_route("/apps/{app_key}/start", *ACTION_CODES)
 async def start_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     return await _run_app_action("start", app_key, hassette, request, lambda: hassette.app_handler.start_app(app_key))
 
 
-@router.post(
-    "/apps/{app_key}/stop",
-    status_code=202,
-    response_model=ActionResponse,
-    responses=problem_responses(*STOP_ACTION_CODES),
-)
+@action_route("/apps/{app_key}/stop", *STOP_ACTION_CODES)
 async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     return await _run_app_action("stop", app_key, hassette, request, lambda: hassette.app_handler.stop_app(app_key))
 
 
-@router.post(
-    "/apps/{app_key}/reload",
-    status_code=202,
-    response_model=ActionResponse,
-    responses=problem_responses(*ACTION_CODES),
-)
+@action_route("/apps/{app_key}/reload", *ACTION_CODES)
 async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     # Always re-import from disk so a previously-failed app recovers once its
     # source is fixed -- without force_reload the cached failed class is reused (#1005).
@@ -389,12 +427,7 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
     )
 
 
-@router.post(
-    "/apps/{app_key}/instances/{index}/start",
-    status_code=202,
-    response_model=ActionResponse,
-    responses=problem_responses(*INSTANCE_INDEX_CODES, *ACTION_CODES),
-)
+@action_route("/apps/{app_key}/instances/{index}/start", *INSTANCE_INDEX_CODES, *ACTION_CODES)
 async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "start")
     return await _run_app_action(
@@ -407,12 +440,7 @@ async def start_instance(app_key: str, index: int, hassette: HassetteDep, reques
     )
 
 
-@router.post(
-    "/apps/{app_key}/instances/{index}/stop",
-    status_code=202,
-    response_model=ActionResponse,
-    responses=problem_responses(*INSTANCE_INDEX_CODES, *STOP_ACTION_CODES),
-)
+@action_route("/apps/{app_key}/instances/{index}/stop", *INSTANCE_INDEX_CODES, *STOP_ACTION_CODES)
 async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "stop")
     return await _run_app_action(
@@ -425,12 +453,7 @@ async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request
     )
 
 
-@router.post(
-    "/apps/{app_key}/instances/{index}/reload",
-    status_code=202,
-    response_model=ActionResponse,
-    responses=problem_responses(*INSTANCE_INDEX_CODES, *ACTION_CODES),
-)
+@action_route("/apps/{app_key}/instances/{index}/reload", *INSTANCE_INDEX_CODES, *ACTION_CODES)
 async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "reload")
     # Always re-import from disk, matching the full app-key reload endpoint's force_reload=True
@@ -466,7 +489,7 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     _validate_app_key(app_key)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
-        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
+        raise app_not_found(app_key)
 
     app_config_cls = resolve_app_config_cls(hassette, app_key, manifest)
     if app_config_cls is not None:
@@ -480,57 +503,6 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
             LOGGER.warning("Failed to generate config schema for %s", app_key, exc_info=True)
 
     return _build_config_response(app_key, manifest, mask_app_config(None, manifest.app_config), None)
-
-
-def _strip_none(obj: Any) -> Any:
-    """Recursively drop None-valued keys — TOML has no null type."""
-    if isinstance(obj, dict):
-        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
-    if isinstance(obj, list):
-        return [_strip_none(v) for v in obj if v is not None]
-    return obj
-
-
-def _build_config_response(
-    app_key: str,
-    manifest: AppManifest,
-    app_config: dict[str, Any] | list[dict[str, Any]],
-    config_schema: dict[str, Any] | None,
-) -> AppConfigResponse:
-    toml_wrapper: dict[str, Any] = {"hassette": {"apps": {app_key: {"config": _strip_none(app_config)}}}}
-    try:
-        config_toml = tomli_w.dumps(toml_wrapper)
-    except (TypeError, ValueError):
-        LOGGER.warning("Failed to render TOML for %s", app_key, exc_info=True)
-        config_toml = ""
-    return AppConfigResponse(
-        app_key=app_key,
-        filename=manifest.filename,
-        class_name=manifest.class_name,
-        enabled=manifest.enabled,
-        autostart=manifest.autostart,
-        framework_fields=_FRAMEWORK_FIELDS,
-        app_config=app_config,
-        config_toml=config_toml,
-        config_schema=config_schema,
-    )
-
-
-def _build_app_config_view(
-    schema: dict[str, Any], app_config: dict[str, Any] | list[dict[str, Any]]
-) -> tuple[dict[str, Any], dict[str, Any] | list[dict[str, Any]]]:
-    """Build the deref'd schema and masked values for a single- or multi-instance app config.
-
-    The schema is dereferenced once and reused across every instance; only the per-instance
-    masking differs. Manifest-level fields (enabled, autostart) are injected into the schema
-    so the frontend can render them alongside config fields in the framework section.
-    """
-    plain_schema = deref_schema(schema)
-    config_props = plain_schema.get("properties", {})
-    enriched_schema = {**plain_schema, "properties": {**_MANIFEST_FIELD_SCHEMAS, **config_props}}
-    if isinstance(app_config, list):
-        return enriched_schema, [mask_values(config_props, inst) for inst in app_config]
-    return enriched_schema, mask_values(config_props, app_config)
 
 
 @router.get(
@@ -549,7 +521,7 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSource:
     _validate_app_key(app_key)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
-        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
+        raise app_not_found(app_key)
 
     # Path traversal protection: full_path must resolve within the manifest's app_dir
     try:
@@ -569,12 +541,12 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSource:
         raise WebApiError(ProblemCode.PATH_TRAVERSAL, "Path traversal not allowed")
 
     if not resolved.exists():
-        raise WebApiError(ProblemCode.SOURCE_NOT_FOUND, f"Source file not found for app {app_key!r}")
+        raise source_not_found(app_key)
 
     try:
         content = await asyncio.to_thread(resolved.read_text, encoding="utf-8")
     except FileNotFoundError as exc:
-        raise WebApiError(ProblemCode.SOURCE_NOT_FOUND, f"Source file not found for app {app_key!r}") from exc
+        raise source_not_found(app_key) from exc
     except (OSError, UnicodeDecodeError) as exc:
         LOGGER.warning("Failed to read source for app %s", app_key, exc_info=True)
         raise WebApiError(ProblemCode.SOURCE_UNAVAILABLE, "Failed to read app source") from exc

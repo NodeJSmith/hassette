@@ -27,17 +27,26 @@ LOG_LEVELS: dict[LogLevel, int] = {
 }
 VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
 
+DEFAULT_INSTANCE_INDEX = 0
+
 # Shared query/path parameter annotations — annotate route parameters with these instead of
 # repeating the `Query(...)`/`Path(...)` call in every signature.
 AppKeyPath = Annotated[str, Path(description="Use `__hassette__` to query framework-internal actor telemetry.")]
+"""App key path parameter; also accepts the framework-internal ``__hassette__`` actor."""
 InstanceIndexQuery = Annotated[
-    int, Query(description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.")
+    int,
+    Query(
+        description=f"App instance index. Defaults to {DEFAULT_INSTANCE_INDEX}. "
+        "Multi-instance apps have indices 0..N-1."
+    ),
 ]
-# For routes that serve the multi-instance parent overview, where omitting the index means every instance.
+"""Instance index for routes that view one instance; pair it with ``= DEFAULT_INSTANCE_INDEX``."""
 OptionalInstanceIndexQuery = Annotated[
     int | None, Query(description="App instance index. Omit for every instance of the app.")
 ]
+"""Instance index for routes that serve the multi-instance parent overview, where omitting it means every instance."""
 SinceQuery = Annotated[float | None, Query(allow_inf_nan=False)]
+"""Lower time bound (epoch seconds); rejects NaN and infinity."""
 SourceTierQuery = Annotated[
     QuerySourceTier,
     Query(
@@ -50,6 +59,7 @@ SourceTierQuery = Annotated[
 Telemetry-metrics endpoints default to ``"app"``; ``GET /logs/recent`` defaults to ``"all"`` — see ``routes/logs.py``.
 """
 LimitQuery = Annotated[int, Query(ge=1, le=MAX_QUERY_LIMIT)]
+"""Row limit, capped at ``MAX_QUERY_LIMIT``."""
 
 
 def is_log_level(name: str) -> TypeGuard[LogLevel]:
@@ -112,7 +122,7 @@ class TelemetryFilters:
     parameters into the operation, so the OpenAPI schema is the same as declaring them inline.
     """
 
-    instance_index: InstanceIndexQuery = 0
+    instance_index: InstanceIndexQuery = DEFAULT_INSTANCE_INDEX
     since: SinceQuery = None
     source_tier: SourceTierQuery = APP_SOURCE_TIER
 

@@ -146,13 +146,18 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     app_key: str = Field(default=...)
     """Reflects the key for this app in hassette.toml"""
 
-    enabled: bool = Field(default=True)
-    """Whether the app is enabled or not, will default to True if not set. Does not consider ``--app`` filter."""
+    # The web config view shows these two fields' schemas (``MANIFEST_FIELD_SCHEMAS`` in
+    # ``web/routes/apps.py``), so their descriptions live in ``Field`` where the schema picks them up.
+    enabled: bool = Field(default=True, description="Whether the app is enabled. Does not consider the `--app` filter.")
 
-    autostart: bool = Field(default=True)
-    """Whether the app starts automatically when Hassette starts. Orthogonal to
-    `enabled`: an enabled app with autostart=false is registered and startable on
-    demand, but is not started at startup or by a live config reload."""
+    autostart: bool = Field(
+        default=True,
+        description=(
+            "Whether the app starts automatically when Hassette starts. Orthogonal to `enabled`: an enabled app "
+            "with autostart=false is registered and startable on demand, but is not started at startup or by a "
+            "live config reload."
+        ),
+    )
 
     filename: str = Field(default=..., examples=["my_app.py"])
     """Filename of the app, will be looked for in app_path"""
