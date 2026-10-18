@@ -1,5 +1,5 @@
 """Verify tools/release/drift_check.py — the shared compare/dedup logic used by
-pypi-drift-check.yml, docker-drift-check.yml, and ha-version-drift.yml.
+pypi-drift-check.yml, docker-drift-check.yml, ha-version-drift.yml, and docs-inventory-drift.yml.
 
 Runs the script as a subprocess with the same preinstalled `python3` used by the workflows,
 against a stub `gh` binary placed first on PATH, so no real GitHub API calls happen.
@@ -17,10 +17,16 @@ SCRIPT = PROJECT_ROOT / "tools" / "release" / "drift_check.py"
 CI_TEST_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "tests.yml"
 DRIFT_WORKFLOWS = (
     PROJECT_ROOT / ".github" / "workflows" / "docker-drift-check.yml",
+    PROJECT_ROOT / ".github" / "workflows" / "docs-inventory-drift.yml",
     PROJECT_ROOT / ".github" / "workflows" / "ha-version-drift.yml",
     PROJECT_ROOT / ".github" / "workflows" / "pypi-drift-check.yml",
 )
-CI_DRIFT_PATHS = (*DRIFT_WORKFLOWS, SCRIPT, PROJECT_ROOT / "codegen" / "ha-version.txt")
+CI_DRIFT_PATHS = (
+    *DRIFT_WORKFLOWS,
+    SCRIPT,
+    PROJECT_ROOT / "codegen" / "ha-version.txt",
+    PROJECT_ROOT / "tools" / "docs" / "inventories.py",
+)
 SUBPROCESS_TIMEOUT_SECONDS = 30
 STUB_GH = """#!/usr/bin/env bash
 case "$1 $2" in
