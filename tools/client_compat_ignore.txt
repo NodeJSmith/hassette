@@ -1,0 +1,13 @@
+# tools/client_compat_ignore.txt
+#
+# Accepted deliberate breaks for tools/check_client_compat.py (uv run nox -s client_compat): fixtures of
+# HEAD's responses that the newest released hassette-client knowingly mishandles.
+# One line per accepted failure, copied verbatim from the failing check's output:
+#   METHOD /path (<fixture file>)
+# Precede each group with a comment giving the reason and issue number.
+#
+# Unlike tools/wire_compat_ignore.txt, a stale entry fails the check: one whose fixture now passes (the
+# released client caught up) or no longer exists. Remove those lines once the release that handles the
+# change ships, so this file empties itself after each release.
+#
+# This file intentionally starts empty (comment lines only).

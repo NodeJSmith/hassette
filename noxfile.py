@@ -161,6 +161,9 @@ def client_compat(session: "Session"):
     ``hassette-wire`` it pins) from PyPI instead of the workspace copies. Needs the release tags fetched and
     PyPI reachable. A tag whose publish hasn't finished is skipped with a warning, not failed.
 
+    Failures a deliberate break accepts are listed in ``tools/client_compat_ignore.txt``, which the check reads
+    from the repository root; an entry that no longer fails is stale and fails the check.
+
     The client's third-party dependencies (pydantic, aiohttp, ...) are pinned to their ``uv.lock`` versions in
     the isolated venv, so a failure points at the client/server pair rather than at a dependency release that
     landed that day. ``uv run --with`` takes no constraints file, so the pins go in as requirements. A uv

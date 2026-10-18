@@ -19,6 +19,12 @@ against the workspace copies, a different version, or a fixture directory that d
 ``release.json``. Complements ``tools/check_wire_compat.py``, which compares schemas: this catches
 serialization a schema doesn't show, and bugs in the release's lenient parsing and error mapping.
 
+A PR that breaks the released client on purpose lists each failure it accepts in
+``tools/client_compat_ignore.txt``, one line per fixture, keyed exactly as the failure report names it:
+``<route> (<fixture file>)``. A listed failure is printed as accepted and doesn't fail the check. An entry
+that no failure matches (the fixture now passes, or no longer exists) is stale and fails the check, so the file
+empties itself once the next release handles the change.
+
 Rationale: the approach, including running ``interpret_response``, is in
 ``design/research/2026-10-08-released-client-compat-approaches/research.md``, and the release selection in
 ``design/research/2026-10-08-client-compat-release-baseline/research.md``. The check originates in
@@ -57,6 +63,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 RELEASE_FILE = "release.json"
 """Written by the generator next to the fixtures; names the release their types come from and lists them."""
 
+ACCEPTED_FILE = Path("tools/client_compat_ignore.txt")
+"""Failures a deliberate break accepts, relative to the repository root; read by path, never imported."""
+
 PROBE_PARAMETER = "status_model_on_503"
 """The ``interpret_response`` keyword :func:`check_fixture` passes a fixture's ``probe`` flag as."""
 
@@ -73,6 +82,33 @@ class Failure:
     fixture: Path
     route: str
     reason: str
+
+    @property
+    def key(self) -> str:
+        """How the failure report names this failure, and how ``ACCEPTED_FILE`` lists it."""
+        return f"{self.route} ({self.fixture.name})"
+
+
+def load_accepted(path: Path) -> set[str]:
+    """The entries in an accepted-breaks file: every non-blank line that isn't a ``#`` comment.
+
+    A missing file accepts nothing.
+    """
+    if not path.exists():
+        return set()
+    lines = (line.strip() for line in path.read_text().splitlines())
+    return {line for line in lines if line and not line.startswith("#")}
+
+
+def stale_entries(accepted: set[str], failures: list[Failure], fixture_names: set[str]) -> list[str]:
+    """Why each accepted entry no failure matches is stale, sorted by entry."""
+    failing = {failure.key for failure in failures}
+    stale = []
+    for entry in sorted(accepted - failing):
+        fixture = entry.rpartition(" (")[2].removesuffix(")")
+        reason = "now passes" if fixture in fixture_names else "names no fixture"
+        stale.append(f"{entry}: {reason}")
+    return stale
 
 
 def resolve_type(spec: Any) -> Any:
@@ -222,11 +258,30 @@ def main(argv: list[str] | None = None, repo_root: Path = REPO_ROOT) -> int:
     for route in json.loads((args.fixtures / RELEASE_FILE).read_text())["newer_than_release"]:
         print(f"not checked: {release} doesn't call {route}, which is newer")
     failures = [failure for path in paths if (failure := check_fixture(path))]
-    if failures:
-        print(f"{release} mishandles {len(failures)} of {len(paths)} HEAD responses:", file=sys.stderr)
-        for failure in failures:
-            print(f"\n{failure.route} ({failure.fixture.name}):\n  {failure.reason}", file=sys.stderr)
+    accepted = load_accepted(repo_root / ACCEPTED_FILE)
+    for failure in failures:
+        if failure.key in accepted:
+            print(f"accepted by {ACCEPTED_FILE}: {failure.key}\n  {failure.reason}")
+    unaccepted = [failure for failure in failures if failure.key not in accepted]
+    stale = stale_entries(accepted, failures, {path.name for path in paths})
+    if unaccepted:
+        print(f"{release} mishandles {len(unaccepted)} of {len(paths)} HEAD responses:", file=sys.stderr)
+        for failure in unaccepted:
+            print(f"\n{failure.key}\n  {failure.reason}", file=sys.stderr)
+        print(
+            f"\nIf the break is deliberate, add each failure's unindented line above to {ACCEPTED_FILE}.",
+            file=sys.stderr,
+        )
+    if stale:
+        print(f"\nStale entries in {ACCEPTED_FILE}; remove them:", file=sys.stderr)
+        for entry in stale:
+            print(f"  {entry}", file=sys.stderr)
+    if unaccepted or stale:
         return 1
+    if failures:
+        handled = len(paths) - len(failures)
+        print(f"{release} handled {handled} of {len(paths)} HEAD responses; {ACCEPTED_FILE} accepts the rest.")
+        return 0
     print(f"{release} handled all {len(paths)} HEAD responses.")
     return 0
 
