@@ -1,19 +1,24 @@
 """Shared helpers for bus integration tests."""
 
 import asyncio
+import functools
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from unittest.mock import MagicMock
 
+from hassette.bus.error_context import BusErrorContext
 from hassette.commands import InvokeHandler
 from hassette.events import RawStateChangeEvent
 from hassette.events.base import Event
 from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict, wait_for
 
+from .conftest import ASYNC_SAFETY_TIMEOUT
+
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
+    from hassette.types.types import BusErrorHandlerType
 
 ENTITY = "sensor.overlap"
 """Shared entity id for execution-mode overlap tests (test_execution_modes*.py)."""
@@ -63,6 +68,42 @@ def make_collector(
         hassette.task_bucket.post_to_loop(fired.set)
 
     return handler, received, fired
+
+
+class ErrorCollector:
+    """Records the `BusErrorContext` values an `on_error` handler receives.
+
+    `record` takes `hassette` as a parameter rather than the collector holding it, because some
+    tests construct their collector before the app exists and only reach a `Hassette` through
+    `self.hassette` inside the handler.
+
+    `wait()` returns once `expected` errors have been recorded, so tests that route several
+    failures into one collector don't assert before the last one arrives.
+    """
+
+    def __init__(self, expected: int = 1) -> None:
+        self.expected = expected
+        self.contexts: list[BusErrorContext] = []
+        self.ran: asyncio.Event = asyncio.Event()
+
+    async def record(self, hassette: "Hassette | HassetteHarness", ctx: BusErrorContext) -> None:
+        self.contexts.append(ctx)
+        if len(self.contexts) >= self.expected:
+            hassette.task_bucket.post_to_loop(self.ran.set)
+
+    def bound(self, hassette: "Hassette | HassetteHarness") -> "BusErrorHandlerType":
+        """Return an `on_error` handler that records into this collector."""
+        return functools.partial(self.record, hassette)
+
+    async def wait(self, timeout: float = ASYNC_SAFETY_TIMEOUT) -> None:
+        """Block until `expected` errors have been recorded."""
+        await asyncio.wait_for(self.ran.wait(), timeout=timeout)
+
+    def single(self, exc_type: type[Exception]) -> BusErrorContext:
+        """Assert exactly one error of `exc_type` was recorded, and return its context."""
+        assert len(self.contexts) == 1
+        assert isinstance(self.contexts[0].exception, exc_type)
+        return self.contexts[0]
 
 
 @dataclass
