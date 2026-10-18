@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from hassette_wire import ExecutionStatus, LogLevel
+from hassette_wire import ExecutionStatus, LogLevel, SourceTier
 from whenever import Instant
 
 from hassette.core.database_service import LOG_RECORD_COLUMNS
@@ -384,6 +384,7 @@ def seed_executions(
     duration_ms: float = 120.0,
     error_type: str = "RuntimeError",
     error_message: str = "Simulated failure for seed data",
+    source_tier: SourceTier = "app",
 ) -> None:
     """Insert ``count`` executions for one listener/job in three contiguous bands: DI
     failures, plain errors, then thread-leaked timeouts, with any remainder as successes.
@@ -422,6 +423,7 @@ def seed_executions(
                 error_message=error_message if status == ExecutionStatus.ERROR else None,
                 is_di_failure=is_di,
                 thread_leaked=is_leaked,
+                source_tier=source_tier,
             )
         )
 
