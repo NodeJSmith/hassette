@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from hassette_codegen.coverage import find_coverage_gaps, report_coverage
 from hassette_codegen.ha_source import resolve_source
 from hassette_codegen.pipeline import run_pipeline
 from hassette_codegen.sync_facade import main as sf_main
@@ -21,6 +22,19 @@ def _build_parser() -> argparse.ArgumentParser:
     gen_parser.add_argument("--ha-release-tag", type=str, help="HA release tag to clone (e.g., 2026.6.3)")
     gen_parser.add_argument("--check", action="store_true", help="Check for drift without writing files")
     gen_parser.add_argument("--domain", type=str, help="Comma-separated list of domains to generate")
+
+    cov_parser = subparsers.add_parser(
+        "check-coverage",
+        help="Report HA entity domains with no hassette state model",
+        description=(
+            "Report HA core entity domains with no generated model, manual override, hand-written model, or "
+            "allowlist entry, plus stale allowlist entries. Exits 1 if any are found. Blind spot: integrations "
+            "that own an entity domain without declaring integration_type entity or helper are not checked "
+            "(known: homematic, hdmi_cec, configurator, remember_the_milk)."
+        ),
+    )
+    cov_parser.add_argument("--ha-core-path", type=Path, help="Path to local HA core checkout")
+    cov_parser.add_argument("--ha-release-tag", type=str, help="HA release tag to clone (e.g., 2026.6.3)")
 
     sf_parser = subparsers.add_parser("sync-facade", help="Generate the sync facade for hassette")
     sf_parser.add_argument("--check", action="store_true", help="Check for drift without writing")
@@ -47,6 +61,13 @@ def main() -> int:
 
     if args.command == "sync-facade":
         return _run_sync_facade(args)
+
+    if args.command == "check-coverage":
+        ha_source = resolve_source(ha_core_path=args.ha_core_path, ha_release_tag=args.ha_release_tag)
+        try:
+            return report_coverage(find_coverage_gaps(ha_source.path))
+        finally:
+            ha_source.cleanup()
 
     if args.command == "generate":
         ha_source = resolve_source(ha_core_path=args.ha_core_path, ha_release_tag=args.ha_release_tag)

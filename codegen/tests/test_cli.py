@@ -28,3 +28,10 @@ class TestArgParsing:
         args = parser.parse_args(["sync-facade", "--check"])
         assert args.command == "sync-facade"
         assert args.check is True
+
+    def test_check_coverage_subcommand(self) -> None:
+        parser = _build_parser()
+        args = parser.parse_args(["check-coverage", "--ha-core-path", "/tmp/fake"])
+        assert args.command == "check-coverage"
+        assert args.ha_core_path == Path("/tmp/fake")
+        assert args.ha_release_tag is None
