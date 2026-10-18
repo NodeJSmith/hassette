@@ -2,7 +2,7 @@
 
 import ast
 import textwrap
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
@@ -535,17 +535,18 @@ def _require_methods(source_path: Path, class_name: str, names: frozenset[str], 
 
 
 def _generate_facade(
-    source_path: Path,
-    class_name: str,
+    sources: Sequence[tuple[Path, str]],
     *,
     header: str,
     class_header: str,
     wrapped_attr: str,
     keep: Callable[[str], bool] | None = None,
 ) -> str:
-    """Generate a synchronous facade for ``class_name`` defined in ``source_path``.
+    """Generate a synchronous facade from one or more ``(source_path, class_name)`` sources.
 
-    Each public async method becomes a sync wrapper that delegates to
+    A class split across mixins (``Api`` plus its mixin modules) is passed as several sources;
+    their class bodies are concatenated in the order given, so the emitted method order matches
+    the class's MRO order. Each public async method becomes a sync wrapper that delegates to
     ``self.<wrapped_attr>.<method>(...)`` via ``task_bucket.run_sync``. ``header`` and
     ``class_header`` are the hand-maintained module imports and class definition; the
     method wrappers are appended verbatim. If a method introduces a type the header does
@@ -555,16 +556,17 @@ def _generate_facade(
     ``keep`` filters which method names are emitted, so one source class can be split across
     two generated modules (see ``BUS_EVENT_SHORTCUTS``). It defaults to emitting everything.
     """
-    source = source_path.read_text(encoding="utf8")
-    module = safe_parse(source, str(source_path))
-
-    target_class = _find_class(module, class_name)
-    if target_class is None:
-        raise SystemExit(f"Could not find class `{class_name}` in {source_path}")
+    body: list[ast.stmt] = []
+    for source_path, class_name in sources:
+        module = safe_parse(source_path.read_text(encoding="utf8"), str(source_path))
+        target_class = _find_class(module, class_name)
+        if target_class is None:
+            raise SystemExit(f"Could not find class `{class_name}` in {source_path}")
+        body.extend(target_class.body)
 
     overloaded_names = frozenset(
         node.name
-        for node in target_class.body
+        for node in body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and any(
             (isinstance(d, ast.Name) and d.id == "overload") or (isinstance(d, ast.Attribute) and d.attr == "overload")
@@ -576,34 +578,45 @@ def _generate_facade(
         keep = _keep_all
 
     wrappers = [
-        gen_wrapper(node, wrapped_attr, overloaded_names)
-        for node in target_class.body
-        if is_wrappable(node) and keep(node.name)
+        gen_wrapper(node, wrapped_attr, overloaded_names) for node in body if is_wrappable(node) and keep(node.name)
     ]
-    delegates = [
-        gen_delegate(node, wrapped_attr) for node in target_class.body if is_delegatable(node) and keep(node.name)
-    ]
+    delegates = [gen_delegate(node, wrapped_attr) for node in body if is_delegatable(node) and keep(node.name)]
 
     return header + class_header + "\n".join(wrappers + delegates)
 
 
+def api_sources(api_path: Path) -> list[tuple[Path, str]]:
+    """Return the ``(path, class_name)`` sources that make up ``Api``, in MRO order.
+
+    ``Api`` lives in ``api.py`` and inherits from mixins in sibling modules; the mixin paths are
+    derived from ``api_path`` so callers keep passing only the ``api.py`` location.
+    """
+    return [
+        (api_path, "Api"),
+        (api_path.with_name("service_calls.py"), "ApiServiceCallsMixin"),
+        (api_path.with_name("entity_data.py"), "ApiEntityDataMixin"),
+    ]
+
+
 def generate_sync(api_path: Path) -> str:
-    """Generate the ApiSyncFacade source from api.py."""
-    return _generate_facade(api_path, "Api", header=HEADER, class_header=CLASS_HEADER, wrapped_attr="_api")
+    """Generate the ApiSyncFacade source from ``Api`` and its mixins."""
+    return _generate_facade(api_sources(api_path), header=HEADER, class_header=CLASS_HEADER, wrapped_attr="_api")
 
 
 def generate_sync_helpers(helpers_path: Path) -> str:
     """Generate the HelperClientSyncFacade source from helpers.py."""
     return _generate_facade(
-        helpers_path, "HelperClient", header=HELPERS_HEADER, class_header=HELPERS_CLASS_HEADER, wrapped_attr="_helpers"
+        [(helpers_path, "HelperClient")],
+        header=HELPERS_HEADER,
+        class_header=HELPERS_CLASS_HEADER,
+        wrapped_attr="_helpers",
     )
 
 
 def generate_sync_bus(bus_path: Path) -> str:
     """Generate the BusSyncFacade source from bus.py, minus the named-event shortcuts."""
     return _generate_facade(
-        bus_path,
-        "Bus",
+        [(bus_path, "Bus")],
         header=BUS_HEADER,
         class_header=BUS_CLASS_HEADER,
         wrapped_attr="_bus",
@@ -620,8 +633,7 @@ def generate_sync_bus_events(bus_path: Path) -> str:
     _require_methods(bus_path, "Bus", BUS_EVENT_SHORTCUTS, "BUS_EVENT_SHORTCUTS")
 
     return _generate_facade(
-        bus_path,
-        "Bus",
+        [(bus_path, "Bus")],
         header=BUS_EVENT_SHORTCUTS_HEADER,
         class_header=BUS_EVENT_SHORTCUTS_CLASS_HEADER,
         wrapped_attr="_bus",
@@ -632,8 +644,7 @@ def generate_sync_bus_events(bus_path: Path) -> str:
 def generate_sync_scheduler(scheduler_path: Path) -> str:
     """Generate the SchedulerSyncFacade source from scheduler.py, minus the convenience wrappers."""
     return _generate_facade(
-        scheduler_path,
-        "Scheduler",
+        [(scheduler_path, "Scheduler")],
         header=SCHEDULER_HEADER,
         class_header=SCHEDULER_CLASS_HEADER,
         wrapped_attr="_scheduler",
@@ -650,8 +661,7 @@ def generate_sync_scheduler_convenience(scheduler_path: Path) -> str:
     _require_methods(scheduler_path, "Scheduler", SCHEDULER_CONVENIENCE_METHODS, "SCHEDULER_CONVENIENCE_METHODS")
 
     return _generate_facade(
-        scheduler_path,
-        "Scheduler",
+        [(scheduler_path, "Scheduler")],
         header=SCHEDULER_CONVENIENCE_HEADER,
         class_header=SCHEDULER_CONVENIENCE_CLASS_HEADER,
         wrapped_attr="_scheduler",

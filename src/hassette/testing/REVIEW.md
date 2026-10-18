@@ -10,7 +10,8 @@ collection time, not at a type-check boundary.
 `RecordingApi` in `src/hassette/testing/recording_api.py` inherits `Resource`
 (not `Api`) and has a `__getattr__` fallback that raises `NotImplementedError`
 for any unknown public attribute. When a new `Api` method is added in
-`src/hassette/api/api.py`, is it either deliberately implemented in
+`src/hassette/api/api.py` (or its mixin modules `service_calls.py` and
+`entity_data.py`), is it either deliberately implemented in
 `RecordingApi`, explicitly stubbed, or correctly handled by the generic
 `__getattr__` fallback? A method that needs harness-specific behavior (e.g.
 recording calls, returning seed data) but relies on the generic fallback will

@@ -32,7 +32,7 @@ from hassette.scheduler.triggers import Every as _Every
 from hassette.utils.date_utils import now
 from tests.support.factories import make_mock_parent
 from tests.support.helpers import noop
-from tests.unit.conftest import make_api
+from tests.unit.conftest import make_api, own_members
 
 # Canonical protected-method list — single source of truth consumed by every guard in this file.
 
@@ -96,7 +96,7 @@ CANONICAL_PROTECTED: dict[type, set[str]] = {
 #: These are framework plumbing, not user registration API — apps never call them.
 #: The inherited-surface guard below fails when a NEW detected method appears on a
 #: base class without being added here, to CANONICAL_PROTECTED, or to
-#: DOCUMENTED_EXCLUSIONS — closing the vars(cls) blind spot for inherited methods.
+#: DOCUMENTED_EXCLUSIONS — closing the own_members(cls) blind spot for inherited methods.
 #: Counterpart: ``LIFECYCLE_METHODS`` in codegen/src/hassette_codegen/sync_facade/ast_utils.py
 #: covers the same concept for sync-facade generation; a new lifecycle async def
 #: usually needs an entry in both.
@@ -208,7 +208,8 @@ def _is_detected(cls: type, name: str) -> bool:
     collections.abc.Coroutine.  Uses raw __annotations__ (not get_type_hints) to
     survive TYPE_CHECKING-guarded parameter annotations (HandlerType etc.) that
     are not available at test collection time.  Forward-ref string annotations
-    are evaluated in the class module's globals.
+    are evaluated in the defining module's globals (Api methods live on mixins in sibling
+    modules, whose imports ``cls.__module__`` doesn't carry).
 
     Uses inspect.getattr_static to resolve inherited methods that are not in
     vars(cls) directly, avoiding false negatives for subclassed methods.
@@ -223,7 +224,7 @@ def _is_detected(cls: type, name: str) -> bool:
     if return_ann is None:
         return False
     if isinstance(return_ann, str):
-        module = sys.modules.get(cls.__module__)
+        module = sys.modules.get(getattr(method, "__module__", cls.__module__))
         if module is None:
             return False
         try:
@@ -262,9 +263,9 @@ class TestCompletenessGuard:
                 return False
             return callable(raw)
 
-        # Use vars(cls) to enumerate only methods defined directly on this class,
+        # Use own_members(cls) to enumerate methods defined on this class or its mixins,
         # not inherited lifecycle hooks from Resource/Service parent classes.
-        all_public_names = {n for n in vars(cls) if not n.startswith("_") and _is_callable_non_property(n)}
+        all_public_names = {n for n in own_members(cls) if not n.startswith("_") and _is_callable_non_property(n)}
         detected = {n for n in all_public_names if _is_detected(cls, n)}
 
         unaccounted = detected - accounted
@@ -279,15 +280,15 @@ class TestCompletenessGuard:
 
     @pytest.mark.parametrize("cls", [Bus, Scheduler, Api], ids=lambda c: c.__name__)
     def test_inherited_detected_methods_are_accounted_for(self, cls: type) -> None:
-        """Companion to the vars(cls) check above: cover the INHERITED surface.
+        """Companion to the own_members(cls) check above: cover the INHERITED surface.
 
-        vars(cls) enumerates only directly-defined methods, so a registration-shaped
-        ``async def`` added to the Resource/Service base classes would bypass the
-        primary guard entirely.  This check walks dir(cls) minus vars(cls) and
+        own_members(cls) enumerates only methods defined on the class or its mixins, so a
+        registration-shaped ``async def`` added to the Resource/Service base classes would bypass
+        the primary guard entirely.  This check walks dir(cls) minus own_members(cls) and
         requires every detected inherited method to be a documented lifecycle
         exclusion (or explicitly canonical/excluded).
         """
-        inherited_names = {n for n in dir(cls) if not n.startswith("_") and n not in vars(cls)}
+        inherited_names = {n for n in dir(cls) if not n.startswith("_") and n not in own_members(cls)}
         detected = {n for n in inherited_names if _is_detected(cls, n)}
 
         accounted = INHERITED_LIFECYCLE_EXCLUSIONS | CANONICAL_PROTECTED[cls] | DOCUMENTED_EXCLUSIONS[cls]
@@ -340,7 +341,8 @@ class TestAnnotationOriginGuard:
             f"{cls.__name__}.{method_name} has no return annotation.  Annotate it as -> Coroutine[Any, Any, T]."
         )
         if isinstance(ret, str):
-            mod = sys.modules.get(cls.__module__)
+            # The method's own module, not cls's: Api methods are defined on mixins in sibling modules.
+            mod = sys.modules.get(m.__module__)
             assert mod is not None
             try:
                 ret = eval(ret, vars(mod))  # noqa: S307 — resolving module annotation

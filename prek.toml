@@ -221,7 +221,7 @@ name = "Generate sync.py facade"
 language = "system"
 entry = "uv run python codegen/src/hassette_codegen/sync_facade/ --target api"
 pass_filenames = false
-files = '(src/hassette/api/api\.py|codegen/src/hassette_codegen/sync_facade/)'
+files = '(src/hassette/api/(api|service_calls|entity_data)\.py|codegen/src/hassette_codegen/sync_facade/)'
 stages = ["pre-push"]
 
 [[repos.hooks]]
@@ -230,7 +230,7 @@ name = "Generate RecordingSyncFacade"
 language = "system"
 entry = "uv run python codegen/src/hassette_codegen/sync_facade/ --target recording"
 pass_filenames = false
-files = '(src/hassette/testing/recording_api\.py|src/hassette/api/(api|helpers)\.py|codegen/src/hassette_codegen/sync_facade/)'
+files = '(src/hassette/testing/recording_api\.py|src/hassette/api/(api|service_calls|entity_data|helpers)\.py|codegen/src/hassette_codegen/sync_facade/)'
 stages = ["pre-push"]
 
 [[repos.hooks]]

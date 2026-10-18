@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.api.api import normalize_notifier
+from hassette.api.service_calls import normalize_notifier
 from tests.unit.conftest import make_api
 
 

@@ -100,6 +100,11 @@ EXTRA_PAGE_IDENTIFIERS: dict[str, tuple[str, ...]] = {
     # SchedulerSyncFacade inherits its run_* wrappers from this generated base, so it renders
     # alongside the facade for the same reason.
     "hassette.scheduler": ("hassette.scheduler.sync_convenience.SchedulerSyncConvenience",),
+    # Same for Api: its service-call and entity-data methods live on mixins in sibling modules.
+    "hassette.api": (
+        "hassette.api.service_calls.ApiServiceCallsMixin",
+        "hassette.api.entity_data.ApiEntityDataMixin",
+    ),
 }
 
 
