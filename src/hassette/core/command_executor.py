@@ -170,18 +170,6 @@ class CommandExecutor(Service):
     clock for those paths.
     """
 
-    current_execution: ExecutionMarker | None = None
-    """Thread-visible marker of the execution currently on the loop thread, or None when idle.
-
-    Read by the off-loop blocking-IO watchdog (Tier 1) to attribute a loop freeze to the app
-    that caused it. Published via atomic attribute assignment in ``bind_execution_context`` and
-    cleared in ``unbind_execution_context``. Each assignment creates an instance-level attribute
-    that shadows this class-level default, so instances never share marker state. The class-level
-    ``None`` default exists only so the attribute is safe to read before the first execution and
-    on instances built via ``__new__`` in test helpers (which bypass ``__init__`` — see
-    ``tests/unit/core/conftest.py``).
-    """
-
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._write_queue = asyncio.Queue(maxsize=hassette.config.database.telemetry_write_queue_max)
@@ -195,6 +183,13 @@ class CommandExecutor(Service):
         self._last_unowned_warn_ts = None
         self._timeout_warn_timestamps = {}
         self._clock = time.monotonic
+        self.current_execution: ExecutionMarker | None = None
+        """Thread-visible marker of the execution currently on the loop thread, or None when idle.
+
+        Read by the off-loop blocking-IO watchdog (Tier 1) to attribute a loop freeze to the app
+        that caused it. Published via atomic attribute assignment in ``bind_execution_context`` and
+        cleared in ``unbind_execution_context``.
+        """
 
     @property
     def config_log_level(self) -> LogLevel:
