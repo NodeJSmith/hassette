@@ -32,13 +32,50 @@ hooks = [
 # ---------------------------------------------------------------------------
 # External repos
 # ---------------------------------------------------------------------------
+# Python tools locked in uv.lock run through `uv run`, so the hook and a hand-run
+# `uv run <tool>` always use the same version. Bump them with the lockfile, not here.
 [[repos]]
-repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "v0.17.0"
-hooks = [
-    { id = "ruff-check", args = ["--fix"], exclude = '^docs/.*\.(py|rst)$' },
-    { id = "ruff-format", exclude = '^docs/.*\.(py|rst)$' },
-]
+repo = "local"
+
+[[repos.hooks]]
+id = "ruff-check"
+name = "ruff check"
+language = "system"
+entry = "uv run ruff check --fix"
+require_serial = true
+types_or = ["python", "pyi"]
+exclude = '^docs/.*\.(py|rst)$'
+
+[[repos.hooks]]
+id = "ruff-format"
+name = "ruff format"
+language = "system"
+entry = "uv run ruff format"
+require_serial = true
+types_or = ["python", "pyi"]
+exclude = '^docs/.*\.(py|rst)$'
+
+[[repos.hooks]]
+id = "pyright"
+name = "pyright"
+language = "system"
+entry = "uv run pyright"
+require_serial = true
+types_or = ["python", "pyi"]
+exclude = '^(docs|scripts)/.*\.(py|rst)$'
+stages = ["pre-push"]
+
+# HSL102 (file-size) is excluded here because of its known backlog. Only growth is gated,
+# by the `check-file-size-regressions` hook below and the `file-sizes` job in lint.yml.
+[[repos.hooks]]
+id = "house-lint"
+name = "house-lint"
+language = "system"
+entry = "uv run house-lint check --ignore HSL102"
+require_serial = true
+types = ["python"]
+files = '^(src|tests|scripts|tools|codegen|wire|client|docs|examples)/.*\.py$'
+stages = ["pre-commit", "pre-push"]
 
 [[repos]]
 repo = "https://github.com/python-trio/flake8-async"
@@ -52,22 +89,6 @@ repo = "https://github.com/crate-ci/typos"
 rev = "v1.51.1"
 hooks = [
     { id = "typos", args = ["--force-exclude"], require_serial = true, stages = ["pre-commit", "pre-push"] },
-]
-
-[[repos]]
-repo = "https://github.com/RobertCraigie/pyright-python"
-rev = "v1.1.414"
-hooks = [
-    { id = "pyright", stages = ["pre-push"], exclude = '^(docs|scripts)/.*\.(py|rst)$' },
-]
-
-[[repos]]
-repo = "https://github.com/NodeJSmith/house-lint"
-rev = "v0.2.0"
-hooks = [
-    # HSL102 (file-size) is excluded here because of its known backlog. Only growth is gated,
-    # by the `check-file-size-regressions` hook below and the `file-sizes` job in lint.yml.
-    { id = "house-lint", args = ["--ignore", "HSL102"], files = '^(src|tests|scripts|tools|codegen|wire|client|docs|examples)/.*\.py$', stages = ["pre-commit", "pre-push"] },
 ]
 
 [[repos]]
