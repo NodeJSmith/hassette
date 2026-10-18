@@ -65,6 +65,7 @@ jobs:
                         - 'tests/support/**'
                         - 'tools/generate_client_compat_fixtures.py'
                         - 'tools/client_compat_*.py'
+                        - 'tools/client_compat_ignore.txt'
                         - 'tools/check_client_compat.py'
                         - 'tools/check_wire_compat.py'
                         - 'noxfile.py'
