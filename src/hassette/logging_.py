@@ -16,6 +16,7 @@ import structlog.dev
 import structlog.processors
 import structlog.stdlib
 import structlog.types
+from structlog.types import EventDict
 
 from hassette.context import CURRENT_EXECUTION_ID
 
@@ -373,11 +374,7 @@ def add_execution_id(
     return event_dict
 
 
-def drop_console_noise(
-    _logger: object,
-    _method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
+def drop_console_noise(_logger: object, _method_name: str, event_dict: EventDict) -> EventDict:
     """Structlog processor: drop empty and redundant context fields from console output.
 
     Returns a new dict without ``None``-valued keys and without ``CONSOLE_DROPPED_KEYS``.
