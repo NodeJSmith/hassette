@@ -15,9 +15,10 @@ connection generation but `src/hassette/core/state_proxy.py` has since marked th
 cache `STALE`?
 
 ## Fatal Shutdown Recording
-Does every fatal-outcome path in `src/hassette/core/service_watcher.py`
-(`handle_restart_refused`, `handle_exhaustion`, `shutdown_if_crashed`, the
-fatal-error check in `restart_service`) record `fatal_shutdown_reason` *before*
+Does every fatal-outcome path in `ServiceWatcher` (`handle_restart_refused`,
+`handle_exhaustion`, and the fatal-error check in `route_unretryable_failure` in
+`src/hassette/core/service_watcher_escalation.py`; `shutdown_if_crashed` in
+`src/hassette/core/service_watcher.py`) record `fatal_shutdown_reason` *before*
 triggering shutdown (via `request_shutdown()` or `hassette.shutdown()`)? A path
 that triggers shutdown first loses the reason.
 
