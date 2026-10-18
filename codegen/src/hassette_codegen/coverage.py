@@ -15,8 +15,8 @@ deliberately unmodeled go in ``coverage_allowlist.toml``; an allowlist entry is 
 its component is removed from HA core.
 """
 
+import ast
 import json
-import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +28,6 @@ from hassette_codegen.pipeline import SIMPLE_STATE_DOMAINS
 ALLOWLIST_PATH = Path(__file__).resolve().parent / "coverage_allowlist.toml"
 HAND_WRITTEN_STATES_DIR = Path(__file__).resolve().parents[3] / "src" / "hassette" / "models" / "states"
 CANDIDATE_INTEGRATION_TYPES = frozenset({"entity", "helper"})
-DOMAIN_LITERAL_RE = re.compile(r'domain:\s*Literal\["([a-z0-9_]+)"\]')
 
 
 @dataclass(frozen=True)
@@ -39,9 +38,9 @@ class StaleEntry:
 
 @dataclass(frozen=True)
 class CoverageReport:
-    gaps: list[str]
+    gaps: tuple[str, ...]
     """Candidate domains with no model and no allowlist entry."""
-    stale: list[StaleEntry]
+    stale: tuple[StaleEntry, ...]
     """Allowlist entries whose domain is now modeled or no longer exists in HA core."""
 
     @property
@@ -75,16 +74,20 @@ def find_coverage_gaps(
         | find_hand_written_domains(states_dir)
     )
 
-    gaps = sorted(d for d in find_candidate_domains(components_dir) if d not in modeled and d not in allowlist)
-
-    stale: list[StaleEntry] = []
-    for domain in sorted(allowlist):
-        if domain in modeled:
-            stale.append(StaleEntry(domain, "now modeled"))
-        elif not (components_dir / domain).is_dir():
-            stale.append(StaleEntry(domain, "component no longer exists in HA core"))
-
+    gaps = tuple(sorted(d for d in find_candidate_domains(components_dir) if d not in modeled and d not in allowlist))
+    stale = tuple(
+        entry for domain in sorted(allowlist) if (entry := stale_reason(domain, modeled, components_dir)) is not None
+    )
     return CoverageReport(gaps=gaps, stale=stale)
+
+
+def stale_reason(domain: str, modeled: set[str], components_dir: Path) -> StaleEntry | None:
+    """Return why an allowlist entry is stale, or ``None`` if it still names a real, unmodeled domain."""
+    if domain in modeled:
+        return StaleEntry(domain, "now modeled")
+    if not (components_dir / domain).is_dir():
+        return StaleEntry(domain, "component no longer exists in HA core")
+    return None
 
 
 def find_candidate_domains(components_dir: Path) -> set[str]:
@@ -103,11 +106,33 @@ def find_candidate_domains(components_dir: Path) -> set[str]:
 
 
 def find_hand_written_domains(states_dir: Path) -> set[str]:
-    """Return every domain named by a ``domain: Literal["<name>"]`` annotation in the state model modules."""
+    """Return every domain named by a class-level ``domain: Literal[...]`` annotation in the state model modules.
+
+    Parses the modules rather than matching text, so a comment or docstring mentioning ``domain: Literal[...]``
+    can't mask a coverage gap. Accepts ``Literal`` or ``typing.Literal`` and multi-value literals.
+    """
     domains: set[str] = set()
     for module in states_dir.glob("*.py"):
-        domains.update(DOMAIN_LITERAL_RE.findall(module.read_text(encoding="utf-8")))
+        tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+        for cls in ast.walk(tree):
+            if not isinstance(cls, ast.ClassDef):
+                continue
+            for stmt in cls.body:
+                if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == "domain":
+                    domains.update(literal_strings(stmt.annotation))
     return domains
+
+
+def literal_strings(annotation: ast.expr) -> set[str]:
+    """Return the string values of a ``Literal[...]`` annotation, or an empty set for any other annotation."""
+    if not isinstance(annotation, ast.Subscript):
+        return set()
+    base = annotation.value
+    name = base.id if isinstance(base, ast.Name) else base.attr if isinstance(base, ast.Attribute) else None
+    if name != "Literal":
+        return set()
+    values = annotation.slice.elts if isinstance(annotation.slice, ast.Tuple) else [annotation.slice]
+    return {v.value for v in values if isinstance(v, ast.Constant) and isinstance(v.value, str)}
 
 
 def load_allowlist(path: Path = ALLOWLIST_PATH) -> dict[str, str]:
