@@ -4,10 +4,11 @@ import asyncio
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
-from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_call_service_event, wait_for
 from tests.support.helpers import settle
+
+from .helpers import ErrorCollector
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
@@ -18,28 +19,22 @@ async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "Has
     hassette = hassette_with_bus
     bus = hassette.bus
 
-    error_contexts: list[BusErrorContext] = []
-    handler_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(handler_ran.set)
+    errors = ErrorCollector()
 
     async def bad_handler(_event: AnyEvent) -> None:
         raise ValueError("listener failed")
 
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
     await bus.on(topic="test.app_level", handler=bad_handler, name="app_level_bad_handler")
 
     event = Event(topic="test.app_level", payload=SimpleNamespace())
     await hassette.send_event(event)
 
-    await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
+    await errors.wait()
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, ValueError)
-    assert str(error_contexts[0].exception) == "listener failed"
-    assert error_contexts[0].topic == "test.app_level"
+    ctx = errors.single(ValueError)
+    assert str(ctx.exception) == "listener failed"
+    assert ctx.topic == "test.app_level"
 
 
 async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarness") -> None:
@@ -47,35 +42,29 @@ async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarne
     hassette = hassette_with_bus
     bus = hassette.bus
 
-    app_level_calls: list[BusErrorContext] = []
-    per_listener_calls: list[BusErrorContext] = []
-    per_listener_ran = asyncio.Event()
-
-    async def app_level_handler(ctx: BusErrorContext) -> None:
-        app_level_calls.append(ctx)
-
-    async def per_listener_handler(ctx: BusErrorContext) -> None:
-        per_listener_calls.append(ctx)
-        hassette.task_bucket.post_to_loop(per_listener_ran.set)
+    app_level = ErrorCollector()
+    per_listener = ErrorCollector()
 
     async def bad_handler(_event: AnyEvent) -> None:
         raise RuntimeError("per-listener failure")
 
-    bus.on_error(app_level_handler)
+    bus.on_error(app_level.bound(hassette))
     await bus.on(
-        topic="test.per_listener", handler=bad_handler, on_error=per_listener_handler, name="per_listener_bad_handler"
+        topic="test.per_listener",
+        handler=bad_handler,
+        on_error=per_listener.bound(hassette),
+        name="per_listener_bad_handler",
     )
 
     event = Event(topic="test.per_listener", payload=SimpleNamespace())
     await hassette.send_event(event)
 
-    await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
+    await per_listener.wait()
 
     await settle()
 
-    assert len(per_listener_calls) == 1, f"Expected 1 per-listener call, got {len(per_listener_calls)}"
-    assert len(app_level_calls) == 0, "App-level handler should not be called when per-listener wins"
-    assert isinstance(per_listener_calls[0].exception, RuntimeError)
+    per_listener.single(RuntimeError)
+    assert not app_level.contexts, "App-level handler should not be called when per-listener wins"
 
 
 async def test_no_handler_framework_default_behavior(hassette_with_bus: "HassetteHarness") -> None:
@@ -104,25 +93,8 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
     hassette = hassette_with_bus
     bus = hassette.bus
 
-    calls_a: list[BusErrorContext] = []
-    calls_b: list[BusErrorContext] = []
-    both_ran = asyncio.Event()
-
-    call_count = 0
-
-    async def handler_a(ctx: BusErrorContext) -> None:
-        calls_a.append(ctx)
-        nonlocal call_count
-        call_count += 1
-        if call_count >= 2:
-            hassette.task_bucket.post_to_loop(both_ran.set)
-
-    async def handler_b(ctx: BusErrorContext) -> None:
-        calls_b.append(ctx)
-        nonlocal call_count
-        call_count += 1
-        if call_count >= 2:
-            hassette.task_bucket.post_to_loop(both_ran.set)
+    errors_a = ErrorCollector()
+    errors_b = ErrorCollector()
 
     async def fail_a(_event: AnyEvent) -> None:
         raise ValueError("fail A")
@@ -130,18 +102,17 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
     async def fail_b(_event: AnyEvent) -> None:
         raise TypeError("fail B")
 
-    await bus.on(topic="test.multi_a", handler=fail_a, on_error=handler_a, name="multi_fail_a")
-    await bus.on(topic="test.multi_b", handler=fail_b, on_error=handler_b, name="multi_fail_b")
+    await bus.on(topic="test.multi_a", handler=fail_a, on_error=errors_a.bound(hassette), name="multi_fail_a")
+    await bus.on(topic="test.multi_b", handler=fail_b, on_error=errors_b.bound(hassette), name="multi_fail_b")
 
     await hassette.send_event(Event(topic="test.multi_a", payload=SimpleNamespace()))
     await hassette.send_event(Event(topic="test.multi_b", payload=SimpleNamespace()))
 
-    await asyncio.wait_for(both_ran.wait(), timeout=2.0)
+    await errors_a.wait()
+    await errors_b.wait()
 
-    assert len(calls_a) == 1
-    assert len(calls_b) == 1
-    assert isinstance(calls_a[0].exception, ValueError)
-    assert isinstance(calls_b[0].exception, TypeError)
+    errors_a.single(ValueError)
+    errors_b.single(TypeError)
 
 
 async def test_on_error_registered_after_listeners_still_works(hassette_with_bus: "HassetteHarness") -> None:
@@ -149,8 +120,7 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
     hassette = hassette_with_bus
     bus = hassette.bus
 
-    error_contexts: list[BusErrorContext] = []
-    handler_ran = asyncio.Event()
+    errors = ErrorCollector()
 
     async def bad_handler(_event: AnyEvent) -> None:
         raise AttributeError("late registration test")
@@ -159,20 +129,15 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
     await bus.on(topic="test.late_registration", handler=bad_handler, name="late_registration_bad_handler")
 
     # Register error handler AFTER the listener
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(handler_ran.set)
-
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
 
     event = Event(topic="test.late_registration", payload=SimpleNamespace())
     await hassette.send_event(event)
 
-    await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
+    await errors.wait()
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, AttributeError)
-    assert "late registration test" in str(error_contexts[0].exception)
+    ctx = errors.single(AttributeError)
+    assert "late registration test" in str(ctx.exception)
 
 
 async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bus: "HassetteHarness") -> None:
@@ -180,8 +145,7 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
     hassette = hassette_with_bus
     bus = hassette.bus
 
-    error_contexts: list[BusErrorContext] = []
-    both_ran = asyncio.Event()
+    errors = ErrorCollector(expected=2)
 
     async def bad_handler_a(_event: AnyEvent) -> None:
         raise ValueError("listener A failed")
@@ -192,20 +156,15 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
     await bus.on(topic="test.multi_late.a", handler=bad_handler_a, name="multi_late_a")
     await bus.on(topic="test.multi_late.b", handler=bad_handler_b, name="multi_late_b")
 
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        if len(error_contexts) >= 2:
-            hassette.task_bucket.post_to_loop(both_ran.set)
-
-    bus.on_error(on_error)
+    bus.on_error(errors.bound(hassette))
 
     await hassette.send_event(Event(topic="test.multi_late.a", payload=SimpleNamespace()))
     await hassette.send_event(Event(topic="test.multi_late.b", payload=SimpleNamespace()))
 
-    await asyncio.wait_for(both_ran.wait(), timeout=2.0)
+    await errors.wait()
 
-    assert len(error_contexts) == 2
-    exception_types = {type(ctx.exception) for ctx in error_contexts}
+    assert len(errors.contexts) == 2
+    exception_types = {type(ctx.exception) for ctx in errors.contexts}
     assert exception_types == {ValueError, TypeError}
 
 
@@ -214,26 +173,24 @@ async def test_on_call_service_error_handler(hassette_with_bus: "HassetteHarness
     hassette = hassette_with_bus
     bus = hassette.bus
 
-    error_contexts: list[BusErrorContext] = []
-    handler_ran = asyncio.Event()
-
-    async def on_error(ctx: BusErrorContext) -> None:
-        error_contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(handler_ran.set)
+    errors = ErrorCollector()
 
     async def bad_handler(_event: AnyEvent) -> None:
         raise ValueError("service handler failed")
 
     await bus.on_call_service(
-        domain="light", service="turn_on", handler=bad_handler, on_error=on_error, name="on_call_service_error_handler"
+        domain="light",
+        service="turn_on",
+        handler=bad_handler,
+        on_error=errors.bound(hassette),
+        name="on_call_service_error_handler",
     )
 
     event = create_call_service_event(domain="light", service="turn_on")
     await hassette.send_event(event)
 
-    await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
+    await errors.wait()
 
-    assert len(error_contexts) == 1
-    assert isinstance(error_contexts[0].exception, ValueError)
-    assert str(error_contexts[0].exception) == "service handler failed"
-    assert error_contexts[0].topic == "hass.event.call_service"
+    ctx = errors.single(ValueError)
+    assert str(ctx.exception) == "service handler failed"
+    assert ctx.topic == "hass.event.call_service"
