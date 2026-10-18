@@ -77,6 +77,218 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
     hassette.telemetry_query_service = ts
 
 
+def wire_root_fields(hassette: MagicMock) -> None:
+    """Pin root-level Hassette attributes that MagicMock would otherwise auto-create as truthy mocks."""
+    # Matches a real fresh Hassette (no fatal reason yet) so code branching on
+    # `fatal_shutdown_reason is not None` sees None, not MagicMock's auto-truthy attribute.
+    hassette._fatal_shutdown_reason = None
+    hassette.fatal_shutdown_reason = None
+
+    # Thread / loop identity — matches make_mock_hassette()/HassetteHarness so any code that
+    # reaches the real lifecycle.start()/cancel() path through this stub takes the same-thread
+    # fast path instead of silently no-op'ing through a MagicMock .loop.call_soon_threadsafe().
+    hassette.loop_thread_id = threading.get_ident()
+
+    hassette.get_drop_counters.return_value = (0, 0, 0)
+
+    # Pydantic coerces a bare MagicMock through __int__/__bool__, so an unstubbed call here
+    # yields a healthy-looking 1 drop. Pin both to a genuinely healthy pipeline.
+    hassette.get_log_queue_drops.return_value = 0
+    hassette.get_db_write_queue_drops.return_value = 0
+    hassette.is_log_persistence_active.return_value = True
+
+    hassette.children = []
+
+
+def wire_config(
+    hassette: MagicMock,
+    *,
+    run_web_api: bool,
+    run_web_ui: bool,
+    cors_origins: tuple[str, ...],
+    auth_enabled: bool,
+    log_level: str,
+    dev_mode: bool,
+    allow_reload_in_prod: bool,
+) -> None:
+    """Set ``hassette.config`` attributes and a matching ``model_dump()`` return value."""
+    config = hassette.config
+    # Root-level fields
+    config.dev_mode = dev_mode
+    config.base_url = STUB_BASE_URL
+    config.asyncio_debug_mode = False
+    config.allow_reload_in_prod = allow_reload_in_prod
+    config.data_dir = STUB_DATA_DIR
+    config.config_dir = STUB_CONFIG_DIR
+    # web_api group
+    config.web_api.run = run_web_api
+    config.web_api.run_ui = run_web_ui
+    config.web_api.ui_hot_reload = False
+    config.web_api.host = STUB_HOST
+    config.web_api.port = DEFAULT_WEB_API_PORT
+    config.web_api.cors_origins = cors_origins
+    config.web_api.auth_enabled = auth_enabled
+    # logging group
+    config.logging.log_level = log_level
+    config.logging.web_api = log_level
+    # lifecycle group
+    config.lifecycle.startup_timeout_seconds = STUB_STARTUP_TIMEOUT
+    config.lifecycle.app_startup_timeout_seconds = STUB_APP_STARTUP_TIMEOUT
+    config.lifecycle.app_shutdown_timeout_seconds = STUB_APP_SHUTDOWN_TIMEOUT
+    # app group
+    config.apps.autodetect = True
+    config.apps.directory = STUB_APPS_DIR
+    # scheduler group
+    config.scheduler.behind_schedule_threshold_seconds = STUB_BEHIND_SCHEDULE_THRESHOLD
+    # file_watcher group
+    config.file_watcher.watch_files = True
+    config.file_watcher.debounce_milliseconds = STUB_DEBOUNCE_MS
+
+    # model_dump return value — mirrors the attribute assignments above so the config
+    # endpoint (which calls hassette.config.model_dump(mode="json")) receives a real dict
+    # rather than a MagicMock.  Per-test attribute overrides on hassette.config.* won't
+    # automatically reflect here; tests that need specific serialised values should update
+    # model_dump.return_value directly or use a real HassetteConfig fixture.
+    config.model_dump.return_value = {
+        "dev_mode": dev_mode,
+        "base_url": STUB_BASE_URL,
+        "asyncio_debug_mode": False,
+        "allow_reload_in_prod": allow_reload_in_prod,
+        "token": None,
+        "data_dir": STUB_DATA_DIR,
+        "config_dir": STUB_CONFIG_DIR,
+        "web_api": {
+            "run": run_web_api,
+            "run_ui": run_web_ui,
+            "ui_hot_reload": False,
+            "host": STUB_HOST,
+            "port": DEFAULT_WEB_API_PORT,
+            "cors_origins": list(cors_origins),
+            "auth_enabled": auth_enabled,
+        },
+        "logging": {"log_level": log_level, "web_api": log_level},
+        "lifecycle": {
+            "startup_timeout_seconds": STUB_STARTUP_TIMEOUT,
+            "app_startup_timeout_seconds": STUB_APP_STARTUP_TIMEOUT,
+            "app_shutdown_timeout_seconds": STUB_APP_SHUTDOWN_TIMEOUT,
+        },
+        "apps": {"autodetect": True, "directory": STUB_APPS_DIR},
+        "scheduler": {"behind_schedule_threshold_seconds": STUB_BEHIND_SCHEDULE_THRESHOLD},
+        "file_watcher": {"watch_files": True, "debounce_milliseconds": STUB_DEBOUNCE_MS},
+        "database": {"retention_days": STUB_RETENTION_DAYS},
+        "websocket": {},
+        "blocking_io": {},
+    }
+
+
+def wire_state_proxy(
+    hassette: MagicMock,
+    *,
+    states: dict[str, dict[str, Any]] | None,
+    is_ready: bool,
+    has_state_capability: bool,
+    cache_freshness: StateCacheFreshness | None,
+) -> None:
+    """Alias ``state_proxy`` and make its lookups read the stubbed ``states`` dict."""
+    proxy = hassette._state_proxy
+    hassette.state_proxy = proxy
+    configure_state_proxy_mock(
+        proxy,
+        states=states,
+        is_ready=is_ready,
+        has_state_capability=has_state_capability,
+        cache_freshness=cache_freshness,
+    )
+    proxy.get_state.side_effect = lambda eid: proxy.states.get(eid)
+    proxy.get_domain_states.side_effect = lambda domain: {
+        eid: s for eid, s in proxy.states.items() if eid.startswith(f"{domain}.")
+    }
+
+
+def wire_websocket(hassette: MagicMock, *, connected: bool) -> None:
+    """Alias ``websocket_service`` as a running service, connected or never-connected."""
+    ws = hassette._websocket_service
+    hassette.websocket_service = ws
+    ws._status = ResourceStatus.RUNNING
+    if connected:
+        configure_ready_websocket_mock(ws)
+        return
+    ws._connected_event = asyncio.Event()
+    ws._send_ready_event = asyncio.Event()
+    ws.is_connected = False
+    ws.has_ever_connected = False
+    ws.get_connected_generation.return_value = None
+    ws.wait_connected = AsyncMock(return_value=False)
+    ws.wait_connected_generation = AsyncMock(return_value=None)
+
+
+def wire_bootstrap_coordinator(hassette: MagicMock, *, released: bool) -> None:
+    """Alias ``app_bootstrap_coordinator`` with its release latch fixed to ``released``."""
+    coordinator = hassette._app_bootstrap_coordinator
+    hassette.app_bootstrap_coordinator = coordinator
+    coordinator.is_released = MagicMock(return_value=released)
+    coordinator.wait_released = AsyncMock(return_value=released)
+
+
+def wire_app_handler(
+    hassette: MagicMock,
+    *,
+    manifests: list[AppManifestInfo] | None,
+    old_snapshot: AppStatusSnapshot | None,
+    app_action_mocks: bool,
+) -> None:
+    """Alias ``app_handler`` and give its registry real containers instead of truthy mocks."""
+    handler = hassette._app_handler
+    hassette.app_handler = handler
+    registry = handler.registry
+
+    # New-style manifest snapshot
+    registry.get_full_snapshot.return_value = make_full_snapshot(manifests)
+
+    # overlay_runtime_state() reads `.manifests` (dict) and `.only_apps` (frozenset) directly
+    # off the registry -- a bare MagicMock attribute would return a truthy MagicMock instead
+    # of a real empty container, breaking the "DB-only app" branch. Tests that need a
+    # "currently configured" overlay result should replace `registry` with a real AppRegistry.
+    registry.manifests = {}
+    registry.only_apps = frozenset()
+
+    # _failed_target_instances() (web/routes/apps.py) reads this after every start/reload to
+    # detect a swallowed failure -- a bare MagicMock return value is truthy and non-empty when
+    # iterated, which would make every start/reload/instance-action test hit the 500 path.
+    # Tests exercising that path replace `registry` with a real AppRegistry.
+    registry.get_failed_instance_infos = MagicMock(return_value={})
+
+    # _run_app_action() rejects an action with 409 while this is truthy, which a bare MagicMock is.
+    handler.is_action_in_progress = MagicMock(return_value=False)
+
+    # App status snapshot (AppStatusSnapshot domain object)
+    handler.get_status_snapshot.return_value = old_snapshot if old_snapshot is not None else AppStatusSnapshot()
+
+    if app_action_mocks:
+        handler.start_app = AsyncMock()
+        handler.stop_app = AsyncMock()
+        handler.reload_app = AsyncMock()
+        handler.start_instance = AsyncMock()
+        handler.stop_instance = AsyncMock()
+        handler.reload_instance = AsyncMock()
+
+
+def wire_bus_and_scheduler(hassette: MagicMock, *, scheduler_jobs: list[Any] | None) -> None:
+    """Alias ``bus_service``/``scheduler_service`` with empty execution counts and the given jobs."""
+    hassette.bus_service = hassette._bus_service
+    hassette._bus_service.live_execution_counts = MagicMock(return_value={})
+    hassette._bus_service.pending_wait_for_count = 0
+
+    hassette.scheduler_service = hassette._scheduler_service
+    hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=scheduler_jobs or [])
+
+
+def wire_database(hassette: MagicMock) -> None:
+    """Alias ``database_service``; ``submit()`` returns no rows."""
+    hassette.database_service = hassette._database_service
+    hassette._database_service.submit = AsyncMock(return_value=[])
+
+
 def create_hassette_stub(
     *,
     # Config
@@ -127,171 +339,31 @@ def create_hassette_stub(
     if bootstrap_released is None:
         bootstrap_released = has_state_capability
 
-    # Matches a real fresh Hassette (no fatal reason yet) so code branching on
-    # `fatal_shutdown_reason is not None` sees None, not MagicMock's auto-truthy attribute.
-    hassette._fatal_shutdown_reason = None
-    hassette.fatal_shutdown_reason = None
-
-    # Thread / loop identity — matches make_mock_hassette()/HassetteHarness so any code that
-    # reaches the real lifecycle.start()/cancel() path through this stub takes the same-thread
-    # fast path instead of silently no-op'ing through a MagicMock .loop.call_soon_threadsafe().
-    hassette.loop_thread_id = threading.get_ident()
-
-    # Root-level fields
-    hassette.config.dev_mode = dev_mode
-    hassette.config.base_url = STUB_BASE_URL
-    hassette.config.asyncio_debug_mode = False
-    hassette.config.allow_reload_in_prod = allow_reload_in_prod
-    hassette.config.data_dir = STUB_DATA_DIR
-    hassette.config.config_dir = STUB_CONFIG_DIR
-    # web_api group
-    hassette.config.web_api.run = run_web_api
-    hassette.config.web_api.run_ui = run_web_ui
-    hassette.config.web_api.ui_hot_reload = False
-    hassette.config.web_api.host = STUB_HOST
-    hassette.config.web_api.port = DEFAULT_WEB_API_PORT
-    hassette.config.web_api.cors_origins = cors_origins
-    hassette.config.web_api.auth_enabled = auth_enabled
-    # logging group
-    hassette.config.logging.log_level = log_level
-    hassette.config.logging.web_api = log_level
-    # lifecycle group
-    hassette.config.lifecycle.startup_timeout_seconds = STUB_STARTUP_TIMEOUT
-    hassette.config.lifecycle.app_startup_timeout_seconds = STUB_APP_STARTUP_TIMEOUT
-    hassette.config.lifecycle.app_shutdown_timeout_seconds = STUB_APP_SHUTDOWN_TIMEOUT
-    # app group
-    hassette.config.apps.autodetect = True
-    hassette.config.apps.directory = STUB_APPS_DIR
-    # scheduler group
-    hassette.config.scheduler.behind_schedule_threshold_seconds = STUB_BEHIND_SCHEDULE_THRESHOLD
-    # file_watcher group
-    hassette.config.file_watcher.watch_files = True
-    hassette.config.file_watcher.debounce_milliseconds = STUB_DEBOUNCE_MS
-
-    # model_dump return value — mirrors the attribute assignments above so the config
-    # endpoint (which calls hassette.config.model_dump(mode="json")) receives a real dict
-    # rather than a MagicMock.  Per-test attribute overrides on hassette.config.* won't
-    # automatically reflect here; tests that need specific serialised values should update
-    # model_dump.return_value directly or use a real HassetteConfig fixture.
-    hassette.config.model_dump.return_value = {
-        "dev_mode": dev_mode,
-        "base_url": STUB_BASE_URL,
-        "asyncio_debug_mode": False,
-        "allow_reload_in_prod": allow_reload_in_prod,
-        "token": None,
-        "data_dir": STUB_DATA_DIR,
-        "config_dir": STUB_CONFIG_DIR,
-        "web_api": {
-            "run": run_web_api,
-            "run_ui": run_web_ui,
-            "ui_hot_reload": False,
-            "host": STUB_HOST,
-            "port": DEFAULT_WEB_API_PORT,
-            "cors_origins": list(cors_origins),
-            "auth_enabled": auth_enabled,
-        },
-        "logging": {"log_level": log_level, "web_api": log_level},
-        "lifecycle": {
-            "startup_timeout_seconds": STUB_STARTUP_TIMEOUT,
-            "app_startup_timeout_seconds": STUB_APP_STARTUP_TIMEOUT,
-            "app_shutdown_timeout_seconds": STUB_APP_SHUTDOWN_TIMEOUT,
-        },
-        "apps": {"autodetect": True, "directory": STUB_APPS_DIR},
-        "scheduler": {"behind_schedule_threshold_seconds": STUB_BEHIND_SCHEDULE_THRESHOLD},
-        "file_watcher": {"watch_files": True, "debounce_milliseconds": STUB_DEBOUNCE_MS},
-        "database": {"retention_days": STUB_RETENTION_DAYS},
-        "websocket": {},
-        "blocking_io": {},
-    }
-
-    hassette.state_proxy = hassette._state_proxy
-    configure_state_proxy_mock(
-        hassette._state_proxy,
+    wire_root_fields(hassette)
+    wire_config(
+        hassette,
+        run_web_api=run_web_api,
+        run_web_ui=run_web_ui,
+        cors_origins=cors_origins,
+        auth_enabled=auth_enabled,
+        log_level=log_level,
+        dev_mode=dev_mode,
+        allow_reload_in_prod=allow_reload_in_prod,
+    )
+    wire_state_proxy(
+        hassette,
         states=states,
         is_ready=is_ready,
         has_state_capability=has_state_capability,
         cache_freshness=cache_freshness,
     )
-    hassette._state_proxy.get_state.side_effect = lambda eid: hassette._state_proxy.states.get(eid)
-    hassette._state_proxy.get_domain_states.side_effect = lambda domain: {
-        eid: s for eid, s in hassette._state_proxy.states.items() if eid.startswith(f"{domain}.")
-    }
-
-    hassette.websocket_service = hassette._websocket_service
-    hassette._websocket_service._status = ResourceStatus.RUNNING
-    if websocket_connected:
-        configure_ready_websocket_mock(hassette._websocket_service)
-    else:
-        hassette._websocket_service._connected_event = asyncio.Event()
-        hassette._websocket_service._send_ready_event = asyncio.Event()
-        hassette._websocket_service.is_connected = False
-        hassette._websocket_service.has_ever_connected = False
-        hassette._websocket_service.get_connected_generation.return_value = None
-        hassette._websocket_service.wait_connected = AsyncMock(return_value=False)
-        hassette._websocket_service.wait_connected_generation = AsyncMock(return_value=None)
-
-    hassette.app_handler = hassette._app_handler
-    hassette.app_bootstrap_coordinator = hassette._app_bootstrap_coordinator
-    hassette._app_bootstrap_coordinator.is_released = MagicMock(return_value=bootstrap_released)
-    hassette._app_bootstrap_coordinator.wait_released = AsyncMock(return_value=bootstrap_released)
-
-    # New-style manifest snapshot
-    snapshot = make_full_snapshot(manifests)
-    hassette._app_handler.registry.get_full_snapshot.return_value = snapshot
-
-    # overlay_runtime_state() reads `.manifests` (dict) and `.only_apps` (frozenset) directly
-    # off the registry -- a bare MagicMock attribute would return a truthy MagicMock instead
-    # of a real empty container, breaking the "DB-only app" branch. Tests that need a
-    # "currently configured" overlay result should replace `registry` with a real AppRegistry.
-    hassette._app_handler.registry.manifests = {}
-    hassette._app_handler.registry.only_apps = frozenset()
-
-    # _failed_target_instances() (web/routes/apps.py) reads this after every start/reload to
-    # detect a swallowed failure -- a bare MagicMock return value is truthy and non-empty when
-    # iterated, which would make every start/reload/instance-action test hit the 500 path.
-    # Tests exercising that path replace `registry` with a real AppRegistry.
-    hassette._app_handler.registry.get_failed_instance_infos = MagicMock(return_value={})
-
-    # _run_app_action() rejects an action with 409 while this is truthy, which a bare MagicMock is.
-    hassette._app_handler.is_action_in_progress = MagicMock(return_value=False)
-
-    # App status snapshot (AppStatusSnapshot domain object)
-    if old_snapshot is None:
-        old_snapshot = AppStatusSnapshot()
-    hassette._app_handler.get_status_snapshot.return_value = old_snapshot
-
-    if app_action_mocks:
-        hassette._app_handler.start_app = AsyncMock()
-        hassette._app_handler.stop_app = AsyncMock()
-        hassette._app_handler.reload_app = AsyncMock()
-        hassette._app_handler.start_instance = AsyncMock()
-        hassette._app_handler.stop_instance = AsyncMock()
-        hassette._app_handler.reload_instance = AsyncMock()
-
-    hassette.bus_service = hassette._bus_service
-    hassette.bus_service.live_execution_counts = MagicMock(return_value={})
-
-    hassette.scheduler_service = hassette._scheduler_service
-    hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=scheduler_jobs or [])
-
+    wire_websocket(hassette, connected=websocket_connected)
+    wire_bootstrap_coordinator(hassette, released=bootstrap_released)
+    wire_app_handler(hassette, manifests=manifests, old_snapshot=old_snapshot, app_action_mocks=app_action_mocks)
+    wire_bus_and_scheduler(hassette, scheduler_jobs=scheduler_jobs)
     hassette.runtime_query_service = hassette._runtime_query_service
-
-    hassette.database_service = hassette._database_service
-    hassette._database_service.submit = AsyncMock(return_value=[])
-
+    wire_database(hassette)
     wire_telemetry_stubs(hassette)
-
-    hassette.get_drop_counters.return_value = (0, 0, 0)
-
-    # Pydantic coerces a bare MagicMock through __int__/__bool__, so an unstubbed call here
-    # yields a healthy-looking 1 drop. Pin both to a genuinely healthy pipeline.
-    hassette.get_log_queue_drops.return_value = 0
-    hassette.get_db_write_queue_drops.return_value = 0
-    hassette.is_log_persistence_active.return_value = True
-    hassette._bus_service.pending_wait_for_count = 0
-
-    hassette.children = []
-
     return hassette
 
 
