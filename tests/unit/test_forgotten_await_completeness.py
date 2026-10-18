@@ -208,7 +208,8 @@ def _is_detected(cls: type, name: str) -> bool:
     collections.abc.Coroutine.  Uses raw __annotations__ (not get_type_hints) to
     survive TYPE_CHECKING-guarded parameter annotations (HandlerType etc.) that
     are not available at test collection time.  Forward-ref string annotations
-    are evaluated in the class module's globals.
+    are evaluated in the defining module's globals (Api methods live on mixins in sibling
+    modules, whose imports ``cls.__module__`` doesn't carry).
 
     Uses inspect.getattr_static to resolve inherited methods that are not in
     vars(cls) directly, avoiding false negatives for subclassed methods.
@@ -223,7 +224,7 @@ def _is_detected(cls: type, name: str) -> bool:
     if return_ann is None:
         return False
     if isinstance(return_ann, str):
-        module = sys.modules.get(cls.__module__)
+        module = sys.modules.get(getattr(method, "__module__", cls.__module__))
         if module is None:
             return False
         try:
