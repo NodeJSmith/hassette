@@ -14,6 +14,7 @@ from hassette.core.retention_targets import _RETENTION_TABLES  # pyright: ignore
 from ._fixtures_retention import (
     SOURCE_TIER_APP,
     SOURCE_TIER_FRAMEWORK,
+    count_rows,
     db,
     insert_tiered_execution,
     mock_hassette_for_db,
@@ -95,11 +96,9 @@ async def test_mid_batch_failure_keeps_committed_rows_and_continues_later_target
 
     await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
-    cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-    assert (await cursor.fetchone())[0] == 2  # two committed batches removed 4 of 6 rows
+    assert await count_rows(db, "executions", source_tier="framework") == 2  # two committed batches removed 4 of 6 rows
 
-    cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
-    assert (await cursor.fetchone())[0] == 0  # a later target is unaffected by the failure
+    assert await count_rows(db, "executions", source_tier="app") == 0  # a later target is unaffected by the failure
 
     assert retention_service._consecutive_parent_guard_skips == 1  # pyright: ignore[reportPrivateUsage]
     assert error_exc_infos == [failure]

@@ -5,7 +5,7 @@ import logging
 import sqlite3
 import time
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import aiosqlite
 import pytest
@@ -14,18 +14,17 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
 from tests.support.factories import make_log_record
-from tests.support.helpers import (
-    SIZE_FAILSAFE_TRIGGER_MB,
-)
 
 from ._fixtures_retention import (
     SOURCE_TIER_APP,
     SOURCE_TIER_FRAMEWORK,
+    count_rows,
     db,
     insert_tiered_execution,
     make_failing_execute,
     mock_hassette_for_db,
     retention_service,
+    run_size_failsafe,
 )
 
 __all__ = ["db", "mock_hassette_for_db", "retention_service"]  # re-exposed as fixtures
@@ -119,9 +118,7 @@ class TestRetentionCleanup:
         # records at 3.5 and 4.5 days old are deleted
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        count = (await cursor.fetchone())[0]
-        assert count == 3  # 0.5, 1.5, 2.5 day records remain
+        assert await count_rows(db, "log_records") == 3  # 0.5, 1.5, 2.5 day records remain
 
     async def test_retention_uses_log_retention_days_not_db_retention_days(
         self,
@@ -140,9 +137,7 @@ class TestRetentionCleanup:
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
         # Should be deleted (5 days > 3 day log_retention_days)
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        count = (await cursor.fetchone())[0]
-        assert count == 0
+        assert await count_rows(db, "log_records") == 0
 
     async def test_tier_aware_retention_exact_survival_set(
         self,
@@ -197,12 +192,10 @@ class TestRetentionCleanup:
             await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
         # blocking_events row survives — its target's DELETE raised and was rolled back.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "blocking_events") == 1
 
         # app executions row is still deleted — a later target is unaffected by the earlier failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "executions") == 0
 
         assert "Retention cleanup failed for blocking events" in caplog.text
         assert "blocking events" in caplog.text  # failed_labels surfaced in the summary log
@@ -292,8 +285,7 @@ class TestRetentionCleanup:
         monkeypatch.setattr(db, "execute", counting_execute)
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
-        cursor = await db.execute("SELECT COUNT(*) FROM executions")
-        assert (await cursor.fetchone())[0] == 0  # all deleted
+        assert await count_rows(db, "executions") == 0  # all deleted
 
         # Framework target alone needs 2 batches (1000 + 200); the app-tier target contributes at
         # least 1 more no-op batch, so >= 2 total DELETE calls proves batching actually happened.
@@ -324,8 +316,9 @@ class TestRetentionCleanup:
         with caplog.at_level(logging.INFO):
             await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 4  # 10 - (3 batches * 2 rows) = 4 remain for next cycle
+        assert (
+            await count_rows(db, "executions", source_tier="framework") == 4
+        )  # 10 - (3 batches * 2 rows) = 4 remain for next cycle
 
         assert "framework executions hit the 3-batch cap" in caplog.text
 
@@ -387,11 +380,7 @@ class TestRetentionCleanup:
 
         # 4 of 10 rows remain past the batch cap, confirming the target was genuinely
         # incomplete rather than a false trigger.
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM executions WHERE listener_id = ?",
-            (listener_id,),
-        )
-        assert (await cursor.fetchone())[0] == 4
+        assert await count_rows(db, "executions", listener_id=listener_id) == 4
 
     async def test_partial_batch_progress_reported_on_later_batch_failure(
         self,
@@ -431,8 +420,9 @@ class TestRetentionCleanup:
             await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
         # First batch (1000 rows) committed and is durable; only the 2nd batch's attempt failed.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 200  # 1200 - 1000 committed by the first batch
+        assert (
+            await count_rows(db, "executions", source_tier="framework") == 200
+        )  # 1200 - 1000 committed by the first batch
 
         # The summary must report the real partial count (1000), not a false zero.
         assert "1000 framework executions" in caplog.text
@@ -467,8 +457,7 @@ class TestRetentionCleanup:
         with caplog.at_level(logging.INFO):
             await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 0  # all 6 rows deleted, nothing left over
+        assert await count_rows(db, "executions", source_tier="framework") == 0  # all 6 rows deleted, nothing left over
 
         assert "hit the 3-batch cap" not in caplog.text
         assert "incomplete: framework executions" not in caplog.text
@@ -513,12 +502,10 @@ class TestRetentionCleanup:
 
         # All 3 batches for the framework target committed before the probe raised — that
         # progress is real and durable despite the probe failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "executions", source_tier="framework") == 0
 
         # The app-tier target was not aborted by the framework target's probe failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "executions", source_tier="app") == 0
 
         assert "Retention cleanup failed for framework executions" in caplog.text
         assert "failed: framework executions" in caplog.text
@@ -584,8 +571,6 @@ class TestSizeFailsafe:
         """
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
         # Call sites of get_live_data_size_mb(): 1 = entry check, then one per delete batch that
         # removed rows, and one at the end of each priority tier.
         calls = 0
@@ -597,13 +582,10 @@ class TestSizeFailsafe:
                 return 10.0
             return 0.0
 
-        retention_service.get_live_data_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=mock_size)
 
-        cursor = await db.execute("SELECT COUNT(*) FROM executions")
-        assert (await cursor.fetchone())[0] < 5  # partially drained, then stopped
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        assert (await cursor.fetchone())[0] == 10  # exempt, so intact here and in every scenario
+        assert await count_rows(db, "executions") < 5  # partially drained, then stopped
+        assert await count_rows(db, "log_records") == 10  # exempt, so intact here and in every scenario
 
     async def test_size_failsafe_stops_without_raising_when_live_size_read_fails(
         self,
@@ -614,7 +596,6 @@ class TestSizeFailsafe:
     ) -> None:
         """A failing size read after the entry check ends the run cleanly and counts as incomplete."""
         await self.seed_both_tables(db, db_service_writer, log_count=2, exec_count=5)
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         calls = 0
 
         async def failing_after_entry_check() -> float:
@@ -624,12 +605,9 @@ class TestSizeFailsafe:
                 raise sqlite3.OperationalError("simulated PRAGMA failure")
             return 10.0
 
-        retention_service.get_live_data_size_mb = failing_after_entry_check  # pyright: ignore[reportAttributeAccessIssue]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=failing_after_entry_check)
 
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
-
-        cursor = await db.execute("SELECT COUNT(*) FROM executions")
-        assert (await cursor.fetchone())[0] == 5  # the framework tier ended the run before app executions
+        assert await count_rows(db, "executions") == 5  # the framework tier ended the run before app executions
         assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
 
     async def test_size_failsafe_keeps_log_records_when_execution_deletion_insufficient(
@@ -644,16 +622,11 @@ class TestSizeFailsafe:
         """
         await self.seed_both_tables(db, db_service_writer, log_count=5, exec_count=2)
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         # Never under the limit — every failsafe tier drains and the run still can't recover.
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
+        await run_size_failsafe(retention_service, mock_hassette_for_db)
 
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
-
-        cursor = await db.execute("SELECT COUNT(*) FROM executions")
-        assert (await cursor.fetchone())[0] == 0
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        assert (await cursor.fetchone())[0] == 5
+        assert await count_rows(db, "executions") == 0
+        assert await count_rows(db, "log_records") == 5
 
     async def test_size_failsafe_scopes_delete_to_own_tier_not_globally_oldest(
         self,
@@ -685,8 +658,6 @@ class TestSizeFailsafe:
         await insert_blocking_event(db, now - 1)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
         # Call sites of get_live_data_size_mb(): 1 = entry check, then one per delete batch that
         # removed rows, and one at the end of each priority tier.
         calls = 0
@@ -698,8 +669,7 @@ class TestSizeFailsafe:
             # batch — confines the whole run to a single priority-1 batch.
             return 10.0 if calls <= 1 else 0.0
 
-        retention_service.get_live_data_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=mock_size)
 
         cursor = await db.execute(
             "SELECT execution_start_ts FROM executions WHERE source_tier = 'framework' ORDER BY execution_start_ts"
@@ -711,12 +681,10 @@ class TestSizeFailsafe:
         assert sorted(now - ts for ts in remaining_framework) == sorted([10, 20])
 
         # The app-tier row (globally oldest) must survive — it is not part of the framework tier.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "executions", source_tier="app") == 1
 
         # Lower-priority groups (blocking_events, log_records) are never reached.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "blocking_events") == 1
 
     async def test_size_failsafe_full_priority_chain_order(
         self,
@@ -739,8 +707,6 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 10, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
         original_execute = db.execute
         delete_order: list[str] = []
 
@@ -761,16 +727,14 @@ class TestSizeFailsafe:
         monkeypatch.setattr(db, "execute", tracking_execute)
 
         # Always report over limit so the failsafe drains every group.
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db)
 
         # Each group's inner loop runs one extra (no-op) iteration after draining its rows, so
         # dedupe consecutive repeats while preserving first-seen order.
         unique_order = list(dict.fromkeys(delete_order))
         assert unique_order == ["framework executions", "blocking events", "app executions"]
 
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "log_records") == 1
 
     async def test_size_failsafe_blocking_events_deleted_at_priority_two(
         self,
@@ -787,8 +751,6 @@ class TestSizeFailsafe:
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
         # Call sites of get_live_data_size_mb(): 1 = entry check, then one per delete batch that
         # removed rows, and one at the end of each priority tier.
         calls = 0
@@ -800,14 +762,11 @@ class TestSizeFailsafe:
             # under limit once blocking_events' first batch has been deleted.
             return 10.0 if calls <= 2 else 0.0
 
-        retention_service.get_live_data_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=mock_size)
 
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 0  # drained at priority 2
+        assert await count_rows(db, "blocking_events") == 0  # drained at priority 2
 
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
-        assert (await cursor.fetchone())[0] == 1  # priority 3 never reached
+        assert await count_rows(db, "executions", source_tier="app") == 1  # priority 3 never reached
 
     async def test_size_failsafe_logs_exhaustion_warning_with_consecutive_count(
         self,
@@ -829,11 +788,7 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 10, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.WARNING):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog, level=logging.WARNING)
 
         assert retention_service._consecutive_exhaustion_triggers == 1  # pyright: ignore[reportPrivateUsage]
         assert "exhausted" in caplog.text
@@ -844,8 +799,7 @@ class TestSizeFailsafe:
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_FRAMEWORK)
         await db.commit()
 
-        with caplog.at_level(logging.WARNING):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog, level=logging.WARNING)
 
         assert retention_service._consecutive_exhaustion_triggers == 2  # pyright: ignore[reportPrivateUsage]
         assert "2 consecutive" in caplog.text
@@ -876,22 +830,16 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 1, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         # Always over the limit, so the framework tier hits the iteration cap instead of naturally
         # draining and breaking out early.
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 
         # Only the capped iterations' worth was deleted (2 iterations * 2 rows = 4); the tier's
         # own large remaining backlog proves the run stopped rather than exhausting the tier.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 16
+        assert await count_rows(db, "executions", source_tier="framework") == 16
 
         # Lower-priority tier (log_records) was never touched.
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "log_records") == 1
 
         assert "capped at 2 iterations" in caplog.text
         assert "stopped early" in caplog.text
@@ -941,21 +889,15 @@ class TestSizeFailsafe:
 
         monkeypatch.setattr(db, "execute", failing_framework_execute)
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         # Always over the limit, so the framework tier hits the iteration cap instead of naturally
         # draining and breaking out early.
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 
         # Framework tier's DELETE always failed — untouched.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "executions", source_tier="framework") == 1
 
         # App tier hit its cap (2 iterations * 2 rows = 4 deleted, 16 remain).
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
-        assert (await cursor.fetchone())[0] == 16
+        assert await count_rows(db, "executions", source_tier="app") == 16
 
         assert "Size failsafe stopped early" in caplog.text
         assert "one or more tiers failed and were skipped this cycle" in caplog.text
@@ -1002,28 +944,20 @@ class TestSizeFailsafe:
             [make_log_record_row(i, now - i, "log") for i in range(5)]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 
         # Framework tier used 1 of the 2-iteration budget and fully drained.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "executions", source_tier="framework") == 0
 
         # Blocking events got the 1 remaining iteration and also fully drained -- not a fresh
         # budget of its own, just what framework left behind.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "blocking_events") == 0
 
         # App executions were never reached — the shared budget ran out before the run could
         # advance past blocking events. Log records survive for the unrelated reason that they
         # are exempt, so they would be intact here even with an unlimited budget.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
-        assert (await cursor.fetchone())[0] == 5
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        assert (await cursor.fetchone())[0] == 5
+        assert await count_rows(db, "executions", source_tier="app") == 5
+        assert await count_rows(db, "log_records") == 5
 
         assert "app executions capped at 2 iterations" in caplog.text
         assert "stopped early" in caplog.text
@@ -1061,16 +995,11 @@ class TestSizeFailsafe:
         await insert_blocking_event(db, now - 2)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 
         # The single iteration was spent draining blocking events, not wasted confirming the
         # already-empty framework tier is still empty.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "blocking_events") == 0
         assert "capped" not in caplog.text
 
     async def test_size_failsafe_exact_boundary_drain_proceeds_to_next_tier(
@@ -1109,23 +1038,17 @@ class TestSizeFailsafe:
         await insert_blocking_event(db, now - 1)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 
         # Framework tier fully drained by the exact-boundary final batch — and the stale-row
         # probe correctly found no remaining framework rows, so it was never itself capped.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "executions", source_tier="framework") == 0
         assert "framework executions capped" not in caplog.text
 
         # Blocking events was left untouched — the shared budget was fully spent draining the
         # higher-priority framework tier, so it's correctly capped rather than drained via an
         # illegitimate fresh budget of its own.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "blocking_events") == 1
 
         assert "blocking events capped at 2 iterations" in caplog.text
         assert "stopped early" in caplog.text
@@ -1164,25 +1087,19 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 1, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
         # Fail only the stale-row probe's SELECT, not the batched DELETE's inner subselect.
         monkeypatch.setattr(db, "execute", make_failing_execute(db, "SELECT 1 FROM executions"))
 
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 
         # The framework tier's probe failed and was skipped rather than the whole run aborting —
         # the lower-priority blocking-events tier was still evaluated this cycle. It's left
         # untouched (framework's own drain-then-confirm spent the entire shared budget) and
         # correctly reported as capped rather than silently skipped.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "blocking_events") == 1
         assert "Size failsafe blocking events capped at 2 iterations" in caplog.text
         # The exempt table is never in the chain at all, capped or not.
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "log_records") == 1
 
         assert "Size failsafe stale-row probe failed for framework executions" in caplog.text
         # A probe failure is not a genuine full-tier drain — must not count as exhaustion.
@@ -1208,13 +1125,10 @@ class TestSizeFailsafe:
         retention_service.hassette.config.database.size_failsafe_max_iterations = 2
         retention_service.hassette.config.database.size_failsafe_delete_batch = 2
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
         now = time.time()
-        # Always report over limit — every run below stays "oversized" per the mocked size, so
-        # every over-limit branch (exhaustion, capped) is exercised deliberately by row counts
-        # rather than by the mocked size flipping under the limit.
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
+        # Every run below goes through run_size_failsafe's always-over-limit size mock, so every
+        # over-limit branch (exhaustion, capped) is exercised deliberately by row counts rather
+        # than by the mocked size flipping under the limit.
 
         # Run 1: a single framework row and a single log record — small enough that both tiers
         # naturally drain within the 2-iteration cap. Every tier drains, DB still over limit ->
@@ -1225,7 +1139,7 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 1, "log")]
         )
 
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db)
         assert retention_service._consecutive_exhaustion_triggers == 1  # pyright: ignore[reportPrivateUsage]
 
         # Run 2: a framework backlog far larger than the 2-iteration * 2-row cap (4) can ever
@@ -1235,7 +1149,7 @@ class TestSizeFailsafe:
             await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
         await db.commit()
 
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db)
         assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
 
         # Run 3: clear the leftover framework backlog (simulating it having been resolved by an
@@ -1249,7 +1163,7 @@ class TestSizeFailsafe:
             [make_log_record_row(2, now - 1, "log")]
         )
 
-        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db)
         assert retention_service._consecutive_exhaustion_triggers == 1  # pyright: ignore[reportPrivateUsage]
 
     async def test_size_failsafe_failure_isolation(
@@ -1270,9 +1184,6 @@ class TestSizeFailsafe:
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
-
         original_execute = db.execute
 
         async def failing_framework_execute(sql: str, *args: Any, **kwargs: Any) -> Any:
@@ -1287,22 +1198,18 @@ class TestSizeFailsafe:
 
         monkeypatch.setattr(db, "execute", failing_framework_execute)
 
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 
         # Framework executions tier failed and is left untouched.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 1
+        assert await count_rows(db, "executions", source_tier="framework") == 1
 
         # Lower-priority tiers still ran despite the framework-tier failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 0
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
-        assert (await cursor.fetchone())[0] == 0
+        assert await count_rows(db, "blocking_events") == 0
+        assert await count_rows(db, "executions", source_tier="app") == 0
 
         assert "Size failsafe failed for framework executions" in caplog.text
         assert "10.0 MB" in caplog.text  # current size
-        assert "0.0 MB limit" in caplog.text  # max_size_mb=0.0001 formatted to 1 decimal
+        assert "0.0 MB limit" in caplog.text  # SIZE_FAILSAFE_TRIGGER_MB formatted to 1 decimal
 
         # A tier failing and being skipped is not a genuine full-drain exhaustion — counting it
         # would misattribute the overage to unmanaged data rather than the failed cleanup that

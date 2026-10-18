@@ -19,7 +19,8 @@ shadow one or the other. `test_database_service.py`, `test_database_service_toct
 `test_database_service_retention.py` import `mock_hassette`/`service`/`initialized_service_with_worker` directly from
 `._fixtures_database_service` instead.
 
-`_fixtures_retention.py` (in-memory telemetry `db`, `mock_hassette_for_db`, `retention_service`) is
+`_fixtures_retention.py` (in-memory telemetry `db`, `mock_hassette_for_db`, `retention_service`, plus the
+`run_size_failsafe` and `count_rows` helpers) is
 likewise imported directly, by `test_log_records_retention.py` and `test_retention_batch_failure.py`,
 to keep its generic `db` fixture name out of the directory-wide namespace.
 
