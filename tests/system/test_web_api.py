@@ -14,7 +14,7 @@ from hassette.testing import wait_for
 from hassette.testing.config import WEB_API_TEST_TOKEN
 from hassette.web.config_view import MASK_SENTINEL
 
-from .conftest import HA_TOKEN, make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server
+from .conftest import HA_TOKEN, live_web_client, live_web_server, make_web_system_config, toggle_and_capture
 
 pytestmark = [pytest.mark.system]
 
@@ -25,11 +25,8 @@ DOMAIN = "light"
 async def test_health_endpoint(ha_container: str, tmp_path) -> None:
     """GET /api/health returns 200 and a JSON body with a websocket_connected field."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config) as _hassette:
-        await wait_for_web_server(base_url)
-
-        async with httpx.AsyncClient() as client:
-            r = await client.get(f"{base_url}/api/health", timeout=10.0)
+    async with live_web_client(config, base_url) as client:
+        r = await client.get("/api/health")
 
         assert r.status_code == 200
         body: dict[str, Any] = r.json()
@@ -39,11 +36,8 @@ async def test_health_endpoint(ha_container: str, tmp_path) -> None:
 async def test_apps_endpoint(ha_container: str, tmp_path) -> None:
     """GET /api/apps returns 200 and an AppListResponse-shaped JSON body."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config) as _hassette:
-        await wait_for_web_server(base_url)
-
-        async with httpx.AsyncClient() as client:
-            r = await client.get(f"{base_url}/api/apps", timeout=10.0)
+    async with live_web_client(config, base_url) as client:
+        r = await client.get("/api/apps")
 
         assert r.status_code == 200
         body: dict[str, Any] = r.json()
@@ -56,11 +50,8 @@ async def test_apps_endpoint(ha_container: str, tmp_path) -> None:
 async def test_config_endpoint(ha_container: str, tmp_path) -> None:
     """GET /api/config returns 200 with the ConfigSchemaResponse envelope."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config) as _hassette:
-        await wait_for_web_server(base_url)
-
-        async with httpx.AsyncClient() as client:
-            r = await client.get(f"{base_url}/api/config", timeout=10.0)
+    async with live_web_client(config, base_url) as client:
+        r = await client.get("/api/config")
 
         assert r.status_code == 200
         body: dict[str, Any] = r.json()
@@ -82,11 +73,8 @@ async def test_config_endpoint_masks_token(ha_container: str, tmp_path) -> None:
     would pass them and still leak the token from a real running instance.
     """
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config) as _hassette:
-        await wait_for_web_server(base_url)
-
-        async with httpx.AsyncClient() as client:
-            r = await client.get(f"{base_url}/api/config", timeout=10.0)
+    async with live_web_client(config, base_url) as client:
+        r = await client.get("/api/config")
 
         assert r.status_code == 200
         config_values: dict[str, Any] = r.json()["config_values"]
@@ -113,12 +101,9 @@ async def test_config_endpoint_masks_auth_token(ha_container: str, tmp_path: Pat
         {**config.web_api.model_dump(), "auth_enabled": True, "auth_token": web_auth_token}
     )
     config = config.model_copy(update={"web_api": validated_web_api})
-    async with startup_context(config) as _hassette:
-        await wait_for_web_server(base_url)
-
-        headers = {"Authorization": f"Bearer {web_auth_token}"}
-        async with httpx.AsyncClient() as client:
-            r = await client.get(f"{base_url}/api/config", headers=headers, timeout=10.0)
+    headers = {"Authorization": f"Bearer {web_auth_token}"}
+    async with live_web_client(config, base_url, headers=headers) as client:
+        r = await client.get("/api/config")
 
         assert r.status_code == 200
         config_values: dict[str, Any] = r.json()["config_values"]
@@ -132,9 +117,7 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
     # toggle_and_capture registers directly on hassette._bus, so its listener is
     # framework-tier and filtered out by the default sample rate (0.0) unless raised.
     config.database.framework_record_sample_rate = 1.0
-    async with startup_context(config) as hassette:
-        await wait_for_web_server(base_url)
-
+    async with live_web_server(config, base_url) as hassette:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         app_key = hassette.app_key
         pre_toggle_ts = time.time()
@@ -162,12 +145,9 @@ async def test_websocket_connects_and_receives_handshake(ha_container: str, tmp_
     config, base_url = make_web_system_config(ha_container, tmp_path)
     ws_url = base_url.replace("http://", "ws://", 1) + "/api/ws"
 
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
-
-        async with ws_connect(ws_url, ping_interval=None) as ws:
-            raw_connected = await asyncio.wait_for(ws.recv(), timeout=10.0)
-            connected_msg: dict[str, Any] = json.loads(raw_connected)
-            assert connected_msg["type"] == "connected"
-            assert "data" in connected_msg
-            assert "timestamp" in connected_msg
+    async with live_web_server(config, base_url), ws_connect(ws_url, ping_interval=None) as ws:
+        raw_connected = await asyncio.wait_for(ws.recv(), timeout=10.0)
+        connected_msg: dict[str, Any] = json.loads(raw_connected)
+        assert connected_msg["type"] == "connected"
+        assert "data" in connected_msg
+        assert "timestamp" in connected_msg
