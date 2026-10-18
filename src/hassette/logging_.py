@@ -43,6 +43,10 @@ LOGGER_NAMES = (HASSETTE_LOGGER_NAME, PY_WARNINGS_LOGGER_NAME)
 # source of truth both that validator and this module read from.
 RESERVED_EXTRA_LOGGER_NAMES = frozenset({*LOGGER_NAMES, "root"})
 
+# Context keys drop_console_noise strips from console output. The logger name already identifies
+# the app instance and its tier; JSON output keeps these keys because its consumers parse them.
+CONSOLE_DROPPED_KEYS = frozenset({"source_tier", "app_key", "instance_name", "instance_index"})
+
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
@@ -369,6 +373,19 @@ def add_execution_id(
     return event_dict
 
 
+def drop_console_noise(
+    _logger: object,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Structlog processor: drop empty and redundant context fields from console output.
+
+    Returns a new dict without ``None``-valued keys and without ``CONSOLE_DROPPED_KEYS``.
+    Only wired into the console renderer chain; JSON output keeps every key.
+    """
+    return {k: v for k, v in event_dict.items() if v is not None and k not in CONSOLE_DROPPED_KEYS}
+
+
 def _extract_record_fields(
     _logger: object,
     _method_name: str,
@@ -561,6 +578,7 @@ def enable_basic_logging(
         processors=[
             _extract_record_fields,
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            *([] if use_json else [drop_console_noise]),
             renderer,
         ],
     )
