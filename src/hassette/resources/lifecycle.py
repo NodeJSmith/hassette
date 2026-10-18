@@ -18,7 +18,7 @@ import typing
 from contextlib import suppress
 from typing import Any
 
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette.events import HassetteServiceEvent
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
@@ -35,7 +35,7 @@ from hassette.resources.teardown import (
     add_teardown_evidence,
     merge_teardown_reports,
 )
-from hassette.types.enums import TERMINAL_STATUSES
+from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
 
 if typing.TYPE_CHECKING:
     from collections.abc import Coroutine

@@ -153,7 +153,6 @@ export function useWebSocket(): void {
           case "service_status":
             useAppStore.getState().updateServiceStatus(msg.data.resource_name, {
               resource_name: msg.data.resource_name,
-              role: msg.data.role,
               status: msg.data.status,
               previous_status: msg.data.previous_status,
               exception: msg.data.exception,

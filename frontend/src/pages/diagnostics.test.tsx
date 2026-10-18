@@ -89,9 +89,7 @@ describe("DiagnosticsPage", () => {
       http.get("/api/health", () =>
         HttpResponse.json(
           createSystemStatus({
-            services: [
-              createServiceInfo({ name: "db", status: "exhausted_cooling", role: "service", retry_at: futureRetryAt }),
-            ],
+            services: [createServiceInfo({ name: "db", status: "exhausted_cooling", retry_at: futureRetryAt })],
           }),
         ),
       ),
@@ -304,9 +302,7 @@ describe("DiagnosticsPage", () => {
       http.get("/api/health", () =>
         HttpResponse.json(
           createSystemStatus({
-            services: [
-              createServiceInfo({ name: "db", status: "starting", role: "service", ready_phase: "migrating schema" }),
-            ],
+            services: [createServiceInfo({ name: "db", status: "starting", ready_phase: "migrating schema" })],
           }),
         ),
       ),

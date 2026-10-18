@@ -4,7 +4,7 @@ import asyncio
 from typing import TYPE_CHECKING, ClassVar
 from unittest.mock import patch
 
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette import HassetteConfig
 from hassette.core.service_status_predicates import SERVICE_STATUS_PATH
@@ -18,7 +18,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import EventCapture
 from hassette.types import Topic
-from hassette.types.enums import RestartType
+from hassette.types.enums import ResourceRole, RestartType
 from tests.support.helpers import (
     PLACEHOLDER_APP_NAME,
     PLACEHOLDER_RESOURCE_NAME,

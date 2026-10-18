@@ -15,7 +15,6 @@ from hassette_wire import (
     LogLevel,
     LogLevelRequest,
     LogLevelResponse,
-    ResourceRole,
     ScheduleStatus,
     ScheduleStatusReason,
     ServiceInfo,
@@ -38,14 +37,6 @@ def job_summary_body(**overrides: Any) -> dict[str, Any]:
     return make_job_summary().model_dump(mode="json") | overrides
 
 
-def service_info_body(**overrides: Any) -> dict[str, Any]:
-    return {"name": "WebsocketService", "status": "running", "role": "service"} | overrides
-
-
-def service_status_body(**overrides: Any) -> dict[str, Any]:
-    return {"resource_name": "WebsocketService", "role": "service", "status": "running"} | overrides
-
-
 def action_body(**overrides: Any) -> dict[str, Any]:
     return {"app_key": "lights", "action": "start", "instance_index": None} | overrides
 
@@ -58,8 +49,6 @@ def app_list_body(status_counts: dict[str, int]) -> dict[str, Any]:
 OPEN_FIELDS = [
     (JobSummary, job_summary_body, "schedule_status", "paused"),
     (JobSummary, job_summary_body, "schedule_status_reason", "user_paused"),
-    (ServiceInfo, service_info_body, "role", "plugin"),
-    (ServiceStatusData, service_status_body, "role", "plugin"),
     (ActionResponse, action_body, "action", "pause"),
 ]
 BodyBuilder = Callable[..., dict[str, Any]]
@@ -100,17 +89,10 @@ def test_schedule_status_is_required() -> None:
         JobSummary.model_validate(body)
 
 
-def test_service_info_role_is_required() -> None:
-    body = service_info_body()
-    del body["role"]
-
-    with pytest.raises(ValidationError, match="role"):
-        ServiceInfo.model_validate(body)
-
-
-def test_service_info_role_rejects_the_old_empty_string_sentinel() -> None:
-    with pytest.raises(ValidationError):
-        ServiceInfo.model_validate(service_info_body(role=""))
+@pytest.mark.parametrize("model", [ServiceInfo, ServiceStatusData])
+def test_resource_role_is_not_on_the_wire(model: type[BaseModel]) -> None:
+    """``ResourceRole`` is internal to the server, so service entries never carry a ``role`` field."""
+    assert "role" not in model.model_fields
 
 
 def test_status_counts_keys_parse_to_app_status() -> None:
@@ -146,8 +128,7 @@ def test_log_level_request_still_accepts_any_case() -> None:
 
 
 def test_public_hassette_names_resolve_to_the_wire_vocabularies() -> None:
-    """``hassette.types.ResourceRole`` and ``hassette.scheduler.ScheduleStatus*`` are public API backed by wire."""
-    assert hassette.types.enums.ResourceRole is hassette.types.ResourceRole is hassette_wire.ResourceRole
+    """``hassette.scheduler.ScheduleStatus*`` are public API backed by wire."""
     assert (
         hassette.scheduler.classes.ScheduleStatus is hassette.scheduler.ScheduleStatus is hassette_wire.ScheduleStatus
     )
@@ -158,8 +139,10 @@ def test_public_hassette_names_resolve_to_the_wire_vocabularies() -> None:
     )
 
 
-def test_resource_role_values_are_unchanged() -> None:
-    assert [role.value for role in ResourceRole] == ["core", "base", "service", "resource", "app", "unknown"]
+def test_resource_role_is_a_hassette_enum_not_a_wire_name() -> None:
+    assert hassette.types.enums.ResourceRole is hassette.types.ResourceRole
+    assert not hasattr(hassette_wire, "ResourceRole")
+    assert [role.value for role in hassette.types.ResourceRole] == ["service", "resource", "app"]
 
 
 def test_server_log_level_names_equal_the_wire_vocabulary() -> None:

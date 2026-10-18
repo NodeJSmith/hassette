@@ -12,7 +12,6 @@ function makeService(overrides: Partial<MergedService> = {}): MergedService {
   return {
     resource_name: "bus",
     status: "failed",
-    role: "core",
     ready_phase: null,
     retry_at: null,
     exception: null,

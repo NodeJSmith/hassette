@@ -463,7 +463,6 @@ describe("useWebSocket", () => {
         type: "service_status",
         data: {
           resource_name: "WebsocketService",
-          role: "service",
           status: "running",
           previous_status: "starting",
           exception: null,
@@ -492,7 +491,6 @@ describe("useWebSocket", () => {
         type: "service_status",
         data: {
           resource_name: "OldService",
-          role: "service",
           status: "running",
           previous_status: null,
           exception: null,
@@ -519,7 +517,6 @@ describe("useWebSocket", () => {
         type: "service_status",
         data: {
           resource_name: "StaleSvc",
-          role: "service",
           status: "running",
           previous_status: null,
           exception: null,

@@ -9,7 +9,7 @@ import math
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette.events import CallServiceEvent, ComponentLoadedEvent, Event, RawStateChangeEvent, ServiceRegisteredEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
@@ -21,6 +21,7 @@ from hassette.testing._factories import (
 )
 from hassette.testing.exceptions import DrainError, DrainTimeout
 from hassette.types import Topic
+from hassette.types.enums import ResourceRole
 
 if TYPE_CHECKING:
     from hassette.app.app import App

@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 import type { ResourceStatus } from "../api/endpoints";
-import type { components } from "../api/generated-types";
 import type { ConnectedData, ExecutionCompletedData } from "../api/ws-types";
 import { getStoredValue, setStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
@@ -32,8 +31,6 @@ function isBoolean(v: unknown): v is boolean {
   return typeof v === "boolean";
 }
 
-type ResourceRole = components["schemas"]["ResourceRole"];
-
 export interface AppStatusEntry {
   status: ResourceStatus;
   index: number;
@@ -49,7 +46,6 @@ export function appStatusKey(appKey: string, index: number): string {
 
 export interface ServiceStatusEntry {
   resource_name: string;
-  role: ResourceRole;
   status: ResourceStatus;
   previous_status?: ResourceStatus | null;
   exception?: string | null;
