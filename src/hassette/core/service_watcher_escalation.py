@@ -91,14 +91,7 @@ class ServiceEscalationMixin:
             # exits non-zero. The CRASHED event is dispatched asynchronously (task-per-handler),
             # so relying on shutdown_if_crashed alone would race the inline shutdown() below.
             self.hassette.record_fatal_reason(f"{role} '{name}' restart budget exhausted (PERMANENT)")
-            crashed_event = self.emit_service_status_event(
-                name=name,
-                role=role,
-                status=ResourceStatus.CRASHED,
-                previous_status=ResourceStatus.FAILED,
-                source_payload=status_payload,
-            )
-            await self.dispatch_status_event_best_effort(name, role, crashed_event)
+            await self.dispatch_failed_transition(name, role, ResourceStatus.CRASHED, status_payload)
             await self.hassette.shutdown()
 
         elif spec.restart_type == RestartType.TRANSIENT:
@@ -110,15 +103,9 @@ class ServiceEscalationMixin:
                 spec.cooldown_seconds,
                 retry_at,
             )
-            cooling_event = self.emit_service_status_event(
-                name=name,
-                role=role,
-                status=ResourceStatus.EXHAUSTED_COOLING,
-                previous_status=ResourceStatus.FAILED,
-                source_payload=status_payload,
-                retry_at=retry_at,
+            await self.dispatch_failed_transition(
+                name, role, ResourceStatus.EXHAUSTED_COOLING, status_payload, retry_at=retry_at
             )
-            await self.dispatch_status_event_best_effort(name, role, cooling_event)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_COOLING)
             # Cancel existing cooldown for this service if any
             existing = self._cooldown_tasks.get(key)
@@ -136,14 +123,7 @@ class ServiceEscalationMixin:
                 role,
                 name,
             )
-            dead_event = self.emit_service_status_event(
-                name=name,
-                role=role,
-                status=ResourceStatus.EXHAUSTED_DEAD,
-                previous_status=ResourceStatus.FAILED,
-                source_payload=status_payload,
-            )
-            await self.dispatch_status_event_best_effort(name, role, dead_event)
+            await self.dispatch_failed_transition(name, role, ResourceStatus.EXHAUSTED_DEAD, status_payload)
             self.set_service_status(name, role, ResourceStatus.EXHAUSTED_DEAD)
 
     async def cooldown_and_retry(self, name: str, role: ResourceRole, key: str, spec: RestartSpec) -> None:
@@ -240,14 +220,7 @@ class ServiceEscalationMixin:
             )
             # Record the fatal reason synchronously (see handle_exhaustion for rationale).
             self.hassette.record_fatal_reason(f"{role} '{name}' raised fatal error '{exception_type}'")
-            crashed_event = self.emit_service_status_event(
-                name=name,
-                role=role,
-                status=ResourceStatus.CRASHED,
-                previous_status=ResourceStatus.FAILED,
-                source_payload=status_payload,
-            )
-            await self.dispatch_status_event_best_effort(name, role, crashed_event)
+            await self.dispatch_failed_transition(name, role, ResourceStatus.CRASHED, status_payload)
             await self.hassette.shutdown()
             return True
 
@@ -257,3 +230,22 @@ class ServiceEscalationMixin:
             return True
 
         return False
+
+    async def dispatch_failed_transition(
+        self,
+        name: str,
+        role: ResourceRole,
+        status: ResourceStatus,
+        status_payload: ServiceStatusPayload,
+        retry_at: float | None = None,
+    ) -> None:
+        """Best-effort dispatch of a FAILED -> ``status`` event carrying ``status_payload``'s exception fields."""
+        event = self.emit_service_status_event(
+            name=name,
+            role=role,
+            status=status,
+            previous_status=ResourceStatus.FAILED,
+            source_payload=status_payload,
+            retry_at=retry_at,
+        )
+        await self.dispatch_status_event_best_effort(name, role, event)
