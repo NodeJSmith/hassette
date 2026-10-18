@@ -10,7 +10,7 @@ inheritance.
 
 import inspect
 
-from hassette_codegen.sync_facade import INTERNAL_METHODS, LIFECYCLE_METHODS
+from hassette_codegen.sync_facade import INTERNAL_METHODS, LIFECYCLE_METHODS, SCHEDULER_CONVENIENCE_METHODS
 
 from hassette.resources.base import Resource
 from hassette.scheduler.scheduler import Scheduler
@@ -47,6 +47,8 @@ def test_facade_mirrors_every_public_scheduler_method() -> None:
 
 def test_convenience_methods_are_inherited_not_duplicated() -> None:
     """The run_* wrappers live on the base class only — a copy in sync.py would drift silently."""
-    assert "run_in" in vars(SchedulerSyncConvenience)
-    assert "run_in" not in vars(SchedulerSyncFacade)
     assert issubclass(SchedulerSyncFacade, SchedulerSyncConvenience)
+    not_on_base = sorted(name for name in SCHEDULER_CONVENIENCE_METHODS if name not in vars(SchedulerSyncConvenience))
+    on_facade = sorted(name for name in SCHEDULER_CONVENIENCE_METHODS if name in vars(SchedulerSyncFacade))
+    assert not not_on_base, f"SchedulerSyncConvenience is missing wrappers: {not_on_base}"
+    assert not on_facade, f"SchedulerSyncFacade redefines wrappers it should inherit: {on_facade}"

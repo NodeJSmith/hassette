@@ -522,6 +522,18 @@ def _find_class(module: ast.Module, class_name: str) -> ast.ClassDef | None:
     return None
 
 
+def _require_methods(source_path: Path, class_name: str, names: frozenset[str], label: str) -> None:
+    """Raise SystemExit if ``class_name`` is absent from ``source_path`` or lacks any method in ``names``."""
+    module = safe_parse(source_path.read_text(encoding="utf8"), str(source_path))
+    target = _find_class(module, class_name)
+    if target is None:
+        raise SystemExit(f"Could not find class `{class_name}` in {source_path}")
+    defined = {node.name for node in target.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    missing = sorted(names - defined)
+    if missing:
+        raise SystemExit(f"{label} lists methods that `{class_name}` does not define: {missing}")
+
+
 def _generate_facade(
     source_path: Path,
     class_name: str,
@@ -605,16 +617,7 @@ def generate_sync_bus_events(bus_path: Path) -> str:
     Raises SystemExit if ``BUS_EVENT_SHORTCUTS`` names a method ``Bus`` no longer defines: a
     renamed shortcut would otherwise drift back into ``sync.py`` with nothing to say so.
     """
-    module = safe_parse(bus_path.read_text(encoding="utf8"), str(bus_path))
-    bus_class = _find_class(module, "Bus")
-    defined = (
-        {node.name for node in bus_class.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        if bus_class is not None
-        else set()
-    )
-    missing = sorted(BUS_EVENT_SHORTCUTS - defined)
-    if missing:
-        raise SystemExit(f"BUS_EVENT_SHORTCUTS lists methods that `Bus` does not define: {missing}")
+    _require_methods(bus_path, "Bus", BUS_EVENT_SHORTCUTS, "BUS_EVENT_SHORTCUTS")
 
     return _generate_facade(
         bus_path,
@@ -644,16 +647,7 @@ def generate_sync_scheduler_convenience(scheduler_path: Path) -> str:
     Raises SystemExit if ``SCHEDULER_CONVENIENCE_METHODS`` names a method ``Scheduler`` no longer
     defines: a renamed wrapper would otherwise drift back into ``sync.py`` with nothing to say so.
     """
-    module = safe_parse(scheduler_path.read_text(encoding="utf8"), str(scheduler_path))
-    scheduler_class = _find_class(module, "Scheduler")
-    defined = (
-        {node.name for node in scheduler_class.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        if scheduler_class is not None
-        else set()
-    )
-    missing = sorted(SCHEDULER_CONVENIENCE_METHODS - defined)
-    if missing:
-        raise SystemExit(f"SCHEDULER_CONVENIENCE_METHODS lists methods that `Scheduler` does not define: {missing}")
+    _require_methods(scheduler_path, "Scheduler", SCHEDULER_CONVENIENCE_METHODS, "SCHEDULER_CONVENIENCE_METHODS")
 
     return _generate_facade(
         scheduler_path,
