@@ -11,6 +11,7 @@ from hassette_codegen.sync_facade.generic import (
     generate_sync_bus_events,
     generate_sync_helpers,
     generate_sync_scheduler,
+    generate_sync_scheduler_convenience,
 )
 from hassette_codegen.sync_facade.recording import generate_sync_recording
 
@@ -34,6 +35,7 @@ _LABEL_TO_TARGET = {
     "RecordingSyncFacade": "recording",
     "BusSyncFacade": "bus",
     "BusSyncEventShortcuts": "bus",
+    "SchedulerSyncConvenience": "scheduler",
     "SchedulerSyncFacade": "scheduler",
     "HelperClientSyncFacade": "helpers",
 }
@@ -223,12 +225,20 @@ def main(argv: list[str] | None = None) -> None:
     if run_scheduler:
         if not scheduler_path.exists():
             raise SystemExit(f"scheduler.py not found at {scheduler_path}")
+        # The Scheduler facade is emitted as two modules — sync_convenience.py holds the run_*
+        # wrappers so sync.py stays under the file-size threshold. sync.py imports it.
+        scheduler_convenience_out = scheduler_path.with_name("sync_convenience.py")
+        scheduler_convenience_code = generate_sync_scheduler_convenience(scheduler_path)
         scheduler_out = scheduler_path.with_name("sync.py")
         scheduler_code = generate_sync_scheduler(scheduler_path)
         if args.check:
+            if not _check_drift(scheduler_convenience_out, scheduler_convenience_code, "SchedulerSyncConvenience"):
+                any_drift = True
             if not _check_drift(scheduler_out, scheduler_code, "SchedulerSyncFacade"):
                 any_drift = True
         else:
+            _atomic_write_generated(scheduler_convenience_out, scheduler_convenience_code)
+            print(f"Wrote {scheduler_convenience_out}")
             _atomic_write_generated(scheduler_out, scheduler_code)
             print(f"Wrote {scheduler_out}")
 
