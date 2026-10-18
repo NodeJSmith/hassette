@@ -13,10 +13,9 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError
 from hassette.testing import EventCapture, wait_for
-from hassette.types import Topic
 from tests.support.web_manifest_helpers import make_app_instance_info
 
-from .conftest import assert_acquires_app_key_lock_once
+from .conftest import app_state_payloads, assert_acquires_app_key_lock_once
 
 
 class TestReloadInstanceEvents:
@@ -57,11 +56,7 @@ class TestReloadInstanceEvents:
 
         mock_registry.record_failure.assert_called_once_with("app_a", 1, load_error)
 
-        failed_payloads = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.FAILED
-        ]
+        failed_payloads = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_payloads) == 1
         payload = failed_payloads[0]
         assert payload.app_key == "app_a"
@@ -462,11 +457,7 @@ class TestCreateInstanceUnlockedSynchronousFailure:
         mock_factory.create_single_instance.assert_called_once()
         lifecycle_service.initialize_instances.assert_not_called()
 
-        failed_payloads = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.FAILED
-        ]
+        failed_payloads = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_payloads) == 1
 
 

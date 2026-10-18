@@ -9,6 +9,7 @@ working unchanged. See .claude/rules/tests-unit-core.md for the fixture inventor
 from ._fixtures_app_lifecycle import (
     app_handler,
     app_handler_mock_hassette,
+    app_state_payloads,
     assert_acquires_app_key_lock_once,
     assert_load_completed_count,
     lifecycle_service,
@@ -69,6 +70,7 @@ __all__ = [
     "TempService",
     "app_handler",
     "app_handler_mock_hassette",
+    "app_state_payloads",
     "assert_acquires_app_key_lock_once",
     "assert_job_count",
     "assert_listener_count",

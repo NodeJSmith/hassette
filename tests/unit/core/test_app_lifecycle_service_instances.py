@@ -23,7 +23,7 @@ from tests.support.factories import make_mock_parent
 from tests.support.helpers import noop
 from tests.support.mock_hassette import make_mock_hassette
 
-from .conftest import make_mock_app_instance, set_registry_apps
+from .conftest import app_state_payloads, make_mock_app_instance, set_registry_apps
 
 
 class TestInitializeInstances:
@@ -163,11 +163,7 @@ class TestInitializeInstances:
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        running_calls = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.RUNNING
-        ]
+        running_calls = app_state_payloads(event_capture, ResourceStatus.RUNNING)
         assert len(running_calls) == 1
 
     async def test_emits_failed_event_on_error(
@@ -185,11 +181,7 @@ class TestInitializeInstances:
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
-        failed_calls = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.FAILED
-        ]
+        failed_calls = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_calls) == 1
 
 
@@ -365,11 +357,7 @@ class TestShutdownInstance:
 
         await lifecycle_service.shutdown_instance(mock_app_instance)
 
-        failed_calls = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.FAILED
-        ]
+        failed_calls = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_calls) == 1
 
     async def test_emits_stopped_event(
@@ -383,11 +371,7 @@ class TestShutdownInstance:
         event_capture.install(mock_hassette)
         await lifecycle_service.shutdown_instance(mock_app_instance)
 
-        stopped_calls = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.STOPPED
-        ]
+        stopped_calls = app_state_payloads(event_capture, ResourceStatus.STOPPED)
         assert len(stopped_calls) == 1
 
 
