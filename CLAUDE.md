@@ -28,7 +28,7 @@ hassette run                              # start the server
 hassette status | app | listener | log | job   # query a running instance (--app, --instance, --since, --json)
 
 # Deterministic telemetry DB for QA/screenshots/demos (scenarios: healthy, empty, degraded,
-# error, large-volume, lifecycle, adversarial; generators in scripts/seed_scenarios/)
+# error, large-volume, lifecycle, adversarial, mixed-instance; generators in scripts/seed_scenarios/)
 uv run python scripts/seed_db.py --scenario healthy --output /tmp/hassette-healthy.db
 ```
 
