@@ -181,7 +181,7 @@ async def test_cooldown_and_retry_proceeds_when_not_admission_blocked():
     budget = watcher.get_budget(key, spec)
     budget.record_restart()
 
-    with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+    with patch("hassette.core.service_watcher_escalation.restart", new_callable=AsyncMock) as mock_restart:
         await watcher.cooldown_and_retry(
             name=service.class_name,
             role=service.role,

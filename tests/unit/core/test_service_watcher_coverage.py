@@ -266,9 +266,9 @@ class TestCooldownAndRetry:
         hassette.shutdown_event.set()
 
         # restart() is a module-level function (hassette.resources.operations), not a
-        # method — patch it at the call site (service_watcher.py) rather than reassigning
+        # method — patch it at the call site (service_watcher_escalation.py) rather than reassigning
         # an instance attribute, since cooldown_and_retry() calls the free function directly.
-        with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+        with patch("hassette.core.service_watcher_escalation.restart", new_callable=AsyncMock) as mock_restart:
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 
             mock_restart.assert_not_called()
@@ -286,7 +286,7 @@ class TestCooldownAndRetry:
         key = watcher.service_key(dummy.class_name, dummy.role)
 
         with patch(
-            "hassette.core.service_watcher.restart", side_effect=RuntimeError("restart blew up")
+            "hassette.core.service_watcher_escalation.restart", side_effect=RuntimeError("restart blew up")
         ) as mock_restart:
             # Should not raise even though restart() failed.
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
@@ -485,7 +485,7 @@ class TestHandleRestartRefused:
         watcher = make_watcher(hassette)
         error = make_unsafe_restart_refused_error(PLACEHOLDER_SERVICE_NAME)
 
-        with patch("hassette.core.service_watcher.request_shutdown"):
+        with patch("hassette.core.service_watcher_escalation.request_shutdown"):
             await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
 
         hassette.record_fatal_reason.assert_called_once()
@@ -501,7 +501,7 @@ class TestHandleRestartRefused:
         watcher = make_watcher(hassette)
         error = make_unsafe_restart_refused_error()
 
-        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+        with patch("hassette.core.service_watcher_escalation.request_shutdown") as mock_request_shutdown:
             await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
 
         mock_request_shutdown.assert_called_once()
@@ -513,7 +513,7 @@ class TestHandleRestartRefused:
         watcher = make_watcher(hassette)
         error = make_unsafe_restart_refused_error(PLACEHOLDER_SERVICE_NAME)
 
-        with patch("hassette.core.service_watcher.request_shutdown"):
+        with patch("hassette.core.service_watcher_escalation.request_shutdown"):
             await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
 
         hassette.send_event.assert_awaited_once()
@@ -536,7 +536,7 @@ class TestHandleRestartRefused:
         watcher = make_watcher(hassette)
         error = make_unsafe_restart_refused_error()
 
-        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+        with patch("hassette.core.service_watcher_escalation.request_shutdown") as mock_request_shutdown:
             # Must not raise despite send_event failing.
             await watcher.handle_restart_refused(PLACEHOLDER_SERVICE_NAME, ResourceRole.SERVICE, error)
 
@@ -650,7 +650,7 @@ class TestCooldownAndRetryCatchesRefusal:
         error = make_unsafe_restart_refused_error(dummy.class_name)
         watcher.handle_restart_refused = AsyncMock()
 
-        with patch("hassette.core.service_watcher.restart", side_effect=error):
+        with patch("hassette.core.service_watcher_escalation.restart", side_effect=error):
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 
         watcher.handle_restart_refused.assert_awaited_once_with(dummy.class_name, dummy.role, error)
@@ -666,7 +666,7 @@ class TestCooldownAndRetryCatchesRefusal:
         )
         key = watcher.service_key(dummy.class_name, dummy.role)
 
-        with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
+        with patch("hassette.core.service_watcher_escalation.restart", new_callable=AsyncMock) as mock_restart:
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 
         mock_restart.assert_not_called()
@@ -693,7 +693,7 @@ class TestCooldownAndRetryCatchesRefusal:
 
         with (
             patch.object(watcher, "shutdown_safe_sleep", side_effect=block_after_sleep),
-            patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart,
+            patch("hassette.core.service_watcher_escalation.restart", new_callable=AsyncMock) as mock_restart,
         ):
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
 

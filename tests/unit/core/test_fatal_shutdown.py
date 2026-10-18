@@ -116,7 +116,7 @@ class TestHandleRestartRefusedSetsFatalReason:
         watcher = make_watcher(watcher_hassette)
         error = make_unsafe_restart_refused_error("BusService")
 
-        with patch("hassette.core.service_watcher.request_shutdown"):
+        with patch("hassette.core.service_watcher_escalation.request_shutdown"):
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
 
         assert watcher_hassette._fatal_shutdown_reason is not None
@@ -129,7 +129,7 @@ class TestHandleRestartRefusedSetsFatalReason:
         watcher = make_watcher(watcher_hassette)
         error = make_unsafe_restart_refused_error("BusService")
 
-        with patch("hassette.core.service_watcher.request_shutdown") as mock_request_shutdown:
+        with patch("hassette.core.service_watcher_escalation.request_shutdown") as mock_request_shutdown:
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
 
         mock_request_shutdown.assert_called_once()
@@ -147,7 +147,7 @@ class TestHandleRestartRefusedSetsFatalReason:
         watcher = make_watcher(watcher_hassette)
         error = make_unsafe_restart_refused_error("BusService")
 
-        with patch("hassette.core.service_watcher.request_shutdown", side_effect=track_request_shutdown):
+        with patch("hassette.core.service_watcher_escalation.request_shutdown", side_effect=track_request_shutdown):
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
 
         assert call_order == ["reason_set_first", "request_shutdown"], (
@@ -168,7 +168,7 @@ class TestHandleRestartRefusedSetsFatalReason:
         watcher = make_watcher(watcher_hassette)
         error = make_unsafe_restart_refused_error("BusService")
 
-        with patch("hassette.core.service_watcher.request_shutdown"):
+        with patch("hassette.core.service_watcher_escalation.request_shutdown"):
             await watcher.handle_restart_refused("BusService", ResourceRole.SERVICE, error)
 
         assert observed["reason_at_dispatch"] is not None
