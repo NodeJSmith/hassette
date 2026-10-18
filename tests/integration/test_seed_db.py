@@ -3,7 +3,7 @@
 Covers, per design/specs/017-seed-db/design.md: the healthy scenario producing a non-empty
 SQLite file, running a scenario twice producing identical query results, a dangling
 executions.listener_id aborting the run via a real foreign key violation, a dangling
-log_records.execution_id aborting the run via the post-seed consistency assertion, and all 7
+log_records.execution_id aborting the run via the post-seed consistency assertion, and all
 named scenarios generating without errors. CLI queries against a seeded database are
 documented as a manual verification step (see test_cli_queries_against_seeded_db) since they
 require a running hassette instance. Lint and type checking are verified separately by
@@ -30,7 +30,16 @@ from tests.support.factories import make_execution_record
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-ALL_SCENARIOS = ("healthy", "empty", "degraded", "error", "large-volume", "lifecycle", "adversarial")
+ALL_SCENARIOS = (
+    "healthy",
+    "empty",
+    "degraded",
+    "error",
+    "large-volume",
+    "lifecycle",
+    "adversarial",
+    "mixed-instance",
+)
 
 _TABLES = ("sessions", "listeners", "scheduled_jobs", "executions", "log_records", "blocking_events")
 
@@ -48,7 +57,7 @@ def _run_seed_script(scenario: str, output: Path) -> subprocess.CompletedProcess
 
 @pytest.mark.parametrize("scenario", ALL_SCENARIOS)
 def test_scenario_generates_file(scenario: str, tmp_path: Path):
-    """All 7 named scenarios generate without errors.
+    """All named scenarios generate without errors.
 
     ``empty`` is the one exception to "non-trivial data" -- it asserts a zero row count
     across all 6 tables instead, per the design doc's Edge Cases section.
@@ -125,6 +134,43 @@ def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path
     assert count > 0, f"adversarial has no framework-tier rows in {table}"
 
 
+def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: Path):
+    """``mixed-instance`` seeds two instances of ``split_brain`` where only instance 1 has
+    error executions -- the telemetry shape behind ``ManifestStatus.DEGRADED``.
+    """
+    output = tmp_path / "test.db"
+
+    result = _run_seed_script("mixed-instance", output)
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+
+    conn = sqlite3.connect(output)
+    try:
+        instance_indexes = {
+            row[0]
+            for row in conn.execute(
+                "SELECT instance_index FROM listeners WHERE app_key = 'split_brain'"
+                " UNION SELECT instance_index FROM scheduled_jobs WHERE app_key = 'split_brain'"
+            )
+        }
+        status_by_instance = conn.execute(
+            """
+            SELECT COALESCE(l.instance_index, j.instance_index) AS instance_index, e.status, COUNT(*)
+            FROM executions e
+            LEFT JOIN listeners l ON e.listener_id = l.id
+            LEFT JOIN scheduled_jobs j ON e.job_id = j.id
+            WHERE COALESCE(l.app_key, j.app_key) = 'split_brain'
+            GROUP BY 1, 2
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert instance_indexes == {0, 1}
+    statuses = {(index, status) for index, status, _count in status_by_instance}
+    assert {status for index, status in statuses if index == 0} == {"success"}
+    assert {status for index, status in statuses if index == 1} == {"error"}
+
+
 def test_healthy_scenario_generates_file(tmp_path: Path):
     """`uv run python scripts/seed_db.py --scenario healthy --output ...` exits 0 and
     produces a non-empty, queryable SQLite file.
@@ -149,7 +195,8 @@ def test_healthy_scenario_generates_file(tmp_path: Path):
         conn.close()
 
 
-def test_determinism(tmp_path: Path):
+@pytest.mark.parametrize("scenario", ["healthy", "mixed-instance"])
+def test_determinism(scenario: str, tmp_path: Path):
     """Running the same scenario twice produces identical `SELECT * ... ORDER BY id`
     results for all 6 tables. Compared at the SQL row level, not file bytes -- SQLite's
     internal page layout can differ even when the logical content is identical.
@@ -158,7 +205,7 @@ def test_determinism(tmp_path: Path):
     output_2 = tmp_path / "run2.db"
 
     for output in (output_1, output_2):
-        result = _run_seed_script("healthy", output)
+        result = _run_seed_script(scenario, output)
         assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
     conn_1 = sqlite3.connect(output_1)
