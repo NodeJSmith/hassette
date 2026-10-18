@@ -9,6 +9,7 @@ test_logging_persistence.py (LogPersistenceHandler batching/flush).
 import inspect
 import json
 import logging
+import re
 from io import StringIO
 from unittest.mock import MagicMock
 
@@ -18,6 +19,8 @@ import hassette.logging_ as logging_module
 from hassette.logging_ import CONSOLE_DROPPED_KEYS, drop_console_noise, enable_basic_logging
 from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
+
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 # Fixture-only logger names used across TestExtraLoggers and TestExtraLoggerReconfiguration.
 # Not real loggers anything else in the codebase writes to, but enable_basic_logging()'s
@@ -470,8 +473,17 @@ class TestDropConsoleNoise:
         assert result == {"event": "hi"}
 
     def test_drops_console_dropped_keys_even_when_set(self) -> None:
-        event_dict = {"event": "hi", **dict.fromkeys(CONSOLE_DROPPED_KEYS, "x")}
-        assert drop_console_noise(None, "info", event_dict) == {"event": "hi"}
+        event_dict = {"event": "hi", "logger": "hassette.ExampleApp.0", **dict.fromkeys(CONSOLE_DROPPED_KEYS, "x")}
+        assert drop_console_noise(None, "info", event_dict) == {"event": "hi", "logger": "hassette.ExampleApp.0"}
+
+    def test_keeps_identity_keys_for_loggers_outside_hassette_tree(self) -> None:
+        """An extra_loggers name like ``my_app.notify`` doesn't encode the app instance."""
+        event_dict = {"event": "hi", "logger": "my_app.notify", **dict.fromkeys(CONSOLE_DROPPED_KEYS, "x")}
+        assert drop_console_noise(None, "info", event_dict) == event_dict
+
+    def test_lookalike_prefix_is_not_hassette_tree(self) -> None:
+        event_dict = {"event": "hi", "logger": "hassette_extras", "app_key": "apps.a.A"}
+        assert drop_console_noise(None, "info", event_dict) == event_dict
 
     def test_keeps_correlation_ids_and_event(self) -> None:
         event_dict = {"event": "hi", "execution_id": "exec-1", "listener_id": 3, "job_id": 7}
@@ -483,8 +495,14 @@ class TestDropConsoleNoise:
         assert event_dict == {"event": "hi", "execution_id": None, "source_tier": "app"}
 
 
-def _record_with_context() -> logging.LogRecord:
-    record = logging.LogRecord("hassette.ExampleApp.0", logging.INFO, __file__, 1, "hello", None, None)
+def _console_format(record: logging.LogRecord) -> str:
+    """Format ``record`` through the console formatter with ANSI color codes stripped."""
+    handler = enable_basic_logging("INFO", log_format="console", stream=StringIO())
+    return ANSI_ESCAPE.sub("", handler.format(record))
+
+
+def _record_with_context(name: str = "hassette.ExampleApp.0") -> logging.LogRecord:
+    record = logging.LogRecord(name, logging.INFO, __file__, 1, "hello", None, None)
     record.source_tier = "app"
     record.app_key = "apps.example_app.ExampleApp"
     record.execution_id = None
@@ -495,12 +513,16 @@ class TestConsoleFormatterDropsNoise:
     """The console formatter omits empty/redundant fields; the JSON formatter keeps them."""
 
     def test_console_output_omits_noise_fields(self) -> None:
-        handler = enable_basic_logging("INFO", log_format="console", stream=StringIO())
-        output = handler.format(_record_with_context())
+        output = _console_format(_record_with_context())
         assert "hello" in output
         assert "execution_id=None" not in output
         assert "source_tier=" not in output
         assert "app_key=" not in output
+
+    def test_console_output_keeps_app_key_for_extra_logger(self) -> None:
+        output = _console_format(_record_with_context("my_app.notify"))
+        assert "app_key=apps.example_app.ExampleApp" in output
+        assert "execution_id=None" not in output
 
     def test_json_output_keeps_context_fields(self) -> None:
         handler = enable_basic_logging("INFO", log_format="json", stream=StringIO())
