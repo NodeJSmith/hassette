@@ -83,6 +83,15 @@ def assert_load_completed_count(event_capture: EventCapture, expected: int) -> N
     assert len(completed) == expected, f"expected {expected} APP_LOAD_COMPLETED event(s), got {len(completed)}"
 
 
+def app_state_payloads(event_capture: EventCapture, status: ResourceStatus) -> list[Any]:
+    """Return the captured APP_STATE_CHANGED payloads whose ``status`` matches, in emission order."""
+    return [
+        payload
+        for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
+        if payload.status == status
+    ]
+
+
 async def assert_acquires_app_key_lock_once(
     lifecycle_service: AppLifecycleService,
     app_key: str,

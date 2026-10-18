@@ -15,9 +15,10 @@ from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.testing import EventCapture
-from hassette.types import Topic
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
+
+from .conftest import app_state_payloads
 
 
 class TestStartApp:
@@ -89,11 +90,7 @@ class TestStartApp:
 
         await lifecycle_service.start_app("test_app")
 
-        not_started_calls = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.NOT_STARTED
-        ]
+        not_started_calls = app_state_payloads(event_capture, ResourceStatus.NOT_STARTED)
         assert len(not_started_calls) == 1
 
     async def test_reconcile_registrations_called_after_init(
@@ -239,11 +236,7 @@ class TestStartApp:
 
         await lifecycle_service.start_app("test_app")
 
-        stopped_payloads = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.STOPPED
-        ]
+        stopped_payloads = app_state_payloads(event_capture, ResourceStatus.STOPPED)
         assert len(stopped_payloads) == 1
         payload = stopped_payloads[0]
         assert payload.app_key == "test_app"
@@ -282,11 +275,7 @@ class TestStartApp:
 
         await lifecycle_service.start_app("test_app")
 
-        failed_payloads = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.FAILED
-        ]
+        failed_payloads = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_payloads) == 1
         payload = failed_payloads[0]
         assert payload.app_key == "test_app"
@@ -466,11 +455,7 @@ class TestStopApp:
 
         await lifecycle_service.stop_app("mixed_app")
 
-        stopped_payloads = [
-            payload
-            for payload in event_capture.payloads(Topic.HASSETTE_EVENT_APP_STATE_CHANGED)
-            if payload.status == ResourceStatus.STOPPED
-        ]
+        stopped_payloads = app_state_payloads(event_capture, ResourceStatus.STOPPED)
         assert len(stopped_payloads) == 1
         payload = stopped_payloads[0]
         assert payload.app_key == "mixed_app"
