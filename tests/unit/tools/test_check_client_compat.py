@@ -13,10 +13,12 @@ from pathlib import Path
 import check_client_compat
 import pytest
 from check_client_compat import (
+    ACCEPTED_FILE,
     RELEASE_FILE,
     REPO_ROOT,
     MissingTypeError,
     check_fixture,
+    load_accepted,
     main,
     resolve_type,
     setup_problem,
@@ -297,3 +299,70 @@ async def test_main_passes_generated_fixtures_and_names_a_broken_one(
     err = capsys.readouterr().err
     assert "GET /api/telemetry/executions (healthy--executions.json)" in err
     assert "execution_start_ts" in err
+
+
+def write_accepted(repo_root: Path, *entries: str) -> None:
+    path = repo_root / ACCEPTED_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# header comment\n\n# #1234: reason\n" + "".join(f"{entry}\n" for entry in entries))
+
+
+def test_main_accepts_a_listed_failure(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    fixtures, repo_root = tmp_path / "fixtures", tmp_path / "elsewhere"
+    fixtures.mkdir()
+    write_fixture(fixtures, "ok", "None", "null")
+    write_fixture(fixtures, "broken", "AppSummary", "{}")
+    write_release(fixtures, version("hassette-client"))
+    write_accepted(repo_root, "GET /api/example (broken.json)")
+
+    assert main([str(fixtures)], repo_root=repo_root) == 0
+    out = capsys.readouterr().out
+    assert "accepted by tools/client_compat_ignore.txt: GET /api/example (broken.json)" in out
+    assert "handled 1 of 2 HEAD responses" in out
+
+
+def test_main_fails_an_unlisted_failure_beside_an_accepted_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fixtures, repo_root = tmp_path / "fixtures", tmp_path / "elsewhere"
+    fixtures.mkdir()
+    write_fixture(fixtures, "accepted", "AppSummary", "{}")
+    write_fixture(fixtures, "unlisted", "AppSummary", "{}")
+    write_release(fixtures, version("hassette-client"))
+    write_accepted(repo_root, "GET /api/example (accepted.json)")
+
+    assert main([str(fixtures)], repo_root=repo_root) == 1
+    err = capsys.readouterr().err
+    assert "mishandles 1 of 2" in err
+    assert "GET /api/example (unlisted.json)" in err
+    assert "(accepted.json)" not in err
+
+
+@pytest.mark.parametrize(
+    ("entry", "reason"),
+    [
+        ("GET /api/example (ok.json)", "now passes"),
+        ("GET /api/example (gone.json)", "names no fixture"),
+    ],
+)
+def test_main_fails_a_stale_entry(tmp_path: Path, capsys: pytest.CaptureFixture[str], entry: str, reason: str) -> None:
+    fixtures, repo_root = tmp_path / "fixtures", tmp_path / "elsewhere"
+    fixtures.mkdir()
+    write_fixture(fixtures, "ok", "None", "null")
+    write_release(fixtures, version("hassette-client"))
+    write_accepted(repo_root, entry)
+
+    assert main([str(fixtures)], repo_root=repo_root) == 1
+    assert f"{entry}: {reason}" in capsys.readouterr().err
+
+
+def test_load_accepted_skips_comments_and_blank_lines_and_tolerates_a_missing_file(tmp_path: Path) -> None:
+    assert load_accepted(tmp_path / "missing.txt") == set()
+    write_accepted(tmp_path, "GET /api/a (a.json)", "  GET /api/b (b.json)  ")
+
+    assert load_accepted(tmp_path / ACCEPTED_FILE) == {"GET /api/a (a.json)", "GET /api/b (b.json)"}
+
+
+def test_the_checked_in_accepted_file_parses() -> None:
+    assert isinstance(load_accepted(REPO_ROOT / ACCEPTED_FILE), set)
+    assert (REPO_ROOT / ACCEPTED_FILE).exists()
