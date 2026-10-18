@@ -222,13 +222,13 @@
         },
         "enabled": {
           "default": true,
-          "description": "Whether the app is enabled or not, will default to True if not set. Does not consider ``--app`` filter.",
+          "description": "Whether the app is enabled.",
           "title": "Enabled",
           "type": "boolean"
         },
         "autostart": {
           "default": true,
-          "description": "Whether the app starts automatically when Hassette starts. Orthogonal to\n`enabled`: an enabled app with autostart=false is registered and startable on\ndemand, but is not started at startup or by a live config reload.",
+          "description": "Whether the app starts automatically when Hassette starts.",
           "title": "Autostart",
           "type": "boolean"
         },

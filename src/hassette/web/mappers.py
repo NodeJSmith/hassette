@@ -38,6 +38,9 @@ TOPIC_KIND_MAP: dict[str, ListenerKind] = {
     Topic.HASS_EVENT_CALL_SERVICE: "service call",
 }
 
+#: Live counts for a listener with no live guard (e.g. retired).
+NO_LIVE_COUNTS = LiveCounts(0, 0, 0)
+
 
 def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     """Convert a single ``AppInstanceInfo`` to ``AppInstance``.
@@ -142,9 +145,9 @@ def listener_summary_from(
         row: The persisted listener summary from the telemetry DB.
         live_counts: Live execution counts keyed by listener ``db_id``, sourced from the bus's
             in-memory guards. A listener with no live guard (e.g. retired) defaults to
-            ``LiveCounts(0, 0, 0)``.
+            ``NO_LIVE_COUNTS``.
     """
-    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(row.listener_id, LiveCounts(0, 0, 0))
+    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(row.listener_id, NO_LIVE_COUNTS)
     # Every ListenerSummaryRow field has a same-named field on ListenerSummary, so splatting
     # model_dump() copies them 1:1. The six fields below have no source attribute (they are
     # computed or sourced from live_counts) and are passed as explicit keyword arguments, so
