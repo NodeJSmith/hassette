@@ -277,6 +277,26 @@ async def startup_context(
             loop.set_task_factory(previous_task_factory)
 
 
+@asynccontextmanager
+async def live_web_server(config: HassetteConfig, base_url: str) -> AsyncIterator[Hassette]:
+    """Boot Hassette with the web API enabled and wait until it accepts connections."""
+    async with startup_context(config) as hassette:
+        await wait_for_web_server(base_url)
+        yield hassette
+
+
+@asynccontextmanager
+async def live_web_client(
+    config: HassetteConfig, base_url: str, *, headers: dict[str, str] | None = None
+) -> AsyncIterator[httpx.AsyncClient]:
+    """``live_web_server`` plus an httpx client bound to ``base_url`` (10s default timeout)."""
+    async with (
+        live_web_server(config, base_url),
+        httpx.AsyncClient(base_url=base_url, headers=headers, timeout=10.0) as client,
+    ):
+        yield client
+
+
 def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
     """Build a minimal HassetteConfig pointing at the system test HA container.
 
