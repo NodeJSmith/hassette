@@ -45,6 +45,7 @@ from hassette.resources.base import Resource
 from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.sync import SchedulerSyncFacade
+from hassette.scheduler.sync_convenience import SchedulerSyncConvenience
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.testing._harness_resources import HarnessHassette
@@ -96,6 +97,7 @@ NOT_SELF_MARKED: dict[type, str] = {
     App: "AppLifecycleService marks each app instance ready after on_initialize()",
     AppSync: "subclass of App",
     BusSyncEventShortcuts: "intermediate base class of BusSyncFacade",
+    SchedulerSyncConvenience: "intermediate base class of SchedulerSyncFacade",
     Hassette: "the coordinator signals startup through ready_event, not mark_ready()",
     Service: "abstract base class",
     HarnessHassette: "the test harness sets ready_event directly, like Hassette",

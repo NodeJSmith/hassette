@@ -97,6 +97,9 @@ EXTRA_PAGE_IDENTIFIERS: dict[str, tuple[str, ...]] = {
     # Hassette's public service accessors (api, states, bus, ws_url, ...) live on this mixin, and
     # mkdocstrings doesn't render inherited members, so the mixin renders alongside Hassette.
     "hassette.core.core": ("hassette.core.hassette_accessors.HassetteAccessorsMixin",),
+    # SchedulerSyncFacade inherits its run_* wrappers from this generated base, so it renders
+    # alongside the facade for the same reason.
+    "hassette.scheduler": ("hassette.scheduler.sync_convenience.SchedulerSyncConvenience",),
 }
 
 
