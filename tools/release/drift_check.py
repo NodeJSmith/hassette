@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-r"""Shared compare/dedup logic for pypi-drift-check.yml, docker-drift-check.yml, and
-ha-version-drift.yml.
+r"""Shared compare/dedup logic for pypi-drift-check.yml, docker-drift-check.yml,
+ha-version-drift.yml, and docs-inventory-drift.yml.
 
 Each of those workflows fetches its own "current" and "latest" values before calling this
 script — the sources of truth differ too much to share (this repo's GitHub release, a PyPI/GHCR
 query, another repo's release) and so does fetch-failure handling (some treat a failed query as
 a soft warning, some let it fail the job). This script owns only the part that's genuinely
-identical across all three: comparing the two values, making sure the dedup label exists, and
+identical across all of them: comparing the two values, making sure the dedup label exists, and
 looking up an already-open tracking issue by that label. Filing, commenting on, or closing the
 tracking issue itself stays in each workflow, since title/body/labels differ per check.
+docs-inventory-drift.yml compares no versions: it passes "none" as current and the drifted
+inventory names as latest.
 
 Usage:
     python3 ./tools/release/drift_check.py --current "$CURRENT" --latest "$LATEST" \

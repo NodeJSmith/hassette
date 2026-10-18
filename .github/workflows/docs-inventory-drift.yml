@@ -1,0 +1,116 @@
+name: Docs Inventory Drift Check
+
+# Structural sibling of pypi-drift-check.yml, docker-drift-check.yml and ha-version-drift.yml —
+# shares tools/release/drift_check.py for the compare/dedup logic. The vendored inventories under
+# tools/docs/inventories/ go stale silently: missing upstream symbols and dead anchors don't fail
+# the strict docs build.
+#
+# Drift files an issue, not a PR: a PR opened with GITHUB_TOKEN doesn't trigger CI, so the strict
+# docs build would never validate it. The issue is sized for autofix, which opens the refresh PR
+# under a user identity that does trigger CI.
+on:
+    schedule:
+        - cron: "0 13 * * 1" # weekly, Monday 13:00 UTC
+    workflow_dispatch: {}
+
+concurrency:
+    group: docs-inventory-drift
+    cancel-in-progress: false
+
+jobs:
+    check-drift:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            issues: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            - name: Install uv and set the Python version
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+              with:
+                  python-version: "3.13"
+
+            - name: Compare committed inventories to upstream
+              id: drift
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+
+                  # --check prints the drifted inventory names (empty when all match) and exits 3 when
+                  # a download failed. A failed download is skipped, not reported as drift; `complete`
+                  # keeps a partial run from closing the tracking issue below.
+                  STATUS=0
+                  DRIFTED=$(uv run --only-group docs python tools/docs/inventories.py --check) || STATUS=$?
+                  case "$STATUS" in
+                      0) echo "complete=true" >> "$GITHUB_OUTPUT" ;;
+                      3) echo "complete=false" >> "$GITHUB_OUTPUT" ;;
+                      *) exit "$STATUS" ;;
+                  esac
+
+                  # drift_check.py only compares two strings. Here "current" is the in-sync state ("none")
+                  # and "latest" is the drifted names, so drift means the list is non-empty and the
+                  # `latest` output carries the names to the steps below.
+                  python3 ./tools/release/drift_check.py \
+                      --current "none" \
+                      --latest "${DRIFTED:-none}" \
+                      --label "docs-inventory-drift" \
+                      --label-description "Vendored docs inventories differ from upstream"
+
+            - name: File tracking issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue == ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DRIFTED: ${{ steps.drift.outputs.latest }}
+              run: |
+                  set -euo pipefail
+
+                  LIST=$(for name in $DRIFTED; do echo "- \`tools/docs/inventories/${name}.inv\`"; done)
+
+                  gh issue create --repo "$GITHUB_REPOSITORY" \
+                      --title "Refresh the vendored docs inventories (${DRIFTED})" \
+                      --label "type:documentation" \
+                      --label "area:config" \
+                      --label "size:small" \
+                      --label "docs-inventory-drift" \
+                      --body "## Docs Inventory Drift Detected
+
+                  These committed \`objects.inv\` inventories differ from their upstream copies:
+
+                  ${LIST}
+
+                  A stale inventory leaves symbols added upstream unlinked, and can keep links to anchors upstream has renamed or removed. Neither fails the strict docs build.
+
+                  ### Fix
+
+                  1. Re-download every inventory: \`uv run python tools/docs/inventories.py\`
+                  2. Commit the updated files under \`tools/docs/inventories/\`
+                  3. The strict docs build (\`uv run mkdocs build --strict\`) must pass
+
+                  ### Details
+
+                  - Detected by: [docs-inventory-drift workflow](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/docs-inventory-drift.yml)
+
+                  This issue is closed automatically once the committed inventories match upstream."
+
+            - name: Existing drift issue
+              if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue != ''
+              run: echo "Issue #${{ steps.drift.outputs.existing-issue }} already open for this drift"
+
+            # existing-issue is populated by drift_check.py regardless of drift. Only a complete check
+            # may close: a skipped download says nothing about whether that inventory still differs.
+            - name: Close stale tracking issue on resync
+              if: steps.drift.outputs.drift == 'false' && steps.drift.outputs.existing-issue != '' && steps.drift.outputs.complete == 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  EXISTING: ${{ steps.drift.outputs.existing-issue }}
+              run: |
+                  set -euo pipefail
+
+                  gh issue close "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+                      --comment "Every committed docs inventory now matches upstream. Closing automatically."
+                  echo "Closed stale drift issue #${EXISTING}"

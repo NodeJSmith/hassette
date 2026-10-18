@@ -14,11 +14,15 @@ Run directly to re-download every committed copy from upstream (to add an invent
 
     uv run python tools/docs/inventories.py
 
-Refreshing is manual and nothing flags a stale copy. Staleness only costs links to upstream symbols added
-since the last refresh, so refresh occasionally rather than on a schedule.
+A stale copy misses links to symbols added upstream and can keep links to anchors upstream has since
+removed, and neither fails the build. ``docs-inventory-drift.yml`` checks for that weekly by running this
+script with ``--check``, which downloads every inventory, compares it to the committed copy, and prints the
+names that differ. On drift the workflow files a tracking issue for the refresh above.
 """
 
+import argparse
 import hashlib
+import http.client
 import sys
 import urllib.request
 from pathlib import Path
@@ -37,6 +41,8 @@ INVENTORIES = {
     "whenever": "https://whenever.readthedocs.io/en/latest/",
 }
 DOWNLOAD_TIMEOUT_SECONDS = 30
+# --check exit code when at least one download failed: the drifted list covers only the inventories fetched.
+INCOMPLETE_CHECK_EXIT_CODE = 3
 
 
 def inventory_path(name: str) -> Path:
@@ -67,22 +73,29 @@ def on_config(config: MkDocsConfig) -> MkDocsConfig:
     return config
 
 
+def fetch(name: str) -> bytes | None:
+    """Download an upstream inventory, or print why it failed and return None."""
+    url = f"{INVENTORIES[name]}objects.inv"
+    # URLs come only from the https:// constants above.
+    req = urllib.request.Request(url, headers={"User-Agent": "hassette-docs-inventory-refresh"})  # noqa: S310
+    try:
+        with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT_SECONDS) as resp:  # noqa: S310
+            content = resp.read()
+    except (OSError, http.client.HTTPException) as exc:
+        print(f"FAILED {name}: {url}: {exc}", file=sys.stderr)
+        return None
+    if not content.startswith(b"# Sphinx inventory version 2"):
+        print(f"FAILED {name}: {url} is not a Sphinx v2 inventory", file=sys.stderr)
+        return None
+    return content
+
+
 def refresh() -> int:
     INVENTORY_DIR.mkdir(exist_ok=True)
     failed = 0
-    for name, base_url in INVENTORIES.items():
-        url = f"{base_url}objects.inv"
-        # URLs come only from the https:// constants above.
-        req = urllib.request.Request(url, headers={"User-Agent": "hassette-docs-inventory-refresh"})  # noqa: S310
-        try:
-            with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT_SECONDS) as resp:  # noqa: S310
-                content = resp.read()
-        except OSError as exc:
-            print(f"FAILED {name}: {url}: {exc}", file=sys.stderr)
-            failed += 1
-            continue
-        if not content.startswith(b"# Sphinx inventory version 2"):
-            print(f"FAILED {name}: {url} is not a Sphinx v2 inventory", file=sys.stderr)
+    for name in INVENTORIES:
+        content = fetch(name)
+        if content is None:
             failed += 1
             continue
         inventory_path(name).write_bytes(content)
@@ -90,5 +103,39 @@ def refresh() -> int:
     return 1 if failed else 0
 
 
+def check() -> int:
+    """Print the names of committed inventories that differ from upstream, space-separated on one line.
+
+    A failed download is a warning, not drift: that inventory is skipped, and the exit code is
+    ``INCOMPLETE_CHECK_EXIT_CODE`` so the caller knows an empty list doesn't prove every copy is current.
+    """
+    drifted: list[str] = []
+    failed = 0
+    for name in INVENTORIES:
+        content = fetch(name)
+        if content is None:
+            print(f"::warning::Skipped the {name} inventory: download failed", file=sys.stderr)
+            failed += 1
+            continue
+        path = inventory_path(name)
+        if not path.is_file() or path.read_bytes() != content:
+            drifted.append(name)
+    print(" ".join(drifted))
+    return INCOMPLETE_CHECK_EXIT_CODE if failed else 0
+
+
+def main(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(
+        description="Refresh the vendored docs inventories, or with --check, report which ones drifted."
+    )
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="Compare upstream against the committed copies and print the drifted names instead of writing.",
+    )
+    args = p.parse_args(argv)
+    return check() if args.check else refresh()
+
+
 if __name__ == "__main__":
-    sys.exit(refresh())
+    sys.exit(main(sys.argv[1:]))
