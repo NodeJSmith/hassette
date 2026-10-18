@@ -8,7 +8,6 @@ Covers gaps in the test matrix:
 """
 
 import asyncio
-import functools
 from typing import TYPE_CHECKING
 
 from whenever import SYSTEM_TZ, ZonedDateTime
@@ -22,53 +21,20 @@ from hassette.testing import AppTestHarness, HassetteHarness, make_state_dict, w
 from tests.support.helpers import settle
 
 from .conftest import (
-    ASYNC_SAFETY_TIMEOUT,
     DURATION,
     ELAPSED_BOUNDARY_DURATION,
     ELAPSED_EXCEEDS_OFFSET_SECONDS,
     ELAPSED_REMAINING_OFFSET_SECONDS,
     REMAINING_FIRE_TIMEOUT,
 )
-from .helpers import drive_state_change, send_live_event_and_wait_drain
+from .helpers import ErrorCollector, drive_state_change, send_live_event_and_wait_drain
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
-    from hassette.types.types import BusErrorHandlerType
 
 DURATION_ERROR_TIMEOUT = DURATION + 1.0
 """Seconds to wait for an error handler behind a duration timer (duration + safety margin)."""
-
-
-class ErrorCollector:
-    """Records the `BusErrorContext` values an `on_error` handler receives.
-
-    `record` takes `hassette` as a parameter rather than the collector holding it, because the
-    passthrough tests at the bottom of this file construct their collector before the app exists
-    and only reach a `Hassette` through `self.hassette` inside the handler.
-    """
-
-    def __init__(self) -> None:
-        self.contexts: list[BusErrorContext] = []
-        self.ran: asyncio.Event = asyncio.Event()
-
-    async def record(self, hassette: "Hassette", ctx: BusErrorContext) -> None:
-        self.contexts.append(ctx)
-        hassette.task_bucket.post_to_loop(self.ran.set)
-
-    def bound(self, hassette: "Hassette") -> "BusErrorHandlerType":
-        """Return an `on_error` handler that records into this collector."""
-        return functools.partial(self.record, hassette)
-
-    async def wait(self, timeout: float = ASYNC_SAFETY_TIMEOUT) -> None:
-        """Block until the first error is recorded."""
-        await asyncio.wait_for(self.ran.wait(), timeout=timeout)
-
-    def single(self, exc_type: type[Exception]) -> BusErrorContext:
-        """Assert exactly one error of `exc_type` was recorded, and return its context."""
-        assert len(self.contexts) == 1
-        assert isinstance(self.contexts[0].exception, exc_type)
-        return self.contexts[0]
 
 
 class ErrorPassthroughConfig(AppConfig):
