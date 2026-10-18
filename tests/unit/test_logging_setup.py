@@ -7,6 +7,7 @@ test_logging_persistence.py (LogPersistenceHandler batching/flush).
 """
 
 import inspect
+import json
 import logging
 from io import StringIO
 from unittest.mock import MagicMock
@@ -14,7 +15,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import hassette.logging_ as logging_module
-from hassette.logging_ import enable_basic_logging
+from hassette.logging_ import CONSOLE_DROPPED_KEYS, drop_console_noise, enable_basic_logging
 from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
 
@@ -459,3 +460,50 @@ class TestNoModuleGlobals:
     def test_no_queue_listener_global(self) -> None:
         """_queue_listener module global is removed."""
         assert not hasattr(logging_module, "_queue_listener")
+
+
+class TestDropConsoleNoise:
+    """drop_console_noise strips empty and redundant context fields from console event dicts."""
+
+    def test_drops_none_values(self) -> None:
+        result = drop_console_noise(None, "info", {"event": "hi", "execution_id": None, "job_id": None})
+        assert result == {"event": "hi"}
+
+    def test_drops_console_dropped_keys_even_when_set(self) -> None:
+        event_dict = {"event": "hi", **dict.fromkeys(CONSOLE_DROPPED_KEYS, "x")}
+        assert drop_console_noise(None, "info", event_dict) == {"event": "hi"}
+
+    def test_keeps_correlation_ids_and_event(self) -> None:
+        event_dict = {"event": "hi", "execution_id": "exec-1", "listener_id": 3, "job_id": 7}
+        assert drop_console_noise(None, "info", event_dict) == event_dict
+
+    def test_does_not_mutate_input(self) -> None:
+        event_dict = {"event": "hi", "execution_id": None, "source_tier": "app"}
+        drop_console_noise(None, "info", event_dict)
+        assert event_dict == {"event": "hi", "execution_id": None, "source_tier": "app"}
+
+
+def _record_with_context() -> logging.LogRecord:
+    record = logging.LogRecord("hassette.ExampleApp.0", logging.INFO, __file__, 1, "hello", None, None)
+    record.source_tier = "app"
+    record.app_key = "apps.example_app.ExampleApp"
+    record.execution_id = None
+    return record
+
+
+class TestConsoleFormatterDropsNoise:
+    """The console formatter omits empty/redundant fields; the JSON formatter keeps them."""
+
+    def test_console_output_omits_noise_fields(self) -> None:
+        handler = enable_basic_logging("INFO", log_format="console", stream=StringIO())
+        output = handler.format(_record_with_context())
+        assert "hello" in output
+        assert "execution_id=None" not in output
+        assert "source_tier=" not in output
+        assert "app_key=" not in output
+
+    def test_json_output_keeps_context_fields(self) -> None:
+        handler = enable_basic_logging("INFO", log_format="json", stream=StringIO())
+        parsed = json.loads(handler.format(_record_with_context()))
+        assert parsed["source_tier"] == "app"
+        assert parsed["app_key"] == "apps.example_app.ExampleApp"
