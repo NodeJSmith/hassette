@@ -31,9 +31,8 @@ from .conftest import (
     HA_TOKEN,
     SystemTestConfig,
     free_port,
+    live_web_server,
     make_web_system_config,
-    startup_context,
-    wait_for_web_server,
 )
 
 SYSTEM_APPS_DIR = Path(__file__).parent / "apps"
@@ -73,8 +72,7 @@ def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestCon
 async def test_health_deserializes(ha_container: str, tmp_path: Path) -> None:
     """GET /api/health deserializes to SystemStatusResponse."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             result = await asyncio.to_thread(client.get, "/api/health", SystemStatusResponse)
 
@@ -85,8 +83,7 @@ async def test_health_deserializes(ha_container: str, tmp_path: Path) -> None:
 async def test_config_deserializes(ha_container: str, tmp_path: Path) -> None:
     """GET /api/config deserializes to ConfigSchemaResponse with schema and values."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             result = await asyncio.to_thread(client.get, "/api/config", ConfigSchemaResponse)
 
@@ -99,8 +96,7 @@ async def test_config_deserializes(ha_container: str, tmp_path: Path) -> None:
 async def test_telemetry_status_deserializes(ha_container: str, tmp_path: Path) -> None:
     """GET /api/telemetry/status deserializes to TelemetryStatusResponse."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             result = await asyncio.to_thread(client.get, "/api/telemetry/status", TelemetryStatusResponse)
 
@@ -110,8 +106,7 @@ async def test_telemetry_status_deserializes(ha_container: str, tmp_path: Path) 
 async def test_dashboard_deserializes(ha_container: str, tmp_path: Path) -> None:
     """`hassette dashboard` reads GET /api/telemetry/app-grid, which deserializes to AppGridResponse."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             result = await asyncio.to_thread(client.get, "/api/telemetry/app-grid", AppGridResponse)
 
@@ -122,8 +117,7 @@ async def test_dashboard_deserializes(ha_container: str, tmp_path: Path) -> None
 async def test_app_list_non_empty(ha_container: str, tmp_path: Path) -> None:
     """GET /api/apps deserializes and has a non-empty app list."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             result = await asyncio.to_thread(client.get, "/api/apps", AppListResponse)
 
@@ -134,8 +128,7 @@ async def test_app_list_non_empty(ha_container: str, tmp_path: Path) -> None:
 async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None:
     """GET /api/bus/listeners deserializes to list[ListenerSummary]."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
 
@@ -148,8 +141,7 @@ async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None
 async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: Path) -> None:
     """Per-app listener endpoint returns only listeners belonging to that app."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             all_raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
             all_listeners = [ListenerSummary.model_validate(e) for e in all_raw]
@@ -175,8 +167,7 @@ async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: P
 async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> None:
     """Per-app listener endpoint with instance_index=0 returns a valid subset."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             all_raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
             all_listeners = [ListenerSummary.model_validate(e) for e in all_raw]
@@ -202,8 +193,7 @@ async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> No
 async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
     """GET /api/scheduler/jobs deserializes to list[JobSummary]."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             raw: list[Any] = await asyncio.to_thread(client.get, "/api/scheduler/jobs", list)
 
@@ -216,8 +206,7 @@ async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
 async def test_logs_respects_limit(ha_container: str, tmp_path: Path) -> None:
     """GET /api/logs/recent?limit=10 returns ≤10 entries and deserializes to LogEntry."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
-    async with startup_context(config):
-        await wait_for_web_server(base_url)
+    async with live_web_server(config, base_url):
         with _cli_client(config) as client:
             raw: list[Any] = await asyncio.to_thread(client.get, "/api/logs/recent", list, {"limit": 10})
 
