@@ -1,23 +1,31 @@
 """Retention-cleanup fixtures for tests/unit/core/: an in-memory telemetry DB and a real
 ``DatabaseService`` wired to it.
 
+Also holds the shared size-failsafe arrange/act helpers (``run_size_failsafe``) and the
+``count_rows`` assertion helper.
+
 Not re-exported from ``conftest.py`` -- a directory-wide ``db`` fixture name would shadow too
 easily. Consumers import directly from this module instead: ``test_log_records_retention.py``,
 ``test_retention_batch_failure.py`` and ``test_app_manifest_retention.py``.
 """
 
+import logging
 import sqlite3
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.utils.aiosqlite_utils import connect_daemon
-from tests.support.helpers import DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
+from tests.support.helpers import (
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+    SIZE_FAILSAFE_TRIGGER_MB,
+)
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
@@ -27,6 +35,9 @@ SOURCE_TIER_APP = "app"
 RETENTION_DAYS = 7
 FRAMEWORK_RETENTION_DAYS = 1
 LOG_RETENTION_DAYS = 3
+# Live data size reported by the default size mock: far above SIZE_FAILSAFE_TRIGGER_MB, so every
+# size check in the failsafe cycle reads as over the limit.
+ALWAYS_OVER_LIMIT_MB = 10.0
 
 
 @pytest.fixture
@@ -102,3 +113,43 @@ def retention_service(db: aiosqlite.Connection, mock_hassette_for_db: MagicMock)
     svc = DatabaseService(mock_hassette_for_db, parent=None)
     svc._db = db  # pyright: ignore[reportPrivateUsage]
     return svc
+
+
+async def run_size_failsafe(
+    retention_service: DatabaseService,
+    mock_hassette_for_db: MagicMock,
+    caplog: pytest.LogCaptureFixture | None = None,
+    *,
+    level: int = logging.INFO,
+    live_size: Callable[[], Awaitable[float]] | None = None,
+) -> None:
+    """Force the size limit to ``SIZE_FAILSAFE_TRIGGER_MB`` and run one size-failsafe cycle.
+
+    ``live_size`` replaces ``get_live_data_size_mb``; when omitted, every size check reports
+    ``ALWAYS_OVER_LIMIT_MB``, so the cycle never gets back under the limit. When ``caplog`` is
+    given, the cycle runs under ``caplog.at_level(level)``.
+    """
+    mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+    retention_service.get_live_data_size_mb = live_size or AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+        return_value=ALWAYS_OVER_LIMIT_MB
+    )
+    if caplog is None:
+        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+        return
+    with caplog.at_level(level):
+        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+
+
+async def count_rows(db: aiosqlite.Connection, table: str, **filters: object) -> int:
+    """Return ``SELECT COUNT(*)`` for ``table``, AND-ing an equality filter per keyword argument.
+
+    ``await count_rows(db, "executions", source_tier="framework")`` counts framework-tier
+    executions. Table and column names are interpolated, so pass only literals from test code.
+    """
+    sql = f"SELECT COUNT(*) FROM {table}"
+    if filters:
+        sql += " WHERE " + " AND ".join(f"{column} = ?" for column in filters)
+    cursor = await db.execute(sql, tuple(filters.values()))
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[0]
