@@ -36,6 +36,8 @@ def warn_if_unknown_entity(
 ) -> None:
     """Log one WARNING when an app listener watches a literal entity ID missing from the state cache.
 
+    Called only after the listener is registered, so an un-awaited or rejected registration stays silent.
+
     Never raises and never blocks registration. Stays silent for glob patterns, framework-tier
     owners, and an empty or not-yet-loaded cache, where absence is not evidence of a typo.
     """
@@ -44,7 +46,6 @@ def warn_if_unknown_entity(
     if state_proxy is None or not state_proxy.has_cache_entries or entity_id in state_proxy.states:
         return
 
-    # list() snapshots the keys atomically: sync-facade registrations run off the event loop.
     matches = difflib.get_close_matches(entity_id, list(state_proxy.states), n=1)
     suggestion = f" (did you mean {matches[0]!r}?)" if matches else ""
     logger.warning(

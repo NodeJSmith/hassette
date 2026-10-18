@@ -99,3 +99,16 @@ async def test_no_warning_when_state_proxy_not_wired(bus: "Bus", warning_logger:
         await register(bus, "on_state_change", TYPO_ENTITY)
 
     warning_logger.warning.assert_not_called()
+
+
+@pytest.mark.parametrize("method", ["on_state_change", "on_attribute_change"])
+async def test_no_warning_until_registration_is_awaited(bus: "Bus", warning_logger: MagicMock, method: str) -> None:
+    use_cache(bus, {KNOWN_ENTITY: {}})
+
+    if method == "on_state_change":
+        pending = bus.on_state_change(TYPO_ENTITY, handler=handler, name="door_when_empty")
+    else:
+        pending = bus.on_attribute_change(TYPO_ENTITY, "battery", handler=handler, name="door_when_empty")
+    pending.close()
+
+    warning_logger.warning.assert_not_called()

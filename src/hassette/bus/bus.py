@@ -713,7 +713,7 @@ class Bus(Resource):
                 hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
             )
 
-        return await self._on_internal(
+        sub = await self._on_internal(
             topic=topic,
             handler=handler,
             where=preds,
@@ -725,6 +725,10 @@ class Bus(Resource):
             registration_source=registration_source,
             **opts,
         )
+        # After registration succeeds, so a forgotten await or a rejected registration never warns.
+        if entity_id and name:
+            warn_if_unknown_entity(self.logger, self.parent, self.hassette.try_state_proxy(), entity_id, name)
+        return sub
 
     @staticmethod
     def _normalize_service_where(
@@ -816,7 +820,6 @@ class Bus(Resource):
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}")
         reject_glob_only_options(entity_id, immediate=immediate, duration=duration)
-        warn_if_unknown_entity(self.logger, self.parent, self.hassette.try_state_proxy(), entity_id, name)
 
         preds, hold_preds = build_state_preds(
             entity_id, changed=changed, changed_from=changed_from, changed_to=changed_to
@@ -910,7 +913,6 @@ class Bus(Resource):
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}[{attr}]")
         reject_glob_only_options(entity_id, immediate=immediate, duration=duration)
-        warn_if_unknown_entity(self.logger, self.parent, self.hassette.try_state_proxy(), entity_id, name)
 
         if not changed:
             self.logger.warning(
