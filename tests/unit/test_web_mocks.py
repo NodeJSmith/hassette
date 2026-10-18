@@ -147,13 +147,17 @@ class TestAppHandler:
 
 
 class TestBusSchedulerDatabase:
-    async def test_bus_scheduler_and_database_stubs(self):
-        jobs = [object()]
-        h = create_hassette_stub(scheduler_jobs=jobs)
+    def test_bus_stub_defaults(self):
+        h = create_hassette_stub()
         assert h.bus_service.live_execution_counts() == {}
         assert h.bus_service.pending_wait_for_count == 0
-        assert await h.scheduler_service.get_all_jobs() == jobs
-        assert await h.database_service.submit() == []
+
+    async def test_scheduler_jobs_override(self):
+        jobs = [object()]
+        assert await create_hassette_stub(scheduler_jobs=jobs).scheduler_service.get_all_jobs() == jobs
+
+    async def test_database_submit_returns_empty(self):
+        assert await create_hassette_stub().database_service.submit() == []
 
     async def test_scheduler_jobs_default_empty(self):
         assert await create_hassette_stub().scheduler_service.get_all_jobs() == []
