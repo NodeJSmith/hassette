@@ -191,13 +191,19 @@ class TestDequeueTimeoutFlush:
         # Enqueue a single record (below BATCH_SIZE, won't auto-flush)
         q.put(make_log_record(level=logging.WARNING, msg="timeout test"))
 
-        # Wait for the dequeue-timeout cycle to flush, with margin for thread scheduling
-        time.sleep(DEQUEUE_TIMEOUT_SECONDS + 0.3)
-
-        listener.stop()
-        loop.run_until_complete(asyncio.sleep(0))
-        loop.close()
+        # Poll until the dequeue-timeout flush lands. The drop is counted inside a callback the
+        # listener thread schedules onto ``loop``, so each iteration runs the loop briefly.
+        deadline = time.monotonic() + DEQUEUE_TIMEOUT_SECONDS * 10
+        try:
+            while persistence.db_write_queue_drops < 1 and time.monotonic() < deadline:
+                loop.run_until_complete(asyncio.sleep(0.01))
+        finally:
+            listener.stop()
+            loop.run_until_complete(asyncio.sleep(0))
+            loop.close()
 
         # The record was flushed by the timeout, then dropped (enqueue returns False)
-        assert persistence.db_write_queue_drops == 1
+        assert persistence.db_write_queue_drops == 1, (
+            f"dequeue-timeout flush did not happen within {DEQUEUE_TIMEOUT_SECONDS * 10:.1f}s"
+        )
         assert len(persistence._batch) == 0
