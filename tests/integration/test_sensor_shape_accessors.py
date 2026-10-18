@@ -27,39 +27,11 @@ if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
 
 
-async def seed_multi_shape_sensors(hassette: "HassetteHarness") -> None:
-    """Seed a fixture spanning all four sensor shapes, an uptime sensor (maps to the timestamp
-    shape), an unknown-shape sensor with no metadata, and a numeric-metadata sensor whose value
-    fails conversion.
-    """
-    entities = {
-        "sensor.temperature": make_sensor_state_dict(
-            "sensor.temperature", "21.5", unit_of_measurement="°C", device_class="temperature"
-        ),
-        "sensor.mode": make_sensor_state_dict("sensor.mode", "cool", device_class="enum", options=["cool", "heat"]),
-        "sensor.last_motion": make_sensor_state_dict(
-            "sensor.last_motion", "2024-01-01T00:00:00+00:00", device_class="timestamp"
-        ),
-        "sensor.uptime": make_sensor_state_dict("sensor.uptime", "2024-01-01T00:00:00+00:00", device_class="uptime"),
-        "sensor.expiry": make_sensor_state_dict("sensor.expiry", "2024-01-01", device_class="date"),
-        "sensor.garbage": make_sensor_state_dict(
-            "sensor.garbage", "not-a-number", unit_of_measurement="°C", device_class="temperature"
-        ),
-        "sensor.no_metadata": make_sensor_state_dict("sensor.no_metadata", "some text"),
-    }
-    for entity_id, state_dict in entities.items():
-        await send_and_wait(hassette, entity_id, None, state_dict)
-
-
 class TestSensorShapeAccessorsReturnMatchingClass:
     """Each accessor returns a DomainStates parameterized to its matching class."""
 
-    async def test_numeric_sensor(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-        numeric = states_instance.numeric_sensor
+    async def test_numeric_sensor(self, seeded_sensor_state_manager: StateManager) -> None:
+        numeric = seeded_sensor_state_manager.numeric_sensor
 
         assert isinstance(numeric, DomainStates)
         assert set(numeric) == {"sensor.temperature"}
@@ -67,12 +39,8 @@ class TestSensorShapeAccessorsReturnMatchingClass:
             assert isinstance(state, NumericSensorState)
             assert isinstance(state.value, float)
 
-    async def test_enum_sensor(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-        enum_sensors = states_instance.enum_sensor
+    async def test_enum_sensor(self, seeded_sensor_state_manager: StateManager) -> None:
+        enum_sensors = seeded_sensor_state_manager.enum_sensor
 
         assert isinstance(enum_sensors, DomainStates)
         assert set(enum_sensors) == {"sensor.mode"}
@@ -80,24 +48,16 @@ class TestSensorShapeAccessorsReturnMatchingClass:
             assert isinstance(state, EnumSensorState)
             assert state.value == "cool"
 
-    async def test_timestamp_sensor(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-        timestamp_sensors = states_instance.timestamp_sensor
+    async def test_timestamp_sensor(self, seeded_sensor_state_manager: StateManager) -> None:
+        timestamp_sensors = seeded_sensor_state_manager.timestamp_sensor
 
         assert isinstance(timestamp_sensors, DomainStates)
         assert set(timestamp_sensors) == {"sensor.last_motion", "sensor.uptime"}
         for state in timestamp_sensors.values():
             assert isinstance(state, TimestampSensorState)
 
-    async def test_date_sensor(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-        date_sensors = states_instance.date_sensor
+    async def test_date_sensor(self, seeded_sensor_state_manager: StateManager) -> None:
+        date_sensors = seeded_sensor_state_manager.date_sensor
 
         assert isinstance(date_sensors, DomainStates)
         assert set(date_sensors) == {"sensor.expiry"}
@@ -105,18 +65,13 @@ class TestSensorShapeAccessorsReturnMatchingClass:
             assert isinstance(state, DateSensorState)
 
     async def test_uptime_sensor_appears_in_timestamp_sensor_accessor(
-        self, hassette_with_state_proxy: "HassetteHarness"
+        self, seeded_sensor_state_manager: StateManager
     ) -> None:
         """The accessor-level uptime assertion — the classifier-level half lives in the unit
         tests for `classify_sensor_shape`.
         """
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-
-        assert "sensor.uptime" in states_instance.timestamp_sensor
-        uptime_state = states_instance.timestamp_sensor["sensor.uptime"]
+        assert "sensor.uptime" in seeded_sensor_state_manager.timestamp_sensor
+        uptime_state = seeded_sensor_state_manager.timestamp_sensor["sensor.uptime"]
         assert isinstance(uptime_state, TimestampSensorState)
 
 
@@ -124,46 +79,30 @@ class TestSensorShapeAccessorMembership:
     """Membership is exactly the sensors whose shape matches AND whose state converts."""
 
     async def test_unknown_shape_sensor_excluded_from_every_narrowed_accessor(
-        self, hassette_with_state_proxy: "HassetteHarness"
+        self, seeded_sensor_state_manager: StateManager
     ) -> None:
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-
-        assert "sensor.no_metadata" not in states_instance.numeric_sensor
-        assert "sensor.no_metadata" not in states_instance.enum_sensor
-        assert "sensor.no_metadata" not in states_instance.timestamp_sensor
-        assert "sensor.no_metadata" not in states_instance.date_sensor
+        assert "sensor.no_metadata" not in seeded_sensor_state_manager.numeric_sensor
+        assert "sensor.no_metadata" not in seeded_sensor_state_manager.enum_sensor
+        assert "sensor.no_metadata" not in seeded_sensor_state_manager.timestamp_sensor
+        assert "sensor.no_metadata" not in seeded_sensor_state_manager.date_sensor
         # Still reachable through the untouched, unfiltered `sensor` accessor.
-        assert "sensor.no_metadata" in states_instance.sensor
+        assert "sensor.no_metadata" in seeded_sensor_state_manager.sensor
 
     async def test_unconvertible_numeric_metadata_sensor_excluded_everywhere(
-        self, hassette_with_state_proxy: "HassetteHarness"
+        self, seeded_sensor_state_manager: StateManager
     ) -> None:
         """Predicate says numeric (has unit + device_class) but the value doesn't parse — excluded
         from membership everywhere, keeping len(m) == len(list(m)) unconditional.
         """
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-        numeric = states_instance.numeric_sensor
+        numeric = seeded_sensor_state_manager.numeric_sensor
 
         assert "sensor.garbage" not in numeric
         assert "sensor.garbage" not in set(numeric)
         assert len(numeric) == len(list(numeric))
 
-    async def test_sensor_accessor_still_contains_every_sensor(
-        self, hassette_with_state_proxy: "HassetteHarness"
-    ) -> None:
+    async def test_sensor_accessor_still_contains_every_sensor(self, seeded_sensor_state_manager: StateManager) -> None:
         """The existing, unfiltered `sensor` accessor is untouched by the narrowed views."""
-        hassette = hassette_with_state_proxy
-        await seed_multi_shape_sensors(hassette)
-
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-
-        assert set(states_instance.sensor) == {
+        assert set(seeded_sensor_state_manager.sensor) == {
             "sensor.temperature",
             "sensor.mode",
             "sensor.last_motion",
@@ -180,23 +119,15 @@ class TestSensorShapeAccessorCaching:
     "## Architecture -> The accessors").
     """
 
-    async def test_repeated_access_returns_the_same_cached_instance(
-        self, hassette_with_state_proxy: "HassetteHarness"
-    ) -> None:
-        hassette = hassette_with_state_proxy
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
+    async def test_repeated_access_returns_the_same_cached_instance(self, state_manager: StateManager) -> None:
+        assert state_manager.numeric_sensor is state_manager.numeric_sensor
 
-        assert states_instance.numeric_sensor is states_instance.numeric_sensor
-
-    async def test_accessors_do_not_share_a_cache_entry(self, hassette_with_state_proxy: "HassetteHarness") -> None:
-        hassette = hassette_with_state_proxy
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-
-        assert states_instance.numeric_sensor is not states_instance.enum_sensor
-        assert states_instance.numeric_sensor is not states_instance.timestamp_sensor
-        assert states_instance.numeric_sensor is not states_instance.date_sensor
+    async def test_accessors_do_not_share_a_cache_entry(self, state_manager: StateManager) -> None:
+        assert state_manager.numeric_sensor is not state_manager.enum_sensor
+        assert state_manager.numeric_sensor is not state_manager.timestamp_sensor
+        assert state_manager.numeric_sensor is not state_manager.date_sensor
         # The pre-existing `sensor` accessor keeps its own cache entry too.
-        assert states_instance.sensor is not states_instance.numeric_sensor
+        assert state_manager.sensor is not state_manager.numeric_sensor
 
 
 class TestSensorShapeAccessorRuntimeDeviceClassChange:
@@ -206,7 +137,7 @@ class TestSensorShapeAccessorRuntimeDeviceClassChange:
     """
 
     async def test_device_class_flip_moves_entity_between_shape_accessors(
-        self, hassette_with_state_proxy: "HassetteHarness"
+        self, hassette_with_state_proxy: "HassetteHarness", state_manager: StateManager
     ) -> None:
         hassette = hassette_with_state_proxy
 
@@ -215,9 +146,8 @@ class TestSensorShapeAccessorRuntimeDeviceClassChange:
         )
         await send_and_wait(hassette, "sensor.flexible", None, temperature_dict)
 
-        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
-        assert "sensor.flexible" in states_instance.numeric_sensor
-        assert "sensor.flexible" not in states_instance.enum_sensor
+        assert "sensor.flexible" in state_manager.numeric_sensor
+        assert "sensor.flexible" not in state_manager.enum_sensor
 
         enum_dict = make_sensor_state_dict("sensor.flexible", "cool", device_class="enum", options=["cool", "heat"])
         event = make_full_state_change_event("sensor.flexible", temperature_dict, enum_dict)
@@ -232,5 +162,5 @@ class TestSensorShapeAccessorRuntimeDeviceClassChange:
 
         # Same DomainStates instances (cached per class) — membership is recomputed per access,
         # not cached across the change.
-        assert "sensor.flexible" not in states_instance.numeric_sensor
-        assert "sensor.flexible" in states_instance.enum_sensor
+        assert "sensor.flexible" not in state_manager.numeric_sensor
+        assert "sensor.flexible" in state_manager.enum_sensor

@@ -18,6 +18,9 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.sync_executor import SyncExecutor
+from hassette.state_manager import StateManager
+from hassette.testing import make_sensor_state_dict
+from tests.support.harness import send_and_wait
 from tests.support.helpers import (
     DB_HASSETTE_DATABASE_MAX_SIZE_MB,
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
@@ -293,3 +296,42 @@ def make_manifest_mock(
     m.app_dir = app_dir or Path("/apps")
     m.full_path = full_path or (m.app_dir / filename)
     return m
+
+
+@pytest.fixture
+def state_manager(hassette_with_state_proxy: "HassetteHarness") -> StateManager:
+    """A StateManager wired to the state-proxy harness."""
+    return StateManager(hassette_with_state_proxy.hassette, parent=hassette_with_state_proxy.hassette)
+
+
+@pytest.fixture
+async def seeded_sensor_state_manager(
+    hassette_with_state_proxy: "HassetteHarness", state_manager: StateManager
+) -> StateManager:
+    """The ``state_manager`` fixture after ``seed_multi_shape_sensors`` has populated the proxy."""
+    await seed_multi_shape_sensors(hassette_with_state_proxy)
+    return state_manager
+
+
+async def seed_multi_shape_sensors(hassette: "HassetteHarness") -> None:
+    """Seed a fixture spanning all four sensor shapes, an uptime sensor (maps to the timestamp
+    shape), an unknown-shape sensor with no metadata, and a numeric-metadata sensor whose value
+    fails conversion.
+    """
+    entities = {
+        "sensor.temperature": make_sensor_state_dict(
+            "sensor.temperature", "21.5", unit_of_measurement="°C", device_class="temperature"
+        ),
+        "sensor.mode": make_sensor_state_dict("sensor.mode", "cool", device_class="enum", options=["cool", "heat"]),
+        "sensor.last_motion": make_sensor_state_dict(
+            "sensor.last_motion", "2024-01-01T00:00:00+00:00", device_class="timestamp"
+        ),
+        "sensor.uptime": make_sensor_state_dict("sensor.uptime", "2024-01-01T00:00:00+00:00", device_class="uptime"),
+        "sensor.expiry": make_sensor_state_dict("sensor.expiry", "2024-01-01", device_class="date"),
+        "sensor.garbage": make_sensor_state_dict(
+            "sensor.garbage", "not-a-number", unit_of_measurement="°C", device_class="temperature"
+        ),
+        "sensor.no_metadata": make_sensor_state_dict("sensor.no_metadata", "some text"),
+    }
+    for entity_id, state_dict in entities.items():
+        await send_and_wait(hassette, entity_id, None, state_dict)
