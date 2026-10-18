@@ -266,7 +266,7 @@ class TestCooldownAndRetry:
         hassette.shutdown_event.set()
 
         # restart() is a module-level function (hassette.resources.operations), not a
-        # method — patch it at the call site (service_watcher.py) rather than reassigning
+        # method — patch it at the call site (service_watcher_escalation.py) rather than reassigning
         # an instance attribute, since cooldown_and_retry() calls the free function directly.
         with patch("hassette.core.service_watcher_escalation.restart", new_callable=AsyncMock) as mock_restart:
             await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
