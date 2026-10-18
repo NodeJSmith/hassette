@@ -12,7 +12,7 @@ Your area is scheduling. Inventory: every public method on `Scheduler` (src/hass
 
 ## api
 
-Your area is the Home Assistant API surface. Inventory: every public method on `Api` (src/hassette/api/api.py) including the helper CRUD families and counter shortcuts; `ApiSyncFacade`; entity models in src/hassette/models/entities/ that `get_entity` accepts; `ServiceResponse`; the exceptions Api methods raise that callers would catch.
+Your area is the Home Assistant API surface. Inventory: every public method on `Api` (src/hassette/api/api.py, plus its mixins in src/hassette/api/service_calls.py and src/hassette/api/entity_data.py) including the helper CRUD families and counter shortcuts; `ApiSyncFacade`; entity models in src/hassette/models/entities/ that `get_entity` accepts; `ServiceResponse`; the exceptions Api methods raise that callers would catch.
 
 ## states
 

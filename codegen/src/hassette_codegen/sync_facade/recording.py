@@ -2,6 +2,7 @@
 
 import ast
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from hassette_codegen.sync_facade.ast_utils import (
@@ -9,6 +10,7 @@ from hassette_codegen.sync_facade.ast_utils import (
     is_wrappable,
     safe_parse,
 )
+from hassette_codegen.sync_facade.generic import api_sources
 from hassette_codegen.sync_facade.recording_imports import (
     _collect_referenced_symbols,
     build_precise_import_block,
@@ -243,14 +245,17 @@ def _calls_self_attr(func: ast.AsyncFunctionDef | ast.FunctionDef, names: "set[s
 
 
 def _generate_recording_facade_methods(
-    source_path: Path,
-    source_class_name: str,
+    sources: Sequence[tuple[Path, str]],
     recording_module: ast.Module,
     recording_class_name: str,
     recording_source_label: str,
     extra_async_method_names: "set[str] | frozenset[str]" = _NO_EXTRA_ASYNC_METHOD_NAMES,
 ) -> tuple[str, set[str], set[str], set[str], set[str]]:
     """Generate the body-copied/stubbed methods for one (source, recording) class pair.
+
+    ``sources`` lists the ``(path, class_name)`` pairs whose class bodies make up the source
+    class, in MRO order — several for ``Api`` (which inherits methods from mixin modules), one
+    for ``HelperClient``. Their bodies are concatenated in the order given.
 
     Called twice by ``generate_sync_recording`` — once for the (Api, RecordingApi) pair and
     once for the (HelperClient, RecordingHelperClient) pair — to produce the methods for both
@@ -266,16 +271,16 @@ def _generate_recording_facade_methods(
         Tuple of (methods_source, body_symbols, runtime_annotation_symbols, string_ref_symbols, recorded_api_methods).
 
     """
-    source = source_path.read_text(encoding="utf8")
-    module = safe_parse(source, str(source_path))
-    source_class = _find_class(module, source_class_name, str(source_path))
+    source_class_name = sources[0][1]
+    source_body: list[ast.stmt] = []
+    for source_path, class_name in sources:
+        module = safe_parse(source_path.read_text(encoding="utf8"), str(source_path))
+        source_body.extend(_find_class(module, class_name, str(source_path)).body)
 
     # Collect all public async-or-Coroutine methods on the source class (ordered, no
     # overloads, no lifecycle). Includes plain ``def -> Coroutine[...]`` methods introduced
     # by design/071 de-asyncing.
-    source_methods: list[ast.AsyncFunctionDef | ast.FunctionDef] = [
-        node for node in source_class.body if is_wrappable(node)
-    ]
+    source_methods: list[ast.AsyncFunctionDef | ast.FunctionDef] = [node for node in source_body if is_wrappable(node)]
 
     recording_class = _find_class(recording_module, recording_class_name, recording_source_label)
 
@@ -425,14 +430,15 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     ``ApiSyncFacade.helpers`` wraps ``HelperClientSyncFacade`` in the async-side facade.
 
     Args:
-        api_path: Path to src/hassette/api/api.py (source of truth for the Api method list).
+        api_path: Path to src/hassette/api/api.py. Together with its sibling mixin modules
+            (see ``api_sources``) it is the source of truth for the Api method list.
         recording_api_path: Path to src/hassette/testing/recording_api.py.
 
     Returns:
         Complete Python source string for the generated sync_facade.py.
 
     """
-    api_source = api_path.read_text(encoding="utf8")
+    api_module_sources = [path.read_text(encoding="utf8") for path, _ in api_sources(api_path)]
     recording_source = recording_api_path.read_text(encoding="utf8")
     recording_module = safe_parse(recording_source, str(recording_api_path))
 
@@ -445,12 +451,13 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     recording_api_async_names = _async_method_names_of(recording_module, "RecordingApi", str(recording_api_path))
 
     api_methods_str, api_body_syms, api_runtime_syms, api_string_syms, recorded_api_methods = (
-        _generate_recording_facade_methods(api_path, "Api", recording_module, "RecordingApi", str(recording_api_path))
+        _generate_recording_facade_methods(
+            api_sources(api_path), recording_module, "RecordingApi", str(recording_api_path)
+        )
     )
     helpers_methods_str, helpers_body_syms, helpers_runtime_syms, helpers_string_syms, helpers_recorded = (
         _generate_recording_facade_methods(
-            helpers_path,
-            "HelperClient",
+            [(helpers_path, "HelperClient")],
             recording_module,
             "RecordingHelperClient",
             str(recording_api_path),
@@ -479,12 +486,12 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
         string_ref_symbols,
         symbol_maps=[
             _HELPERS_EXTRA_SYMBOL_MAP,
-            collect_module_level_import_map(api_source),
+            *(collect_module_level_import_map(src) for src in api_module_sources),
             collect_module_level_import_map(helpers_source),
             collect_module_level_import_map(recording_source),
         ],
         tc_maps=[
-            collect_type_checking_import_map(api_source),
+            *(collect_type_checking_import_map(src) for src in api_module_sources),
             collect_type_checking_import_map(helpers_source),
             collect_type_checking_import_map(recording_source),
         ],

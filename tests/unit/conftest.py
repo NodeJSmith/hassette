@@ -41,6 +41,7 @@ from hassette.logging_ import (
 from hassette.models.entities.base import BaseEntity
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
+from hassette.resources.base import Resource
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.testing.config import TEST_TOKEN
 from tests.support.factories import RecordingLogCaptureHandler, make_mock_parent
@@ -195,10 +196,26 @@ def entity_session(entity_and_token: "tuple[EntityT, Token[Hassette]]") -> Itera
         context.HASSETTE_INSTANCE.reset(token)
 
 
-def public_async_methods(cls: type) -> set[str]:
-    """Return public async/Coroutine-returning method names defined directly on cls (not inherited).
+def own_members(cls: type) -> dict[str, object]:
+    """Return the members cls defines itself or picks up from its mixins, excluding the Resource base.
 
-    Uses ``vars(cls)`` (not ``inspect.getmembers``) so that ``Resource`` lifecycle methods
+    Merges ``vars()`` across ``cls.__mro__``, skipping ``object`` and every class in
+    ``Resource.__mro__``, so mixin methods (``Api``'s ``ApiServiceCallsMixin`` and
+    ``ApiEntityDataMixin``) count as the class's own while ``Resource`` lifecycle hooks do not.
+    Subclass definitions take precedence over mixin ones, matching attribute lookup.
+    """
+    excluded = {object, *Resource.__mro__}
+    members: dict[str, object] = {}
+    for klass in reversed(cls.__mro__):
+        if klass not in excluded:
+            members.update(vars(klass))
+    return members
+
+
+def public_async_methods(cls: type) -> set[str]:
+    """Return public async/Coroutine-returning method names cls defines itself or via its mixins.
+
+    Uses ``own_members(cls)`` (not ``inspect.getmembers``) so that ``Resource`` lifecycle methods
     inherited by both ``Api`` and ``RecordingApi`` do NOT appear in the comparison.
 
     Uses OR semantics: matches both classic ``async def`` methods and plain ``def`` methods
@@ -229,7 +246,9 @@ def public_async_methods(cls: type) -> set[str]:
                 return False
         return getattr(ret, "__origin__", None) is collections.abc.Coroutine
 
-    return {name for name, member in vars(cls).items() if not name.startswith("_") and _is_async_or_coroutine(member)}
+    return {
+        name for name, member in own_members(cls).items() if not name.startswith("_") and _is_async_or_coroutine(member)
+    }
 
 
 @dataclass

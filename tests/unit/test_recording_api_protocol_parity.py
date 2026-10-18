@@ -6,7 +6,7 @@ assertion in ``recording_api.py`` is explicitly documented as a Pyright no-op â€
 it provides structural type-checking but does not enforce that ``ApiProtocol``
 is complete.
 
-Uses the same ``vars(cls) + inspect.iscoroutinefunction`` pattern as
+Uses the same ``public_async_methods`` helper (``tests/unit/conftest.py``) as
 ``test_recording_api_write_parity.py``. Does NOT use
 ``ApiProtocol.__annotations__`` because Protocol method declarations
 (``async def foo(self) -> None: ...``) do NOT populate ``__annotations__`` â€”
