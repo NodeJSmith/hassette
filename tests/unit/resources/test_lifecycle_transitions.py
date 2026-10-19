@@ -9,7 +9,6 @@ Verifies:
 - STOPPING→CRASHED is accepted (serve() raising after the shutdown window opened)
 - EXHAUSTED states transition table is correct
 - Terminal EXHAUSTED_DEAD rejects further transitions in strict mode
-- hasattr guard: no hassette attribute → no error (construction-time guard)
 - handle_running() idempotency is preserved (already RUNNING → early return, no setter)
 - handle_failed() idempotency (already FAILED → early return)
 - handle_starting() idempotency (already STARTING → early return)
@@ -41,7 +40,6 @@ from hassette.resources.lifecycle import (
     handle_starting,
     start,
 )
-from hassette.resources.mixins import LifecycleMixin
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 from tests.unit.resources.lifecycle.conftest import make_running_simple_service
@@ -182,20 +180,6 @@ async def test_terminal_state_rejects_transitions():
     assert err.to_status == ResourceStatus.STARTING
 
 
-async def test_hasattr_guard_no_hassette():
-    """Setting status on an object without 'hassette' attribute should not raise (construction-time guard)."""
-    # Create a LifecycleMixin directly — it does not call Resource.__init__,
-    # so self.hassette will not be set.
-    mixin = LifecycleMixin.__new__(LifecycleMixin)
-    mixin._status = ResourceStatus.NOT_STARTED
-    mixin._previous_status = ResourceStatus.NOT_STARTED
-
-    # Should not raise even though there's no hassette attribute
-    assert not hasattr(mixin, "hassette")
-    mixin.status = ResourceStatus.STARTING
-    assert mixin.status == ResourceStatus.STARTING
-
-
 async def test_same_state_no_transition():
     """handle_running() when already RUNNING returns early — idempotency preserved, previous_status unchanged."""
     resource = make_strict_running_resource()
@@ -205,17 +189,6 @@ async def test_same_state_no_transition():
 
     assert resource.status == ResourceStatus.RUNNING
     assert resource._previous_status == ResourceStatus.STARTING
-
-
-async def test_hasattr_guard_invalid_transition_no_hassette():
-    """Invalid transition on an object without hassette attribute should not raise AttributeError."""
-    mixin = LifecycleMixin.__new__(LifecycleMixin)
-    mixin._status = ResourceStatus.NOT_STARTED
-    mixin._previous_status = ResourceStatus.NOT_STARTED
-
-    assert not hasattr(mixin, "hassette")
-    mixin.status = ResourceStatus.RUNNING
-    assert mixin.status == ResourceStatus.RUNNING
 
 
 async def test_is_true_identity_check_mock_safe():

@@ -275,26 +275,24 @@ class LifecycleMixin(_LifecycleHostP):
         if old == value:
             return
 
-        # Guard: skip validation when the object is not fully constructed (hassette not yet set).
-        if hasattr(self, "hassette"):
-            allowed = VALID_TRANSITIONS.get(old, frozenset())
-            if value not in allowed:
-                if getattr(self.hassette.config, "strict_lifecycle", False) is True:
-                    raise InvalidLifecycleTransitionError(
-                        from_status=old,
-                        to_status=value,
-                        resource_name=getattr(self, "unique_name", repr(self)),
-                    )
-                frame_summary = "".join(traceback.format_stack(limit=3)[:-1]).strip()
-                LOGGER.warning(
-                    "Invalid lifecycle transition for '%s': %r → %r\n%s",
-                    getattr(self, "unique_name", repr(self)),
-                    old,
-                    value,
-                    frame_summary,
+        allowed = VALID_TRANSITIONS.get(old, frozenset())
+        if value not in allowed:
+            if getattr(self.hassette.config, "strict_lifecycle", False) is True:
+                raise InvalidLifecycleTransitionError(
+                    from_status=old,
+                    to_status=value,
+                    resource_name=self.unique_name,
                 )
+            frame_summary = "".join(traceback.format_stack(limit=3)[:-1]).strip()
+            LOGGER.warning(
+                "Invalid lifecycle transition for '%s': %r → %r\n%s",
+                self.unique_name,
+                old,
+                value,
+                frame_summary,
+            )
 
-        LOGGER.debug("%s: %s → %s", getattr(self, "unique_name", repr(self)), old, value)
+        LOGGER.debug("%s: %s → %s", self.unique_name, old, value)
 
         self._previous_status = old
         self._status = value
