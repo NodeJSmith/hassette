@@ -131,16 +131,6 @@ def app_is_stopped(api: httpx.AsyncClient, app_key: str):
     return check
 
 
-@pytest.mark.xfail(
-    raises=AssertionError,
-    strict=True,
-    reason=(
-        "Deliberate break (#2524): the pinned hass-hassette release's hassette-client requires "
-        "ServiceInfo.role, which /api/health no longer sends, so its config flow fails with cannot_connect. "
-        "Remove this marker when HASS_HASSETTE_VERSION moves to a release built on a client without role; "
-        "strict=True fails the run as XPASS once it does."
-    ),
-)
 async def test_integration_controls_hassette_apps(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """Each app becomes a device with its entities, and turning its switch off stops it in hassette."""
     # HA reaches hassette from its container through the docker bridge, so the web API binds every
