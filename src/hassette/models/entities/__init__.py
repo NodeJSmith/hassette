@@ -1,4 +1,5 @@
 from .alarm_control_panel import AlarmControlPanelEntity, AlarmControlPanelEntitySyncFacade
+from .alert import AlertEntity, AlertEntitySyncFacade
 from .automation import AutomationEntity, AutomationEntitySyncFacade
 from .base import BaseEntity, BaseEntitySyncFacade, EntityT
 from .button import ButtonEntity, ButtonEntitySyncFacade
@@ -32,6 +33,8 @@ from .weather import WeatherEntity, WeatherEntitySyncFacade, WeatherType
 __all__ = [
     "AlarmControlPanelEntity",
     "AlarmControlPanelEntitySyncFacade",
+    "AlertEntity",
+    "AlertEntitySyncFacade",
     "AutomationEntity",
     "AutomationEntitySyncFacade",
     "BaseEntity",

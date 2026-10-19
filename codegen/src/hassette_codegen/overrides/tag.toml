@@ -1,0 +1,10 @@
+discovery = "manual"
+state_base_class = "DateTimeBaseState"
+
+[[properties]]
+name = "tag_id"
+type = "str | None"
+
+[[properties]]
+name = "last_scanned_by_device_id"
+type = "str | None"

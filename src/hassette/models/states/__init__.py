@@ -7,6 +7,7 @@ from .alarm_control_panel import (
     AlarmControlPanelStateValue,
     CodeFormat,
 )
+from .alert import AlertAttributes, AlertState
 from .assist_satellite import AssistSatelliteState
 from .automation import AutomationAttributes, AutomationState
 from .base import (
@@ -75,6 +76,7 @@ from .humidifier import (
 )
 from .image import ImageAttributes, ImageEntityStateAttribute, ImageState
 from .image_processing import ImageProcessingAttributes, ImageProcessingState
+from .infrared import InfraredAttributes, InfraredState
 from .input import (
     InputAttributesBase,
     InputBooleanState,
@@ -113,6 +115,7 @@ from .media_player import (
 )
 from .number import NumberAttributes, NumberDeviceClass, NumberEntityCapabilityAttribute, NumberMode, NumberState
 from .person import PersonAttributes, PersonState
+from .radio_frequency import RadioFrequencyAttributes, RadioFrequencyState
 from .remote import RemoteAttributes, RemoteEntityFeature, RemoteEntityStateAttribute, RemoteState
 from .scene import SceneState
 from .script import ScriptAttributes, ScriptState
@@ -130,6 +133,7 @@ from .simple import AiTaskState, ConversationState, NotifyState, SttState, TtsSt
 from .siren import SirenAttributes, SirenEntityCapabilityAttribute, SirenEntityFeature, SirenState
 from .sun import SunAttributes, SunState
 from .switch import SwitchAttributes, SwitchDeviceClass, SwitchState
+from .tag import TagAttributes, TagState
 from .text import TextAttributes, TextEntityCapabilityAttribute, TextMode, TextState
 from .time import TimeAttributes, TimeState
 from .timer import TimerAttributes, TimerState
@@ -144,6 +148,7 @@ from .vacuum import (
     VacuumState,
 )
 from .valve import ValveAttributes, ValveState
+from .wake_word import WakeWordAttributes, WakeWordState
 from .water_heater import (
     WaterHeaterAttributes,
     WaterHeaterEntityCapabilityAttribute,
@@ -163,6 +168,8 @@ __all__ = [
     "AlarmControlPanelEntityStateAttribute",
     "AlarmControlPanelState",
     "AlarmControlPanelStateValue",
+    "AlertAttributes",
+    "AlertState",
     "AssistSatelliteState",
     "AttributesBase",
     "AutomationAttributes",
@@ -238,6 +245,8 @@ __all__ = [
     "ImageProcessingAttributes",
     "ImageProcessingState",
     "ImageState",
+    "InfraredAttributes",
+    "InfraredState",
     "InputAttributesBase",
     "InputBooleanState",
     "InputButtonState",
@@ -283,6 +292,8 @@ __all__ = [
     "NumericSensorState",
     "PersonAttributes",
     "PersonState",
+    "RadioFrequencyAttributes",
+    "RadioFrequencyState",
     "RemoteAttributes",
     "RemoteEntityFeature",
     "RemoteEntityStateAttribute",
@@ -314,6 +325,8 @@ __all__ = [
     "SwitchAttributes",
     "SwitchDeviceClass",
     "SwitchState",
+    "TagAttributes",
+    "TagState",
     "TextAttributes",
     "TextEntityCapabilityAttribute",
     "TextMode",
@@ -343,6 +356,8 @@ __all__ = [
     "VacuumState",
     "ValveAttributes",
     "ValveState",
+    "WakeWordAttributes",
+    "WakeWordState",
     "WaterHeaterAttributes",
     "WaterHeaterEntityCapabilityAttribute",
     "WaterHeaterEntityFeature",
