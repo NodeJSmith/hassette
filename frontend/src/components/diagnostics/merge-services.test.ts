@@ -5,9 +5,9 @@ import { mergeServices } from "./merge-services";
 
 describe("mergeServices", () => {
   it("returns the HTTP seed when no WS updates have arrived", () => {
-    const merged = mergeServices([createServiceInfo({ name: "bus", role: "core" })], {});
+    const merged = mergeServices([createServiceInfo({ name: "bus" })], {});
     expect(merged).toEqual([
-      { resource_name: "bus", status: "running", role: "core", ready_phase: null, retry_at: null, exception: null },
+      { resource_name: "bus", status: "running", ready_phase: null, retry_at: null, exception: null },
     ]);
   });
 

@@ -24,7 +24,7 @@ from hassette.cli.commands.app import (
     cmd_app_stop,
 )
 from hassette.cli.context import CLIContext
-from hassette.cli.output import now_epoch
+from hassette.cli.formatters import now_epoch
 from hassette.const.misc import SECONDS_PER_HOUR
 from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
 from tests.support.web_response_helpers import (
@@ -72,7 +72,7 @@ class TestCmdApp:
     def test_reads_grid_over_the_last_hour(self, cli_client_factory: CLIClientFactory) -> None:
         """Bare app command reads GET /api/telemetry/app-grid with since = now - 1h on the CLI's clock."""
         client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body())])
-        with patch("hassette.cli.output.now_epoch", fixed_now):
+        with patch("hassette.cli.formatters.now_epoch", fixed_now):
             spy = runner.spy(client, cmd_app)
 
         assert spy.params_for("app-grid")["since"] == pytest.approx(NOW_EPOCH - SECONDS_PER_HOUR)

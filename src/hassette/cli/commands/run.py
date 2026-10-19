@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 from cyclopts import Parameter
 
-from hassette.cli.client import emit_usage_error
+from hassette.cli.client_errors import emit_usage_error
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.config.config import HassetteConfig
 from hassette.config.helpers import get_log_level

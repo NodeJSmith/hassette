@@ -155,7 +155,7 @@ A running handler holds its slot until it returns or reaches `event_handler_time
 
 ### File Watcher
 
-The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). `[hassette.file_watcher]` tunes it: `debounce_milliseconds` (default 3000, or 6000 in `dev_mode`) is the longest the watcher groups changes into one reload, `step_milliseconds` (default 500, or 1000 in `dev_mode`) is the quiet period after the last change before that reload fires, and `watch_files = false` disables watching entirely.
+The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). A reload re-imports only the app's own module file, so edits to modules it imports need a Hassette restart ([What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)). `[hassette.file_watcher]` tunes it: `debounce_milliseconds` (default 3000, or 6000 in `dev_mode`) is the longest the watcher groups changes into one reload, `step_milliseconds` (default 500, or 1000 in `dev_mode`) is the quiet period after the last change before that reload fires, and `watch_files = false` disables watching entirely.
 
 ### State Proxy Polling
 

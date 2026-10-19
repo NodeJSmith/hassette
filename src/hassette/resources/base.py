@@ -4,7 +4,7 @@ import uuid
 from logging import INFO, Filter, Logger, LogRecord, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
-from hassette_wire import LogLevel, ResourceRole, ResourceStatus, SourceTier
+from hassette_wire import LogLevel, ResourceStatus, SourceTier
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.lifecycle import (
@@ -35,7 +35,7 @@ from hassette.resources.teardown import (
     TeardownReport,
     merge_teardown_reports,
 )
-from hassette.types.enums import TERMINAL_STATUSES
+from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX
 
 from .mixins import LifecycleMixin
@@ -681,36 +681,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 exc_info=True,
             )
 
-    async def cleanup(self, timeout: float | None = None) -> None:
+    async def cleanup(self) -> None:
         """Cleanup resources owned by the instance.
 
-        Called during shutdown, after ``_run_task_bucket_shutdown_stage()`` has already sealed
-        and cancelled the TaskBucket's tracked work as its own first-class stage -- this method
-        no longer owns TaskBucket cancellation. Subclass overrides use this for resources they
-        own directly (caches, connections, etc.); the base implementation only cancels and
-        observes the resource's own initialization task, if one is still pending.
+        Called during shutdown, after the shutdown coordinator has already cancelled and observed
+        any active initialization task, and after ``_run_task_bucket_shutdown_stage()`` has sealed
+        and cancelled the TaskBucket's tracked work. Subclass overrides use this for resources they
+        own directly (caches, connections, etc.); the base implementation owns nothing.
         """
-        if timeout is None:
-            timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
-
-        cancel(self)
-        if self._init_task and not self._init_task.done():
-            try:
-                await asyncio.wait_for(self._init_task, timeout=timeout)
-            except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when this task's own cancellation is detected
-                # cancel(self) above cancels _init_task -- a different task object than the one
-                # running this coroutine -- so its CancelledError propagating here is expected
-                # and safe to swallow. But an external cancellation of *this* coroutine (e.g. the
-                # enclosing asyncio.timeout(cleanup_timeout) in _run_post_hook_shutdown_stage
-                # expiring while this await is suspended) raises CancelledError at this same
-                # point and is indistinguishable by exception type alone. current_task.cancelling()
-                # disambiguates: it is only nonzero when something called .cancel() on *this*
-                # task, which happens only in the latter case. Swallowing that case would prevent
-                # the enclosing asyncio.timeout() from ever observing its own expiration, silently
-                # losing the CLEANUP_TIMED_OUT evidence it depends on to convert the cancellation
-                # into a TimeoutError.
-                current_task = asyncio.current_task()
-                if current_task is not None and current_task.cancelling():
-                    raise
-
         self.logger.debug("Cleaned up resources")

@@ -26,6 +26,9 @@ from hassette_codegen.sync_facade.generic import (
     CLASS_HEADER,
     HEADER,
     SCHEDULER_CLASS_HEADER,
+    SCHEDULER_CONVENIENCE_CLASS_HEADER,
+    SCHEDULER_CONVENIENCE_HEADER,
+    SCHEDULER_CONVENIENCE_METHODS,
     SCHEDULER_HEADER,
     gen_delegate,
     gen_wrapper,
@@ -33,6 +36,7 @@ from hassette_codegen.sync_facade.generic import (
     generate_sync_bus,
     generate_sync_bus_events,
     generate_sync_scheduler,
+    generate_sync_scheduler_convenience,
 )
 from hassette_codegen.sync_facade.recording import generate_sync_recording
 from hassette_codegen.sync_facade.recording_transform import (
@@ -53,6 +57,9 @@ __all__ = [
     "INTERNAL_METHODS",
     "LIFECYCLE_METHODS",
     "SCHEDULER_CLASS_HEADER",
+    "SCHEDULER_CONVENIENCE_CLASS_HEADER",
+    "SCHEDULER_CONVENIENCE_HEADER",
+    "SCHEDULER_CONVENIENCE_METHODS",
     "SCHEDULER_HEADER",
     "STATE_CONVERSION_METHODS",
     "STUB_MSG_GENERIC",
@@ -69,6 +76,7 @@ __all__ = [
     "generate_sync_bus_events",
     "generate_sync_recording",
     "generate_sync_scheduler",
+    "generate_sync_scheduler_convenience",
     "is_not_implemented_only",
     "is_overload",
     "main",

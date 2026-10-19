@@ -25,10 +25,6 @@ export type ResourceStatus =
   | "exhausted_dead"
   | "exhausted_cooling";
 /**
- * The kind of framework component a status or service entry describes.
- */
-export type ResourceRole = "core" | "base" | "service" | "resource" | "app" | "unknown";
-/**
  * How a handler invocation or job execution ended.
  */
 export type ExecutionStatus = "success" | "error" | "cancelled" | "timed_out" | "skipped";
@@ -119,7 +115,6 @@ export interface ServiceStatusWsMessage {
  */
 export interface ServiceStatusData {
   resource_name: string;
-  role: ResourceRole;
   status: ResourceStatus;
   previous_status?: ResourceStatus | null;
   exception?: string | null;

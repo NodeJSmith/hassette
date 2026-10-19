@@ -1,9 +1,8 @@
 from enum import StrEnum, auto
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
-from hassette_wire import ResourceRole as ResourceRole  # public re-export: hassette.types.enums.ResourceRole
 
-# The contract enums (ResourceStatus, ResourceRole, AppStatus, ExecutionMode, BackpressurePolicy,
+# The contract enums (ResourceStatus, AppStatus, ExecutionMode, BackpressurePolicy,
 # ExecutionStatus) are defined in hassette_wire — one definition, no mirrors. App authors import
 # the public ones (ResourceStatus, ExecutionMode, BackpressurePolicy, ExecutionStatus) from
 # hassette. This module keeps the non-contract enums and the constants that reference the moved
@@ -23,6 +22,21 @@ ACTIVE_STATUSES: frozenset[ResourceStatus] = frozenset(
     {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, ResourceStatus.RUNNING}
 )
 """Resource is in normal lifecycle progression (not failed, stopped, or exhausted)."""
+
+
+class ResourceRole(StrEnum):
+    """The kind of framework component a resource is. Internal to the server; not part of the wire contract."""
+
+    SERVICE = "service"
+    """A long-running framework service that is supervised and restarted on failure, such as the
+    Home Assistant connection or the database."""
+
+    RESOURCE = "resource"
+    """A framework component that runs for the life of its owner but is not supervised or restarted
+    on its own."""
+
+    APP = "app"
+    """A user app instance."""
 
 
 class ForgottenAwaitBehavior(StrEnum):

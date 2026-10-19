@@ -3298,6 +3298,18 @@
             "title": "Autostart",
             "default": true
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "One-line description of what the app does, from the app's config; ``None`` when unset, and for an app\nknown only from recorded history (``in_current_config`` is ``False``)."
+          },
           "status": {
             "$ref": "#/components/schemas/AppStatus"
           },
@@ -4491,6 +4503,18 @@
             ],
             "title": "Last Error Type"
           },
+          "last_error_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Ts",
+            "description": "Unix epoch of the most recent error or timeout within the query window, or None."
+          },
           "last_error_traceback": {
             "anyOf": [
               {
@@ -4975,19 +4999,6 @@
         "title": "ReadinessResponse",
         "description": "Response model for GET /api/health/ready."
       },
-      "ResourceRole": {
-        "type": "string",
-        "enum": [
-          "core",
-          "base",
-          "service",
-          "resource",
-          "app",
-          "unknown"
-        ],
-        "title": "ResourceRole",
-        "description": "The kind of framework component a status or service entry describes."
-      },
       "ResourceStatus": {
         "type": "string",
         "enum": [
@@ -5033,10 +5044,6 @@
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
           },
-          "role": {
-            "$ref": "#/components/schemas/ResourceRole",
-            "description": "What kind of framework component the service is."
-          },
           "ready_phase": {
             "anyOf": [
               {
@@ -5065,8 +5072,7 @@
         "type": "object",
         "required": [
           "name",
-          "status",
-          "role"
+          "status"
         ],
         "title": "ServiceInfo",
         "description": "One framework service and its lifecycle status, listed in ``SystemStatusResponse.services``."

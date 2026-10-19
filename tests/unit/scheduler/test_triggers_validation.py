@@ -49,6 +49,25 @@ class TestParseHHMM:
 
 
 class TestAfterValidation:
+    @pytest.mark.parametrize("seconds", [0.01, 0.3, 0.5, 0.999])
+    def test_sub_second_delay_raises(self, seconds: float) -> None:
+        """After() rejects any total delay below 1 second: the scheduler has whole-second resolution."""
+        with pytest.raises(ValueError, match=r"at least 1 second.*whole-second resolution"):
+            After(seconds=seconds)
+
+    def test_sub_second_timedelta_raises(self) -> None:
+        """The sub-second check applies to timedelta= input too."""
+        with pytest.raises(ValueError, match="at least 1 second"):
+            After(timedelta=TimeDelta(milliseconds=500))
+
+    def test_one_second_delay_accepted(self) -> None:
+        """A delay of exactly 1 second is the smallest accepted value."""
+        assert After(seconds=1).trigger_id() == "after:1"
+
+    def test_fractional_minutes_totalling_whole_seconds_accepted(self) -> None:
+        """The minimum applies to the total delay, so After(minutes=0.5) (30 s) is legal."""
+        assert After(minutes=0.5).trigger_id() == "after:30"
+
     def test_zero_delay_raises(self) -> None:
         """After() with a zero-second total delay raises ValueError."""
         with pytest.raises(ValueError, match="delay must be positive"):
@@ -144,10 +163,20 @@ class TestEveryValidation:
         with pytest.raises(ValueError, match="interval must be positive"):
             Every(seconds=-30)
 
+    @pytest.mark.parametrize("seconds", [0.01, 0.5, 0.999])
+    def test_sub_second_interval_raises(self, seconds: float) -> None:
+        """Every() rejects a sub-second interval with the same message as After()."""
+        with pytest.raises(ValueError, match=r"at least 1 second.*whole-second resolution"):
+            Every(seconds=seconds)
+
+    def test_one_second_interval_accepted(self) -> None:
+        """An interval of exactly 1 second is the smallest accepted value."""
+        assert Every(seconds=1).interval_seconds == 1
+
     def test_fractional_interval_raises(self) -> None:
-        """Every() with a sub-second (non-whole-second) interval raises ValueError."""
+        """Every() with a non-whole-second interval above 1 second raises ValueError."""
         with pytest.raises(ValueError, match="whole number of seconds"):
-            Every(seconds=0.5)
+            Every(seconds=1.5)
 
     def test_interval_seconds_property(self) -> None:
         """interval_seconds reflects the combined seconds/minutes/hours interval."""

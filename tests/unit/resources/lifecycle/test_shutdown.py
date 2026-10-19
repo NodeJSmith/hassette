@@ -649,9 +649,9 @@ async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pendi
     cleanup_saw_sealed = []
     original_cleanup = resource.cleanup
 
-    async def _spying_cleanup(timeout: float | None = None) -> None:
+    async def _spying_cleanup() -> None:
         cleanup_saw_sealed.append(resource.task_bucket.is_sealed)
-        await original_cleanup(timeout)
+        await original_cleanup()
 
     resource.cleanup = _spying_cleanup  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -677,7 +677,7 @@ class SlowCleanupParent(SimpleParent):
     deadline before completing on its own (not by hitting any timeout).
     """
 
-    async def cleanup(self, timeout: float | None = None) -> None:
+    async def cleanup(self) -> None:
         await asyncio.sleep(0.6)
 
 

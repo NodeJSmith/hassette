@@ -21,10 +21,11 @@ import asyncio
 import threading
 from concurrent.futures import Future as CfFuture
 from concurrent.futures import TimeoutError as CfTimeout
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
+from hassette.core.sync_executor import SyncExecutor
 from hassette.task_bucket import TaskBucket
 from tests.support.helpers import async_noop
 from tests.support.mock_hassette import make_mock_hassette
@@ -39,7 +40,7 @@ def hassette_mock():
 @pytest.fixture
 def bucket(hassette_mock) -> TaskBucket:
     """Fresh TaskBucket with no tasks tracked."""
-    return TaskBucket(hassette_mock)
+    return TaskBucket(hassette_mock, sync_executor=Mock(spec=SyncExecutor))
 
 
 async def test_pending_tasks_returns_empty_for_fresh_bucket(bucket: TaskBucket) -> None:
@@ -177,7 +178,7 @@ class TestCrossThreadSpawnTimeout:
         """spawn() wraps CfTimeoutError into a descriptive RuntimeError."""
         mock_h = make_mock_hassette()
         mock_h.loop_thread_id = -1  # force cross-thread path
-        bucket = TaskBucket(mock_h)
+        bucket = TaskBucket(mock_h, sync_executor=Mock(spec=SyncExecutor))
 
         error: Exception | None = None
 
@@ -203,7 +204,7 @@ class TestMaxTasks:
     """``max_tasks`` bounds concurrently running spawned work; the default stays unbounded."""
 
     async def test_default_is_unbounded(self, hassette_mock) -> None:
-        bucket = TaskBucket(hassette_mock)
+        bucket = TaskBucket(hassette_mock, sync_executor=Mock(spec=SyncExecutor))
         gate = asyncio.Event()
         running = 0
 
@@ -220,7 +221,7 @@ class TestMaxTasks:
         await asyncio.gather(*tasks)
 
     async def test_bounded_limits_concurrently_running_work(self, hassette_mock) -> None:
-        bucket = TaskBucket(hassette_mock, max_tasks=2)
+        bucket = TaskBucket(hassette_mock, sync_executor=Mock(spec=SyncExecutor), max_tasks=2)
         gate = asyncio.Event()
         running = 0
 
@@ -241,7 +242,7 @@ class TestMaxTasks:
         assert running == 5
 
     async def test_slot_released_when_task_completes(self, hassette_mock) -> None:
-        bucket = TaskBucket(hassette_mock, max_tasks=1)
+        bucket = TaskBucket(hassette_mock, sync_executor=Mock(spec=SyncExecutor), max_tasks=1)
         first_gate = asyncio.Event()
         second_started = asyncio.Event()
 
@@ -262,7 +263,7 @@ class TestMaxTasks:
         assert second_started.is_set()
 
     async def test_slot_released_when_task_fails(self, hassette_mock) -> None:
-        bucket = TaskBucket(hassette_mock, max_tasks=1)
+        bucket = TaskBucket(hassette_mock, sync_executor=Mock(spec=SyncExecutor), max_tasks=1)
 
         async def boom() -> None:
             raise ValueError("boom")
@@ -277,7 +278,7 @@ class TestMaxTasks:
             await t1
 
     async def test_cancelling_a_waiting_task_closes_its_coroutine(self, hassette_mock) -> None:
-        bucket = TaskBucket(hassette_mock, max_tasks=1)
+        bucket = TaskBucket(hassette_mock, sync_executor=Mock(spec=SyncExecutor), max_tasks=1)
         gate = asyncio.Event()
         started = False
 
@@ -309,4 +310,4 @@ class TestMaxTasks:
     @pytest.mark.parametrize("bad", [0, -1, 1.5, True])
     def test_rejects_invalid_max_tasks(self, hassette_mock, bad: object) -> None:
         with pytest.raises(ValueError, match="max_tasks"):
-            TaskBucket(hassette_mock, max_tasks=bad)  # pyright: ignore[reportArgumentType]
+            TaskBucket(hassette_mock, sync_executor=Mock(spec=SyncExecutor), max_tasks=bad)  # pyright: ignore[reportArgumentType]

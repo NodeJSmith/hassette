@@ -1081,6 +1081,12 @@ export interface components {
              * @default true
              */
             autostart: boolean;
+            /**
+             * Description
+             * @description One-line description of what the app does, from the app's config; ``None`` when unset, and for an app
+             *     known only from recorded history (``in_current_config`` is ``False``).
+             */
+            description?: string | null;
             status: components["schemas"]["AppStatus"];
             /** Block Reason */
             block_reason?: string | null;
@@ -1715,6 +1721,11 @@ export interface components {
             last_error_message?: string | null;
             /** Last Error Type */
             last_error_type?: string | null;
+            /**
+             * Last Error Ts
+             * @description Unix epoch of the most recent error or timeout within the query window, or None.
+             */
+            last_error_ts?: number | null;
             /** Last Error Traceback */
             last_error_traceback?: string | null;
             /**
@@ -1939,12 +1950,6 @@ export interface components {
             ready: boolean;
         };
         /**
-         * ResourceRole
-         * @description The kind of framework component a status or service entry describes.
-         * @enum {string}
-         */
-        ResourceRole: "core" | "base" | "service" | "resource" | "app" | "unknown";
-        /**
          * ResourceStatus
          * @description Enumeration for resource status.
          * @enum {string}
@@ -1972,8 +1977,6 @@ export interface components {
             /** Name */
             name: string;
             status: components["schemas"]["ResourceStatus"];
-            /** @description What kind of framework component the service is. */
-            role: components["schemas"]["ResourceRole"];
             /**
              * Ready Phase
              * @description Human-readable description of the current readiness phase, or None if not available.

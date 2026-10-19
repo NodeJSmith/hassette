@@ -63,6 +63,7 @@ def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
         app_key=manifest.app_key,
         class_name=manifest.class_name,
         display_name=manifest.display_name,
+        description=manifest.description,
         filename=manifest.filename,
         enabled=manifest.enabled,
         auto_loaded=manifest.auto_loaded,

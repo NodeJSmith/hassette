@@ -12,6 +12,7 @@ from io import StringIO
 from unittest.mock import MagicMock
 
 import pytest
+import structlog
 
 import hassette.logging_ as logging_module
 from hassette.logging_ import enable_basic_logging
@@ -107,15 +108,13 @@ class TestEnableBasicLoggingAutoFormat:
     def test_auto_uses_console_renderer_when_tty(self) -> None:
         stream = MagicMock(spec=StringIO)
         stream.isatty = MagicMock(return_value=True)
-        stream.write = MagicMock()
-        stream.flush = MagicMock()
-        # Should not raise; just verify it calls isatty
         enable_basic_logging("INFO", log_format="auto", stream=stream)
-        stream.isatty.assert_called()
+        assert isinstance(_installed_renderer(), structlog.dev.ConsoleRenderer)
 
     def test_auto_uses_json_renderer_when_not_tty(self) -> None:
         stream = StringIO()
         enable_basic_logging("INFO", log_format="auto", stream=stream)
+        assert isinstance(_installed_renderer(), structlog.processors.JSONRenderer)
         logger = logging.getLogger("hassette.test_auto_notty")
         logger.info("auto json")
         assert last_json_record(stream)["event"] == "auto json"
@@ -127,22 +126,22 @@ class TestNoisyLibrarySuppression:
     def test_requests_logger_at_warning(self) -> None:
         stream = StringIO()
         enable_basic_logging("INFO", log_format="console", stream=stream)
-        assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("requests").level == logging.WARNING
 
     def test_urllib3_logger_at_warning(self) -> None:
         stream = StringIO()
         enable_basic_logging("INFO", log_format="console", stream=stream)
-        assert logging.getLogger("urllib3").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("urllib3").level == logging.WARNING
 
     def test_aiohttp_access_logger_at_warning(self) -> None:
         stream = StringIO()
         enable_basic_logging("INFO", log_format="console", stream=stream)
-        assert logging.getLogger("aiohttp.access").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("aiohttp.access").level == logging.WARNING
 
     def test_httpx_logger_at_warning(self) -> None:
         stream = StringIO()
         enable_basic_logging("INFO", log_format="console", stream=stream)
-        assert logging.getLogger("httpx2").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("httpx2").level == logging.WARNING
 
 
 class TestCapturedWarningsRoutedToPipeline:
@@ -242,10 +241,10 @@ class TestEnableBasicLogging:
         """enable_basic_logging() suppresses noisy library loggers."""
         stream = StringIO()
         enable_basic_logging("INFO", log_format="console", stream=stream)
-        assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
-        assert logging.getLogger("urllib3").getEffectiveLevel() == logging.WARNING
-        assert logging.getLogger("aiohttp.access").getEffectiveLevel() == logging.WARNING
-        assert logging.getLogger("httpx2").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("requests").level == logging.WARNING
+        assert logging.getLogger("urllib3").level == logging.WARNING
+        assert logging.getLogger("aiohttp.access").level == logging.WARNING
+        assert logging.getLogger("httpx2").level == logging.WARNING
 
     def test_json_format_selected(self) -> None:
         """enable_basic_logging() supports log_format='json'."""
@@ -327,7 +326,7 @@ class TestExtraLoggers:
         """A noisy-suppressed name not opted into extra_loggers keeps its WARNING default."""
         stream = StringIO()
         enable_basic_logging("DEBUG", log_format="console", stream=stream)
-        assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("requests").level == logging.WARNING
 
     def test_adopting_a_disabled_logger_re_enables_it(self) -> None:
         """A logger previously disabled (e.g. by logging.config.dictConfig()'s default
@@ -459,3 +458,13 @@ class TestNoModuleGlobals:
     def test_no_queue_listener_global(self) -> None:
         """_queue_listener module global is removed."""
         assert not hasattr(logging_module, "_queue_listener")
+
+
+def _installed_renderer() -> object:
+    """Return the final processor of the formatter on the stream handler enable_basic_logging installed."""
+    handlers = logging.getLogger(logging_module.HASSETTE_LOGGER_NAME).handlers
+    stream_handlers = [h for h in handlers if isinstance(h, logging.StreamHandler)]
+    assert len(stream_handlers) == 1, f"expected one stream handler on the hassette logger, got {handlers}"
+    formatter = stream_handlers[0].formatter
+    assert isinstance(formatter, structlog.stdlib.ProcessorFormatter)
+    return formatter.processors[-1]

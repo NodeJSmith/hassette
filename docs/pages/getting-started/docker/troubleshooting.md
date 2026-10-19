@@ -123,6 +123,8 @@ docker compose restart hassette
 
 To apply edits without restarting, set `allow_reload_in_prod = true` under `[hassette]` in your `hassette.toml` (in your `config/` directory). File watching itself is already on by default.
 
+Automatic reloads re-import only the app's own file. An edit to a sibling module or shared helper still needs `docker compose restart hassette`. See [What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports).
+
 ## Dashboard or API Returns 401 After Upgrading
 
 **Symptom:** After upgrading to a newer Hassette version, the web UI shows a login screen — or a script that used to work now gets HTTP 401 — where no credential was needed before.

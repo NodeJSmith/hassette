@@ -133,7 +133,7 @@ jobs:
               # of the `file-sizes` and `duplicate-code` jobs below, which gate against the PR's
               # exact base/head SHAs (and this job has no Java for PMD). Skip ids match prek.toml.
               run: |
-                  uv tool install ruff==0.17.0
+                  uv tool install ruff==0.17.1
                   prek run --no-group frontend --all-files --stage pre-push \
                       --skip gitleaks-tree --skip check-file-size-regressions --skip check-duplicate-code
 

@@ -45,31 +45,23 @@ class TaskBucket(Resource):
 
     _tasks: "set[asyncio.Task[Any]]"
 
-    _sync_executor: "SyncExecutor | None"
+    _sync_executor: "SyncExecutor"
 
     _exception_recorders: "list[ExceptionRecorderT]"
     """List of recorders called for each non-CancelledError task exception."""
 
-    _slots: "asyncio.Semaphore | None" = None
-    """Concurrency gate for ``spawn()``-ed work, or ``None`` when unbounded (the default).
+    _slots: "asyncio.Semaphore | None"
+    """Concurrency gate for ``spawn()``-ed work, or ``None`` when unbounded (the default)."""
 
-    Class-level default for the same ``TaskBucket.__new__`` reason as ``_sealed``.
-    """
-
-    _sealed: bool = False
-    """Whether the bucket is currently rejecting new owner work.
-
-    Class-level default so instances built via ``TaskBucket.__new__`` (test
-    infrastructure that bypasses ``__init__`` to avoid full ``Resource`` wiring)
-    still start unsealed rather than raising ``AttributeError``.
-    """
+    _sealed: bool
+    """Whether the bucket is currently rejecting new owner work."""
 
     def __init__(
         self,
         hassette: "Hassette",
         *,
         parent: "Resource | None" = None,
-        sync_executor: "SyncExecutor | None" = None,
+        sync_executor: "SyncExecutor",
         max_tasks: int | None = None,
     ) -> None:
         """Create a task bucket.
@@ -330,18 +322,7 @@ class TaskBucket(Resource):
 
         Returns:
             An :class:`asyncio.Future` that resolves to the return value of *fn*.
-
-        Raises:
-            RuntimeError: If ``SyncExecutor`` has not been wired into this
-                TaskBucket (indicates a startup ordering bug or a test that needs
-                to inject the capability).
         """
-        if self._sync_executor is None:
-            raise RuntimeError(
-                f"TaskBucket({self.unique_name}).run_in_thread called but no SyncExecutor "
-                "is wired. In production this means a startup ordering bug; in tests, pass "
-                "sync_executor= to the TaskBucket constructor."
-            )
         return self._sync_executor.submit(fn, *args, **kwargs)
 
     def post_to_loop(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:

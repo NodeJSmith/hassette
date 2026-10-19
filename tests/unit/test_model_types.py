@@ -22,7 +22,6 @@ from hassette_wire import (
     LastErrorResult,
     ListenerSummary,
     LogEntry,
-    ResourceRole,
     ResourceStatus,
     ServiceInfo,
     SystemStatusResponse,
@@ -290,10 +289,10 @@ class TestResourceStatus:
 
     def test_rejects_value_not_in_resource_status_on_service_info(self) -> None:
         with pytest.raises(ValidationError):
-            ServiceInfo(name="bus", status="active", role=ResourceRole.SERVICE)
+            ServiceInfo(name="bus", status="active")
 
     def test_accepts_running_on_service_info(self) -> None:
-        obj = ServiceInfo(name="bus", status=ResourceStatus.RUNNING, role=ResourceRole.SERVICE)
+        obj = ServiceInfo(name="bus", status=ResourceStatus.RUNNING)
         assert obj.status == ResourceStatus.RUNNING
 
     def test_accepts_transient_states(self) -> None:

@@ -16,8 +16,8 @@ import aiohttp
 from pydantic import BaseModel
 from whenever import Date, PlainDateTime, ZonedDateTime
 
-from hassette.api.api import normalize_notifier
 from hassette.api.helpers import HelperDomain
+from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.base import BaseEntity

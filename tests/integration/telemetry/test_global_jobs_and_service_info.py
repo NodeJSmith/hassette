@@ -4,7 +4,7 @@ Covers:
 - get_job_summary() returns jobs from multiple apps when app_key is None
 - GET /api/scheduler/jobs enriches with live heap data when available
 - GET /api/scheduler/jobs returns DB-only data on scheduler failure (degraded)
-- ServiceInfo includes role, ready_phase, retry_at when available
+- ServiceInfo includes ready_phase, retry_at when available
 """
 
 import time
@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from hassette_wire import (
     JobSummary,
-    ResourceRole,
     ResourceStatus,
     ScheduleStatus,
     ScheduleStatusReason,
@@ -387,27 +386,25 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
 
 
 class TestServiceInfoExtension:
-    def test_service_info_has_role_ready_phase_retry_at(self) -> None:
-        """ServiceInfo has role, ready_phase, retry_at fields."""
+    def test_service_info_has_ready_phase_retry_at(self) -> None:
+        """ServiceInfo has ready_phase, retry_at fields."""
         service_info = ServiceInfo(
             name="WebSocketService",
             status="running",
-            role=ResourceRole.SERVICE,
             ready_phase="connected",
             retry_at=STUB_TIMESTAMP,
         )
-        assert service_info.role is ResourceRole.SERVICE
         assert service_info.ready_phase == "connected"
         assert service_info.retry_at == STUB_TIMESTAMP
 
     def test_service_info_defaults(self) -> None:
         """ServiceInfo defaults ready_phase/retry_at to None when omitted."""
-        service_info = ServiceInfo(name="SomeService", status="running", role=ResourceRole.SERVICE)
+        service_info = ServiceInfo(name="SomeService", status="running")
         assert service_info.ready_phase is None
         assert service_info.retry_at is None
 
     def test_get_system_status_populates_service_info_fields(self) -> None:
-        """get_system_status() populates role, ready_phase, retry_at on ServiceInfo objects.
+        """get_system_status() populates ready_phase, retry_at on ServiceInfo objects.
 
         Covers both a service with a ready phase and no pending retry, and a second cooling-down
         service with a retry timestamp and no ready phase.
@@ -415,14 +412,12 @@ class TestServiceInfoExtension:
         mock_child = MagicMock()
         mock_child.class_name = "WebSocketService"
         mock_child.status = ResourceStatus.RUNNING
-        mock_child.role = ResourceRole.SERVICE
         mock_child._ready_reason = "connected to HA"
         mock_child._retry_at = None
 
         mock_cooling_child = MagicMock()
         mock_cooling_child.class_name = "DatabaseService"
         mock_cooling_child.status = ResourceStatus.EXHAUSTED_COOLING
-        mock_cooling_child.role = ResourceRole.SERVICE
         mock_cooling_child._ready_reason = None
         mock_cooling_child._retry_at = 1700001000.0
 
@@ -445,7 +440,6 @@ class TestServiceInfoExtension:
 
         assert len(result.services) == 2
         ws_svc = next(s for s in result.services if s.name == "WebSocketService")
-        assert ws_svc.role == "service"
         assert ws_svc.ready_phase == "connected to HA"
         assert ws_svc.retry_at is None
 
@@ -455,12 +449,13 @@ class TestServiceInfoExtension:
 
 
 class TestHealthEndpointServiceInfoFields:
-    async def test_health_endpoint_returns_services_with_role(self, scheduler_client, mock_hassette_scheduler) -> None:
-        """GET /api/health returns services array with role field populated."""
+    async def test_health_endpoint_returns_services_without_role(
+        self, scheduler_client, mock_hassette_scheduler
+    ) -> None:
+        """GET /api/health lists services without a role field (role is internal to the server)."""
         mock_child = MagicMock()
         mock_child.class_name = "WebSocketService"
         mock_child.status = ResourceStatus.RUNNING
-        mock_child.role = ResourceRole.SERVICE
         mock_child._ready_reason = "connected"
         mock_child._retry_at = None
 
@@ -474,6 +469,5 @@ class TestHealthEndpointServiceInfoFields:
         assert response.status_code == 200
         data = response.json()
         assert "services" in data
-        # Each service entry should have a role field
-        for service in data["services"]:
-            assert "role" in service
+        assert [service["name"] for service in data["services"]] == ["WebSocketService"]
+        assert "role" not in data["services"][0]

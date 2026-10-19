@@ -1,8 +1,9 @@
 """Tests for ServiceStatusPayload ready/ready_phase fields."""
 
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette.events.hassette import HassetteServiceEvent, ServiceStatusPayload
+from hassette.types.enums import ResourceRole
 
 
 class TestServiceStatusPayloadDefaults:

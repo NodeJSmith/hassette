@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import ResourceStatus
 
-from hassette.core.app_registry import AppRegistry
+from hassette.core.app_registry import AppRegistry, InstanceEntry
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 
 from .conftest import make_manifest_obj
@@ -52,6 +52,18 @@ class TestAppStatusSnapshot:
         assert snapshot.failed_count == 1
         assert snapshot.total_count == 3
         assert snapshot.only_apps == ("app1",)
+
+
+class TestInstanceEntry:
+    def test_is_running_false_without_app(self) -> None:
+        """A failed entry (no App object) is not running."""
+        entry = InstanceEntry(app=None, status=ResourceStatus.FAILED, error=RuntimeError("boom"))
+        assert entry.is_running is False
+
+    def test_is_running_true_with_app(self) -> None:
+        """An entry holding an App object is running."""
+        entry = InstanceEntry(app=MagicMock(), status=ResourceStatus.RUNNING)
+        assert entry.is_running is True
 
 
 class TestAppRegistry:
@@ -139,7 +151,7 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert "my_app" in snapshot.failed_apps
+        assert any(i.app_key == "my_app" and i.error is not None for i in snapshot.instances)
 
     def test_record_multiple_failures(self, registry: AppRegistry) -> None:
         """Test recording multiple failures for the same app."""
@@ -150,7 +162,7 @@ class TestAppRegistry:
         registry.record_failure("my_app", 1, error2)
 
         snapshot = registry.get_snapshot()
-        assert "my_app" in snapshot.failed_apps
+        assert any(i.app_key == "my_app" and i.error is not None for i in snapshot.instances)
         failed = [f for f in snapshot.instances if f.error is not None and f.app_key == "my_app"]
         assert len(failed) == 2
         assert {f.index for f in failed} == {0, 1}

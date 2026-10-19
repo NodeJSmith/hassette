@@ -9,13 +9,13 @@ import contextlib
 import typing
 
 import pytest
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing import wait_for
-from hassette.types.enums import Topic
+from hassette.types.enums import ResourceRole, Topic
 
 if typing.TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -25,7 +25,9 @@ if typing.TYPE_CHECKING:
 
 
 @contextlib.asynccontextmanager
-async def initialized_runtime(harness: "HassetteHarness") -> "AsyncIterator[list[dict]]":
+async def initialized_runtime(
+    harness: "HassetteHarness",
+) -> "AsyncIterator[tuple[RuntimeQueryService, list[dict]]]":
     """Run a RuntimeQueryService's real on_initialize() against a harness Bus, recording broadcasts.
 
     Lets a test exercise the bus subscriptions on_initialize() registers (topic and ``where=``
@@ -50,7 +52,7 @@ async def initialized_runtime(harness: "HassetteHarness") -> "AsyncIterator[list
     await svc.on_initialize()
     drain_task = asyncio.create_task(drain())
     try:
-        yield broadcast_calls
+        yield svc, broadcast_calls
     finally:
         # on_shutdown() closes every WS client queue with a None sentinel, which ends drain().
         await svc.on_shutdown()
@@ -81,8 +83,10 @@ class TestSubscriptionWiring:
 
         async with (
             hassette_harness(config).with_bus() as harness,
-            initialized_runtime(harness) as broadcast_calls,
+            initialized_runtime(harness) as (svc, broadcast_calls),
         ):
+            listener_names = {sub.listener.identity.name for sub in svc._subscriptions}
+            assert "hassette.rqs.on_apps_changed" in listener_names
             await harness.hassette.send_event(
                 HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
             )
@@ -122,7 +126,7 @@ class TestSubscriptionWiring:
 
         async with (
             hassette_harness(config).with_bus() as harness,
-            initialized_runtime(harness) as broadcast_calls,
+            initialized_runtime(harness) as (_svc, broadcast_calls),
         ):
             await harness.hassette.send_event(
                 HassetteServiceEvent.from_service_status(

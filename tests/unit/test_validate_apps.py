@@ -14,6 +14,7 @@ import pytest
 from hassette import context
 from hassette.config.config import HassetteConfig
 from hassette.core.app_registry import AppRegistry
+from hassette.exceptions import ConfigError
 from hassette.testing import make_test_config
 from hassette.web.mappers import app_summary_from
 from tests.support.helpers import write_app
@@ -431,6 +432,36 @@ class TestValidateApps:
 
         assert manifest.display_name == expected
         assert summary.display_name == expected
+
+    @pytest.mark.parametrize(
+        ("extra", "expected"),
+        [
+            pytest.param({"description": "  Turns on the porch light  "}, "Turns on the porch light", id="configured"),
+            pytest.param({}, None, id="unset"),
+        ],
+    )
+    def test_description_reaches_manifest_and_summary(
+        self, tmp_path: Path, app_dir: Path, extra: dict[str, str], expected: str | None
+    ) -> None:
+        """`description` in config survives cleaning onto the manifest and the API summary; unset, it is None."""
+        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", **extra}}
+        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+
+        with context.use_hassette_config(config):
+            config.set_validated_app_manifests()
+        manifest = config.apps.manifests["my_app"]
+        summary = app_summary_from(AppRegistry().build_manifest_info("my_app", manifest))
+
+        assert manifest.description == expected
+        assert summary.description == expected
+
+    def test_multiline_description_in_config_is_rejected(self, tmp_path: Path, app_dir: Path) -> None:
+        """A configured description with a line break fails validation instead of being silently dropped."""
+        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", "description": "line one\nline two"}}
+        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+
+        with context.use_hassette_config(config), pytest.raises(ConfigError, match="single line"):
+            config.set_validated_app_manifests()
 
     def test_validate_apps_warns_on_partial_cache_shared_opt_in(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture

@@ -374,7 +374,6 @@ export function createServiceInfo(overrides: Partial<ServiceInfo> = {}): Service
   return {
     name: "bus",
     status: "running",
-    role: "core",
     ready_phase: null,
     retry_at: null,
     ...overrides,
@@ -385,7 +384,6 @@ export function createServiceInfo(overrides: Partial<ServiceInfo> = {}): Service
 export function createServiceStatusEntry(overrides: Partial<ServiceStatusEntry> = {}): ServiceStatusEntry {
   return {
     resource_name: "bus",
-    role: "core",
     status: "running",
     previous_status: null,
     exception: null,

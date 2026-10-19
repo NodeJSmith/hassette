@@ -110,9 +110,9 @@ from hassette.types import ComparisonCondition, Topic
 from hassette.types.types import IfExistsPolicy, WhereClause
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_short_name
-from hassette.utils.glob_utils import is_glob
 from hassette.utils.source_capture import capture_registration_source, capture_source_location
 
+from .entity_registration import reject_glob_only_options, warn_if_unknown_entity
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
 from .sync import BusSyncFacade
@@ -713,7 +713,7 @@ class Bus(Resource):
                 hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
             )
 
-        return await self._on_internal(
+        sub = await self._on_internal(
             topic=topic,
             handler=handler,
             where=preds,
@@ -725,6 +725,10 @@ class Bus(Resource):
             registration_source=registration_source,
             **opts,
         )
+        # After registration succeeds, so a forgotten await or a rejected registration never warns.
+        if entity_id and name:
+            warn_if_unknown_entity(self.logger, self.parent, self.hassette.try_state_proxy(), entity_id, name)
+        return sub
 
     @staticmethod
     def _normalize_service_where(
@@ -815,15 +819,7 @@ class Bus(Resource):
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}")
-        if immediate and is_glob(entity_id):
-            raise ValueError(
-                f"'immediate=True' is not supported with glob patterns. "
-                f"entity_id={entity_id!r} contains glob characters."
-            )
-        if duration is not None and is_glob(entity_id):
-            raise ValueError(
-                f"'duration' is not supported with glob patterns. entity_id={entity_id!r} contains glob characters."
-            )
+        reject_glob_only_options(entity_id, immediate=immediate, duration=duration)
 
         preds, hold_preds = build_state_preds(
             entity_id, changed=changed, changed_from=changed_from, changed_to=changed_to
@@ -916,15 +912,7 @@ class Bus(Resource):
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}[{attr}]")
-        if immediate and is_glob(entity_id):
-            raise ValueError(
-                f"'immediate=True' is not supported with glob patterns. "
-                f"entity_id={entity_id!r} contains glob characters."
-            )
-        if duration is not None and is_glob(entity_id):
-            raise ValueError(
-                f"'duration' is not supported with glob patterns. entity_id={entity_id!r} contains glob characters."
-            )
+        reject_glob_only_options(entity_id, immediate=immediate, duration=duration)
 
         if not changed:
             self.logger.warning(

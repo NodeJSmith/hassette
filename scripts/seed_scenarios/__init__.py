@@ -25,6 +25,7 @@ from seed_scenarios.error import scenario_error
 from seed_scenarios.healthy import scenario_healthy
 from seed_scenarios.large_volume import scenario_large_volume
 from seed_scenarios.lifecycle import scenario_lifecycle
+from seed_scenarios.mixed_instance import scenario_mixed_instance
 
 SCENARIOS: dict[str, Callable[[SeedContext], None]] = {
     "healthy": scenario_healthy,
@@ -34,6 +35,7 @@ SCENARIOS: dict[str, Callable[[SeedContext], None]] = {
     "large-volume": scenario_large_volume,
     "lifecycle": scenario_lifecycle,
     "adversarial": scenario_adversarial,
+    "mixed-instance": scenario_mixed_instance,
 }
 
 __all__ = ["SCENARIOS", "SeedContext", "SeedIntegrityError"]

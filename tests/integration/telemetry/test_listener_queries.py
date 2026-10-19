@@ -158,6 +158,7 @@ class TestGetListenerSummary:
             row.last_error_traceback == "Traceback (most recent call last):\n  File test.py, line 42\nValueError: oops"
         )
         assert row.last_error_type == "ValueError"
+        assert row.last_error_ts == pytest.approx(base_ts + 10.0)
 
     async def test_get_listener_summary_last_error_traceback_none_when_no_errors(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -171,6 +172,7 @@ class TestGetListenerSummary:
 
         row = await only_row(query_service.get_listener_summary("test_app", 0))
         assert row.last_error_traceback is None
+        assert row.last_error_ts is None
 
     async def test_get_listener_summary_last_error_execution_id(
         self, query_service: TelemetryQueryService, db: DbFixture

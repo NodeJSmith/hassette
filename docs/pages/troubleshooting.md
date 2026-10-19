@@ -148,7 +148,7 @@ await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, na
 
 Work through this checklist in order.
 
-**1. Entity ID typo.** Hassette does not error on a non-existent entity ID. The handler simply never fires. Double-check the entity ID string. Confirm the entity exists and its exact ID in Home Assistant under **Developer Tools > States**, or check it from your app with `await self.api.entity_exists("light.kitchen")`.
+**1. Entity ID typo.** Hassette does not error on a non-existent entity ID. The handler simply never fires. When an app registers `on_state_change` or `on_attribute_change` for an ID missing from the state cache, Hassette logs a WARNING. The warning names the listener and the entity ID, and suggests the closest known ID when one exists. Glob patterns never trigger it, and neither does registration before the state cache has loaded. Double-check the entity ID string. Confirm the entity exists and its exact ID in Home Assistant under **Developer Tools > States**, or check it from your app with `await self.api.entity_exists("light.kitchen")`.
 
 **2. `changed_to` literal doesn't fit the state.** Home Assistant state values are strings. A bool or number literal is coerced before comparing, so `changed_to=True` matches `"on"`, `"true"`, `"yes"`, or `"1"`, and `changed_to=20` matches `"20.0"`. Any other string never matches it: a cover reports `"open"`, not `"on"`, so `changed_to=True` never fires there. Compare against the exact state string instead. See [Literal coercion](core-concepts/bus/predicate-reference.md#literal-coercion).
 

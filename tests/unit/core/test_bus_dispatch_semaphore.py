@@ -7,11 +7,12 @@ enforcement added in #1076 (Layer 2).
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 from hassette_wire import BackpressurePolicy, ExecutionMode
 
 from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
+from hassette.core.sync_executor import SyncExecutor
 from hassette.task_bucket import TaskBucket
 from hassette.testing import wait_for
 from tests.support.factories import make_mock_event
@@ -154,16 +155,23 @@ async def test_saturation_warning_is_rate_limited() -> None:
     """Repeated saturation logs once per window, not once per blocked dispatch."""
     svc = make_bus_service(max_concurrent_dispatches=1)
 
-    svc.warn_dispatch_saturated()
-    svc.warn_dispatch_saturated()
-    svc.warn_dispatch_saturated()
+    assert svc._last_saturation_warn_ts == 0.0
 
-    assert svc.logger.warning.call_count == 1
+    svc.warn_dispatch_saturated()
+    first_warn_ts = svc._last_saturation_warn_ts
+    assert first_warn_ts > 0.0
+
+    svc.warn_dispatch_saturated()
+    svc.warn_dispatch_saturated()
+    assert svc._last_saturation_warn_ts == first_warn_ts, (
+        "calls inside the rate-limit window must be suppressed, leaving the window timestamp untouched"
+    )
 
     # Simulate the rate-limit window elapsing (push the last-warn timestamp past the window).
-    svc._last_saturation_warn_ts -= _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS * 2
+    rewound_ts = first_warn_ts - _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS * 2
+    svc._last_saturation_warn_ts = rewound_ts
     svc.warn_dispatch_saturated()
-    assert svc.logger.warning.call_count == 2
+    assert svc._last_saturation_warn_ts > rewound_ts, "a call after the window elapses must open a new window"
 
 
 async def test_drop_newest_skips_handler_when_saturated() -> None:
@@ -319,7 +327,7 @@ async def test_queued_factory_rejected_at_drain_releases_its_dispatch_slot() -> 
 
     # A real TaskBucket, so the rejection this test hinges on is the production sealed-spawn
     # path rather than a stand-in that could drift from it.
-    handler_bucket = TaskBucket(make_mock_hassette())
+    handler_bucket = TaskBucket(make_mock_hassette(), sync_executor=Mock(spec=SyncExecutor))
 
     listener = create_listener(
         topic="test.topic",

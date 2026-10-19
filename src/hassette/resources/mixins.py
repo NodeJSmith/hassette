@@ -11,9 +11,8 @@ from hassette.resources.teardown import TeardownReport
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
-    from hassette_wire import ResourceRole
-
     from hassette.resources.shutdown_budget import ShutdownBudget
+    from hassette.types.enums import ResourceRole
 
 LOGGER = getLogger(__name__)
 
@@ -221,15 +220,6 @@ class LifecycleMixin(_LifecycleHostP):
         self._shutdown_budget = None
 
     @property
-    def initializing(self) -> bool:
-        """Read-only diagnostic: whether the resource-owned initialization task is active.
-
-        Derived from ``_init_task`` rather than a mutable flag — this no longer controls
-        lifecycle admission (see ``hassette.resources.lifecycle`` coordinator functions).
-        """
-        return self._init_task is not None and not self._init_task.done()
-
-    @property
     def shutting_down(self) -> bool:
         """Read-only diagnostic: whether the resource-owned shutdown task is active.
 
@@ -276,33 +266,27 @@ class LifecycleMixin(_LifecycleHostP):
         if old == value:
             return
 
-        # Guard: skip validation when the object is not fully constructed (hassette not yet set).
-        if hasattr(self, "hassette"):
-            allowed = VALID_TRANSITIONS.get(old, frozenset())
-            if value not in allowed:
-                if getattr(self.hassette.config, "strict_lifecycle", False) is True:
-                    raise InvalidLifecycleTransitionError(
-                        from_status=old,
-                        to_status=value,
-                        resource_name=getattr(self, "unique_name", repr(self)),
-                    )
-                frame_summary = "".join(traceback.format_stack(limit=3)[:-1]).strip()
-                LOGGER.warning(
-                    "Invalid lifecycle transition for '%s': %r → %r\n%s",
-                    getattr(self, "unique_name", repr(self)),
-                    old,
-                    value,
-                    frame_summary,
+        allowed = VALID_TRANSITIONS.get(old, frozenset())
+        if value not in allowed:
+            if getattr(self.hassette.config, "strict_lifecycle", False) is True:
+                raise InvalidLifecycleTransitionError(
+                    from_status=old,
+                    to_status=value,
+                    resource_name=self.unique_name,
                 )
+            frame_summary = "".join(traceback.format_stack(limit=3)[:-1]).strip()
+            LOGGER.warning(
+                "Invalid lifecycle transition for '%s': %r → %r\n%s",
+                self.unique_name,
+                old,
+                value,
+                frame_summary,
+            )
 
-        LOGGER.debug("%s: %s → %s", getattr(self, "unique_name", repr(self)), old, value)
+        LOGGER.debug("%s: %s → %s", self.unique_name, old, value)
 
         self._previous_status = old
         self._status = value
-
-    @property
-    def task(self) -> asyncio.Task | None:
-        return self._init_task
 
     def is_ready(self) -> bool:
         """Check if the instance is ready.

@@ -56,7 +56,6 @@ class AppStatusSnapshot:
     # "running" here means "has no recorded error", not "status == RUNNING" — a live instance's
     # status can be STARTING/STOPPING/etc. and still count as running; error is None iff an App
     # object exists for the entry (see AppRegistry.InstanceEntry), which is the real discriminant.
-
     @property
     def running_count(self) -> int:
         """Number of running app instances."""
@@ -66,16 +65,6 @@ class AppStatusSnapshot:
     def failed_count(self) -> int:
         """Number of failed app instances."""
         return sum(1 for i in self.instances if i.error is not None)
-
-    @property
-    def failed_apps(self) -> set[str]:
-        """Set of app keys with failed instances."""
-        return {i.app_key for i in self.instances if i.error is not None}
-
-    @property
-    def running_apps(self) -> set[str]:
-        """Set of app keys with running instances."""
-        return {i.app_key for i in self.instances if i.error is None}
 
 
 @dataclass(frozen=True)
@@ -92,6 +81,7 @@ class AppManifestInfo:
     # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppSummary)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
     autostart: bool = True
+    description: str | None = None
     block_reason: str | None = None
     instance_count: int = 0
     """Number of configured instances, including ones not currently tracked (never started, or

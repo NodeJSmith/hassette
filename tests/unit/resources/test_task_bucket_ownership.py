@@ -6,8 +6,11 @@ Pins three behaviors:
 - Constructing a Resource when the factory is unregistered raises RuntimeError.
 """
 
+from unittest.mock import Mock
+
 import pytest
 
+from hassette.core.sync_executor import SyncExecutor
 from hassette.resources.base import Resource
 from hassette.task_bucket import TaskBucket
 from tests.support.mock_hassette import make_mock_hassette
@@ -27,7 +30,7 @@ def test_non_task_bucket_resource_gets_own_bucket() -> None:
 def test_task_bucket_is_its_own_bucket() -> None:
     """A TaskBucket is its own task_bucket (the is_task_bucket ClassVar path)."""
     hassette = make_mock_hassette()
-    bucket = TaskBucket(hassette=hassette)
+    bucket = TaskBucket(hassette=hassette, sync_executor=Mock(spec=SyncExecutor))
 
     assert bucket.task_bucket is bucket
 

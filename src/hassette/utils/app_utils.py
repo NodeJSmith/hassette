@@ -198,6 +198,9 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
     # Omitted when unset so AppManifest's own default (the app key) still applies.
     if display_name := app_dict.get("display_name"):
         clean_app_dict["display_name"] = display_name
+    # Copied whenever present, so AppManifest validates (and rejects) whatever the config wrote.
+    if "description" in app_dict:
+        clean_app_dict["description"] = app_dict["description"]
 
     return clean_app_dict
 

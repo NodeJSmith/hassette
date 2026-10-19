@@ -97,7 +97,7 @@ $ hassette status --json
   "entity_count": 103,
   "app_count": 3,
   "services": [
-    {"name": "EventStreamService", "status": "running", "role": "service", ...},
+    {"name": "EventStreamService", "status": "running", ...},
     ...
   ],
   "version": "0.32.0",

@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import json
 import time
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from hassette_wire import (
     API_SCHEMA_VERSION,
@@ -31,7 +31,7 @@ from hassette.events import AnyEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo
-from hassette.types import Topic
+from hassette.types.enums import Topic
 from hassette.utils import get_version
 
 if TYPE_CHECKING:
@@ -41,6 +41,17 @@ if TYPE_CHECKING:
 
 _WS_CLIENT_QUEUE_MAX = 256
 _WS_DROP_LOG_INTERVAL = 10.0
+
+RQS_LISTENER_PREFIX: Final = "hassette.rqs."
+
+STATUS_OK: Final = "ok"
+STATUS_DEGRADED: Final = "degraded"
+STATUS_STARTING: Final = "starting"
+
+SEVERITY_WARN: Final = "warn"
+SEVERITY_ERR: Final = "err"
+
+WS_EVENT_CONNECTIVITY: Final = "connectivity"
 
 
 class RuntimeQueryService(Resource):
@@ -62,16 +73,9 @@ class RuntimeQueryService(Resource):
     depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, LoggingService]
 
     bus: Bus
-    _ws_clients: set[asyncio.Queue[dict[str, Any] | None]]
     _lock: asyncio.Lock
     _start_time: float
     _subscriptions: "list[Subscription]"
-
-    _pending_completions: list[ExecutionCompletedData]
-    """Execution completions (handler and job) accumulated within the current drain tick, flushed as a batch."""
-
-    _flush_scheduled: bool
-    """True when an asyncio.sleep(0) flush has been scheduled for the current tick."""
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -83,7 +87,9 @@ class RuntimeQueryService(Resource):
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
+        # Execution completions (handler and job) accumulated within the current drain tick, flushed as a batch.
         self._pending_completions: list[ExecutionCompletedData] = []
+        # True when an asyncio.sleep(0) flush has been scheduled for the current tick.
         self._flush_scheduled = False
 
     @property
@@ -101,14 +107,14 @@ class RuntimeQueryService(Resource):
         # Subscribe to bus events
         self._subscriptions.append(
             await self.bus.on_app_state_changed(
-                handler=self.on_app_state_changed, name="hassette.rqs.on_app_state_changed"
+                handler=self.on_app_state_changed, name=f"{RQS_LISTENER_PREFIX}on_app_state_changed"
             )
         )
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 handler=self.on_service_status,
-                name="hassette.rqs.on_service_status",
+                name=f"{RQS_LISTENER_PREFIX}on_service_status",
                 # App instances have their own app_status_changed stream, so keep them out of the
                 # Services panel. App-owned children (Bus, Scheduler, ...) carry RESOURCE role and
                 # still pass this filter.
@@ -116,18 +122,20 @@ class RuntimeQueryService(Resource):
             )
         )
         self._subscriptions.append(
-            await self.bus.on_websocket_connected(handler=self.on_ws_connected, name="hassette.rqs.on_ws_connected")
+            await self.bus.on_websocket_connected(
+                handler=self.on_ws_connected, name=f"{RQS_LISTENER_PREFIX}on_ws_connected"
+            )
         )
         self._subscriptions.append(
             await self.bus.on_websocket_disconnected(
-                handler=self.on_ws_disconnected, name="hassette.rqs.on_ws_disconnected"
+                handler=self.on_ws_disconnected, name=f"{RQS_LISTENER_PREFIX}on_ws_disconnected"
             )
         )
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
                 handler=self.on_execution_completed,
-                name="hassette.rqs.on_execution_completed",
+                name=f"{RQS_LISTENER_PREFIX}on_execution_completed",
             )
         )
         # Named for its WS-layer effect (app data may have changed), not the backend
@@ -136,7 +144,7 @@ class RuntimeQueryService(Resource):
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=self.on_apps_changed,
-                name="hassette.rqs.on_apps_changed",
+                name=f"{RQS_LISTENER_PREFIX}on_apps_changed",
             )
         )
 
@@ -197,7 +205,6 @@ class RuntimeQueryService(Resource):
         data = event.payload.data
         payload = ServiceStatusData(
             resource_name=data.resource_name,
-            role=data.role,
             status=data.status,
             previous_status=data.previous_status,
             exception=data.exception,
@@ -219,10 +226,10 @@ class RuntimeQueryService(Resource):
         await self.build_and_broadcast("apps_changed", AppsChangedData())
 
     async def on_ws_connected(self) -> None:
-        await self.build_and_broadcast("connectivity", ConnectivityData(connected=True))
+        await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=True))
 
     async def on_ws_disconnected(self) -> None:
-        await self.build_and_broadcast("connectivity", ConnectivityData(connected=False))
+        await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=False))
 
     async def on_execution_completed(self, event: AnyEvent) -> None:
         """Accumulate an execution completion (handler or job) into the pending batch for this drain tick.
@@ -337,7 +344,6 @@ class RuntimeQueryService(Resource):
             ServiceInfo(
                 name=child.class_name,
                 status=child.status,
-                role=child.role,
                 ready_phase=getattr(child, "_ready_reason", None),
                 retry_at=getattr(child, "_retry_at", None),
             )
@@ -345,15 +351,15 @@ class RuntimeQueryService(Resource):
         ]
         bootstrap_released = self.is_bootstrap_released()
         if is_connected and bootstrap_released:
-            status = "ok"
+            status = STATUS_OK
         elif websocket_service.has_ever_connected:
             # "degraded" covers two distinct situations: a connection that was live and is now
             # lost, and a currently-live connection where app bootstrap hasn't released yet (e.g.
             # still waiting on the initial state snapshot). Both mean "not fully healthy yet/anymore",
             # but only `bootstrap_released` + `websocket_connected` on the response distinguish them.
-            status = "degraded"
+            status = STATUS_DEGRADED
         else:
-            status = "starting"
+            status = STATUS_STARTING
 
         boot_issues = self.collect_boot_issues()
 
@@ -391,7 +397,7 @@ class RuntimeQueryService(Resource):
         if not self.is_bootstrap_released() and any(manifest.autostart for manifest in full_snapshot.manifests):
             issues.append(
                 BootIssue(
-                    severity="warn",
+                    severity=SEVERITY_WARN,
                     label="Apps pending on Home Assistant",
                     detail=(
                         "App bootstrap has not been released — autostart apps will remain stopped "
@@ -404,7 +410,7 @@ class RuntimeQueryService(Resource):
             if manifest.status == AppStatus.BLOCKED and manifest.block_reason:
                 issues.append(
                     BootIssue(
-                        severity="warn",
+                        severity=SEVERITY_WARN,
                         label=f"App blocked: {manifest.display_name}",
                         detail=manifest.block_reason,
                     )
@@ -412,7 +418,7 @@ class RuntimeQueryService(Resource):
             elif manifest.status in (AppStatus.FAILED, AppStatus.DEGRADED) and manifest.error_message:
                 issues.append(
                     BootIssue(
-                        severity="err",
+                        severity=SEVERITY_ERR,
                         label=f"App failed: {manifest.display_name}",
                         detail=manifest.error_message,
                     )

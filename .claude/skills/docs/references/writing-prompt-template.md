@@ -82,7 +82,7 @@ Use Serena MCP tools for verification (load via ToolSearch first):
 Key source files:
 - Bus methods & params: src/hassette/bus/bus.py
 - Scheduler methods: src/hassette/scheduler/scheduler.py
-- Api methods: src/hassette/api/api.py
+- Api methods: src/hassette/api/api.py, plus its mixins in src/hassette/api/service_calls.py and src/hassette/api/entity_data.py
 - App class: src/hassette/app/app.py
 - Predicates (P): src/hassette/event_handling/predicates.py
 - Conditions (C): src/hassette/event_handling/conditions.py
