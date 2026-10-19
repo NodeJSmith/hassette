@@ -21,7 +21,7 @@ responsibilities in a single run:
   (``ghostdomain``)
 - a synthetic ``sensor`` component (not itself a discovered entity domain) whose ``const.py`` and
   ``__init__.py`` drive sensor-constants generation and the predicate-freshness guard
-- a stale manifest entry that becomes an orphan once this run's generated set excludes it
+- a stale generated module, still on disk and in the manifest, that this run no longer produces
 
 A later decomposition of ``run_pipeline`` into named steps must leave this test's assertions
 unchanged.
@@ -142,7 +142,10 @@ def scenario(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[HASource,
         NUMERIC_STATE_EXPECTED_SOURCE, encoding="utf-8"
     )
 
-    # A stale manifest entry with no corresponding domain in this run — becomes an orphan.
+    # A stale generated module with no corresponding domain in this run — becomes an orphan.
+    ghostfile = repo_root / STATES / "ghostfile.py"
+    ghostfile.parent.mkdir(parents=True)
+    ghostfile.write_text("# Stale generated module.\n", encoding="utf-8")
     save_manifest(repo_root, {Path(STATES / "ghostfile.py")})
 
     return ha_source, repo_root
@@ -157,7 +160,7 @@ class TestRunPipelineCharacterization:
         exit_code = pipeline.run_pipeline(ha_source, repo_root, check_mode=False)
         err = capsys.readouterr().err
 
-        assert exit_code == 0
+        assert exit_code == 1, "an orphan fails a full run even outside --check"
 
         assert_in_order(
             err,
@@ -166,9 +169,11 @@ class TestRunPipelineCharacterization:
             "WARNING: Override file for 'ghostdomain' does not match any discovered domain",
             "WARNING: Rejected badservice entity wrapper:",
             "WARNING: Failed to extract flaky: 'int' object has no attribute 'startswith'",
-            "Orphaned files (no longer generated): src/hassette/models/states/ghostfile.py",
             "Summary: 3 domains generated, 1 skipped, 2 rejected, 1 orphans",
+            "Orphaned files (no longer generated): src/hassette/models/states/ghostfile.py",
         )
+        # Skips and rejections only fail --check; a write run does not repeat their detail.
+        assert "Skipped domains:" not in err
 
         expected_manifest = {
             STATES / "badservice.py",
@@ -178,6 +183,7 @@ class TestRunPipelineCharacterization:
             ENTITIES / "widget.py",
             ENTITIES / "__init__.py",
             CONST / "sensor.py",
+            STATES / "ghostfile.py",  # orphans keep their ownership
         }
         assert load_manifest(repo_root) == expected_manifest, (
             "generated_files bookkeeping must match exactly — the manifest is what the next run's "
@@ -206,13 +212,13 @@ class TestRunPipelineCharacterization:
             "WARNING: Override file for 'ghostdomain' does not match any discovered domain",
             "WARNING: Rejected badservice entity wrapper:",
             "WARNING: Failed to extract flaky: 'int' object has no attribute 'startswith'",
-            "Summary: 3 domains generated, 1 skipped, 2 rejected",
+            "Summary: 3 domains generated, 1 skipped, 2 rejected, 1 orphans",
             "Skipped domains: flaky",
             "Rejected: base (domain name), badservice (entity wrapper)",
+            "Orphaned files (no longer generated): src/hassette/models/states/ghostfile.py",
         )
 
         # A freshly-generated tree must be drift-free — every check_drift call (state models,
         # entity wrappers, sensor constants, both __init__.py files) and the predicate-freshness
-        # guard all silently pass. Orphan detection is also write-mode-only.
+        # guard all silently pass.
         assert "is out of date" not in err
-        assert "orphan" not in err.lower()
