@@ -151,7 +151,7 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert "my_app" in snapshot.failed_apps
+        assert any(i.app_key == "my_app" and i.error is not None for i in snapshot.instances)
 
     def test_record_multiple_failures(self, registry: AppRegistry) -> None:
         """Test recording multiple failures for the same app."""
@@ -162,7 +162,7 @@ class TestAppRegistry:
         registry.record_failure("my_app", 1, error2)
 
         snapshot = registry.get_snapshot()
-        assert "my_app" in snapshot.failed_apps
+        assert any(i.app_key == "my_app" and i.error is not None for i in snapshot.instances)
         failed = [f for f in snapshot.instances if f.error is not None and f.app_key == "my_app"]
         assert len(failed) == 2
         assert {f.index for f in failed} == {0, 1}

@@ -606,17 +606,17 @@ class TestFullIntegrationFlow:
 
     @pytest.mark.usefixtures("running_multi_instance")
     async def test_snapshot_shows_running_apps(self, app_registry: AppRegistry):
-        """Running apps appear in snapshot.instances (running_count/running_apps)."""
+        """Running apps appear in snapshot.instances (running_count)."""
         snapshot = app_registry.get_snapshot()
         assert snapshot.running_count == 1
-        assert "multi_instance" in snapshot.running_apps
+        assert any(i.app_key == "multi_instance" and i.error is None for i in snapshot.instances)
 
     @pytest.mark.usefixtures("initialized_failing")
     async def test_snapshot_shows_failed_apps(self, app_registry: AppRegistry):
-        """Failed apps appear in snapshot.instances (failed_count/failed_apps)."""
+        """Failed apps appear in snapshot.instances (failed_count)."""
         snapshot = app_registry.get_snapshot()
         assert snapshot.failed_count == 1
-        assert "failing" in snapshot.failed_apps
+        assert any(i.app_key == "failing" and i.error is not None for i in snapshot.instances)
 
 
 class TestAppRestartPreservesChildren:
