@@ -7,55 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.59.0](https://github.com/NodeJSmith/hassette/compare/v0.58.0...v0.59.0) (2026-10-19)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- **`role` is gone from the web API's service status** — `GET /api/health` no longer includes `services[].role`, `hassette_wire.ResourceRole` and `OpenResourceRole` are removed, and `hassette.types.ResourceRole` drops its unused `CORE`, `BASE` and `UNKNOWN` members. Clients built before this release require `role` and can't parse `/api/health`: upgrade `hassette-client` to 0.59.0, and update the `hass-hassette` integration to a release built on it before or alongside this upgrade (v0.2.0 and earlier fail to connect). (#3063)
+- **Scheduler delays and intervals must be at least 1 second** — `run_in()` and `After()` raise `ValueError` for a total delay under 1 second, and `run_every()` and `Every()` for an interval under 1 second. The scheduler fires on whole seconds, so a sub-second delay used to fire anywhere from immediately to about 0.8 s later. Use a delay of 1 second or more, or `await asyncio.sleep()` inside a handler for a shorter pause. Fractional jitter is still allowed. (#3077)
+- **`Resource.cleanup()` takes no arguments** — the `timeout` parameter on `Resource.cleanup()` and the `App` and `DatabaseService` overrides is removed. Shutdown already bounds cleanup with `cleanup_timeout`, so it did nothing. A custom `Resource` or `Service` override should become `async def cleanup(self) -> None` calling `await super().cleanup()`. Passing the old argument, as in `super().cleanup(timeout)`, raises `TypeError`, which shutdown records as a failed cleanup. The unused `LifecycleMixin.initializing` and `LifecycleMixin.task` properties are also removed. (#3117)
 
-* `Resource.cleanup()` (and the `App` and `DatabaseService` overrides) no longer accepts a `timeout` argument. Shutdown already bounds cleanup with `cleanup_timeout`, so the parameter did nothing. Custom `Resource`/`Service` subclasses that override `cleanup(self, timeout=None)` or call `super().cleanup(timeout)` must change to `async def cleanup(self) -> None` and `await super().cleanup()`. The unused `LifecycleMixin.initializing` and `LifecycleMixin.task` properties are removed.
-* `ServiceInfo.role` (GET /api/health `services[].role`) and `ServiceStatusData.role` are removed, and `hassette_wire.ResourceRole` and `OpenResourceRole` no longer exist; `hassette.types.ResourceRole` drops its `CORE`, `BASE` and `UNKNOWN` members. Clients released before this change (hassette-client <= 0.58.0, hass-hassette v0.2.0) require `role` and cannot parse `/api/health`.
-* `run_in()` and `After()` now raise `ValueError` for a total delay under 1 second, and `Every()`/`run_every()` raise for intervals under 1 second. Use a delay of at least 1 second, or `await asyncio.sleep()` inside a handler for sub-second pauses.
+### For App Authors: You Can Now Delete
 
-### Features
+- **Custom state classes for `wake_word`, `infrared`, `radio_frequency`, `alert` or `tag` entities** — these domains now have typed models (`self.states.tag`, `self.states.alert`, and so on) instead of falling back to `BaseState`. (#3103)
+- **Raising `logging.web_api` to `WARNING` just to silence per-request access lines** — access lines are now logged only when `logging.web_api` is `DEBUG`, so the default no longer fills the log with healthcheck and integration polling. (#3050)
 
-* add an optional app description to the manifest and AppSummary API ([#3116](https://github.com/NodeJSmith/hassette/issues/3116)) ([ebff418](https://github.com/NodeJSmith/hassette/commit/ebff418b528c0eecaa0e81c26a598269f707d7b0))
-* add typed state models for wake_word, infrared, radio_frequency, alert and tag ([#3103](https://github.com/NodeJSmith/hassette/issues/3103)) ([0ee8d68](https://github.com/NodeJSmith/hassette/commit/0ee8d68095902a2d03d4bcf365fa581850566ff0))
-* **codegen:** add check-coverage command to report unmodeled HA entity domains ([#3067](https://github.com/NodeJSmith/hassette/issues/3067)) ([f0beaef](https://github.com/NodeJSmith/hassette/commit/f0beaef82d44c698a691989f88eaeb39320deac6))
-* drop the unused resource role from the wire contract ([#3063](https://github.com/NodeJSmith/hassette/issues/3063)) ([31a5bd2](https://github.com/NodeJSmith/hassette/commit/31a5bd25528a96886a74eab16347d9b3dbd73bcc))
-* include last_error_ts in listener summaries ([#3118](https://github.com/NodeJSmith/hassette/issues/3118)) ([f1afc7d](https://github.com/NodeJSmith/hassette/commit/f1afc7d9a4b11b14df707fe5bac27e3f1acbbd6b))
-* **tools:** let client_compat accept deliberate client breaks via an ignore file ([#3056](https://github.com/NodeJSmith/hassette/issues/3056)) ([50210d1](https://github.com/NodeJSmith/hassette/commit/50210d1f605829c1ab38d5d117c365da03bbe5c3))
-* warn when a state-change listener watches an unknown entity ID ([#3071](https://github.com/NodeJSmith/hassette/issues/3071)) ([e91417e](https://github.com/NodeJSmith/hassette/commit/e91417e11e80b2bb74e45828ac0d899bdf6f5b0c))
+### Bus, Scheduler & Apps
 
+- `on_state_change` and `on_attribute_change` log a WARNING when an app registers a literal entity ID that isn't in the state cache, naming the closest known ID when there is one. A typo used to mean the handler silently never fired. The listener still registers, and globs, framework listeners and an empty cache never warn. (#3071)
+- Typed state models for `wake_word`, `infrared`, `radio_frequency` and `tag` (timestamp state of the last event, with `tag_id` and `last_scanned_by_device_id` on `tag`) and `alert` (string state, plus an `alert` entity wrapper). (#3103)
+- Apps can declare an optional one-line `description` (up to 200 characters) in their manifest. (#3116)
 
-### Bug Fixes
+### Web API & Telemetry
 
-* **codegen:** fail generate runs on orphaned generated modules ([#3122](https://github.com/NodeJSmith/hassette/issues/3122)) ([c91d59c](https://github.com/NodeJSmith/hassette/commit/c91d59c4465b2f150797401a6ace191862b34dc3))
-* only log web API access lines when logging.web_api is DEBUG ([#3050](https://github.com/NodeJSmith/hassette/issues/3050)) ([f034757](https://github.com/NodeJSmith/hassette/commit/f0347576e48c41718b0bf89cb855c12b454111a9))
-* point the add-on's first-run token log at the sidebar instead of localhost ([#3047](https://github.com/NodeJSmith/hassette/issues/3047)) ([21a46d5](https://github.com/NodeJSmith/hassette/commit/21a46d50ff6b8090f2ed3ba4cc7991a396a2c84a))
-* reject sub-second scheduler delays and intervals ([#3077](https://github.com/NodeJSmith/hassette/issues/3077)) ([ad07525](https://github.com/NodeJSmith/hassette/commit/ad07525ab4d8115fc97bcf8237c4b100b1746b4d))
+- `GET /api/apps` and `GET /api/apps/{app_key}` return each app's `description`, or `null` when it's unset. (#3116)
+- Listener summaries include `last_error_ts`, the time of the most recent error, as job summaries already did. (#3118)
 
+### Logging & Add-on
 
-### Refactoring
-
-* add InstanceEntry.is_running and name the Unknown label in AppRegistry ([#3085](https://github.com/NodeJSmith/hassette/issues/3085)) ([8df3bfd](https://github.com/NodeJSmith/hassette/commit/8df3bfd352ae0e66e6e05185d13c06598423157f))
-* **cli:** move CLI error rendering into a client_errors module ([#3093](https://github.com/NodeJSmith/hassette/issues/3093)) ([ecc410a](https://github.com/NodeJSmith/hassette/commit/ecc410a0593e2b50a92b7f54398b06a10addf9c7))
-* **cli:** name constants and deduplicate formatting helpers in CLI output ([#3086](https://github.com/NodeJSmith/hassette/issues/3086)) ([8adcc4f](https://github.com/NodeJSmith/hassette/commit/8adcc4f6dfd345643f78af872f6572f6786d5c7b))
-* **cli:** share health columns and name exit codes and HTTP statuses ([#3088](https://github.com/NodeJSmith/hassette/issues/3088)) ([bb3bb7f](https://github.com/NodeJSmith/hassette/commit/bb3bb7f326c172cd730f14e610ef2ff9c0ad5caf))
-* **cli:** split value formatters out of cli/output.py into cli/formatters.py ([#3102](https://github.com/NodeJSmith/hassette/issues/3102)) ([36f1e8b](https://github.com/NodeJSmith/hassette/commit/36f1e8bd49f133f5b3c5c8c6b88d0658ff6cadea))
-* dedupe app action routes and derive manifest field schemas from AppManifest ([#3065](https://github.com/NodeJSmith/hassette/issues/3065)) ([af158c9](https://github.com/NodeJSmith/hassette/commit/af158c9af09126de120a9d9c1e8cafb5cbec24b2))
-* derive LogRecordEntry.to_dict from dataclass fields ([#3084](https://github.com/NodeJSmith/hassette/issues/3084)) ([d89a441](https://github.com/NodeJSmith/hassette/commit/d89a441a356a3e584b12af2c1b4c94b752641128))
-* drop the timeout parameter from Resource.cleanup() ([#3117](https://github.com/NodeJSmith/hassette/issues/3117)) ([75eb526](https://github.com/NodeJSmith/hassette/commit/75eb52627f3befd886f693c3ee0cb98ba4547e14))
-* initialize CommandExecutor.current_execution in __init__ ([#3076](https://github.com/NodeJSmith/hassette/issues/3076)) ([202132e](https://github.com/NodeJSmith/hassette/commit/202132ebdbc13bb1e560dfb99e34fd7f123d4de9))
-* name status, severity and listener-prefix literals in RuntimeQueryService ([#3087](https://github.com/NodeJSmith/hassette/issues/3087)) ([dc30af6](https://github.com/NodeJSmith/hassette/commit/dc30af62284f3432b5dfe8c0d0a424c66a4b6545))
-* remove __new__-bypass guards from status and connection-state setters ([#3082](https://github.com/NodeJSmith/hassette/issues/3082)) ([4470a32](https://github.com/NodeJSmith/hassette/commit/4470a32ab0b4b838a3d271ebe184aef05355b6ae))
-* require a SyncExecutor when constructing TaskBucket ([#3078](https://github.com/NodeJSmith/hassette/issues/3078)) ([bfcccf0](https://github.com/NodeJSmith/hassette/commit/bfcccf02c5beedb6b43529f28355c4ed30b2f36f))
-* split get_all_app_summaries query building into per-query builders ([#3057](https://github.com/NodeJSmith/hassette/issues/3057)) ([c966a83](https://github.com/NodeJSmith/hassette/commit/c966a83ec5793497a38198ad5d44443cf3a44a3d))
-* split service watcher escalation logic into ServiceEscalationMixin ([#3054](https://github.com/NodeJSmith/hassette/issues/3054)) ([539d810](https://github.com/NodeJSmith/hassette/commit/539d8103417a0c459fa1de306d5743a6566b73fc))
-* **web:** name execution-logs limit constants and unify logging import ([#3083](https://github.com/NodeJSmith/hassette/issues/3083)) ([8e97f58](https://github.com/NodeJSmith/hassette/commit/8e97f58389dc302e0f64e6b3eb72f0f21bd067de))
-* **web:** share the app manifest lookup in config and source routes ([#3081](https://github.com/NodeJSmith/hassette/issues/3081)) ([33a4963](https://github.com/NodeJSmith/hassette/commit/33a4963393069beaf76290e25e6217df6204d0c3))
-
+- Uvicorn's per-request access lines are logged only when `logging.web_api` is `DEBUG`. Startup and error lines still follow `logging.web_api` as before. (#3050)
+- Under the Home Assistant add-on, the first-run "generated token" log line points at the sidebar's Open Web UI button instead of `http://127.0.0.1:8126`, which isn't reachable there, and notes the token is only needed for the CLI or a published port. (#3047)
 
 ### Documentation
 
-* explain that app reload re-imports only the app's own module file ([#3094](https://github.com/NodeJSmith/hassette/issues/3094)) ([66f5c55](https://github.com/NodeJSmith/hassette/commit/66f5c5525799af063ba279383c4788fb58e7d5ac))
+- What an app reload re-imports: the Reload button, the CLI and automatic reloads re-import only the app's own module file, a config-only change restarts instances with the already-loaded code, and edits to sibling or helper modules need a Hassette restart. (#3094)
 
 ## [0.58.0](https://github.com/NodeJSmith/hassette/compare/v0.57.0...v0.58.0) (2026-10-17)
 
