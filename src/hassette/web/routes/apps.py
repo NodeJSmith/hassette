@@ -150,6 +150,14 @@ def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -
     raise app_not_found(app_key)
 
 
+def _require_manifest(app_key: str, hassette: HassetteDep) -> AppManifest:
+    """Return the manifest for ``app_key``, or reject with ``app_not_found`` (orphans included)."""
+    manifest = hassette.app_handler.registry.get_manifest(app_key)
+    if manifest is None:
+        raise app_not_found(app_key)
+    return manifest
+
+
 def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> None:
     """Validate that ``app_key`` is known and ``index`` is addressable for ``action``.
 
@@ -487,9 +495,7 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     leaks — the masked path is the only path.
     """
     _validate_app_key(app_key)
-    manifest = hassette.app_handler.registry.get_manifest(app_key)
-    if manifest is None:
-        raise app_not_found(app_key)
+    manifest = _require_manifest(app_key, hassette)
 
     app_config_cls = resolve_app_config_cls(hassette, app_key, manifest)
     if app_config_cls is not None:
@@ -519,9 +525,7 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
 async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSource:
     """Return the source code of the app file for the given app key."""
     _validate_app_key(app_key)
-    manifest = hassette.app_handler.registry.get_manifest(app_key)
-    if manifest is None:
-        raise app_not_found(app_key)
+    manifest = _require_manifest(app_key, hassette)
 
     # Path traversal protection: full_path must resolve within the manifest's app_dir
     try:
@@ -539,9 +543,6 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSource:
             app_dir_resolved,
         )
         raise WebApiError(ProblemCode.PATH_TRAVERSAL, "Path traversal not allowed")
-
-    if not resolved.exists():
-        raise source_not_found(app_key)
 
     try:
         content = await asyncio.to_thread(resolved.read_text, encoding="utf-8")

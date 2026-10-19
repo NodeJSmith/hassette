@@ -202,6 +202,12 @@ def unresolvable_path(_: Path) -> MagicMock:
     return path
 
 
+def directory_source_path(app_dir: Path) -> Path:
+    path = app_dir / "my_app.py"
+    path.mkdir()
+    return path
+
+
 def manifest_lookup(get_app_manifest: AsyncMock) -> Arrange:
     def arrange(mock_hassette: MagicMock, _: Path) -> None:
         mock_hassette.telemetry_query_service.get_app_manifest = get_app_manifest
@@ -454,6 +460,15 @@ ROUTE_CASES = {
         "Failed to read app source",
         operation="/api/apps/{app_key}/source",
         arrange=source_at(lambda app_dir: app_dir / "my_app.py", write=b"\xff\xfe\xfa"),
+    ),
+    "source-path-is-directory": ProblemCase(
+        "GET",
+        "/api/apps/my_app/source",
+        500,
+        "source_unavailable",
+        "Failed to read app source",
+        operation="/api/apps/{app_key}/source",
+        arrange=source_at(directory_source_path),
     ),
     # POST /api/auth/session
     "session-invalid-token": ProblemCase(
