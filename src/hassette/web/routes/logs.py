@@ -2,7 +2,6 @@
 
 import logging
 from collections.abc import Callable
-from logging import getLogger
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request
@@ -19,7 +18,7 @@ from hassette.web.dependencies import (
 )
 from hassette.web.errors import WebApiError, problem_responses
 
-LOGGER = getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 RECENT_LOGS_DEFAULT_LIMIT = 100
 """Default number of log records `/logs/recent` returns when the client omits `limit`."""

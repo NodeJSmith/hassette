@@ -20,6 +20,12 @@ router = APIRouter(prefix="/executions", tags=["executions"])
 
 LOGGER = getLogger(__name__)
 
+EXECUTION_LOGS_DEFAULT_LIMIT = 500
+"""Default number of log records `/executions/{execution_id}` returns when the client omits `limit`."""
+
+EXECUTION_LOGS_LIMIT_CAP = 5000
+"""Upper bound a client may request via `/executions/{execution_id}`'s `limit` query parameter."""
+
 
 def extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
     """Return the Unix timestamp (seconds) embedded in a UUIDv7 string, or None if not v7.
@@ -58,7 +64,7 @@ async def get_execution_logs(
     execution_id: str,
     hassette: HassetteDep,
     telemetry: TelemetryDep,
-    limit: Annotated[int, Query(ge=1, le=5000)] = 500,
+    limit: Annotated[int, Query(ge=1, le=EXECUTION_LOGS_LIMIT_CAP)] = EXECUTION_LOGS_DEFAULT_LIMIT,
 ) -> LogsByExecutionResponse:
     """Return all log records for a single execution, with retention-expired detection.
 
