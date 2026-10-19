@@ -58,6 +58,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
 | **Log identity** | *Log Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Separates author, subject and execution on log records, opens with unique instance names (#3095), and fixes the add-on console (#3044). Breaking config change (every configured instance must be named) belongs before 1.0 |
+| **Resource lifecycle outcomes** | *Resource Lifecycle* | Design: `design/specs/134-resource-lifecycle-outcomes/design.md`. Records each lifecycle outcome instead of inferring it: no in-process service restarts (required services exit, optional ones end dead in place), RUNNING only after init, bus death shuts down cleanly, needs-restart flag for app hooks that outlive their timeout, reloads decided under the app-key lock, typed action outcomes. Deletes the restart machinery and shutdown budget allocation. Carries the lifecycle `epic:correctness` bugs (#3108, #3109) |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
@@ -100,6 +101,6 @@ Remove a chain once every step on it has closed.
 |---|---|---|
 | Correctness | `epic:correctness` | Runtime bugs; becomes a milestone when a sweep is promoted to Now |
 | Code quality | `topic:code-quality`, `source:quality-scanner` | Small mechanical fixes |
-| Architecture | `topic:architecture` | Structural work; promote to an initiative if a cluster grows (e.g. restart hardening: #1689, #1767, #1721) |
+| Architecture | `topic:architecture` | Structural work; promote to an initiative if a cluster grows (e.g. the lifecycle coordinator split, #1721) |
 | Docs | `type:documentation` | Followability and accuracy fixes |
 | Test/CI infra | `area:testing`, `type:CICD` | Flakes (e.g. #2364) become interrupts when they block merges |

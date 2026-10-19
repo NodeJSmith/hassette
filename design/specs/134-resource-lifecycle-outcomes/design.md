@@ -608,41 +608,42 @@ Applies to all: D4 (an app failure never takes down the process or its siblings)
    folding the root's fallback deadline into it), merge the app and resource shutdown timeouts into one
    setting, and stop app instances concurrently under one
    deadline at process exit. Reproduce the suspected cut-off of later apps first. Implements: D18
-   (shutdown budget, concurrent app shutdown). After: none. Issue:
+   (shutdown budget, concurrent app shutdown). After: none. Issue: #3104
 2. **Remove `strict_lifecycle` and the status transition table**: delete transition validation, and
    decide the setting's other readers: `WebsocketService`'s connection-state check, strict registry
    validation (enabled only by this setting today, and forced on by the test harness), and the
    transition error's place in the WS reconnect's propagated exceptions. Implements:
-   D16 (#2697), D18. After: none. Issue:
+   D16 (#2697), D18. After: none. Issue: #3105
 3. **Mark a service RUNNING only after initialization completes**: start `serve()` last, add the
    no-waiting-on-parent-serve rule, make boot start failures fatal. Implements: D1, D7. After: none.
-   Issue:
+   Issue: #3106
 4. **Report service failures directly and stop restarting services in-process**: the direct report and
    its contract, required/optional classification replacing restart specs (an undeclared Service fails at class definition), dead-in-place optional
    services, one fatal escalation path, removal of restart budgets, backoff, cooldown, `EXHAUSTED_*`
    (wire and frontend mapping), the watcher's bus dependency, `ServiceEscalationMixin` and `SessionManager`'s
    CRASHED listener; a failed optional service is left un-shut-down. Implements: D2, D8, D13, D14, D17, D18
    (restart machinery, terminal-status preservation), and D7's boot outcome for serve failures.
-   After: 2, 3. Issue:
+   After: 2, 3. Issue: #3107
 5. **Shut down cleanly when the bus dies**: route bus death through issue 4's fatal path, have the bus
    close the event streams on any failure (init or serve) so no producer blocks, have direct
    `EventStreamService.send_event()` callers handle the closed-stream error, and let status transitions
    run with closed streams.
-   Implements: D3, D9. After: 4. Issue:
+   Implements: D3, D9. After: 4. Issue: #3108
 6. **Flag app instances that need a restart after a hook timeout**: route failed and timed-out init
    through instance shutdown (user hooks skipped), remove the app-layer stop timeout (the init deadline stays and triggers instance shutdown) and hand-rolled
    cleanup, adopt the "work may still be running" safety predicate, including per-bucket tracking of active sync workers as evidence
    and in the coordinator's re-init guard, add the needs-restart record,
    `AppInstanceInfo` fields, the minimal UI badge, and the flag and reason in the CLI's app listing.
-   Implements: D5, D10, D11, D12 (flag), D18 (app timeouts, restart safety). After: 1. Issue:
+   Implements: D5, D10, D11, D12 (flag), D18 (app timeouts, restart safety). After: 1. Issue: #3109
 7. **Decide reloads under the app-key lock and refuse unsafe replacements**: decide, stop, gate and
    create under one lock; refuse every instance-creating path over a
-   needs-restart instance; log refusals that have no response channel. Implements: D6, D12 (gate). After: 6. Issue:
+   needs-restart instance; log refusals that have no response channel. Implements: D6, D12 (gate). After: 6. Issue: #3110
 8. **Return typed outcomes from app actions**: per-instance outcomes from `AppLifecycleService`, the
    worst-outcome-wins 200/409/500 mapping, `ActionResponse` reshape, the minimal frontend change, and
    the CLI's app action output reporting refusals and failures instead of success. Implements: D15.
-   After: 6, 7. Issue:
+   After: 6, 7. Issue: #3111
 
-Housekeeping outside the issues (D16, D18): close #1222 as obsolete; trim #1721 to the coordinator and
-shutdown-body splits; file separate issues, outside the milestone, for the `_pending_start_task`
-machinery, the remaining duplicate guards, and `TaskBucket` subclassing `Resource`.
+Housekeeping outside the issues (D16, D18), done: #1222 closed as obsolete; #1721 trimmed to the
+coordinator and shutdown-body splits; separate issues outside the milestone: #3112 (`_pending_start_task`
+machinery), #3113 (remaining duplicate guards), #3114 (`TaskBucket` subclassing `Resource`). Milestone:
+*Resource Lifecycle*; the overlapping originals closed as superseded.
