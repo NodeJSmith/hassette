@@ -46,6 +46,8 @@ BLOCK = "def handler(event):\n    value = event.data\n    if value is None:\n   
 OTHER_BLOCK = (
     "def setup(config):\n    name = config.name\n    if not name:\n        raise ValueError\n    register(name)\n"
 )
+THREE_FILES = {"a.py": (BLOCK,), "b.py": (BLOCK,), "c.py": (BLOCK,)}
+EDITED_BLOCK = BLOCK.replace("process(value)", "process(value, strict=True)")
 
 
 @pytest.fixture
@@ -470,95 +472,82 @@ def test_cluster_fingerprints_counts_identical_content_across_files(tmp_path: Pa
 
 def test_cluster_fingerprints_ignores_whitespace_but_not_edits(tmp_path: Path) -> None:
     reindented = "".join(f"    {line}\n" for line in BLOCK.splitlines())
-    edited = BLOCK.replace("process(value)", "process(value, strict=True)")
     component = [
         *write_blocks(tmp_path, "a.py", BLOCK),
         *write_blocks(tmp_path, "b.py", reindented),
-        *write_blocks(tmp_path, "c.py", edited),
+        *write_blocks(tmp_path, "c.py", EDITED_BLOCK),
     ]
     assert sorted(cluster_fingerprints(component).values()) == [1, 2]
 
 
+def write_tree(root: Path, layout: dict[str, tuple[str, ...]]) -> list[Fragment]:
+    """Write each file in `layout` (file name -> its blocks) under `root`; return every Fragment."""
+    return [fragment for name, blocks in layout.items() for fragment in write_blocks(root, name, *blocks)]
+
+
+def gate_flags(tmp_path: Path, base: dict[str, tuple[str, ...]], head: dict[str, tuple[str, ...]]) -> bool:
+    """Return whether the gate reports the `head` cluster as new against a single `base` cluster."""
+    base_cluster = write_tree(tmp_path / "base", base)
+    head_cluster = write_tree(tmp_path / "head", head)
+    return new_code_violations([head_cluster], [cluster_fingerprints(base_cluster)]) == [head_cluster]
+
+
 def test_new_code_violations_flags_a_cluster_with_no_base_match(tmp_path: Path) -> None:
     # A wholly new 3-way match -- nothing in the base scan covers it at all.
-    head = [write_blocks(tmp_path, f"{name}.py", BLOCK)[0] for name in "abc"]
+    head = write_tree(tmp_path, THREE_FILES)
     assert new_code_violations([head], []) == [head]
 
 
 def test_new_code_violations_ignores_a_cluster_fully_covered_by_a_base_cluster(tmp_path: Path) -> None:
-    base = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in "abc"]
-    head = [write_blocks(tmp_path / "head", f"{name}.py", BLOCK)[0] for name in "abc"]
-    assert new_code_violations([head], [cluster_fingerprints(base)]) == []
+    assert not gate_flags(tmp_path, THREE_FILES, THREE_FILES)
 
 
 def test_new_code_violations_ignores_occurrences_moved_into_new_files(tmp_path: Path) -> None:
     # Splitting one file holding three copies into three new files keeps every copy's content,
     # so the per-fingerprint counts still fit the base cluster even though no path matches.
-    base = write_blocks(tmp_path / "base", "big_test.py", BLOCK, BLOCK, BLOCK)
-    head = [write_blocks(tmp_path / "head", f"big_test_part_{n}.py", BLOCK)[0] for n in range(3)]
-    assert new_code_violations([head], [cluster_fingerprints(base)]) == []
+    head = {f"big_test_part_{n}.py": (BLOCK,) for n in range(3)}
+    assert not gate_flags(tmp_path, {"big_test.py": (BLOCK, BLOCK, BLOCK)}, head)
 
 
 def test_new_code_violations_flags_an_extra_occurrence_added_to_existing_debt(tmp_path: Path) -> None:
     # a/b/c already formed a violation at the merge-base; this PR adds a 4th copy in a new file.
-    base = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in "abc"]
-    head = [write_blocks(tmp_path / "head", f"{name}.py", BLOCK)[0] for name in ("a", "b", "c", "new_dup")]
-    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
+    assert gate_flags(tmp_path, THREE_FILES, {**THREE_FILES, "new_dup.py": (BLOCK,)})
 
 
 def test_new_code_violations_flags_an_extra_occurrence_after_a_move(tmp_path: Path) -> None:
     # A split that also slips in one more copy raises the count, so moving doesn't mask it.
-    base = write_blocks(tmp_path / "base", "big_test.py", BLOCK, BLOCK, BLOCK)
-    head = [
-        *write_blocks(tmp_path / "head", "part_1.py", BLOCK, BLOCK),
-        *write_blocks(tmp_path / "head", "part_2.py", BLOCK, BLOCK),
-    ]
-    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
+    head = {"part_1.py": (BLOCK, BLOCK), "part_2.py": (BLOCK, BLOCK)}
+    assert gate_flags(tmp_path, {"big_test.py": (BLOCK, BLOCK, BLOCK)}, head)
 
 
 def test_new_code_violations_flags_an_extra_same_file_occurrence(tmp_path: Path) -> None:
     # scheduler.py already contributes 2 fragments to an existing cluster with other.py; this PR
     # adds a 3rd copy to scheduler.py itself. Membership alone would miss it -- counts catch it.
-    base = [
-        *write_blocks(tmp_path / "base", "scheduler.py", BLOCK, BLOCK),
-        *write_blocks(tmp_path / "base", "other.py", BLOCK),
-    ]
-    head = [
-        *write_blocks(tmp_path / "head", "scheduler.py", BLOCK, BLOCK, BLOCK),
-        *write_blocks(tmp_path / "head", "other.py", BLOCK),
-    ]
-    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
+    base = {"scheduler.py": (BLOCK, BLOCK), "other.py": (BLOCK,)}
+    assert gate_flags(tmp_path, base, {**base, "scheduler.py": (BLOCK, BLOCK, BLOCK)})
 
 
 def test_new_code_violations_flags_an_edited_occurrence(tmp_path: Path) -> None:
     # An occurrence edited in a way PMD still matches carries different text, so it counts as
     # changed rather than inheriting the base cluster's pre-existing status.
-    edited = BLOCK.replace("process(value)", "process(value, strict=True)")
-    base = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in "abc"]
-    head = [
-        *write_blocks(tmp_path / "head", "a.py", edited),
-        *(write_blocks(tmp_path / "head", f"{name}.py", BLOCK)[0] for name in "bc"),
-    ]
-    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
+    assert gate_flags(tmp_path, THREE_FILES, {**THREE_FILES, "a.py": (EDITED_BLOCK,)})
 
 
 def test_new_code_violations_flags_a_new_cluster_spanning_two_base_clusters(tmp_path: Path) -> None:
     # Each occurrence existed at the merge-base, but in two different clusters; no single base
     # cluster covers the head cluster, so the newly joined match is still reported.
-    base_one = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in ("x", "u1", "u2")]
-    base_two = [write_blocks(tmp_path / "base", f"{name}.py", OTHER_BLOCK)[0] for name in ("y", "z", "u3")]
-    head = [
-        *write_blocks(tmp_path / "head", "x.py", BLOCK),
-        *(write_blocks(tmp_path / "head", f"{name}.py", OTHER_BLOCK)[0] for name in "yz"),
-    ]
+    base_one = write_tree(tmp_path / "base", {"x.py": (BLOCK,), "u1.py": (BLOCK,), "u2.py": (BLOCK,)})
+    base_two = write_tree(tmp_path / "base", {"y.py": (OTHER_BLOCK,), "z.py": (OTHER_BLOCK,), "u3.py": (OTHER_BLOCK,)})
+    head = write_tree(tmp_path / "head", {"x.py": (BLOCK,), "y.py": (OTHER_BLOCK,), "z.py": (OTHER_BLOCK,)})
     base = [cluster_fingerprints(base_one), cluster_fingerprints(base_two)]
     assert new_code_violations([head], base) == [head]
 
 
 def test_new_code_violations_leaves_untouched_clusters_out_of_a_mixed_result(tmp_path: Path) -> None:
-    base = [write_blocks(tmp_path / "base", f"old_{name}.py", OTHER_BLOCK)[0] for name in "abc"]
-    old_cluster = [write_blocks(tmp_path / "head", f"old_{name}.py", OTHER_BLOCK)[0] for name in "abc"]
-    new_cluster = [write_blocks(tmp_path / "head", f"new_{name}.py", BLOCK)[0] for name in "abc"]
+    old_layout = {f"old_{name}.py": (OTHER_BLOCK,) for name in "abc"}
+    base = write_tree(tmp_path / "base", old_layout)
+    old_cluster = write_tree(tmp_path / "head", old_layout)
+    new_cluster = write_tree(tmp_path / "head", {f"new_{name}.py": (BLOCK,) for name in "abc"})
     assert new_code_violations([new_cluster, old_cluster], [cluster_fingerprints(base)]) == [new_cluster]
 
 
