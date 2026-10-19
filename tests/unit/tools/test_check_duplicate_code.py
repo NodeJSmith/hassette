@@ -22,7 +22,7 @@ from check_duplicate_code import (
     IgnoreMarkerError,
     build_edges,
     cluster,
-    cluster_file_counts,
+    cluster_fingerprints,
     duplication_blocks,
     find_violations,
     fragment_from_file_element,
@@ -41,6 +41,11 @@ from check_duplicate_code import (
 from .conftest import GitRepo
 
 REPO_ROOT_STUB = Path("/repo")
+
+BLOCK = "def handler(event):\n    value = event.data\n    if value is None:\n        return\n    process(value)\n"
+OTHER_BLOCK = (
+    "def setup(config):\n    name = config.name\n    if not name:\n        raise ValueError\n    register(name)\n"
+)
 
 
 @pytest.fixture
@@ -440,125 +445,129 @@ def test_duplication_blocks_empty_report_returns_no_blocks() -> None:
     assert duplication_blocks(ET.fromstring(xml)) == []  # noqa: S314 -- trusted literal test fixture
 
 
-def test_cluster_file_counts_counts_fragments_per_file() -> None:
+def write_blocks(root: Path, name: str, *blocks: str) -> list[Fragment]:
+    """Write `blocks` back to back into `root / name` and return one Fragment per block."""
+    path = root / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fragments = []
+    line = 1
+    for block in blocks:
+        length = len(block.splitlines())
+        fragments.append(Fragment(path, line, line + length - 1))
+        line += length
+    path.write_text("".join(blocks))
+    return fragments
+
+
+def test_cluster_fingerprints_counts_identical_content_across_files(tmp_path: Path) -> None:
     component = [
-        Fragment(REPO_ROOT_STUB / "scheduler.py", 1, 5),
-        Fragment(REPO_ROOT_STUB / "scheduler.py", 20, 24),
-        Fragment(REPO_ROOT_STUB / "other.py", 1, 5),
+        *write_blocks(tmp_path, "a.py", BLOCK, OTHER_BLOCK),
+        *write_blocks(tmp_path, "b.py", BLOCK),
     ]
-    assert cluster_file_counts(component, REPO_ROOT_STUB) == Counter({Path("scheduler.py"): 2, Path("other.py"): 1})
+    counts = cluster_fingerprints(component)
+    assert sorted(counts.values()) == [1, 2]
 
 
-def test_cluster_file_counts_applies_renames() -> None:
-    component = [Fragment(REPO_ROOT_STUB / "new_name.py", 1, 5)]
-    renames = {Path("new_name.py"): Path("old_name.py")}
-    assert cluster_file_counts(component, REPO_ROOT_STUB, renames) == Counter({Path("old_name.py"): 1})
+def test_cluster_fingerprints_ignores_whitespace_but_not_edits(tmp_path: Path) -> None:
+    reindented = "".join(f"    {line}\n" for line in BLOCK.splitlines())
+    edited = BLOCK.replace("process(value)", "process(value, strict=True)")
+    component = [
+        *write_blocks(tmp_path, "a.py", BLOCK),
+        *write_blocks(tmp_path, "b.py", reindented),
+        *write_blocks(tmp_path, "c.py", edited),
+    ]
+    assert sorted(cluster_fingerprints(component).values()) == [1, 2]
 
 
-def test_new_code_violations_flags_a_cluster_with_no_base_match() -> None:
+def test_new_code_violations_flags_a_cluster_with_no_base_match(tmp_path: Path) -> None:
     # A wholly new 3-way match -- nothing in the base scan covers it at all.
-    a = Fragment(REPO_ROOT_STUB / "a.py", 1, 5)
-    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 5)
-    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 5)
-    violations = [[a, b, c]]
-    assert new_code_violations(violations, [], {}, REPO_ROOT_STUB) == violations
+    head = [write_blocks(tmp_path, f"{name}.py", BLOCK)[0] for name in "abc"]
+    assert new_code_violations([head], []) == [head]
 
 
-def test_new_code_violations_ignores_a_cluster_fully_covered_by_a_base_cluster() -> None:
-    # Same three files, same per-file counts, as an existing base cluster -- e.g. a variable
-    # rename or a pure reformat (which changes a fragment's Git lines without changing which
-    # files it duplicates) must not count as new debt, however much of the diff it touches.
-    a = Fragment(REPO_ROOT_STUB / "a.py", 1, 10)
-    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 10)
-    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 10)
-    violations = [[a, b, c]]
-    base_counts = [Counter({Path("a.py"): 1, Path("b.py"): 1, Path("c.py"): 1})]
-    assert new_code_violations(violations, base_counts, {}, REPO_ROOT_STUB) == []
+def test_new_code_violations_ignores_a_cluster_fully_covered_by_a_base_cluster(tmp_path: Path) -> None:
+    base = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in "abc"]
+    head = [write_blocks(tmp_path / "head", f"{name}.py", BLOCK)[0] for name in "abc"]
+    assert new_code_violations([head], [cluster_fingerprints(base)]) == []
 
 
-def test_new_code_violations_flags_an_extra_occurrence_added_to_existing_debt() -> None:
-    # a/b/c already formed a violation at the merge-base; this PR adds a 4th copy in a new
-    # file. The cluster gained a member relative to any single base cluster that covers it, so
-    # it's still this PR's fault even though three of its four fragments are untouched.
-    a = Fragment(REPO_ROOT_STUB / "a.py", 1, 5)
-    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 5)
-    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 5)
-    new_dup = Fragment(REPO_ROOT_STUB / "new_dup.py", 1, 5)
-    violations = [[a, b, c, new_dup]]
-    base_counts = [Counter({Path("a.py"): 1, Path("b.py"): 1, Path("c.py"): 1})]
-    assert new_code_violations(violations, base_counts, {}, REPO_ROOT_STUB) == violations
+def test_new_code_violations_ignores_occurrences_moved_into_new_files(tmp_path: Path) -> None:
+    # Splitting one file holding three copies into three new files keeps every copy's content,
+    # so the per-fingerprint counts still fit the base cluster even though no path matches.
+    base = write_blocks(tmp_path / "base", "big_test.py", BLOCK, BLOCK, BLOCK)
+    head = [write_blocks(tmp_path / "head", f"big_test_part_{n}.py", BLOCK)[0] for n in range(3)]
+    assert new_code_violations([head], [cluster_fingerprints(base)]) == []
 
 
-def test_new_code_violations_flags_an_extra_same_file_occurrence() -> None:
-    # scheduler.py already contributes 2 fragments to an existing cluster with other.py; this PR
-    # adds a 3rd near-identical block to scheduler.py itself. File-set matching alone would miss
-    # this (scheduler.py was already "in" the base cluster) -- per-file *counts* catch it.
-    scheduler_1 = Fragment(REPO_ROOT_STUB / "scheduler.py", 1, 5)
-    scheduler_2 = Fragment(REPO_ROOT_STUB / "scheduler.py", 20, 24)
-    scheduler_3 = Fragment(REPO_ROOT_STUB / "scheduler.py", 40, 44)
-    other = Fragment(REPO_ROOT_STUB / "other.py", 1, 5)
-    violations = [[scheduler_1, scheduler_2, scheduler_3, other]]
-    base_counts = [Counter({Path("scheduler.py"): 2, Path("other.py"): 1})]
-    assert new_code_violations(violations, base_counts, {}, REPO_ROOT_STUB) == violations
+def test_new_code_violations_flags_an_extra_occurrence_added_to_existing_debt(tmp_path: Path) -> None:
+    # a/b/c already formed a violation at the merge-base; this PR adds a 4th copy in a new file.
+    base = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in "abc"]
+    head = [write_blocks(tmp_path / "head", f"{name}.py", BLOCK)[0] for name in ("a", "b", "c", "new_dup")]
+    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
 
 
-def test_new_code_violations_flags_a_new_cluster_formed_by_a_small_edit() -> None:
-    # x/y/z weren't a 3-way match at the merge-base (each only appears in its own, unrelated
-    # base cluster) -- a small edit to x that newly joins it with y and z must still be caught,
-    # even though the edit itself is tiny relative to any one fragment's size.
-    x = Fragment(REPO_ROOT_STUB / "x.py", 1, 10)
-    y = Fragment(REPO_ROOT_STUB / "y.py", 1, 10)
-    z = Fragment(REPO_ROOT_STUB / "z.py", 1, 10)
-    violations = [[x, y, z]]
-    base_counts = [
-        Counter({Path("x.py"): 1, Path("unrelated_1.py"): 1, Path("unrelated_2.py"): 1}),
-        Counter({Path("y.py"): 1, Path("z.py"): 1, Path("unrelated_3.py"): 1}),
+def test_new_code_violations_flags_an_extra_occurrence_after_a_move(tmp_path: Path) -> None:
+    # A split that also slips in one more copy raises the count, so moving doesn't mask it.
+    base = write_blocks(tmp_path / "base", "big_test.py", BLOCK, BLOCK, BLOCK)
+    head = [
+        *write_blocks(tmp_path / "head", "part_1.py", BLOCK, BLOCK),
+        *write_blocks(tmp_path / "head", "part_2.py", BLOCK, BLOCK),
     ]
-    assert new_code_violations(violations, base_counts, {}, REPO_ROOT_STUB) == violations
+    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
 
 
-def test_new_code_violations_resolves_a_head_side_rename_against_the_base_cluster() -> None:
-    a_renamed = Fragment(REPO_ROOT_STUB / "a_new_name.py", 1, 5)
-    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 5)
-    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 5)
-    violations = [[a_renamed, b, c]]
-    renames = {Path("a_new_name.py"): Path("a.py")}
-    base_counts = [Counter({Path("a.py"): 1, Path("b.py"): 1, Path("c.py"): 1})]
-    assert new_code_violations(violations, base_counts, renames, REPO_ROOT_STUB) == []
+def test_new_code_violations_flags_an_extra_same_file_occurrence(tmp_path: Path) -> None:
+    # scheduler.py already contributes 2 fragments to an existing cluster with other.py; this PR
+    # adds a 3rd copy to scheduler.py itself. Membership alone would miss it -- counts catch it.
+    base = [
+        *write_blocks(tmp_path / "base", "scheduler.py", BLOCK, BLOCK),
+        *write_blocks(tmp_path / "base", "other.py", BLOCK),
+    ]
+    head = [
+        *write_blocks(tmp_path / "head", "scheduler.py", BLOCK, BLOCK, BLOCK),
+        *write_blocks(tmp_path / "head", "other.py", BLOCK),
+    ]
+    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
 
 
-def test_new_code_violations_flags_a_renamed_file_that_also_gained_an_occurrence() -> None:
-    # a_new_name.py (renamed from a.py) now contributes 2 fragments to this cluster, but the base
-    # cluster only had 1 fragment in a.py -- the rename resolves correctly, but the count still
-    # doesn't fit, so this must be flagged (composes the rename and same-file-count-increase
-    # behaviors pinned separately above).
-    a_renamed_1 = Fragment(REPO_ROOT_STUB / "a_new_name.py", 1, 5)
-    a_renamed_2 = Fragment(REPO_ROOT_STUB / "a_new_name.py", 20, 24)
-    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 5)
-    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 5)
-    violations = [[a_renamed_1, a_renamed_2, b, c]]
-    renames = {Path("a_new_name.py"): Path("a.py")}
-    base_counts = [Counter({Path("a.py"): 1, Path("b.py"): 1, Path("c.py"): 1})]
-    assert new_code_violations(violations, base_counts, renames, REPO_ROOT_STUB) == violations
+def test_new_code_violations_flags_an_edited_occurrence(tmp_path: Path) -> None:
+    # An occurrence edited in a way PMD still matches carries different text, so it counts as
+    # changed rather than inheriting the base cluster's pre-existing status.
+    edited = BLOCK.replace("process(value)", "process(value, strict=True)")
+    base = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in "abc"]
+    head = [
+        *write_blocks(tmp_path / "head", "a.py", edited),
+        *(write_blocks(tmp_path / "head", f"{name}.py", BLOCK)[0] for name in "bc"),
+    ]
+    assert new_code_violations([head], [cluster_fingerprints(base)]) == [head]
 
 
-def test_new_code_violations_leaves_untouched_clusters_out_of_a_mixed_result() -> None:
-    new_a = Fragment(REPO_ROOT_STUB / "new_a.py", 1, 5)
-    new_b = Fragment(REPO_ROOT_STUB / "new_b.py", 1, 5)
-    new_c = Fragment(REPO_ROOT_STUB / "new_c.py", 1, 5)
-    old_a = Fragment(REPO_ROOT_STUB / "old_a.py", 1, 5)
-    old_b = Fragment(REPO_ROOT_STUB / "old_b.py", 1, 5)
-    old_c = Fragment(REPO_ROOT_STUB / "old_c.py", 1, 5)
-    new_cluster = [new_a, new_b, new_c]
-    old_cluster = [old_a, old_b, old_c]
-    base_counts = [Counter({Path("old_a.py"): 1, Path("old_b.py"): 1, Path("old_c.py"): 1})]
-    assert new_code_violations([new_cluster, old_cluster], base_counts, {}, REPO_ROOT_STUB) == [new_cluster]
+def test_new_code_violations_flags_a_new_cluster_spanning_two_base_clusters(tmp_path: Path) -> None:
+    # Each occurrence existed at the merge-base, but in two different clusters; no single base
+    # cluster covers the head cluster, so the newly joined match is still reported.
+    base_one = [write_blocks(tmp_path / "base", f"{name}.py", BLOCK)[0] for name in ("x", "u1", "u2")]
+    base_two = [write_blocks(tmp_path / "base", f"{name}.py", OTHER_BLOCK)[0] for name in ("y", "z", "u3")]
+    head = [
+        *write_blocks(tmp_path / "head", "x.py", BLOCK),
+        *(write_blocks(tmp_path / "head", f"{name}.py", OTHER_BLOCK)[0] for name in "yz"),
+    ]
+    base = [cluster_fingerprints(base_one), cluster_fingerprints(base_two)]
+    assert new_code_violations([head], base) == [head]
+
+
+def test_new_code_violations_leaves_untouched_clusters_out_of_a_mixed_result(tmp_path: Path) -> None:
+    base = [write_blocks(tmp_path / "base", f"old_{name}.py", OTHER_BLOCK)[0] for name in "abc"]
+    old_cluster = [write_blocks(tmp_path / "head", f"old_{name}.py", OTHER_BLOCK)[0] for name in "abc"]
+    new_cluster = [write_blocks(tmp_path / "head", f"new_{name}.py", BLOCK)[0] for name in "abc"]
+    assert new_code_violations([new_cluster, old_cluster], [cluster_fingerprints(base)]) == [new_cluster]
 
 
 def test_scan_tree_at_ref_scans_that_refs_own_tree(git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(check_duplicate_code, "REPO_ROOT", git_repo.root)
 
     git_repo.write("marker.txt", "base content\n")
+    git_repo.write("a.py", BLOCK)
+    git_repo.write("b.py", BLOCK)
     base = git_repo.commit("base")
     git_repo.write("marker.txt", "head content, unrelated to base\n")
     git_repo.commit("head")
@@ -575,7 +584,7 @@ def test_scan_tree_at_ref_scans_that_refs_own_tree(git_repo: GitRepo, monkeypatc
 
     result = check_duplicate_code.scan_tree_at_ref(base)
 
-    assert result == [Counter({Path("a.py"): 1, Path("b.py"): 1})]
+    assert result == [Counter({" ".join(BLOCK.split()): 2})]
     assert len(seen_roots) == 1
     assert not seen_roots[0].exists()  # throwaway directory cleaned up after the call returns
 
@@ -623,9 +632,9 @@ def test_main_resolves_merge_base_not_a_diverged_base_ref_tip(
 
     seen_refs: list[str] = []
 
-    def fake_scan_tree_at_ref(ref: str) -> list[Counter[Path]]:
+    def fake_scan_tree_at_ref(ref: str) -> list[Counter[str]]:
         seen_refs.append(ref)
-        return [Counter({Path("a.py"): 1, Path("b.py"): 1, Path("c.py"): 1})]
+        return [Counter({" ".join(("shared\n" * 5).split()): 3})]
 
     monkeypatch.setattr(check_duplicate_code, "scan_tree_at_ref", fake_scan_tree_at_ref)
     monkeypatch.setattr(sys, "argv", ["check_duplicate_code.py", "--gate-new-code", diverged_base_tip, head])
@@ -643,7 +652,7 @@ def test_main_skips_the_merge_base_scan_when_head_has_no_violations(
     monkeypatch.setattr(check_duplicate_code, "REPO_ROOT", git_repo.root)
     monkeypatch.setattr(check_duplicate_code, "run_scan", lambda _repo_root: [])
 
-    def fail_if_called(_ref: str) -> list[Counter[Path]]:
+    def fail_if_called(_ref: str) -> list[Counter[str]]:
         raise AssertionError("scan_tree_at_ref must not run when the head scan found nothing to disambiguate")
 
     monkeypatch.setattr(check_duplicate_code, "scan_tree_at_ref", fail_if_called)

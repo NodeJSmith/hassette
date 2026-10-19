@@ -120,7 +120,6 @@ from lint_helpers import (
     REPO_ROOT,
     docstring_spans,
     git_merge_base,
-    git_renamed_from,
     iter_py_files,
     iter_ts_files,
 )
@@ -523,8 +522,8 @@ def cluster(edges: list[tuple[Fragment, Fragment]]) -> list[list[Fragment]]:
 
 def format_violation(component: list[Fragment]) -> str:
     """Format one violation for display -- always against the real REPO_ROOT, never the throwaway
-    merge-base extraction (`scan_tree_at_ref()` returns per-cluster counts, not `Fragment`s, for
-    exactly this reason: nothing here ever needs to format a base-tree fragment for a user).
+    merge-base extraction (`scan_tree_at_ref()` returns per-cluster fingerprint counts, not
+    `Fragment`s, for exactly this reason: nothing here ever needs to format a base-tree fragment for a user).
     """
     lines = [
         f"    {fragment.file.relative_to(REPO_ROOT)}:{fragment.start}-{fragment.end}" for fragment in sorted(component)
@@ -541,52 +540,46 @@ def find_violations(blocks: list[list[Fragment]], repo_root: Path) -> list[list[
     return [component for component in candidates if any(not is_dup_ignored(fragment) for fragment in component)]
 
 
-def cluster_file_counts(
-    component: list[Fragment], repo_root: Path, renames: dict[Path, Path] | None = None
-) -> Counter[Path]:
-    """Return {repo-relative file path: fragment count in this cluster} for one violation.
+def fragment_fingerprint(fragment: Fragment) -> str:
+    """Return the fragment's source text with every whitespace run collapsed to one space.
 
-    `renames` (only meaningful for a head-tree cluster) maps a head-relative path to its
-    merge-base-relative path, so a cluster's identity survives a plain rename between the two
-    scans being compared — see `new_code_violations()`.
+    Raw text rather than PMD's token stream: a verbatim move keeps it identical wherever the
+    block lands (including a re-indent), while an occurrence edited in a way PMD still matches
+    gets a different fingerprint and so counts as changed.
     """
-    counts: Counter[Path] = Counter()
-    for fragment in component:
-        rel = fragment.file.relative_to(repo_root)
-        if renames is not None:
-            rel = renames.get(rel, rel)
-        counts[rel] += 1
-    return counts
+    lines = fragment.file.read_text().splitlines()[fragment.start - 1 : fragment.end]
+    return " ".join(" ".join(lines).split())
+
+
+def cluster_fingerprints(component: list[Fragment]) -> Counter[str]:
+    """Return {fragment fingerprint: occurrence count} for one violation cluster.
+
+    Identifies occurrences by content, not path, so a cluster keeps its identity when its
+    occurrences move between files (split, merge, rename) — see `new_code_violations()`.
+    """
+    return Counter(fragment_fingerprint(fragment) for fragment in component)
 
 
 def new_code_violations(
-    head_violations: list[list[Fragment]],
-    base_cluster_counts: list[Counter[Path]],
-    renames: dict[Path, Path],
-    repo_root: Path,
+    head_violations: list[list[Fragment]], base_cluster_fingerprints: list[Counter[str]]
 ) -> list[list[Fragment]]:
     """Return the subset of `head_violations` this PR's own diff is responsible for.
 
-    Earlier versions of this gate inferred "is this cluster new" from how much of a fragment's
-    *lines* the PR's diff touched — a proxy that both false-positived (reformatting an existing
-    occurrence rewrites most of its lines without changing what it duplicates) and false-
-    negatived (a single-line edit can turn a previously-unrelated pair into a brand-new 3-way
-    match, at near-zero line overlap). This compares actual violation sets instead: a head
-    cluster is pre-existing only if some single merge-base cluster already contained every one
-    of its (file, occurrence-count) pairs — comparing *counts*, not just file identity, so
-    adding a new copy to a file that already contributed multiple fragments to an existing
-    cluster (e.g. scheduler.py's several same-file convenience-method duplicates) still counts
-    as new debt rather than being masked by the file's pre-existing membership. A cluster
-    lacking a fully-covering base match is reported as PR-introduced, whether that's because it
-    gained a member (an extra occurrence added to existing debt) or never existed at all (a
-    wholly new match, however small the edit that created it).
+    A head cluster is pre-existing only if some single merge-base cluster already held at least
+    as many fragments with each of its fingerprints (`cluster_fingerprints()`), wherever those
+    fragments lived. Moving occurrences between files keeps every count the same, so it passes.
+    Adding a copy anywhere — including one more in a file that already had some — raises a
+    count, and a wholly new match has no covering base cluster at all; both are reported.
+    Comparing violation sets, rather than how many of a fragment's lines the diff touched, also
+    keeps a pure reformat from counting as new and a one-line edit that forms a new 3-way match
+    from slipping through.
     """
     introduced = []
     for component in head_violations:
-        head_counts = cluster_file_counts(component, repo_root, renames)
+        head_counts = cluster_fingerprints(component)
         pre_existing = any(
-            all(count <= base_counts.get(path, 0) for path, count in head_counts.items())
-            for base_counts in base_cluster_counts
+            all(count <= base_counts.get(fingerprint, 0) for fingerprint, count in head_counts.items())
+            for base_counts in base_cluster_fingerprints
         )
         if not pre_existing:
             introduced.append(component)
@@ -609,14 +602,14 @@ def run_scan(repo_root: Path) -> list[list[Fragment]]:
     return find_violations(blocks, repo_root)
 
 
-def scan_tree_at_ref(ref: str) -> list[Counter[Path]]:
+def scan_tree_at_ref(ref: str) -> list[Counter[str]]:
     """Materialize `ref`'s tree into a throwaway directory, scan it, and return each violation
-    cluster's per-file fragment counts (see `cluster_file_counts()`).
+    cluster's fingerprint counts (see `cluster_fingerprints()`).
 
     Used to compute the PR's merge-base violation "shape" for `--gate-new-code`: `new_code_
-    violations()` only needs to know, per cluster, which files contributed how many fragments —
-    not the fragments' exact text or line ranges — so returning counts here (rather than raw
-    `Fragment`s tied to a temp directory that's about to be deleted) keeps the caller from ever
+    violations()` only needs each cluster's fingerprint counts, not paths or line ranges.
+    Fingerprinting here, while the extraction still exists, rather than returning raw
+    `Fragment`s tied to a temp directory that's about to be deleted, keeps the caller from ever
     needing to know this function's throwaway root path.
 
     Reads module-level `REPO_ROOT` directly, unlike every other function in this file's
@@ -638,7 +631,7 @@ def scan_tree_at_ref(ref: str) -> list[Counter[Path]]:
                 f"({exc.cmd} exited {exc.returncode}): {exc.stderr!r}"
             ) from exc
         violations = run_scan(tmp_root)
-        return [cluster_file_counts(component, tmp_root) for component in violations]
+        return [cluster_fingerprints(component) for component in violations]
 
 
 def report_full_backlog(violations: list[list[Fragment]]) -> int:
@@ -722,13 +715,12 @@ def main() -> int:
         return report_new_code_gate([])
 
     merge_base = git_merge_base(REPO_ROOT, base_ref, head_ref)
-    renames = git_renamed_from(REPO_ROOT, merge_base, head_ref)
     try:
-        base_cluster_counts = scan_tree_at_ref(merge_base)
+        base_cluster_fingerprints = scan_tree_at_ref(merge_base)
     except IgnoreMarkerError as exc:
         print(f"ERROR: malformed dup-ignore marker in merge-base tree ({merge_base}): {exc}")
         return 1
-    introduced = new_code_violations(head_violations, base_cluster_counts, renames, REPO_ROOT)
+    introduced = new_code_violations(head_violations, base_cluster_fingerprints)
     return apply_label_override(report_new_code_gate(introduced), ALLOW_LABEL)
 
 
