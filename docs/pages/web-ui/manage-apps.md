@@ -60,13 +60,25 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 |--------|---------------|-------------|
 | **Start** | `STOPPED`, `FAILED`, or `DISABLED` | Initializes the app and begins processing events. |
 | **Stop** | `RUNNING` or `DEGRADED` | Shuts the app down gracefully and cancels its scheduled jobs. The app stops receiving events until started again. |
-| **Reload** | `RUNNING` or `DEGRADED` | Stops the app, re-imports its Python file, and starts it again, without restarting the Hassette process. |
+| **Reload** | `RUNNING` or `DEGRADED` | Stops the app, re-imports its own module file, and starts it again, without restarting the Hassette process. See [What Reload Re-imports](#what-reload-re-imports). |
 
 **Stop** and **Reload** are both available for `DEGRADED` apps, not just `RUNNING` ones — a degraded app still has at least one instance running, so shutting it down or picking up new code is a meaningful recovery action. **Start** is not: nothing about `DEGRADED` implies a fully stopped app.
 
-**Reload** picks up changes to an app's Python file. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs a Hassette restart. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
+**Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs a Hassette restart. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
 
 These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /api/apps/{key}/instances/{index}/start`, `/stop`, `/reload` for a single instance. The CLI exposes the same three actions as `hassette app start|stop|reload`, with `--instance` routing to the per-instance endpoint. See [CLI Commands](../cli/commands.md) for the full command reference.
+
+### What Reload Re-imports
+
+A reload re-imports only the app's own module file. Every module that file imports keeps its previously imported code. That covers sibling modules in a package-style app and shared helper modules alike. The **Reload** button, `hassette app reload`, the Home Assistant reload button, and automatic reloads all behave this way. The file watcher reloads an app only when the app's own file changes. Editing a sibling module alone triggers no reload.
+
+!!! warning "Edits outside the app's own file need a Hassette restart"
+    Take an app at `garage_proximity/app.py` that imports `garage_proximity/models.py`. A reload never re-reads `models.py`, which causes two failures:
+
+    - **The reload fails.** Add `NewThing` to `models.py` and `from .models import NewThing` to `app.py`, then reload. The import raises `ImportError: cannot import name 'NewThing'`. Hassette stopped the app before re-importing, so the app stays stopped with status `FAILED`. The `ImportError` appears in the log and as the app's last error.
+    - **The reload succeeds with old code.** Change only how something in `models.py` behaves, then reload. The reload reports no error, and the app keeps running the old `models.py` code.
+
+    Restart the Hassette process or container whenever anything other than the app's own file changed. With Docker Compose, run `docker compose restart hassette`.
 
 ## Understand App States
 
