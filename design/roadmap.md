@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-17
+Last reviewed: 2026-10-19
 
 ## How the pieces fit
 
@@ -57,6 +57,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
+| **Log identity** | *Log Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Separates author, subject and execution on log records, opens with unique instance names (#3095), and fixes the add-on console (#3044). Breaking config change (every configured instance must be named) belongs before 1.0 |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
@@ -67,6 +68,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | Initiative | Milestone / pool | Blocked on / note |
 |---|---|---|
 | **HACS webhooks & templates** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store |
+| **Instance identity** | *Instance Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Re-keys DB rows, registry, routes and client on the instance name. Starts after *Log Identity*; #3098's migration needs a challenge before it's built |
 | **DB as source of truth** | *DB as Source of Truth* | Design: `design/specs/132-db-source-of-truth/design.md`. #2695 lands first; the tail (WS invalidations, snapshot mode) is frontend-heavy. Makes the seed scripts servable to the UI |
 | **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS app-entities API) |
 | **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
@@ -86,6 +88,8 @@ testing redesign + all breaking changes ──> v1.0 tag
 #2992, #1446, #2991 job timing, #2555 apps cleanup ──> #2993 apps from DB ──> #2996 snapshot mode
 #1446 projector ──> #2890 mixed-instance scenario ──> #2996 snapshot mode
 #2989 seed anchor ──> #2996 snapshot mode
+#3095 instance names ──> #2496 logger identity ──> #3096 author field, #3097 framework_log_level, #3044 console column
+Log Identity milestone closed ──> #3098 DB keyed by name, #3099 registry by name ──> #3100 routes by name
 ```
 
 Remove a chain once every step on it has closed.
