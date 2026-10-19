@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.59.0](https://github.com/NodeJSmith/hassette/compare/v0.58.0...v0.59.0) (2026-10-19)
+
+### Breaking Changes
+
+- **`role` is gone from the web API's service status** — `GET /api/health` no longer includes `services[].role`, `hassette_wire.ResourceRole` and `OpenResourceRole` are removed, and `hassette.types.ResourceRole` drops its unused `CORE`, `BASE` and `UNKNOWN` members. Clients built before this release require `role` and can't parse `/api/health`: upgrade `hassette-client` to 0.59.0, and update the `hass-hassette` integration to a release built on it before or alongside this upgrade (v0.2.0 and earlier fail to connect). (#3063)
+- **Scheduler delays and intervals must be at least 1 second** — `run_in()` and `After()` raise `ValueError` for a total delay under 1 second, and `run_every()` and `Every()` for an interval under 1 second. The scheduler fires on whole seconds, so a sub-second delay used to fire anywhere from immediately to about 0.8 s later. Use a delay of 1 second or more, or `await asyncio.sleep()` inside a handler for a shorter pause. Fractional jitter is still allowed. (#3077)
+- **`Resource.cleanup()` takes no arguments** — the `timeout` parameter on `Resource.cleanup()` and the `App` and `DatabaseService` overrides is removed. Shutdown already bounds cleanup with `cleanup_timeout`, so it did nothing. A custom `Resource` or `Service` override should become `async def cleanup(self) -> None` calling `await super().cleanup()`. Passing the old argument, as in `super().cleanup(timeout)`, raises `TypeError`, which shutdown records as a failed cleanup. The unused `LifecycleMixin.initializing` and `LifecycleMixin.task` properties are also removed. (#3117)
+
+### For App Authors: You Can Now Delete
+
+- **Custom state classes for `wake_word`, `infrared`, `radio_frequency`, `alert` or `tag` entities** — these domains now have typed models (`self.states.tag`, `self.states.alert`, and so on) instead of falling back to `BaseState`. (#3103)
+- **Raising `logging.web_api` to `WARNING` just to silence per-request access lines** — access lines are now logged only when `logging.web_api` is `DEBUG`, so the default no longer fills the log with healthcheck and integration polling. (#3050)
+
+### Bus, Scheduler & Apps
+
+- `on_state_change` and `on_attribute_change` log a WARNING when an app registers a literal entity ID that isn't in the state cache, naming the closest known ID when there is one. A typo used to mean the handler silently never fired. The listener still registers, and globs, framework listeners and an empty cache never warn. (#3071)
+- Typed state models for `wake_word`, `infrared`, `radio_frequency` and `tag` (timestamp state of the last event, with `tag_id` and `last_scanned_by_device_id` on `tag`) and `alert` (string state, plus an `alert` entity wrapper). (#3103)
+- Apps can declare an optional one-line `description` (up to 200 characters) in their manifest. (#3116)
+
+### Web API & Telemetry
+
+- `GET /api/apps` and `GET /api/apps/{app_key}` return each app's `description`, or `null` when it's unset. (#3116)
+- Listener summaries include `last_error_ts`, the time of the most recent error, as job summaries already did. (#3118)
+
+### Logging & Add-on
+
+- Uvicorn's per-request access lines are logged only when `logging.web_api` is `DEBUG`. Startup and error lines still follow `logging.web_api` as before. (#3050)
+- Under the Home Assistant add-on, the first-run "generated token" log line points at the sidebar's Open Web UI button instead of `http://127.0.0.1:8126`, which isn't reachable there, and notes the token is only needed for the CLI or a published port. (#3047)
+
+### Documentation
+
+- What an app reload re-imports: the Reload button, the CLI and automatic reloads re-import only the app's own module file, a config-only change restarts instances with the already-loaded code, and edits to sibling or helper modules need a Hassette restart. (#3094)
+
 ## [0.58.0](https://github.com/NodeJSmith/hassette/compare/v0.57.0...v0.58.0) (2026-10-17)
 
 ### Breaking Changes
