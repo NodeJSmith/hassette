@@ -103,6 +103,8 @@ Either way, `docker compose restart hassette` picks up an edit on the host:
 the startup reinstalls the project copy on every start. A reload alone is not
 enough for anything but the app's own module. It re-imports only that module,
 and Python keeps already-imported modules like `mypkg.helpers` cached.
+See [What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)
+for the failures this causes.
 
 The installed copy matters for those other packages, and for any code that
 imports your project as an installed package. Your build backend, the tool
