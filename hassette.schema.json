@@ -1136,6 +1136,10 @@
           "title": "Display Name",
           "type": "string"
         },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
         "app_dir": {
           "anyOf": [
             {
