@@ -9,13 +9,13 @@ import contextlib
 import typing
 
 import pytest
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing import wait_for
-from hassette.types.enums import Topic
+from hassette.types.enums import ResourceRole, Topic
 
 if typing.TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable

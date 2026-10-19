@@ -173,3 +173,6 @@ GET /api/health/live the response property `status` became optional for the stat
 # #2262: GET /api/logs/recent source_tier becomes the shared app|framework|all enum (default all); values are now case-sensitive.
 GET /api/logs/recent the `query` request parameter `source_tier` was restricted to a list of enum values
 GET /api/logs/recent `query` request parameter `source_tier` list-of-types was narrowed by removing types `null`
+
+# #2524: ResourceRole becomes internal to the server; ServiceInfo.role leaves the /api/health response.
+GET /api/health removed the required property `services/items/role` from the response with the `200` status

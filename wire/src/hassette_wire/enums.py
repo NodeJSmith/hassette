@@ -128,34 +128,6 @@ class ExecutionStatus(StrEnum):
 OpenExecutionStatus = Annotated[ExecutionStatus | UnknownValue, LenientValue("ExecutionStatus")]
 
 
-class ResourceRole(StrEnum):
-    """The kind of framework component a status or service entry describes."""
-
-    CORE = "core"
-    """The framework itself rather than one of its components. Not currently reported."""
-
-    BASE = "base"
-    """A generic component with no more specific kind. Not currently reported; treat it like
-    ``resource``."""
-
-    SERVICE = "service"
-    """A long-running framework service that is supervised and restarted on failure, such as the
-    Home Assistant connection or the database."""
-
-    RESOURCE = "resource"
-    """A framework component that runs for the life of its owner but is not supervised or restarted
-    on its own."""
-
-    APP = "app"
-    """A user app instance."""
-
-    UNKNOWN = "unknown"
-    """A component whose kind is not classified. Not currently reported."""
-
-
-OpenResourceRole = Annotated[ResourceRole | UnknownValue, LenientValue("ResourceRole")]
-
-
 # Values must equal the server's scheduled_jobs.schedule_status CHECK constraint (parity-tested).
 class ScheduleStatus(StrEnum):
     """Whether a scheduled job will run again on its own."""

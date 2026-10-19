@@ -4,7 +4,7 @@ import asyncio
 import time
 import typing
 
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette.events import HassetteServiceEvent
 from hassette.events.hassette import ServiceStatusPayload
@@ -12,7 +12,7 @@ from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import request_shutdown
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
-from hassette.types.enums import RestartType
+from hassette.types.enums import ResourceRole, RestartType
 
 if typing.TYPE_CHECKING:
     import logging

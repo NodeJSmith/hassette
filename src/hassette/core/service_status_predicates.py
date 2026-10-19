@@ -4,10 +4,9 @@ Extracted from service_watcher.py so multiple subscribers can share the same rol
 Current consumers: ServiceWatcher, SessionManager (#2153), and RuntimeQueryService (#1666).
 """
 
-from hassette_wire import ResourceRole
-
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
+from hassette.types.enums import ResourceRole
 
 SERVICE_STATUS_PATH = "payload.data.status"
 SERVICE_ROLE_PATH = "payload.data.role"

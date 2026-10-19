@@ -160,12 +160,6 @@ const schema11 = {
       title: "LogHintWsMessage",
       type: "object",
     },
-    ResourceRole: {
-      description: "The kind of framework component a status or service entry describes.",
-      enum: ["core", "base", "service", "resource", "app", "unknown"],
-      title: "ResourceRole",
-      type: "string",
-    },
     ResourceStatus: {
       description: "Enumeration for resource status.",
       enum: [
@@ -187,7 +181,6 @@ const schema11 = {
         "A framework service changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
       properties: {
         resource_name: { title: "Resource Name", type: "string" },
-        role: { $ref: "#/$defs/ResourceRole" },
         status: { $ref: "#/$defs/ResourceStatus" },
         previous_status: { anyOf: [{ $ref: "#/$defs/ResourceStatus" }, { type: "null" }], default: null },
         exception: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception" },
@@ -217,7 +210,7 @@ const schema11 = {
           title: "Ready Phase",
         },
       },
-      required: ["resource_name", "role", "status"],
+      required: ["resource_name", "status"],
       title: "ServiceStatusData",
       type: "object",
     },
@@ -244,7 +237,7 @@ const schema11 = {
     { $ref: "#/$defs/AppsChangedWsMessage" },
   ],
 };
-const schema30 = {
+const schema29 = {
   description:
     "New log records exist; refetch them over HTTP.\n\nCarries no records. Sent only to clients that subscribed to logs.",
   properties: {
@@ -1400,7 +1393,6 @@ const schema21 = {
     "A framework service changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
   properties: {
     resource_name: { title: "Resource Name", type: "string" },
-    role: { $ref: "#/$defs/ResourceRole" },
     status: { $ref: "#/$defs/ResourceStatus" },
     previous_status: { anyOf: [{ $ref: "#/$defs/ResourceStatus" }, { type: "null" }], default: null },
     exception: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception" },
@@ -1426,15 +1418,9 @@ const schema21 = {
       title: "Ready Phase",
     },
   },
-  required: ["resource_name", "role", "status"],
+  required: ["resource_name", "status"],
   title: "ServiceStatusData",
   type: "object",
-};
-const schema22 = {
-  description: "The kind of framework component a status or service entry describes.",
-  enum: ["core", "base", "service", "resource", "app", "unknown"],
-  title: "ResourceRole",
-  type: "string",
 };
 function validate17(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
@@ -1444,7 +1430,6 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
       let missing0;
       if (
         (data.resource_name === undefined && (missing0 = "resource_name")) ||
-        (data.role === undefined && (missing0 = "role")) ||
         (data.status === undefined && (missing0 = "status"))
       ) {
         validate17.errors = [
@@ -1477,14 +1462,14 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
           var valid0 = true;
         }
         if (valid0) {
-          if (data.role !== undefined) {
-            let data1 = data.role;
+          if (data.status !== undefined) {
+            let data1 = data.status;
             const _errs3 = errors;
             if (typeof data1 !== "string") {
               validate17.errors = [
                 {
-                  instancePath: instancePath + "/role",
-                  schemaPath: "#/$defs/ResourceRole/type",
+                  instancePath: instancePath + "/status",
+                  schemaPath: "#/$defs/ResourceStatus/type",
                   keyword: "type",
                   params: { type: "string" },
                   message: "must be string",
@@ -1493,19 +1478,22 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
               return false;
             }
             if (!(
-              data1 === "core" ||
-              data1 === "base" ||
-              data1 === "service" ||
-              data1 === "resource" ||
-              data1 === "app" ||
-              data1 === "unknown"
+              data1 === "not_started" ||
+              data1 === "starting" ||
+              data1 === "running" ||
+              data1 === "stopping" ||
+              data1 === "stopped" ||
+              data1 === "failed" ||
+              data1 === "crashed" ||
+              data1 === "exhausted_dead" ||
+              data1 === "exhausted_cooling"
             )) {
               validate17.errors = [
                 {
-                  instancePath: instancePath + "/role",
-                  schemaPath: "#/$defs/ResourceRole/enum",
+                  instancePath: instancePath + "/status",
+                  schemaPath: "#/$defs/ResourceStatus/enum",
                   keyword: "enum",
-                  params: { allowedValues: schema22.enum },
+                  params: { allowedValues: schema14.enum },
                   message: "must be equal to one of the allowed values",
                 },
               ];
@@ -1516,20 +1504,26 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
             var valid0 = true;
           }
           if (valid0) {
-            if (data.status !== undefined) {
-              let data2 = data.status;
+            if (data.previous_status !== undefined) {
+              let data2 = data.previous_status;
               const _errs6 = errors;
+              const _errs7 = errors;
+              let valid2 = false;
+              const _errs8 = errors;
               if (typeof data2 !== "string") {
-                validate17.errors = [
-                  {
-                    instancePath: instancePath + "/status",
-                    schemaPath: "#/$defs/ResourceStatus/type",
-                    keyword: "type",
-                    params: { type: "string" },
-                    message: "must be string",
-                  },
-                ];
-                return false;
+                const err0 = {
+                  instancePath: instancePath + "/previous_status",
+                  schemaPath: "#/$defs/ResourceStatus/type",
+                  keyword: "type",
+                  params: { type: "string" },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err0];
+                } else {
+                  vErrors.push(err0);
+                }
+                errors++;
               }
               if (!(
                 data2 === "not_started" ||
@@ -1542,509 +1536,460 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                 data2 === "exhausted_dead" ||
                 data2 === "exhausted_cooling"
               )) {
-                validate17.errors = [
-                  {
-                    instancePath: instancePath + "/status",
-                    schemaPath: "#/$defs/ResourceStatus/enum",
-                    keyword: "enum",
-                    params: { allowedValues: schema14.enum },
-                    message: "must be equal to one of the allowed values",
-                  },
-                ];
+                const err1 = {
+                  instancePath: instancePath + "/previous_status",
+                  schemaPath: "#/$defs/ResourceStatus/enum",
+                  keyword: "enum",
+                  params: { allowedValues: schema14.enum },
+                  message: "must be equal to one of the allowed values",
+                };
+                if (vErrors === null) {
+                  vErrors = [err1];
+                } else {
+                  vErrors.push(err1);
+                }
+                errors++;
+              }
+              var _valid0 = _errs8 === errors;
+              valid2 = valid2 || _valid0;
+              if (!valid2) {
+                const _errs11 = errors;
+                if (data2 !== null) {
+                  const err2 = {
+                    instancePath: instancePath + "/previous_status",
+                    schemaPath: "#/properties/previous_status/anyOf/1/type",
+                    keyword: "type",
+                    params: { type: "null" },
+                    message: "must be null",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err2];
+                  } else {
+                    vErrors.push(err2);
+                  }
+                  errors++;
+                }
+                var _valid0 = _errs11 === errors;
+                valid2 = valid2 || _valid0;
+              }
+              if (!valid2) {
+                const err3 = {
+                  instancePath: instancePath + "/previous_status",
+                  schemaPath: "#/properties/previous_status/anyOf",
+                  keyword: "anyOf",
+                  params: {},
+                  message: "must match a schema in anyOf",
+                };
+                if (vErrors === null) {
+                  vErrors = [err3];
+                } else {
+                  vErrors.push(err3);
+                }
+                errors++;
+                validate17.errors = vErrors;
                 return false;
+              } else {
+                errors = _errs7;
+                if (vErrors !== null) {
+                  if (_errs7) {
+                    vErrors.length = _errs7;
+                  } else {
+                    vErrors = null;
+                  }
+                }
               }
               var valid0 = _errs6 === errors;
             } else {
               var valid0 = true;
             }
             if (valid0) {
-              if (data.previous_status !== undefined) {
-                let data3 = data.previous_status;
-                const _errs9 = errors;
-                const _errs10 = errors;
-                let valid3 = false;
-                const _errs11 = errors;
+              if (data.exception !== undefined) {
+                let data3 = data.exception;
+                const _errs13 = errors;
+                const _errs14 = errors;
+                let valid4 = false;
+                const _errs15 = errors;
                 if (typeof data3 !== "string") {
-                  const err0 = {
-                    instancePath: instancePath + "/previous_status",
-                    schemaPath: "#/$defs/ResourceStatus/type",
+                  const err4 = {
+                    instancePath: instancePath + "/exception",
+                    schemaPath: "#/properties/exception/anyOf/0/type",
                     keyword: "type",
                     params: { type: "string" },
                     message: "must be string",
                   };
                   if (vErrors === null) {
-                    vErrors = [err0];
+                    vErrors = [err4];
                   } else {
-                    vErrors.push(err0);
+                    vErrors.push(err4);
                   }
                   errors++;
                 }
-                if (!(
-                  data3 === "not_started" ||
-                  data3 === "starting" ||
-                  data3 === "running" ||
-                  data3 === "stopping" ||
-                  data3 === "stopped" ||
-                  data3 === "failed" ||
-                  data3 === "crashed" ||
-                  data3 === "exhausted_dead" ||
-                  data3 === "exhausted_cooling"
-                )) {
-                  const err1 = {
-                    instancePath: instancePath + "/previous_status",
-                    schemaPath: "#/$defs/ResourceStatus/enum",
-                    keyword: "enum",
-                    params: { allowedValues: schema14.enum },
-                    message: "must be equal to one of the allowed values",
-                  };
-                  if (vErrors === null) {
-                    vErrors = [err1];
-                  } else {
-                    vErrors.push(err1);
-                  }
-                  errors++;
-                }
-                var _valid0 = _errs11 === errors;
-                valid3 = valid3 || _valid0;
-                if (!valid3) {
-                  const _errs14 = errors;
+                var _valid1 = _errs15 === errors;
+                valid4 = valid4 || _valid1;
+                if (!valid4) {
+                  const _errs17 = errors;
                   if (data3 !== null) {
-                    const err2 = {
-                      instancePath: instancePath + "/previous_status",
-                      schemaPath: "#/properties/previous_status/anyOf/1/type",
+                    const err5 = {
+                      instancePath: instancePath + "/exception",
+                      schemaPath: "#/properties/exception/anyOf/1/type",
                       keyword: "type",
                       params: { type: "null" },
                       message: "must be null",
                     };
                     if (vErrors === null) {
-                      vErrors = [err2];
+                      vErrors = [err5];
                     } else {
-                      vErrors.push(err2);
+                      vErrors.push(err5);
                     }
                     errors++;
                   }
-                  var _valid0 = _errs14 === errors;
-                  valid3 = valid3 || _valid0;
+                  var _valid1 = _errs17 === errors;
+                  valid4 = valid4 || _valid1;
                 }
-                if (!valid3) {
-                  const err3 = {
-                    instancePath: instancePath + "/previous_status",
-                    schemaPath: "#/properties/previous_status/anyOf",
+                if (!valid4) {
+                  const err6 = {
+                    instancePath: instancePath + "/exception",
+                    schemaPath: "#/properties/exception/anyOf",
                     keyword: "anyOf",
                     params: {},
                     message: "must match a schema in anyOf",
                   };
                   if (vErrors === null) {
-                    vErrors = [err3];
+                    vErrors = [err6];
                   } else {
-                    vErrors.push(err3);
+                    vErrors.push(err6);
                   }
                   errors++;
                   validate17.errors = vErrors;
                   return false;
                 } else {
-                  errors = _errs10;
+                  errors = _errs14;
                   if (vErrors !== null) {
-                    if (_errs10) {
-                      vErrors.length = _errs10;
+                    if (_errs14) {
+                      vErrors.length = _errs14;
                     } else {
                       vErrors = null;
                     }
                   }
                 }
-                var valid0 = _errs9 === errors;
+                var valid0 = _errs13 === errors;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
-                if (data.exception !== undefined) {
-                  let data4 = data.exception;
-                  const _errs16 = errors;
-                  const _errs17 = errors;
+                if (data.exception_type !== undefined) {
+                  let data4 = data.exception_type;
+                  const _errs19 = errors;
+                  const _errs20 = errors;
                   let valid5 = false;
-                  const _errs18 = errors;
+                  const _errs21 = errors;
                   if (typeof data4 !== "string") {
-                    const err4 = {
-                      instancePath: instancePath + "/exception",
-                      schemaPath: "#/properties/exception/anyOf/0/type",
+                    const err7 = {
+                      instancePath: instancePath + "/exception_type",
+                      schemaPath: "#/properties/exception_type/anyOf/0/type",
                       keyword: "type",
                       params: { type: "string" },
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err4];
+                      vErrors = [err7];
                     } else {
-                      vErrors.push(err4);
+                      vErrors.push(err7);
                     }
                     errors++;
                   }
-                  var _valid1 = _errs18 === errors;
-                  valid5 = valid5 || _valid1;
+                  var _valid2 = _errs21 === errors;
+                  valid5 = valid5 || _valid2;
                   if (!valid5) {
-                    const _errs20 = errors;
+                    const _errs23 = errors;
                     if (data4 !== null) {
-                      const err5 = {
-                        instancePath: instancePath + "/exception",
-                        schemaPath: "#/properties/exception/anyOf/1/type",
+                      const err8 = {
+                        instancePath: instancePath + "/exception_type",
+                        schemaPath: "#/properties/exception_type/anyOf/1/type",
                         keyword: "type",
                         params: { type: "null" },
                         message: "must be null",
                       };
                       if (vErrors === null) {
-                        vErrors = [err5];
+                        vErrors = [err8];
                       } else {
-                        vErrors.push(err5);
+                        vErrors.push(err8);
                       }
                       errors++;
                     }
-                    var _valid1 = _errs20 === errors;
-                    valid5 = valid5 || _valid1;
+                    var _valid2 = _errs23 === errors;
+                    valid5 = valid5 || _valid2;
                   }
                   if (!valid5) {
-                    const err6 = {
-                      instancePath: instancePath + "/exception",
-                      schemaPath: "#/properties/exception/anyOf",
+                    const err9 = {
+                      instancePath: instancePath + "/exception_type",
+                      schemaPath: "#/properties/exception_type/anyOf",
                       keyword: "anyOf",
                       params: {},
                       message: "must match a schema in anyOf",
                     };
                     if (vErrors === null) {
-                      vErrors = [err6];
+                      vErrors = [err9];
                     } else {
-                      vErrors.push(err6);
+                      vErrors.push(err9);
                     }
                     errors++;
                     validate17.errors = vErrors;
                     return false;
                   } else {
-                    errors = _errs17;
+                    errors = _errs20;
                     if (vErrors !== null) {
-                      if (_errs17) {
-                        vErrors.length = _errs17;
+                      if (_errs20) {
+                        vErrors.length = _errs20;
                       } else {
                         vErrors = null;
                       }
                     }
                   }
-                  var valid0 = _errs16 === errors;
+                  var valid0 = _errs19 === errors;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
-                  if (data.exception_type !== undefined) {
-                    let data5 = data.exception_type;
-                    const _errs22 = errors;
-                    const _errs23 = errors;
+                  if (data.exception_traceback !== undefined) {
+                    let data5 = data.exception_traceback;
+                    const _errs25 = errors;
+                    const _errs26 = errors;
                     let valid6 = false;
-                    const _errs24 = errors;
+                    const _errs27 = errors;
                     if (typeof data5 !== "string") {
-                      const err7 = {
-                        instancePath: instancePath + "/exception_type",
-                        schemaPath: "#/properties/exception_type/anyOf/0/type",
+                      const err10 = {
+                        instancePath: instancePath + "/exception_traceback",
+                        schemaPath: "#/properties/exception_traceback/anyOf/0/type",
                         keyword: "type",
                         params: { type: "string" },
                         message: "must be string",
                       };
                       if (vErrors === null) {
-                        vErrors = [err7];
+                        vErrors = [err10];
                       } else {
-                        vErrors.push(err7);
+                        vErrors.push(err10);
                       }
                       errors++;
                     }
-                    var _valid2 = _errs24 === errors;
-                    valid6 = valid6 || _valid2;
+                    var _valid3 = _errs27 === errors;
+                    valid6 = valid6 || _valid3;
                     if (!valid6) {
-                      const _errs26 = errors;
+                      const _errs29 = errors;
                       if (data5 !== null) {
-                        const err8 = {
-                          instancePath: instancePath + "/exception_type",
-                          schemaPath: "#/properties/exception_type/anyOf/1/type",
+                        const err11 = {
+                          instancePath: instancePath + "/exception_traceback",
+                          schemaPath: "#/properties/exception_traceback/anyOf/1/type",
                           keyword: "type",
                           params: { type: "null" },
                           message: "must be null",
                         };
                         if (vErrors === null) {
-                          vErrors = [err8];
+                          vErrors = [err11];
                         } else {
-                          vErrors.push(err8);
+                          vErrors.push(err11);
                         }
                         errors++;
                       }
-                      var _valid2 = _errs26 === errors;
-                      valid6 = valid6 || _valid2;
+                      var _valid3 = _errs29 === errors;
+                      valid6 = valid6 || _valid3;
                     }
                     if (!valid6) {
-                      const err9 = {
-                        instancePath: instancePath + "/exception_type",
-                        schemaPath: "#/properties/exception_type/anyOf",
+                      const err12 = {
+                        instancePath: instancePath + "/exception_traceback",
+                        schemaPath: "#/properties/exception_traceback/anyOf",
                         keyword: "anyOf",
                         params: {},
                         message: "must match a schema in anyOf",
                       };
                       if (vErrors === null) {
-                        vErrors = [err9];
+                        vErrors = [err12];
                       } else {
-                        vErrors.push(err9);
+                        vErrors.push(err12);
                       }
                       errors++;
                       validate17.errors = vErrors;
                       return false;
                     } else {
-                      errors = _errs23;
+                      errors = _errs26;
                       if (vErrors !== null) {
-                        if (_errs23) {
-                          vErrors.length = _errs23;
+                        if (_errs26) {
+                          vErrors.length = _errs26;
                         } else {
                           vErrors = null;
                         }
                       }
                     }
-                    var valid0 = _errs22 === errors;
+                    var valid0 = _errs25 === errors;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.exception_traceback !== undefined) {
-                      let data6 = data.exception_traceback;
-                      const _errs28 = errors;
-                      const _errs29 = errors;
+                    if (data.retry_at !== undefined) {
+                      let data6 = data.retry_at;
+                      const _errs31 = errors;
+                      const _errs32 = errors;
                       let valid7 = false;
-                      const _errs30 = errors;
-                      if (typeof data6 !== "string") {
-                        const err10 = {
-                          instancePath: instancePath + "/exception_traceback",
-                          schemaPath: "#/properties/exception_traceback/anyOf/0/type",
+                      const _errs33 = errors;
+                      if (!(typeof data6 == "number")) {
+                        const err13 = {
+                          instancePath: instancePath + "/retry_at",
+                          schemaPath: "#/properties/retry_at/anyOf/0/type",
                           keyword: "type",
-                          params: { type: "string" },
-                          message: "must be string",
+                          params: { type: "number" },
+                          message: "must be number",
                         };
                         if (vErrors === null) {
-                          vErrors = [err10];
+                          vErrors = [err13];
                         } else {
-                          vErrors.push(err10);
+                          vErrors.push(err13);
                         }
                         errors++;
                       }
-                      var _valid3 = _errs30 === errors;
-                      valid7 = valid7 || _valid3;
+                      var _valid4 = _errs33 === errors;
+                      valid7 = valid7 || _valid4;
                       if (!valid7) {
-                        const _errs32 = errors;
+                        const _errs35 = errors;
                         if (data6 !== null) {
-                          const err11 = {
-                            instancePath: instancePath + "/exception_traceback",
-                            schemaPath: "#/properties/exception_traceback/anyOf/1/type",
+                          const err14 = {
+                            instancePath: instancePath + "/retry_at",
+                            schemaPath: "#/properties/retry_at/anyOf/1/type",
                             keyword: "type",
                             params: { type: "null" },
                             message: "must be null",
                           };
                           if (vErrors === null) {
-                            vErrors = [err11];
+                            vErrors = [err14];
                           } else {
-                            vErrors.push(err11);
+                            vErrors.push(err14);
                           }
                           errors++;
                         }
-                        var _valid3 = _errs32 === errors;
-                        valid7 = valid7 || _valid3;
+                        var _valid4 = _errs35 === errors;
+                        valid7 = valid7 || _valid4;
                       }
                       if (!valid7) {
-                        const err12 = {
-                          instancePath: instancePath + "/exception_traceback",
-                          schemaPath: "#/properties/exception_traceback/anyOf",
+                        const err15 = {
+                          instancePath: instancePath + "/retry_at",
+                          schemaPath: "#/properties/retry_at/anyOf",
                           keyword: "anyOf",
                           params: {},
                           message: "must match a schema in anyOf",
                         };
                         if (vErrors === null) {
-                          vErrors = [err12];
+                          vErrors = [err15];
                         } else {
-                          vErrors.push(err12);
+                          vErrors.push(err15);
                         }
                         errors++;
                         validate17.errors = vErrors;
                         return false;
                       } else {
-                        errors = _errs29;
+                        errors = _errs32;
                         if (vErrors !== null) {
-                          if (_errs29) {
-                            vErrors.length = _errs29;
+                          if (_errs32) {
+                            vErrors.length = _errs32;
                           } else {
                             vErrors = null;
                           }
                         }
                       }
-                      var valid0 = _errs28 === errors;
+                      var valid0 = _errs31 === errors;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.retry_at !== undefined) {
-                        let data7 = data.retry_at;
-                        const _errs34 = errors;
-                        const _errs35 = errors;
-                        let valid8 = false;
-                        const _errs36 = errors;
-                        if (!(typeof data7 == "number")) {
-                          const err13 = {
-                            instancePath: instancePath + "/retry_at",
-                            schemaPath: "#/properties/retry_at/anyOf/0/type",
-                            keyword: "type",
-                            params: { type: "number" },
-                            message: "must be number",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err13];
-                          } else {
-                            vErrors.push(err13);
-                          }
-                          errors++;
-                        }
-                        var _valid4 = _errs36 === errors;
-                        valid8 = valid8 || _valid4;
-                        if (!valid8) {
-                          const _errs38 = errors;
-                          if (data7 !== null) {
-                            const err14 = {
-                              instancePath: instancePath + "/retry_at",
-                              schemaPath: "#/properties/retry_at/anyOf/1/type",
+                      if (data.ready !== undefined) {
+                        const _errs37 = errors;
+                        if (typeof data.ready !== "boolean") {
+                          validate17.errors = [
+                            {
+                              instancePath: instancePath + "/ready",
+                              schemaPath: "#/properties/ready/type",
                               keyword: "type",
-                              params: { type: "null" },
-                              message: "must be null",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err14];
-                            } else {
-                              vErrors.push(err14);
-                            }
-                            errors++;
-                          }
-                          var _valid4 = _errs38 === errors;
-                          valid8 = valid8 || _valid4;
-                        }
-                        if (!valid8) {
-                          const err15 = {
-                            instancePath: instancePath + "/retry_at",
-                            schemaPath: "#/properties/retry_at/anyOf",
-                            keyword: "anyOf",
-                            params: {},
-                            message: "must match a schema in anyOf",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err15];
-                          } else {
-                            vErrors.push(err15);
-                          }
-                          errors++;
-                          validate17.errors = vErrors;
+                              params: { type: "boolean" },
+                              message: "must be boolean",
+                            },
+                          ];
                           return false;
-                        } else {
-                          errors = _errs35;
-                          if (vErrors !== null) {
-                            if (_errs35) {
-                              vErrors.length = _errs35;
-                            } else {
-                              vErrors = null;
-                            }
-                          }
                         }
-                        var valid0 = _errs34 === errors;
+                        var valid0 = _errs37 === errors;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
-                        if (data.ready !== undefined) {
+                        if (data.ready_phase !== undefined) {
+                          let data8 = data.ready_phase;
+                          const _errs39 = errors;
                           const _errs40 = errors;
-                          if (typeof data.ready !== "boolean") {
-                            validate17.errors = [
-                              {
-                                instancePath: instancePath + "/ready",
-                                schemaPath: "#/properties/ready/type",
-                                keyword: "type",
-                                params: { type: "boolean" },
-                                message: "must be boolean",
-                              },
-                            ];
-                            return false;
+                          let valid8 = false;
+                          const _errs41 = errors;
+                          if (typeof data8 !== "string") {
+                            const err16 = {
+                              instancePath: instancePath + "/ready_phase",
+                              schemaPath: "#/properties/ready_phase/anyOf/0/type",
+                              keyword: "type",
+                              params: { type: "string" },
+                              message: "must be string",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err16];
+                            } else {
+                              vErrors.push(err16);
+                            }
+                            errors++;
                           }
-                          var valid0 = _errs40 === errors;
+                          var _valid5 = _errs41 === errors;
+                          valid8 = valid8 || _valid5;
+                          if (!valid8) {
+                            const _errs43 = errors;
+                            if (data8 !== null) {
+                              const err17 = {
+                                instancePath: instancePath + "/ready_phase",
+                                schemaPath: "#/properties/ready_phase/anyOf/1/type",
+                                keyword: "type",
+                                params: { type: "null" },
+                                message: "must be null",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err17];
+                              } else {
+                                vErrors.push(err17);
+                              }
+                              errors++;
+                            }
+                            var _valid5 = _errs43 === errors;
+                            valid8 = valid8 || _valid5;
+                          }
+                          if (!valid8) {
+                            const err18 = {
+                              instancePath: instancePath + "/ready_phase",
+                              schemaPath: "#/properties/ready_phase/anyOf",
+                              keyword: "anyOf",
+                              params: {},
+                              message: "must match a schema in anyOf",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err18];
+                            } else {
+                              vErrors.push(err18);
+                            }
+                            errors++;
+                            validate17.errors = vErrors;
+                            return false;
+                          } else {
+                            errors = _errs40;
+                            if (vErrors !== null) {
+                              if (_errs40) {
+                                vErrors.length = _errs40;
+                              } else {
+                                vErrors = null;
+                              }
+                            }
+                          }
+                          var valid0 = _errs39 === errors;
                         } else {
                           var valid0 = true;
-                        }
-                        if (valid0) {
-                          if (data.ready_phase !== undefined) {
-                            let data9 = data.ready_phase;
-                            const _errs42 = errors;
-                            const _errs43 = errors;
-                            let valid9 = false;
-                            const _errs44 = errors;
-                            if (typeof data9 !== "string") {
-                              const err16 = {
-                                instancePath: instancePath + "/ready_phase",
-                                schemaPath: "#/properties/ready_phase/anyOf/0/type",
-                                keyword: "type",
-                                params: { type: "string" },
-                                message: "must be string",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err16];
-                              } else {
-                                vErrors.push(err16);
-                              }
-                              errors++;
-                            }
-                            var _valid5 = _errs44 === errors;
-                            valid9 = valid9 || _valid5;
-                            if (!valid9) {
-                              const _errs46 = errors;
-                              if (data9 !== null) {
-                                const err17 = {
-                                  instancePath: instancePath + "/ready_phase",
-                                  schemaPath: "#/properties/ready_phase/anyOf/1/type",
-                                  keyword: "type",
-                                  params: { type: "null" },
-                                  message: "must be null",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err17];
-                                } else {
-                                  vErrors.push(err17);
-                                }
-                                errors++;
-                              }
-                              var _valid5 = _errs46 === errors;
-                              valid9 = valid9 || _valid5;
-                            }
-                            if (!valid9) {
-                              const err18 = {
-                                instancePath: instancePath + "/ready_phase",
-                                schemaPath: "#/properties/ready_phase/anyOf",
-                                keyword: "anyOf",
-                                params: {},
-                                message: "must match a schema in anyOf",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err18];
-                              } else {
-                                vErrors.push(err18);
-                              }
-                              errors++;
-                              validate17.errors = vErrors;
-                              return false;
-                            } else {
-                              errors = _errs43;
-                              if (vErrors !== null) {
-                                if (_errs43) {
-                                  vErrors.length = _errs43;
-                                } else {
-                                  vErrors = null;
-                                }
-                              }
-                            }
-                            var valid0 = _errs42 === errors;
-                          } else {
-                            var valid0 = true;
-                          }
                         }
                       }
                     }
@@ -2168,7 +2113,7 @@ function validate16(data, { instancePath = "", parentData, parentDataProperty, r
   validate16.errors = vErrors;
   return errors === 0;
 }
-const schema25 = {
+const schema24 = {
   description: "Envelope for a batch of ``ExecutionCompletedData``.",
   properties: {
     type: { const: "execution_completed", title: "Type", type: "string" },
@@ -2184,7 +2129,7 @@ const schema25 = {
   title: "ExecutionCompletedWsMessage",
   type: "object",
 };
-const schema26 = {
+const schema25 = {
   description:
     "Payload for execution_completed WebSocket messages.\n\n``kind`` discriminates handler invocations from job executions.\n``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.",
   properties: {
@@ -2202,7 +2147,7 @@ const schema26 = {
   title: "ExecutionCompletedData",
   type: "object",
 };
-const schema27 = {
+const schema26 = {
   description: "How a handler invocation or job execution ended.",
   enum: ["success", "error", "cancelled", "timed_out", "skipped"],
   title: "ExecutionStatus",
@@ -2253,7 +2198,7 @@ function validate20(data, { instancePath = "", parentData, parentDataProperty, r
                 instancePath: instancePath + "/kind",
                 schemaPath: "#/properties/kind/enum",
                 keyword: "enum",
-                params: { allowedValues: schema26.properties.kind.enum },
+                params: { allowedValues: schema25.properties.kind.enum },
                 message: "must be equal to one of the allowed values",
               },
             ];
@@ -2330,7 +2275,7 @@ function validate20(data, { instancePath = "", parentData, parentDataProperty, r
                       instancePath: instancePath + "/status",
                       schemaPath: "#/$defs/ExecutionStatus/enum",
                       keyword: "enum",
-                      params: { allowedValues: schema27.enum },
+                      params: { allowedValues: schema26.enum },
                       message: "must be equal to one of the allowed values",
                     },
                   ];
@@ -2747,7 +2692,7 @@ function validate19(data, { instancePath = "", parentData, parentDataProperty, r
   validate19.errors = vErrors;
   return errors === 0;
 }
-const schema28 = {
+const schema27 = {
   description: "Envelope for ``AppsChangedData``.",
   properties: {
     type: { const: "apps_changed", title: "Type", type: "string" },
@@ -2758,7 +2703,7 @@ const schema28 = {
   title: "AppsChangedWsMessage",
   type: "object",
 };
-const schema29 = {
+const schema28 = {
   description:
     'Payload for an app-list refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "app status may be\nstale, refetch" rather than inspect the payload.',
   properties: {},

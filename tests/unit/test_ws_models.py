@@ -14,7 +14,6 @@ from hassette_wire import (
     ExecutionCompletedWsMessage,
     ExecutionStatus,
     LogHintWsMessage,
-    ResourceRole,
     ResourceStatus,
     ServiceStatusData,
     ServiceStatusWsMessage,
@@ -23,6 +22,7 @@ from hassette_wire import (
 from pydantic import TypeAdapter
 
 from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
+from hassette.types.enums import ResourceRole
 
 TEST_TIMESTAMP = 1234567890.0
 
@@ -75,9 +75,9 @@ class TestServiceStatusDataMatchesDataclass:
     """Verify ServiceStatusData mirrors events.hassette.ServiceStatusPayload."""
 
     def test_field_names_match(self) -> None:
-        # Only the field names are compared: the wire model types `role` as an open vocabulary.
+        # `role` stays on the internal event (the server filters on it) but is not sent over the wire.
         dataclass_fields = {f.name for f in dataclasses.fields(ServiceStatusPayload)}
-        assert dataclass_fields == set(ServiceStatusData.model_fields)
+        assert dataclass_fields - {"role"} == set(ServiceStatusData.model_fields)
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = ServiceStatusPayload(
@@ -133,9 +133,7 @@ class TestWsServerMessageDiscriminates:
         assert msg.data.connected is True
 
     def test_service_status(self) -> None:
-        msg = validate_envelope(
-            "service_status", {"resource_name": "telemetry", "role": "service", "status": "running"}
-        )
+        msg = validate_envelope("service_status", {"resource_name": "telemetry", "status": "running"})
         assert isinstance(msg, ServiceStatusWsMessage)
 
     def test_invalid_type_raises(self) -> None:
@@ -268,7 +266,6 @@ class TestServiceStatusDataRetryAt:
         """ServiceStatusData accepts retry_at as an optional float field."""
         data = ServiceStatusData(
             resource_name="my_service",
-            role="service",
             status="exhausted_cooling",
             retry_at=1714000000.0,
         )
@@ -278,7 +275,6 @@ class TestServiceStatusDataRetryAt:
         """retry_at defaults to None when not provided."""
         data = ServiceStatusData(
             resource_name="my_service",
-            role="service",
             status="running",
         )
         assert data.retry_at is None
@@ -289,7 +285,6 @@ class TestServiceStatusDataRetryAt:
             type="service_status",
             data=ServiceStatusData(
                 resource_name="dead_service",
-                role="service",
                 status="exhausted_dead",
                 retry_at=None,
             ),
@@ -306,7 +301,6 @@ class TestServiceStatusDataRetryAt:
             type="service_status",
             data=ServiceStatusData(
                 resource_name="cooling_service",
-                role="service",
                 status="exhausted_cooling",
                 retry_at=retry_timestamp,
             ),

@@ -2,7 +2,7 @@ import asyncio
 import typing
 from typing import ClassVar
 
-from hassette_wire import LogLevel, ResourceRole, ResourceStatus
+from hassette_wire import LogLevel, ResourceStatus
 
 from hassette.bus import Bus
 from hassette.core.bus_service import BusService
@@ -21,6 +21,7 @@ from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types import Topic
+from hassette.types.enums import ResourceRole
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

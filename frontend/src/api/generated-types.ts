@@ -1939,12 +1939,6 @@ export interface components {
             ready: boolean;
         };
         /**
-         * ResourceRole
-         * @description The kind of framework component a status or service entry describes.
-         * @enum {string}
-         */
-        ResourceRole: "core" | "base" | "service" | "resource" | "app" | "unknown";
-        /**
          * ResourceStatus
          * @description Enumeration for resource status.
          * @enum {string}
@@ -1972,8 +1966,6 @@ export interface components {
             /** Name */
             name: string;
             status: components["schemas"]["ResourceStatus"];
-            /** @description What kind of framework component the service is. */
-            role: components["schemas"]["ResourceRole"];
             /**
              * Ready Phase
              * @description Human-readable description of the current readiness phase, or None if not available.

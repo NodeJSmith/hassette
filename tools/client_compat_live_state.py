@@ -18,7 +18,7 @@ from types import SimpleNamespace
 from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette_wire import AppStatus, ExecutionStatus, ResourceRole, ResourceStatus, StackFrame
+from hassette_wire import AppStatus, ExecutionStatus, ResourceStatus, StackFrame
 from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext, make_instance_name
 
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
@@ -70,21 +70,18 @@ SERVICE_CHILDREN = (
     SimpleNamespace(
         class_name="WebsocketService",
         status=ResourceStatus.RUNNING,
-        role=ResourceRole.SERVICE,
         _ready_reason="connected",
         _retry_at=None,
     ),
     SimpleNamespace(
         class_name="DatabaseService",
         status=ResourceStatus.FAILED,
-        role=ResourceRole.SERVICE,
         _ready_reason=None,
         _retry_at=1_760_000_000.0,  # epoch seconds
     ),
     SimpleNamespace(
         class_name="StateProxy",
         status=ResourceStatus.STARTING,
-        role=ResourceRole.RESOURCE,
         _ready_reason=None,
         _retry_at=None,
     ),

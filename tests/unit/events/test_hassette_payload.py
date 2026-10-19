@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import whenever
-from hassette_wire import ResourceRole, ResourceStatus
+from hassette_wire import ResourceStatus
 
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import (
@@ -12,6 +12,7 @@ from hassette.events.hassette import (
     HassetteSimpleEvent,
 )
 from hassette.types import Topic
+from hassette.types.enums import ResourceRole
 
 
 def test_time_fired_auto_populated_as_zoned_datetime() -> None:
