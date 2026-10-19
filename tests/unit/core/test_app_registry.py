@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import ResourceStatus
 
-from hassette.core.app_registry import AppRegistry
+from hassette.core.app_registry import AppRegistry, InstanceEntry
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 
 from .conftest import make_manifest_obj
@@ -52,6 +52,18 @@ class TestAppStatusSnapshot:
         assert snapshot.failed_count == 1
         assert snapshot.total_count == 3
         assert snapshot.only_apps == ("app1",)
+
+
+class TestInstanceEntry:
+    def test_is_running_false_without_app(self) -> None:
+        """A failed entry (no App object) is not running."""
+        entry = InstanceEntry(app=None, status=ResourceStatus.FAILED, error=RuntimeError("boom"))
+        assert entry.is_running is False
+
+    def test_is_running_true_with_app(self) -> None:
+        """An entry holding an App object is running."""
+        entry = InstanceEntry(app=MagicMock(), status=ResourceStatus.RUNNING)
+        assert entry.is_running is True
 
 
 class TestAppRegistry:
