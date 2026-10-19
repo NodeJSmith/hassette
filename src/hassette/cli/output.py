@@ -17,6 +17,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from dataclasses import field as dc_field
+from functools import wraps
 from typing import Any
 
 from hassette_wire import AppGridResponse, CliFormat, ResourceStatus, requested_activity_parts
@@ -34,6 +35,14 @@ from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_M
 #: can't match a truncated name). Tables and panels don't expand to fill the console, so a wide
 #: fallback only stops truncation; it doesn't pad short output.
 PIPE_FALLBACK_WIDTH = 1000
+
+#: Past deltas shorter than this many seconds render as "just now".
+JUST_NOW_SECONDS = 5
+MS_PER_SECOND = 1000
+JSON_INDENT = 2
+#: Placeholder shown for a missing or empty value in detail panels and summary cells.
+EMPTY_VALUE = "—"
+CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z])(?=[A-Z])")
 
 
 def make_stdout_console() -> Console:
@@ -78,6 +87,22 @@ def now_epoch() -> float:
     return time.time()
 
 
+def numeric_formatter(func: Callable[[float], str]) -> Callable[[Any], str]:
+    """Wrap a float formatter: ``None`` renders as ``""`` and a non-numeric value as ``str(value)``."""
+
+    @wraps(func)
+    def wrapper(value: Any) -> str:
+        if value is None:
+            return ""
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        return func(num)
+
+    return wrapper
+
+
 def fmt_relative_time(value: Any) -> str:
     """Convert an epoch float or ISO string to a relative time string.
 
@@ -86,65 +111,66 @@ def fmt_relative_time(value: Any) -> str:
     if value is None:
         return ""
     try:
-        if isinstance(value, (int, float)):
-            epoch = float(value)
-        else:
-            # HA timestamps vary: UTC instant, offset, or bare local datetime
-            s = str(value)
-            try:
-                epoch = Instant.parse_iso(s).timestamp()
-            except ValueError:
-                try:
-                    epoch = OffsetDateTime.parse_iso(s).timestamp()
-                except ValueError:
-                    # CLI display: user's terminal timezone, not the configured Hassette timezone
-                    epoch = PlainDateTime.parse_iso(s).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
-        delta = now_epoch() - epoch
+        delta = now_epoch() - _parse_timestamp(value)
         if delta < 0:
             ahead = -delta
             if ahead < SECONDS_PER_MINUTE:
                 return "in <1m"
-            if ahead < SECONDS_PER_HOUR:
-                return f"in {int(ahead / SECONDS_PER_MINUTE)}m"
-            if ahead < SECONDS_PER_DAY:
-                return f"in {int(ahead / SECONDS_PER_HOUR)}h"
-            return f"in {int(ahead / SECONDS_PER_DAY)}d"
-        if delta < 5:
+            return f"in {_delta_label(ahead)}"
+        if delta < JUST_NOW_SECONDS:
             return "just now"
         if delta < SECONDS_PER_MINUTE:
             return f"{int(delta)}s ago"
-        if delta < SECONDS_PER_HOUR:
-            return f"{int(delta / SECONDS_PER_MINUTE)}m ago"
-        if delta < SECONDS_PER_DAY:
-            return f"{int(delta / SECONDS_PER_HOUR)}h ago"
-        return f"{int(delta / SECONDS_PER_DAY)}d ago"
+        return f"{_delta_label(delta)} ago"
     except (TypeError, ValueError, OSError):
         return str(value)
 
 
-def fmt_duration_ms(value: Any) -> str:
+def _parse_timestamp(value: Any) -> float:
+    """Convert an epoch number or ISO string to epoch seconds.
+
+    HA timestamps vary: UTC instant, offset, or bare local datetime. A bare datetime is read in
+    the user's terminal timezone (CLI display), not the configured Hassette timezone.
+
+    Raises:
+        ValueError: If a string matches none of the accepted ISO forms.
+    """
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value)
+    try:
+        return Instant.parse_iso(s).timestamp()
+    except ValueError:
+        pass
+    try:
+        return OffsetDateTime.parse_iso(s).timestamp()
+    except ValueError:
+        pass
+    return PlainDateTime.parse_iso(s).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
+
+
+def _delta_label(seconds: float) -> str:
+    """Render a non-negative span of at least a minute as whole minutes, hours, or days (``"5m"``)."""
+    if seconds < SECONDS_PER_HOUR:
+        return f"{int(seconds / SECONDS_PER_MINUTE)}m"
+    if seconds < SECONDS_PER_DAY:
+        return f"{int(seconds / SECONDS_PER_HOUR)}h"
+    return f"{int(seconds / SECONDS_PER_DAY)}d"
+
+
+@numeric_formatter
+def fmt_duration_ms(ms: float) -> str:
     """Convert a duration in milliseconds to a human-readable string."""
-    if value is None:
-        return ""
-    try:
-        ms = float(value)
-    except (TypeError, ValueError):
-        return str(value)
-    if abs(ms) < 1000:
+    if abs(ms) < MS_PER_SECOND:
         return f"{ms:.0f}ms"
-    return f"{ms / 1000:.1f}s"
+    return f"{ms / MS_PER_SECOND:.1f}s"
 
 
-def fmt_duration_s(value: Any) -> str:
+@numeric_formatter
+def fmt_duration_s(num: float) -> str:
     """Convert a duration in seconds to a human-readable string."""
-    if value is None:
-        return ""
-    try:
-        num = float(value)
-    except (TypeError, ValueError):
-        return str(value)
     if abs(num) < 1:
-        return f"{num * 1000:.0f}ms"
+        return f"{num * MS_PER_SECOND:.0f}ms"
     return f"{num:.1f}s"
 
 
@@ -155,16 +181,11 @@ def fmt_handler_short(value: Any) -> str:
     return str(value).rsplit(".", 1)[-1]
 
 
-def fmt_uptime(value: Any) -> str:
+@numeric_formatter
+def fmt_uptime(secs: float) -> str:
     """Convert seconds to a human-readable uptime string (e.g. ``'2h 30m 5s'``)."""
-    if value is None:
-        return ""
-    try:
-        secs = float(value)
-    except (TypeError, ValueError):
-        return str(value)
     if secs < 0:
-        return "—"
+        return EMPTY_VALUE
     if secs < SECONDS_PER_MINUTE:
         return f"{secs:.0f}s"
     if secs < SECONDS_PER_HOUR:
@@ -177,7 +198,7 @@ def fmt_uptime(value: Any) -> str:
 
 def fmt_services(services: list[dict[str, Any]]) -> str:
     running = [s["name"] for s in services if s.get("status") == ResourceStatus.RUNNING.value]
-    return ", ".join(running) if running else "—"
+    return ", ".join(running) if running else EMPTY_VALUE
 
 
 def fmt_instance_count(value: Any) -> str:
@@ -202,7 +223,7 @@ class Column:
 
     Args:
         field: Model field name. Supports dot notation for nested fields
-            (e.g., ``"status"``). Nested access is done via ``getattr`` chains.
+            (e.g., ``"app.status"``). Nested access is done via ``getattr`` chains.
         header: Display header text shown in the table.
         max_width: Optional maximum column width in characters (human mode only).
             Ignored when the output is not a TTY (pipe mode).
@@ -284,8 +305,7 @@ def render_table(
     """
     if json_mode:
         data = [item.model_dump(mode="json") for item in items]
-        sys.stdout.write(json.dumps(data, indent=2) + "\n")
-        sys.stdout.flush()
+        _write_json(json.dumps(data, indent=JSON_INDENT))
         return
 
     if not items:
@@ -339,8 +359,7 @@ def render_detail(
     ``CLI_FORMATTERS`` registry in human mode.
     """
     if json_mode:
-        sys.stdout.write(item.model_dump_json(indent=2) + "\n")
-        sys.stdout.flush()
+        _write_json(item.model_dump_json(indent=JSON_INDENT))
         return
 
     display_title = _humanize_model_name(type(item).__name__)
@@ -362,11 +381,16 @@ def render_detail_dict(data: dict[str, Any], title: str, json_mode: bool) -> Non
         json_mode: When ``True``, serialize ``data`` as JSON on stdout.
     """
     if json_mode:
-        sys.stdout.write(json.dumps(data, indent=2) + "\n")
-        sys.stdout.flush()
+        _write_json(json.dumps(data, indent=JSON_INDENT))
         return
 
     _render_detail_panel(data, title)
+
+
+def _write_json(document: str) -> None:
+    """Write one serialized JSON document to stdout, newline-terminated, and flush."""
+    sys.stdout.write(document + "\n")
+    sys.stdout.flush()
 
 
 def _render_detail_panel(
@@ -438,7 +462,7 @@ def _humanize_model_name(name: str) -> str:
     ``'ConfigSchemaResponse'`` → ``'Config Schema'``, ``'SystemStatusResponse'`` → ``'System Status'``.
     """
     name = name.removesuffix("Response")
-    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)
+    return CAMEL_BOUNDARY_RE.sub(" ", name)
 
 
 def _humanize_key(key: str) -> str:
@@ -449,20 +473,20 @@ def _humanize_key(key: str) -> str:
 def _format_detail_value(value: Any) -> str:
     """Format a value for the key-value detail panel."""
     if value is None:
-        return "—"
+        return EMPTY_VALUE
     if isinstance(value, bool):
-        return "true" if value else "false"
+        return _format_bool(value)
     if isinstance(value, list):
         return _format_list_inline(value)
     if isinstance(value, dict):
-        return json.dumps(value, indent=2)
+        return json.dumps(value, indent=JSON_INDENT)
     return str(value)
 
 
 def _format_list_inline(items: list[Any]) -> str:
     """Format a list for inline display in a detail panel."""
     if not items:
-        return "—"
+        return EMPTY_VALUE
     if all(isinstance(v, (str, int, float, bool)) for v in items):
         return ", ".join(_scalar_str(v) for v in items)
     return f"{len(items)} items"
@@ -470,8 +494,13 @@ def _format_list_inline(items: list[Any]) -> str:
 
 def _scalar_str(value: Any) -> str:
     if isinstance(value, bool):
-        return "true" if value else "false"
+        return _format_bool(value)
     return str(value)
+
+
+def _format_bool(value: bool) -> str:
+    """Render a bool as lowercase JSON-style text."""
+    return "true" if value else "false"
 
 
 def _resolve_cli_format_meta(model_cls: type[BaseModel]) -> dict[str, CliFormat]:
