@@ -13,6 +13,10 @@ Blind spot: integrations that own an entity domain without declaring ``entity`` 
 (known: homematic, hdmi_cec, configurator, remember_the_milk; all negligible by HA analytics). Domains that are
 deliberately unmodeled go in ``coverage_allowlist.toml``; an allowlist entry is stale once its domain is modeled or
 its component is removed from HA core.
+
+Scope: this reports domains hassette has never modeled. Any state module declaring the domain counts as a model,
+generated or hand-written, so a domain that discovery stopped finding still passes while its old generated file
+remains. That regression belongs to ``generate``, which reports the file as an orphan.
 """
 
 import ast

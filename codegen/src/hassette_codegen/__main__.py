@@ -30,7 +30,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "Report HA core entity domains with no generated model, manual override, hand-written model, or "
             "allowlist entry, plus stale allowlist entries. Exits 1 if any are found. Blind spot: integrations "
             "that own an entity domain without declaring integration_type entity or helper are not checked "
-            "(known: homematic, hdmi_cec, configurator, remember_the_milk)."
+            "(known: homematic, hdmi_cec, configurator, remember_the_milk). Any state module declaring the domain "
+            "counts as a model, including a generated one discovery no longer produces; catching that is "
+            "generate's orphan report's job."
         ),
     )
     cov_parser.add_argument("--ha-core-path", type=Path, help="Path to local HA core checkout")
