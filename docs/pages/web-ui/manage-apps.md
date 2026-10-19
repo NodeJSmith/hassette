@@ -70,7 +70,7 @@ These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/rel
 
 ### What Reload Re-imports
 
-A reload re-imports only the app's own module file. Every module that file imports keeps its previously imported code. That covers sibling modules in a package-style app and shared helper modules alike. The **Reload** button, `hassette app reload`, the Home Assistant reload button, and automatic reloads all behave this way. The file watcher reloads an app only when the app's own file changes. Editing a sibling module alone triggers no reload.
+A reload re-imports only the app's own module file. Every module that file imports keeps its previously imported code. That covers sibling modules in a package-style app and shared helper modules alike. The **Reload** button, `hassette app reload`, the Home Assistant reload button, and automatic reloads all behave this way. Among Python files, the file watcher reloads an app only when the app's own file changes, so editing a sibling module alone triggers no reload. A change to the app's config in `hassette.toml` also reloads it.
 
 !!! warning "Edits outside the app's own file need a Hassette restart"
     Take an app at `garage_proximity/app.py` that imports `garage_proximity/models.py`. A reload never re-reads `models.py`, which causes two failures:
