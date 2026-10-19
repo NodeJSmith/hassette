@@ -11,12 +11,3 @@
 # change ships, so this file empties itself after each release.
 #
 # This file intentionally starts empty (comment lines only).
-
-# #2524: ServiceInfo.role leaves /api/health; clients released before it require the field.
-GET /api/health (adversarial--health.json)
-GET /api/health (degraded--health.json)
-GET /api/health (empty--health.json)
-GET /api/health (error--health.json)
-GET /api/health (healthy--health.json)
-GET /api/health (lifecycle--health.json)
-GET /api/health (mixed-instance--health.json)
