@@ -388,10 +388,10 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         """
         await close_connection_pair(self, self.CONN_ATTRS, self.logger)
 
-    async def cleanup(self, timeout: float | None = None) -> None:
+    async def cleanup(self) -> None:
         """Close database connections if on_shutdown was interrupted or never ran."""
         await self.close_connections()
-        await super().cleanup(timeout)
+        await super().cleanup()
 
     def resolve_db_path(self) -> Path:
         """Resolve the database path from config or use default."""

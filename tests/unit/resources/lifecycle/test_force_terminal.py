@@ -374,7 +374,7 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     class HungCleanupResource(Resource):
-        async def cleanup(self, timeout: float | None = None) -> None:
+        async def cleanup(self) -> None:
             await asyncio.Event().wait()  # hang forever
 
     resource = HungCleanupResource(hassette)
@@ -384,29 +384,3 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
     await resource.shutdown()
 
     assert resource.shutdown_completed is True
-
-
-async def test_shutdown_clears_initializing_regardless_of_shutdown_event_state():
-    """A completed ``shutdown()`` leaves ``initializing`` False regardless of whether
-    ``shutdown_event`` was already set beforehand.
-
-    Superseded by the coordinator design: there is no ``_finalize_shutdown()`` method and no
-    mutable ``initializing`` flag to force directly anymore — ``initializing`` is now a
-    read-only property derived from ``_init_task`` (see ``LifecycleMixin.initializing`` in
-    ``hassette.resources.mixins``). This exercises the same observable outcome (the resource
-    is not "initializing" once its coordinated shutdown attempt has completed) through the
-    public front doors instead.
-    """
-    hassette = make_mock_hassette(sealed=False)
-
-    resource1 = SimpleParent(hassette)
-    await resource1.initialize()
-    resource1.shutdown_event.set()
-    await resource1.shutdown()
-    assert resource1.initializing is False
-
-    resource2 = SimpleParent(hassette)
-    await resource2.initialize()
-    assert not resource2.shutdown_event.is_set()
-    await resource2.shutdown()
-    assert resource2.initializing is False

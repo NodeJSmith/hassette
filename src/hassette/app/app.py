@@ -229,10 +229,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
             await self.cache.initialize()
 
     @final
-    async def cleanup(self, timeout: float | None = None) -> None:
+    async def cleanup(self) -> None:
         """Cleanup resources owned by the instance.
 
-        This method is called during shutdown to cancel tasks and close caches.
+        This method is called during shutdown to close the cache.
         Child cleanup (Bus, Scheduler, etc.) is handled by _finalize_shutdown() propagation,
         not by this method.
 
@@ -241,9 +241,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         ``TeardownCause.CLEANUP_FAILED`` (it already logs the exception there). Swallowing it
         here would report a restart-safe teardown for a cache that never confirmed it closed.
         """
-        if timeout is None:
-            timeout = self.hassette.config.lifecycle.app_shutdown_timeout_seconds
-        await super().cleanup(timeout=timeout)
+        await super().cleanup()
         await self.cache.close()
 
     def _force_terminal(self) -> None:
