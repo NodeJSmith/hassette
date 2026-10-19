@@ -11,6 +11,7 @@ Wraps ``httpx2.Client`` (synchronous) with:
 
 import json
 import sys
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
 
@@ -35,6 +36,12 @@ from hassette.exceptions import ConfigError, FatalError
 DEFAULT_TIMEOUT = 10.0
 
 APP_GRID_PATH = "/api/telemetry/app-grid"
+
+EXIT_FAILURE = 1
+"""Exit code for an HTTP error, a malformed response, or a usage error."""
+
+EXIT_NETWORK_ERROR = 2
+"""Exit code when the server could not be reached at all."""
 APPS_PATH = "/api/apps"
 
 CLI_AUTH_DOCS_URL = "https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token"
@@ -104,7 +111,7 @@ def emit_usage_error(message: str, *, json_mode: bool = False) -> NoReturn:
         # path, an --app key, an --instance name. Rich reads square brackets as markup, so an
         # unescaped "[/bold]" in any of them raises MarkupError instead of printing the error.
         cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {escape(message)}", highlight=False)
-    sys.exit(1)
+    sys.exit(EXIT_FAILURE)
 
 
 class HassetteCLIClient:
@@ -214,7 +221,7 @@ class HassetteCLIClient:
         """
         response = self._send("GET", path, params=params)
 
-        is_tolerated_503 = tolerate_503 and response.status_code == 503
+        is_tolerated_503 = tolerate_503 and response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
         if not response.is_success and not is_tolerated_503:
             self._handle_http_error(response)
 
@@ -575,7 +582,7 @@ class HassetteCLIClient:
         except (ValueError, AttributeError):
             detail = response.text
 
-        if response.status_code == 401:
+        if response.status_code == HTTPStatus.UNAUTHORIZED:
             detail = f"{detail} ({self._auth_failure_hint()})"
         elif 300 <= response.status_code < 400:
             detail = (
@@ -608,7 +615,7 @@ class HassetteCLIClient:
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
                 cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {escape(response.text)}")
-        sys.exit(1)
+        sys.exit(EXIT_FAILURE)
 
     def _handle_malformed_response(self, response: httpx.Response, exc: Exception) -> NoReturn:
         """Print a clean error for a successful-status response whose body isn't usable.
@@ -654,7 +661,7 @@ class HassetteCLIClient:
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
                 cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {escape(body)}")
-        sys.exit(1)
+        sys.exit(EXIT_FAILURE)
 
     def _handle_network_error(self, message: str) -> NoReturn:
         """Print a network error and exit with code 2."""
@@ -665,7 +672,7 @@ class HassetteCLIClient:
             cli_output.stderr_console.print(f"[bold red]Network error:[/bold red] {message}")
             if tls_verified is False:
                 self._print_tls_warning()
-        sys.exit(2)
+        sys.exit(EXIT_NETWORK_ERROR)
 
     def _target_and_tls_for_error(self) -> tuple[str | None, bool | None]:
         """Derive the JSON-error envelope's ``target``/``tls_verified`` fields.
