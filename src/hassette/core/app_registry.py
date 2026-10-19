@@ -1,9 +1,8 @@
 """App registry for tracking app state with queryable interface."""
 
-import dataclasses
 from collections import defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
@@ -26,6 +25,8 @@ if TYPE_CHECKING:
     from hassette.app import App
     from hassette.config.classes import AppManifest
 
+UNKNOWN_LABEL = "Unknown"
+
 
 @dataclass(frozen=True)
 class InstanceEntry:
@@ -42,6 +43,11 @@ class InstanceEntry:
     error: Exception | None = None
     error_message: str | None = None
     error_traceback: str | None = None
+
+    @property
+    def is_running(self) -> bool:
+        """Whether this entry holds a live ``App`` (as opposed to a recorded failure)."""
+        return self.app is not None
 
 
 class AppRegistry:
@@ -68,7 +74,7 @@ class AppRegistry:
             entries = self._instances.pop(app_key, None)
             if entries is None:
                 return None
-            return {idx: entry.app for idx, entry in entries.items() if entry.app is not None}
+            return {idx: app for idx, entry in entries.items() if (app := entry.app) is not None}
 
         if app_key not in self._instances:
             return None
@@ -78,8 +84,8 @@ class AppRegistry:
         if not self._instances[app_key]:
             del self._instances[app_key]
 
-        if entry is not None and entry.app is not None:
-            return {index: entry.app}
+        if entry is not None and (app := entry.app) is not None:
+            return {index: app}
 
         return None
 
@@ -115,7 +121,9 @@ class AppRegistry:
         if not entries:
             return {}
         manifest = self._manifests.get(app_key)
-        stale_indices = [index for index, entry in entries.items() if entry.app is None and index >= valid_index_count]
+        stale_indices = [
+            index for index, entry in entries.items() if not entry.is_running and index >= valid_index_count
+        ]
         pruned = {index: self._info_from_entry(app_key, index, entries[index], manifest) for index in stale_indices}
         for index in stale_indices:
             del entries[index]
@@ -160,14 +168,14 @@ class AppRegistry:
         self._only_apps = frozenset(app_keys)
 
     def __contains__(self, app_key: str) -> bool:
-        return any(entry.app is not None for entry in self._instances.get(app_key, {}).values())
+        return any(entry.is_running for entry in self._instances.get(app_key, {}).values())
 
     def app_keys(self) -> list[str]:
         """Get all app keys with at least one running instance."""
         return [
             app_key
             for app_key, entries in self._instances.items()
-            if any(entry.app is not None for entry in entries.values())
+            if any(entry.is_running for entry in entries.values())
         ]
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
@@ -182,12 +190,12 @@ class AppRegistry:
     def all_apps(self) -> list["App[AppConfig]"]:
         """Get all running app instances."""
         return [
-            entry.app for entries in self._instances.values() for entry in entries.values() if entry.app is not None
+            app for entries in self._instances.values() for entry in entries.values() if (app := entry.app) is not None
         ]
 
     def get_running_apps(self, app_key: str) -> dict[int, "App[AppConfig]"]:
         """Get all running instances for an app key (excludes failed entries)."""
-        return {idx: entry.app for idx, entry in self._instances.get(app_key, {}).items() if entry.app is not None}
+        return {idx: app for idx, entry in self._instances.get(app_key, {}).items() if (app := entry.app) is not None}
 
     def get_instances(self, app_key: str) -> dict[int, InstanceEntry]:
         """Get all entries (running and failed) for an app key."""
@@ -205,7 +213,7 @@ class AppRegistry:
         return {
             index: self._info_from_entry(app_key, index, entry, manifest)
             for index, entry in self._instances.get(app_key, {}).items()
-            if entry.app is None
+            if not entry.is_running
         }
 
     def _resolve_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
@@ -213,7 +221,7 @@ class AppRegistry:
         a failed entry, or an index that isn't tracked in the registry at all.
         """
         if manifest is None:
-            return f"Unknown.{index}"
+            return f"{UNKNOWN_LABEL}.{index}"
 
         configs = AppFactory.normalize_configs(manifest.app_config)
         fallback = f"{manifest.class_name}.{index}"
@@ -236,18 +244,18 @@ class AppRegistry:
         # Without a manifest there is no configured range to compare against; the app-level
         # ``AppManifestInfo.in_current_config`` covers a wholly orphaned app.
         in_current_config = manifest is None or index < len(AppFactory.normalize_configs(manifest.app_config))
-        if entry.app is not None:
+        if (app := entry.app) is not None:
             return AppInstanceInfo(
                 app_key=app_key,
                 index=index,
-                instance_name=entry.app.app_config.instance_name,
-                class_name=entry.app.class_name,
-                status=entry.app.status,
-                owner_id=entry.app.unique_name,
+                instance_name=app.app_config.instance_name,
+                class_name=app.class_name,
+                status=app.status,
+                owner_id=app.unique_name,
                 in_current_config=in_current_config,
             )
 
-        class_name = manifest.class_name if manifest else "Unknown"
+        class_name = manifest.class_name if manifest else UNKNOWN_LABEL
         return AppInstanceInfo(
             app_key=app_key,
             index=index,
@@ -303,7 +311,7 @@ class AppRegistry:
         DEGRADED, even though ``instances`` now lists its not-yet-tracked instances too.
         """
         entries = self._instances.get(app_key, {})
-        has_running = any(entry.app is not None for entry in entries.values())
+        has_running = any(entry.is_running for entry in entries.values())
         has_failed = any(entry.status == ResourceStatus.FAILED for entry in entries.values())
 
         if not manifest.enabled:
@@ -330,7 +338,7 @@ class AppRegistry:
             entry = entries.get(index)
             if entry is not None:
                 info = self._info_from_entry(app_key, index, entry, manifest)
-                if entry.app is None and error_message is None:
+                if not entry.is_running and error_message is None:
                     error_message = info.error_message
                     error_traceback = info.error_traceback
             else:
@@ -441,7 +449,7 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
             # both on the same source prevents a stale-DB `enabled` from disagreeing with a
             # freshly-derived `status`.
             derived = registry.build_manifest_info(app_key, in_memory_manifest)
-            info = dataclasses.replace(derived, app_key=app_key, in_current_config=True, **static_fields)
+            info = replace(derived, app_key=app_key, in_current_config=True, **static_fields)
         else:
             info = AppManifestInfo(
                 app_key=app_key,
