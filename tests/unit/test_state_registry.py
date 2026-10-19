@@ -1,8 +1,17 @@
 import typing
 
+import pytest
 from pydantic import model_validator
+from whenever import ZonedDateTime
 
-from hassette.models.states import BaseState
+from hassette.models.states import (
+    AlertState,
+    BaseState,
+    InfraredState,
+    RadioFrequencyState,
+    TagState,
+    WakeWordState,
+)
 from hassette.testing import make_state_dict
 
 if typing.TYPE_CHECKING:
@@ -113,3 +122,61 @@ def test_try_convert_state_falls_back_to_base_state_when_domain_class_fails(
 
     assert type(return_value) is BaseState
     assert return_value.entity_id == "always_failing.test"
+
+
+@pytest.mark.parametrize(
+    ("entity_id", "expected_class"),
+    [
+        ("wake_word.openwakeword", WakeWordState),
+        ("infrared.living_room_blaster", InfraredState),
+        ("radio_frequency.garage_transmitter", RadioFrequencyState),
+    ],
+)
+def test_try_convert_state_resolves_timestamp_domains_to_typed_models(
+    hassette_with_state_registry: "HassetteHarness",
+    entity_id: str,
+    expected_class: type[BaseState],
+) -> None:
+    """Timestamp-state domains resolve to their typed model and parse the state as a ZonedDateTime."""
+    hassette = hassette_with_state_registry
+
+    state_dict = make_state_dict(entity_id, "2024-01-01T12:30:00.000+00:00", {})
+
+    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
+
+    assert type(return_value) is expected_class
+    assert isinstance(return_value.value, ZonedDateTime)
+
+
+def test_try_convert_state_resolves_alert_to_typed_model(
+    hassette_with_state_registry: "HassetteHarness",
+) -> None:
+    """Alert states resolve to AlertState with the string state preserved."""
+    hassette = hassette_with_state_registry
+
+    state_dict = make_state_dict("alert.garage_door", "idle", {})
+
+    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
+
+    assert type(return_value) is AlertState
+    assert return_value.value == "idle"
+
+
+def test_try_convert_state_resolves_tag_to_typed_model(
+    hassette_with_state_registry: "HassetteHarness",
+) -> None:
+    """Tag states resolve to TagState with the last-scanned timestamp and tag attributes."""
+    hassette = hassette_with_state_registry
+
+    state_dict = make_state_dict(
+        "tag.front_door",
+        "2024-01-01T12:30:00.000+00:00",
+        {"tag_id": "abc-123", "last_scanned_by_device_id": "device-456"},
+    )
+
+    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
+
+    assert type(return_value) is TagState
+    assert isinstance(return_value.value, ZonedDateTime)
+    assert return_value.attributes.tag_id == "abc-123"
+    assert return_value.attributes.last_scanned_by_device_id == "device-456"

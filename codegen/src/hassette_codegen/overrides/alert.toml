@@ -1,0 +1,2 @@
+discovery = "manual"
+state_base_class = "StringBaseState"

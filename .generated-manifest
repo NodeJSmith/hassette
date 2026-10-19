@@ -2,6 +2,7 @@
 src/hassette/const/sensor.py
 src/hassette/models/entities/__init__.py
 src/hassette/models/entities/alarm_control_panel.py
+src/hassette/models/entities/alert.py
 src/hassette/models/entities/automation.py
 src/hassette/models/entities/button.py
 src/hassette/models/entities/camera.py
@@ -32,6 +33,7 @@ src/hassette/models/entities/water_heater.py
 src/hassette/models/entities/weather.py
 src/hassette/models/states/__init__.py
 src/hassette/models/states/alarm_control_panel.py
+src/hassette/models/states/alert.py
 src/hassette/models/states/automation.py
 src/hassette/models/states/binary_sensor.py
 src/hassette/models/states/button.py
@@ -45,11 +47,13 @@ src/hassette/models/states/fan.py
 src/hassette/models/states/geo_location.py
 src/hassette/models/states/humidifier.py
 src/hassette/models/states/image.py
+src/hassette/models/states/infrared.py
 src/hassette/models/states/lawn_mower.py
 src/hassette/models/states/light.py
 src/hassette/models/states/lock.py
 src/hassette/models/states/media_player.py
 src/hassette/models/states/number.py
+src/hassette/models/states/radio_frequency.py
 src/hassette/models/states/remote.py
 src/hassette/models/states/script.py
 src/hassette/models/states/select.py
@@ -57,11 +61,13 @@ src/hassette/models/states/sensor.py
 src/hassette/models/states/siren.py
 src/hassette/models/states/sun.py
 src/hassette/models/states/switch.py
+src/hassette/models/states/tag.py
 src/hassette/models/states/text.py
 src/hassette/models/states/time.py
 src/hassette/models/states/timer.py
 src/hassette/models/states/todo.py
 src/hassette/models/states/update.py
 src/hassette/models/states/vacuum.py
+src/hassette/models/states/wake_word.py
 src/hassette/models/states/water_heater.py
 src/hassette/models/states/weather.py
