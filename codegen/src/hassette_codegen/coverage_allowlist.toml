@@ -1,0 +1,12 @@
+# HA core entity domains intentionally left without a hassette state model.
+# Read by `hassette-codegen check-coverage`. Every entry needs a reason; an entry fails
+# the check as stale once its domain is modeled or its component is removed from HA core.
+
+[group]
+reason = "No model yet; tracked in #2795"
+
+[plant]
+reason = "No model yet; tracked in #2795"
+
+[schedule]
+reason = "No model yet; tracked in #2795"
