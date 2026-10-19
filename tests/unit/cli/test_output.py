@@ -23,6 +23,7 @@ from hassette.cli.output import (
     make_stdout_console,
     render_detail,
     render_table,
+    status_style,
 )
 from tests.unit.cli.conftest import CAPTURE_CONSOLE_WIDTH, capture_human, parse_json_stdout
 
@@ -434,6 +435,89 @@ class TestRenderTablePipeDetection:
 
         output = stdout_buf.getvalue()
         assert long_name in output
+
+
+# render_table — status styling
+
+
+class StatusItem(BaseModel):
+    name: str
+    status: str
+
+
+def render_styled_status_table(*, force_terminal: bool) -> str:
+    """Render one row with a ``status_style`` column to a captured console and return its output."""
+    items = [StatusItem(name="app1", status="failed")]
+    columns = [Column("name", "Name"), Column("status", "Status", style=status_style)]
+    stdout_buf = StringIO()
+    new_stdout_console = Console(
+        file=stdout_buf, highlight=False, force_terminal=force_terminal, width=CAPTURE_CONSOLE_WIDTH
+    )
+    with (
+        patch.object(output_module, "stdout_console", new_stdout_console),
+        patch.object(output_module, "stderr_console", Console(file=StringIO())),
+    ):
+        render_table(items, columns, json_mode=False)
+    return stdout_buf.getvalue()
+
+
+class TestStatusStyle:
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("running", "green"),
+            ("success", "green"),
+            ("ok", "green"),
+            ("excellent", "green"),
+            ("good", "green"),
+            ("failed", "red"),
+            ("error", "red"),
+            ("critical", "red"),
+            ("bad", "red"),
+            ("err", "red"),
+            ("warning", "yellow"),
+            ("warn", "yellow"),
+            ("degraded", "yellow"),
+            ("timed_out", "yellow"),
+            ("stopped", "dim"),
+            ("disabled", "dim"),
+            ("cancelled", "dim"),
+            ("starting", "dim"),
+            ("RUNNING", "green"),
+            ("Failed", "red"),
+            ("unknown", None),
+            ("", None),
+            (None, None),
+            (42, None),
+        ],
+    )
+    def test_maps_value_to_style(self, value: Any, expected: str | None) -> None:
+        assert status_style(value) == expected
+
+
+class TestRenderTableStatusStyling:
+    def test_styled_column_emits_ansi_on_terminal(self) -> None:
+        output = render_styled_status_table(force_terminal=True)
+        assert "\x1b[31mfailed" in output
+
+    def test_styled_column_plain_on_non_tty(self) -> None:
+        output = render_styled_status_table(force_terminal=False)
+        assert "failed" in output
+        assert "\x1b[" not in output
+
+    def test_styled_cell_content_is_not_parsed_as_markup(self) -> None:
+        items = [StatusItem(name="app1", status="[bold]x[/bold]")]
+        columns = [Column("status", "Status", style=lambda _v: "red")]
+        stdout, _stderr = capture_human(render_table, items, columns, json_mode=False)
+        assert "[bold]x[/bold]" in stdout
+
+    def test_json_mode_ignores_style(self, capsys: pytest.CaptureFixture[str]) -> None:
+        items = [StatusItem(name="app1", status="failed")]
+        columns = [Column("status", "Status", style=status_style)]
+        render_table(items, columns, json_mode=True)
+        captured = capsys.readouterr()
+        assert "\x1b[" not in captured.out
+        assert json.loads(captured.out) == [{"name": "app1", "status": "failed"}]
 
 
 class TestMakeStdoutConsole:

@@ -25,6 +25,7 @@ from rich.console import Console, OverflowMethod
 from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from hassette.cli.formatters import (
     EMPTY_VALUE,
@@ -51,6 +52,14 @@ CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {
     "relative_time": fmt_relative_time,
     "services": fmt_services,
     "instance_count": fmt_instance_count,
+}
+
+#: Rich style for each status-like cell value, keyed by lowercase text. See :func:`status_style`.
+STATUS_STYLES: dict[str, str] = {
+    **dict.fromkeys(("running", "success", "ok", "excellent", "good"), "green"),
+    **dict.fromkeys(("failed", "error", "critical", "bad", "err"), "red"),
+    **dict.fromkeys(("warning", "warn", "degraded", "timed_out"), "yellow"),
+    **dict.fromkeys(("stopped", "disabled", "cancelled", "starting"), "dim"),
 }
 
 
@@ -105,6 +114,10 @@ class Column:
             Defaults to ``"ellipsis"``.
         formatter: Optional callable that transforms the raw field value into a
             display string. Applied only in human mode; JSON mode uses raw values.
+        style: Optional callable that receives the raw field value and returns a Rich
+            style name (or ``None`` for no style). Applied only in human mode; Rich drops
+            the style on non-terminal output, so piped tables stay plain text.
+            :func:`status_style` covers status-like values.
     """
 
     field: str
@@ -112,11 +125,20 @@ class Column:
     max_width: int | None = None
     overflow: OverflowMethod = "ellipsis"
     formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
+    style: Callable[[Any], str | None] | None = dc_field(default=None, compare=False, hash=False)
     row_formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
     """Optional callable that receives the whole row item (not just ``field``'s extracted
     value) and returns the display string. Takes precedence over both ``formatter`` and any
     ``CliFormat`` model-field fallback. Use when a cell's text depends on more than one field
     (e.g. a nullable timestamp whose placeholder text varies by a sibling status field)."""
+
+
+def status_style(value: Any) -> str | None:
+    """Return the Rich style for a status-like value, or ``None`` when it isn't a known status.
+
+    Matches ``str(value)`` case-insensitively against :data:`STATUS_STYLES`.
+    """
+    return STATUS_STYLES.get(str(value).lower())
 
 
 def _extract_field(item: Any, field_path: str) -> Any:
@@ -159,6 +181,19 @@ def _cell_text(value: Any, col: Column, fallback_meta: CliFormat | None = None) 
     return str(value)
 
 
+def _table_cell(item: Any, col: Column, fallback_meta: CliFormat | None) -> str | Text:
+    """Build one table cell for ``item``, wrapped in a styled :class:`Text` when ``col.style`` picks a style.
+
+    A styled cell is a ``Text`` so its content is never parsed as Rich markup.
+    """
+    value = _extract_field(item, col.field)
+    text = col.row_formatter(item) if col.row_formatter is not None else _cell_text(value, col, fallback_meta)
+    style = col.style(value) if col.style is not None else None
+    if style is None:
+        return text
+    return Text(text, style=style)
+
+
 def render_table(
     items: Sequence[BaseModel],
     columns: list[Column],
@@ -189,13 +224,7 @@ def render_table(
     table = _build_table(columns, is_tty=writes_to_tty(stdout_console))
     fallback_meta = _resolve_cli_format_meta(type(items[0]))
     for item in items:
-        row = [
-            col.row_formatter(item)
-            if col.row_formatter is not None
-            else _cell_text(_extract_field(item, col.field), col, fallback_meta.get(col.field))
-            for col in columns
-        ]
-        table.add_row(*row)
+        table.add_row(*(_table_cell(item, col, fallback_meta.get(col.field)) for col in columns))
 
     stdout_console.print(table)
 
