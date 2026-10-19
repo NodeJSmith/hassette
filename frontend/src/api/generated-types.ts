@@ -1081,6 +1081,12 @@ export interface components {
              * @default true
              */
             autostart: boolean;
+            /**
+             * Description
+             * @description One-line description of what the app does, from the app's config; ``None`` when unset, and for an app
+             *     known only from recorded history (``in_current_config`` is ``False``).
+             */
+            description?: string | null;
             status: components["schemas"]["AppStatus"];
             /** Block Reason */
             block_reason?: string | null;

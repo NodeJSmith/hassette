@@ -11,12 +11,14 @@ def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegi
     auto_loaded: bool = False,
     autostart: bool = True,
     app_config: dict | list[dict] | None = None,
+    description: str | None = None,
 ) -> SimpleNamespace:
     """Build a minimal AppManifest-like object for the registry."""
     return SimpleNamespace(
         app_key=app_key,
         class_name=f"{app_key.title().replace('_', '')}",
         display_name=app_key.replace("_", " ").title(),
+        description=description,
         filename=f"{app_key}.py",
         enabled=enabled,
         auto_loaded=auto_loaded,

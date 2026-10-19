@@ -81,6 +81,7 @@ class AppManifestInfo:
     # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppSummary)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
     autostart: bool = True
+    description: str | None = None
     block_reason: str | None = None
     instance_count: int = 0
     """Number of configured instances, including ones not currently tracked (never started, or
