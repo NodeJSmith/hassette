@@ -92,6 +92,7 @@ LISTENER_SUMMARY_SOURCE = RegistrationSummarySource(
                 MAX(e.execution_start_ts) AS last_invoked_at,
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message,
+                last_err.execution_start_ts AS last_error_ts,
                 last_err.error_traceback AS last_error_traceback,
                 last_err.execution_id AS last_error_execution_id""",
 )

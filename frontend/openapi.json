@@ -4503,6 +4503,18 @@
             ],
             "title": "Last Error Type"
           },
+          "last_error_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Ts",
+            "description": "Unix epoch of the most recent error or timeout within the query window, or None."
+          },
           "last_error_traceback": {
             "anyOf": [
               {
