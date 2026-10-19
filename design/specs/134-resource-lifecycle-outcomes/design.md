@@ -95,16 +95,26 @@ documented trap.
 `after_initialize()` and child initialization (D7 defines the handoff). A failure before that handoff belongs to the caller of the attempt. A failure
 after it belongs to the supervisor. D7 decides how that ordering is achieved.
 
-At boot, the first start has no supervising caller (startup waves start children fire-and-forget and
-then wait for readiness). A boot-time start failure is therefore fatal whether or not the service is required:
-the wave isn't ready, startup fails, and the external supervisor restarts the process. This is a
-behavior change. Today a FAILED event from a boot failure in a post-watcher wave reaches
+At boot, the first start has no supervising caller, so the startup sequence takes that role: each
+wave (and the database service's phase before the waves) joins its children's initialization attempts,
+then waits for readiness. Readiness alone doesn't prove the attempt finished, because a service may
+mark ready inside `on_initialize()` (`WebApiService` does, before its `Scheduler` child initializes),
+so a wave that waited only on readiness could advance while a child initialization later fails in
+the background. A boot-time start failure is therefore fatal whether or not the service is required:
+the wave's join raises, startup fails at once instead of at the wave timeout, and the external
+supervisor restarts the process. The join races `shutdown_event` the way `wait_for_ready()` does,
+because initialization is shielded and a shutdown requested mid-wave must not wait for it; and it
+records the fatal reason with the failed services' names without logging the exception again, since
+the initialization task's observer already logged it at ERROR. No boot-wave initialization body
+waits on Home Assistant or on a later wave (the HA connection lives in `WebsocketService.serve()`,
+app bootstrap runs in a spawned task, and only top-level services declare `depends_on`), so the join
+can't stall a wave that readiness would have let through. This is a behavior change. Today a FAILED event from a boot failure in a post-watcher wave reaches
 `restart_service()` and gets retried. It is accepted, because a wave that isn't ready is already fatal
 today, so a retry only ever helped if it won inside the wave timeout.
 **Pick the status quo instead if** a service genuinely needs to look RUNNING while its children
 start. None was found.
 **Reversibility:** easy
-**Ratified:** Ratified in conversation (2026-10-18): chose RUNNING-after-initialize over serve-time RUNNING, to make a failed attempt fail exactly once at the attempt, accepting a readiness-timing audit of every service. Boot fail-fast chosen at the sketch challenge (Finding 6) over making the first start a supervised attempt, accepting the loss of in-process retry for transient boot failures.
+**Ratified:** Ratified in conversation (2026-10-18): chose RUNNING-after-initialize over serve-time RUNNING, to make a failed attempt fail exactly once at the attempt, accepting a readiness-timing audit of every service. Boot fail-fast chosen at the sketch challenge (Finding 6) over making the first start a supervised attempt, accepting the loss of in-process retry for transient boot failures. Joining each wave's initialization attempts added at PR review (2026-10-19), because readiness marked inside `on_initialize()` let a wave advance past a child initialization that later failed.
 
 ### D2: What happens to a service that fails after startup?
 
@@ -615,7 +625,8 @@ Applies to all: D4 (an app failure never takes down the process or its siblings)
    transition error's place in the WS reconnect's propagated exceptions. Implements:
    D16 (#2697), D18. After: none. Issue: #3105
 3. **Mark a service RUNNING only after initialization completes**: start `serve()` last, add the
-   no-waiting-on-parent-serve rule, make boot start failures fatal. Implements: D1, D7. After: none.
+   no-waiting-on-parent-serve rule, make boot start failures fatal by joining each startup wave's
+   initialization attempts before its readiness wait. Implements: D1, D7. After: none.
    Issue: #3106
 4. **Report service failures directly and stop restarting services in-process**: the direct report and
    its contract, required/optional classification replacing restart specs (an undeclared Service fails at class definition), dead-in-place optional
