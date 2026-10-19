@@ -540,18 +540,21 @@ def find_violations(blocks: list[list[Fragment]], repo_root: Path) -> list[list[
     return [component for component in candidates if any(not is_dup_ignored(fragment) for fragment in component)]
 
 
-def fragment_fingerprint(fragment: Fragment) -> str:
-    """Return the fragment's source text with every whitespace run collapsed to one space.
+def fragment_fingerprint(fragment: Fragment) -> tuple[str, str]:
+    """Return (scan language, the fragment's source text with every whitespace run collapsed to one space).
 
     Raw text rather than PMD's token stream: a verbatim move keeps it identical wherever the
     block lands (including a re-indent), while an occurrence edited in a way PMD still matches
-    gets a different fingerprint and so counts as changed.
+    gets a different fingerprint and so counts as changed. The language keeps a Python cluster
+    from being covered by a base TypeScript cluster whose text happens to be identical —
+    `run_scan()` scans each language separately, so their clusters are never the same debt.
     """
+    language = "python" if fragment.file.suffix == ".py" else "typescript"
     lines = fragment.file.read_text().splitlines()[fragment.start - 1 : fragment.end]
-    return " ".join(" ".join(lines).split())
+    return language, " ".join(" ".join(lines).split())
 
 
-def cluster_fingerprints(component: list[Fragment]) -> Counter[str]:
+def cluster_fingerprints(component: list[Fragment]) -> Counter[tuple[str, str]]:
     """Return {fragment fingerprint: occurrence count} for one violation cluster.
 
     Identifies occurrences by content, not path, so a cluster keeps its identity when its
@@ -561,7 +564,7 @@ def cluster_fingerprints(component: list[Fragment]) -> Counter[str]:
 
 
 def new_code_violations(
-    head_violations: list[list[Fragment]], base_cluster_fingerprints: list[Counter[str]]
+    head_violations: list[list[Fragment]], base_cluster_fingerprints: list[Counter[tuple[str, str]]]
 ) -> list[list[Fragment]]:
     """Return the subset of `head_violations` this PR's own diff is responsible for.
 
@@ -602,7 +605,7 @@ def run_scan(repo_root: Path) -> list[list[Fragment]]:
     return find_violations(blocks, repo_root)
 
 
-def scan_tree_at_ref(ref: str) -> list[Counter[str]]:
+def scan_tree_at_ref(ref: str) -> list[Counter[tuple[str, str]]]:
     """Materialize `ref`'s tree into a throwaway directory, scan it, and return each violation
     cluster's fingerprint counts (see `cluster_fingerprints()`).
 

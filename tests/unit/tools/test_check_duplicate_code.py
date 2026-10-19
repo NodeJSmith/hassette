@@ -543,6 +543,13 @@ def test_new_code_violations_flags_a_new_cluster_spanning_two_base_clusters(tmp_
     assert new_code_violations([head], base) == [head]
 
 
+def test_new_code_violations_flags_a_python_cluster_matching_only_a_typescript_base_cluster(tmp_path: Path) -> None:
+    # Identical text in another language is separate debt from a separate PMD scan, so it
+    # can't make a new Python cluster count as pre-existing.
+    ts_layout = {f"{name}.ts": (BLOCK,) for name in "abc"}
+    assert gate_flags(tmp_path, ts_layout, THREE_FILES)
+
+
 def test_new_code_violations_leaves_untouched_clusters_out_of_a_mixed_result(tmp_path: Path) -> None:
     old_layout = {f"old_{name}.py": (OTHER_BLOCK,) for name in "abc"}
     base = write_tree(tmp_path / "base", old_layout)
@@ -573,7 +580,7 @@ def test_scan_tree_at_ref_scans_that_refs_own_tree(git_repo: GitRepo, monkeypatc
 
     result = check_duplicate_code.scan_tree_at_ref(base)
 
-    assert result == [Counter({" ".join(BLOCK.split()): 2})]
+    assert result == [Counter({("python", " ".join(BLOCK.split())): 2})]
     assert len(seen_roots) == 1
     assert not seen_roots[0].exists()  # throwaway directory cleaned up after the call returns
 
