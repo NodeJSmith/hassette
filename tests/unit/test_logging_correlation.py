@@ -106,6 +106,42 @@ class TestLogRecordEntryToDictIncludesSeq:
         assert "seq" in d
         assert "timestamp" in d
 
+    def test_to_dict_returns_every_field(self) -> None:
+        """to_dict() returns every field, keyed by name, in declaration order."""
+        entry = LogRecordEntry(
+            seq=3,
+            timestamp=1234.5,
+            level="WARNING",
+            logger_name="hassette.svc",
+            func_name="do_work",
+            lineno=99,
+            message="hello",
+            exc_info="Traceback: boom",
+            app_key="my_app",
+            source_tier="app",
+            execution_id="exec-1",
+            instance_name="inst",
+            instance_index=2,
+        )
+        expected = {
+            "seq": 3,
+            "timestamp": 1234.5,
+            "level": "WARNING",
+            "logger_name": "hassette.svc",
+            "func_name": "do_work",
+            "lineno": 99,
+            "message": "hello",
+            "exc_info": "Traceback: boom",
+            "app_key": "my_app",
+            "source_tier": "app",
+            "execution_id": "exec-1",
+            "instance_name": "inst",
+            "instance_index": 2,
+        }
+        d = entry.to_dict()
+        assert d == expected
+        assert list(d) == list(expected)
+
 
 class TestCorrelationFilter:
     """CorrelationFilter stamps correlation IDs and seq on log records."""

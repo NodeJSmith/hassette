@@ -8,7 +8,7 @@ import sys
 import threading
 import traceback
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import IO, TYPE_CHECKING, Any, Literal
 
 import structlog
@@ -18,6 +18,9 @@ import structlog.stdlib
 import structlog.types
 
 from hassette.context import CURRENT_EXECUTION_ID
+
+if TYPE_CHECKING:
+    from hassette.core.database_service import DatabaseService
 
 DEQUEUE_TIMEOUT_SECONDS = 0.2
 
@@ -42,10 +45,6 @@ LOGGER_NAMES = (HASSETTE_LOGGER_NAME, PY_WARNINGS_LOGGER_NAME)
 # Enforced in LoggingConfig.reject_reserved_logger_name (config/models.py); this is the single
 # source of truth both that validator and this module read from.
 RESERVED_EXTRA_LOGGER_NAMES = frozenset({*LOGGER_NAMES, "root"})
-
-if TYPE_CHECKING:
-    from hassette.core.database_service import DatabaseService
-
 
 _RECORD_FIELDS = (
     "source_tier",
@@ -78,21 +77,7 @@ class LogRecordEntry:
     instance_index: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "seq": self.seq,
-            "timestamp": self.timestamp,
-            "level": self.level,
-            "logger_name": self.logger_name,
-            "func_name": self.func_name,
-            "lineno": self.lineno,
-            "message": self.message,
-            "exc_info": self.exc_info,
-            "app_key": self.app_key,
-            "source_tier": self.source_tier,
-            "execution_id": self.execution_id,
-            "instance_name": self.instance_name,
-            "instance_index": self.instance_index,
-        }
+        return asdict(self)
 
 
 def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
