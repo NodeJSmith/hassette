@@ -89,7 +89,7 @@ testing redesign + all breaking changes ──> v1.0 tag
 #1446 projector ──> #2890 mixed-instance scenario ──> #2996 snapshot mode
 #2989 seed anchor ──> #2996 snapshot mode
 #3095 instance names ──> #2496 logger identity ──> #3096 author field, #3097 framework_log_level, #3044 console column
-#3095, #3096 ──> #3098 DB keyed by name; #3095 ──> #3099 registry by name; #3098, #3099 ──> #3100 routes by name
+Log Identity milestone closed ──> #3098 DB keyed by name, #3099 registry by name ──> #3100 routes by name
 ```
 
 Remove a chain once every step on it has closed.
