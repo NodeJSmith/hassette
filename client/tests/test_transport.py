@@ -55,7 +55,8 @@ async def test_empty_token_still_sends_an_authorization_header(
 
     await HassetteClient(session, server.base_url, token="").get_health()
 
-    assert server.requests[0].headers["Authorization"] == "Bearer "
+    # The client sends "Bearer "; aiohttp >= 3.14.4's server strips trailing whitespace from header values (RFC 9110).
+    assert server.requests[0].headers["Authorization"].rstrip() == "Bearer"
 
 
 @pytest.mark.parametrize("request_timeout", [0, -1.0, math.nan, math.inf])
