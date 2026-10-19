@@ -2,26 +2,11 @@
 # Read by `hassette-codegen check-coverage`. Every entry needs a reason; an entry fails
 # the check as stale once its domain is modeled or its component is removed from HA core.
 
-[alert]
-reason = "No model yet; tracked in #2795"
-
 [group]
-reason = "No model yet; tracked in #2795"
-
-[infrared]
 reason = "No model yet; tracked in #2795"
 
 [plant]
 reason = "No model yet; tracked in #2795"
 
-[radio_frequency]
-reason = "No model yet; tracked in #2795"
-
 [schedule]
-reason = "No model yet; tracked in #2795"
-
-[tag]
-reason = "No model yet; tracked in #2795"
-
-[wake_word]
 reason = "No model yet; tracked in #2795"

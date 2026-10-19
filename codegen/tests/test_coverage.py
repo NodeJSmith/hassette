@@ -173,7 +173,7 @@ def test_allowlist_entry_without_reason_is_rejected(tmp_path: Path) -> None:
 
 
 def test_seeded_allowlist_loads() -> None:
-    assert set(load_allowlist()) >= {"tag", "wake_word", "alert", "plant"}
+    assert all(reason.strip() for reason in load_allowlist().values())
 
 
 @pytest.mark.skipif(not HAS_HA_CORE, reason="requires local HA core checkout")
