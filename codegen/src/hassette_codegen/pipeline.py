@@ -174,18 +174,19 @@ def run_pipeline(
     # plain mutable sets — convert once at this boundary rather than widening their signatures.
     generated_files = set(generated_files)
 
+    # A --domain run only answers for the domains it processed; everything else in the manifest
+    # is carried over by merge_manifest, so it cannot be an orphan of this run.
+    orphans = set() if domain_filter else _find_orphans(repo_root, previous_manifest, generated_files)
+
     if not check_mode:
-        _finalize_manifest(
-            repo_root, domain_filter, generated_files=generated_files, previous_manifest=previous_manifest
-        )
+        _finalize_manifest(repo_root, domain_filter, generated_files=generated_files, orphans=orphans)
 
     return _report_summary_and_exit_code(
         domains=domains,
         skipped_domains=skipped_domains,
         rejections=rejections,
         any_drift=any_drift,
-        previous_manifest=previous_manifest,
-        generated_files=generated_files,
+        orphans=orphans,
         check_mode=check_mode,
         domain_filter=domain_filter,
     )
@@ -421,29 +422,35 @@ def _generate_package_inits(states_dir: Path, entities_dir: Path, repo_root: Pat
     return _WriteOutput(generated_files=frozenset(generated_files), any_drift=any_drift)
 
 
+def _find_orphans(repo_root: Path, previous_manifest: set[Path], generated_files: set[Path]) -> set[Path]:
+    """Generator-owned files still on disk that this run did not produce.
+
+    A manifest entry whose file is already gone is not an orphan: there is no stale module left
+    for anyone to import, so the entry is simply dropped when the manifest is rewritten.
+    """
+    return {p for p in detect_orphans(previous_manifest, generated_files) if (repo_root / p).exists()}
+
+
 def _finalize_manifest(
     repo_root: Path,
     domain_filter: set[str] | None,
     *,
     generated_files: set[Path],
-    previous_manifest: set[Path],
+    orphans: set[Path],
 ) -> None:
-    """Persist the manifest for this run, warning about any newly-orphaned files.
+    """Persist the manifest for this run.
 
-    Only called for a non-check-mode run — --check never mutates the manifest.
+    Only called for a non-check-mode run — --check never mutates the manifest. Orphans stay in
+    the manifest: the run fails on them, and keeping their ownership means the next run still
+    reports them (or regenerates them, once discovery finds their domain again) instead of
+    treating them as hand-written.
     """
     if domain_filter:
         merged = merge_manifest(repo_root, domain_filter, generated_files)
         save_manifest(repo_root, merged)
         return
 
-    orphans = detect_orphans(previous_manifest, generated_files)
-    if orphans:
-        print(
-            f"Orphaned files (no longer generated): {', '.join(str(p) for p in sorted(orphans))}",
-            file=sys.stderr,
-        )
-    save_manifest(repo_root, generated_files)
+    save_manifest(repo_root, generated_files | orphans)
 
 
 def _report_summary_and_exit_code(
@@ -452,12 +459,16 @@ def _report_summary_and_exit_code(
     skipped_domains: tuple[str, ...],
     rejections: list[Rejection],
     any_drift: bool,
-    previous_manifest: set[Path],
-    generated_files: set[Path],
+    orphans: set[Path],
     check_mode: bool,
     domain_filter: set[str] | None,
 ) -> int:
-    """Print the run summary and, in --check mode, the failure detail. Returns the exit code."""
+    """Print the run summary and the failure detail. Returns the exit code.
+
+    Orphans fail every full run, --check or not: a stale generated module keeps shipping a model
+    frozen at the last upstream version that produced it, and nothing else tells it apart from a
+    hand-written one. Drift, skips, and rejections only fail --check.
+    """
     generated_count = len(domains) - len(skipped_domains)
     print(
         f"Summary: {generated_count} domains generated, {len(skipped_domains)} skipped"
@@ -465,21 +476,24 @@ def _report_summary_and_exit_code(
         # rejected entity wrapper left its domain's state model generated, so neither is
         # visible in the two numbers above.
         + (f", {len(rejections)} rejected" if rejections else "")
-        + (
-            f", {len(detect_orphans(previous_manifest, generated_files))} orphans"
-            if not check_mode and not domain_filter
-            else ""
-        ),
+        + (f", {len(orphans)} orphans" if not domain_filter else ""),
         file=sys.stderr,
     )
 
-    if not (check_mode and (any_drift or skipped_domains or rejections)):
+    check_failed = check_mode and (any_drift or skipped_domains or rejections)
+    if not (check_failed or orphans):
         return 0
 
-    if skipped_domains:
+    if check_mode and skipped_domains:
         print(f"Skipped domains: {', '.join(skipped_domains)}", file=sys.stderr)
-    if rejections:
+    if check_mode and rejections:
         print(f"Rejected: {', '.join(f'{r.domain} ({r.what})' for r in rejections)}", file=sys.stderr)
+    if orphans:
+        print(
+            f"Orphaned files (no longer generated): {', '.join(str(p) for p in sorted(orphans))}. "
+            "Restore discovery of their domain (or add a manual override), or delete them.",
+            file=sys.stderr,
+        )
     return 1
 
 
