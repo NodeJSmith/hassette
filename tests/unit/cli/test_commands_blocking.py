@@ -25,7 +25,7 @@ runner = CommandRunner("hassette.cli.commands.blocking.make_client")
 
 @pytest.fixture(autouse=True)
 def frozen_now(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("hassette.cli.output.now_epoch", fixed_now)
+    monkeypatch.setattr("hassette.cli.formatters.now_epoch", fixed_now)
 
 
 def frame_ref(display_path: str, lineno: int, function: str) -> BlockingFrameRef:

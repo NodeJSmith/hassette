@@ -6,7 +6,8 @@ from hassette_wire import Execution, ListenerSummary
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_handler_short, fmt_relative_time, render_table
+from hassette.cli.formatters import fmt_duration_ms, fmt_handler_short, fmt_relative_time
+from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 
 LISTENER_LIST_COLUMNS: list[Column] = [
