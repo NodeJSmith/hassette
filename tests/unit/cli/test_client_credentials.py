@@ -16,7 +16,8 @@ import pytest
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 import hassette.cli as cli_pkg
-from hassette.cli.client import CLI_AUTH_DOCS_URL, HassetteCLIClient
+from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client_errors import CLI_AUTH_DOCS_URL
 from hassette.cli.commands.status import cmd_status
 from hassette.cli.target import CLI_AUTH_TOKEN_ENV, CREDENTIAL_SOURCES
 from hassette.config.config import HassetteConfig
