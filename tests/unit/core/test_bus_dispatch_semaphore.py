@@ -7,11 +7,12 @@ enforcement added in #1076 (Layer 2).
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 from hassette_wire import BackpressurePolicy, ExecutionMode
 
 from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
+from hassette.core.sync_executor import SyncExecutor
 from hassette.task_bucket import TaskBucket
 from hassette.testing import wait_for
 from tests.support.factories import make_mock_event
@@ -326,7 +327,7 @@ async def test_queued_factory_rejected_at_drain_releases_its_dispatch_slot() -> 
 
     # A real TaskBucket, so the rejection this test hinges on is the production sealed-spawn
     # path rather than a stand-in that could drift from it.
-    handler_bucket = TaskBucket(make_mock_hassette())
+    handler_bucket = TaskBucket(make_mock_hassette(), sync_executor=Mock(spec=SyncExecutor))
 
     listener = create_listener(
         topic="test.topic",

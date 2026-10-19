@@ -681,8 +681,7 @@ class TestTrackSubmission:
 
         svc.sync_executor.track_submission = counting_track  # pyright: ignore[reportAttributeAccessIssue]
 
-        tb = TaskBucket(mock_hassette)
-        tb._sync_executor = svc.sync_executor
+        tb = TaskBucket(mock_hassette, sync_executor=svc.sync_executor)
 
         done = threading.Event()
 

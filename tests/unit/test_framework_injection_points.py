@@ -27,6 +27,7 @@ from hassette.context import (
 )
 from hassette.context import set_global_hassette
 from hassette.core.state_proxy import StateProxy
+from hassette.core.sync_executor import SyncExecutor
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.task_bucket.task_bucket import TaskBucket
@@ -423,23 +424,9 @@ class TestHermeticConfigClosure:
         assert r2.instance_name == "second"
 
 
-def make_task_bucket() -> TaskBucket:  # factory-local: real TaskBucket via __new__, not a MagicMock
-    """Build a TaskBucket with a minimal Hassette mock — bypasses __init__ to avoid Resource wiring."""
-    hassette = Mock()
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.logging.log_level = "DEBUG"
-    hassette.config.dev_mode = False
-    hassette.loop_thread_id = None
-
-    bucket = TaskBucket.__new__(TaskBucket)
-    bucket._tasks = set()
-    bucket._exception_recorders = []
-    bucket.hassette = hassette
-    bucket.logger = Mock()
-    # _unique_name is read by the unique_name property; set directly to avoid parent lookup
-    bucket._unique_name = "test_bucket"
-    return bucket
+def make_task_bucket() -> TaskBucket:  # factory-local: real TaskBucket, not the MagicMock in helpers.py
+    """Build a real TaskBucket on a mock Hassette; these tests never call run_in_thread."""
+    return TaskBucket(make_mock_hassette(), sync_executor=Mock(spec=SyncExecutor))
 
 
 class TestTaskBucketExceptionRecorderList:
