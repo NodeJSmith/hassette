@@ -220,15 +220,6 @@ class LifecycleMixin(_LifecycleHostP):
         self._shutdown_budget = None
 
     @property
-    def initializing(self) -> bool:
-        """Read-only diagnostic: whether the resource-owned initialization task is active.
-
-        Derived from ``_init_task`` rather than a mutable flag — this no longer controls
-        lifecycle admission (see ``hassette.resources.lifecycle`` coordinator functions).
-        """
-        return self._init_task is not None and not self._init_task.done()
-
-    @property
     def shutting_down(self) -> bool:
         """Read-only diagnostic: whether the resource-owned shutdown task is active.
 
@@ -296,10 +287,6 @@ class LifecycleMixin(_LifecycleHostP):
 
         self._previous_status = old
         self._status = value
-
-    @property
-    def task(self) -> asyncio.Task | None:
-        return self._init_task
 
     def is_ready(self) -> bool:
         """Check if the instance is ready.
