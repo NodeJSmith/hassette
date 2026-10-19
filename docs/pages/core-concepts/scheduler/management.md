@@ -158,7 +158,7 @@ Both levels accept sync or async callables.
 
 ## Tune dispatch with jitter
 
-The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter)` seconds and applied at enqueue time.
+The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter)` seconds and applied at enqueue time. Fractional values like `jitter=0.5` are valid: whole-second resolution applies to delays and intervals, not to jitter.
 
 Jitter affects dispatch order within the heap. The logical `next_run` timestamp on the job remains unchanged — a job scheduled every 60 seconds targets T+60, T+120, T+180 regardless of jitter. The random offset shifts the actual dispatch within each window but does not compound across runs.
 

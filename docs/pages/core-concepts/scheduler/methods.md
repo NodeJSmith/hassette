@@ -18,12 +18,12 @@ The scheduler runs handlers at times defined by trigger objects. The convenience
 
 ## Run once after a delay: `run_in`
 
-The handler runs once after a fixed delay. The underlying [`After`][hassette.scheduler.triggers.After] trigger fires once and does not repeat. `delay`, `minutes`, and `hours` add together (`run_in(func, 30, minutes=1)` waits 90 seconds), and the total must be positive: `run_in(func)` with no delay raises `ValueError`.
+The handler runs once after a fixed delay. The underlying [`After`][hassette.scheduler.triggers.After] trigger fires once and does not repeat. `delay`, `minutes`, and `hours` add together (`run_in(func, 30, minutes=1)` waits 90 seconds), and the total must be at least 1 second. The scheduler has whole-second resolution, so `run_in(func, 0.5)` raises `ValueError`, and so does `run_in(func)` with no delay. Fractional totals above 1 second round to the nearest second. For a sub-second pause, `await asyncio.sleep()` inside the handler.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `func` | callable | *(required)* | The handler to run. |
-| `delay` | `float` | `0` | Seconds component of the delay. Positional, so `run_in(func, 30)` waits 30 seconds. |
+| `delay` | `float` | `0` | Seconds component of the delay, in whole seconds. Positional, so `run_in(func, 30)` waits 30 seconds. |
 | `minutes` | `float` | `0` | Minutes component of the delay. Keyword-only. |
 | `hours` | `float` | `0` | Hours component of the delay. Keyword-only. |
 
@@ -35,7 +35,7 @@ Shared parameters apply (see [Parameters every method accepts](#parameters-every
 
 ## Repeat on an interval: `run_every`
 
-The handler runs repeatedly at a fixed interval. The `hours`, `minutes`, and `seconds` parameters are additive; at least one must be nonzero. Each next run is calculated from the previous run time, not from wall-clock time. The interval stays drift-resistant under load.
+The handler runs repeatedly at a fixed interval. The `hours`, `minutes`, and `seconds` parameters are additive. The total must be a whole number of seconds, at least 1. Each next run is calculated from the previous run time, not from wall-clock time. The interval stays drift-resistant under load.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|

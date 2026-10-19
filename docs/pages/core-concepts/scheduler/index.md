@@ -21,7 +21,7 @@ Each call returns a [`Job`][hassette.scheduler.classes.Job] handle. The handle r
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_in.py"
 ```
 
-`delay` is in seconds; `minutes=` and `hours=` state larger delays in their own units, and all three add together. The job fires once and does not repeat.
+`delay` is in whole seconds; `minutes=` and `hours=` state larger delays in their own units, and all three add together. The job fires once and does not repeat. The scheduler has whole-second resolution, so a total delay under 1 second raises `ValueError`.
 
 ### Run on a repeating interval
 

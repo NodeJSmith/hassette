@@ -22,10 +22,10 @@ async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette
         hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
     scheduled_job = await hassette_with_scheduler.scheduler.run_in(
-        target, delay=0.01, args=(1, 2), kwargs={"flag": True}, name="run_in_passes_args_kwargs_async_run_in"
+        target, delay=1, args=(1, 2), kwargs={"flag": True}, name="run_in_passes_args_kwargs_async_run_in"
     )
 
-    await asyncio.wait_for(job_executed.wait(), timeout=1)
+    await asyncio.wait_for(job_executed.wait(), timeout=3)
     scheduled_job.remove()
 
     assert captured_arguments == [(1, 2, True)], f"Expected [(1, 2, True)], got {captured_arguments}"
@@ -42,10 +42,10 @@ async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: HassetteH
         event_loop.call_soon_threadsafe(job_executed.set)
 
     scheduled_job = await hassette_with_scheduler.scheduler.run_in(
-        target, delay=0.01, args=("sensor",), kwargs={"count": 3}, name="run_in_passes_args_kwargs_sync_run_in"
+        target, delay=1, args=("sensor",), kwargs={"count": 3}, name="run_in_passes_args_kwargs_sync_run_in"
     )
 
-    await asyncio.wait_for(job_executed.wait(), timeout=1)
+    await asyncio.wait_for(job_executed.wait(), timeout=3)
     scheduled_job.remove()
 
     assert captured_arguments == [("sensor", 3)], f"Expected [('sensor', 3)], got {captured_arguments}"
@@ -94,12 +94,12 @@ async def test_run_job_calls_executor(hassette_with_scheduler: HassetteHarness) 
     executor.execute.reset_mock()
 
     scheduled_job = await hassette_with_scheduler.scheduler.run_in(
-        target, delay=0.05, name="run_job_calls_executor_run_in"
+        target, delay=1, name="run_job_calls_executor_run_in"
     )
     # db_id is now set immediately after await run_in returns; override for this test
     scheduled_job.mark_registered(99)
 
-    await asyncio.wait_for(job_executed.wait(), timeout=1)
+    await asyncio.wait_for(job_executed.wait(), timeout=3)
     scheduled_job.remove()
 
     assert len(executed_cmds) == 1, f"Expected executor.execute() called once, got {len(executed_cmds)} calls"
@@ -119,10 +119,10 @@ async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: 
     executor.execute.reset_mock()
 
     scheduled_job = await hassette_with_scheduler.scheduler.run_in(
-        target, delay=0.01, name="run_job_non_app_routes_through_executor_run_in"
+        target, delay=1, name="run_job_non_app_routes_through_executor_run_in"
     )
 
-    await asyncio.wait_for(job_executed.wait(), timeout=1)
+    await asyncio.wait_for(job_executed.wait(), timeout=3)
     scheduled_job.remove()
 
     executor.execute.assert_called_once()
@@ -156,7 +156,7 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: HassetteHarn
         async def target() -> None:
             pass
 
-        scheduled_job = await scheduler.run_in(target, delay=0.5, name="job_registration_sets_db_id_run_in")
+        scheduled_job = await scheduler.run_in(target, delay=1, name="job_registration_sets_db_id_run_in")
 
         assert scheduled_job.db_id is not None, "job.db_id should be set immediately after await run_in() returns"
         assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"

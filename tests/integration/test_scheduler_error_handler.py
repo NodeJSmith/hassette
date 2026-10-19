@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hassette.scheduler.error_context import SchedulerErrorContext
+from hassette.utils import date_utils
 from tests.support.helpers import settle
 
 if TYPE_CHECKING:
@@ -65,7 +66,7 @@ async def test_app_level_error_handler_called_on_job_failure(hassette_with_sched
         raise ValueError("job failed")
 
     scheduler.on_error(errors.record)
-    await scheduler.run_in(bad_job, delay=0.01, name="app_level_error_handler_called_on_job_fa_run_in")
+    await scheduler.run_once(bad_job, at=date_utils.now(), name="app_level_error_handler_called_on_job_fa_run_once")
 
     ctx = await errors.wait_and_assert_single(ValueError)
     assert str(ctx.exception) == "job failed"
@@ -83,7 +84,9 @@ async def test_per_job_error_handler_wins(hassette_with_scheduler: "HassetteHarn
         raise RuntimeError("per-job failure")
 
     scheduler.on_error(app_level.record)
-    await scheduler.run_in(bad_job, delay=0.01, on_error=per_job.record, name="per_job_error_handler_wins_run_in")
+    await scheduler.run_once(
+        bad_job, at=date_utils.now(), on_error=per_job.record, name="per_job_error_handler_wins_run_once"
+    )
 
     await per_job.wait_and_assert_single(RuntimeError)
     assert not app_level.contexts, "App-level handler should not be called when per-job handler wins"
@@ -100,7 +103,7 @@ async def test_no_handler_framework_default(hassette_with_scheduler: "HassetteHa
         hassette.task_bucket.post_to_loop(ran.set)
         raise KeyError("unhandled job error")
 
-    await scheduler.run_in(bad_job, delay=0.01, name="no_handler_framework_default_run_in")
+    await scheduler.run_once(bad_job, at=date_utils.now(), name="no_handler_framework_default_run_once")
 
     # Job ran (exception was raised) and harness didn't crash
     await asyncio.wait_for(ran.wait(), timeout=2.0)
@@ -118,12 +121,12 @@ async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "Hass
         raise ValueError(f"failed for {sensor_id}")
 
     scheduler.on_error(errors.record)
-    await scheduler.run_in(
+    await scheduler.run_once(
         bad_job,
-        delay=0.01,
+        at=date_utils.now(),
         args=("sensor.kitchen",),
         kwargs={"count": 3},
-        name="error_context_contains_args_kwargs_run_in",
+        name="error_context_contains_args_kwargs_run_once",
     )
 
     ctx = await errors.wait_and_assert_single(ValueError)
