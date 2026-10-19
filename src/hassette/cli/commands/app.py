@@ -14,6 +14,7 @@ from hassette_wire import (
 
 import hassette.cli.output as cli_output
 from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
+from hassette.cli.columns import health_activity_columns
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
 from hassette.const.misc import SECONDS_PER_HOUR
@@ -50,9 +51,7 @@ APP_HEALTH_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("health_status", "Health", max_width=10),
     cli_output.Column("error_rate", "Error Rate", max_width=10),
     cli_output.Column("error_rate_class", "Rate Class", max_width=10),
-    cli_output.Column("handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=cli_output.fmt_duration_ms),
-    cli_output.Column("job_avg_duration_ms", "Job Avg", max_width=9, formatter=cli_output.fmt_duration_ms),
-    cli_output.Column("last_activity_ts", "Last Active", max_width=11, formatter=cli_output.fmt_relative_time),
+    *health_activity_columns(),
 ]
 
 APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
@@ -152,6 +151,21 @@ def cmd_app_source(
     cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 
+def _confirmation_prompt(action: AppAction, key: str, instance_label: str | None) -> str:
+    """Return the question asked before ``action`` runs, naming the instance when one was targeted."""
+    if instance_label is not None:
+        return f"{action.capitalize()} instance {instance_label!r} of {key!r}?"
+    return f"{action.capitalize()} app {key!r}?"
+
+
+def _action_message(action: AppAction, key: str, instance_label: str | None) -> str:
+    """Return the success message for a completed ``action``, naming the instance when one was targeted."""
+    verb = ACTION_PAST_TENSE[action]
+    if instance_label is not None:
+        return f"Instance {instance_label!r} of {key!r} {verb}"
+    return f"App {key!r} {verb}"
+
+
 def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
     """Shared implementation for ``start``/``stop``/``reload``: confirm, POST, render result."""
     client = make_client(ctx)
@@ -170,13 +184,8 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
             # single-JSON-document stdout contract in --json mode. Require --yes instead of
             # ever prompting when JSON output is requested.
             client.error_usage(f"--yes is required to {action} in --json mode")
-        prompt = (
-            f"{action.capitalize()} instance {instance_label!r} of {key!r}?"
-            if instance_label is not None
-            else f"{action.capitalize()} app {key!r}?"
-        )
         try:
-            response = input(f"{prompt} [y/N] ")
+            response = input(f"{_confirmation_prompt(action, key, instance_label)} [y/N] ")
         except EOFError:
             response = ""
         if response.strip().lower() != "y":
@@ -191,8 +200,7 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
             highlight=False,
         )
 
-    verb = ACTION_PAST_TENSE[action]
-    message = f"Instance {instance_label!r} of {key!r} {verb}" if instance_label is not None else f"App {key!r} {verb}"
+    message = _action_message(action, key, instance_label)
     detail = {
         "status": result.status,
         "app_key": result.app_key,
