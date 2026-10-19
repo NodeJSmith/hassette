@@ -5,7 +5,6 @@ set_connection_state() validation, and the transitions serve() and cleanup() wri
 """
 
 import asyncio
-import logging
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -209,18 +208,6 @@ class TestInvalidTransitions:
         # Self-transitions are always silently ignored — they are not invalid transitions
         websocket_service_strict.set_connection_state(ConnectionState.CONNECTED)
         assert websocket_service_strict.connection_state == ConnectionState.CONNECTED
-
-
-class TestHasattrGuard:
-    async def test_invalid_transition_no_hassette_no_crash(self) -> None:
-        """Invalid WS transition on an object without hassette must not AttributeError."""
-        ws = WebsocketService.__new__(WebsocketService)
-        ws._connection_state = ConnectionState.DISCONNECTED
-        ws.logger = logging.getLogger("test")
-
-        assert not hasattr(ws, "hassette")
-        ws.set_connection_state(ConnectionState.CONNECTED)
-        assert ws._connection_state == ConnectionState.CONNECTED
 
 
 @pytest.fixture

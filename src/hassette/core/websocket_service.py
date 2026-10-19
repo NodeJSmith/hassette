@@ -210,44 +210,35 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         if old == new:
             return
 
-        if hasattr(self, "hassette"):
-            allowed = WS_VALID_TRANSITIONS.get(old, frozenset())
-            if new not in allowed:
-                if getattr(self.hassette.config, "strict_lifecycle", False) is True:
-                    raise InvalidLifecycleTransitionError(
-                        from_status=old,
-                        to_status=new,
-                        resource_name=self.unique_name,
-                    )
-                frame_summary = "".join(traceback.format_stack(limit=INVALID_TRANSITION_TRACE_LIMIT)[:-1]).strip()
-                self.logger.warning(
-                    "Invalid WebSocket connection state transition for '%s': %r → %r\n%s",
-                    self.unique_name,
-                    old,
-                    new,
-                    frame_summary,
+        allowed = WS_VALID_TRANSITIONS.get(old, frozenset())
+        if new not in allowed:
+            if getattr(self.hassette.config, "strict_lifecycle", False) is True:
+                raise InvalidLifecycleTransitionError(
+                    from_status=old,
+                    to_status=new,
+                    resource_name=self.unique_name,
                 )
+            frame_summary = "".join(traceback.format_stack(limit=INVALID_TRANSITION_TRACE_LIMIT)[:-1]).strip()
+            self.logger.warning(
+                "Invalid WebSocket connection state transition for '%s': %r → %r\n%s",
+                self.unique_name,
+                old,
+                new,
+                frame_summary,
+            )
 
         self.logger.debug("WebSocket: %s → %s", old, new)
         self._connection_state = new
 
-        # Read defensively for the same reason as the hasattr guards above and below: an
-        # instance built without __init__ has neither attribute, and the transition itself
-        # must still work even when the INFO report cannot name a URL.
-        url = getattr(self, "url", None)
-        ever_connected = getattr(self, "_ever_connected", False)
-
         if new == ConnectionState.CONNECTED:
             # A reconnect is logged by OutageLog.record_connected, with the outage's duration.
-            if not ever_connected:
-                self.logger.info("Connected to Home Assistant at %s", url)
+            if not self._ever_connected:
+                self.logger.info("Connected to Home Assistant at %s", self.url)
             self._ever_connected = True
         else:
             # Leaving CONNECTED is logged by OutageLog.record_failure, which knows whether it was a flap.
-            if hasattr(self, "_connected_event"):
-                self._connected_event.clear()
-            if hasattr(self, "_connected_generation"):
-                self._connected_generation = None
+            self._connected_event.clear()
+            self._connected_generation = None
 
     @property
     def connection_timeout_seconds(self) -> int:
