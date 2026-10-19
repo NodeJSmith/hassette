@@ -130,7 +130,8 @@ class After:
 
     Raises:
         ValueError: If ``timedelta`` is combined with ``seconds``, ``minutes``, or ``hours``,
-            or if the total delay is not positive.
+            or if the total delay is under 1 second. The scheduler has whole-second resolution,
+            so fire times are rounded to the nearest second.
 
     Example:
         After(seconds=30)       # fires 30 seconds from now
@@ -152,8 +153,14 @@ class After:
             self._delay = timedelta
         else:
             self._delay = TimeDelta(seconds=seconds, minutes=minutes, hours=hours)
-        if self._delay.total("seconds") <= 0:
+        total_seconds = self._delay.total("seconds")
+        if total_seconds <= 0:
             raise ValueError("After trigger delay must be positive")
+        if total_seconds < 1:
+            raise ValueError(
+                f"After trigger delay must be at least 1 second (got {total_seconds}s); "
+                "the scheduler has whole-second resolution"
+            )
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
         """Return current_time plus the delay."""
@@ -274,6 +281,9 @@ class Every:
             anchor is in the past, missed intervals are skipped to produce a
             near-future run time.
 
+    Raises:
+        ValueError: If the total interval is under 1 second or not a whole number of seconds.
+
     Example:
         Every(hours=1)                          # every hour, anchored to first run
         Every(seconds=30, start=my_start_time)  # every 30 s, grid anchored to my_start_time
@@ -290,6 +300,11 @@ class Every:
         total_seconds = total.total("seconds")
         if total_seconds <= 0:
             raise ValueError("Every trigger interval must be positive")
+        if total_seconds < 1:
+            raise ValueError(
+                f"Every trigger interval must be at least 1 second (got {total_seconds}s); "
+                "the scheduler has whole-second resolution"
+            )
         if total_seconds != int(total_seconds):
             raise ValueError("Every trigger interval must be a whole number of seconds")
         self._interval = total

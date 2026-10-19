@@ -63,7 +63,7 @@ class SchedulerSyncConvenience(Resource):
             func: The function to run.
             delay: Delay component in seconds. ``run_in(func, 30)`` waits 30 seconds.
             minutes: Delay component in minutes. Components add up: ``minutes=1, delay=30`` waits 90 seconds.
-            hours: Delay component in hours. A total delay of zero or less raises ``ValueError``.
+            hours: Delay component in hours. A total under 1 second raises ``ValueError`` (whole-second resolution).
             name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time. See ``schedule()``.
@@ -198,7 +198,7 @@ class SchedulerSyncConvenience(Resource):
             func: The function to run.
             hours: Interval hours component.
             minutes: Interval minutes component.
-            seconds: Interval seconds component.
+            seconds: Interval seconds component. The total must be a whole number of seconds, at least 1.
             name: Required stable name for the job.
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
