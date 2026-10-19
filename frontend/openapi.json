@@ -3298,6 +3298,18 @@
             "title": "Autostart",
             "default": true
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "One-line description of what the app does, from the app's config; ``None`` when unset, and for an app\nknown only from recorded history (``in_current_config`` is ``False``)."
+          },
           "status": {
             "$ref": "#/components/schemas/AppStatus"
           },

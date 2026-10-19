@@ -357,6 +357,7 @@ class AppRegistry:
             app_key=app_key,
             class_name=manifest.class_name,
             display_name=manifest.display_name,
+            description=manifest.description,
             filename=manifest.filename,
             enabled=manifest.enabled,
             auto_loaded=manifest.auto_loaded,

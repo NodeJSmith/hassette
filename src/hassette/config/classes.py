@@ -168,6 +168,10 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     display_name: str = Field(default=..., examples=["My App"])
     """Display name of the app, will use class_name if not set"""
 
+    description: str | None = Field(default=None, max_length=200, examples=["Turns on the porch light at sunset"])
+    """Optional one-line description of what the app does. Surrounding whitespace is stripped; line breaks are
+    rejected."""
+
     app_dir: Path = Field(..., examples=["./apps"])
     """Path to the app directory: absolute, or relative to the config file that sets it"""
 
@@ -233,6 +237,17 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
             if "instance_name" not in item or not item["instance_name"]:
                 item["instance_name"] = f"{class_name}.{idx}"
 
+        return v
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def validate_description(cls, v: Any) -> Any:
+        """Strip surrounding whitespace and reject line breaks, so the description stays one line."""
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        if "\n" in v or "\r" in v:
+            raise ValueError("description must be a single line (no line breaks)")
         return v
 
     @field_validator("cache_key")

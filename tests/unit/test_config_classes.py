@@ -192,6 +192,37 @@ class TestAppManifestDisplayName:
         assert manifest.display_name == "Custom Name"
 
 
+class TestAppManifestDescription:
+    """Tests for AppManifest.description validation."""
+
+    def test_description_defaults_to_none(self) -> None:
+        assert make_manifest().description is None
+
+    def test_description_accepted(self) -> None:
+        manifest = make_manifest(description="Turns on the porch light at sunset")
+        assert manifest.description == "Turns on the porch light at sunset"
+
+    def test_description_whitespace_stripped(self) -> None:
+        manifest = make_manifest(description="  Porch light  ")
+        assert manifest.description == "Porch light"
+
+    @pytest.mark.parametrize("value", ["line one\nline two", "line one\rline two", "line one\r\nline two"])
+    def test_description_rejects_line_breaks(self, value: str) -> None:
+        with pytest.raises(ValidationError, match="single line"):
+            make_manifest(description=value)
+
+    def test_description_trailing_newline_is_stripped_not_rejected(self) -> None:
+        manifest = make_manifest(description="Porch light\n")
+        assert manifest.description == "Porch light"
+
+    def test_description_rejects_over_200_chars(self) -> None:
+        with pytest.raises(ValidationError, match="at most 200"):
+            make_manifest(description="x" * 201)
+
+    def test_description_accepts_exactly_200_chars(self) -> None:
+        assert make_manifest(description="x" * 200).description == "x" * 200
+
+
 class TestAppManifestCacheKey:
     """Tests for AppManifest.cache_key field and its framework-prefix validation."""
 

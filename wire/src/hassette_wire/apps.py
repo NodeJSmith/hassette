@@ -47,6 +47,9 @@ class AppSummary(BaseModel):
     enabled: bool
     auto_loaded: bool
     autostart: bool = True
+    description: str | None = None
+    """One-line description of what the app does, from the app's config; ``None`` when unset, and for an app
+    known only from recorded history (``in_current_config`` is ``False``)."""
     status: OpenAppStatus
     block_reason: str | None = None
     instance_count: int = 0

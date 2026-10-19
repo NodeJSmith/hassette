@@ -16,6 +16,8 @@ The app key (`presence` here) also names the app's [cache directory](../cache/in
 
 `enabled` disables the app without removing the config block when set to `false`. `autostart` controls whether the app starts when Hassette starts — it defaults to `true`. `display_name` sets a friendly label for logs; it defaults to the app key (`presence` in the block above).
 
+`description` holds an optional one-line summary of what the app does, up to 200 characters. Hassette strips surrounding whitespace and rejects a description containing a line break at startup. The `/api/apps` endpoints return it as `description`, or `null` when unset.
+
 `enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
 
 ```toml
@@ -53,7 +55,7 @@ lights = ["light.entry"]
 ```
 
 !!! note "Two TOML paths, two purposes"
-    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
+    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
 
 Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
 
