@@ -12,6 +12,7 @@ from hassette_wire import (
     AppSource,
 )
 
+import hassette.cli.formatters as cli_formatters
 import hassette.cli.output as cli_output
 from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
 from hassette.cli.columns import health_activity_columns
@@ -60,8 +61,8 @@ APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("status", "Status", max_width=10),
     cli_output.Column("app_key", "App", max_width=20),
     cli_output.Column("handler_name", "Handler", max_width=22),
-    cli_output.Column("duration_ms", "Duration", max_width=9, formatter=cli_output.fmt_duration_ms),
-    cli_output.Column("timestamp", "When", max_width=11, formatter=cli_output.fmt_relative_time),
+    cli_output.Column("duration_ms", "Duration", max_width=9, formatter=cli_formatters.fmt_duration_ms),
+    cli_output.Column("timestamp", "When", max_width=11, formatter=cli_formatters.fmt_relative_time),
     cli_output.Column("error_type", "Error", max_width=16),
 ]
 
@@ -73,7 +74,7 @@ def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     the grid is the one apps-with-activity view, the same the Apps page shows.
     """
     client = make_client(ctx)
-    params = query_params(since=cli_output.now_epoch() - APP_LIST_WINDOW_SECONDS)
+    params = query_params(since=cli_formatters.now_epoch() - APP_LIST_WINDOW_SECONDS)
     result = client.get(APP_GRID_PATH, AppGridResponse, params=params)
     cli_output.warn_missing_activity(result)
     cli_output.render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)

@@ -6,7 +6,8 @@ from hassette_wire import LogEntry, LogsByExecutionResponse
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_relative_time, render_table
+from hassette.cli.formatters import fmt_relative_time
+from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, LimitArg, LogInstanceArg, SinceArg, SourceTierArg
 
 # Shared log entry column definitions (used by both log and execution)

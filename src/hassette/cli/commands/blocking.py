@@ -5,7 +5,8 @@ from hassette_wire import BlockingFinding, BlockingFindingsResponse, Unattribute
 import hassette.cli.output as cli_output
 from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
+from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
+from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, SinceArg
 
 TRUNCATED_NOTE = "Showing only the most recently seen call sites: older ones are omitted. Narrow --since to see them."

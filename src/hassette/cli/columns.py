@@ -1,6 +1,7 @@
 """Table columns shared by more than one CLI command."""
 
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time
+from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
+from hassette.cli.output import Column
 
 
 def health_activity_columns(field_prefix: str = "") -> list[Column]:

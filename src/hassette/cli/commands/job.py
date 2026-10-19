@@ -13,7 +13,8 @@ from hassette_wire import (
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
+from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
+from hassette.cli.output import Column, render_detail, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 
 JOB_EXECUTION_COLUMNS: list[Column] = [

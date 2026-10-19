@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from cyclopts import Parameter
 from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
-from hassette.cli.output import now_epoch
+from hassette.cli.formatters import now_epoch
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
 SINCE_HELP = (
