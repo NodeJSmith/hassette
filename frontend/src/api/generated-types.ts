@@ -1721,6 +1721,11 @@ export interface components {
             last_error_message?: string | null;
             /** Last Error Type */
             last_error_type?: string | null;
+            /**
+             * Last Error Ts
+             * @description Unix epoch of the most recent error or timeout within the query window, or None.
+             */
+            last_error_ts?: number | null;
             /** Last Error Traceback */
             last_error_traceback?: string | null;
             /**
