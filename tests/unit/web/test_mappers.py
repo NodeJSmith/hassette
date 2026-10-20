@@ -113,7 +113,7 @@ def test_app_list_response_from_coerces_resource_status_enum():
 
     result = app_list_response_from(full)
 
-    assert result.apps[0].instances[0].status == "running"
+    assert result.apps[0].instances[0].status == ResourceStatus.RUNNING
     assert isinstance(result.apps[0].instances[0].status, str)
 
 
