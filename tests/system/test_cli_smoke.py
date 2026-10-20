@@ -36,6 +36,7 @@ from .conftest import (
 )
 
 SYSTEM_APPS_DIR = Path(__file__).parent / "apps"
+HASSETTE_STARTUP_TIMEOUT_SECONDS = 30
 
 pytestmark = [pytest.mark.system]
 
@@ -64,7 +65,7 @@ def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestCon
         data_dir=tmp_path / "data",
         apps={"directory": str(SYSTEM_APPS_DIR), "autodetect": True},
         web_api={"run": True, "port": port},
-        lifecycle={"startup_timeout_seconds": 30},
+        lifecycle={"startup_timeout_seconds": HASSETTE_STARTUP_TIMEOUT_SECONDS},
     )
     return config, f"http://127.0.0.1:{port}"
 
@@ -225,7 +226,7 @@ def test_wrong_port_exits_with_code_2(tmp_path: Path) -> None:
         data_dir=tmp_path / "data",
         apps={"directory": str(tmp_path / "apps"), "autodetect": False},
         web_api={"run": False, "port": 19999},
-        lifecycle={"startup_timeout_seconds": 30},
+        lifecycle={"startup_timeout_seconds": HASSETTE_STARTUP_TIMEOUT_SECONDS},
     )
     with _cli_client(config) as client, pytest.raises(SystemExit) as exc_info:
         client.get("/api/health", SystemStatusResponse)
