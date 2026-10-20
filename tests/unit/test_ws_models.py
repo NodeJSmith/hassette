@@ -57,7 +57,7 @@ class TestAppStatusChangedDataMatchesDataclass:
         data = AppStatusChangedData.model_validate(serialized)
         assert data.app_key == "my_app"
         assert data.index == 0
-        assert data.status == "running"
+        assert data.status == ResourceStatus.RUNNING
         assert data.instance_name == "my_app_0"
         assert data.class_name == "MyApp"
 
@@ -164,7 +164,7 @@ class TestCompletionWsMessages:
         assert msg.data[0].kind == "handler"
         assert msg.data[0].listener_id == 1
         assert msg.data[0].app_key == "my_app"
-        assert msg.data[0].status == "success"
+        assert msg.data[0].status == ExecutionStatus.SUCCESS
         assert msg.data[0].error_type is None
 
     def test_job_execution_discriminates(self) -> None:
@@ -322,7 +322,7 @@ class TestServiceStatusDataRetryAt:
         )
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
         data = ServiceStatusData.model_validate(serialized)
-        assert data.status == "exhausted_cooling"
+        assert data.status == ResourceStatus.EXHAUSTED_COOLING
         assert data.retry_at == 1714000300.0
         assert data.ready is False
         assert data.ready_phase is None
