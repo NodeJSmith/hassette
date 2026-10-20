@@ -4,7 +4,10 @@ ARG PYTHON_VERSION=3.14.8
 ARG UV_VERSION=0.13.1
 
 # ---- Frontend stage (Node.js — builds the Preact SPA) ----
-FROM node:24-slim AS frontend
+# The bundle is architecture-independent static JS/CSS, so build it once on the
+# build host's native platform and copy it into every target image. Without
+# --platform, buildx reruns npm/vite per target platform (arm64 under QEMU).
+FROM --platform=$BUILDPLATFORM node:24-slim AS frontend
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
