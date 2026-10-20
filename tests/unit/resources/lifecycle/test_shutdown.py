@@ -219,21 +219,30 @@ async def test_shutdown_propagation_error_tolerance():
     assert len(shutdown_order) == 3
 
 
-def install_exploding_shutdown(child: Resource, message: str, stored_report: TeardownReport | None = None) -> None:
-    """Replace ``child.shutdown`` with a coroutine that raises ``RuntimeError(message)``.
+async def make_parent_with_exploding_child(
+    message: str, stored_report: TeardownReport | None = None
+) -> tuple[SimpleParent, ShutdownCounter, ShutdownCounter]:
+    """Build an initialized parent with two ``ShutdownCounter`` children, ``(parent, child_ok, child_broken)``.
 
+    ``child_broken.shutdown`` is replaced with a coroutine that raises ``RuntimeError(message)``.
     When ``stored_report`` is given, it is written to the child's ``_teardown_report`` before
     raising -- mirroring how ``_run_shutdown_coordinator()``'s ``except Exception`` branch stores
     evidence on the child's own report before re-raising.
     """
+    parent = SimpleParent(make_mock_hassette(sealed=False))
+    child_ok = parent.add_child(ShutdownCounter)
+    child_broken = parent.add_child(ShutdownCounter)
+    for resource in (parent, child_ok, child_broken):
+        await resource.initialize()
 
     async def exploding_shutdown():
         if stored_report is not None:
-            child._teardown_report = stored_report
+            child_broken._teardown_report = stored_report
         raise RuntimeError(message)
 
     # Bypass the @final descriptor by setting on the instance dict.
-    object.__setattr__(child, "shutdown", exploding_shutdown)
+    object.__setattr__(child_broken, "shutdown", exploding_shutdown)
+    return parent, child_ok, child_broken
 
 
 async def test_shutdown_propagation_completes_despite_child_exception():
@@ -243,17 +252,7 @@ async def test_shutdown_propagation_completes_despite_child_exception():
     itself raises (not just on_shutdown hooks), the parent still sets
     shutdown_completed and processes remaining children.
     """
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child_ok = parent.add_child(ShutdownCounter)
-    child_broken = parent.add_child(ShutdownCounter)
-
-    await parent.initialize()
-    await child_ok.initialize()
-    await child_broken.initialize()
-
-    install_exploding_shutdown(child_broken, "unexpected boom")
+    parent, child_ok, _ = await make_parent_with_exploding_child("unexpected boom")
 
     await parent.shutdown()
 
@@ -509,17 +508,7 @@ async def test_shutdown_children_records_child_shutdown_failed_and_continues_sib
     ``CHILD_SHUTDOWN_FAILED`` and the child's identity to the parent's aggregated report, and
     siblings still complete via ``asyncio.gather(return_exceptions=True)``.
     """
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child_ok = parent.add_child(ShutdownCounter)
-    child_broken = parent.add_child(ShutdownCounter)
-
-    await parent.initialize()
-    await child_ok.initialize()
-    await child_broken.initialize()
-
-    install_exploding_shutdown(child_broken, "unexpected boom")
+    parent, child_ok, child_broken = await make_parent_with_exploding_child("unexpected boom")
 
     report = await parent.shutdown()
 
@@ -537,18 +526,7 @@ async def test_shutdown_children_merges_child_report_when_shutdown_raises():
     already-stored report into its own aggregated report, not just record the generic
     ``CHILD_SHUTDOWN_FAILED`` cause and drop the child's concrete cause and ``failed_operations``.
     """
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-
-    child_ok = parent.add_child(ShutdownCounter)
-    child_broken = parent.add_child(ShutdownCounter)
-
-    await parent.initialize()
-    await child_ok.initialize()
-    await child_broken.initialize()
-
-    install_exploding_shutdown(
-        child_broken,
+    parent, child_ok, child_broken = await make_parent_with_exploding_child(
         "coordinator boom",
         stored_report=TeardownReport(
             causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
