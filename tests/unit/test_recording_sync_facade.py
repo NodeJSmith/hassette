@@ -253,7 +253,8 @@ async def test_body_copied_methods_are_sync():
 
     Body-copied methods (keep in sync with the generator's output):
     call_service, entity_exists, fire_event, get_entity, get_entity_or_none,
-    get_notify_services, get_state, get_state_or_none, get_states, notify,
+    get_notify_services, get_state, get_state_or_none, get_state_raw, get_states,
+    get_states_raw, notify,
     set_state, toggle, turn_off, turn_on
     """
     # Seed both a sensor (for get_state-style calls) and a light (for get_entity
@@ -273,7 +274,9 @@ async def test_body_copied_methods_are_sync():
         ("get_notify_services", (), {}),
         ("get_state", ("sensor.test",), {}),
         ("get_state_or_none", ("sensor.test",), {}),
+        ("get_state_raw", ("sensor.test",), {}),
         ("get_states", (), {}),
+        ("get_states_raw", (), {}),
         ("notify", ("hello", "mobile_app_test"), {}),
         ("set_state", ("sensor.test", "off"), {}),
         ("toggle", ("sensor.test",), {}),

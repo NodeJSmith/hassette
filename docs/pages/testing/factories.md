@@ -137,8 +137,6 @@ When `old_value` or `new_value` is `None`, the corresponding state dict is `None
 
 **Explicit stubs** that raise `NotImplementedError` directly:
 
-- `get_state_raw()`
-- `get_states_raw()`
 - `get_history()`
 - `render_template()`
 - `ws_send_and_wait()`
