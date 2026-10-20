@@ -19,7 +19,7 @@ LOG_COLUMNS: list[Column] = [
     Column("app_key", "App"),
     Column("instance_name", "Instance"),
     Column("func_name", "Function"),
-    Column("message", "Message"),
+    Column("message", "Message", wrap=True, overflow="fold"),
 ]
 
 EXECUTION_LOG_COLUMNS: list[Column] = [
@@ -28,7 +28,7 @@ EXECUTION_LOG_COLUMNS: list[Column] = [
     Column("author", "Author", formatter=fmt_log_author),
     Column("func_name", "Function"),
     Column("lineno", "Line"),
-    Column("message", "Message"),
+    Column("message", "Message", wrap=True, overflow="fold"),
 ]
 
 

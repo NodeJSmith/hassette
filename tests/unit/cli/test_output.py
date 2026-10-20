@@ -417,6 +417,14 @@ class TestRenderTablePipeDetection:
         col_obj = table.columns[0]
         assert col_obj.max_width == 10
 
+    @pytest.mark.parametrize("is_tty", [True, False])
+    def test_wrap_column_is_wrappable_without_max_width(self, is_tty: bool) -> None:
+        """A ``wrap=True`` column can shrink by wrapping; a plain uncapped column cannot."""
+        columns = [Column("name", "Name"), Column("note", "Note", wrap=True)]
+        table = _build_table(columns, is_tty=is_tty)
+        assert table.columns[0].no_wrap is True
+        assert table.columns[1].no_wrap is False
+
     def test_pipe_mode_shows_full_values(self) -> None:
         """Non-TTY output should not truncate values (max_width ignored)."""
         long_name = "a" * 100

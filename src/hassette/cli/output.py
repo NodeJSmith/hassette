@@ -112,6 +112,10 @@ class Column:
             Ignored when the output is not a TTY (pipe mode).
         overflow: Rich overflow mode for cells exceeding ``max_width``.
             Defaults to ``"ellipsis"``.
+        wrap: Let the column wrap its cells when the table is wider than the console. A column
+            with no ``max_width`` otherwise never wraps, so a long free-text column (a log
+            message) would force Rich to shrink every column evenly, collapsing the short ones
+            to zero width. Mark the free-text column ``wrap=True`` so it absorbs the squeeze.
         formatter: Optional callable that transforms the raw field value into a
             display string. Applied only in human mode; JSON mode uses raw values.
         style: Optional callable that receives the raw field value and returns a Rich
@@ -124,6 +128,7 @@ class Column:
     header: str
     max_width: int | None = None
     overflow: OverflowMethod = "ellipsis"
+    wrap: bool = False
     formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
     row_formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
     """Optional callable that receives the whole row item (not just ``field``'s extracted
@@ -345,7 +350,8 @@ def _build_table(columns: list[Column], is_tty: bool) -> Table:
     """Build a Rich Table from column definitions.
 
     In non-TTY (pipe) mode, ``max_width`` is ignored so piped output
-    contains full values without truncation.
+    contains full values without truncation. Columns without ``max_width`` don't wrap
+    unless marked ``wrap=True``.
     """
     table = Table(show_header=True, header_style="bold")
     for col in columns:
@@ -354,7 +360,7 @@ def _build_table(columns: list[Column], is_tty: bool) -> Table:
             col.header,
             max_width=effective_max_width,
             overflow=col.overflow,
-            no_wrap=col.max_width is None,
+            no_wrap=col.max_width is None and not col.wrap,
         )
     return table
 
