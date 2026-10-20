@@ -165,3 +165,15 @@ async def test_storage_error_raises_telemetry_unavailable(query_service: Telemet
         # Restore so fixture teardown doesn't crash.
         db_svc._read_db = await connect_daemon(db_svc._db_path, isolation_level=None)
         db_svc._read_db.row_factory = aiosqlite.Row
+
+
+async def test_failure_after_begin_rolls_back_snapshot(query_service: TelemetryQueryService, db: DbFixture) -> None:
+    """A query failing mid-snapshot raises TelemetryUnavailableError and leaves no transaction open."""
+    await seed_dataset(db)
+    with pytest.raises(TelemetryUnavailableError):
+        await query_service._read_summary_snapshot([("SELECT 1", None), ("SELECT * FROM no_such_table", None)])
+
+    assert not query_service._db.in_transaction
+    assert not query_service._snapshot_lock.locked()
+    # A leaked transaction would make the next BEGIN DEFERRED fail; the next read must succeed.
+    assert await query_service.get_all_app_summaries()
