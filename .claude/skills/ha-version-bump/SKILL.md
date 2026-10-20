@@ -93,6 +93,23 @@ cd ~/source/core && git fetch --tags && git checkout "<LATEST from Phase 1, subs
 uv run hassette-codegen generate --ha-core-path ~/source/core
 ```
 
+Then check that every HA entity domain has a hassette model:
+
+```bash
+uv run hassette-codegen check-coverage --ha-core-path ~/source/core
+```
+
+A nonzero exit reports one of two findings:
+
+- **Uncovered domain.** HA added an entity domain hassette doesn't model. Either add a
+  model, or add the domain to `codegen/src/hassette_codegen/coverage_allowlist.toml` with
+  a reason and file an issue to model it.
+- **Stale allowlist entry.** The domain now has a model or no longer exists upstream.
+  Delete the entry from the allowlist.
+
+In an unattended run, a nonzero exit is a "needs a human call" item: stop and report it
+under Phase 6's unattended rules instead of picking a fix.
+
 Read the full diff of every changed generated file (`git diff`, not `--stat`). Classify
 each change against these three buckets.
 

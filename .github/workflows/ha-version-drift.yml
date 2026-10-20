@@ -18,6 +18,11 @@ concurrency:
 # specific to this workflow and isn't part of the shared script (see #1474). It also
 # auto-closes the issue once the pin catches up, a behavior pypi-drift-check.yml now shares
 # too (#2564); docker-drift-check.yml still has neither.
+#
+# The coverage-check job runs `hassette-codegen check-coverage` against the latest HA release
+# (not the pin, since new domains ship in a release before the pin is bumped) and fails the run
+# when HA has an entity domain with no hassette model and no allowlist entry. It's independent
+# of check-drift so a coverage failure never blocks drift-issue filing.
 jobs:
     check-drift:
         runs-on: ubuntu-latest
@@ -122,3 +127,36 @@ jobs:
                   gh issue close "$EXISTING" --repo "$GITHUB_REPOSITORY" \
                       --comment "Pinned version now matches latest HA release ($LATEST). Closing automatically."
                   echo "Closed stale drift issue #${EXISTING}"
+
+    coverage-check:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  persist-credentials: false
+
+            - name: Set up Python 3.14
+              uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+              with:
+                  python-version: "3.14"
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+
+            - name: Check entity domain coverage against latest HA release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+
+                  LATEST=$(gh api repos/home-assistant/core/releases/latest --jq .tag_name 2>/dev/null || echo "")
+                  if [ -z "$LATEST" ]; then
+                      echo "::warning::Could not fetch latest HA release"
+                      exit 0
+                  fi
+
+                  uv sync
+                  uv run hassette-codegen check-coverage --ha-release-tag "$LATEST"
