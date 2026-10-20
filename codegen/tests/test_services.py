@@ -134,6 +134,32 @@ class TestSupportsResponseExtraction:
         svc = next(s for s in services if s.name == "browse_media")
         assert svc.supports_response == "ONLY"
 
+    def test_service_constant_resolved_from_const_py(self, tmp_path: Path) -> None:
+        # The constant name doesn't follow SERVICE_<NAME>; only its value matches the yaml key.
+        comp = _write_component(
+            tmp_path,
+            """\
+            get_schedule:
+              target: {}
+            """,
+            """\
+            from .const import SERVICE_GET
+
+            async def async_setup(hass):
+                component.async_register_entity_service(
+                    SERVICE_GET,
+                    {},
+                    async_get_schedule_service,
+                    supports_response=SupportsResponse.ONLY,
+                )
+            """,
+        )
+        (comp / "const.py").write_text('from typing import Final\n\nSERVICE_GET: Final = "get_schedule"\n')
+        services = extract_services(comp)
+        svc = next(s for s in services if s.name == "get_schedule")
+        assert svc.supports_response == "ONLY"
+        assert svc.method_name == "get_schedule"
+
     def test_enum_member_fuzzy_match(self, tmp_path: Path) -> None:
         comp = _write_component(
             tmp_path,
@@ -278,6 +304,7 @@ class TestServiceExtraction:
             ("media_player", "browse_media"),
             ("media_player", "search_media"),
             ("todo", "get_items"),
+            ("schedule", "get_schedule"),
         ],
     )
     def test_response_only_services_keep_supports_response(self, domain: str, service: str) -> None:

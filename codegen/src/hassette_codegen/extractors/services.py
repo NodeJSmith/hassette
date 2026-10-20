@@ -22,6 +22,13 @@ A domain may register services in either file. Results are merged in order, so a
 in both takes the later file's registration.
 """
 
+CONSTANT_MODULE_FILES = ("const.py", *REGISTRATION_MODULE_FILES)
+"""Component files scanned for module-level string constants (``SERVICE_GET: Final = "get_schedule"``).
+
+Registrations often name a service by a constant whose value doesn't follow the ``SERVICE_<NAME>``
+convention, so the registration lookup also matches on the constant's resolved value.
+"""
+
 SupportsResponseValue = Literal["NONE", "OPTIONAL", "ONLY"]
 _VALID_SUPPORTS_RESPONSE: set[str] = {"NONE", "OPTIONAL", "ONLY"}
 
@@ -63,6 +70,9 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
     registrations: dict[str, _ServiceRegistration] = {}
     for filename in REGISTRATION_MODULE_FILES:
         registrations.update(_extract_service_registrations(component_dir / filename))
+    constants: dict[str, str] = {}
+    for filename in CONSTANT_MODULE_FILES:
+        constants.update(_extract_string_constants(component_dir / filename))
     service_descs, field_descs = _extract_descriptions(component_dir)
 
     services: list[ExtractedService] = []
@@ -79,7 +89,7 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
         # that don't match the yaml key without normalization.
         direct_reg = registrations.get(service_name)
         method_name = direct_reg.method_name if direct_reg and direct_reg.method_name else service_name
-        fuzzy_reg = _find_registration(service_name, registrations)
+        fuzzy_reg = _find_registration(service_name, registrations, constants)
         supports_response = fuzzy_reg.supports_response if fuzzy_reg else "NONE"
 
         services.append(
@@ -290,14 +300,41 @@ def _extract_service_registrations(module: Path) -> dict[str, _ServiceRegistrati
     return result
 
 
+def _extract_string_constants(module: Path) -> dict[str, str]:
+    """Map each module-level ``NAME = "value"`` / ``NAME: T = "value"`` string constant to its value."""
+    if not module.exists():
+        return {}
+
+    tree = parse_module_or_none(module)
+    if tree is None:
+        return {}
+
+    result: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names = [node.target.id]
+        else:
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            for name in names:
+                result[name] = node.value.value
+    return result
+
+
 def _find_registration(
-    service_name: str, registrations: dict[str, _ServiceRegistration]
+    service_name: str,
+    registrations: dict[str, _ServiceRegistration],
+    constants: dict[str, str],
 ) -> _ServiceRegistration | None:
     """Look up a service registration by yaml service name.
 
     AST-extracted keys may be string literals ("browse_media"), unresolved constants
     ("SERVICE_BROWSE_MEDIA"), or enum members ("GET_ITEMS"). Try direct match first,
-    then normalize: HA convention is SERVICE_<UPPER> or just <UPPER>.
+    then normalize: HA convention is SERVICE_<UPPER> or just <UPPER>. Last, match a key whose
+    constant value (from ``constants``) is the yaml name, for constants that break that
+    convention (``SERVICE_GET = "get_schedule"``).
     """
     if service_name in registrations:
         return registrations[service_name]
@@ -306,6 +343,10 @@ def _find_registration(
     for key, reg in registrations.items():
         normalized = key.upper()
         if normalized == upper or normalized == f"SERVICE_{upper}":
+            return reg
+
+    for key, reg in registrations.items():
+        if constants.get(key) == service_name:
             return reg
 
     return None

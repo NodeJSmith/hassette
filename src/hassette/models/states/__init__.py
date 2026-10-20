@@ -65,6 +65,7 @@ from .event import (
 )
 from .fan import FanAttributes, FanEntityCapabilityAttribute, FanEntityFeature, FanEntityStateAttribute, FanState
 from .geo_location import GeoLocationAttributes, GeoLocationEntityStateAttribute, GeoLocationState
+from .group import GroupAttributes, GroupState
 from .humidifier import (
     HumidifierAction,
     HumidifierAttributes,
@@ -118,6 +119,7 @@ from .person import PersonAttributes, PersonState
 from .radio_frequency import RadioFrequencyAttributes, RadioFrequencyState
 from .remote import RemoteAttributes, RemoteEntityFeature, RemoteEntityStateAttribute, RemoteState
 from .scene import SceneState
+from .schedule import ScheduleAttributes, ScheduleState
 from .script import ScriptAttributes, ScriptState
 from .select import SelectAttributes, SelectEntityCapabilityAttribute, SelectState
 from .sensor import (
@@ -231,6 +233,8 @@ __all__ = [
     "GeoLocationAttributes",
     "GeoLocationEntityStateAttribute",
     "GeoLocationState",
+    "GroupAttributes",
+    "GroupState",
     "HVACAction",
     "HVACMode",
     "HumidifierAction",
@@ -300,6 +304,8 @@ __all__ = [
     "RemoteState",
     "RepeatMode",
     "SceneState",
+    "ScheduleAttributes",
+    "ScheduleState",
     "ScriptAttributes",
     "ScriptState",
     "SelectAttributes",

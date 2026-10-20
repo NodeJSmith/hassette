@@ -34,6 +34,7 @@ from hassette_codegen.output import atomic_write, check_drift
 from hassette_codegen.overrides import (
     DomainOverride,
     apply_property_overrides,
+    apply_service_skips,
     get_override,
     load_overrides,
     validate_overrides,
@@ -616,6 +617,8 @@ def _extract_domain(
     properties = extract_properties(domain_info.entity_module)
     base_class = determine_base_class(domain_info.entity_module)
     services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
+    if override and override.skip_services:
+        services = apply_service_skips(services, override.skip_services)
 
     if override and override.property_overrides:
         properties = apply_property_overrides(properties, override.property_overrides)
@@ -635,6 +638,8 @@ def _extract_manual_domain(domain_info: DiscoveredDomain, override: DomainOverri
     """Build an ExtractedDomain from TOML-declared properties."""
     base_class = override.state_base_class or "StringBaseState"
     services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
+    if override.skip_services:
+        services = apply_service_skips(services, override.skip_services)
 
     return ExtractedDomain(
         name=domain_info.name,

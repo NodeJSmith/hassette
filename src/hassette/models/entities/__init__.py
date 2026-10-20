@@ -17,6 +17,7 @@ from .lock import LockEntity, LockEntitySyncFacade
 from .media_player import MediaPlayerEntity, MediaPlayerEntitySyncFacade
 from .number import NumberEntity, NumberEntitySyncFacade
 from .remote import RemoteCommandType, RemoteEntity, RemoteEntitySyncFacade
+from .schedule import ScheduleEntity, ScheduleEntitySyncFacade
 from .script import ScriptEntity, ScriptEntitySyncFacade
 from .select import SelectEntity, SelectEntitySyncFacade
 from .siren import SirenEntity, SirenEntitySyncFacade
@@ -74,6 +75,8 @@ __all__ = [
     "RemoteCommandType",
     "RemoteEntity",
     "RemoteEntitySyncFacade",
+    "ScheduleEntity",
+    "ScheduleEntitySyncFacade",
     "ScriptEntity",
     "ScriptEntitySyncFacade",
     "SelectEntity",

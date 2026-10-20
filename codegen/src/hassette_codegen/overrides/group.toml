@@ -1,0 +1,20 @@
+discovery = "manual"
+state_base_class = "StringBaseState"
+
+# Legacy `group.*` entities only. UI helper groups use their member domain's model.
+
+# `group.set` and `group.remove` are domain-level services keyed by `object_id`, not entity
+# services; an `entity_id` target fails their schema, so they get no entity wrapper methods.
+skip_services = ["set", "remove"]
+
+[[properties]]
+name = "entity_id"
+type = "list[str] | None"
+
+[[properties]]
+name = "order"
+type = "int | None"
+
+[[properties]]
+name = "auto"
+type = "bool | None"

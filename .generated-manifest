@@ -19,6 +19,7 @@ src/hassette/models/entities/lock.py
 src/hassette/models/entities/media_player.py
 src/hassette/models/entities/number.py
 src/hassette/models/entities/remote.py
+src/hassette/models/entities/schedule.py
 src/hassette/models/entities/script.py
 src/hassette/models/entities/select.py
 src/hassette/models/entities/siren.py
@@ -45,6 +46,7 @@ src/hassette/models/states/datetime.py
 src/hassette/models/states/event.py
 src/hassette/models/states/fan.py
 src/hassette/models/states/geo_location.py
+src/hassette/models/states/group.py
 src/hassette/models/states/humidifier.py
 src/hassette/models/states/image.py
 src/hassette/models/states/infrared.py
@@ -55,6 +57,7 @@ src/hassette/models/states/media_player.py
 src/hassette/models/states/number.py
 src/hassette/models/states/radio_frequency.py
 src/hassette/models/states/remote.py
+src/hassette/models/states/schedule.py
 src/hassette/models/states/script.py
 src/hassette/models/states/select.py
 src/hassette/models/states/sensor.py
