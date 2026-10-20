@@ -1,7 +1,12 @@
 """Unit tests for hassette log and execution commands."""
 
-import pytest
+from io import StringIO
+from unittest.mock import patch
 
+import pytest
+from rich.console import Console
+
+import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.log import (
     EXECUTION_LOG_COLUMNS,
@@ -9,6 +14,7 @@ from hassette.cli.commands.log import (
     cmd_execution,
     cmd_log,
 )
+from hassette.cli.output import Column, render_table
 from tests.support.web_telemetry_helpers import make_log_entry, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
@@ -215,3 +221,28 @@ class TestCmdExecution:
     def test_execution_columns_count_is_compact(self) -> None:
         """EXECUTION_LOG_COLUMNS uses at most 7 columns for 80-column fit."""
         assert len(EXECUTION_LOG_COLUMNS) <= 7
+
+
+# Column allocation at narrow widths
+
+NARROW_CONSOLE_WIDTH = 100
+TRACEBACK_MESSAGE = "Job error in demo_stimulator.tick: something went wrong\n" + "\n".join(
+    f'  File "/usr/src/app/apps/demo_stimulator/really/long/path/module_{i}.py", line {i}, in handler_{i}'
+    for i in range(6)
+)
+
+
+@pytest.mark.parametrize("columns", [LOG_COLUMNS, EXECUTION_LOG_COLUMNS], ids=["log", "execution"])
+def test_multiline_message_does_not_collapse_columns(columns: list[Column]) -> None:
+    """A long multi-line message wraps in the Message column instead of starving the other columns."""
+    entry = make_log_entry(level="ERROR", message=TRACEBACK_MESSAGE, func_name="tick")
+    buf = StringIO()
+    console = Console(file=buf, highlight=False, no_color=True, width=NARROW_CONSOLE_WIDTH)
+
+    with patch.object(output_module, "stdout_console", console):
+        render_table([entry], columns, json_mode=False)
+
+    header_line = buf.getvalue().splitlines()[1]
+    for col in columns:
+        assert col.header in header_line
+    assert "ERROR" in buf.getvalue()
