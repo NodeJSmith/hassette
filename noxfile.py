@@ -220,7 +220,9 @@ def wheel_smoke(session: "Session"):
     Installs the built wheels into this session's isolated venv (no editable install, no
     ``tests/`` on the path) and checks both directions of the boundary: Tier 1 symbols
     are importable from ``hassette.testing``, and ``hassette.test_utils`` — deleted from
-    the source tree — is not importable at all.
+    the source tree — is not importable at all. Then ``tools/release/wheel_smoke_harness.py``
+    drives a minimal ``AppTestHarness`` end to end to catch missing runtime dependencies or
+    package data that import checks miss.
 
     All three workspace wheels are built and installed together: the hassette wheel pins
     ``hassette-wire`` and ``hassette-client`` to its own version, which are not on PyPI until
@@ -250,6 +252,9 @@ def wheel_smoke(session: "Session"):
         "else:\n"
         "    raise AssertionError('hassette.test_utils should not be importable')\n",
     )
+    # Behavioral check: drive a real AppTestHarness from the installed wheel. ``-I`` keeps the
+    # source checkout (cwd, script dir) off sys.path so only the wheel's code is exercised.
+    session.run("python", "-I", "tools/release/wheel_smoke_harness.py")
 
 
 @nox.session(python=SUPPORTED_PYTHONS)
