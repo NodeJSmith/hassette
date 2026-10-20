@@ -1,0 +1,49 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/index",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 21,
+      "section": "3. Set up a project directory",
+      "type": "missing-step",
+      "quote": "Replace the token value with the one you created in step 2.",
+      "confusion": "The .env example shows a redacted/placeholder token line. Alex may not realize the literal placeholder must be replaced, and the page does not say where to put the token in the line (no obvious placeholder like <your-token>).",
+      "suggestion": "Show an explicit placeholder such as HASSETTE__TOKEN=<paste your token here> in the example."
+    },
+    {
+      "line": 27,
+      "section": "4. Create your first app",
+      "type": "missing-step",
+      "quote": "Save this as apps/main.py . Hassette scans apps/ for any class that inherits from App and runs all of them.",
+      "confusion": "Alex must run hassette from my-hassette, but the page never says to stay in that directory or how Hassette finds apps/ (relative to cwd?). A re-read or guess is needed when the app does not show up.",
+      "suggestion": "State that hassette run must be launched from the my-hassette directory (or how apps/ is located)."
+    },
+    {
+      "line": 52,
+      "section": "5. Run Hassette",
+      "type": "overload",
+      "quote": "Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and HASSETTE__TOKEN is not it",
+      "confusion": "A dense paragraph about a second token, data_dir, and token_file arrives before Alex has seen any of these terms. Alex does not know what <data_dir> is or where it lives, and it is unclear whether action is needed.",
+      "suggestion": "Move this to a note or the Web UI page, say plainly that no action is needed for this guide, and say where data_dir is by default."
+    },
+    {
+      "line": 55,
+      "section": "6. Open the dashboard",
+      "type": "missing-step",
+      "quote": "Paste in the contents of <data_dir>/.web_api_token",
+      "confusion": "Alex does not know the concrete path of data_dir and is told only to find it in the startup log, which was not shown in the sample output. Getting the token is a guess or a search.",
+      "suggestion": "Give the default path or a one-line command such as cat on the file, and show the 'Generated new web API auth_token' log line in the sample output."
+    },
+    {
+      "line": 23,
+      "section": "4. Create your first app",
+      "type": "undefined-term",
+      "quote": "Your app methods use async def , and calls to Hassette services need await in front of them.",
+      "confusion": "Alex is told the rule and can follow it, but no hint why. Mild unease, though the rule is stated clearly enough to push through.",
+      "suggestion": "Optionally add one sentence linking to an async primer."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can reach a working app and see the greeting log by copying the steps, since the async rule is given as a simple recipe. The friction comes late, in the web API token explanation and the dashboard login, where data_dir is undefined and the token path is unclear. Alex would finish the core quickstart but may stall on the dashboard step."
+}

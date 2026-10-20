@@ -1,0 +1,185 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/index",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 6,
+      "section": "Prerequisites",
+      "type": "missing-step",
+      "quote": "you'll need its URL and a long-lived access token",
+      "confusion": "I know HA's UI, but I have never made a token. I am told to find it later, and step 2 only links elsewhere. I do not know the URL format yet either.",
+      "suggestion": "Say here that step 2 walks through the token, and show an example URL."
+    },
+    {
+      "line": 9,
+      "section": "1. Install Hassette",
+      "type": "missing-verification",
+      "quote": "uv tool install hassette",
+      "confusion": "I do not know what success looks like. Should the hassette command now exist? uv tool installs differ from the uv add I know, and I may not know whether PATH is set up.",
+      "suggestion": "Add a check such as hassette --version, and a note on what to do if the command is not found."
+    },
+    {
+      "line": 12,
+      "section": "2. Create a Home Assistant token",
+      "type": "missing-step",
+      "quote": "[Create a long-lived access token](ha_token/) from the Home Assistant UI (Profile → Security → Long-Lived Access Tokens).",
+      "confusion": "The steps are on another page. I must leave, come back, and trust that I copy the token (shown only once) somewhere.",
+      "suggestion": "Inline the three or four clicks and warn that the token is shown only once."
+    },
+    {
+      "line": 14,
+      "section": "3. Set up a project directory",
+      "type": "unclear-next-step",
+      "quote": "Create an empty directory with an apps/ folder, then create a .env file inside it:",
+      "confusion": "The mkdir command appears after the instruction and in its own block. The .env block has no command, so I am unsure how to create the file or which directory it goes in (my-hassette, not apps/). The .env block also shows a redacted token value.",
+      "suggestion": "State that .env goes in my-hassette/, beside apps/. Show the full sequence, with a placeholder like <your-token>."
+    },
+    {
+      "line": 21,
+      "section": "3. Set up a project directory",
+      "type": "undefined-term",
+      "quote": "Hassette uses them to separate configuration namespaces.",
+      "confusion": "What is a configuration namespace? I just need to know that I must type the double underscore exactly.",
+      "suggestion": "Drop 'namespaces' or say 'HASSETTE__ is a prefix; the second part names the setting'."
+    },
+    {
+      "line": 23,
+      "section": "4. Create your first app",
+      "type": "assumes-knowledge",
+      "quote": "Your app methods use async def , and calls to Hassette services need await in front of them.",
+      "confusion": "I do not know async or await. The rule is given as a recipe to follow, which helps, but I do not know why, or what happens if I forget await. 'Hassette services' is also undefined at this point.",
+      "suggestion": "Add one sentence of why (these calls wait on Home Assistant without freezing everything else) and what the error looks like if await is forgotten."
+    },
+    {
+      "line": 25,
+      "section": "4. Create your first app",
+      "type": "undefined-term",
+      "quote": "class MyAppConfig(AppConfig):\n    greeting: str = \"Hello from Hassette!\"",
+      "confusion": "I do not know Pydantic. AppConfig with a typed class attribute is a pattern I have not seen. Is it a dataclass? Why do I need a config class for a greeting?",
+      "suggestion": "Explain in a sentence that AppConfig is a settings class where each attribute is a setting with a default, and that you can change it without editing code."
+    },
+    {
+      "line": 25,
+      "section": "4. Create your first app",
+      "type": "undefined-term",
+      "quote": "class MyApp(App[MyAppConfig]):",
+      "confusion": "App[MyAppConfig] with square brackets on a class is new to me. It looks like generics, which I have not met.",
+      "suggestion": "Say 'the square brackets tell Hassette which config class this app uses; copy the pattern for now'."
+    },
+    {
+      "line": 25,
+      "section": "4. Create your first app",
+      "type": "undefined-term",
+      "quote": "async def on_initialize(self):",
+      "confusion": "Who calls on_initialize, and when? The name suggests a hook but it is never stated as one. I do not know if I must use this exact name.",
+      "suggestion": "State that Hassette calls on_initialize once when the app starts, and that the name must match exactly."
+    },
+    {
+      "line": 27,
+      "section": "4. Create your first app",
+      "type": "unclear-next-step",
+      "quote": "Save this as apps/main.py . Hassette scans apps/ for any class that inherits from App and runs all of them.",
+      "confusion": "Mostly clear, but how does Hassette know where apps/ is? Relative to the directory I run from? I should be in my-hassette, though the guide does not say so (the earlier cd could be lost between steps).",
+      "suggestion": "Say 'run this from my-hassette/'. Add the file path my-hassette/apps/main.py."
+    },
+    {
+      "line": 28,
+      "section": "4. Create your first app",
+      "type": "undefined-term",
+      "quote": "Hassette loads values from environment variables and [hassette.toml](../core-concepts/configuration/) automatically.",
+      "confusion": "I have not created a hassette.toml and do not know if I need to. How would the greeting be set from an env var? This is a detour.",
+      "suggestion": "Say that hassette.toml is optional here, and give a one-line example of overriding greeting."
+    },
+    {
+      "line": 29,
+      "section": "4. Create your first app",
+      "type": "undefined-term",
+      "quote": "self.bus (listens for things happening in Home Assistant, like a light turning on)",
+      "confusion": "Five objects dropped at once, with only a parenthetical for each. Bus, scheduler and states are terms I do not know. The list is useful as a map, but too much to absorb, and none of it is used in the code above.",
+      "suggestion": "Move this to the next guide, or label it 'for later; you do not need these yet'."
+    },
+    {
+      "line": 32,
+      "section": "5. Run Hassette",
+      "type": "unclear-next-step",
+      "quote": "hassette run -e .env",
+      "confusion": "I do not know what -e means or that the command must run in my-hassette/. If it fails, I will not know why.",
+      "suggestion": "Say it must run from the project directory, and that -e points to the env file."
+    },
+    {
+      "line": 36,
+      "section": "5. Run Hassette",
+      "type": "missing-verification",
+      "quote": "Hassette logs each startup step. Two lines matter:",
+      "confusion": "The sample output is clear, but the log is long, with timestamps, execution_id and source_tier fields I do not understand. Will I be able to spot the two lines? Does the process keep running or exit? Nothing tells me when to stop it (Ctrl+C).",
+      "suggestion": "Say Hassette keeps running, tell me to leave it and open a second terminal, and explain how to stop it."
+    },
+    {
+      "line": 38,
+      "section": "5. Run Hassette",
+      "type": "missing-step",
+      "quote": "Open a second terminal to check on the running instance:",
+      "confusion": "Which directory should the second terminal be in? Do I need the same environment? hassette status seems to talk to the running instance.",
+      "suggestion": "Say it works from any directory, if that is true."
+    },
+    {
+      "line": 43,
+      "section": "5. Run Hassette",
+      "type": "undefined-term",
+      "quote": "SystemStatusResponse",
+      "confusion": "This looks like an internal class name used as a title. It means nothing to me.",
+      "suggestion": "Ignore it in prose or show that it is only a header."
+    },
+    {
+      "line": 52,
+      "section": "5. Run Hassette",
+      "type": "assumes-knowledge",
+      "quote": "Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and HASSETTE__TOKEN is not it",
+      "confusion": "A dense paragraph about a second token, a data_dir, token_file, remote instances and a 401 error. It all worked without setup, so this reads as a detour. I do not know what the web API is or why one exists. I now worry I have a second token to manage.",
+      "suggestion": "Cut to one or two sentences ('The CLI authenticates automatically; you will not need to do anything'), and move the detail to a callout or the CLI configuration page."
+    },
+    {
+      "line": 54,
+      "section": "6. Open the dashboard",
+      "type": "missing-step",
+      "quote": "Open [http://127.0.0.1:8126/](http://127.0.0.1:8126/) in a browser.",
+      "confusion": "Where is it running? If Hassette is in WSL, a container or a remote box, 127.0.0.1 may not work. Port 8126 appears from nowhere.",
+      "suggestion": "Note that this is the machine running Hassette, and what to try if the page does not load."
+    },
+    {
+      "line": 55,
+      "section": "6. Open the dashboard",
+      "type": "unclear-next-step",
+      "quote": "Paste in the contents of <data_dir>/.web_api_token (or of web_api.token_file , if you set it)",
+      "confusion": "I do not know what data_dir is or where it lives, so I cannot find the file. The fallback is to search the startup log for a line I may have scrolled past, and I will need to read the file with cat or similar. This is the most likely place for me to get stuck.",
+      "suggestion": "Give the concrete default path for Linux, macOS and Windows, or a command like hassette show-token, and say what the file looks like."
+    },
+    {
+      "line": 56,
+      "section": "6. Open the dashboard",
+      "type": "missing-verification",
+      "quote": "The dashboard shows app health, per-handler invocation history, structured logs, and the resolved configuration.",
+      "confusion": "Described, but I do not know what I should see to know it worked. 'Per-handler' and 'resolved configuration' are unclear to me.",
+      "suggestion": "Say 'you should see MyApp listed as running'."
+    },
+    {
+      "line": 58,
+      "section": "Having trouble?",
+      "type": "missing-verification",
+      "quote": "If Hassette fails to connect, check HASSETTE__BASE_URL in your .env and confirm the token is correct.",
+      "confusion": "Helpful, but vague on how to confirm a token or what the failure looks like.",
+      "suggestion": "Show an example failure message and the most common fixes (wrong port, http vs https, trailing path)."
+    },
+    {
+      "line": 60,
+      "section": "Next steps",
+      "type": "missing-motivation",
+      "quote": "react to state changes, get typed event data automatically, and schedule recurring jobs",
+      "confusion": "The outcome (a greeting log) is not much of an automation. I do not yet see how this connects to turning lights on. 'Typed event data' and 'state changes' are new vocabulary.",
+      "suggestion": "Frame the next guide as 'make something happen in your house' and give a concrete example."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can mostly get to a running app by copying code and commands, and the sample log output gives a clear success signal at step 5. The friction sits in the async rule, the unexplained config and generic syntax, the long web API token paragraph, and finding the dashboard token file via an unexplained data_dir. Alex would likely finish steps 1-5 but could stall at step 6 and feel unsure what App, config and the five objects are for."
+}

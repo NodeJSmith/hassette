@@ -1,0 +1,49 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "assumed-knowledge",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on(). Async handlers run on Hassette's event loop: while one handler is paused at an await, other handlers keep running",
+      "confusion": "Alex has never seen async/await. The explanation uses 'event loop', 'paused at an await' and 'fire-and-forget' without defining them. Alex would probably just copy the pattern, but would not know when to write async def or await in their own code.",
+      "suggestion": "Add one plain sentence: 'async def / await is Python's way of letting a function wait without blocking others. For now, copy the pattern: use async def for handlers and put await before Hassette calls.' Then link Async Basics."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Replace your apps/main.py with the complete app from the previous snippet. Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "'The previous snippet' is ambiguous after two snippets. The page says the first one needn't be run, so Alex has to work out that it means the second. 'Your apps/main.py' and '.env' depend on the Quickstart, so Alex may need to go back to check what they are.",
+      "suggestion": "Say 'the complete app from Schedule a Recurring Job above'. Briefly recall that apps/main.py and .env come from the Quickstart."
+    },
+    {
+      "line": 26,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "INFO hassette.MyApp.0 — Hello from Hassette!\nINFO hassette.MyApp.0 — Heartbeat",
+      "confusion": "The expected output shows Heartbeat immediately next to the greeting, but the text says the first run fires one minute after startup. Alex may think something is wrong while waiting, or not know how long to wait.",
+      "suggestion": "Note that Heartbeat appears about a minute after startup, and repeats every minute."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "from hassette import App, AppConfig, D, states ... class MyAppConfig(AppConfig): greeting: str = ...",
+      "confusion": "Alex does not know Pydantic. AppConfig, the app_config attribute and the generic App[MyAppConfig] syntax are never explained here, though they were presumably covered in the Quickstart. A mild re-read or guess about what App[MyAppConfig] means.",
+      "suggestion": "Add a one-line recap that AppConfig holds your app's settings and App[MyAppConfig] links it to the app, or point back to the Quickstart section."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "jargon-density",
+      "quote": "This is called dependency injection. No event dict parsing needed.",
+      "confusion": "'Event dict parsing' refers to something Alex has never done, so the benefit is abstract. The mechanism is explained well enough to push through, though.",
+      "suggestion": "Optional: show in one line what Alex would otherwise have to write, or drop the sentence."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can get through the page and end up with a running app, because the code is complete and copy-pasteable and the key terms (handler, glob, dependency injection) are explained inline. The weak points are async/await, which is only partly explained, ambiguous wording about which snippet to copy in Run It, and unexplained timing for the first heartbeat log line. These cost a re-read or a guess but do not block progress."
+}
