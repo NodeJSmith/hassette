@@ -8,10 +8,13 @@ the batched read transaction must keep these outputs identical.
 
 from typing import Any
 
+import aiosqlite
 import pytest
 from hassette_wire import QuerySourceTier
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
+from hassette.exceptions import TelemetryUnavailableError
+from hassette.utils.aiosqlite_utils import connect_daemon
 
 from .helpers import BASE_TS, DbFixture, insert_execution, insert_invocation, insert_job, insert_listener
 
@@ -148,3 +151,17 @@ async def test_pinned_output(
     await seed_dataset(db)
     result = await query_service.get_all_app_summaries(since=since, source_tier=source_tier)
     assert {key: value.model_dump() for key, value in result.items()} == expected
+
+
+async def test_storage_error_raises_telemetry_unavailable(query_service: TelemetryQueryService, db: DbFixture) -> None:
+    """A storage failure inside the snapshot read surfaces as TelemetryUnavailableError and frees the lock."""
+    db_svc, _ = db
+    await db_svc._read_db.close()
+    try:
+        with pytest.raises(TelemetryUnavailableError):
+            await query_service.get_all_app_summaries()
+        assert not query_service._snapshot_lock.locked()
+    finally:
+        # Restore so fixture teardown doesn't crash.
+        db_svc._read_db = await connect_daemon(db_svc._db_path, isolation_level=None)
+        db_svc._read_db.row_factory = aiosqlite.Row
