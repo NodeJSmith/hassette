@@ -582,16 +582,8 @@ async def test_call_service_still_records_as_call_service():
     assert call.kwargs["target"] == {"entity_id": "light.x"}
 
 
-async def test_getattr_tailored_message_for_state_conversion():
-    """__getattr__ gives tailored message for get_state_value, get_attribute."""
-    api = make_recording_api()
-    with pytest.raises(NotImplementedError) as exc_info:
-        await api.get_state_value("sensor.temp")
-    assert "Call `await self.api.get_state(entity_id)`" in str(exc_info.value)
-
-
 async def test_getattr_default_message_for_other_methods():
-    """__getattr__ gives generic seed-state guidance for non-state-conversion methods."""
+    """__getattr__ gives generic seed-state guidance for unimplemented methods."""
     api = make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.__getattr__("some_unimplemented_method")

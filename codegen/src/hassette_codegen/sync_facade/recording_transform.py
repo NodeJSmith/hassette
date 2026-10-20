@@ -5,7 +5,6 @@ import copy
 import textwrap
 
 from hassette_codegen.sync_facade.ast_utils import (
-    STATE_CONVERSION_METHODS,
     format_return_annotation,
     format_signature_and_call,
 )
@@ -189,12 +188,12 @@ def gen_recording_stub(func: ast.AsyncFunctionDef | ast.FunctionDef) -> str:
     returns = format_return_annotation(func)
     sig, _ = format_signature_and_call(func)
 
-    # Emit a NotImplementedError using the module-level _STUB_MSG_* constant name.
-    # We reference the constant by name (not value) so the generated file uses the
-    # same constant that tests import, making message changes a single-location edit.
-    msg_const = "STUB_MSG_STATE_CONVERSION" if name in STATE_CONVERSION_METHODS else "STUB_MSG_GENERIC"
-
-    return f'    def {name}({sig}){returns}:\n        raise NotImplementedError({msg_const}.format(name="{name}"))\n'
+    # Reference the module-level STUB_MSG_GENERIC constant by name (not value) so the
+    # generated file uses the same constant that tests import, making message changes
+    # a single-location edit.
+    return (
+        f'    def {name}({sig}){returns}:\n        raise NotImplementedError(STUB_MSG_GENERIC.format(name="{name}"))\n'
+    )
 
 
 def is_not_implemented_only(func: ast.AsyncFunctionDef | ast.FunctionDef) -> bool:

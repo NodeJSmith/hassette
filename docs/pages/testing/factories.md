@@ -144,14 +144,9 @@ When `old_value` or `new_value` is `None`, the corresponding state dict is `None
 - `rest_request()`
 - `delete_entity()`
 
-**Redirected via `__getattr__`** with a message pointing to `get_state()`:
-
-- `get_state_value()`
-- `get_attribute()`
-
 Any other public name not defined on `RecordingApi` also falls through to `__getattr__` and raises `NotImplementedError`.
 
-`harness.set_state()` seeds data for read methods. Read methods that delegate to `StateProxy` (`get_state()`, `get_states()`, `get_entity()`, `get_entity_or_none()`, `entity_exists()`, `get_state_or_none()`) return seeded values directly.
+`harness.set_state()` seeds data for read methods. Read methods that delegate to `StateProxy` (`get_state()`, `get_states()`, `get_entity()`, `get_entity_or_none()`, `entity_exists()`, `get_state_or_none()`, `get_state_value()`, `get_attribute()`) return seeded values directly.
 
 `harness.api_recorder.sync` is a `RecordingSyncFacade`. Write calls made via `self.api.sync.*` appear in the same `api_recorder.calls` list as their async counterparts. The same assertion API works for both:
 

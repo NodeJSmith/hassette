@@ -5,25 +5,14 @@ import builtins
 import re
 from typing import TypeGuard
 
-# Stub message templates — defined as module-level constants so generated code
-# and generator share the same strings. The generated file re-emits these
+# Stub message template — defined as a module-level constant so generated code
+# and generator share the same string. The generated file re-emits it
 # verbatim so downstream imports work without sys.path tricks.
-STUB_MSG_STATE_CONVERSION = (
-    "RecordingApi.sync.{name} is not implemented on the test facade. "
-    "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
-)
 STUB_MSG_GENERIC = (
     "RecordingApi.sync.{name} is not implemented. "
     "Seed state via AppTestHarness.set_state() for read methods, "
     "or use a full integration test for methods requiring a live HA connection."
 )
-STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_attribute"})
-"""Methods whose ``RecordingApi``/``RecordingSyncFacade`` stub message redirects to ``get_state()``.
-
-Counterpart: ``RecordingApi._STATE_CONVERSION_METHODS`` in
-``src/hassette/testing/recording_api.py`` covers the same concept for the
-hand-authored async class. A new state-conversion method on ``Api`` usually
-needs an entry in both."""
 
 # Module-level sets for filtering body-referenced Name nodes during import derivation.
 # Use the `builtins` module directly rather than `__builtins__`, which is a dict when
