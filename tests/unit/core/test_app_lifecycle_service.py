@@ -8,7 +8,7 @@ test_app_lifecycle_service_reconcile.py.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, call, patch
 
 import pytest
 
@@ -501,10 +501,10 @@ class TestApplyChangesGating:
         [
             ("new_apps", False, False, "start_app", None),
             ("new_apps", True, False, "start_app", call("app_a")),
-            ("reload_apps", False, True, "reload_app", call("app_a")),
-            ("reload_apps", False, False, "reload_app", None),
-            ("reimport_apps", False, True, "reload_app", call("app_a", force_reload=True)),
-            ("reimport_apps", False, False, "reload_app", None),
+            ("reload_apps", False, True, "_start_app_unlocked", call("app_a", ANY, False)),
+            ("reload_apps", False, False, "_start_app_unlocked", None),
+            ("reimport_apps", False, True, "_start_app_unlocked", call("app_a", ANY, True)),
+            ("reimport_apps", False, False, "_start_app_unlocked", None),
             ("orphans", False, False, "stop_app", call("app_a")),
         ],
         ids=[
@@ -538,6 +538,7 @@ class TestApplyChangesGating:
         manifest.autostart = autostart
         mock_registry.get_manifest = Mock(return_value=manifest)
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}} if running else {})
+        lifecycle_service._stop_app_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         operation_mock = AsyncMock()
         setattr(lifecycle_service, operation, operation_mock)
 

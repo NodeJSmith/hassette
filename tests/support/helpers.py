@@ -183,12 +183,19 @@ def create_app_manifest(
     suffix: str,
     app_dir: Path,
     enabled: bool = True,
-    app_config: dict | None = None,
+    app_config: dict | list[dict] | None = None,
 ) -> AppManifest:
-    """Helper to create an AppManifest instance."""
-    app_config = app_config or {}
+    """Helper to create an AppManifest instance.
 
+    Every instance gets a valid ``instance_name`` (the app key, or ``<key>_<index>`` per instance for a
+    list) unless ``app_config`` sets its own.
+    """
     key = f"my_app_{suffix}"
+    if isinstance(app_config, list):
+        app_config = [{"instance_name": f"{key}_{i}", **cfg} for i, cfg in enumerate(app_config)]
+    else:
+        app_config = {"instance_name": key, **(app_config or {})}
+
     filename = f"my_app_{suffix}.py"
     class_name = f"MyApp{suffix.capitalize()}"
     full_path = app_dir / filename

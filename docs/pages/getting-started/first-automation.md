@@ -41,8 +41,8 @@ This is a Hassette feature. Standard Python ignores type annotations at runtime,
 Replace your `apps/main.py` with the complete app from the previous snippet. Stop Hassette with `Ctrl+C` and run `hassette run -e .env` again. You see new log lines:
 
 ```
-INFO hassette.MyApp.0 — Hello from Hassette!
-INFO hassette.MyApp.0 — Heartbeat
+INFO hassette.apps.my_app — Hello from Hassette!
+INFO hassette.apps.my_app — Heartbeat
 ```
 
 The `Sun changed` and `Porch light turned on` lines appear at the next sunset. To test the handler now without waiting, trigger a state change manually:

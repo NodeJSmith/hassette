@@ -201,14 +201,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self.task_bucket = factory(self.hassette, self)
 
     def _get_logger_name(self) -> str:
-        if self.class_name == "Hassette":
-            return "hassette"
-
-        logger_name = (
-            self.unique_name[len("Hassette.") :] if self.unique_name.startswith("Hassette.") else self.unique_name
-        )
-
-        return f"hassette.{logger_name}"
+        # Asks the parent for its name rather than reading parent.logger, which doesn't exist yet when
+        # Hassette builds its own TaskBucket child.
+        # A root resource is its own parent (as Hassette is); recursing into it would never end.
+        if self.parent is None or self.parent is self:
+            return f"hassette.{self.unique_name}"
+        return f"{self.parent._get_logger_name()}.{self.class_name}"
 
     def _setup_logger(self) -> None:
         self.logger = getLogger(self._get_logger_name())

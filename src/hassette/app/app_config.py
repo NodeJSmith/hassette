@@ -60,7 +60,10 @@ class AppConfig(BaseSettings):
         return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     instance_name: str = ""
-    """Name for the instance of the app."""
+    """Name for the instance of the app, unique across the config.
+
+    Config loading always sets it (see `hassette.config.classes.resolve_instance_name`); the empty default only
+    applies to an App constructed directly."""
 
     log_level: LogLevel | None = None
     """Log level for the app instance.

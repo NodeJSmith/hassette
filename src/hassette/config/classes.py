@@ -1,3 +1,4 @@
+import re
 from copy import deepcopy
 from logging import getLogger
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -11,16 +12,21 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    ValidationInfo,
     field_validator,
     model_validator,
 )
 from pydantic_settings import BaseSettings
 
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.types.types import is_framework_key
 from hassette.utils.alias_utils import alias_groups, canonicalize_aliases
 
 LOCAL_OVERLAY_INFIX = ".local"
+
+INSTANCE_NAME_MAX_LENGTH = 128
+# Modelled on Home Assistant's entity object-id rule, so a name is usable unchanged as an HA object id,
+# URL segment, logger name and CLI argument.
+INSTANCE_NAME_PATTERN = re.compile(r"[a-z](?:[a-z0-9_]*[a-z0-9])?")
 
 LOGGER = getLogger(__name__)
 
@@ -31,6 +37,57 @@ def local_overlay_paths(files: list[Path]) -> list[Path]:
     Paths are derived, not checked; callers filter to the overlays that exist.
     """
     return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in files]
+
+
+def snake_case(name: str) -> str:
+    """Convert a CamelCase class name to snake_case, keeping acronyms whole (``HTTPServerApp`` -> ``http_server_app``).
+
+    Leading and trailing underscores are dropped, so a private class (``_HelperApp``) still yields a valid name.
+    """
+    name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name.strip("_"))
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+    return name.lower()
+
+
+def instance_name_reason(name: str) -> str | None:
+    """Return why *name* can't be an instance name, or None if it is valid."""
+    if len(name) > INSTANCE_NAME_MAX_LENGTH:
+        return f"is longer than {INSTANCE_NAME_MAX_LENGTH} characters"
+    if not INSTANCE_NAME_PATTERN.fullmatch(name):
+        return (
+            "must start with a lowercase letter, contain only lowercase letters, digits and '_', and not end with '_'"
+        )
+    return None
+
+
+def resolve_instance_name(configured: object, *, app_key: str, index: int, class_name: str, auto_loaded: bool) -> str:
+    """Return the instance name for one app instance, or raise if it has none or it is invalid.
+
+    The single place an instance's name is decided. A configured instance must set ``instance_name``; only an
+    auto-loaded app (no config section) gets a default, its class name in snake_case.
+
+    Raises:
+        ValueError: The instance has no name and isn't auto-loaded, or the name fails the charset rule.
+    """
+    if configured is None or configured == "":
+        if not auto_loaded:
+            raise ValueError(
+                f"app {app_key!r} instance {index} has no instance_name; every configured app instance must set "
+                "`instance_name` in its config"
+            )
+        name = snake_case(class_name)
+        if reason := instance_name_reason(name):
+            raise ValueError(
+                f"auto-loaded app class {class_name!r} gives the instance name {name!r}, which {reason}; "
+                "configure the app with an explicit `instance_name`"
+            )
+        return name
+
+    if not isinstance(configured, str):
+        raise ValueError(f"app {app_key!r} instance {index} has a non-string instance_name {configured!r}")
+    if reason := instance_name_reason(configured):
+        raise ValueError(f"app {app_key!r} instance {index} has instance_name {configured!r}, which {reason}")
+    return configured
 
 
 def model_annotation(annotation: Any) -> type[BaseModel] | None:
@@ -221,24 +278,6 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
 
         return values
 
-    @field_validator("app_config", mode="before")
-    @classmethod
-    def validate_app_config(cls, v: Any, validation_info: ValidationInfo) -> Any:
-        """Set instance name if not set in config."""
-        if not v:
-            return v
-
-        if isinstance(v, dict):
-            v = [v]
-
-        class_name = validation_info.data.get("class_name", "UnknownApp")
-
-        for idx, item in enumerate(v):
-            if "instance_name" not in item or not item["instance_name"]:
-                item["instance_name"] = f"{class_name}.{idx}"
-
-        return v
-
     @field_validator("description", mode="before")
     @classmethod
     def validate_description(cls, v: Any) -> Any:
@@ -288,13 +327,28 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         warn(msg, stacklevel=5)
 
     def model_post_init(self, context: Any) -> None:
+        """Merge stray top-level extras into the config, normalize it to one dict per instance, then name each.
+
+        Naming runs here, after the extras merge, because that merge can supply the only instance config. A
+        `ValueError` from `resolve_instance_name` surfaces as a `ValidationError`.
+        """
         self.validate_model_extra()
 
-        # if we don't have app_config then we don't have any apps with config
-        # which means we have, at most, one app
-        # so we can just set the default instance name
-        if not self.app_config:
-            self.app_config = [{"instance_name": f"{self.class_name}.0"}]
+        # No config at all is one instance with no settings.
+        configs = normalize_app_config(self.app_config) or [{}]
+        self.app_config = [
+            {
+                **item,
+                "instance_name": resolve_instance_name(
+                    item.get("instance_name"),
+                    app_key=self.app_key,
+                    index=idx,
+                    class_name=self.class_name,
+                    auto_loaded=self.auto_loaded,
+                ),
+            }
+            for idx, item in enumerate(configs)
+        ]
 
 
 def unsafe_cache_path_reason(value: str) -> str | None:

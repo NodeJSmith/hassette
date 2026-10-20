@@ -8,5 +8,6 @@ class_name = "MyApp"
 
 # [[double brackets]] = TOML array-of-tables; supports running the same app with multiple configs
 [[hassette.apps.my_app.config]]
+instance_name = "kitchen_light"
 entity = "light.kitchen"
 brightness = 200

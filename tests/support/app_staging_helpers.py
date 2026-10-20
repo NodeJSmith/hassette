@@ -121,6 +121,7 @@ def write_toml(
             filename = {filename!r}
             class_name = {class_name!r}
             app_dir = {app_dir.as_posix()!r}
+            config = {{ instance_name = {APP_KEY!r} }}
             """
         ).lstrip(),
         encoding="utf-8",

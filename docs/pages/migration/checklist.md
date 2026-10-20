@@ -12,6 +12,7 @@ The [Migration Guide overview](index.md) covers pre-migration setup (installing 
 
 - [ ] Convert `appdaemon.yaml` connection settings to `hassette.toml` `[hassette]` section
 - [ ] Convert each app entry in `apps.yaml` to an `[apps.your_app]` table in `hassette.toml`
+- [ ] Set a unique `instance_name` (lowercase letters, digits, `_`) in each app's `config`. Hassette requires one for every configured instance
 - [ ] Create a typed [`AppConfig`][hassette.app.app_config.AppConfig] subclass for each app. Move all `self.args["args"]["key"]` accesses to `self.app_config.key`
 - [ ] Verify required fields raise a clear error if missing (run the app without a required config key)
 

@@ -618,22 +618,6 @@ class TestInstanceRouting:
         route_listeners(client, app_key="my_app", instance="office")
         assert any("instance_index=1" in u for u in captured_urls)
 
-    def test_ambiguous_instance_name_exits_nonzero(self) -> None:
-        """Two configured instances sharing an ``instance_name`` (permitted by config
-        validation) must not silently resolve to whichever one comes first — the CLI
-        rejects the ambiguous selector and tells the operator to use --instance <index>.
-        """
-        instances = [
-            AppInstance(app_key="my_app", index=0, instance_name="office", class_name="MyApp", status="running"),
-            AppInstance(app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"),
-        ]
-        client, _ = url_capturing_client(instances)
-        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
-            route_listeners(client, app_key="my_app", instance="office")
-        assert exc_info.value.code != 0
-        assert "ambiguous" in buf.getvalue()
-        assert "--instance <index>" in buf.getvalue()
-
 
 # --debug flag
 

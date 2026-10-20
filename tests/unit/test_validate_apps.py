@@ -50,7 +50,11 @@ def make_two_apps(
         ("app_one", "AppOne", cache_key_one, shared_one),
         ("app_two", "AppTwo", cache_key_two, shared_two),
     ):
-        app: dict[str, Any] = {"filename": f"{app_key}.py", "class_name": class_name}
+        app: dict[str, Any] = {
+            "filename": f"{app_key}.py",
+            "class_name": class_name,
+            "config": {"instance_name": app_key},
+        }
         if cache_key is not None:
             app["cache_key"] = cache_key
         if cache_shared:
@@ -82,7 +86,7 @@ class TestValidateApps:
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp"}},
+            apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}}},
         )
 
         with context.use_hassette_config(config):
@@ -103,7 +107,14 @@ class TestValidateApps:
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp", "app_dir": custom_dir}},
+            apps={
+                "my_app": {
+                    "filename": "my_app.py",
+                    "class_name": "MyApp",
+                    "app_dir": custom_dir,
+                    "config": {"instance_name": "my_app"},
+                }
+            },
         )
 
         with context.use_hassette_config(config):
@@ -123,6 +134,7 @@ class TestValidateApps:
                 "valid_app": {
                     "filename": "valid.py",
                     "class_name": "ValidApp",
+                    "config": {"instance_name": "valid_app"},
                 },
                 "missing_filename": {
                     "class_name": "MissingFilename",
@@ -184,6 +196,7 @@ class TestValidateApps:
                 "manual_app": {
                     "filename": "validate_manual_app.py",
                     "class_name": "ValidateManualApp",
+                    "config": {"instance_name": "manual_app"},
                 }
             },
         )
@@ -245,6 +258,7 @@ class TestValidateApps:
                 conflicting_key: {
                     "filename": "validate_override_app.py",
                     "class_name": "ValidateOverrideApp",
+                    "config": {"instance_name": "validate_override_app"},
                 }
             },
         )
@@ -273,6 +287,7 @@ class TestValidateApps:
                 "manual_app": {
                     "filename": "manual.py",
                     "class_name": "ManualApp",
+                    "config": {"instance_name": "manual_app"},
                 }
             },
         )
@@ -310,7 +325,7 @@ class TestValidateApps:
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp"}},
+            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}}},
         )
 
         with context.use_hassette_config(config), pytest.raises(ValueError, match=reason) as exc_info:
@@ -326,7 +341,7 @@ class TestValidateApps:
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp"}},
+            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}}},
         )
 
         with context.use_hassette_config(config):
@@ -376,11 +391,15 @@ class TestValidateApps:
             "weather": {
                 "filename": "weather.py",
                 "class_name": "Weather",
-                "config": [{"city": "nyc"}, {"city": "sf"}],
+                "config": [
+                    {"city": "nyc", "instance_name": "weather_nyc"},
+                    {"city": "sf", "instance_name": "weather_sf"},
+                ],
             },
             "other_app": {
                 "filename": "other_app.py",
                 "class_name": "OtherApp",
+                "config": {"instance_name": "other_app"},
                 "cache_key": "weather/1",
             },
         }
@@ -422,7 +441,9 @@ class TestValidateApps:
         self, tmp_path: Path, app_dir: Path, extra: dict[str, str], expected: str
     ) -> None:
         """`display_name` in config is carried onto the manifest and the API summary; unset, it is the app key."""
-        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", **extra}}
+        apps = {
+            "my_app": {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}, **extra}
+        }
         config = self.make_config(tmp_path, directory=app_dir, apps=apps)
 
         with context.use_hassette_config(config):
@@ -444,7 +465,9 @@ class TestValidateApps:
         self, tmp_path: Path, app_dir: Path, extra: dict[str, str], expected: str | None
     ) -> None:
         """`description` in config survives cleaning onto the manifest and the API summary; unset, it is None."""
-        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", **extra}}
+        apps = {
+            "my_app": {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}, **extra}
+        }
         config = self.make_config(tmp_path, directory=app_dir, apps=apps)
 
         with context.use_hassette_config(config):
@@ -457,7 +480,14 @@ class TestValidateApps:
 
     def test_multiline_description_in_config_is_rejected(self, tmp_path: Path, app_dir: Path) -> None:
         """A configured description with a line break fails validation instead of being silently dropped."""
-        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", "description": "line one\nline two"}}
+        apps = {
+            "my_app": {
+                "filename": "my_app.py",
+                "class_name": "MyApp",
+                "config": {"instance_name": "my_app"},
+                "description": "line one\nline two",
+            }
+        }
         config = self.make_config(tmp_path, directory=app_dir, apps=apps)
 
         with context.use_hassette_config(config), pytest.raises(ConfigError, match="single line"):

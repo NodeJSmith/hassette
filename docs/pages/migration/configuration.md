@@ -61,17 +61,19 @@ filename = "motion_lights.py"
 class_name = "MotionLights"
 
 [[hassette.apps.motion_lights.config]]
+instance_name = "living_room"
 motion_sensor = "binary_sensor.living_room_motion"
 light = "light.living_room"
 off_delay = 300
 
 [[hassette.apps.motion_lights.config]]
+instance_name = "bedroom"
 motion_sensor = "binary_sensor.bedroom_motion"
 light = "light.bedroom"
 off_delay = 120
 ```
 
-Each block becomes a separate app instance. Both run the same `MotionLights` class with different config values, and each instance's `self.app_config` holds the values from its own block — the Python class needs no changes. See [App Configuration](../core-concepts/apps/configuration.md) for the full reference.
+Each block becomes a separate app instance, and each needs its own unique `instance_name` (lowercase letters, digits, and `_`; see [Instance Names](../core-concepts/apps/configuration.md#instance-names)). Both run the same `MotionLights` class with different config values, and each instance's `self.app_config` holds the values from its own block — the Python class needs no changes. See [App Configuration](../core-concepts/apps/configuration.md) for the full reference.
 
 ## See Also
 

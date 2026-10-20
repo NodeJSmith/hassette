@@ -16,7 +16,6 @@ from hassette.utils.app_utils import (
     class_failed_to_load,
     get_class_load_error,
     get_loaded_class,
-    is_valid_instance_name,
     load_app_class_from_manifest,
 )
 from hassette.utils.exception_utils import get_short_traceback
@@ -148,12 +147,8 @@ class AppFactory:
             config_dict: The raw config dict for this instance
             app_class: The already-loaded app class to instantiate
         """
-        instance_name = config_dict.get(INSTANCE_NAME_KEY)
-        if not is_valid_instance_name(instance_name):
-            self.registry.record_failure(
-                app_key, index, ValueError(f"App {app_key} instance {index} is missing instance_name")
-            )
-            return
+        # Set on every instance config by AppManifest.model_post_init (resolve_instance_name).
+        instance_name: str = config_dict[INSTANCE_NAME_KEY]
 
         try:
             validated = app_class.app_config_cls.model_validate(config_dict)

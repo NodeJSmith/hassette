@@ -19,8 +19,7 @@ filename = "my_app_sync.py"
 class_name = "MyAppSync"
 display_name = "My Test App Sync"
 app_dir = "../apps"
-# instance_name left off for testing default behavior
-config = { test_entity = "input_button.test" }
+config = { test_entity = "input_button.test", instance_name = "my_app_sync" }
 
 [hassette.apps.disabled_app]
 enabled = false

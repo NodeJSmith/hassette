@@ -177,6 +177,7 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
     # Override for a specific app:
     [hassette.apps.my_dev_app]
+    config = { instance_name = "my_dev_app" }
     forgotten_await_behavior = "error"
     ```
 

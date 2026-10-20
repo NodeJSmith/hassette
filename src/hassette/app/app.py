@@ -24,6 +24,8 @@ if typing.TYPE_CHECKING:
 
 LOGGER = getLogger(__name__)
 
+APP_LOGGER_PREFIX = "hassette.apps"
+
 AppT = TypeVar("AppT", bound="App")
 
 _APP_PUBLIC_API: frozenset[str] = frozenset(
@@ -167,10 +169,16 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     @property
     def unique_name(self) -> str:
-        """Unique name for the app instance, used for logging and ownership of resources."""
-        if self.app_config.instance_name.startswith(self.class_name):
-            return self.app_config.instance_name
-        return f"{self.class_name}.{self.app_config.instance_name}"
+        """Unique name for the app instance, used for logging and ownership of resources.
+
+        The instance name itself, which config validation keeps unique across every app.
+        """
+        return self.app_config.instance_name
+
+    def _get_logger_name(self) -> str:
+        # A sub-namespace of its own keeps an app named like a framework package (``scheduler``, ``api``)
+        # from becoming the parent of that package's module loggers.
+        return f"{APP_LOGGER_PREFIX}.{self.unique_name}"
 
     @property
     def config_log_level(self) -> LogLevel:

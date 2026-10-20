@@ -244,7 +244,7 @@ entry = make_log_record_entry(seq=42, execution_id="exec-abc")
 
 ### `make_mock_parent(**kwargs)` — `tests/support/factories.py`
 
-Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
+Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set, plus a `_get_logger_name` that returns the app logger name its children nest under. Callers that only care about a subset of these get harmless extra attributes.
 
 ### `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — `tests/support/factories.py`
 

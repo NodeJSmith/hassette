@@ -23,6 +23,7 @@ def make_manifest(**overrides) -> AppManifest:  # factory-local: returns AppMani
         "display_name": "Test App",
         "app_dir": Path("/tmp/apps"),
         "full_path": Path("/tmp/apps/test_app.py"),
+        "app_config": {"instance_name": "test_app"},
     }
     defaults.update(overrides)
     with warnings.catch_warnings():
@@ -144,6 +145,7 @@ class TestAppManifestAutostart:
             "display_name": "Test App",
             "app_dir": Path("/tmp/apps"),
             "full_path": Path("/tmp/apps/test_app.py"),
+            "app_config": {"instance_name": "test_app"},
         }
         assert "autostart" not in values
         manifest = AppManifest.model_validate(values)

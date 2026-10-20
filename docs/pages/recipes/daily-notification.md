@@ -16,6 +16,9 @@ Save the code as `daily_notification.py` in your apps directory and register it 
 [hassette.apps.daily_notification]
 filename = "daily_notification.py"
 class_name = "DailyNotificationApp"
+
+[hassette.apps.daily_notification.config]
+instance_name = "daily_notification"
 ```
 
 The section name (`daily_notification`) is the app key — the same key the `hassette job` and `hassette log` commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.
@@ -66,6 +69,7 @@ If the second line is missing, check the Home Assistant logs (**Settings → Sys
 
 ```toml
 [hassette.apps.daily_notification.config]
+instance_name = "daily_notification"
 notify_time = "20:30"
 notify_service = "mobile_app_tablet"
 message = "Time to wind down."

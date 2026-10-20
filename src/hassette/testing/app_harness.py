@@ -16,7 +16,6 @@ See design/specs/025-end-user-test-utils/design.md for architecture details.
 """
 
 import inspect
-import re
 import shutil
 import tempfile
 from collections.abc import Mapping
@@ -35,9 +34,10 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.app.utils import get_app_config_class
 from hassette.bus import Bus
-from hassette.config.classes import AppManifest
+from hassette.config.classes import AppManifest, snake_case
 from hassette.resources.lifecycle import start
 from hassette.scheduler import Scheduler
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.state_manager import StateManager
 from hassette.testing._factories import make_state_dict
 from hassette.testing._harness import HassetteHarness
@@ -148,22 +148,23 @@ def make_hermetic_config(app_cls: type[App], app_config_cls: type[AppConfig], co
         raise AppConfigurationError(app_cls, exc) from exc
 
 
-def synthesize_manifest(app_cls: type[App]) -> AppManifest:
+def synthesize_manifest(app_cls: type[App], instance_name: str | None = None) -> AppManifest:
     """Build a minimal AppManifest for app_cls without requiring a real file or TOML config.
 
-    Derives app_key from the class name (snake_case), filename from the source file's parent
+    The manifest is an auto-loaded app's: app_key is the class name in snake_case, and so is the
+    instance name unless *instance_name* is given. Filename comes from the source file's parent
     directory, and class_name from __name__. Falls back to Path.cwd() with a warning if
     inspect.getfile() raises TypeError (namespace packages or C extensions).
 
     Args:
         app_cls: The App subclass to synthesize a manifest for.
+        instance_name: The test's own instance name, if it set one.
 
     Returns:
         A synthesized AppManifest.
     """
     class_name = app_cls.__name__
-    # Convert CamelCase to snake_case for app_key
-    app_key = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
+    app_key = snake_case(class_name)
 
     try:
         source_file = Path(inspect.getfile(app_cls))
@@ -185,7 +186,8 @@ def synthesize_manifest(app_cls: type[App]) -> AppManifest:
         class_name=class_name,
         app_dir=app_dir,
         full_path=full_path,
-        app_config=[{"instance_name": f"{class_name}.0"}],
+        auto_loaded=True,
+        app_config=[{"instance_name": instance_name}] if instance_name else [],
     )
 
 
@@ -304,8 +306,10 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
         # a shared closure cell, but writes and reads it with no await in between, so
         # concurrent harnesses cannot interleave there. Neither path mutates the App class,
         # so the per-instance manifest needs no locking — each harness owns its own.
-        manifest = synthesize_manifest(self._app_cls)
-        validated_config = make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
+        manifest = synthesize_manifest(self._app_cls, self._config_dict.get("instance_name"))
+        instance_name = normalize_app_config(manifest.app_config)[0]["instance_name"]
+        config_dict = {**self._config_dict, "instance_name": instance_name}
+        validated_config = make_hermetic_config(self._app_cls, app_config_cls, config_dict)
 
         # Step 9: Instantiate the app with RecordingApi injected via constructor.
         # The manifest is passed per instance, so its app_key is authoritative for

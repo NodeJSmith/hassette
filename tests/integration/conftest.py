@@ -292,7 +292,7 @@ def make_manifest_mock(
     m.class_name = class_name
     m.enabled = enabled
     m.autostart = autostart
-    m.app_config = app_config if app_config is not None else {"instance_name": f"{class_name}.0"}
+    m.app_config = app_config if app_config is not None else {"instance_name": app_key}
     m.app_dir = app_dir or Path("/apps")
     m.full_path = full_path or (m.app_dir / filename)
     return m

@@ -111,7 +111,7 @@ class TestAutoDetectIntegration:
                         "filename": f"priority_app{ext}",
                         "class_name": "AutoDetectedApp",
                         "enabled": True,  # Different from auto-detect default
-                        "config": {"custom": "value"},
+                        "config": {"custom": "value", "instance_name": "auto_detected_app"},
                     }
                 },
             },
@@ -154,7 +154,7 @@ class TestAutoDetectIntegration:
                         "filename": "priority_app.py",
                         "class_name": "AutoDetectedApp",
                         "enabled": False,  # Different from auto-detect default
-                        "config": {"custom": "value"},
+                        "config": {"custom": "value", "instance_name": "auto_detected_app"},
                     }
                 },
             },
@@ -211,7 +211,7 @@ class TestAutoDetectIntegration:
                     "manual_app": {
                         "filename": "manual_app.py",
                         "class_name": "ManualApp",
-                        "config": {"manual": True},
+                        "config": {"manual": True, "instance_name": "manual_app"},
                     }
                 },
             },

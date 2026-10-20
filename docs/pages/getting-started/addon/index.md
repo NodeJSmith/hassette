@@ -51,7 +51,7 @@ The config folder is empty; adding a starter hassette.toml and an example app
 Port mappings: none (ingress only)
 2026-10-17T08:19:58.690526 [info     ] Generated new web API auth_token, written to /config/.web_api_token. Open Hassette from the Home Assistant sidebar or the add-on's "Open Web UI" button; the token is only needed for the hassette CLI or a published port. [hassette.web.auth.tokens] execution_id=None
 2026-10-17T08:19:58.690609 [info     ] Hassette is running.           [hassette] execution_id=None
-2026-10-17T08:19:58.690670 [info     ] Hello from Hassette! Edit example_app.py in the apps folder of the add-on's config folder. [hassette.ExampleApp.0] execution_id=None
+2026-10-17T08:19:58.690670 [info     ] Hello from Hassette! Edit example_app.py in the apps folder of the add-on's config folder. [hassette.apps.example_app] execution_id=None
 Announced hassette to Home Assistant; the hassette integration can now be set up from its Discovered card
 ```
 
@@ -82,7 +82,7 @@ Replace the `greeting` default with your own text, such as `"Hello from my first
 Hassette starts every app it finds in `apps/`, so the app needs no `hassette.toml` entry. Restart the add-on from its **Info** tab, then open the **Log** tab again. You see a line like this with your new greeting:
 
 ```text
-2026-10-17T08:24:11.102394 [info     ] Hello from my first Hassette app! [hassette.ExampleApp.0] execution_id=None
+2026-10-17T08:24:11.102394 [info     ] Hello from my first Hassette app! [hassette.apps.example_app] execution_id=None
 ```
 
 To give an app settings of its own, add a section to `hassette.toml`. The starter file shows the format in a comment, and [Add-on Configuration](configuration.md#hassettetoml) explains it.

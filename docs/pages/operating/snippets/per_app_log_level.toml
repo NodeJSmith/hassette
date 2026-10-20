@@ -1,3 +1,4 @@
 # hassette.toml
 [hassette.apps.my_noisy_app]
+config = { instance_name = "my_noisy_app" }
 log_level = "WARNING"

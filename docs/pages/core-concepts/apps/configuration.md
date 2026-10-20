@@ -6,7 +6,7 @@ This page covers the TOML side of app configuration. [Apps](../apps/index.md) co
 
 ## Registering an App
 
-An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
+An app block requires `filename`, `class_name`, and an `instance_name` in its `config` (see [Instance Names](#instance-names)). `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
@@ -18,6 +18,8 @@ The app key (`presence` here) also names the app's [cache directory](../cache/in
 
 `description` holds an optional one-line summary of what the app does, up to 200 characters. Hassette strips surrounding whitespace and rejects a description containing a line break at startup. The `/api/apps` endpoints return it as `description`, or `null` when unset.
 
+Every configured app needs an `instance_name`, including blocks with `enabled = false` or `autostart = false`. A block without one fails at config load.
+
 `enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
 
 ```toml
@@ -25,13 +27,14 @@ The app key (`presence` here) also names the app's [cache directory](../cache/in
 filename = "heavy_processor.py"
 class_name = "HeavyProcessorApp"
 autostart = false
+config = { instance_name = "heavy_processor" }
 ```
 
 `enabled = false` is the hard off-switch — the app never loads or starts, but it stays registered and the apps dashboard lists it as **disabled**. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
 
 ## Passing Configuration
 
-The `config` field supplies values to the app's `AppConfig` model. Two TOML forms are equivalent for single-instance apps.
+The `config` field supplies values to the app's `AppConfig` model, and it must set `instance_name`. A section with no `config` at all fails at config load, naming the app key and instance index. Two TOML forms are equivalent for single-instance apps.
 
 Inline form:
 
@@ -39,7 +42,7 @@ Inline form:
 [hassette.apps.presence]
 filename = "presence.py"
 class_name = "PresenceApp"
-config = { motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
+config = { instance_name = "presence", motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
 ```
 
 Table form:
@@ -50,12 +53,13 @@ filename = "presence.py"
 class_name = "PresenceApp"
 
 [hassette.apps.presence.config]
+instance_name = "presence"
 motion_sensor = "binary_sensor.hall"
 lights = ["light.entry"]
 ```
 
 !!! note "Two TOML paths, two purposes"
-    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
+    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields, including `instance_name`, live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
 
 Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
 
@@ -67,11 +71,35 @@ The same app class runs as separate instances by replacing `config = ...` with `
 --8<-- "pages/core-concepts/configuration/snippets/multiple_instances.toml"
 ```
 
-The `name` field distinguishes instances in logs and the web UI. Without it, Hassette generates a name from the class name and index (e.g., `PresenceApp.0`).
+Each block sets its own `instance_name`, which distinguishes the instance in logs and the web UI. Names must be unique across the whole config, not only within one app key. See [Instance Names](#instance-names).
 
 Single-instance apps are the default. Most apps never need `[[...]]` blocks. Multiple instances let the same logic run across different rooms, devices, or entity sets without duplicating app code.
 
-A live config reload (on when `dev_mode` or `allow_reload_in_prod` is set) restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the equivalent per-instance REST API endpoints — the web UI dashboard doesn't expose per-instance controls yet.
+## Instance Names {#instance-names}
+
+`instance_name` is required on every configured app instance. The name identifies the instance throughout Hassette:
+
+- `self.instance_name` and `self.unique_name` both return it.
+- The app's logger is `hassette.apps.<instance_name>`, and the app's bus, scheduler, and other per-app loggers nest under it (`hassette.apps.upstairs.Bus`).
+- Log lines and telemetry carry it as `instance_name`.
+
+Names follow Home Assistant's entity object ID rule:
+
+- The name starts with a lowercase letter.
+- It contains only lowercase letters, digits, and `_`.
+- It does not end with `_`.
+- It is at most 128 characters long.
+
+`upstairs` and `kitchen_lights_2` are valid. `Upstairs`, `kitchen-lights`, `PresenceApp.0`, `2nd_floor`, and `lights_` are not. An invalid name fails at config load.
+
+Names are unique across the whole config. No two instances, under any app key and enabled or not, share a name. A duplicate fails at config load with an error that lists every instance using the name.
+
+Apps that Hassette auto-loads through `apps.autodetect`, with no config section, are named after their class in snake_case: `MyApp` becomes `my_app`, `HTTPServerApp` becomes `http_server_app`, `MyApp2` becomes `my_app2`, and `BlockingIOLab` becomes `blocking_io_lab`. Leading and trailing underscores are dropped, so `_HelperApp` becomes `helper_app`. If the result is not a valid name, loading fails and the error names the class. Configure that app with an explicit `instance_name`. Two auto-loaded classes that produce the same name collide the same way; give one of them an `instance_name`.
+
+!!! note "Storage, routes, and the CLI still use the index"
+    The name keys logging and `self.unique_name`. Persistent storage, web routes, and the CLI still address an instance by its app key and index. The CLI's `--instance` flag resolves a name to its index.
+
+A live config reload (on when `dev_mode` or `allow_reload_in_prod` is set) restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. A restart stops every instance the change replaces, across all affected apps, before starting any replacement, so a name can move from one instance or app to another in a single edit. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the equivalent per-instance REST API endpoints — the web UI dashboard doesn't expose per-instance controls yet.
 
 ## Typed Configuration
 

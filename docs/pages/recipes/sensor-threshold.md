@@ -18,6 +18,7 @@ filename = "sensor_threshold.py"
 class_name = "SensorThresholdApp"
 
 [hassette.apps.sensor_threshold.config]
+instance_name = "sensor_threshold"
 entity_id = "sensor.living_room_temperature"
 threshold = 28.0
 ```

@@ -26,6 +26,7 @@ def seed_registry(mock_hassette: MagicMock, tmp_path: Path, description: str | N
         app_dir=tmp_path,
         full_path=tmp_path / "porch_light.py",
         description=description,
+        app_config={"instance_name": APP_KEY},
     )
     registry = AppRegistry()
     registry.set_manifests({APP_KEY: manifest})

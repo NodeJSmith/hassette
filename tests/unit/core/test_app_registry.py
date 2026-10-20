@@ -20,7 +20,7 @@ from .conftest import make_manifest_obj
 class TestAppStatusSnapshot:
     def test_snapshot_types_are_frozen(self) -> None:
         """Snapshot dataclasses reject field assignment after construction."""
-        info = AppInstanceInfo("app1", 0, "app1.0", "App1", ResourceStatus.RUNNING)
+        info = AppInstanceInfo("app1", 0, "app1", "App1", ResourceStatus.RUNNING)
         snapshot = AppStatusSnapshot(instances=(info,))
 
         with pytest.raises(dataclasses.FrozenInstanceError):
@@ -40,8 +40,8 @@ class TestAppStatusSnapshot:
     def test_snapshot_counts(self) -> None:
         """Test snapshot count properties."""
         running = [
-            AppInstanceInfo("app1", 0, "app1.0", "App1", ResourceStatus.RUNNING),
-            AppInstanceInfo("app2", 0, "app2.0", "App2", ResourceStatus.RUNNING),
+            AppInstanceInfo("app1", 0, "app1", "App1", ResourceStatus.RUNNING),
+            AppInstanceInfo("app2", 0, "app2", "App2", ResourceStatus.RUNNING),
         ]
         failed = [
             AppInstanceInfo("app3", 0, "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
@@ -85,7 +85,7 @@ class TestAppRegistry:
         """Create a mock manifest."""
         manifest = MagicMock()
         manifest.class_name = "TestApp"
-        manifest.app_config = {}
+        manifest.app_config = {"instance_name": "test_instance"}
         return manifest
 
     def test_register_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
@@ -426,16 +426,16 @@ class TestAppRegistry:
         a single `.instances` list containing correct per-entry field values.
         """
         app1 = MagicMock()
-        app1.app_config.instance_name = "app1.0"
+        app1.app_config.instance_name = "app1"
         app1.class_name = "App1"
         app1.status = ResourceStatus.RUNNING
-        app1.unique_name = "App1.app1.0"
+        app1.unique_name = "app1"
 
         app2 = MagicMock()
-        app2.app_config.instance_name = "app2.0"
+        app2.app_config.instance_name = "app2"
         app2.class_name = "App2"
         app2.status = ResourceStatus.RUNNING
-        app2.unique_name = "App2.app2.0"
+        app2.unique_name = "app2"
 
         registry.register_app("app1", 0, app1)
         registry.register_app("app2", 0, app2)
@@ -452,10 +452,10 @@ class TestAppRegistry:
 
         running_by_key = {info.app_key: info for info in running}
         assert running_by_key["app1"].index == 0
-        assert running_by_key["app1"].instance_name == "app1.0"
+        assert running_by_key["app1"].instance_name == "app1"
         assert running_by_key["app1"].class_name == "App1"
         assert running_by_key["app1"].status == ResourceStatus.RUNNING
-        assert running_by_key["app1"].owner_id == "App1.app1.0"
+        assert running_by_key["app1"].owner_id == "app1"
         assert running_by_key["app2"].app_key == "app2"
         assert running_by_key["app2"].class_name == "App2"
 

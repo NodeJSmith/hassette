@@ -157,7 +157,7 @@ class TestAppChangeDetector:
                 class_name=class_name or app_key.capitalize(),
                 display_name=display_name or app_key,
                 app_dir=app_dir or Path("/apps"),
-                app_config=app_config or {"instance_name": f"{app_key}.0"},
+                app_config={"instance_name": app_key, **(app_config or {})},
                 full_path=full_path or Path(f"/apps/{app_key}.py"),
                 autostart=autostart,
                 cache_key=cache_key or "",

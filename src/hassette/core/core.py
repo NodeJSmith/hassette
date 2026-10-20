@@ -75,6 +75,10 @@ class Hassette(HassetteAccessorsMixin, Resource):
     def unique_name(self) -> str:
         return "Hassette"
 
+    def _get_logger_name(self) -> str:
+        # The root of the framework's logger tree; children are hassette.<ClassName>.
+        return "hassette"
+
     def _should_skip_dependency_check(self) -> bool:
         return False
 

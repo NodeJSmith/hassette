@@ -51,7 +51,7 @@ Move `App` ahead of that base class in the class definition.
 **Invalid config.** A required [`AppConfig`][hassette.app.app_config.AppConfig] field has no value and no default, or a value fails validation. This is caught when the instance is created, after the precheck, and is followed by the pydantic `ValidationError`:
 
 ```
-ERROR hassette.core.app_factory.AppFactory — Failed to validate/init config for MyApp.0 (MyApp):
+ERROR hassette.core.app_factory.AppFactory — Failed to validate/init config for my_app (MyApp):
 ```
 
 Only that instance fails to start; other apps and instances still run. Set the missing field in `hassette.toml` or via an environment variable.
@@ -59,7 +59,7 @@ Only that instance fails to start; other apps and instances still run. Set the m
 **Config value has no effect.** If your config class declares its own fields, a key in `hassette.toml` that doesn't match any of them is kept as an extra attribute, and the field you meant keeps its default. Hassette logs a warning naming the key and, when one is close, the field you probably meant:
 
 ```
-UserWarning: MyAppConfig - My App (my_app, instance 'MyApp.0') - Unrecognized configuration key(s) don't match any declared field:
+UserWarning: MyAppConfig - My App (my_app, instance 'my_app') - Unrecognized configuration key(s) don't match any declared field:
   'off_dealy' (did you mean 'off_delay'?)
 ```
 
@@ -74,7 +74,7 @@ Fix the spelling in `hassette.toml`. A bare `AppConfig` with no fields of its ow
 **Symptom:** A handler never fires, or a scheduled job never runs, even though the registration call looks correct. Shortly after the call, a warning appears:
 
 ```
-Coroutine from 'on_state_change' was never awaited (app: Hassette.LightingApp.0, call site: /config/apps/lighting.py:42). Did you forget 'await'?
+Coroutine from 'on_state_change' was never awaited (app: lighting, call site: /config/apps/lighting.py:42). Did you forget 'await'?
 ```
 
 **Cause:** The registration call was made without `await`. The following methods all return a coroutine — without `await`, the coroutine is created and immediately dropped, so the listener never registers, the job never schedules, and the service call never fires:

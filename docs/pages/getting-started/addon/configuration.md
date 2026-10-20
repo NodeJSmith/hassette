@@ -39,7 +39,7 @@ In YAML, the options look like this:
 
 Every other setting goes in `hassette.toml`. The [configuration reference](../../core-concepts/configuration/index.md) lists the settings and the order Hassette resolves sources in. [App Configuration](../../core-concepts/apps/configuration.md) covers per-app settings.
 
-Apps in `apps/` are found and started without an entry. To give an app its own settings, add a `[hassette.apps.<key>]` section, where `<key>` is a name you choose. `filename` and `class_name` are required. The starter file ships this section commented out:
+Apps in `apps/` are found and started without an entry. To give an app its own settings, add a `[hassette.apps.<key>]` section, where `<key>` is a name you choose. `filename` and `class_name` are required, and the app's `config` must set an [`instance_name`](../../core-concepts/apps/configuration.md#instance-names). The starter file ships this section commented out:
 
 ```toml
 --8<-- "pages/getting-started/addon/snippets/config-app-section.toml"

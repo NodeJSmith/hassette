@@ -495,35 +495,28 @@ class TestBuildManifestInfoStatusDerivation:
         assert info.status == "failed"
 
     @pytest.mark.parametrize(
-        ("app_config", "expected_name"),
+        ("app_config", "index", "expected_name"),
         [
-            ([{"instance_name": "custom_instance"}], "custom_instance"),
-            (None, "MyApp.0"),
-            ([{"instance_name": None}], "MyApp.0"),
-            ([{"instance_name": False}], "MyApp.0"),
-            ([{"instance_name": 0}], "MyApp.0"),
-            ([{"instance_name": ""}], "MyApp.0"),
+            ([{"instance_name": "custom_instance"}], 0, "custom_instance"),
+            ([{"instance_name": "first"}, {"instance_name": "second"}], 1, "second"),
+            ([{"instance_name": "first"}], 1, "MyApp.1"),
         ],
-        ids=["configured_name", "no_app_config", "null", "false", "zero", "empty_string"],
+        ids=["configured_name", "second_instance", "index_past_configured"],
     )
     def test_failed_instance_name_resolution(
-        self, registry: AppRegistry, app_config: list[dict] | None, expected_name: str
+        self, registry: AppRegistry, app_config: list[dict], index: int, expected_name: str
     ) -> None:
-        """A failed entry's instance_name comes from the manifest's configured app_config when
-        that value is a usable string, and otherwise falls back to ``ClassName.index``.
+        """A failed entry's instance_name is the one its manifest configured for that index.
 
-        The fallback has to cover more than a missing key. A non-string or empty configured
-        ``instance_name`` -- an explicit ``null`` in the user's config, say -- must not flow
-        through as-is: ``AppInstanceInfo.instance_name`` is a required ``str``, and the eventual
-        ``AppInstance`` Pydantic mapping would raise a validation error on anything else,
-        turning the status endpoint into a 500.
+        An index past the configured instances has no name, so it gets the ``ClassName.index``
+        display label (never a valid instance name, so it can't collide with a real one).
         """
         manifest = make_manifest_obj("my_app", app_config=app_config)
-        registry.record_failure("my_app", 0, ValueError("boom"))
+        registry.record_failure("my_app", index, ValueError("boom"))
 
         info = registry.build_manifest_info("my_app", manifest)
 
-        assert info.instances[0].instance_name == expected_name
+        assert next(inst for inst in info.instances if inst.index == index).instance_name == expected_name
 
     def test_failed_instance_name_falls_back_when_no_manifest(self, registry: AppRegistry) -> None:
         """When no manifest is tracked for the app_key, fall back to ``Unknown.index``."""

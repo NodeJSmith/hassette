@@ -329,3 +329,11 @@ Two milestones, in order: *Log identity*, then *Instance identity*. Each issue's
 Applies to all: D6 (logger names stay readable labels derived from the instance name).
 
 Close as won't-do: #740 (D6) and #739 (D8). Cross-link only: #2938. Follow-up outside both milestones: #345 (the per-app level toggle, on D4's model).
+
+## Addendum
+
+**2026-10-20, building issue 1 (#3095).** Two consequences of dropping the class prefix from `unique_name` were settled with the user while building, and one call site differs from *Where things live*:
+
+- **App loggers live under `hassette.apps.<instance_name>`**, with the app's children nested below it, not directly under `hassette.`. A bare `hassette.<name>` would let an app named like a framework package (`scheduler`, `api`) become the parent of that package's module loggers and set their levels. This follows pyscript's separate sub-namespace for user code. `unique_name` and `owner_id` stay the bare name. D6 still holds: logger names are readable and derived from the instance name. D7's ownerless-line rendering ("the logger name without its `hassette.` prefix") will show `apps.<name>` for such lines.
+- **A live reload stops every instance it replaces, across all app keys, before creating any replacement**, with each affected app-key lock held across both phases. Owner registries are keyed by the name, and one edit can move a name between instances or apps. This is AppDaemon's reload shape. The name-overlap fallbacks in the selective restart are gone, because duplicate names are now rejected at config load.
+- **The naming function runs once**, in `AppManifest` validation. `AppFactory` and the `AppRegistry` read the name the manifest resolved instead of calling it again, and the test harness gets its default by building an auto-loaded manifest.

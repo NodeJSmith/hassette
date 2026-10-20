@@ -382,9 +382,9 @@ $ hassette blocking --since 7d
 ┃ App              ┃ Instances         ┃ Call site                    ┃ Calls into                   ┃ Count ┃ Max   ┃ Last seen ┃
 ┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
 │ presence         │ bedroom, office   │ presence.py:44 in refresh    │ requests/api.py get          │ 4     │ 5.0s  │ 30m ago   │
-│ car_climate      │ CarClimate.0      │ calendar_service.py:98 in    │ gcsa/_services/events_servi… │ 9     │ 534ms │ 2h ago    │
+│ car_climate      │ car_climate       │ calendar_service.py:98 in    │ gcsa/_services/events_servi… │ 9     │ 534ms │ 2h ago    │
 │                  │                   │ get_calendar_events          │ get_events                   │       │       │           │
-│ garage_proximity │ GarageProximity.0 │ call site not captured       │                              │ 1     │ 212ms │ 2d ago    │
+│ garage_proximity │ garage_proximity  │ call site not captured       │                              │ 1     │ 212ms │ 2d ago    │
 │                  │                   │ (on_phone_arrive)            │                              │       │       │           │
 └──────────────────┴───────────────────┴──────────────────────────────┴──────────────────────────────┴───────┴───────┴───────────┘
 

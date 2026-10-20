@@ -3,7 +3,9 @@
 import asyncio
 import typing
 from collections.abc import Awaitable, Callable
+from contextlib import AsyncExitStack
 from copy import deepcopy
+from dataclasses import dataclass
 from logging import Logger
 from pathlib import Path
 
@@ -23,6 +25,17 @@ if typing.TYPE_CHECKING:
     from hassette.core.app_key_lock import AppKeyLock
     from hassette.core.app_lifecycle_common import PendingReconciliation
     from hassette.core.app_registry import AppRegistry
+
+
+@dataclass(frozen=True)
+class AppRestart:
+    """One app's part of a config or file change: which of its instances to stop and recreate."""
+
+    app_key: str
+    indices: tuple[int, ...] | None = None
+    """The instance indices to restart, or None for every instance of the app."""
+    force_reload: bool = False
+    """Re-import the app class from disk before recreating (a file change)."""
 
 
 class AppChangeReconcilerMixin:
@@ -48,7 +61,8 @@ class AppChangeReconcilerMixin:
     should_auto_reconcile: Callable[[str], bool]
     start_app: Callable[..., Awaitable[None]]
     stop_app: Callable[[str], Awaitable[None]]
-    reload_app: Callable[..., Awaitable[None]]
+    _start_app_unlocked: Callable[[str, "AppManifest", bool], Awaitable[None]]
+    _stop_app_unlocked: Callable[[str], Awaitable[None]]
     _instance_index_in_range: Callable[[str, int, "AppManifest"], bool]
     _create_instance_unlocked: Callable[..., Awaitable[None]]
     _stop_instance_unlocked: Callable[[str, int], Awaitable[None]]
@@ -80,38 +94,30 @@ class AppChangeReconcilerMixin:
         """
         self.logger.debug("Applying app changes: %s", changes)
 
-        # AppBlockedError from reload_app()/start_app()/_reload_app_or_changed_instances()
-        # below is caught per app_key in every loop, even though it should be structurally
-        # unreachable here: AppChangeDetector.detect_changes() filters every ChangeSet bucket
-        # by only_apps before this method ever sees app_key, and
+        # AppBlockedError from the restarts and start_app() below is caught per app_key, even though it
+        # should be structurally unreachable here: AppChangeDetector.detect_changes() filters every
+        # ChangeSet bucket by only_apps before this method ever sees app_key, and
         # _fold_unblocked_apps_into_changes() only adds apps that were *just* unblocked. That
         # invariant spans three files and isn't enforced at this boundary, so if it's ever
-        # violated, an uncaught raise here would abort the rest of this bucket and every
-        # bucket after it — not just the one blocked app_key.
+        # violated, an uncaught raise here would abort every app after the blocked one.
         for app_key in changes.orphans:
             self.logger.debug("Stopping orphaned app %s", app_key)
             await self.stop_app(app_key)
 
-        for app_key in changes.reimport_apps:
-            if not self.should_auto_reconcile(app_key):
-                self.logger.debug("Skipping reimport of autostart=false app %s (not running)", app_key)
-                continue
-
-            self.logger.debug("Reloading app %s due to file change", app_key)
-            try:
-                await self.reload_app(app_key, force_reload=True)
-            except AppBlockedError:
-                self.logger.error("Skipping reimport of blocked app %s — this should not be reachable", app_key)
-
-        for app_key in changes.reload_apps:
-            if not self.should_auto_reconcile(app_key):
-                self.logger.debug("Skipping reload of autostart=false app %s (not running)", app_key)
-                continue
-
-            try:
-                await self._reload_app_or_changed_instances(app_key, original_config, current_config)
-            except AppBlockedError:
-                self.logger.error("Skipping reload of blocked app %s — this should not be reachable", app_key)
+        restarts = [
+            *(
+                AppRestart(app_key, force_reload=True)
+                for app_key in changes.reimport_apps
+                if self._should_restart(app_key)
+            ),
+            *(
+                restart
+                for app_key in changes.reload_apps
+                if self._should_restart(app_key)
+                and (restart := self._plan_reload(app_key, original_config, current_config)) is not None
+            ),
+        ]
+        await self._restart_apps(restarts)
 
         for app_key in changes.new_apps:
             if not self.should_autostart(app_key):
@@ -124,39 +130,33 @@ class AppChangeReconcilerMixin:
             except AppBlockedError:
                 self.logger.error("Skipping start of blocked app %s — this should not be reachable", app_key)
 
-    async def _reload_app_or_changed_instances(
+    def _should_restart(self, app_key: str) -> bool:
+        if self.should_auto_reconcile(app_key):
+            return True
+        self.logger.debug("Skipping restart of autostart=false app %s (not running)", app_key)
+        return False
+
+    def _plan_reload(
         self,
         app_key: str,
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
-    ) -> None:
-        """Reload only the instances whose ``app_config`` dict changed, or fall back to a full
-        app-key reload when the app has no running instances (dormant), the instance list length
-        changed, or a name collision would occur (see design doc "Data flow for selective restart").
+    ) -> "AppRestart | None":
+        """Plan the restart a config change needs: only the instances whose ``app_config`` dict
+        changed, or every instance when the app has none running (dormant), the instance count
+        changed, or a manifest is missing on either side. None when no instance changed.
 
-        A missing entry on either side of ``original_config``/``current_config`` (should not
-        happen for a key already in ``changes.reload_apps``, but config snapshots are caller-
-        supplied) falls back to a full reload rather than raising.
+        A dormant app (no running instances) that reaches here via should_auto_reconcile
+        (autostart just flipped to True) needs all instances created, not just the changed ones,
+        or its unchanged siblings would stay unstarted.
         """
-        # A dormant app (no running instances) that reaches here via should_auto_reconcile
-        # (autostart just flipped to True) needs all instances created, not just the ones whose
-        # app_config changed. The selective path only creates changed indices, permanently
-        # leaving unchanged siblings unstarted.
-        if app_key not in self.registry:
-            self.logger.debug("App %s has no running instances - starting all via full reload", app_key)
-            await self.reload_app(app_key)
-            return
-
         old_manifest = original_config.get(app_key)
         new_manifest = current_config.get(app_key)
-        if old_manifest is None or new_manifest is None:
-            self.logger.debug("Reloading app %s due to config change", app_key)
-            await self.reload_app(app_key)
-            return
+        if app_key not in self.registry or old_manifest is None or new_manifest is None:
+            return AppRestart(app_key)
 
         old_instances = self.factory.normalize_configs(old_manifest.app_config)
         new_instances = self.factory.normalize_configs(new_manifest.app_config)
-
         if len(old_instances) != len(new_instances):
             self.logger.debug(
                 "Instance count changed for app %s (%d -> %d) - reloading all instances",
@@ -164,119 +164,73 @@ class AppChangeReconcilerMixin:
                 len(old_instances),
                 len(new_instances),
             )
-            await self.reload_app(app_key)
-            return
+            return AppRestart(app_key)
 
-        changed_indices = [i for i in range(len(new_instances)) if old_instances[i] != new_instances[i]]
-        if not changed_indices:
+        changed = tuple(i for i in range(len(new_instances)) if old_instances[i] != new_instances[i])
+        if not changed:
             self.logger.debug("No per-instance config changes detected for app %s", app_key)
-            return
+            return None
+        return AppRestart(app_key, indices=changed)
 
-        # A changed index can adopt an instance_name that an *unchanged* sibling still holds —
-        # e.g. index 0's instance_name changes A -> B while index 1's instance_name stays B (see
-        # PR #1687 review finding, filed against the stop-all/create-all fix above). Neither this
-        # method's changed_indices computation nor _reload_changed_indices' batch reload ever
-        # looks at indices outside the batch, so index 1 is never touched: after the batch
-        # reload, index 0 (now "B") and index 1 (still "B") both exist and both derive the same
-        # App.unique_name, permanently sharing one entry in the Bus/Scheduler owner-keyed
-        # registries. instance_name uniqueness within one app_key's app_config is not enforced
-        # anywhere at config-validation time (see config/classes.py's validate_app_config, which
-        # only fills in a *missing* instance_name — it never checks for duplicates), so this
-        # overlap is not something we can reject as an invalid config: the new config is valid on
-        # its own, it only conflicts with the *currently running* old config during the
-        # transition. Detect the overlap here and fall back to a full app reload, which stops
-        # every instance (including untouched ones) before recreating any of them.
-        changed_set = set(changed_indices)
-        unchanged_names = {old_instances[i]["instance_name"] for i in range(len(old_instances)) if i not in changed_set}
-        new_names_list = [new_instances[i]["instance_name"] for i in changed_set]
-        new_names = set(new_names_list)
-        overlap = unchanged_names & new_names
-        if overlap:
-            self.logger.debug(
-                "Changed instance(s) of app %s would adopt instance_name(s) %s still held by an "
-                "unchanged sibling instance - reloading all instances to avoid a name collision",
-                app_key,
-                sorted(overlap),
-            )
-            await self.reload_app(app_key)
-            return
+    async def _restart_apps(self, restarts: list["AppRestart"]) -> None:
+        """Stop every instance the restarts replace, then create every replacement.
 
-        # Two *changed* indices can also adopt the same new instance_name from each other --
-        # e.g. index 0: a -> c, index 1: b -> c. No unchanged sibling holds "c", so the check
-        # above sees no overlap, but _reload_changed_indices' create-all phase would still
-        # create two live instances both deriving App.unique_name "c", the same permanent
-        # owner-registry collision as the unchanged-sibling case. `new_names` (a set) silently
-        # collapses such duplicates, so compare its length against the changed-index count
-        # rather than checking membership.
-        if len(new_names) != len(new_names_list):
-            self.logger.debug(
-                "Changed instance(s) of app %s would collide on a shared new instance_name - "
-                "reloading all instances to avoid a name collision",
-                app_key,
-            )
-            await self.reload_app(app_key)
-            return
+        Bus/Scheduler owner registries are keyed by instance name, and a config change can hand a
+        name from one instance to another, within one app or across apps (``a`` -> ``b`` while
+        another instance goes ``b`` -> ``c``). Creating any replacement while the old holder of its
+        name is still running would let the old one's teardown remove the new one's registrations,
+        so nothing is created until everything being replaced has stopped.
 
-        await self._reload_changed_indices(app_key, changed_indices)
-
-    async def _reload_changed_indices(self, app_key: str, changed_indices: list[int]) -> None:
-        """Reload the given instance indices of ``app_key`` under one lock, stopping every
-        affected index before creating any replacement.
-
-        Extracted from ``_reload_app_or_changed_instances`` — see that method for the fallback
-        cases (missing manifest, instance-count changed) that precede this batch reload.
-
-        Split into a stop-all phase followed by a create-all phase (rather than reloading each
-        index fully concurrently, stop-then-create) — see PR #1687 review finding. A batch that
-        renames multiple instances can make a *new* instance take an ``instance_name`` (and
-        therefore ``App.unique_name``/owner_id) still held by *another* instance in the same
-        batch — e.g. index 0's ``instance_name`` changes ``A`` -> ``B`` while index 1's changes
-        ``B`` -> ``C``. Bus/Scheduler owner registries (``BusService.router``,
-        ``BusService._removal_callbacks``, the equivalent Scheduler structures) are keyed by that
-        name string alone, not by ``(app_key, index)``. Interleaving each index's stop-then-create
-        concurrently (the previous ``asyncio.gather`` over full per-index reloads) could let index
-        0's new "B" register its listeners/jobs/removal-callback before index 1's old "B" finished
-        tearing down — the old teardown would then rip out the new instance's freshly-registered
-        state, since both are indistinguishable by owner_id alone. Stopping every affected index
-        first (nothing new has been registered yet, so no create can collide with an in-flight
-        stop) and only then creating replacements eliminates the interleaving hazard structurally,
-        regardless of which names overlap or in which order — no overlap detection needed.
+        Every affected app-key lock is held across both phases, taken in sorted order so two
+        callers can't deadlock, and released only after the last replacement is created.
         """
-        self.logger.debug("Reloading changed instance(s) %s of app %s", changed_indices, app_key)
+        if not restarts:
+            return
 
+        async with AsyncExitStack() as stack:
+            for app_key in sorted({r.app_key for r in restarts}):
+                await stack.enter_async_context(self._get_app_key_lock(app_key))
+
+            for restart in restarts:
+                await self._stop_for_restart(restart)
+            for restart in restarts:
+                await self._start_for_restart(restart)
+
+    async def _stop_for_restart(self, restart: "AppRestart") -> None:
+        # Both stop bodies catch and log their own failures, so one app's failed stop can't abort the batch.
+        if restart.indices is None:
+            self.logger.debug("Stopping app %s for reload", restart.app_key)
+            await self._stop_app_unlocked(restart.app_key)
+            return
+        self.logger.debug("Stopping changed instance(s) %s of app %s", list(restart.indices), restart.app_key)
+        await asyncio.gather(*(self._stop_instance_unlocked(restart.app_key, idx) for idx in restart.indices))
+
+    async def _start_for_restart(self, restart: "AppRestart") -> None:
+        # Re-resolved here, not when planned: the manifest can change while the locks were awaited.
+        app_key = restart.app_key
         app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
+            self.logger.warning("App %s has no manifest any more; not restarting it", app_key)
             return
 
-        valid_indices = [idx for idx in changed_indices if self._instance_index_in_range(app_key, idx, app_manifest)]
-        if not valid_indices:
+        if restart.indices is None:
+            try:
+                await self._start_app_unlocked(app_key, app_manifest, restart.force_reload)
+            except AppBlockedError:
+                self.logger.error("Skipping reload of blocked app %s — this should not be reachable", app_key)
+            except Exception:
+                self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())
             return
 
-        async def _create_one(idx: int) -> None:
-            # Per-index try/except, mirroring the previous _reload_one() guard — a failure at
-            # one index must not abort the remaining indices in this batch, nor the caller's
-            # loop over other app_keys in apply_changes() (see code review finding).
+        async def create_one(idx: int) -> None:
+            # A failure at one index must not abort the other indices, or the other apps in the batch.
             try:
                 await self._create_instance_unlocked(app_key, idx, app_manifest)
             except Exception:
                 self.logger.error("Failed to reload instance %d of app %s:\n%s", idx, app_key, get_short_traceback())
 
-        # Single lock acquisition for the whole batch — reload_instance() also acquires this
-        # lock, so calling it per-index here (instead of the unlocked body) would deadlock on
-        # the non-reentrant asyncio.Lock on the second index. Instances of the same app_key
-        # share no mutable state (each owns its own Bus/Scheduler/StateManager/Api/AsyncCache —
-        # see design.md "Dependencies and Assumptions"), so each phase runs concurrently within
-        # itself. This bounds the lock's hold time at roughly two instances' timeouts (one stop
-        # phase plus one create phase) instead of N — looser than the previous single-phase
-        # claim of "one instance's timeout," but still far short of a fully sequential N-instance
-        # bound, and necessary to close the name-collision race described above.
-        #
-        # _stop_instance_unlocked already wraps its own body in try/except (see its docstring),
-        # so a stop failure at one index is isolated and logged there without needing a guard
-        # here too — unlike the create phase below, which needs its own per-index try/except.
-        async with self._get_app_key_lock(app_key):
-            await asyncio.gather(*(self._stop_instance_unlocked(app_key, idx) for idx in valid_indices))
-            await asyncio.gather(*(_create_one(idx) for idx in valid_indices))
+        valid = [idx for idx in restart.indices if self._instance_index_in_range(app_key, idx, app_manifest)]
+        await asyncio.gather(*(create_one(idx) for idx in valid))
 
     async def handle_change_event(
         self,
