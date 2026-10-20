@@ -185,56 +185,50 @@ def test_try_convert_state_resolves_tag_to_typed_model(
     assert return_value.attributes.last_scanned_by_device_id == "device-456"
 
 
+def convert_state(
+    harness: "HassetteHarness", entity_id: str, state: str, attributes: dict[str, typing.Any]
+) -> BaseState:
+    """Convert a raw state dict for ``entity_id`` through the harness's state registry."""
+    return harness.hassette.state_registry.try_convert_state(make_state_dict(entity_id, state, attributes))
+
+
 def test_try_convert_state_resolves_schedule_to_typed_model(
     hassette_with_state_registry: "HassetteHarness",
 ) -> None:
     """Schedule states parse next_event and keep user-defined block data in extras."""
-    hassette = hassette_with_state_registry
-
     block = [{"from": "07:00:00", "to": "09:00:00"}]
-    state_dict = make_state_dict(
-        "schedule.weekday_mornings",
-        "on",
-        {"next_event": "2024-01-01T09:00:00+00:00", "monday": block},
-    )
+    attributes = {"next_event": "2024-01-01T09:00:00+00:00", "monday": block}
 
-    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
+    value = convert_state(hassette_with_state_registry, "schedule.weekday_mornings", "on", attributes)
 
-    assert type(return_value) is ScheduleState
-    assert return_value.value == "on"
-    assert isinstance(return_value.attributes.next_event, ZonedDateTime)
-    assert return_value.attributes.extras["monday"] == block
+    assert type(value) is ScheduleState
+    assert value.value == "on"
+    assert isinstance(value.attributes.next_event, ZonedDateTime)
+    assert value.attributes.extras["monday"] == block
 
 
 def test_try_convert_state_resolves_legacy_group_to_typed_model(
     hassette_with_state_registry: "HassetteHarness",
 ) -> None:
     """Legacy group.* states resolve to GroupState with entity_id, order, and auto."""
-    hassette = hassette_with_state_registry
+    members = ["light.kitchen", "light.hall"]
+    attributes = {"entity_id": members, "order": 3, "auto": True}
 
-    state_dict = make_state_dict(
-        "group.downstairs_lights",
-        "on",
-        {"entity_id": ["light.kitchen", "light.hall"], "order": 3, "auto": True},
-    )
+    value = convert_state(hassette_with_state_registry, "group.downstairs_lights", "on", attributes)
 
-    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
-
-    assert type(return_value) is GroupState
-    assert return_value.attributes.entity_id == ["light.kitchen", "light.hall"]
-    assert return_value.attributes.order == 3
-    assert return_value.attributes.auto is True
+    assert type(value) is GroupState
+    assert value.attributes.entity_id == members
+    assert value.attributes.order == 3
+    assert value.attributes.auto is True
 
 
 def test_try_convert_state_resolves_light_group_to_light_model(
     hassette_with_state_registry: "HassetteHarness",
 ) -> None:
     """UI helper light groups are light.* entities and keep resolving to LightState."""
-    hassette = hassette_with_state_registry
+    members = ["light.kitchen", "light.hall"]
 
-    state_dict = make_state_dict("light.downstairs", "on", {"entity_id": ["light.kitchen", "light.hall"]})
+    value = convert_state(hassette_with_state_registry, "light.downstairs", "on", {"entity_id": members})
 
-    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
-
-    assert type(return_value) is LightState
-    assert return_value.attributes.entity_id == ["light.kitchen", "light.hall"]
+    assert type(value) is LightState
+    assert value.attributes.entity_id == members
