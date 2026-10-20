@@ -9,7 +9,6 @@ from .cover import CoverEntity, CoverEntitySyncFacade
 from .date import DateEntity, DateEntitySyncFacade
 from .datetime import DateTimeEntity, DateTimeEntitySyncFacade
 from .fan import FanDirection, FanEntity, FanEntitySyncFacade
-from .group import GroupEntity, GroupEntitySyncFacade
 from .humidifier import HumidifierEntity, HumidifierEntitySyncFacade
 from .image import ImageEntity, ImageEntitySyncFacade
 from .lawn_mower import LawnMowerEntity, LawnMowerEntitySyncFacade
@@ -58,8 +57,6 @@ __all__ = [
     "FanDirection",
     "FanEntity",
     "FanEntitySyncFacade",
-    "GroupEntity",
-    "GroupEntitySyncFacade",
     "HumidifierEntity",
     "HumidifierEntitySyncFacade",
     "ImageEntity",

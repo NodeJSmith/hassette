@@ -5,10 +5,12 @@ from pathlib import Path
 import pytest
 
 from hassette_codegen.extractors.properties import ExtractedProperty
+from hassette_codegen.extractors.services import ExtractedService
 from hassette_codegen.overrides import (
     DomainOverride,
     PropertyOverride,
     apply_property_overrides,
+    apply_service_skips,
     get_override,
     load_overrides,
     validate_overrides,
@@ -93,6 +95,11 @@ class TestLoadOverrides:
         overrides = load_overrides(tmp_path)
         assert overrides["sensor"].state_base_class == "NumericBaseState"
 
+    def test_skip_services_loaded_from_toml(self, tmp_path: Path) -> None:
+        (tmp_path / "group.toml").write_text('skip_services = ["set", "remove"]\n')
+        overrides = load_overrides(tmp_path)
+        assert overrides["group"].skip_services == ["set", "remove"]
+
     def test_get_override_returns_none_for_unknown(self) -> None:
         overrides = load_overrides()
         assert get_override(overrides, "nonexistent_domain") is None
@@ -163,3 +170,21 @@ class TestApplyPropertyOverridesRemove:
 
 
 # dup-ignore-end
+
+
+class TestApplyServiceSkips:
+    def test_drops_named_services(self) -> None:
+        services = [ExtractedService(name=n, method_name=n) for n in ("set", "remove", "reload")]
+
+        result = apply_service_skips(services, ["set", "remove"])
+
+        assert [s.name for s in result] == ["reload"]
+        assert len(services) == 3
+
+    def test_warns_when_skip_target_missing(self, capsys: pytest.CaptureFixture[str]) -> None:
+        services = [ExtractedService(name="set", method_name="set")]
+
+        result = apply_service_skips(services, ["nonexistent"])
+
+        assert [s.name for s in result] == ["set"]
+        assert "nonexistent" in capsys.readouterr().err

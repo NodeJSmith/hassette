@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from hassette_codegen.extractors.properties import ExtractedProperty
+from hassette_codegen.extractors.services import ExtractedService
 
 _OVERRIDES_DIR = Path(__file__).resolve().parent / "overrides"
 
@@ -32,6 +33,9 @@ class DomainOverride:
     extra_imports: dict[str, list[str]] = field(default_factory=dict)
     param_type_overrides: dict[str, str] = field(default_factory=dict)
     state_base_class: str | None = None
+    skip_services: list[str] = field(default_factory=list)
+    """services.yaml services that get no entity wrapper method: domain-level services HA registers with
+    ``hass.services.async_register`` rather than as entity services, so an ``entity_id`` target fails validation."""
 
 
 def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverride]:
@@ -76,6 +80,7 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
             extra_imports=data.get("extra_imports", {}),
             param_type_overrides=data.get("param_type_overrides", {}),
             state_base_class=data.get("state_base_class"),
+            skip_services=data.get("skip_services", []),
         )
 
     return result
@@ -129,6 +134,15 @@ def apply_property_overrides(
                 break
 
     return result
+
+
+def apply_service_skips(services: list[ExtractedService], skip: list[str]) -> list[ExtractedService]:
+    """Drop the services named in ``skip``. Returns a new list."""
+    found = {s.name for s in services}
+    for name in skip:
+        if name not in found:
+            print(f"WARNING: skip_services entry '{name}' did not match any service", file=sys.stderr)
+    return [s for s in services if s.name not in skip]
 
 
 def _alias_choices(aliases: list[str], field_name: str) -> tuple[str, ...]:
