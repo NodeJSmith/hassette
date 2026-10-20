@@ -1,0 +1,9 @@
+discovery = "manual"
+state_base_class = "StringBaseState"
+
+# HA also adds the current block's user-defined data (e.g. `monday`) as attributes;
+# those stay untyped and are read through `extras`.
+
+[[properties]]
+name = "next_event"
+type = "ZonedDateTime | None"

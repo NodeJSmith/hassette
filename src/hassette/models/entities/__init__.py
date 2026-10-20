@@ -9,6 +9,7 @@ from .cover import CoverEntity, CoverEntitySyncFacade
 from .date import DateEntity, DateEntitySyncFacade
 from .datetime import DateTimeEntity, DateTimeEntitySyncFacade
 from .fan import FanDirection, FanEntity, FanEntitySyncFacade
+from .group import GroupEntity, GroupEntitySyncFacade
 from .humidifier import HumidifierEntity, HumidifierEntitySyncFacade
 from .image import ImageEntity, ImageEntitySyncFacade
 from .lawn_mower import LawnMowerEntity, LawnMowerEntitySyncFacade
@@ -17,6 +18,7 @@ from .lock import LockEntity, LockEntitySyncFacade
 from .media_player import MediaPlayerEntity, MediaPlayerEntitySyncFacade
 from .number import NumberEntity, NumberEntitySyncFacade
 from .remote import RemoteCommandType, RemoteEntity, RemoteEntitySyncFacade
+from .schedule import ScheduleEntity, ScheduleEntitySyncFacade
 from .script import ScriptEntity, ScriptEntitySyncFacade
 from .select import SelectEntity, SelectEntitySyncFacade
 from .siren import SirenEntity, SirenEntitySyncFacade
@@ -56,6 +58,8 @@ __all__ = [
     "FanDirection",
     "FanEntity",
     "FanEntitySyncFacade",
+    "GroupEntity",
+    "GroupEntitySyncFacade",
     "HumidifierEntity",
     "HumidifierEntitySyncFacade",
     "ImageEntity",
@@ -74,6 +78,8 @@ __all__ = [
     "RemoteCommandType",
     "RemoteEntity",
     "RemoteEntitySyncFacade",
+    "ScheduleEntity",
+    "ScheduleEntitySyncFacade",
     "ScriptEntity",
     "ScriptEntitySyncFacade",
     "SelectEntity",

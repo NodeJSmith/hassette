@@ -1,0 +1,16 @@
+discovery = "manual"
+state_base_class = "StringBaseState"
+
+# Legacy `group.*` entities only. UI helper groups use their member domain's model.
+
+[[properties]]
+name = "entity_id"
+type = "list[str] | None"
+
+[[properties]]
+name = "order"
+type = "int | None"
+
+[[properties]]
+name = "auto"
+type = "bool | None"
