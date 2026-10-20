@@ -21,7 +21,7 @@ from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable, Sequence
     from contextlib import AbstractAsyncContextManager
 
     import aiosqlite
@@ -44,7 +44,7 @@ class SummaryQueriesMixin:
     if TYPE_CHECKING:
         # Provided by TelemetryQueryService; declared for type narrowing within the mixin.
         # This mixin reaches _db / _snapshot_lock directly (for the batched BEGIN DEFERRED read
-        # in get_all_app_summaries); the sibling mixins only need execute().
+        # in _read_summary_snapshot); the sibling mixins only need execute().
         hassette: "Hassette"
         _db: "aiosqlite.Connection"
         _snapshot_lock: "asyncio.Lock"
@@ -137,30 +137,16 @@ class SummaryQueriesMixin:
                 ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter by source tier.
         """
-        listener_reg_query = listener_registration_query(source_tier)
-        job_reg_query = job_registration_query(source_tier)
         listener_act_query, listener_act_params = listener_activity_query(source_tier, since)
         job_act_query, job_act_params = job_activity_query(source_tier, since)
-
-        try:
-            async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds), self._snapshot_lock:
-                try:
-                    await self._db.execute("BEGIN DEFERRED")
-                    async with self._db.execute(listener_reg_query) as cursor:
-                        listener_reg_rows = await cursor.fetchall()
-                    async with self._db.execute(listener_act_query, listener_act_params) as cursor:
-                        listener_act_rows = await cursor.fetchall()
-                    async with self._db.execute(job_reg_query) as cursor:
-                        job_reg_rows = await cursor.fetchall()
-                    async with self._db.execute(job_act_query, job_act_params) as cursor:
-                        job_act_rows = await cursor.fetchall()
-                finally:
-                    # Always discard the read snapshot. Suppress broadly so a ROLLBACK failure
-                    # (e.g. no transaction is open) can never mask an exception from the queries.
-                    with contextlib.suppress(Exception):
-                        await self._db.execute("ROLLBACK")
-        except STORAGE_ERRORS as exc:
-            raise TelemetryUnavailableError(str(exc)) from exc
+        listener_reg_rows, listener_act_rows, job_reg_rows, job_act_rows = await self._read_summary_snapshot(
+            [
+                (listener_registration_query(source_tier), None),
+                (listener_act_query, listener_act_params),
+                (job_registration_query(source_tier), None),
+                (job_act_query, job_act_params),
+            ]
+        )
 
         return build_app_summaries(
             listener_reg_rows=listener_reg_rows,
@@ -169,6 +155,31 @@ class SummaryQueriesMixin:
             job_act_rows=job_act_rows,
             source_tier=source_tier,
         )
+
+    async def _read_summary_snapshot(
+        self, queries: "Sequence[tuple[str, dict[str, Any] | None]]"
+    ) -> "list[Iterable[aiosqlite.Row]]":
+        """Run ``queries`` in order inside one ``BEGIN DEFERRED`` snapshot and return each one's rows.
+
+        Bypasses ``execute()`` so every read sees the same snapshot, and therefore applies the same
+        read timeout and ``STORAGE_ERRORS`` -> ``TelemetryUnavailableError`` translation itself.
+        """
+        results: list[Iterable[aiosqlite.Row]] = []
+        try:
+            async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds), self._snapshot_lock:
+                try:
+                    await self._db.execute("BEGIN DEFERRED")
+                    for query, params in queries:
+                        async with self._db.execute(query, params) as cursor:
+                            results.append(await cursor.fetchall())
+                finally:
+                    # Always discard the read snapshot. Suppress broadly so a ROLLBACK failure
+                    # (e.g. no transaction is open) can never mask an exception from the queries.
+                    with contextlib.suppress(Exception):
+                        await self._db.execute("ROLLBACK")
+        except STORAGE_ERRORS as exc:
+            raise TelemetryUnavailableError(str(exc)) from exc
+        return results
 
     # dup-ignore-start: filter param list intentionally mirrors the e2e test double in
     # tests/e2e/conftest.py that stands in for this method — signature drift between them
