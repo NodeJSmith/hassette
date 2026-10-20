@@ -4,8 +4,11 @@ import asyncio
 import logging
 import logging.handlers
 import queue
+from collections.abc import Callable, Iterator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 
 from hassette.core.logging_service import LoggingService
 from hassette.logging_ import (
@@ -18,14 +21,42 @@ from hassette.logging_ import (
 from tests.support.factories import make_log_record, make_recording_log_capture_handler
 from tests.support.mock_hassette import make_mock_hassette
 
+EXTRA_LOGGER_NAME = "my_app.notify"
 
-def remove_queue_handlers() -> None:
-    """Remove all QueueHandlers from the hassette and py.warnings loggers."""
-    for logger_name in LOGGER_NAMES:
-        logger = logging.getLogger(logger_name)
+TrackService = Callable[[LoggingService], LoggingService]
+
+
+@pytest.fixture
+def track_service() -> Iterator[TrackService]:
+    """Register LoggingServices for teardown; yields a pass-through ``track(svc) -> svc``.
+
+    After the test, stops every tracked service's QueueListener that is still running and
+    restores the handler lists of the hassette, py.warnings, and extra loggers to what they
+    were before the test, undoing both the pipeline's QueueHandler swap and any handlers the
+    test attached itself.
+    """
+    loggers = [logging.getLogger(name) for name in (*LOGGER_NAMES, EXTRA_LOGGER_NAME)]
+    saved_handlers = {logger: list(logger.handlers) for logger in loggers}
+    services: list[LoggingService] = []
+
+    def track(svc: LoggingService) -> LoggingService:
+        services.append(svc)
+        return svc
+
+    yield track
+
+    for svc in services:
+        listener = svc._queue_listener
+        # QueueListener.stop() is not idempotent before Python 3.12 — skip already-stopped ones.
+        if listener is not None and listener._thread is not None:  # pyright: ignore[reportAttributeAccessIssue]
+            listener.stop()
+    for logger, handlers in saved_handlers.items():
         for h in list(logger.handlers):
-            if isinstance(h, logging.handlers.QueueHandler):
+            if h not in handlers:
                 logger.removeHandler(h)
+        for h in handlers:
+            if h not in logger.handlers:
+                logger.addHandler(h)
 
 
 def make_db_service() -> MagicMock:
@@ -144,13 +175,13 @@ class TestLogPersistenceHandlerConstructor:
 class TestLoggingServiceOnInitialize:
     """LoggingService.on_initialize creates and starts the async logging pipeline."""
 
-    async def test_on_initialize_creates_queue_listener_and_starts_it(self) -> None:
+    async def test_on_initialize_creates_queue_listener_and_starts_it(self, track_service: TrackService) -> None:
         """QueueListener is created and started during on_initialize."""
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         stream_handler = logging.StreamHandler()
 
-        svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
+        svc = track_service(make_logging_service(stream_handler=stream_handler, hassette=hassette))
 
         started_listeners: list[HassetteQueueListener] = []
 
@@ -163,43 +194,31 @@ class TestLoggingServiceOnInitialize:
         with patch.object(HassetteQueueListener, "start", capturing_start):
             await svc.on_initialize()
 
-        try:
-            assert svc._queue_listener is not None
-            assert len(started_listeners) == 1
-            assert started_listeners[0] is svc._queue_listener
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc._queue_listener is not None
+        assert len(started_listeners) == 1
+        assert started_listeners[0] is svc._queue_listener
 
-    async def test_on_initialize_calls_mark_ready(self) -> None:
+    async def test_on_initialize_calls_mark_ready(self, track_service: TrackService) -> None:
         """mark_ready() is called after pipeline starts — unconditionally."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
 
-        try:
-            assert svc.is_ready()
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc.is_ready()
 
-    async def test_on_initialize_all_three_handlers_attached_to_listener(self) -> None:
+    async def test_on_initialize_all_three_handlers_attached_to_listener(self, track_service: TrackService) -> None:
         """Stream, capture, and persistence handlers are all in the QueueListener."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
 
-        try:
-            assert svc._queue_listener is not None
-            handler_types = [type(h) for h in svc._queue_listener.handlers]
-            assert logging.StreamHandler in handler_types
-            assert LogCaptureHandler in handler_types
-            assert LogPersistenceHandler in handler_types
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc._queue_listener is not None
+        handler_types = [type(h) for h in svc._queue_listener.handlers]
+        assert logging.StreamHandler in handler_types
+        assert LogCaptureHandler in handler_types
+        assert LogPersistenceHandler in handler_types
 
-    async def test_on_initialize_persistence_failure_still_starts_pipeline(self) -> None:
+    async def test_on_initialize_persistence_failure_still_starts_pipeline(self, track_service: TrackService) -> None:
         """If persistence handler creation fails, pipeline still starts with stream + capture."""
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
+        svc = track_service(make_logging_service(hassette=hassette))
 
         with patch(
             "hassette.core.logging_service.LogPersistenceHandler",
@@ -207,43 +226,33 @@ class TestLoggingServiceOnInitialize:
         ):
             await svc.on_initialize()
 
-        try:
-            assert svc._queue_listener is not None, "Pipeline must start even without persistence"
-            assert svc.persistence_handler is None
-            # capture and stream handlers still present
-            handler_types = [type(h) for h in svc._queue_listener.handlers]
-            assert logging.StreamHandler in handler_types
-            assert LogCaptureHandler in handler_types
-            assert LogPersistenceHandler not in handler_types
-            # mark_ready still called
-            assert svc.is_ready()
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc._queue_listener is not None, "Pipeline must start even without persistence"
+        assert svc.persistence_handler is None
+        # capture and stream handlers still present
+        handler_types = [type(h) for h in svc._queue_listener.handlers]
+        assert logging.StreamHandler in handler_types
+        assert LogCaptureHandler in handler_types
+        assert LogPersistenceHandler not in handler_types
+        # mark_ready still called
+        assert svc.is_ready()
 
-    async def test_on_initialize_persistence_level_follows_log_level(self) -> None:
+    async def test_on_initialize_persistence_level_follows_log_level(self, track_service: TrackService) -> None:
         """An unset persistence level follows log_level, so DEBUG records stay queryable in the UI."""
-        svc = await make_logging_service_with_config(log_level="DEBUG")
+        svc = track_service(await make_logging_service_with_config(log_level="DEBUG"))
 
-        try:
-            assert svc.persistence_handler is not None
-            assert svc.persistence_handler._persistence_level == logging.DEBUG
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc.persistence_handler is not None
+        assert svc.persistence_handler._persistence_level == logging.DEBUG
 
-    async def test_on_initialize_keeps_persistence_level_below_log_level(self) -> None:
+    async def test_on_initialize_keeps_persistence_level_below_log_level(self, track_service: TrackService) -> None:
         """A persistence_level deliberately set lower than log_level is left alone."""
-        svc = await make_logging_service_with_config(log_level="INFO", log_persistence_level="DEBUG")
+        svc = track_service(await make_logging_service_with_config(log_level="INFO", log_persistence_level="DEBUG"))
 
-        try:
-            assert svc.persistence_handler is not None
-            assert svc.persistence_handler._persistence_level == logging.DEBUG
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc.persistence_handler is not None
+        assert svc.persistence_handler._persistence_level == logging.DEBUG
 
-    async def test_on_initialize_sets_capture_handler_notify_level_to_persistence_level(self) -> None:
+    async def test_on_initialize_sets_capture_handler_notify_level_to_persistence_level(
+        self, track_service: TrackService
+    ) -> None:
         """capture_handler's notify floor tracks whatever the persistence handler actually uses.
 
         Regression coverage: a per-service logger override (e.g. LoggingConfig.scheduler_service)
@@ -252,17 +261,15 @@ class TestLoggingServiceOnInitialize:
         time (see LogCaptureHandler) closes that gap for any logger without having to track their
         effective levels in LoggingService itself.
         """
-        svc = await make_logging_service_with_config(log_level="DEBUG")
+        svc = track_service(await make_logging_service_with_config(log_level="DEBUG"))
 
-        try:
-            assert svc.persistence_handler is not None
-            assert svc.capture_handler._min_notify_level == svc.persistence_handler._persistence_level
-            assert svc.capture_handler._min_notify_level == logging.DEBUG
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc.persistence_handler is not None
+        assert svc.capture_handler._min_notify_level == svc.persistence_handler._persistence_level
+        assert svc.capture_handler._min_notify_level == logging.DEBUG
 
-    async def test_on_initialize_disables_notify_when_persistence_handler_creation_fails(self) -> None:
+    async def test_on_initialize_disables_notify_when_persistence_handler_creation_fails(
+        self, track_service: TrackService
+    ) -> None:
         """If persistence can't be created, nothing is persisted — so no hint should ever fire.
 
         Otherwise the frontend's hint-triggered `/logs/recent` refetch would be told to look for a record
@@ -270,7 +277,7 @@ class TestLoggingServiceOnInitialize:
         """
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
+        svc = track_service(make_logging_service(hassette=hassette))
 
         with patch(
             "hassette.core.logging_service.LogPersistenceHandler",
@@ -278,98 +285,79 @@ class TestLoggingServiceOnInitialize:
         ):
             await svc.on_initialize()
 
-        try:
-            assert svc.persistence_handler is None
-            assert svc.capture_handler._min_notify_level > logging.CRITICAL
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc.persistence_handler is None
+        assert svc.capture_handler._min_notify_level > logging.CRITICAL
 
-    async def test_on_initialize_swaps_stream_handler_for_queue_handler(self) -> None:
+    async def test_on_initialize_swaps_stream_handler_for_queue_handler(self, track_service: TrackService) -> None:
         """After init, the hassette logger uses QueueHandler not StreamHandler."""
         hassette_logger = logging.getLogger("hassette")
         stream_handler = logging.StreamHandler()
         # Put stream handler on logger to simulate Phase 1
         hassette_logger.addHandler(stream_handler)
 
-        svc = await make_initialized_logging_service(stream_handler=stream_handler)
+        track_service(await make_initialized_logging_service(stream_handler=stream_handler))
 
-        try:
-            handler_types = [type(h) for h in hassette_logger.handlers]
-            assert HassetteQueueHandler in handler_types
-            assert stream_handler not in hassette_logger.handlers
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            # Restore logger state
-            hassette_logger.removeHandler(svc._queue_handler)
-            hassette_logger.addHandler(stream_handler)
+        handler_types = [type(h) for h in hassette_logger.handlers]
+        assert HassetteQueueHandler in handler_types
+        assert stream_handler not in hassette_logger.handlers
 
-    async def test_on_initialize_defensive_cleanup_removes_stale_queue_handler(self) -> None:
+    async def test_on_initialize_defensive_cleanup_removes_stale_queue_handler(
+        self, track_service: TrackService
+    ) -> None:
         """A stale QueueHandler on the logger is removed before the new one is added."""
         hassette_logger = logging.getLogger("hassette")
         stale_q: queue.Queue[logging.LogRecord] = queue.Queue()
         stale_queue_handler = logging.handlers.QueueHandler(stale_q)
         hassette_logger.addHandler(stale_queue_handler)
 
-        svc = await make_initialized_logging_service()
+        track_service(await make_initialized_logging_service())
 
-        try:
-            assert stale_queue_handler not in hassette_logger.handlers, (
-                "Stale QueueHandler should have been removed by defensive cleanup"
-            )
-            # Exactly one QueueHandler: the new one
-            queue_handlers = [h for h in hassette_logger.handlers if isinstance(h, logging.handlers.QueueHandler)]
-            assert len(queue_handlers) == 1
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            remove_queue_handlers()
+        assert stale_queue_handler not in hassette_logger.handlers, (
+            "Stale QueueHandler should have been removed by defensive cleanup"
+        )
+        # Exactly one QueueHandler: the new one
+        queue_handlers = [h for h in hassette_logger.handlers if isinstance(h, logging.handlers.QueueHandler)]
+        assert len(queue_handlers) == 1
 
 
 class TestLoggingServiceOnShutdown:
     """LoggingService.on_shutdown stops the QueueListener and restores the stream handler."""
 
-    async def test_on_shutdown_stops_listener_and_restores_stream_handler(self) -> None:
+    async def test_on_shutdown_stops_listener_and_restores_stream_handler(self, track_service: TrackService) -> None:
         """Shutdown removes QueueHandler, re-adds StreamHandler, stops QueueListener."""
         hassette_logger = logging.getLogger("hassette")
         stream_handler = logging.StreamHandler()
         hassette_logger.addHandler(stream_handler)
 
-        svc = await make_initialized_logging_service(stream_handler=stream_handler)
+        svc = track_service(await make_initialized_logging_service(stream_handler=stream_handler))
         # Record the pipeline objects that were installed — on_shutdown() clears both refs
         queue_handler = svc._queue_handler
         queue_listener = svc._queue_listener
 
         await svc.on_shutdown()
 
-        try:
-            # Stream handler restored
-            assert stream_handler in hassette_logger.handlers
-            # QueueHandler removed
-            assert queue_handler not in hassette_logger.handlers
-            # QueueListener stopped (thread should not be alive)
-            assert queue_listener is not None
-            # After stop(), the listener thread should exit — check its internal thread
-            listener_thread = queue_listener._thread  # pyright: ignore[reportAttributeAccessIssue]
-            if listener_thread is not None:
-                assert not listener_thread.is_alive()
-        finally:
-            hassette_logger.removeHandler(stream_handler)
+        # Stream handler restored
+        assert stream_handler in hassette_logger.handlers
+        # QueueHandler removed
+        assert queue_handler not in hassette_logger.handlers
+        # QueueListener stopped (thread should not be alive)
+        assert queue_listener is not None
+        # After stop(), the listener thread should exit — check its internal thread
+        listener_thread = queue_listener._thread  # pyright: ignore[reportAttributeAccessIssue]
+        if listener_thread is not None:
+            assert not listener_thread.is_alive()
 
-    async def test_on_shutdown_sets_capture_handler_shutting_down(self) -> None:
+    async def test_on_shutdown_sets_capture_handler_shutting_down(self, track_service: TrackService) -> None:
         """capture_handler.shutting_down is set to True during shutdown."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
         assert not svc.capture_handler.shutting_down
 
         await svc.on_shutdown()
         assert svc.capture_handler.shutting_down
 
-        remove_queue_handlers()
-
-    async def test_on_shutdown_flushes_persistence_handler(self) -> None:
+    async def test_on_shutdown_flushes_persistence_handler(self, track_service: TrackService) -> None:
         """flush_if_pending() is called on persistence_handler during shutdown."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
 
         assert svc.persistence_handler is not None
         svc.persistence_handler.flush_if_pending = Mock()
@@ -378,8 +366,6 @@ class TestLoggingServiceOnShutdown:
 
         svc.persistence_handler.flush_if_pending.assert_called_once()
 
-        remove_queue_handlers()
-
 
 class TestPyWarningsLoggerWiring:
     """py.warnings gets the same QueueHandler as hassette, so captured warnings (e.g.
@@ -387,36 +373,29 @@ class TestPyWarningsLoggerWiring:
     StreamHandler (issue #1816).
     """
 
-    async def test_on_initialize_attaches_queue_handler_to_py_warnings_logger(self) -> None:
+    async def test_on_initialize_attaches_queue_handler_to_py_warnings_logger(
+        self, track_service: TrackService
+    ) -> None:
         """After init, py.warnings carries the same QueueHandler instance as hassette."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
 
-        try:
-            warnings_logger = logging.getLogger("py.warnings")
-            assert svc._queue_handler is not None
-            assert svc._queue_handler in warnings_logger.handlers
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            remove_queue_handlers()
+        warnings_logger = logging.getLogger("py.warnings")
+        assert svc._queue_handler is not None
+        assert svc._queue_handler in warnings_logger.handlers
 
-    async def test_on_shutdown_restores_stream_handler_on_py_warnings_logger(self) -> None:
+    async def test_on_shutdown_restores_stream_handler_on_py_warnings_logger(self, track_service: TrackService) -> None:
         """Shutdown removes the QueueHandler and restores the StreamHandler on py.warnings too."""
         warnings_logger = logging.getLogger("py.warnings")
         stream_handler = logging.StreamHandler()
         warnings_logger.addHandler(stream_handler)
 
-        svc = await make_initialized_logging_service(stream_handler=stream_handler)
+        svc = track_service(await make_initialized_logging_service(stream_handler=stream_handler))
         queue_handler = svc._queue_handler
 
         await svc.on_shutdown()
 
-        try:
-            assert stream_handler in warnings_logger.handlers
-            assert queue_handler not in warnings_logger.handlers
-        finally:
-            warnings_logger.removeHandler(stream_handler)
-            remove_queue_handlers()
+        assert stream_handler in warnings_logger.handlers
+        assert queue_handler not in warnings_logger.handlers
 
 
 class TestExtraLoggers:
@@ -424,58 +403,42 @@ class TestExtraLoggers:
     swap and Phase 2 teardown — see issue #1933.
     """
 
-    EXTRA_LOGGER_NAME = "my_app.notify"
-
     def _extra_logger(self) -> logging.Logger:
-        return logging.getLogger(self.EXTRA_LOGGER_NAME)
+        return logging.getLogger(EXTRA_LOGGER_NAME)
 
-    async def test_on_initialize_attaches_queue_handler_to_extra_logger(self) -> None:
+    async def test_on_initialize_attaches_queue_handler_to_extra_logger(self, track_service: TrackService) -> None:
         """After init, the extra logger carries the same QueueHandler instance as hassette."""
-        svc = await make_logging_service_with_config(extra_loggers=[self.EXTRA_LOGGER_NAME])
+        svc = track_service(await make_logging_service_with_config(extra_loggers=[EXTRA_LOGGER_NAME]))
 
-        try:
-            extra_logger = self._extra_logger()
-            assert svc._queue_handler is not None
-            assert svc._queue_handler in extra_logger.handlers
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            remove_queue_handlers()
-            for h in list(self._extra_logger().handlers):
-                self._extra_logger().removeHandler(h)
+        extra_logger = self._extra_logger()
+        assert svc._queue_handler is not None
+        assert svc._queue_handler in extra_logger.handlers
 
-    async def test_on_shutdown_restores_stream_handler_on_extra_logger(self) -> None:
+    async def test_on_shutdown_restores_stream_handler_on_extra_logger(self, track_service: TrackService) -> None:
         """Shutdown removes the QueueHandler and restores the StreamHandler on the extra logger too."""
         extra_logger = self._extra_logger()
         stream_handler = logging.StreamHandler()
         extra_logger.addHandler(stream_handler)
 
-        hassette = make_mock_hassette(sealed=False, logging={"extra_loggers": [self.EXTRA_LOGGER_NAME]})
+        hassette = make_mock_hassette(sealed=False, logging={"extra_loggers": [EXTRA_LOGGER_NAME]})
         hassette.database_service = make_db_service()
-        svc = await make_initialized_logging_service(hassette=hassette, stream_handler=stream_handler)
+        svc = track_service(await make_initialized_logging_service(hassette=hassette, stream_handler=stream_handler))
         queue_handler = svc._queue_handler
 
         await svc.on_shutdown()
 
-        try:
-            assert stream_handler in extra_logger.handlers
-            assert queue_handler not in extra_logger.handlers
-        finally:
-            extra_logger.removeHandler(stream_handler)
-            remove_queue_handlers()
+        assert stream_handler in extra_logger.handlers
+        assert queue_handler not in extra_logger.handlers
 
-    async def test_no_extra_loggers_configured_leaves_other_loggers_untouched(self) -> None:
+    async def test_no_extra_loggers_configured_leaves_other_loggers_untouched(
+        self, track_service: TrackService
+    ) -> None:
         """Without extra_loggers configured, only the standard LOGGER_NAMES get the QueueHandler."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
 
-        try:
-            extra_logger = self._extra_logger()
-            assert svc._queue_handler is not None
-            assert svc._queue_handler not in extra_logger.handlers
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            remove_queue_handlers()
+        extra_logger = self._extra_logger()
+        assert svc._queue_handler is not None
+        assert svc._queue_handler not in extra_logger.handlers
 
 
 class TestPersistenceActive:
@@ -487,21 +450,16 @@ class TestPersistenceActive:
 
         assert svc.persistence_active is False
 
-    async def test_true_after_initialize(self) -> None:
-        svc = await make_initialized_logging_service()
+    async def test_true_after_initialize(self, track_service: TrackService) -> None:
+        svc = track_service(await make_initialized_logging_service())
 
-        try:
-            assert svc.persistence_active is True
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            remove_queue_handlers()
+        assert svc.persistence_active is True
 
-    async def test_false_when_persistence_handler_creation_fails(self) -> None:
+    async def test_false_when_persistence_handler_creation_fails(self, track_service: TrackService) -> None:
         """Pipeline runs but persistence is unavailable — DB write drops of 0 is not health."""
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
+        svc = track_service(make_logging_service(hassette=hassette))
 
         with patch(
             "hassette.core.logging_service.LogPersistenceHandler",
@@ -509,30 +467,23 @@ class TestPersistenceActive:
         ):
             await svc.on_initialize()
 
-        try:
-            assert svc.db_write_queue_drops == 0
-            assert svc.persistence_active is False
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            remove_queue_handlers()
+        assert svc.db_write_queue_drops == 0
+        assert svc.persistence_active is False
 
-    async def test_false_after_shutdown(self) -> None:
-        svc = await make_initialized_logging_service()
+    async def test_false_after_shutdown(self, track_service: TrackService) -> None:
+        svc = track_service(await make_initialized_logging_service())
         await svc.on_shutdown()
 
         assert svc.persistence_active is False
-
-        remove_queue_handlers()
 
 
 class TestDropCounters:
     """The two queue bottlenecks are counted separately."""
 
-    async def test_both_counters_zero_when_no_persistence_handler(self) -> None:
+    async def test_both_counters_zero_when_no_persistence_handler(self, track_service: TrackService) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
-        svc = make_logging_service(hassette=hassette)
+        svc = track_service(make_logging_service(hassette=hassette))
 
         # With persistence_handler creation failing, the DB counter has nothing to read
         with patch(
@@ -541,31 +492,23 @@ class TestDropCounters:
         ):
             await svc.on_initialize()
 
-        try:
-            assert svc.db_write_queue_drops == 0
-            assert svc.log_queue_drops == 0
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc.db_write_queue_drops == 0
+        assert svc.log_queue_drops == 0
 
-    async def test_db_write_queue_drops_reads_from_persistence_handler(self) -> None:
-        svc = await make_initialized_logging_service()
+    async def test_db_write_queue_drops_reads_from_persistence_handler(self, track_service: TrackService) -> None:
+        svc = track_service(await make_initialized_logging_service())
 
-        try:
-            assert svc.persistence_handler is not None
-            # Manually bump the dropped counter via the lock
-            with svc.persistence_handler._dropped_lock:
-                svc.persistence_handler._dropped = 7
+        assert svc.persistence_handler is not None
+        # Manually bump the dropped counter via the lock
+        with svc.persistence_handler._dropped_lock:
+            svc.persistence_handler._dropped = 7
 
-            assert svc.db_write_queue_drops == 7
-            assert svc.log_queue_drops == 0
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
+        assert svc.db_write_queue_drops == 7
+        assert svc.log_queue_drops == 0
 
-    async def test_db_write_queue_drops_survives_shutdown(self) -> None:
+    async def test_db_write_queue_drops_survives_shutdown(self, track_service: TrackService) -> None:
         """The final count stays readable after the pipeline is torn down."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
 
         assert svc.persistence_handler is not None
         with svc.persistence_handler._dropped_lock:
@@ -575,11 +518,9 @@ class TestDropCounters:
 
         assert svc.db_write_queue_drops == 12
 
-        remove_queue_handlers()
-
-    async def test_log_queue_drops_survives_shutdown(self) -> None:
+    async def test_log_queue_drops_survives_shutdown(self, track_service: TrackService) -> None:
         """The final log queue count stays readable after the pipeline is torn down."""
-        svc = await make_initialized_logging_service()
+        svc = track_service(await make_initialized_logging_service())
 
         assert svc._queue_handler is not None
         with svc._queue_handler._dropped_lock:
@@ -589,29 +530,24 @@ class TestDropCounters:
 
         assert svc.log_queue_drops == 5
 
-        remove_queue_handlers()
-
-    async def test_log_queue_drops_reads_from_queue_handler(self) -> None:
+    async def test_log_queue_drops_reads_from_queue_handler(self, track_service: TrackService) -> None:
         """A full log queue is counted separately from DB write-queue drops."""
         hassette = make_mock_hassette(sealed=False)
         hassette.database_service = make_db_service()
         hassette.config.logging.log_queue_max = 1
-        svc = make_logging_service(hassette=hassette)
+        svc = track_service(make_logging_service(hassette=hassette))
 
         await svc.on_initialize()
 
-        try:
-            assert svc._queue_listener is not None
-            # Stop the listener so nothing drains the queue, then overflow it.
-            svc._queue_listener.stop()
-            assert svc._queue_handler is not None
-            for i in range(4):
-                svc._queue_handler.emit(make_log_record(name="hassette", msg=f"m{i}"))
+        assert svc._queue_listener is not None
+        # Stop the listener so nothing drains the queue, then overflow it.
+        svc._queue_listener.stop()
+        assert svc._queue_handler is not None
+        for i in range(4):
+            svc._queue_handler.emit(make_log_record(name="hassette", msg=f"m{i}"))
 
-            assert svc.log_queue_drops > 0
-            assert svc.db_write_queue_drops == 0
-        finally:
-            remove_queue_handlers()
+        assert svc.log_queue_drops > 0
+        assert svc.db_write_queue_drops == 0
 
     async def test_log_queue_drops_zero_before_initialize(self) -> None:
         """No queue handler exists before on_initialize(), so the counter reads 0."""
@@ -623,7 +559,7 @@ class TestDropCounters:
 class TestSyncToAsyncSwap:
     """Verify no records are lost during the handler swap."""
 
-    async def test_records_emitted_before_init_reach_capture_handler(self) -> None:
+    async def test_records_emitted_before_init_reach_capture_handler(self, track_service: TrackService) -> None:
         """Records emitted via Phase 1 StreamHandler arrive in capture handler after init.
 
         Simulates: emit N records before on_initialize(), then init, then emit
@@ -642,7 +578,7 @@ class TestSyncToAsyncSwap:
         hassette_logger.addHandler(stream_handler)
         hassette_logger.addHandler(pre_capture)
 
-        svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
+        svc = track_service(make_logging_service(stream_handler=stream_handler, hassette=hassette))
         svc.capture_handler = make_recording_log_capture_handler()
 
         n = 5
@@ -660,16 +596,7 @@ class TestSyncToAsyncSwap:
 
         await asyncio.sleep(0.1)
 
-        try:
-            post_init_msgs = [
-                e.message for e in svc.capture_handler.captured if e.message.startswith("post-init record")
-            ]
-            assert len(post_init_msgs) == m, (
-                f"Expected {m} post-init records in capture handler, got {len(post_init_msgs)}: {post_init_msgs}"
-            )
-        finally:
-            if svc._queue_listener is not None:
-                svc._queue_listener.stop()
-            hassette_logger.removeHandler(pre_capture)
-            remove_queue_handlers()
-            hassette_logger.removeHandler(stream_handler)
+        post_init_msgs = [e.message for e in svc.capture_handler.captured if e.message.startswith("post-init record")]
+        assert len(post_init_msgs) == m, (
+            f"Expected {m} post-init records in capture handler, got {len(post_init_msgs)}: {post_init_msgs}"
+        )
