@@ -2,11 +2,20 @@ import re
 import sys
 from pathlib import Path
 
+
+def find(pattern: str, text: str, flags: int = 0) -> str:
+    """Return the first match of pattern in text, failing loudly if it is absent."""
+    m = re.search(pattern, text, flags)
+    if m is None:
+        raise ValueError(f"pattern not found: {pattern}")
+    return m.group(0)
+
+
 R = Path(".claude")
 S = Path(sys.argv[1])
 tpl = (R / "skills/doc-persona-review/references/briefing-template.md").read_text()
 personas = (R / "skills/doc-persona-review/references/personas.md").read_text()
-alex = re.search(r"## Persona 1:.*?(?=\n---\n)", personas, re.S).group(0).strip()
+alex = find(r"## Persona 1:.*?(?=\n---\n)", personas, re.S).strip()
 voice = (R / "rules/voice-guide.md").read_text()
 rules = (R / "rules/doc-rules.md").read_text()
 GOALS = {
@@ -14,8 +23,8 @@ GOALS = {
     "fastapi": "Follow the FastAPI tutorial from zero to a working API.",
 }
 NAMES = {"hassette": "Hassette", "fastapi": "FastAPI"}
-voice_block = re.search(r"## Voice and Structure Context.*?(?=## Your Task)", tpl, re.S).group(0)
-must_flag = re.search(r"IMPORTANT: You must genuinely.*?\n", tpl).group(0)
+voice_block = find(r"## Voice and Structure Context.*?(?=## Your Task)", tpl, re.S)
+must_flag = find(r"IMPORTANT: You must genuinely.*?\n", tpl)
 NEUTRAL_TASK = """## Your Task
 
 Read the documentation page below as {{PERSONA_NAME}} would, start to finish.
