@@ -104,7 +104,7 @@ Home Assistant URLs: REST http://ha.local:8123/lovelace/0/api/, WebSocket ws://h
 
 ## Required `instance_name`
 
-Every configured app instance must set `instance_name` in its `config`. Versions before this change defaulted a missing name to `ClassName.<index>` (for example `PresenceApp.0`). Hassette no longer generates one. A `[hassette.apps.<key>]` section whose instance has no `instance_name` fails at config load with an error naming the app key and instance index. That includes a section with no `config` at all, and sections with `enabled = false` or `autostart = false`. Add a name to each:
+This applies when upgrading from 0.59 or earlier. Each app section in `hassette.toml` runs one instance of the app, or one per `[[...config]]` block (see [Multiple Instances](../core-concepts/apps/configuration.md#multiple-instances)). Every instance must now set `instance_name` in its `config`. Earlier versions filled in a missing name as `ClassName.<index>` (for example `PresenceApp.0`); Hassette no longer does. A section whose instance has no `instance_name` stops Hassette at startup with an error naming the app key and instance index. That includes a section with no `config` at all, and sections with `enabled = false` or `autostart = false`. Add a name to each:
 
 === "Before"
 
@@ -124,17 +124,22 @@ Every configured app instance must set `instance_name` in its `config`. Versions
     config = { instance_name = "presence", motion_sensor = "binary_sensor.hall" }
     ```
 
-Names must start with a lowercase letter, contain only lowercase letters, digits, and `_`, not end with `_`, and run at most 128 characters. Every name must be unique across the whole config, including disabled apps. Old-style names such as `MyApp.0` or `Upstairs` are invalid and need renaming. [Instance Names](../core-concepts/apps/configuration.md#instance-names) has the full rules.
+A name:
 
-Apps that Hassette auto-loads with no config section take their class name in snake_case: `MyApp` becomes `my_app`. If that is not a valid name, or two classes produce the same one, loading fails; configure the app with an explicit `instance_name`.
+- starts with a lowercase letter
+- contains only lowercase letters, digits, and `_`
+- doesn't end with `_`
+- is at most 128 characters
 
-The name also keys several values, and the old default (`ClassName.<index>`) is not a valid name, so anything built from a defaulted name changes:
+`upstairs` and `kitchen_lights_2` are valid; `MyApp.0`, `Upstairs`, and `kitchen-lights` are not. Every name must be unique across the whole config, disabled apps included. [Instance Names](../core-concepts/apps/configuration.md#instance-names) has the full rules.
 
-- **`self.instance_name` and `self.unique_name`** both return exactly the instance name. Cache keys or event `source` comparisons built from either value change with it. Update any stored keys or comparisons that used the old `MyApp.0` form.
-- **Logger names** are now `hassette.apps.<instance_name>`, and the app's bus, scheduler, and other per-app loggers nest under it. Update `logging` config or log filters that referenced `hassette.MyApp.0` to `hassette.apps.my_app`.
-- **`AppTestHarness`** gives the app under test its class name in snake_case as `instance_name`, unless the test's config sets one. Tests that relied on `ClassName.0` or an empty name get the new value. The harness app's `app_key`, and so its default cache key, uses the same conversion, which keeps acronyms whole: `HTTPApp` was `h_t_t_p_app` and is now `http_app`.
+Apps that Hassette auto-loads with no config section take their class name in snake_case: `MyApp` becomes `my_app`. If that isn't a valid name, or two classes produce the same one, startup fails; configure the app with an explicit `instance_name`.
 
-On a live config reload, Hassette stops every instance the change replaces before it starts any replacement. A name can move from one instance or app to another in a single edit.
+The old default `ClassName.<index>` isn't a valid name, so a few things built from a defaulted name change. Skip this list if your apps already set `instance_name` and you don't reference logger names:
+
+- **`self.instance_name` and `self.unique_name`** both return exactly the instance name. Code that stored a cache key or compared an event's `source` against the old `MyApp.0` form needs the new name.
+- **Logger names** are now `hassette.apps.<instance_name>`, with the app's bus, scheduler, and other loggers nested under it. Update `logging` config or log filters that referenced `hassette.MyApp.0` to `hassette.apps.my_app`.
+- **Tests that use [`AppTestHarness`](../testing/harness.md)** get the class name in snake_case as `instance_name` unless the test's config sets one. Tests that relied on `ClassName.0` or an empty name see the new value. The harness app's `app_key`, and so its default [cache](../core-concepts/cache/index.md) directory, uses the same conversion, which keeps acronyms together: `HTTPApp` was `h_t_t_p_app` and is now `http_app`.
 
 ## Config Paths and Unknown Keys
 

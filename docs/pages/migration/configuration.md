@@ -73,7 +73,7 @@ light = "light.bedroom"
 off_delay = 120
 ```
 
-Each block becomes a separate app instance, and each needs its own unique `instance_name` (lowercase letters, digits, and `_`; see [Instance Names](../core-concepts/apps/configuration.md#instance-names)). Both run the same `MotionLights` class with different config values, and each instance's `self.app_config` holds the values from its own block — the Python class needs no changes. See [App Configuration](../core-concepts/apps/configuration.md) for the full reference.
+Each block becomes a separate app instance, and each needs its own unique `instance_name` (starting with a lowercase letter, then lowercase letters, digits and `_`; see [Instance Names](../core-concepts/apps/configuration.md#instance-names)). Both run the same `MotionLights` class with different config values, and each instance's `self.app_config` holds the values from its own block — the Python class needs no changes. See [App Configuration](../core-concepts/apps/configuration.md) for the full reference.
 
 ## See Also
 

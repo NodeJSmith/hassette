@@ -6,7 +6,7 @@ This page covers the TOML side of app configuration. [Apps](../apps/index.md) co
 
 ## Registering an App
 
-An app block requires `filename`, `class_name`, and an `instance_name` in its `config` (see [Instance Names](#instance-names)). `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
+An app block requires `filename` and `class_name`, and its `config` must set an `instance_name` (see [Instance Names](#instance-names)). `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
@@ -75,15 +75,17 @@ Each block sets its own `instance_name`, which distinguishes the instance in log
 
 Single-instance apps are the default. Most apps never need `[[...]]` blocks. Multiple instances let the same logic run across different rooms, devices, or entity sets without duplicating app code.
 
+A live config reload (on when `dev_mode` or `allow_reload_in_prod` is set) restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. A restart stops every instance the change replaces, across all affected apps, before starting any replacement, so a name can move from one instance or app to another in a single edit. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the per-instance controls in the web UI and the equivalent REST API endpoints.
+
 ## Instance Names {#instance-names}
 
 `instance_name` is required on every configured app instance. The name identifies the instance throughout Hassette:
 
-- `self.instance_name` and `self.unique_name` both return it.
+- `self.instance_name` returns it. `self.unique_name` returns the same value; it's the identity Hassette uses for the app's logger and for ownership of its handlers and jobs.
 - The app's logger is `hassette.apps.<instance_name>`, and the app's bus, scheduler, and other per-app loggers nest under it (`hassette.apps.upstairs.Bus`).
 - Log lines and telemetry carry it as `instance_name`.
 
-Names follow Home Assistant's entity object ID rule:
+Names are modelled on Home Assistant's entity object ID rule:
 
 - The name starts with a lowercase letter.
 - It contains only lowercase letters, digits, and `_`.
@@ -94,12 +96,10 @@ Names follow Home Assistant's entity object ID rule:
 
 Names are unique across the whole config. No two instances, under any app key and enabled or not, share a name. A duplicate fails at config load with an error that lists every instance using the name.
 
-Apps that Hassette auto-loads through `apps.autodetect`, with no config section, are named after their class in snake_case: `MyApp` becomes `my_app`, `HTTPServerApp` becomes `http_server_app`, `MyApp2` becomes `my_app2`, and `BlockingIOLab` becomes `blocking_io_lab`. Leading and trailing underscores are dropped, so `_HelperApp` becomes `helper_app`. If the result is not a valid name, loading fails and the error names the class. Configure that app with an explicit `instance_name`. Two auto-loaded classes that produce the same name collide the same way; give one of them an `instance_name`.
+Apps that Hassette auto-loads through [`apps.autodetect`](../configuration/index.md#app-discovery), with no config section, are named after their class in snake_case: `MyApp` becomes `my_app`, `HTTPServerApp` becomes `http_server_app`, `MyApp2` becomes `my_app2`, and `BlockingIOLab` becomes `blocking_io_lab`. Leading and trailing underscores are dropped, so `_HelperApp` becomes `helper_app`. If the result is not a valid name, loading fails and the error names the class. Configure that app with an explicit `instance_name`. Two auto-loaded classes that produce the same name collide the same way; give one of them an `instance_name`.
 
 !!! note "Storage, routes, and the CLI still use the index"
-    The name keys logging and `self.unique_name`. Persistent storage, web routes, and the CLI still address an instance by its app key and index. The CLI's `--instance` flag resolves a name to its index.
-
-A live config reload (on when `dev_mode` or `allow_reload_in_prod` is set) restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. A restart stops every instance the change replaces, across all affected apps, before starting any replacement, so a name can move from one instance or app to another in a single edit. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the equivalent per-instance REST API endpoints — the web UI dashboard doesn't expose per-instance controls yet.
+    The name keys logging and `self.unique_name`. Persistent storage, web routes, and the CLI still address an instance by its app key and index (its zero-based position among the app's `config` blocks). The CLI's `--instance` flag resolves a name to its index.
 
 ## Typed Configuration
 
