@@ -445,13 +445,18 @@ class StatusItem(BaseModel):
     status: str
 
 
-def render_styled_status_table(*, force_terminal: bool) -> str:
-    """Render one row with a ``status_style`` column to a captured console and return its output."""
-    items = [StatusItem(name="app1", status="failed")]
-    columns = [Column("name", "Name"), Column("status", "Status", style=status_style)]
+def render_to_console(items: list[StatusItem], columns: list[Column], *, force_terminal: bool) -> str:
+    """Render ``items`` to a captured console (a terminal when ``force_terminal``) and return its output."""
     stdout_buf = StringIO()
+    # On a forced terminal, pin color_system/no_color so NO_COLOR or TERM=dumb in the environment can't suppress
+    # the colors under test. Off a terminal, "auto" keeps Rich's own non-TTY detection, which is what's under test.
     new_stdout_console = Console(
-        file=stdout_buf, highlight=False, force_terminal=force_terminal, width=CAPTURE_CONSOLE_WIDTH
+        file=stdout_buf,
+        highlight=False,
+        force_terminal=force_terminal,
+        color_system="standard" if force_terminal else "auto",
+        no_color=False,
+        width=CAPTURE_CONSOLE_WIDTH,
     )
     with (
         patch.object(output_module, "stdout_console", new_stdout_console),
@@ -459,6 +464,13 @@ def render_styled_status_table(*, force_terminal: bool) -> str:
     ):
         render_table(items, columns, json_mode=False)
     return stdout_buf.getvalue()
+
+
+def render_styled_status_table(*, force_terminal: bool) -> str:
+    """Render one row with a ``status_style`` column to a captured console and return its output."""
+    items = [StatusItem(name="app1", status="failed")]
+    columns = [Column("name", "Name"), Column("status", "Status", style=status_style)]
+    return render_to_console(items, columns, force_terminal=force_terminal)
 
 
 class TestStatusStyle:
@@ -510,6 +522,26 @@ class TestRenderTableStatusStyling:
         columns = [Column("status", "Status", style=lambda _v: "red")]
         stdout, _stderr = capture_human(render_table, items, columns, json_mode=False)
         assert "[bold]x[/bold]" in stdout
+
+    def test_row_formatter_cell_is_styled_from_raw_field_value(self) -> None:
+        items = [StatusItem(name="app1", status="failed")]
+        seen: list[Any] = []
+
+        def record_style(value: Any) -> str:
+            seen.append(value)
+            return "red"
+
+        columns = [
+            Column(
+                "status",
+                "Status",
+                row_formatter=lambda item: f"{item.status.upper()} ({item.name})",
+                style=record_style,
+            )
+        ]
+        output = render_to_console(items, columns, force_terminal=True)
+        assert seen == ["failed"]
+        assert "\x1b[31mFAILED (app1)" in output
 
     def test_json_mode_ignores_style(self, capsys: pytest.CaptureFixture[str]) -> None:
         items = [StatusItem(name="app1", status="failed")]

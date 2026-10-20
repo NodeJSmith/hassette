@@ -125,12 +125,12 @@ class Column:
     max_width: int | None = None
     overflow: OverflowMethod = "ellipsis"
     formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
-    style: Callable[[Any], str | None] | None = dc_field(default=None, compare=False, hash=False)
     row_formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
     """Optional callable that receives the whole row item (not just ``field``'s extracted
     value) and returns the display string. Takes precedence over both ``formatter`` and any
     ``CliFormat`` model-field fallback. Use when a cell's text depends on more than one field
     (e.g. a nullable timestamp whose placeholder text varies by a sibling status field)."""
+    style: Callable[[Any], str | None] | None = dc_field(default=None, compare=False, hash=False)
 
 
 def status_style(value: Any) -> str | None:
