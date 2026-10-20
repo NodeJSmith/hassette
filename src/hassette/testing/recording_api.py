@@ -13,7 +13,7 @@ import inspect
 from collections.abc import Mapping
 from difflib import get_close_matches
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Never, Protocol, runtime_checkable
 
 import aiohttp
 from pydantic import BaseModel
@@ -22,6 +22,7 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
+from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError, FailedMessageError
 from hassette.models.entities.base import BaseEntity
 from hassette.models.helpers import (
@@ -564,14 +565,6 @@ class RecordingApi(Resource):
     # Access via `harness.api_recorder.sync`; do not import the type directly.
     sync: "RecordingSyncFacade"
 
-    # Methods whose __getattr__ message should redirect users to get_state()
-    _STATE_CONVERSION_METHODS: ClassVar[frozenset[str]] = frozenset(
-        {
-            "get_state_value",
-            "get_attribute",
-        }
-    )
-
     def __init__(
         self,
         hassette: "Hassette",
@@ -820,6 +813,22 @@ class RecordingApi(Resource):
             return None
         return self._convert_state(raw, entity_id)
 
+    async def get_state_value(self, entity_id: str) -> Any:
+        """Return the raw ``state`` value of entity_id (e.g. ``"on"``, ``"unavailable"``).
+
+        Raises EntityNotFoundError if not seeded. Matches ``Api.get_state_value``.
+        """
+        return self._get_raw_state(entity_id).get("state")
+
+    async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
+        """Return an attribute of entity_id, or ``MISSING_VALUE`` if absent.
+
+        ``attribute`` may be a dot-separated path for nested attributes. Raises
+        EntityNotFoundError if not seeded. Matches ``Api.get_attribute``.
+        """
+        state = self._convert_state(self._get_raw_state(entity_id), entity_id)
+        return get_path(attribute)(state.attributes)
+
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Return a detached copy of entity_id's seeded raw state. Raises EntityNotFoundError if not seeded."""
         return copy.deepcopy(self._get_raw_state(entity_id))
@@ -951,17 +960,10 @@ class RecordingApi(Resource):
         Private/dunder attributes fall through to the default AttributeError so that
         Resource internals (e.g. ``_unique_name``) and Python machinery work correctly.
 
-        State-conversion methods (get_state_value, get_attribute)
-        get a tailored message directing users to ``await self.api.get_state(entity_id)``.
-        All other unimplemented methods get the generic "Seed state" guidance.
+        Unimplemented methods get the generic "Seed state" guidance.
         """
         if name.startswith("_"):
             raise AttributeError(name)
-        if name in self._STATE_CONVERSION_METHODS:
-            raise NotImplementedError(
-                f"RecordingApi.{name} is not implemented. "
-                f"Call `await self.api.get_state(entity_id)` and read the returned state directly."
-            )
         raise NotImplementedError(
             f"RecordingApi.{name}() is not implemented. "
             "Seed state via AppTestHarness.set_state() for read methods, "

@@ -19,6 +19,7 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 from hassette.api.helpers import HelperDomain
 from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
+from hassette.event_handling.accessors import get_path
 from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities.base import BaseEntity
 from hassette.models.history import HistoryEntry
@@ -65,12 +66,8 @@ RECORDED_API_METHODS = frozenset(
     }
 )
 
-# Stub message templates — imported by tests to avoid brittle substring matches.
-# Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade/.
-STUB_MSG_STATE_CONVERSION = (
-    "RecordingApi.sync.{name} is not implemented on the test facade. "
-    "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
-)
+# Stub message template — imported by tests to avoid brittle substring matches.
+# Must stay byte-identical with the constant in codegen/src/hassette_codegen/sync_facade/.
 STUB_MSG_GENERIC = (
     "RecordingApi.sync.{name} is not implemented. "
     "Seed state via AppTestHarness.set_state() for read methods, "
@@ -304,10 +301,20 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         return self._parent._convert_state(raw, entity_id)
 
     def get_state_value(self, entity_id: str) -> Any:
-        raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_state_value"))
+        """Return the raw ``state`` value of entity_id (e.g. ``"on"``, ``"unavailable"``).
+
+        Raises EntityNotFoundError if not seeded. Matches ``Api.get_state_value``.
+        """
+        return self._parent._get_raw_state(entity_id).get("state")
 
     def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
-        raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_attribute"))
+        """Return an attribute of entity_id, or ``MISSING_VALUE`` if absent.
+
+        ``attribute`` may be a dot-separated path for nested attributes. Raises
+        EntityNotFoundError if not seeded. Matches ``Api.get_attribute``.
+        """
+        state = self._parent._convert_state(self._parent._get_raw_state(entity_id), entity_id)
+        return get_path(attribute)(state.attributes)
 
     def get_history(
         self,

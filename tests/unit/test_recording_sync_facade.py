@@ -18,7 +18,6 @@ from hassette.testing import make_state_dict
 from hassette.testing._sync_facade import (
     RECORDED_API_METHODS,
     STUB_MSG_GENERIC,
-    STUB_MSG_STATE_CONVERSION,
     RecordingHelperClientSyncFacade,
     RecordingSyncFacade,
 )
@@ -228,22 +227,6 @@ async def test_sync_private_attributes_raise_attribute_error():
         _ = api.sync._something_private
 
 
-async def test_sync_get_state_value_raises_not_implemented():
-    """sync.get_state_value raises NotImplementedError with tailored message."""
-    api = make_recording_api()
-    with pytest.raises(NotImplementedError) as exc_info:
-        api.sync.get_state_value("sensor.temp")
-    assert str(exc_info.value) == STUB_MSG_STATE_CONVERSION.format(name="get_state_value")
-
-
-async def test_sync_get_attribute_raises_not_implemented():
-    """sync.get_attribute raises NotImplementedError with tailored message."""
-    api = make_recording_api()
-    with pytest.raises(NotImplementedError) as exc_info:
-        api.sync.get_attribute("sensor.temp", "unit_of_measurement")
-    assert str(exc_info.value) == STUB_MSG_STATE_CONVERSION.format(name="get_attribute")
-
-
 async def test_body_copied_methods_are_sync():
     """Every body-copied method on RecordingSyncFacade must return a plain value, not a coroutine.
 
@@ -253,8 +236,8 @@ async def test_body_copied_methods_are_sync():
 
     Body-copied methods (keep in sync with the generator's output):
     call_service, entity_exists, fire_event, get_entity, get_entity_or_none,
-    get_notify_services, get_state, get_state_or_none, get_state_raw, get_states,
-    get_states_raw, notify,
+    get_attribute, get_notify_services, get_state, get_state_or_none, get_state_raw,
+    get_state_value, get_states, get_states_raw, notify,
     set_state, toggle, turn_off, turn_on
     """
     # Seed both a sensor (for get_state-style calls) and a light (for get_entity
@@ -269,12 +252,14 @@ async def test_body_copied_methods_are_sync():
         ("call_service", ("light", "turn_on"), {}),
         ("entity_exists", ("sensor.test",), {}),
         ("fire_event", ("custom_event",), {}),
+        ("get_attribute", ("sensor.test", "friendly_name"), {}),
         ("get_entity", ("light.test", LightEntity), {}),
         ("get_entity_or_none", ("light.test", LightEntity), {}),
         ("get_notify_services", (), {}),
         ("get_state", ("sensor.test",), {}),
         ("get_state_or_none", ("sensor.test",), {}),
         ("get_state_raw", ("sensor.test",), {}),
+        ("get_state_value", ("sensor.test",), {}),
         ("get_states", (), {}),
         ("get_states_raw", (), {}),
         ("notify", ("hello", "mobile_app_test"), {}),
@@ -297,16 +282,15 @@ async def test_body_copied_methods_are_sync():
     # body-copied method to RecordingApi would silently escape the smoke test — giving
     # false confidence that a newly-body-copied method returning a coroutine would be
     # caught. Body-copied methods are identified by the ABSENCE of the generator's
-    # standard stub template. The generator emits stubs as either
-    # ``raise NotImplementedError(STUB_MSG_GENERIC.format(...))`` or
-    # ``raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(...))``; any method
-    # whose source contains neither marker has a real (body-copied) implementation.
+    # standard stub template. The generator emits stubs as
+    # ``raise NotImplementedError(STUB_MSG_GENERIC.format(...))``; any method whose
+    # source lacks that marker has a real (body-copied) implementation.
     body_copied_on_class: set[str] = set()
     for method_name, member in inspect.getmembers(RecordingSyncFacade, predicate=inspect.isfunction):
         if method_name.startswith("_"):
             continue
         src = inspect.getsource(member)
-        if "STUB_MSG_GENERIC" not in src and "STUB_MSG_STATE_CONVERSION" not in src:
+        if "STUB_MSG_GENERIC" not in src:
             body_copied_on_class.add(method_name)
 
     invoked_names = {name for name, _, _ in invocations}

@@ -138,12 +138,8 @@ RECORDED_API_METHODS = frozenset(
     }}
 )
 
-# Stub message templates — imported by tests to avoid brittle substring matches.
-# Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade/.
-STUB_MSG_STATE_CONVERSION = (
-    "RecordingApi.sync.{{name}} is not implemented on the test facade. "
-    "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
-)
+# Stub message template — imported by tests to avoid brittle substring matches.
+# Must stay byte-identical with the constant in codegen/src/hassette_codegen/sync_facade/.
 STUB_MSG_GENERIC = (
     "RecordingApi.sync.{{name}} is not implemented. "
     "Seed state via AppTestHarness.set_state() for read methods, "
