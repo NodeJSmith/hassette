@@ -46,6 +46,7 @@ jobs:
                         - '.github/workflows/tests.yml'
                         - 'codegen/ha-version.txt'
                         - 'tools/release/drift_check.py'
+                        - 'tools/release/wheel_smoke_harness.py'
                         - 'tools/docs/inventories.py'
                         - 'tools/check_client_floor.py'
                         - 'tools/check_wire_compat.py'
@@ -234,6 +235,11 @@ jobs:
             # raises API_SCHEMA_VERSION and MIN_API_SCHEMA_VERSION (.claude/rules/client-schema-floor.md).
             - name: Check hassette-client against its floor release
               run: uv run python tools/check_client_floor.py
+
+            # Builds all three wheels, installs them without the source checkout, and drives a real
+            # AppTestHarness, catching missing runtime dependencies or package data before a release.
+            - name: Smoke-test the built wheels
+              run: uv run nox -s wheel_smoke
 
     client-compat:
         needs: changes
