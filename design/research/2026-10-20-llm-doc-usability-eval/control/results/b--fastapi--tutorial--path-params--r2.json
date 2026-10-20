@@ -1,0 +1,193 @@
+{
+  "persona": "Alex",
+  "page": "tutorial/path-params",
+  "overall_verdict": "followable-with-gaps",
+  "findings": [
+    {
+      "line": 5,
+      "section": "Path Parameters",
+      "type": "undefined-term",
+      "quote": "async def read_item(item_id):",
+      "confusion": "Alex has never seen async/await. Why is the function 'async def' and not just 'def'? Is it required? Nothing on this page explains it, and it appears in every example.",
+      "suggestion": "Add a one-line note that async def can be used as shown without understanding it yet, or link to the async explainer."
+    },
+    {
+      "line": 8,
+      "section": "Path Parameters",
+      "type": "missing-step",
+      "quote": "So, if you run this example and go to http://127.0.0.1:8000/items/foo",
+      "confusion": "Alex is told to 'run this example' but this page gives no command. Alex does not know how to start the server, which file to save the code in, or whether FastAPI is installed. Alex is stuck at the first step.",
+      "suggestion": "Include the run command (e.g. fastapi dev main.py) and the file name, or link back to the first-steps page explicitly."
+    },
+    {
+      "line": 2,
+      "section": "Path Parameters",
+      "type": "undefined-term",
+      "quote": "same syntax used by Python format strings",
+      "confusion": "Alex knows f-strings, but the {item_id} inside a decorator string is not an f-string, so the analogy is slightly confusing. Alex may wonder where the value gets substituted.",
+      "suggestion": "Clarify that the string is not an f-string; the braces just mark a placeholder."
+    },
+    {
+      "line": 5,
+      "section": "Path Parameters",
+      "type": "undefined-term",
+      "quote": "@app.get(\"/items/{item_id}\")",
+      "confusion": "Alex knows decorators in general and Flask routes, but terms like 'path operation' and 'GET operation' are used later without definition. It is not clear what .get means (HTTP method).",
+      "suggestion": "Briefly say that @app.get registers a function to answer HTTP GET requests at that path."
+    },
+    {
+      "line": 20,
+      "section": "Path parameters with types",
+      "type": "undefined-term",
+      "quote": "This will give you editor support inside of your function, with error checks, completion, etc.",
+      "confusion": "Alex uses VS Code with Pylance so this is relatively clear, but there is no showing of what this looks like.",
+      "suggestion": "Optionally add a screenshot or example of the editor completion."
+    },
+    {
+      "line": 28,
+      "section": "Data conversion",
+      "type": "undefined-term",
+      "quote": "FastAPI gives you automatic request \"parsing\".",
+      "confusion": "The word 'request' and 'parsing' in quotes is vague. Alex knows Flask requests but the string-to-int conversion idea is only loosely explained.",
+      "suggestion": "Say plainly: the URL segment is text, and FastAPI converts it to an int for you."
+    },
+    {
+      "line": 32,
+      "section": "Data validation",
+      "type": "undefined-term",
+      "quote": "\"type\": \"int_parsing\", \"loc\": [\"path\", \"item_id\"]",
+      "confusion": "Alex sees the JSON error but 'loc' and 'int_parsing' are not explained. The text says it 'clearly states exactly the point where validation didn't pass', but Alex has to guess that loc means location.",
+      "suggestion": "Annotate the error fields briefly (loc = where the bad value was found)."
+    },
+    {
+      "line": 30,
+      "section": "Data validation",
+      "type": "missing-verification",
+      "quote": "you will see a nice HTTP error of:",
+      "confusion": "'HTTP error' with no status code mentioned. Alex may not know it is a 422 or how to see it in the browser.",
+      "suggestion": "Mention the status code 422 and that it is a client error."
+    },
+    {
+      "line": 41,
+      "section": "Documentation",
+      "type": "missing-verification",
+      "quote": "you will see an automatic, interactive, API documentation like:",
+      "confusion": "The screenshot is not present in the text; Alex cannot tell what 'interactive' means or what to click. No instructions on trying it.",
+      "suggestion": "Add a sentence about what to click (e.g. Try it out) and what Alex should see."
+    },
+    {
+      "line": 46,
+      "section": "Standards-based benefits, alternative documentation",
+      "type": "undefined-term",
+      "quote": "the generated schema is from the OpenAPI standard",
+      "confusion": "Alex does not know what OpenAPI, 'schema', Swagger UI or ReDoc are. This reads like a detour that does not help build the API.",
+      "suggestion": "Define OpenAPI in one sentence or mark the section as optional background."
+    },
+    {
+      "line": 50,
+      "section": "Pydantic",
+      "type": "undefined-term",
+      "quote": "All the data validation is performed under the hood by Pydantic",
+      "confusion": "Alex does not know Pydantic. 'You know you are in good hands' gives no information. Alex may wonder whether they need to install or learn it.",
+      "suggestion": "State that Pydantic is a library installed with FastAPI and that no direct use is needed here."
+    },
+    {
+      "line": 54,
+      "section": "Order matters",
+      "type": "undefined-term",
+      "quote": "When creating path operations, you can find situations where you have a fixed path.",
+      "confusion": "'Path operations' is never defined and 'fixed path' is vague. Alex has to infer that a path operation is a decorated function.",
+      "suggestion": "Define path operation on first use: a function bound to a URL path and HTTP method."
+    },
+    {
+      "line": 57,
+      "section": "Order matters",
+      "type": "undefined-term",
+      "quote": "path operations are evaluated in order",
+      "confusion": "Alex understands the idea (first match wins, like Flask routes) but not how it affects the code shown; no way to try it and see the failure.",
+      "suggestion": "Show what request to /users/me would return if order were swapped."
+    },
+    {
+      "line": 72,
+      "section": "Predefined values",
+      "type": "undefined-term",
+      "quote": "Import Enum and create a sub-class that inherits from str and from Enum.",
+      "confusion": "Alex has basic Python and probably has not used Enum, nor multiple inheritance with str. 'class ModelName(str, Enum)' is odd. The jump is steep and the motivation (why not just a str with a check) is thin.",
+      "suggestion": "Add a short intro to Enum and why inheriting from str helps, or link to the Python docs."
+    },
+    {
+      "line": 77,
+      "section": "Predefined values",
+      "type": "unmotivated-detail",
+      "quote": "if model_name is ModelName.alexnet:",
+      "confusion": "The full example is dropped in before the explanation of what it does, with 'is' comparison versus '==' not explained. Alex does not know why 'is' is used.",
+      "suggestion": "Explain the code line by line after the sample or build it up incrementally."
+    },
+    {
+      "line": 80,
+      "section": "Predefined values",
+      "type": "unmotivated-detail",
+      "quote": "\"AlexNet\", \"ResNet\", and \"LeNet\" are just names of Machine Learning models.",
+      "confusion": "Alex is building an API and the ML-model names feel like an unrelated domain; the tip eases it a bit but the example is still distracting.",
+      "suggestion": "Use a more everyday example or keep the tip prominent."
+    },
+    {
+      "line": 85,
+      "section": "Declare a path parameter",
+      "type": "repetition",
+      "quote": "async def get_model(model_name: ModelName):",
+      "confusion": "The same full code block is repeated five times in the Enum section. Alex cannot tell what changed between blocks and may think they need to write several versions.",
+      "suggestion": "Highlight the relevant lines or show only the changed part."
+    },
+    {
+      "line": 87,
+      "section": "Check the docs",
+      "type": "missing-verification",
+      "quote": "the interactive docs can show them nicely:",
+      "confusion": "Only a screenshot (not visible) follows. Alex gets no URL to try for the model example and no expected-output text.",
+      "suggestion": "Give an example URL such as /models/alexnet and the expected JSON."
+    },
+    {
+      "line": 90,
+      "section": "Working with Python enumerations",
+      "type": "undefined-term",
+      "quote": "The value of the path parameter will be an enumeration member.",
+      "confusion": "'Enumeration member' is jargon; Alex does not know the difference between a member and its value until the next paragraph.",
+      "suggestion": "Define member vs value with a tiny example."
+    },
+    {
+      "line": 106,
+      "section": "Return enumeration members",
+      "type": "undefined-term",
+      "quote": "even nested in a JSON body (e.g. a dict)",
+      "confusion": "'JSON body' and 'client' are used loosely; Alex may not see how the enum became a plain string in the output.",
+      "suggestion": "State that FastAPI converts it to its string value automatically."
+    },
+    {
+      "line": 122,
+      "section": "Path parameters containing paths",
+      "type": "undefined-term",
+      "quote": "using one of the internal tools from Starlette",
+      "confusion": "Alex has never heard of Starlette and does not know its relationship to FastAPI. This section also uses OpenAPI again with no definition.",
+      "suggestion": "Add one clause saying Starlette is the toolkit FastAPI is built on."
+    },
+    {
+      "line": 129,
+      "section": "Path convertor",
+      "type": "missing-verification",
+      "quote": "the last part, :path, tells it that the parameter should match any path.",
+      "confusion": "No example URL and expected output for file_path. Alex cannot confirm it worked, and the double-slash tip is confusing.",
+      "suggestion": "Show a request like /files/home/johndoe/myfile.txt and its JSON response."
+    },
+    {
+      "line": 145,
+      "section": "Recap",
+      "type": "undefined-term",
+      "quote": "compared to alternative frameworks (apart from the raw performance)",
+      "confusion": "Alex has only used Flask; 'raw performance' is not explained and sounds like marketing. Minor.",
+      "suggestion": "Optional: drop or link to a comparison page."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can follow the core idea (path variables, type conversion, validation) but the page assumes the server is already running and never says how to run an example, which is a real blocker for first-time readers. The async def keyword, OpenAPI, Pydantic, Starlette and Enum inheritance are used without explanation, and several sections are repetitive or detours. Alex would likely get through the page, ideally having done the first-steps page before, but with several moments of confusion."
+}

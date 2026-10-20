@@ -1,0 +1,73 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/index",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 12,
+      "section": "2. Create a Home Assistant token",
+      "type": "missing-step",
+      "quote": "[Create a long-lived access token](ha_token/) from the Home Assistant UI (Profile → Security → Long-Lived Access Tokens).",
+      "confusion": "Alex has to leave the page and follow a link to learn how to create the token. It is also unclear that the token must be copied when it is shown, since HA displays it only once.",
+      "suggestion": "Add one inline line: click Create Token, name it, copy the value right away because HA shows it only once, then paste it into .env."
+    },
+    {
+      "line": 23,
+      "section": "4. Create your first app",
+      "type": "assumed-knowledge",
+      "quote": "Your app methods use async def , and calls to Hassette services need await in front of them.",
+      "confusion": "Alex does not know async/await. The page gives a rule to follow, but the example has no await in it, so the paragraph is abstract. Alex will probably just copy the code and not worry about it, which works here.",
+      "suggestion": "Say the example needs no await yet and that the next guide shows it. Optionally add a one-line gloss of what async means."
+    },
+    {
+      "line": 28,
+      "section": "4. Create your first app",
+      "type": "undefined-term",
+      "quote": "MyAppConfig declares your app's settings as typed class attributes. Hassette loads values from environment variables and hassette.toml automatically.",
+      "confusion": "Alex has not seen AppConfig, Pydantic, or hassette.toml. It is unclear how the greeting could be changed from the environment or where the toml file lives. The 'import AppConfig' line and the class-based config look like required boilerplate whose purpose is unclear.",
+      "suggestion": "Add a short note that the greeting is optional config with a default, and that you can ignore the toml for now. Optionally show how to override it, for example in hassette.toml."
+    },
+    {
+      "line": 23,
+      "section": "4. Create your first app",
+      "type": "missing-step",
+      "quote": "Save this as apps/main.py .",
+      "confusion": "It is slightly unclear how Hassette finds the apps directory and how it relates to the .env location. Hassette is run from my-hassette, so it probably works, but Alex has to guess that the working directory matters.",
+      "suggestion": "State that hassette run must be launched from the my-hassette directory, which is where it discovers apps/."
+    },
+    {
+      "line": 38,
+      "section": "5. Run Hassette",
+      "type": "missing-step",
+      "quote": "Open a second terminal to check on the running instance:",
+      "confusion": "Hassette run occupies the first terminal. Alex must know to open a second terminal, and the second terminal probably needs the same cwd or env. It is also unclear whether hassette is on the PATH after uv tool install, which would be a failure point if it is not.",
+      "suggestion": "Mention that uv tool install puts hassette on PATH (run uv tool update-shell if not), and that the second terminal can be in any directory."
+    },
+    {
+      "line": 52,
+      "section": "5. Run Hassette",
+      "type": "overload",
+      "quote": "Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and HASSETTE__TOKEN is not it",
+      "confusion": "This paragraph introduces a web API, a second token, data_dir, token_file, remote instances, and 401 errors in one block, right after Alex's first success. Alex does not know what data_dir is or where it lives, so the instructions in step 6 to paste in the contents of <data_dir>/.web_api_token are hard to follow.",
+      "suggestion": "Cut this to what Alex needs now: the CLI works automatically, and the dashboard needs a token from a specific file. Give a concrete default path or a command such as the one to print it, and move the remote-instance and 401 details to the CLI docs."
+    },
+    {
+      "line": 55,
+      "section": "6. Open the dashboard",
+      "type": "missing-step",
+      "quote": "Paste in the contents of <data_dir>/.web_api_token (or of web_api.token_file , if you set it)",
+      "confusion": "Alex does not know what data_dir resolves to on their machine. The fallback of finding it in the startup log under 'Generated new web API auth_token' only works on the very first start, and the log scrolls past quickly. On later runs the line may not appear.",
+      "suggestion": "Give the default path on Linux, macOS, and Windows, or a one-line command that prints the token, and say what to do if the log line is not present."
+    },
+    {
+      "line": 6,
+      "section": "Prerequisites",
+      "type": "unclear-instruction",
+      "quote": "check with python --version",
+      "confusion": "Minor: python may be python3 on some systems. Alex can push through.",
+      "suggestion": "Mention python3 --version as an alternative."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can complete the install, create the .env, copy the app, and see the greeting, since the commands and code are copy-pasteable. The async note, the config classes, and especially the web API token and data_dir material in steps 5 and 6 will force re-reads or guessing, and the dashboard login may need extra digging to find the token file."
+}

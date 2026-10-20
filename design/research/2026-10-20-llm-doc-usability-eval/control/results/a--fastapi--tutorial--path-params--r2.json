@@ -1,0 +1,201 @@
+{
+  "persona": "Alex",
+  "page": "tutorial/path-params",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 5,
+      "section": "Path Parameters",
+      "type": "missing-step",
+      "quote": "@app.get(\"/items/{item_id}\")\nasync def read_item(item_id):",
+      "confusion": "The page says 'if you run this example' but never says how to run it, which file to save it in, or what command starts the server. I have no idea what to type next.",
+      "suggestion": "Add a short note or link on saving the code as main.py and running it (for example fastapi dev main.py), or say that earlier tutorial steps covered it."
+    },
+    {
+      "line": 5,
+      "section": "Path Parameters",
+      "type": "undefined-term",
+      "quote": "async def read_item(item_id):",
+      "confusion": "I don't know async/await. Why is this function 'async def' and not 'def'? Do I have to write it this way? Is it required for path parameters?",
+      "suggestion": "Add a one-line note that 'async def' is how FastAPI functions are written for now, and link to the async explainer. Say whether a plain 'def' also works."
+    },
+    {
+      "line": 5,
+      "section": "Path Parameters",
+      "type": "undefined-term",
+      "quote": "@app.get(\"/items/{item_id}\")",
+      "confusion": "I know decorators exist from Flask, but I don't know what '.get' means here, or that it relates to an HTTP GET. The page also uses 'path operation' later without ever defining it.",
+      "suggestion": "Briefly say that @app.get registers a function to answer HTTP GET requests at that path, and define 'path operation' on first use."
+    },
+    {
+      "line": 7,
+      "section": "Path Parameters",
+      "type": "unclear-step",
+      "quote": "The value of the path parameter item_id will be passed to your function as the argument item_id .",
+      "confusion": "The first example has no type annotation, but the text implies a value arrives. It is not clear that the name in the braces has to match the argument name exactly.",
+      "suggestion": "State explicitly that the names must match, and that without a type hint the value is a string."
+    },
+    {
+      "line": 8,
+      "section": "Path Parameters",
+      "type": "missing-verification",
+      "quote": "if you run this example and go to http://127.0.0.1:8000/items/foo , you will see a response of:",
+      "confusion": "Port 8000 and host 127.0.0.1 appear without any reference to starting a server. If I get a connection refused error, I won't know whether I did something wrong.",
+      "suggestion": "Remind the reader that the server must be running and what the terminal should show."
+    },
+    {
+      "line": 18,
+      "section": "Path parameters with types",
+      "type": "undefined-term",
+      "quote": "This will give you editor support inside of your function, with error checks, completion, etc.",
+      "confusion": "I use VS Code with Pylance, so this is mostly clear. But the page doesn't show what the editor support looks like, so I can't tell it's working.",
+      "suggestion": "Add a screenshot or a short example of the completion or error the editor shows."
+    },
+    {
+      "line": 28,
+      "section": "Data conversion",
+      "type": "undefined-term",
+      "quote": "FastAPI gives you automatic request \"parsing\" .",
+      "confusion": "The quotes around 'parsing' suggest a special meaning. I assume it means turning the string '3' into the int 3, but the page doesn't say that URLs are always text.",
+      "suggestion": "Add a clause saying URL segments arrive as text, and FastAPI converts them to the declared type."
+    },
+    {
+      "line": 32,
+      "section": "Data validation",
+      "type": "undefined-term",
+      "quote": "\"type\": \"int_parsing\",\n      \"loc\": [\n        \"path\",\n        \"item_id\"\n      ],",
+      "confusion": "The error JSON has fields (type, loc, msg, input) with no explanation. The page says it 'clearly states exactly the point where validation didn't pass', but I'd have to guess that 'loc' means location.",
+      "suggestion": "Add one line explaining the main fields, especially loc. Mention that the response comes with HTTP status 422."
+    },
+    {
+      "line": 41,
+      "section": "Documentation",
+      "type": "missing-verification",
+      "quote": "you will see an automatic, interactive, API documentation like:",
+      "confusion": "The text says 'like:' and then nothing follows. The screenshot is missing in this text version, so I can't tell what I should see or what 'interactive' means.",
+      "suggestion": "Make sure the screenshot is there with alt text, and describe in one sentence what to expect, for example a Try it out button."
+    },
+    {
+      "line": 46,
+      "section": "Standards-based benefits, alternative documentation",
+      "type": "undefined-term",
+      "quote": "because the generated schema is from the OpenAPI standard, there are many compatible tools.",
+      "confusion": "I don't know what OpenAPI, a 'schema', or Swagger UI and ReDoc are. 'Code generation tools for many languages' is a vague aside, and this section feels like a detour from my goal of building an API.",
+      "suggestion": "Define OpenAPI in one sentence (a standard way to describe an API as machine-readable JSON). Say this section is optional background and can be skipped."
+    },
+    {
+      "line": 50,
+      "section": "Pydantic",
+      "type": "undefined-term",
+      "quote": "All the data validation is performed under the hood by Pydantic , so you get all the benefits from it.",
+      "confusion": "Pydantic is a term I don't know. 'All the benefits' is vague, and I don't know whether I need to install or learn it.",
+      "suggestion": "Say in one sentence that Pydantic is a library that checks and converts data by type, that it comes installed with FastAPI, and that nothing needs to be done now."
+    },
+    {
+      "line": 54,
+      "section": "Order matters",
+      "type": "undefined-term",
+      "quote": "When creating path operations , you can find situations where you have a fixed path.",
+      "confusion": "'Path operations' was never defined. 'Fixed path' is also unclear; I assume it means a path with no variable part.",
+      "suggestion": "Define 'path operation' (a path plus an HTTP method plus the function) on first use. Say 'fixed path' means one with no {variable}."
+    },
+    {
+      "line": 57,
+      "section": "Order matters",
+      "type": "unclear-step",
+      "quote": "Because path operations are evaluated in order, you need to make sure that the path for /users/me is declared before the one for /users/{user_id} :",
+      "confusion": "I get the idea (first match wins), but it isn't stated that this applies across the whole file in order of declaration. It is also not clear what happens to /users/me when the order is wrong, because the page never shows the result.",
+      "suggestion": "State plainly that the first matching route wins and show what the wrong order returns."
+    },
+    {
+      "line": 72,
+      "section": "Create an Enum class",
+      "type": "undefined-term",
+      "quote": "Import Enum and create a sub-class that inherits from str and from Enum .",
+      "confusion": "I know classes but not Enum, and inheriting from two parents is new to me. I can't tell what an Enum is for or why str is needed.",
+      "suggestion": "Add a one-sentence definition of Enum (a fixed set of named values) with a tiny standalone example, and explain what inheriting from str adds."
+    },
+    {
+      "line": 77,
+      "section": "Create an Enum class",
+      "type": "unclear-step",
+      "quote": "if model_name is ModelName.alexnet:\n        return {\"model_name\": model_name, \"message\": \"Deep Learning FTW!\"}",
+      "confusion": "The full app, with comparisons and returns, is dropped in before the enum is explained. The same large block is repeated five times in later sections, so I can't tell what is new each time.",
+      "suggestion": "Show only the enum class first, then add the endpoint, then the comparisons. Highlight the lines that change in each repeat."
+    },
+    {
+      "line": 80,
+      "section": "Create an Enum class",
+      "type": "undefined-term",
+      "quote": "\"AlexNet\", \"ResNet\", and \"LeNet\" are just names of Machine Learning models .",
+      "confusion": "Reassuring that they are only names, but the example is ML-themed when I'm building a general API, so it feels like a distraction.",
+      "suggestion": "Use a more familiar example, such as an enum of colours or order statuses."
+    },
+    {
+      "line": 88,
+      "section": "Check the docs",
+      "type": "missing-verification",
+      "quote": "Because the available values for the path parameter are predefined, the interactive docs can show them nicely:",
+      "confusion": "Ends with a colon but I see nothing. No URL is given, and I don't know whether this means /docs again.",
+      "suggestion": "Say to open /docs again and describe the dropdown or list of choices."
+    },
+    {
+      "line": 90,
+      "section": "Working with Python enumerations",
+      "type": "undefined-term",
+      "quote": "The value of the path parameter will be an enumeration member .",
+      "confusion": "'Enumeration member' is a new term. I don't know the difference between the member ModelName.alexnet and the string 'alexnet', and 'is' versus '==' in the code is confusing.",
+      "suggestion": "Explain that a member is the object ModelName.alexnet, which is not the plain string, and why the code uses 'is'."
+    },
+    {
+      "line": 106,
+      "section": "Return enumeration members",
+      "type": "unclear-step",
+      "quote": "You can return enum members from your path operation , even nested in a JSON body (e.g. a dict ).",
+      "confusion": "'JSON body' and 'nested' are used loosely. I don't know whether FastAPI converts the dict to JSON for me, and it wasn't shown earlier that a returned dict becomes JSON.",
+      "suggestion": "State that returned dicts are turned into JSON automatically, then show the enum becoming its string value."
+    },
+    {
+      "line": 112,
+      "section": "Return enumeration members",
+      "type": "missing-verification",
+      "quote": "In your client you will get a JSON response like:",
+      "confusion": "The output is given but no URL is stated to produce it. I'd have to guess at /models/alexnet.",
+      "suggestion": "Name the exact URL to visit to get this output."
+    },
+    {
+      "line": 121,
+      "section": "OpenAPI support",
+      "type": "undefined-term",
+      "quote": "Nevertheless, you can still do it in FastAPI , using one of the internal tools from Starlette.",
+      "confusion": "Starlette is never introduced and I don't know what it has to do with FastAPI. The section is a detour from my goal, so I don't know whether I need it.",
+      "suggestion": "Add one sentence saying Starlette is the web toolkit FastAPI is built on. Mark the section as an advanced case."
+    },
+    {
+      "line": 125,
+      "section": "Path convertor",
+      "type": "unclear-step",
+      "quote": "/files/{file_path:path}",
+      "confusion": "The ':path' syntax is a surprise since it doesn't look like Python. I can't tell where to put it or whether to type it in the function as well.",
+      "suggestion": "Say explicitly that ':path' goes only in the route string and the function argument stays a plain str. Show a sample request and response."
+    },
+    {
+      "line": 136,
+      "section": "Path convertor",
+      "type": "unclear-step",
+      "quote": "In that case, the URL would be: /files//home/johndoe/myfile.txt , with a double slash ( // ) between files and home .",
+      "confusion": "Confusing how a leading slash ends up as a double slash, and I can't tell whether it's a quirk or something I need to remember.",
+      "suggestion": "Explain in one line that the first slash is the separator after /files and the second is part of the value."
+    },
+    {
+      "line": 138,
+      "section": "Recap",
+      "type": "missing-step",
+      "quote": "And you only have to declare them once.",
+      "confusion": "The page ends with a recap but no pointer to what to read next. There is a mention of 'next chapters' earlier, but no link.",
+      "suggestion": "Add a link to the next tutorial page (query parameters)."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can mostly follow the core idea, that a typed function argument gives parsing, validation and docs, and the basic examples are simple enough to try. The friction is in unexplained terms (async, path operation, OpenAPI, Pydantic, Enum, Starlette), missing run instructions, and several 'like:' lines where the screenshot is absent. The enum section repeats the same large block five times, which makes it hard to see what changes."
+}

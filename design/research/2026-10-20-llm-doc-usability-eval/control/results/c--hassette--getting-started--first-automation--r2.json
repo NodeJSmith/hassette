@@ -1,0 +1,33 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "ambiguous-instruction",
+      "quote": "Replace your apps/main.py with the complete app from the previous snippet.",
+      "confusion": "Alex has just read two snippets. 'The previous snippet' is the combined one, but Alex has to work that out. The first snippet is explicitly marked as not for running. It is also not obvious that apps/main.py and the hassette run -e .env command come from the Quickstart.",
+      "suggestion": "Say 'the complete app from the Schedule a Recurring Job section' and remind Alex that apps/main.py and the .env file come from the Quickstart."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on(). Async handlers run on Hassette's event loop: while one handler is paused at an await, other handlers keep running",
+      "confusion": "Alex does not know async/await or event loops. The paragraph explains in terms of those same concepts. Alex can follow the code by copying the pattern, but is left unsure when to write async def and await.",
+      "suggestion": "Add one plain-language sentence: 'Write async def for your handlers and put await before Hassette calls; Async Basics explains why.' Keep the link."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "density",
+      "quote": "This is a Hassette feature. Standard Python ignores type annotations at runtime, but Hassette inspects them... This is called dependency injection.",
+      "confusion": "A lot of new ideas arrive at once: glob pattern, handler, D, states, generics, dependency injection and Pyright. Each is explained, so Alex can push through, but the section takes a re-read.",
+      "suggestion": "Optionally trim the Pyright aside and the generics comparison, or split the explanation into smaller steps."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can finish this page. Each new term is defined where it first appears, and the code is complete and copyable. The main snags are the vague 'previous snippet' instruction and the async explanation, which relies on concepts Alex lacks. Alex can get past both by copying the code."
+}

@@ -1,0 +1,145 @@
+{
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "overall_verdict": "followable-with-gaps",
+  "findings": [
+    {
+      "line": 5,
+      "section": "First Steps",
+      "type": "undefined-term",
+      "quote": "async def root():",
+      "confusion": "The very first example uses async def and I don't know what async is. I don't know if I need to understand it to copy this.",
+      "suggestion": "Add a one-line note at the first example saying async can be ignored for now and linking to the explanation."
+    },
+    {
+      "line": 7,
+      "section": "First Steps",
+      "type": "missing-setup",
+      "quote": "Copy that to a file main.py .",
+      "confusion": "Where do I create the file? Do I need a project folder or virtualenv? FastAPI is never installed on this page, and I only have the import line to go on.",
+      "suggestion": "Add install steps (uv add 'fastapi[standard]') and say to create an empty project folder first."
+    },
+    {
+      "line": 11,
+      "section": "First Steps",
+      "type": "missing-step",
+      "quote": "$ uv run fastapi dev",
+      "confusion": "The fastapi command has not been installed anywhere I can see. uv run might also fail without a pyproject.toml. The sample output is a dense wall of text with lines like 'Importing from /home/user/code/awesomeapp' that don't match my machine.",
+      "suggestion": "Link to or include the install and project init steps. Say which directory to run the command from. Note that the output paths will differ."
+    },
+    {
+      "line": 12,
+      "section": "First Steps",
+      "type": "verification",
+      "quote": "Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)",
+      "confusion": "The server keeps running and the terminal is occupied. I don't know whether to open a second terminal or how to stop it. I also don't know what Uvicorn is.",
+      "suggestion": "Say the server keeps running, to leave it running and use the browser, and to stop it with Ctrl+C. Define Uvicorn in one phrase."
+    },
+    {
+      "line": 30,
+      "section": "OpenAPI",
+      "type": "undefined-term",
+      "quote": "FastAPI generates a \"schema\" with all your API using the OpenAPI standard",
+      "confusion": "Schema, OpenAPI and standard all appear in one sentence with no context. This feels like a detour from getting a working API.",
+      "suggestion": "Move the whole OpenAPI section after the recap or mark it as optional background. Open with why it matters (it produces the /docs page)."
+    },
+    {
+      "line": 40,
+      "section": "OpenAPI and JSON Schema",
+      "type": "undefined-term",
+      "quote": "using JSON Schema , the standard for JSON data schemas.",
+      "confusion": "Another term piled on top. I now have API schema, data schema, OpenAPI and JSON Schema, and I can't tell which matters.",
+      "suggestion": "Cut or collapse the schema subsections into a single short paragraph."
+    },
+    {
+      "line": 46,
+      "section": "Check the openapi.json",
+      "type": "confusing-example",
+      "quote": "\"/items/\": {",
+      "confusion": "My app only has a / route, but the sample JSON shows /items/. I'm not sure whether I did something wrong or the sample is just illustrative.",
+      "suggestion": "Show output matching the example, with '/' as the path, or say the sample differs."
+    },
+    {
+      "line": 52,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "undefined-term",
+      "quote": "entrypoint = \"main:app\"",
+      "confusion": "The syntax main:app is unexplained, and I don't know what the entrypoint is. I haven't been told I need a pyproject.toml. Is this required? The 'from main import app' translation helps a bit.",
+      "suggestion": "State up front whether this is required or optional. Explain that main is the file and app is the variable name."
+    },
+    {
+      "line": 63,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "missing-step",
+      "quote": "│   ├── __init__.py",
+      "confusion": "I've never been told why __init__.py matters, and why the backend folder gives backend.main.",
+      "suggestion": "Briefly explain that folders with __init__.py are Python packages, which is why the dotted path works."
+    },
+    {
+      "line": 84,
+      "section": "Deploy your app (optional)",
+      "type": "detour",
+      "quote": "You can optionally deploy your FastAPI app to FastAPI Cloud",
+      "confusion": "It reads like an ad. It appears before I've even understood the code, then returns again as Step 6 and in a sponsor note. Distracting from the goal.",
+      "suggestion": "Keep the deploy mention in one place at the end."
+    },
+    {
+      "line": 108,
+      "section": "Path",
+      "type": "undefined-term",
+      "quote": "the \"path\" is the main way to separate \"concerns\" and \"resources\".",
+      "confusion": "Concerns and resources are jargon I'd only vaguely get. I'm also told path equals endpoint equals route, which adds more words to track.",
+      "suggestion": "Give a concrete example such as /users versus /items and drop the abstract phrasing."
+    },
+    {
+      "line": 121,
+      "section": "Operation",
+      "type": "undefined-term",
+      "quote": "\"Operation\" here refers to one of the HTTP \"methods\".",
+      "confusion": "I know Flask routes, but terms like operation and HTTP method are used loosely. The list of eight methods, half 'exotic', is more than I need right now.",
+      "suggestion": "List only GET and POST with their meaning and link to the rest."
+    },
+    {
+      "line": 150,
+      "section": "Define a path operation decorator",
+      "type": "followable",
+      "quote": "That @something syntax in Python is called a \"decorator\".",
+      "confusion": "I know decorators from Flask, so this works for me. The new term 'path operation decorator' is clear enough here.",
+      "suggestion": "No change needed."
+    },
+    {
+      "line": 180,
+      "section": "Define the path operation function",
+      "type": "undefined-term",
+      "quote": "In this case, it is an async function. You could also define it as a normal function instead of async def :",
+      "confusion": "I'm told there are two options but not which to choose. I don't know what async does, so this is a choice I can't make. The note links elsewhere but offers no summary.",
+      "suggestion": "Say plainly: if unsure, use plain def. Give a one-sentence rule of thumb before the link."
+    },
+    {
+      "line": 194,
+      "section": "Return the content",
+      "type": "undefined-term",
+      "quote": "You can also return Pydantic models (you'll see more about that later).",
+      "confusion": "I don't know Pydantic. It says later, so I can skip it, and the deferral is reassuring. The mention of ORMs is also unfamiliar but harmless.",
+      "suggestion": "Fine as is. Optionally add 'you can ignore this for now'."
+    },
+    {
+      "line": 97,
+      "section": "Step 1: import FastAPI",
+      "type": "undefined-term",
+      "quote": "FastAPI is a class that inherits directly from Starlette .",
+      "confusion": "I don't know Starlette. It's in a Technical Details box, so I can skip it.",
+      "suggestion": "Fine as is."
+    },
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "verification",
+      "quote": "{\"message\": \"Hello World\"}",
+      "confusion": "Clear: I know exactly what to expect, and the /docs pages are named as well. The screenshots are described as 'You will see' but I can't see what the docs page should look like in this text.",
+      "suggestion": "Make sure the screenshots for /docs and /redoc show the expected page."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex would likely get a working Hello World, because the code is short and the expected browser output is stated. The main risks are missing install and project setup steps, unexplained async def in the first example, and a long run of OpenAPI/schema theory plus repeated deploy promotion that feels like a detour from the goal. Alex would succeed but skim or skip much of the middle."
+}
