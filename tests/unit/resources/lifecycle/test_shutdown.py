@@ -219,6 +219,23 @@ async def test_shutdown_propagation_error_tolerance():
     assert len(shutdown_order) == 3
 
 
+def install_exploding_shutdown(child: Resource, message: str, stored_report: TeardownReport | None = None) -> None:
+    """Replace ``child.shutdown`` with a coroutine that raises ``RuntimeError(message)``.
+
+    When ``stored_report`` is given, it is written to the child's ``_teardown_report`` before
+    raising -- mirroring how ``_run_shutdown_coordinator()``'s ``except Exception`` branch stores
+    evidence on the child's own report before re-raising.
+    """
+
+    async def exploding_shutdown():
+        if stored_report is not None:
+            child._teardown_report = stored_report
+        raise RuntimeError(message)
+
+    # Bypass the @final descriptor by setting on the instance dict.
+    object.__setattr__(child, "shutdown", exploding_shutdown)
+
+
 async def test_shutdown_propagation_completes_despite_child_exception():
     """Parent completes shutdown even when a child's shutdown() raises unexpectedly.
 
@@ -236,12 +253,7 @@ async def test_shutdown_propagation_completes_despite_child_exception():
     await child_ok.initialize()
     await child_broken.initialize()
 
-    # Monkeypatch child_broken.shutdown to raise an unexpected error
-    async def exploding_shutdown():
-        raise RuntimeError("unexpected boom")
-
-    # Bypass the @final descriptor by setting on the instance dict
-    object.__setattr__(child_broken, "shutdown", exploding_shutdown)
+    install_exploding_shutdown(child_broken, "unexpected boom")
 
     await parent.shutdown()
 
@@ -507,11 +519,7 @@ async def test_shutdown_children_records_child_shutdown_failed_and_continues_sib
     await child_ok.initialize()
     await child_broken.initialize()
 
-    async def exploding_shutdown():
-        raise RuntimeError("unexpected boom")
-
-    # Bypass the @final descriptor by setting on the instance dict.
-    object.__setattr__(child_broken, "shutdown", exploding_shutdown)
+    install_exploding_shutdown(child_broken, "unexpected boom")
 
     report = await parent.shutdown()
 
@@ -539,16 +547,13 @@ async def test_shutdown_children_merges_child_report_when_shutdown_raises():
     await child_ok.initialize()
     await child_broken.initialize()
 
-    async def exploding_shutdown_with_stored_evidence():
-        # Mirrors what _run_shutdown_coordinator()'s except Exception branch does in the real
-        # flow: store evidence on the child's own report before re-raising.
-        child_broken._teardown_report = TeardownReport(
+    install_exploding_shutdown(
+        child_broken,
+        "coordinator boom",
+        stored_report=TeardownReport(
             causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
-        )
-        raise RuntimeError("coordinator boom")
-
-    # Bypass the @final descriptor by setting on the instance dict.
-    object.__setattr__(child_broken, "shutdown", exploding_shutdown_with_stored_evidence)
+        ),
+    )
 
     report = await parent.shutdown()
 
