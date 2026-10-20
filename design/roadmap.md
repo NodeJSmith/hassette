@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-19
+Last reviewed: 2026-10-20
 
 ## How the pieces fit
 
@@ -12,7 +12,7 @@ Last reviewed: 2026-10-19
 | **Milestone** | An initiative. Its description holds the **Done when** line. Being in the milestone means the Done-when needs it |
 | **`epic:*` label** | Topic only ("related to HACS"). Apply freely; it never adds scope |
 | **`topic:*` / `epic:correctness` labels** | Buckets. Never in a milestone unless an initiative's Done-when needs them |
-| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#1336, #1540, #1427) |
+| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#1336, #1427) |
 | **This file** | Which milestone is Now / Next / Later, and the forced orderings |
 
 An initiative gets its milestone when it enters Now, or earlier once its Done-when can be
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **Standalone CLI** | *Standalone CLI* (tracker #1540) | Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed. Unblocked: #2386 shipped |
+| **Log identity** | *Log Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Separates author, subject and execution on log records, opens with unique instance names (#3095), and fixes the add-on console (#3044). Breaking config change (every configured instance must be named) belongs before 1.0 |
 
 ## Next
 
@@ -57,7 +57,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
-| **Log identity** | *Log Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Separates author, subject and execution on log records, opens with unique instance names (#3095), and fixes the add-on console (#3044). Breaking config change (every configured instance must be named) belongs before 1.0 |
 | **Resource lifecycle outcomes** | *Resource Lifecycle* | Design: `design/specs/134-resource-lifecycle-outcomes/design.md`. Records each lifecycle outcome instead of inferring it: no in-process service restarts (required services exit, optional ones end dead in place), RUNNING only after init, bus death shuts down cleanly, needs-restart flag for app hooks that outlive their timeout, reloads decided under the app-key lock, typed action outcomes. Deletes the restart machinery and shutdown budget allocation. Carries the lifecycle `epic:correctness` bugs (#3108, #3109) |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
@@ -81,7 +80,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 These are the only forced orderings. Anything not on a chain can go in any order.
 
 ```
-#2387 CLI into hassette-client[cli] ──> #2388 named remote targets
 HACS app entities ──> HACS webhooks & templates
 testing redesign + all breaking changes ──> v1.0 tag
 #2695 required DB ──> #2992 WebContext ──> #2994 status from DB
