@@ -814,18 +814,11 @@ class RecordingApi(Resource):
         return self._convert_state(raw, entity_id)
 
     async def get_state_value(self, entity_id: str) -> Any:
-        """Return the raw ``state`` value of entity_id (e.g. ``"on"``, ``"unavailable"``).
-
-        Raises EntityNotFoundError if not seeded. Matches ``Api.get_state_value``.
-        """
+        """Return entity_id's raw ``state`` string, like ``Api.get_state_value``. Raises EntityNotFoundError."""
         return self._get_raw_state(entity_id).get("state")
 
     async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
-        """Return an attribute of entity_id, or ``MISSING_VALUE`` if absent.
-
-        ``attribute`` may be a dot-separated path for nested attributes. Raises
-        EntityNotFoundError if not seeded. Matches ``Api.get_attribute``.
-        """
+        """Return a dot-path attribute or ``MISSING_VALUE``, like ``Api.get_attribute``. Raises EntityNotFoundError."""
         state = self._convert_state(self._get_raw_state(entity_id), entity_id)
         return get_path(attribute)(state.attributes)
 
