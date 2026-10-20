@@ -161,6 +161,53 @@ async def test_get_states_returns_list_of_base_states():
     assert entity_ids == {"light.a", "light.b"}
 
 
+async def test_get_state_raw_returns_detached_copy():
+    state_dict = make_state_dict(entity_id="light.kitchen", state="on", attributes={"brightness": 200})
+    api = make_recording_api(states={"light.kitchen": state_dict})
+
+    result = await api.get_state_raw("light.kitchen")
+    assert result == state_dict
+
+    result["attributes"]["brightness"] = 1
+    result["state"] = "off"
+    assert await api.get_state_raw("light.kitchen") == state_dict
+    assert (await api.get_state("light.kitchen")).value is True
+
+
+async def test_get_state_raw_raises_entity_not_found():
+    api = make_recording_api(states={})
+    with pytest.raises(EntityNotFoundError):
+        await api.get_state_raw("light.nonexistent")
+
+
+async def test_get_states_raw_returns_all_seeded_records_detached():
+    state_dict_1 = make_state_dict(entity_id="light.a", state="on", attributes={"brightness": 10})
+    state_dict_2 = make_state_dict(entity_id="light.b", state="off")
+    api = make_recording_api(states={"light.a": state_dict_1, "light.b": state_dict_2})
+
+    results = await api.get_states_raw()
+    assert sorted(results, key=lambda r: r["entity_id"]) == [state_dict_1, state_dict_2]
+
+    for raw in results:
+        raw["attributes"]["mutated"] = True
+    assert sorted(await api.get_states_raw(), key=lambda r: r["entity_id"]) == [state_dict_1, state_dict_2]
+
+
+def test_sync_get_state_raw_and_get_states_raw():
+    state_dict = make_state_dict(entity_id="sensor.temp", state="22.5", attributes={"unit": "C"})
+    api = make_recording_api(states={"sensor.temp": state_dict})
+
+    result = api.sync.get_state_raw("sensor.temp")
+    assert result == state_dict
+    result["attributes"]["unit"] = "F"
+    assert api.sync.get_state_raw("sensor.temp") == state_dict
+
+    assert api.sync.get_states_raw() == [state_dict]
+
+    with pytest.raises(EntityNotFoundError):
+        api.sync.get_state_raw("sensor.missing")
+
+
 # Note: the "no-model" path that used to live here as test_get_entity_*
 # tests is now served by the existing get_state/get_state_or_none coverage
 # above. RecordingApi.get_entity / get_entity_or_none require an explicit

@@ -820,13 +820,19 @@ class RecordingApi(Resource):
             return None
         return self._convert_state(raw, entity_id)
 
-    async def get_state_raw(self, entity_id: str) -> dict:
-        """Not implemented — raises NotImplementedError."""
-        not_implemented("get_state_raw")
+    async def get_state_raw(self, entity_id: str) -> "HassStateDict":
+        """Return a detached copy of the seeded raw state dict for entity_id.
 
-    async def get_states_raw(self) -> list[dict]:
-        """Not implemented — raises NotImplementedError."""
-        not_implemented("get_states_raw")
+        Raises:
+            EntityNotFoundError: If ``entity_id`` is not seeded.
+        """
+        return copy.deepcopy(self._get_raw_state(entity_id))
+
+    async def get_states_raw(self) -> list["HassStateDict"]:
+        """Return detached copies of every seeded raw state dict."""
+        # Snapshot the dict to avoid RuntimeError from concurrent mutation.
+        items = list(self._state_proxy.states.items())
+        return [copy.deepcopy(raw) for _, raw in items]
 
     async def get_history(self, entity_id: str, *args: Any, **kwargs: Any) -> list:
         """Not implemented — raises NotImplementedError."""

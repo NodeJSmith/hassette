@@ -141,7 +141,9 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="delete_rest_request"))
 
     def get_states_raw(self) -> list["HassStateDict"]:
-        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_states_raw"))
+        """Return detached copies of every seeded raw state dict."""
+        items = list(self._parent._state_proxy.states.items())
+        return [copy.deepcopy(raw) for _, raw in items]
 
     def get_states(self) -> list[BaseState]:
         """Return typed states for all seeded entities."""
@@ -244,7 +246,12 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         return sorted(self._parent.notify_services)
 
     def get_state_raw(self, entity_id: str) -> "HassStateDict":
-        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_state_raw"))
+        """Return a detached copy of the seeded raw state dict for entity_id.
+
+        Raises:
+            EntityNotFoundError: If ``entity_id`` is not seeded.
+        """
+        return copy.deepcopy(self._parent._get_raw_state(entity_id))
 
     def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""
