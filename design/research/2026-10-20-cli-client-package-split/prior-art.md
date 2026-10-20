@@ -1,10 +1,17 @@
 ---
 topic: "CLI that works in both a lightweight client install and the full framework install"
 date: 2026-10-20
-status: Draft
+status: Superseded (standalone CLI dropped; see Outcome)
 ---
 
 # Prior Art: One CLI Across a Client Package and a Framework Package
+
+> **Outcome (2026-10-20): the standalone CLI was dropped.** The survey below supports the spec 114 approach *if*
+> the CLI moves, but weighing it against the cost led to not moving it. The CLI already reaches remote servers from a
+> full `hassette` install, so a client-only install would only save the framework dependencies, and the most common
+> peer answer (Prefect, AppDaemon, Datasette) is not to split at all. The CLI stays in `hassette` and moves onto
+> `HassetteClient` in #3137; `hassette-client` stays a library with no CLI. #2387, #2388 and #1540 are closed. The
+> Recommendation section records how to split if this is ever revisited, not current direction.
 
 ## The Problem
 
@@ -100,7 +107,8 @@ None of the declared HA-ecosystem peers has this shape. AppDaemon ships one pack
 
 ## Recommendation
 
-Keep the brief's direction; prior art supports it rather than overturning it.
+Superseded by the outcome at the top: the split itself was dropped. If a standalone CLI is ever revisited, prior art
+supports the brief's approach rather than overturning it:
 
 - Script: Pattern 2 (FastAPI model). `hassette-client` declares `hassette`; the root package drops its declaration.
 - Commands: Pattern 4 with each entry-point load wrapped, warn and continue. No pluggy, no env-var escape hatch, error on a name collision.
