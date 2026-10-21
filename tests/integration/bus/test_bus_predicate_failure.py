@@ -16,6 +16,7 @@ from hassette_wire import ExecutionStatus
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_state_change_event, wait_for
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
@@ -149,7 +150,7 @@ async def test_predicate_failure_does_not_crash_sibling_listeners(hassette_with_
     event = Event(topic="test.pred_isolation", payload=SimpleNamespace())
     await hassette.send_event(event)
 
-    await asyncio.wait_for(sibling_ran.wait(), timeout=2.0)
+    await asyncio.wait_for(sibling_ran.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 async def test_predicate_failure_no_error_handler_still_records(hassette_with_bus: "HassetteHarness") -> None:
