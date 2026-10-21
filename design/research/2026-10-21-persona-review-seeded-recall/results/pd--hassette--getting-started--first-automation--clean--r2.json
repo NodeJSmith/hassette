@@ -1,0 +1,98 @@
+{
+  "run_id": "o22",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable",
+  "terms": [
+    {
+      "line": 8,
+      "term": "D (hassette.event_handling.dependencies)",
+      "explained": true,
+      "where": "Lines 12 and 14 explain D as a module of type annotations and that Hassette fills in parameters."
+    },
+    {
+      "line": 8,
+      "term": "states.SunState",
+      "explained": true,
+      "where": "Line 13 explains it is a typed state class with a .value attribute."
+    },
+    {
+      "line": 10,
+      "term": "handler",
+      "explained": true,
+      "where": "Line 10 defines it as a method Hassette calls when an event arrives."
+    },
+    {
+      "line": 10,
+      "term": "glob pattern",
+      "explained": true,
+      "where": "Line 10 says \"sun.*\" matches any entity in the sun domain."
+    },
+    {
+      "line": 10,
+      "term": "domain (entity domain)",
+      "explained": true,
+      "where": "Line 10 gives sun.sun as the example, and line 15 gives light for light.porch."
+    },
+    {
+      "line": 11,
+      "term": "type annotation / generics bracket syntax",
+      "explained": true,
+      "where": "Line 11 compares it to list[str]."
+    },
+    {
+      "line": 14,
+      "term": "dependency injection",
+      "explained": true,
+      "where": "Line 14 names it and explains that Hassette inspects annotations and passes the value in."
+    },
+    {
+      "line": 14,
+      "term": "Pyright",
+      "explained": true,
+      "where": "Line 14 defines it as an optional Python type checker."
+    },
+    {
+      "line": 16,
+      "term": "async def / await / event loop",
+      "explained": true,
+      "where": "Line 16 explains briefly and links to Async Basics. The Quickstart gave the practical rule."
+    },
+    {
+      "line": 15,
+      "term": "service (light.turn_on)",
+      "explained": true,
+      "where": "Line 15 says it is the same as toggling a light in the HA UI and points to Developer Tools."
+    },
+    {
+      "line": 16,
+      "term": "fire-and-forget",
+      "explained": true,
+      "where": "Line 16 says the await finishes when the command is sent, not when HA has applied it."
+    },
+    {
+      "line": 21,
+      "term": "scheduled job",
+      "explained": true,
+      "where": "Line 21 says the scheduler calls it on a timer, not in response to an event."
+    },
+    {
+      "line": 22,
+      "term": "run_daily / run_cron / run_once",
+      "explained": true,
+      "where": "Line 22 links to SchedulerMethods. Alex does not need them here."
+    }
+  ],
+  "findings": [
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "INFO hassette.MyApp.0 \u2014 Hello from Hassette!",
+      "confusion": "The log lines in the Quickstart used a different, longer format with a timestamp and key=value fields. Alex may pause briefly to wonder whether the output is wrong. This is minor, and Alex can push through.",
+      "suggestion": "Optionally note that the log output is abbreviated here."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can follow this page from start to finish. Each new concept (handler, glob, DI, type annotation, async, scheduled job) is explained where it first appears, and the code is complete with imports. The only friction is a small log-format mismatch with the Quickstart."
+}

@@ -12,6 +12,7 @@ copy (clean or seeded) or condition a run came from.
 
 import collections
 import json
+import random
 import statistics
 import sys
 from pathlib import Path
@@ -56,12 +57,17 @@ def load_runs(queue: Path) -> tuple[dict, dict]:
 
 
 def items(result: dict) -> list[str]:
-    """Every reviewer statement a judge should consider: findings, plus failing steps."""
+    """Every reviewer statement a judge should consider: findings, failing steps, and unexplained terms."""
     out = [f"[{f.get('type')}] L{f.get('line')} {f.get('quote')!r}: {f.get('confusion')}" for f in result["findings"]]
     out += [
         f"[step cannot be completed] L{s.get('line')} {s.get('step')!r}: {s.get('blocker')}"
         for s in result.get("steps", [])
         if s.get("can_complete") is False
+    ]
+    out += [
+        f"[term not explained] L{t.get('line')} {t.get('term')!r}: {t.get('where')}"
+        for t in result.get("terms", [])
+        if t.get("explained") is False
     ]
     return out
 
@@ -112,11 +118,9 @@ def report(queue: Path) -> None:
     print()
     print("| cond | seeded recall | clean false-match | mean findings clean | mean findings seeded |")
     print("|---|---|---|---|---|")
-    for cond in ("a", "c", "s", "p", "t"):
+    for cond in sorted({c for _, c, _ in cells}):
         seeded = [r for (_, c, v), rs in cells.items() if c == cond and v == "seeded" for r in rs]
         clean = [r for (_, c, v), rs in cells.items() if c == cond and v == "clean" for r in rs]
-        if not seeded:
-            continue
         recall = sum(len(h) for _, h, _ in seeded) / (4 * len(seeded))
         false = sum(len(h) for _, h, _ in clean) / (4 * len(clean))
         print(
@@ -139,9 +143,29 @@ def collect(queue: Path) -> None:
     print(len(runs), "runs ->", out)
 
 
+def merge(queue: Path) -> None:
+    """Merge the queues named after <queue> into <queue>, renumbering runs so one judge pass scores them all."""
+    sources = [Path(p) for p in sys.argv[3:]]
+    merged = {"briefings": {}, "runs": {}}
+    pooled = []
+    for i, src in enumerate(sources):
+        manifest, runs = load_runs(src)
+        for m in runs.values():
+            key = f"q{i}{m['briefing']}"
+            merged["briefings"][key] = manifest["briefings"][m["briefing"]]
+            pooled.append((key, m["run"], m["result"]))
+    random.Random(3150).shuffle(pooled)  # noqa: S311 — deterministic shuffle for blinding, not crypto
+    (queue / "out").mkdir(parents=True, exist_ok=True)
+    for j, (key, run, result) in enumerate(pooled, 1):
+        merged["runs"][f"o{j:02d}"] = {"briefing": key, "run": run}
+        (queue / "out" / f"o{j:02d}.json").write_text(json.dumps(result, indent=2) + "\n")
+    (queue / "manifest.json").write_text(json.dumps(merged, indent=2) + "\n")
+    print(len(pooled), "runs merged ->", queue)
+
+
 def main() -> None:
     cmd, queue = sys.argv[1], Path(sys.argv[2])
-    {"judge-input": judge_input, "report": report, "collect": collect}[cmd](queue)
+    {"judge-input": judge_input, "report": report, "collect": collect, "merge": merge}[cmd](queue)
 
 
 if __name__ == "__main__":

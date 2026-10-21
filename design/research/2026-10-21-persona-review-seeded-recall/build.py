@@ -46,16 +46,24 @@ Pick the verdict by these rules:
 - "followable-with-effort": at least one finding forces a re-read or a guess, but they still finish.
 - "stuck-at-step-N": they cannot continue at step N without outside help.
 - "lost": they would abandon the page.
-
-Return your findings as a JSON object:
 """
 STEP_RULES = """
 Then list every step the page asks {{PERSONA_NAME}} to carry out: each instruction to write, save, run, open,
 change, or check something. For each step, answer one question: could {{PERSONA_NAME}} complete it correctly
 using only this page and what they already know? Answer `true` or `false`. When the answer is
 `false`, say in `blocker` what is missing or wrong. A step that works but takes a re-read is `true`.
-
-Return your findings as a JSON object:
+"""
+DEF_RULES = """
+Then check the page's vocabulary. List every term, name, concept, or piece of syntax on the page that
+{{PERSONA_NAME}} would not already know from their "Knows" list, including everything on their "Does NOT know"
+list that the page uses. For each one, answer: does this page{{PRIOR_SCOPE}} explain what it means or what it
+does, at or before the point where {{PERSONA_NAME}} needs it? Answer `true` or `false` in `explained`. A link or
+pointer that tells them where to learn it counts as `true`. Judge only what the text says, not what you know.
+"""
+RETURN = "\nReturn your findings as a JSON object:\n"
+TERMS_JSON = """  "terms": [
+    {"line": 0, "term": "<term>", "explained": true, "where": "<where the page explains it, or what is missing>"}
+  ],
 """
 STEPS_JSON = """```json
 {
@@ -113,16 +121,23 @@ def page_path(slug: str) -> str:
 
 
 def briefing(cond: str, slug: str, variant: str, tpl: str, alex: str, voice: str, rules: str) -> str:
+    """Render one briefing. `cond` is "a" (the current skill) or neutral wording plus any of these letters:
+    s = per-step checks instead of a verdict, p = previous page included, d = vocabulary check, t = thin persona.
+    """
     prod = slug.split("--")[0]
     t = tpl
     if cond != "a":
         t = t.replace(find(r"## Voice and Structure Context.*?(?=## Your Task)", tpl, re.S), "")
         t = t.replace(find(r"IMPORTANT: You must genuinely.*?\n", tpl), "")
-        tail = STEP_RULES if cond == "s" else VERDICT_RULES
+        tail = (STEP_RULES if "s" in cond else VERDICT_RULES) + (DEF_RULES if "d" in cond else "") + RETURN
         t = re.sub(r"## Your Task.*?Return your findings as a JSON object:\n", NEUTRAL_INTRO + tail, t, flags=re.S)
-        if cond == "s":
+        if "s" in cond:
             t = re.sub(r"```json\n.*?\n```", lambda _: STEPS_JSON, t, count=1, flags=re.S)
-        if cond == "p":
+        if "d" in cond:
+            t = t.replace('  "findings": [', TERMS_JSON + '  "findings": [', 1)
+        prior_scope = " or a page they have already read" if "p" in cond else ""
+        t = t.replace("{{PRIOR_SCOPE}}", prior_scope)
+        if "p" in cond:
             prior = PREVIOUS[slug]
             block = PRIOR_PAGE.replace("{{PRIOR_PATH}}", page_path(prior)).replace(
                 "{{PRIOR_CONTENT}}", (HERE / "variants" / f"{prior}--clean.txt").read_text()
@@ -130,7 +145,7 @@ def briefing(cond: str, slug: str, variant: str, tpl: str, alex: str, voice: str
             t = t.replace("## Page Content", block + "## Page Content")
     t = (
         t.replace("Hassette documentation", f"{NAMES[prod]} documentation")
-        .replace("{{PERSONA_DEFINITION}}", persona(alex, prod, thin=cond == "t"))
+        .replace("{{PERSONA_DEFINITION}}", persona(alex, prod, thin="t" in cond))
         .replace("{{PERSONA_NAME}}", "Alex")
         .replace("{{VOICE_GUIDE}}", voice)
         .replace("{{DOC_RULES}}", rules)
@@ -144,12 +159,13 @@ def briefing(cond: str, slug: str, variant: str, tpl: str, alex: str, voice: str
 
 def main() -> None:
     queue = Path(sys.argv[1])
+    conditions = sys.argv[2:] or CONDITIONS
     queue.mkdir(parents=True, exist_ok=True)
     tpl = (SKILL / "briefing-template.md").read_text()
     alex = find(r"## Persona 1:.*?(?=\n---\n)", (SKILL / "personas.md").read_text(), re.S).strip()
     voice = (RULES / "voice-guide.md").read_text()
     rules = (RULES / "doc-rules.md").read_text()
-    cells = [(c, s, v) for c in CONDITIONS for s in PAGES for v in ("clean", "seeded")]
+    cells = [(c, s, v) for c in conditions for s in PAGES for v in ("clean", "seeded")]
     random.Random(3148).shuffle(cells)  # noqa: S311 — deterministic shuffle for blinding, not crypto
     manifest = {"briefings": {}, "runs": {}}
     for i, (cond, slug, variant) in enumerate(cells, 1):

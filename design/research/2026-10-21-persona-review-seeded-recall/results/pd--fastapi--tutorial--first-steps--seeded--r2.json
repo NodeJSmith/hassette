@@ -1,0 +1,146 @@
+{
+  "run_id": "o24",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "overall_verdict": "followable-with-effort",
+  "terms": [
+    {
+      "line": 5,
+      "term": "async def",
+      "explained": false,
+      "where": "Page says 'In this case, it is an async function' and that a normal def also works, but never says what async means or why to pick one. Alex can push through by copying the code."
+    },
+    {
+      "line": 175,
+      "term": "async function",
+      "explained": false,
+      "where": "Mentioned at line 175 with no definition or link."
+    },
+    {
+      "line": 144,
+      "term": "decorator (@app.get)",
+      "explained": true,
+      "where": "Explained in the @decorator Info admonition (lines 144-149)."
+    },
+    {
+      "line": 29,
+      "term": "OpenAPI",
+      "explained": true,
+      "where": "Defined in the OpenAPI section (lines 29-39) as a specification for describing an API, with a link."
+    },
+    {
+      "line": 30,
+      "term": "schema",
+      "explained": true,
+      "where": "Defined under the Schema headings (lines 30-37)."
+    },
+    {
+      "line": 39,
+      "term": "JSON Schema",
+      "explained": false,
+      "where": "Named as 'the standard for JSON data schemas' but not explained further. Alex can skip it."
+    },
+    {
+      "line": 103,
+      "term": "path / endpoint / route",
+      "explained": true,
+      "where": "Defined in the Path section (lines 102-114)."
+    },
+    {
+      "line": 116,
+      "term": "operation / HTTP methods (GET, POST, PUT, DELETE)",
+      "explained": true,
+      "where": "Explained in the Operation section (lines 115-135)."
+    },
+    {
+      "line": 187,
+      "term": "Pydantic models",
+      "explained": true,
+      "where": "Deferred with 'you'll see more about that later'. Alex does not need it on this page."
+    },
+    {
+      "line": 92,
+      "term": "Starlette",
+      "explained": false,
+      "where": "Mentioned in a Technical Details box with a link. The link counts as a pointer, and Alex can skip it."
+    },
+    {
+      "line": 87,
+      "term": "class instance",
+      "explained": true,
+      "where": "Step 2 (lines 99-100) says app is an 'instance' of the class FastAPI."
+    },
+    {
+      "line": 51,
+      "term": "entrypoint / main:app import string",
+      "explained": true,
+      "where": "Shown with an equivalent 'from backend.main import app' (lines 51-67). The main:app notation is only implied by that comparison."
+    },
+    {
+      "line": 53,
+      "term": "pyproject.toml [tool.fastapi]",
+      "explained": false,
+      "where": "Alex has seen pyproject.toml in the index page (uv init), but this page does not say where to put the [tool.fastapi] block. It is optional, so Alex can skip it."
+    },
+    {
+      "line": 170,
+      "term": "Uvicorn / reloader / WatchFiles",
+      "explained": false,
+      "where": "Appear in the server log output with no explanation. Alex only needs the URL line, which the page points out (lines 11-15)."
+    },
+    {
+      "line": 41,
+      "term": "openapi.json",
+      "explained": true,
+      "where": "Explained as the raw generated schema (lines 40-46)."
+    },
+    {
+      "line": 80,
+      "term": "FastAPI Cloud / fastapi deploy",
+      "explained": true,
+      "where": "Described in Step 6 and its About section (lines 189-198). It is optional."
+    },
+    {
+      "line": 24,
+      "term": "Swagger UI / ReDoc",
+      "explained": true,
+      "where": "Named as the providers of the interactive docs and linked (lines 24, 27)."
+    }
+  ],
+  "findings": [
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "inconsistency",
+      "quote": "{\"message\": \"Hello FastAPI\"}",
+      "confusion": "The code returns {\"message\": \"Hello World\"}, but the page says the browser will show \"Hello FastAPI\". Alex opens the browser, sees \"Hello World\", and wonders whether they copied the code wrong or the server is stale.",
+      "suggestion": "Change the expected output to {\"message\": \"Hello World\"} so it matches the code."
+    },
+    {
+      "line": 175,
+      "section": "Step 4: define the path operation function",
+      "type": "undefined-term",
+      "quote": "In this case, it is an async function. You could also define it as a normal function instead of async def",
+      "confusion": "Alex does not know async/await. They cannot tell what async does, why the example uses it, or whether switching to plain def changes anything. They have to guess that copying the example as-is is safe.",
+      "suggestion": "Add one sentence that either says plain def is fine for now and async is covered later, or links to the async explainer."
+    },
+    {
+      "line": 45,
+      "section": "Check the openapi.json",
+      "type": "inconsistency",
+      "quote": "\"/items/\": {",
+      "confusion": "The sample openapi.json starts with an \"/items/\" path, but the app only defines \"/\". Alex opens the real file, sees something different, and wonders whether something is wrong.",
+      "suggestion": "Show a sample that matches the app, with a \"/\" path, or say the excerpt is only illustrative."
+    },
+    {
+      "line": 9,
+      "section": "Run the live server",
+      "type": "missing-step",
+      "quote": "Run the live server:\n$ uv run fastapi dev",
+      "confusion": "This page does not say to save the code as main.py in the project folder. Alex has to remember the instruction from the previous page, and the log output mentions main.py without tying it back.",
+      "suggestion": "Add a short reminder to save the code as main.py in the project directory before running."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can finish this page. The server starts and the docs pages load. The mismatch between the stated and actual output (\"Hello FastAPI\" vs \"Hello World\") and the unexplained async make Alex stop and re-check at least once. Nothing blocks progress."
+}
