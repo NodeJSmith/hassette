@@ -103,7 +103,8 @@ class AppConfig(BaseSettings):
         for name in FRAMEWORK_FIELDS:
             alias = cls.model_fields[name].alias
             if alias and alias != name and name in renamed:
-                renamed.setdefault(alias, renamed.pop(name))
+                # the by-name value wins: it's the one manifest validation checked
+                renamed[alias] = renamed.pop(name)
         return renamed
 
 

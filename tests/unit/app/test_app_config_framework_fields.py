@@ -21,6 +21,13 @@ def test_framework_fields_are_read_by_name_under_an_alias_generator() -> None:
     assert config.off_delay == 5
 
 
+def test_by_name_value_wins_over_its_alias() -> None:
+    """Manifest validation checks the by-name instance_name, so an aliased spelling can't override it."""
+    config = CamelCaseConfig.model_validate({"instance_name": "upstairs", "instanceName": "Not Valid"})
+
+    assert config.instance_name == "upstairs"
+
+
 def test_user_fields_still_follow_the_alias_generator() -> None:
     """Only the framework's fields get the by-name lookup; a user field is read only by its alias."""
     config = CamelCaseConfig.model_validate({"instance_name": "upstairs", "off_delay": 5})
