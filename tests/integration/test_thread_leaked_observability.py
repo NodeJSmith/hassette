@@ -15,6 +15,7 @@ from collections.abc import Awaitable, Callable
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
@@ -59,7 +60,7 @@ def make_invoker_listener(invoke: InvokeFn) -> MagicMock:
 def assert_timed_out(executor: CommandExecutor, *, thread_leaked: bool, reason: str) -> None:
     """Assert the queued record is a timeout with the expected thread_leaked verdict."""
     record = pop_execution_record(executor)
-    assert record.status == "timed_out"
+    assert record.status is ExecutionStatus.TIMED_OUT
     assert record.thread_leaked is thread_leaked, reason
 
 

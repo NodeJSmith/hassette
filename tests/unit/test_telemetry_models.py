@@ -1,6 +1,6 @@
 """Tests for Pydantic telemetry models."""
 
-from hassette_wire import Execution, JobSummary
+from hassette_wire import Execution, ExecutionStatus, JobSummary
 
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.summary_models import AppHealthSummary
@@ -144,7 +144,7 @@ class TestExecution:
         assert model.listener_id == 7
         assert model.execution_start_ts == TEST_EPOCH_B
         assert model.duration_ms == 12.5
-        assert model.status == "success"
+        assert model.status is ExecutionStatus.SUCCESS
         assert model.error_type is None
 
     def test_job_execution_from_dict(self) -> None:
@@ -160,7 +160,7 @@ class TestExecution:
         model = Execution.model_validate(data)
         assert model.kind == "job"
         assert model.job_id == 3
-        assert model.status == "error"
+        assert model.status is ExecutionStatus.ERROR
         assert model.error_type == "RuntimeError"
 
     def test_optional_fields_default_to_none(self) -> None:

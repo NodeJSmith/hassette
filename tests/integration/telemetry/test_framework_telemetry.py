@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette import HassetteConfig
 from hassette.core import execution_pipeline
@@ -141,7 +142,7 @@ async def test_command_executor_records_source_tier_on_error(framework_hassette:
     record = pop_execution_record(executor)
     assert record.kind == "handler"
     assert record.source_tier == "framework"
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "ValueError"
 
 

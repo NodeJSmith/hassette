@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from hassette_wire import ExecutionStatus
+
 from hassette.bus.error_context import BusErrorContext
 from hassette.core.bus_service import BusService
 from hassette.events.base import Event
@@ -63,7 +65,7 @@ class TestRecordPredicateFailure:
         executor.enqueue_record.assert_called_once()
         record = executor.enqueue_record.call_args[0][0]
         assert record.kind == "handler"
-        assert record.status == "error"
+        assert record.status is ExecutionStatus.ERROR
         assert record.error_type == "ValueError"
         assert record.error_message == "boom"
         assert record.listener_id == 99
