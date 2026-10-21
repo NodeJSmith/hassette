@@ -121,6 +121,23 @@ class TestAccepted:
 
         assert config.apps.apps["my_app"] == {"filename": "a.py", "class_name": "A"}
 
+    @pytest.mark.parametrize("source", ["env", "dotenv"])
+    def test_app_definition_json_merges_nested_overrides(self, cfg: Path, source: str) -> None:
+        """``HASSETTE__APPS__<KEY>__<FIELD>`` beside a JSON entry overrides that field instead of being dropped."""
+        env = {
+            "HASSETTE__APPS__MY_APP": '{"filename": "a.py", "class_name": "A", "config": {"keep": "k"}}',
+            "HASSETTE__APPS__MY_APP__CLASS_NAME": "B",
+            "HASSETTE__APPS__MY_APP__CONFIG__SENSOR": "s",
+        }
+        dotenv = "".join(f"{name}='{value}'\n" for name, value in env.items())
+        config = load(cfg, env=env) if source == "env" else load(cfg, dotenv=dotenv)
+
+        assert config.apps.apps["my_app"] == {
+            "filename": "a.py",
+            "class_name": "B",
+            "config": {"keep": "k", "sensor": "s"},
+        }
+
     def test_unprefixed_dotenv_keys_are_ignored(self, cfg: Path) -> None:
         load(cfg, dotenv="MY_APP_SECRET=1\n")
 

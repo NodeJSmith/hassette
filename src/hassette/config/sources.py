@@ -17,6 +17,7 @@ from typing import Any
 from dotenv import dotenv_values
 from mergedeep import merge
 from pydantic import BaseModel
+from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, DotEnvSettingsSource, EnvSettingsSource
 from pydantic_settings.sources import InitSettingsSource, TomlConfigSettingsSource
 from pydantic_settings.sources.utils import parse_env_vars
@@ -36,7 +37,38 @@ from hassette.exceptions import ConfigError
 LOGGER = getLogger(__name__)
 
 
-class SnapshotEnvSettingsSource(EnvSettingsSource):
+class JsonAppEntryEnvMixin(EnvSettingsSource):
+    """Decodes ``HASSETTE__APPS__<KEY>='{...}'`` into an app entry, merging nested overrides on top.
+
+    pydantic-settings decodes JSON only for declared fields, and app keys are dynamic, so without this the
+    value would reach `AppsConfig` as a string and replace any ``HASSETTE__APPS__<KEY>__<FIELD>`` siblings.
+    Decoded, it becomes the same entry as the nested form, with nested variables winning per field, as
+    pydantic-settings does for a declared field's JSON value.
+    """
+
+    # overrides a pydantic-settings hook (and reads its private _extract_field_info): builds a complex field's value
+    # from its nested env vars. test_app_definition_json_merges_nested_overrides fails if either changes.
+    def explode_env_vars(self, field_name: str, field: FieldInfo, env_vars: Mapping[str, str | None]) -> dict[str, Any]:
+        exploded = super().explode_env_vars(field_name, field, env_vars)
+        if field_name != "apps":
+            return exploded
+        json_keys = {k for k, v in exploded.items() if k not in AppsConfig.model_fields and is_json_object(v)}
+        if not json_keys:
+            return exploded
+        delimiter = self.env_nested_delimiter or ""
+        json_names = {
+            f"{env_name}{delimiter}{key}"
+            for _, env_name, _ in self._extract_field_info(field, field_name)
+            for key in json_keys
+        }
+        nested = super().explode_env_vars(
+            field_name, field, {name: value for name, value in env_vars.items() if name not in json_names}
+        )
+        decoded = {key: dict(merge({}, json.loads(exploded[key]), nested.get(key, {}))) for key in json_keys}
+        return {**nested, **decoded}
+
+
+class SnapshotEnvSettingsSource(JsonAppEntryEnvMixin):
     """Env source that reads the build's environment snapshot and records the prefixed keys it saw."""
 
     def __init__(self, settings_cls: type[BaseSettings], build: ConfigBuild):
@@ -52,10 +84,10 @@ class SnapshotEnvSettingsSource(EnvSettingsSource):
         return parse_env_vars(environ, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
 
     def __call__(self) -> dict[str, Any]:
-        return anchor_paths(self.settings_cls, decode_json_app_entries(super().__call__()), self.build.cwd)
+        return anchor_paths(self.settings_cls, super().__call__(), self.build.cwd)
 
 
-class FileDotEnvSettingsSource(DotEnvSettingsSource):
+class FileDotEnvSettingsSource(JsonAppEntryEnvMixin, DotEnvSettingsSource):
     """Dotenv source for one ``.env`` file: records its prefixed keys and anchors paths at its directory."""
 
     def __init__(self, settings_cls: type[BaseSettings], env_file: Path, build: ConfigBuild):
@@ -77,7 +109,7 @@ class FileDotEnvSettingsSource(DotEnvSettingsSource):
         return parse_env_vars(raw, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
 
     def __call__(self) -> dict[str, Any]:
-        return anchor_paths(self.settings_cls, decode_json_app_entries(super().__call__()), self.path.parent)
+        return anchor_paths(self.settings_cls, super().__call__(), self.path.parent)
 
 
 class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
@@ -155,22 +187,6 @@ def anchor_paths(model: type[BaseModel], data: dict[str, Any], base: Path) -> di
         elif model is AppsConfig and key == "apps" and isinstance(value, dict):  # [hassette.apps.apps.my_app]
             out[key] = {k: anchor_paths(AppManifest, v, base) if isinstance(v, dict) else v for k, v in value.items()}
     return out
-
-
-def decode_json_app_entries(data: dict[str, Any]) -> dict[str, Any]:
-    """Return `data` with each JSON-object app entry under ``apps`` decoded to a dict.
-
-    pydantic-settings decodes JSON only for declared fields, so ``HASSETTE__APPS__<KEY>='{...}'`` arrives
-    as a string; decoded, it becomes the same app entry as the ``HASSETTE__APPS__<KEY>__<FIELD>`` form.
-    """
-    apps = data.get("apps")
-    if not isinstance(apps, dict):
-        return data
-    decoded = {
-        key: json.loads(value) if key not in AppsConfig.model_fields and is_json_object(value) else value
-        for key, value in apps.items()
-    }
-    return {**data, "apps": decoded}
 
 
 def is_json_object(value: Any) -> bool:
