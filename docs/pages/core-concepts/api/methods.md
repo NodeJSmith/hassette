@@ -234,9 +234,12 @@ asks for none. The exception is the small set of services Home Assistant declare
 *response-only* (`weather.get_forecasts`, `conversation.process`): those reject a call that does
 not request the response. Pass `return_response=True` for them; it waits on the same confirmation.
 
-A nonexistent entity id in `target` or `entity_id` is not a failure, so `wait_for_ack` does not
-raise for it. Home Assistant logs a warning and the call succeeds. `self.states.get(...)` returns
-`None` for an unknown entity id, so a check before the call catches the typo instead.
+For most entity services (`light.turn_on`, `switch.toggle`), a nonexistent entity id in `target`
+or `entity_id` is not a failure, so `wait_for_ack` does not raise for it. Home Assistant logs a
+warning and the call succeeds. Services that resolve the entity id themselves can still reject it:
+`homeassistant.reload_config_entry` fails when no config entry matches, and `wait_for_ack` raises
+`FailedMessageError`. `self.states.get(...)` returns `None` for an unknown entity id, so a check
+before the call catches the typo either way.
 
 Whenever `call_service` waits, through either flag, it sends the call exactly once. If the
 confirmation never arrives, it raises
