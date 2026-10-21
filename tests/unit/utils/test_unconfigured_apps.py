@@ -112,6 +112,19 @@ class TestFindUnconfiguredAppClasses:
         assert scan.unconfigured == [(good, "LightsApp")]
         assert [path for path, _ in scan.unreadable] == [binary, broken]
 
+    def test_symlink_to_a_file_outside_the_directory_is_reported_not_suggested(
+        self, tmp_path: Path, app_dir: Path
+    ) -> None:
+        """An app entry can't name a file outside the apps directory, so a link out of it gets no snippet."""
+        target = write_app(tmp_path / "elsewhere", "lights.py", APP_SOURCE).resolve()
+        link = app_dir / "lights.py"
+        link.symlink_to(target)
+
+        scan = find_unconfigured_app_classes(app_dir, set())
+
+        assert scan.unconfigured == []
+        assert scan.unreadable == [(link, f"links to {target}, outside the apps directory")]
+
     def test_walks_subdirectories_in_sorted_order_and_skips_built_in_exclusions(self, app_dir: Path) -> None:
         second = write_app(app_dir / "b", "two.py", APP_SOURCE)
         first = write_app(app_dir / "a", "one.py", APP_SOURCE)
