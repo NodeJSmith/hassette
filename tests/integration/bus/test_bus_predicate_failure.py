@@ -11,6 +11,8 @@ import asyncio
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
+from hassette_wire import ExecutionStatus
+
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_state_change_event, wait_for
@@ -41,7 +43,7 @@ async def test_predicate_failure_enqueues_error_record(hassette_with_bus: "Hasse
 
     record = executor.enqueue_record.call_args[0][0]
     assert record.kind == "handler"
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "ZeroDivisionError"
     assert record.error_message == "boom"
     assert record.error_traceback is not None
@@ -173,7 +175,7 @@ async def test_predicate_failure_no_error_handler_still_records(hassette_with_bu
     await wait_for(lambda: executor.enqueue_record.call_count > 0, desc="record enqueued without error handler")
 
     record = executor.enqueue_record.call_args[0][0]
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "KeyError"
 
     executor.invoke_error_handler.assert_not_called()
