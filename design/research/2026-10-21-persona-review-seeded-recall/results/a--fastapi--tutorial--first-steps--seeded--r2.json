@@ -1,0 +1,194 @@
+{
+  "run_id": "o37",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 5,
+      "section": "First Steps",
+      "type": "undefined-term",
+      "quote": "async def root():",
+      "confusion": "Alex does not know async/await. The very first code block uses `async def` with no explanation, and the page never says what it means or why it is there. Alex wonders whether they have to learn async before they can continue.",
+      "suggestion": "Add a one-line note that `async def` is explained later and that a plain `def` works the same for now. Point to the later section (line 175-180) or the async page."
+    },
+    {
+      "line": 5,
+      "section": "First Steps",
+      "type": "missing-step",
+      "quote": "The simplest FastAPI file could look like this:",
+      "confusion": "The page never says what to name the file or where to save it. Later, the output says 'main.py' and 'from main import app', but Alex has to infer the filename from the terminal output. The page also doesn't mention that `fastapi` has to be installed, or how to install it.",
+      "suggestion": "Say 'Save this as main.py' and add an install step (e.g. `uv add \"fastapi[standard]\"`) or link to the install page, before the run command."
+    },
+    {
+      "line": 10,
+      "section": "First Steps",
+      "type": "missing-step",
+      "quote": "$ uv run fastapi dev",
+      "confusion": "Alex needs to know which directory to run this in and whether a project already exists (pyproject.toml, uv init). The command takes no filename, so how does it find main.py? The output mentions 'Searching for package file structure' and 'import string main:app', which is unexplained. Alex is also not told what to look for to confirm success, other than the output block.",
+      "suggestion": "State 'run this in the folder containing main.py' and explain briefly that fastapi dev finds main.py and the `app` variable by default. Say the server keeps running and to leave the terminal open."
+    },
+    {
+      "line": 8,
+      "section": "First Steps",
+      "type": "detour",
+      "quote": "FastAPI has an official extension for VS Code (and Cursor), which provides a lot of features, including a path operation explorer, path operation search, CodeLens navigation in tests...",
+      "confusion": "Alex uses VS Code, so is mildly interested, but the tip appears before the app has even been run and uses unexplained terms (path operation explorer, CodeLens). It interrupts the code to run.",
+      "suggestion": "Move the tip after the 'Check it' step, or shorten it to one sentence with a link."
+    },
+    {
+      "line": 13,
+      "section": "First Steps",
+      "type": "undefined-term",
+      "quote": "INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)",
+      "confusion": "Alex has never heard of Uvicorn and wonders whether it needs separate installation. The line also differs in format from the INFO line in the output block above (no colon in the block above), which is a small mismatch.",
+      "suggestion": "Add a sentence that Uvicorn is the server program that FastAPI runs on and is installed with FastAPI. Make the sample log lines match."
+    },
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "missing-verification",
+      "quote": "{\"message\": \"Hello FastAPI\"}",
+      "confusion": "The code returns {\"message\": \"Hello World\"}, but the page says the browser will show 'Hello FastAPI'. Alex runs it, sees 'Hello World', and thinks something is broken or that they typed the code wrong. This is the main success check on the page, and it contradicts the code.",
+      "suggestion": "Change the expected output to {\"message\": \"Hello World\"}."
+    },
+    {
+      "line": 24,
+      "section": "Interactive API docs",
+      "type": "missing-verification",
+      "quote": "You will see the automatic interactive API documentation (provided by Swagger UI):",
+      "confusion": "The text promises a visual, but no screenshot or description appears in the rendered text Alex has. Alex doesn't know what they should see (a list of one endpoint? buttons?) or what 'interactive' lets them do. The same applies to /redoc at line 27.",
+      "suggestion": "Include the screenshot, and add a sentence on what to try (e.g. expand GET / and click 'Try it out')."
+    },
+    {
+      "line": 29,
+      "section": "OpenAPI",
+      "type": "undefined-term",
+      "quote": "FastAPI generates a \"schema\" with all your API using the OpenAPI standard for defining APIs.",
+      "confusion": "Alex doesn't know what OpenAPI is, and the word 'schema' is used three ways within a few lines (API schema, data schema, JSON Schema). This section arrives while Alex just wants a working API, and it feels like a theory detour with five sub-headings.",
+      "suggestion": "Say up front that this section is background and can be skipped on a first read. Collapse it in an admonition, or trim the schema sub-sections to a short paragraph."
+    },
+    {
+      "line": 45,
+      "section": "Check the openapi.json",
+      "type": "missing-verification",
+      "quote": "\"paths\": {\n        \"/items/\": {",
+      "confusion": "The sample openapi.json shows a '/items/' path, but the app Alex wrote only has '/'. When Alex opens /openapi.json, the output will not match, so Alex is unsure whether their app is wrong.",
+      "suggestion": "Update the sample to show the '/' path and the `root` operation actually defined in this tutorial."
+    },
+    {
+      "line": 52,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "missing-step",
+      "quote": "You can configure where your app is located in a pyproject.toml file like:",
+      "confusion": "Alex never created a pyproject.toml on this page and isn't told whether they have one. This also reads as an optional extra, but it is not labeled as such and appears before the recap. The 'import string main:app' format is only explained as 'from backend.main import app', which assumes Alex understands the colon notation.",
+      "suggestion": "Mark this section as optional/for larger projects, explain the `module:variable` format in a sentence, and say where the file lives (project root)."
+    },
+    {
+      "line": 58,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "undefined-term",
+      "quote": "\u251c\u2500\u2500 backend\n\u2502   \u251c\u2500\u2500 main.py\n\u2502   \u251c\u2500\u2500 __init__.py",
+      "confusion": "Alex has no context for why the project is now structured as a 'backend' package or what __init__.py is for. It's unclear whether the earlier main.py should be moved.",
+      "suggestion": "Explain that this is only for when the app lives in a package folder, and say briefly what __init__.py does."
+    },
+    {
+      "line": 69,
+      "section": "fastapi dev with path or with --entrypoint CLI option",
+      "type": "detour",
+      "quote": "You can also pass the file path to the fastapi dev command, and it will guess the FastAPI app object to use",
+      "confusion": "Now there are three ways to tell FastAPI where the app is (nothing, pyproject.toml, path, --entrypoint). Alex does not know which to use and the page ends up recommending a different one than the first command used. The initial 'uv run fastapi dev' works without any of these, so this feels like noise.",
+      "suggestion": "Give one recommended path for beginners and move the alternatives into a collapsed 'Advanced' section."
+    },
+    {
+      "line": 80,
+      "section": "Deploy your app (optional)",
+      "type": "missing-step",
+      "quote": "You can optionally deploy your FastAPI app to FastAPI Cloud with a single command.",
+      "confusion": "Alex only wanted a local API. The deploy section appears before the step-by-step recap, with no mention of needing an account, whether it costs money, or whether it is safe to try. 'That's it!' suggests success but Alex hasn't been told about any prerequisites.",
+      "suggestion": "Say that an account is needed and whether there's a free tier, and move deployment to the end of the page or to its own page."
+    },
+    {
+      "line": 85,
+      "section": "Recap, step by step",
+      "type": "detour",
+      "quote": "### Step 1: import FastAPI",
+      "confusion": "After already running the app, Alex gets the same code repeated six times, once per step. It is repeated rather than showing only the relevant line. It feels like going over the same material rather than progressing, though the repetition does help match the explanations to the code.",
+      "suggestion": "Highlight just the relevant line in each snippet instead of repeating the whole file."
+    },
+    {
+      "line": 92,
+      "section": "Step 1: import FastAPI",
+      "type": "undefined-term",
+      "quote": "FastAPI is a class that inherits directly from Starlette.",
+      "confusion": "Alex doesn't know what Starlette is or what 'inherits' implies in practice. It is in a 'Technical Details' box so Alex can skip it, which is fine.",
+      "suggestion": "No change needed beyond a link or a half-sentence on what Starlette is."
+    },
+    {
+      "line": 99,
+      "section": "Step 2: create a FastAPI instance",
+      "type": "undefined-term",
+      "quote": "Here the app variable will be an \"instance\" of the class FastAPI.",
+      "confusion": "Alex knows classes but is not sure what 'instance' means here, and why the word is in quotes. 'main point of interaction to create all your API' is vague.",
+      "suggestion": "Say 'app = FastAPI() creates an object, and you attach your routes to it'."
+    },
+    {
+      "line": 103,
+      "section": "Step 3: Path",
+      "type": "undefined-term",
+      "quote": "\"Path\" here refers to the last part of the URL starting from the first / .",
+      "confusion": "Alex has built a Flask app, so routes are familiar, but here 'path', 'endpoint', 'route', 'operation', and 'path operation' are all introduced in quick succession. 'Path operation' in particular is non-standard, and Alex may mix it up with Flask's 'route'. The phrase 'separate concerns and resources' is also jargon.",
+      "suggestion": "Relate to Flask's @app.route early ('a path operation is what Flask calls a route') and keep to one term."
+    },
+    {
+      "line": 127,
+      "section": "Step 3: Operation",
+      "type": "undefined-term",
+      "quote": "In the HTTP protocol, you can communicate to each path using one (or more) of these \"methods\".",
+      "confusion": "Alex knows what GET and POST are roughly from Flask, but the list of nine methods (including TRACE, OPTIONS) is a lot to take in. It is not clear which ones matter now.",
+      "suggestion": "Mention that GET and POST are the ones to know first, and that the list is for reference."
+    },
+    {
+      "line": 144,
+      "section": "Define a path operation decorator",
+      "type": "missing-step",
+      "quote": "That @something syntax in Python is called a \"decorator\".",
+      "confusion": "Alex knows decorators from the persona, so this is fine and not confusing. One small snag: the tab on the code says 'Python 3.10+' and Alex isn't told whether older Python works.",
+      "suggestion": "State the minimum Python version near the install step."
+    },
+    {
+      "line": 175,
+      "section": "Step 4: define the path operation function",
+      "type": "undefined-term",
+      "quote": "In this case, it is an async function.\nYou could also define it as a normal function instead of async def",
+      "confusion": "This is the first mention of async, and it is just one sentence. Alex doesn't know what async does and now has two options with no guidance on which to choose or what the difference is. Alex may pick randomly or feel anxious they must learn async.",
+      "suggestion": "Say: 'Use def if you are unsure; async def is only needed when you await something.' Link to the async explanation page."
+    },
+    {
+      "line": 186,
+      "section": "Step 5: return the content",
+      "type": "undefined-term",
+      "quote": "You can also return Pydantic models (you'll see more about that later).",
+      "confusion": "Alex doesn't know Pydantic, but the text defers it with 'later', which is acceptable. 'ORMs' in the next paragraph is also unexplained, though Alex may know it.",
+      "suggestion": "Fine as is. Optionally add 'a library for describing data shapes' after Pydantic."
+    },
+    {
+      "line": 190,
+      "section": "Step 6: Deploy it",
+      "type": "detour",
+      "quote": "Deploy your app to FastAPI Cloud with one command: fastapi deploy . \ud83c\udf89",
+      "confusion": "Deployment is repeated a second time, followed by a promotional section about FastAPI Cloud being built by the same team and being the primary sponsor. For a learner following the tutorial this reads as an advertisement and doesn't help the goal of getting a working API.",
+      "suggestion": "Merge the two deploy sections and cut the sponsor text, or place it at the end of the page."
+    },
+    {
+      "line": 199,
+      "section": "Recap",
+      "type": "missing-verification",
+      "quote": "Run the development server using the command fastapi dev .",
+      "confusion": "The recap is clear and matches what Alex did. One gap: nothing tells Alex how to stop the server or what to do next. There is no 'Next steps' link to the following tutorial page.",
+      "suggestion": "Add a short 'Next steps' link to the next tutorial page (path parameters) and mention CTRL+C to stop the server."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can get a working API by copying the first snippet and running the command, and the recap is clear. The main stumbling blocks are the missing file name and install step, a success check that contradicts the code ('Hello FastAPI' vs 'Hello World'), an openapi.json sample that shows an '/items/' path Alex never defined, and unexplained `async def`. The OpenAPI, entrypoint, and deploy sections add many optional detours before the step-by-step explanation starts."
+}

@@ -1,0 +1,114 @@
+{
+  "run_id": "o02",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 33,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code logs \"Heartbeat\" in log_heartbeat, but the expected output shows \"Tick\". Alex waits a minute, sees \"Heartbeat\" (or nothing matching), and wonders whether the job is working or the code is wrong.",
+      "suggestion": "Change the expected output to \"INFO hassette.MyApp.0 \u2014 Heartbeat\" so it matches the snippet."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "from hassette import App, AppConfig, D, states",
+      "confusion": "The page never says which file this goes in or whether it replaces the existing app from the previous page. Alex asks 'where do I put this?'. The code fence also has no language label.",
+      "suggestion": "Say 'Replace the contents of your app file (e.g. my_app.py) with this', and label the fence as python."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-prerequisite",
+      "quote": "Stop Hassette with Ctrl+C and run hassette run -e .env again. The greeting appears at startup as before:",
+      "confusion": "'again' and 'as before' assume Alex already has Hassette running with a .env file and a greeting from a previous page. If Alex jumped here, or the earlier setup is unclear, there is no way to know what .env is or how to start.",
+      "suggestion": "Add a short prerequisite line at the top linking to the prior page, and briefly say what .env holds."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "registers a handler that fires whenever an entity's state changes",
+      "confusion": "'Handler' and 'registers' are used without a definition. Alex does not know what a handler is in an event-driven context, or what 'the bus' in self.bus means.",
+      "suggestion": "Define on first use: 'a handler is a function Hassette calls for you when something happens'. Say in one clause that the bus delivers Home Assistant events to your app."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "\"sun.*\" is a glob pattern that matches any entity in the sun domain",
+      "confusion": "'Glob pattern' and 'domain' are unexplained. Alex may not know that entity IDs look like domain.name, and that the * is a wildcard.",
+      "suggestion": "Add 'the * is a wildcard; entity IDs are written domain.name, so sun.* means every entity starting with sun.'."
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "The bracket syntax works like list[str] in standard Python generics. D.StateNew[T] means \"a new-state value, typed as T .\"",
+      "confusion": "Alex knows list[str] but not the word 'generics' or the placeholder T. The jump from list[str] to D.StateNew[states.SunState] is bigger than the page admits, and the line is dense with new names (D, StateNew, T, SunState).",
+      "suggestion": "Drop 'generics' and T. Say 'just as list[str] means a list of strings, D.StateNew[states.SunState] means the new state, as a SunState'."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection . No event dict parsing needed.",
+      "confusion": "Alex has not been shown what an 'event dict' is or why parsing one would be needed, so the benefit does not register. The term is named after the explanation, which is fine, but Pyright is introduced as an aside with no setup. Alex may think they must install it.",
+      "suggestion": "Show once what the alternative looks like (event[\"new_state\"][\"state\"]), or drop the 'event dict' phrase. Mark Pyright as safe to skip."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "missing-prerequisite",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on() . Async handlers run on Hassette's event loop",
+      "confusion": "Alex does not know async/await or event loops. The paragraph explains the effect ('other handlers keep running') but not what async def or await mean, and uses 'event loop' and 'fire-and-forget' without definition. It is a lot of unfamiliar vocabulary at the end of a long section. The 'Async Basics' link is under the migration section, which Alex would not expect to apply.",
+      "suggestion": "Add a plain rule: 'Write async def on handlers and put await before Hassette calls like self.api.turn_on(). Copy this pattern for now'. Defer the event loop and fire-and-forget details to a collapsible note."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "unclear-instruction",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "Alex knows the HA UI but may not know where to find an entity ID. The pointer to 'Developer Tools \u2192 Services' leads to services, not to entity IDs, which are under the States tab.",
+      "suggestion": "Point to Developer Tools \u2192 States (or the entity's settings) for entity IDs."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "undefined-term",
+      "quote": "log_heartbeat is a scheduled job : the scheduler calls it on a timer, not in response to an event.",
+      "confusion": "'Scheduler' appears here with no introduction (self.scheduler was not mentioned before). It is clear enough from context, but 'name=' and the tracking and cancelling on shutdown are unexplained.",
+      "suggestion": "Open with 'The scheduler runs functions on a timer'. Keep the rest."
+    },
+    {
+      "line": 19,
+      "section": "Schedule a Recurring Job",
+      "type": "missing-step",
+      "quote": "```\nfrom hassette import App, AppConfig, D, states",
+      "confusion": "The whole file is repeated with two small additions and no marker showing what is new. Alex has to diff the two snippets by eye to find the scheduler lines.",
+      "suggestion": "Highlight the added lines (hl_lines) or add a comment such as '# new' next to them."
+    },
+    {
+      "line": 36,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "Change the state value to below_horizon and click Set State .",
+      "confusion": "Alex is told to edit the real sun.sun state in HA, which is a slightly scary change, with no note that it will be overwritten by HA's next update. The expected result is given only as 'You see Sun changed: below_horizon' with no hint of where the logs appear, whether in the terminal running hassette or the web UI. If the porch light does not turn on there is no troubleshooting hint.",
+      "suggestion": "Say the logs appear in the terminal where hassette is running, add that this is safe to do, and add a line on what to check if nothing appears (is the entity ID real, is the app loaded)."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "The Sun changed and Porch light turned on lines appear at the next sunset.",
+      "confusion": "The actual log line is 'Sun changed: below_horizon'. The wording differs slightly from the code, and the 'Porch light turned on' text depends on light.porch existing, which Alex may not have, so the second line may never show.",
+      "suggestion": "Quote the exact log text, and note that the light line needs a real light entity."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can get through this page by copying the snippets, and the explanations of D and states are good. The main blockers are the 'Tick' vs 'Heartbeat' output mismatch, the unstated file location and prior setup, and a dense async paragraph full of terms Alex has never seen. With those fixed Alex would likely succeed, but as written it takes some effort and a moment of doubt at the heartbeat check."
+}

@@ -1,0 +1,87 @@
+LINE 1: # Your First Automation
+LINE 2: This page adds two features to your app:
+LINE 3: - A sunset handler that turns on a light when the sun sets, with typed state data filled in automatically
+LINE 4: - A heartbeat job that logs every minute
+LINE 5: ## Subscribe to a State Change
+LINE 6: This first snippet shows only the sunset handler, so each piece can be explained on its own. You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.
+LINE 7: ```
+LINE 8: from hassette import App, AppConfig, D, states
+
+
+class MyAppConfig(AppConfig):
+    greeting: str = "Hello from Hassette!"
+
+
+class MyApp(App[MyAppConfig]):
+    async def on_initialize(self):
+        self.logger.info(self.app_config.greeting)
+        await self.bus.on_state_change(
+            "sun.*", handler=self.on_sun_change, name="sun_change"
+        )
+
+    async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
+        self.logger.info("Sun changed: %s", new_state.value)
+
+        if new_state.value == "below_horizon":
+            await self.api.turn_on("light.porch")
+            self.logger.info("Porch light turned on")
+LINE 9: ```
+LINE 10: [self.bus.on_state_change()](../../core-concepts/bus/) registers a handler that fires whenever an entity's state changes, like a light switching on or a sensor reporting a new reading. "sun.*" is a glob pattern that matches any entity in the sun domain. In practice, that's sun.sun . The name= parameter labels this handler in logs and the [web UI](../../web-ui/) (a monitoring dashboard Hassette includes).
+LINE 11: The handler parameter new_state: D.StateNew[states.SunState] is a type annotation that tells Hassette: when this handler fires, pass in the new state as a SunState object. The bracket syntax works like list[str] in standard Python generics. D.StateNew[T] means "a new-state value, typed as T ." Here is what the two imports do:
+LINE 12: - [D](../../core-concepts/bus/dependency-injection/) is hassette.event_handling.dependencies , a module of type annotations. D.StateNew[T] means "give me the new state, converted to type T ."
+LINE 13: - [states](../../core-concepts/states/#built-in-state-types) is hassette.models.states , typed state classes for each HA domain. states.SunState has a .value attribute holding "above_horizon" or "below_horizon" .
+LINE 14: This is a Hassette feature. Standard Python ignores type annotations at runtime, but Hassette inspects them to know what to pass into each handler. The handler receives the new state as a parameter and Hassette fills it in for you. This is called dependency injection . No event dict parsing needed. Your IDE knows the type, and Pyright (a Python type checker, optional but useful in VS Code) catches typos.
+LINE 15: [self.api.turn_on()](../../core-concepts/api/) calls the light.turn_on service in Home Assistant, the same action as toggling a light from the HA UI. Hassette derives the service domain ( light ) from the light.porch entity ID automatically — no domain= parameter is needed. light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance. You can find available services in Developer Tools → Services in your Home Assistant instance.
+LINE 16: on_sun_change is async def so it can await Hassette calls like self.api.turn_on() . Async handlers run on Hassette's event loop: while one handler is paused at an await , other handlers keep running, so a slow call in one handler doesn't hold up the rest of your app. [Async Basics](../../migration/async-basics/) covers the event loop model in more depth. Service calls like turn_on() are fire-and-forget by default: the await finishes once the command is sent, not once Home Assistant has applied it. [Calling Services](../../core-concepts/api/methods/#calling-services) shows how to wait for confirmation instead.
+LINE 17: ## Schedule a Recurring Job
+LINE 18: ```
+LINE 19: from hassette import App, AppConfig, D, states
+
+
+class MyAppConfig(AppConfig):
+    greeting: str = "Hello from Hassette!"
+
+
+class MyApp(App[MyAppConfig]):
+    async def on_initialize(self):
+        self.logger.info(self.app_config.greeting)
+        await self.bus.on_state_change(
+            "sun.*", handler=self.on_sun_change, name="sun_change"
+        )
+        await self.scheduler.run_minutely(
+            self.log_heartbeat, name="log_heartbeat"
+        )
+
+    async def on_sun_change(self, new_state: D.StateNew[states.SunState]):
+        self.logger.info("Sun changed: %s", new_state.value)
+
+        if new_state.value == "below_horizon":
+            await self.api.turn_on("light.porch")
+            self.logger.info("Porch light turned on")
+
+    async def log_heartbeat(self):
+        self.logger.info("Heartbeat")
+LINE 20: ```
+LINE 21: [self.scheduler.run_minutely()](../../core-concepts/scheduler/methods/) runs log_heartbeat every minute. log_heartbeat is a scheduled job : the scheduler calls it on a timer, not in response to an event. The first run fires one minute after startup. Hassette tracks the job and cancels it automatically on shutdown.
+LINE 22: log_heartbeat has no D.* annotations in its signature, because there is no event to extract data from. See [SchedulerMethods](../../core-concepts/scheduler/methods/) for run_daily , run_cron , run_once , and more.
+LINE 23: ## Run It
+LINE 24: Stop Hassette with Ctrl+C and run hassette run -e .env again. The greeting appears at startup as before:
+LINE 25: ```
+LINE 26: INFO hassette.MyApp.0 — Hello from Hassette!
+LINE 27: ```
+LINE 28: About a minute later, the first heartbeat appears, then another every minute after that:
+LINE 29: ```
+LINE 30: INFO hassette.MyApp.0 — Tick
+LINE 31: ```
+LINE 32: The Sun changed and Porch light turned on lines appear at the next sunset. To test the handler now without waiting, trigger a state change manually:
+LINE 33: - In Home Assistant, go to Settings → Developer Tools .
+LINE 34: - Go to the States tab and find sun.sun .
+LINE 35: - Change the state value to below_horizon and click Set State .
+LINE 36: The handler fires within milliseconds. You see Sun changed: below_horizon and Porch light turned on in the logs.
+LINE 37: ## Next Steps
+LINE 38: - [Bus& Handlers](../../core-concepts/bus/) : attribute changes, service calls, glob patterns, predicates, and conditions
+LINE 39: - [Dependency Injection](../../core-concepts/bus/dependency-injection/) : all the types you can extract into handler parameters
+LINE 40: - [SchedulerMethods](../../core-concepts/scheduler/methods/) : run_daily , run_cron , run_once , and jitter
+LINE 41: - [Testing Your Apps](../../testing/) : unit tests using AppTestHarness
+LINE 42: - [Recipes](../../recipes/) : complete worked examples for motion lights, presence detection, and more
+LINE 43: - [Docker](../docker/) : run Hassette in production as a container

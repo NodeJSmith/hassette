@@ -1,0 +1,80 @@
+{
+  "run_id": "o01",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "steps": [
+    {
+      "line": 8,
+      "step": "Read the sunset handler snippet (not run yet)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 15,
+      "step": "Replace light.porch with a light entity ID from own HA instance",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 19,
+      "step": "Update the app file with the combined sunset handler plus heartbeat version",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Stop Hassette with Ctrl+C and run `hassette run -e .env` again",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 28,
+      "step": "Check logs for the heartbeat line about a minute later",
+      "can_complete": false,
+      "blocker": "The code logs \"Heartbeat\" but the page says to expect \"INFO hassette.MyApp.0 \u2014 Tick\". Alex would think the job is not running or the code is wrong."
+    },
+    {
+      "line": 33,
+      "step": "In Home Assistant, go to Settings -> Developer Tools",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 34,
+      "step": "Open the States tab and find sun.sun",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 35,
+      "step": "Change the state value to below_horizon and click Set State",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 36,
+      "step": "Confirm the logs show 'Sun changed: below_horizon' and 'Porch light turned on'",
+      "can_complete": true,
+      "blocker": null
+    }
+  ],
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "example-mismatch",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code on the page logs \"Heartbeat\" (self.logger.info(\"Heartbeat\")), but the expected output shows \"Tick\". Alex waits a minute, sees a different message or has trouble matching it, and wonders whether the scheduler job is broken or the code was copied wrong.",
+      "suggestion": "Make the expected output match the code: INFO hassette.MyApp.0 \u2014 Heartbeat."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on()",
+      "confusion": "The code uses async def and await in every snippet before this paragraph, and the explanation arrives after the code. Alex has never seen async/await, so the 'event loop' wording is abstract. The link to Async Basics helps and Alex can copy the pattern, so this slows Alex down without blocking.",
+      "suggestion": "Add a one-line note before the first snippet: 'async def and await are required in Hassette handlers; copy the pattern for now and see Async Basics later.'"
+    }
+  ],
+  "summary": "Alex could mostly succeed: the code is complete with imports, the new concepts (glob pattern, dependency injection, annotation) are explained inline, and the manual sun.sun test is concrete. The one real problem is that the expected heartbeat log says 'Tick' while the code logs 'Heartbeat', which would make Alex doubt the scheduler is working."
+}

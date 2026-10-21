@@ -1,0 +1,104 @@
+{
+  "run_id": "o31",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "steps": [
+    {
+      "line": 7,
+      "step": "Copy the code to a file main.py",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 10,
+      "step": "Run `uv run fastapi dev`",
+      "can_complete": false,
+      "blocker": "The page never says to install FastAPI or create a uv project first. Alex has no fastapi package, and `uv run fastapi dev` will fail or not find the command. The page has no install step and no mention of the fastapi[standard] extra."
+    },
+    {
+      "line": 18,
+      "step": "Open http://127.0.0.1:8000 in a browser",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Open /docs in a browser",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 27,
+      "step": "Open /redoc in a browser",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 43,
+      "step": "Open /openapi.json (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 53,
+      "step": "Add [tool.fastapi] entrypoint to pyproject.toml (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 76,
+      "step": "Run `uv run fastapi dev main.py` (optional alternative)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 86,
+      "step": "Run `uv run fastapi deploy` (optional)",
+      "can_complete": false,
+      "blocker": "It needs a FastAPI Cloud account and login. The page only says the browser opens for authentication. It does not say whether this costs money or whether an account is required."
+    }
+  ],
+  "findings": [
+    {
+      "line": 10,
+      "section": "First Steps",
+      "type": "missing-prerequisite",
+      "quote": "Run the live server: $ uv run fastapi dev",
+      "confusion": "Alex has only copied main.py. FastAPI is not installed, there is no pyproject.toml, and no link to an installation page. `uv run fastapi dev` would error out. Alex does not know the fastapi command needs the standard extra.",
+      "suggestion": "Add a short setup step before running: `uv init` and `uv add \"fastapi[standard]\"`, or link to the installation page."
+    },
+    {
+      "line": 5,
+      "section": "First Steps",
+      "type": "undefined-term",
+      "quote": "async def root():",
+      "confusion": "Alex does not know async/await. The first example uses `async def` with no explanation, and the explanation only comes at line 180, where the page links elsewhere. Alex may worry they need to understand async to proceed.",
+      "suggestion": "Add a one-line note at the first example: async is fine to ignore for now, and a plain `def` works too."
+    },
+    {
+      "line": 30,
+      "section": "OpenAPI",
+      "type": "jargon-dump",
+      "quote": "FastAPI generates a \"schema\" with all your API using the OpenAPI standard",
+      "confusion": "The whole OpenAPI, schema and JSON Schema section is a long detour before Alex has built anything. It is not needed to get a working API, and it is easy to get lost in.",
+      "suggestion": "Mark the section as optional background, or move it after the recap."
+    },
+    {
+      "line": 52,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "missing-context",
+      "quote": "You can configure where your app is located in a pyproject.toml file like:",
+      "confusion": "Alex has no pyproject.toml, since the page never created one. The relevance of an entrypoint is unclear when the first run already worked. The `__init__.py` package layout example adds more confusion.",
+      "suggestion": "Say this is optional and only needed once the app is not in main.py. Say how to create the pyproject.toml if there isn't one."
+    },
+    {
+      "line": 194,
+      "section": "Step 5: return the content",
+      "type": "undefined-term",
+      "quote": "You can also return Pydantic models (you'll see more about that later).",
+      "confusion": "Alex does not know Pydantic, though the page says it comes later, so this is only a mild distraction. ORMs are mentioned too.",
+      "suggestion": "Fine to leave. A brief gloss would help."
+    }
+  ],
+  "summary": "Alex could probably get it working only after figuring out installation elsewhere, since the page never covers installing FastAPI or setting up a uv project before `uv run fastapi dev`. Once running, the browser checks and the step-by-step recap are clear, and the explanations of path, operation and decorator are good for a beginner. The missing install step is the main blocker, and the long OpenAPI and pyproject sections are distracting rather than blocking."
+}

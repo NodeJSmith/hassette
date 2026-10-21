@@ -1,0 +1,18 @@
+{
+  "run_id": "o35",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code logs \"Heartbeat\" in log_heartbeat, but the expected output shows \"Tick\". Alex would wonder whether the code was copied wrong, whether the job is running, or whether another job is logging.",
+      "suggestion": "Change the expected output to \"INFO hassette.MyApp.0 \u2014 Heartbeat\" so it matches self.logger.info(\"Heartbeat\")."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can follow this page to a working automation. The dependency injection, async and glob explanations are supplied inline, and unfamiliar terms are defined before they matter. The one real snag is that the expected heartbeat log line (\"Tick\") doesn't match the code (\"Heartbeat\"), which could make Alex doubt the job is running."
+}

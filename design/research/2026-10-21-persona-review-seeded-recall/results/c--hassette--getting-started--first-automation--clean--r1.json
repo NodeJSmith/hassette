@@ -1,0 +1,42 @@
+{
+  "run_id": "o18",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 98,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "async def on_sun_change(self, new_state: D.StateNew[states.SunState])",
+      "confusion": "Alex has never seen async/await, and the page uses async def and await at lines 92-102 before explaining them. The explanation only comes at line 111, after the code and the dependency injection discussion. Alex has to read ahead to learn why every method is async.",
+      "suggestion": "Add a one-sentence note before the first snippet: 'Hassette is async, so methods use async def and await. Copy that pattern for now; the details are explained below.'"
+    },
+    {
+      "line": 110,
+      "section": "Subscribe to a State Change",
+      "type": "unclear-instruction",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "The instruction to replace the entity ID comes after the code and in the middle of a dense paragraph. Alex could miss it, and the handler would then silently do nothing, or error, on a nonexistent entity. Alex also doesn't know where to find an entity ID.",
+      "suggestion": "Put a callout beside the code saying to replace light.porch, and say where to find entity IDs (HA Settings -> Entities)."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Replace your apps/main.py with the complete app from Schedule a Recurring Job .",
+      "confusion": "The Quickstart is only linked, not summarized. Alex doesn't know where apps/main.py is or what the .env file holds, and has to go back to the Quickstart. The note that the first snippet doesn't need running is helpful. The 'Replace your apps/main.py' step is plain, but 'complete app' is slightly ambiguous.",
+      "suggestion": "Say 'copy the full code block from Schedule a Recurring Job (the second snippet)' and recap the run command and file location in a line."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "jargon-density",
+      "quote": "This is called dependency injection . No event dict parsing needed.",
+      "confusion": "The mechanism is explained well, but 'event dict parsing' is jargon Alex has never met, since Alex knows nothing about events. Alex doesn't know what the alternative being avoided is, and may feel the point of the feature is lost.",
+      "suggestion": "Drop the sentence or reword it: 'without you digging values out of a raw dictionary yourself'."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can finish this page. The terms are mostly defined inline (handler, glob, dependency injection, D, states), and the testing steps in Home Assistant are concrete. The friction is that async/await is used before it is explained, and that the light.porch replacement and the Quickstart context are easy to miss."
+}

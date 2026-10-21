@@ -1,0 +1,178 @@
+{
+  "run_id": "o07",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 5,
+      "section": "First Steps",
+      "type": "undefined-term",
+      "quote": "async def root():",
+      "confusion": "Alex does not know async/await. The very first example uses async def with no explanation, and it is unclear whether it is required or why it is there.",
+      "suggestion": "Add a one-line note at first use that async def is fine to copy as-is for now, and link to the async explanation."
+    },
+    {
+      "line": 11,
+      "section": "First Steps",
+      "type": "missing-prerequisite",
+      "quote": "$ uv run fastapi dev",
+      "confusion": "The page never says how to install FastAPI or set up a project. Alex may not have a pyproject.toml, a virtual environment, or the fastapi command with its dev extras. uv run could fail with command not found.",
+      "suggestion": "Add a prerequisites note or link covering installing fastapi[standard] and which directory to run the command from."
+    },
+    {
+      "line": 7,
+      "section": "First Steps",
+      "type": "missing-step",
+      "quote": "Copy that to a file main.py .",
+      "confusion": "Alex is not told where to create the file or which directory to run the server from. The output shows /home/user/code/awesomeapp, which is not explained.",
+      "suggestion": "Say to create an empty project folder, save main.py there, and run the command from that folder."
+    },
+    {
+      "line": 9,
+      "section": "First Steps",
+      "type": "detour",
+      "quote": "official extension for VS Code (and Cursor), which provides a lot of features, including a path operation explorer, path operation search, CodeLens navigation",
+      "confusion": "Alex uses VS Code, but the tip is packed with unfamiliar terms (path operation explorer, CodeLens, FastAPI Cloud deployment) before path operations have been introduced. It is distracting at the first step.",
+      "suggestion": "Shorten the tip or move it to the end of the page."
+    },
+    {
+      "line": 11,
+      "section": "First Steps",
+      "type": "unclear-output",
+      "quote": "Searching for package file structure from directories with __init__.py files",
+      "confusion": "The server log is long and uses unexplained terms (import string, reloader process, WatchFiles, Uvicorn). Alex cannot tell which lines matter or whether any warning is an error.",
+      "suggestion": "Say that the lines to look for are Application startup complete and the server URL, and that the rest can be ignored for now."
+    },
+    {
+      "line": 18,
+      "section": "Check it",
+      "type": "unclear-success",
+      "quote": "You will see the JSON response as:",
+      "confusion": "Fairly clear, but there is no hint about what to do if the page does not load, such as the port being in use or the server not running.",
+      "suggestion": "Add a brief what-if-it-fails note."
+    },
+    {
+      "line": 30,
+      "section": "OpenAPI",
+      "type": "unmotivated-detail",
+      "quote": "FastAPI generates a \"schema\" with all your API using the OpenAPI standard for defining APIs.",
+      "confusion": "Alex's goal is a working API, and this section plunges into schema, OpenAPI, JSON Schema, and API schema versus data schema. It feels like a detour and the terminology piles up.",
+      "suggestion": "Mark the section as optional background, or move it after the recap. Open with why it matters: it powers the /docs page just seen."
+    },
+    {
+      "line": 46,
+      "section": "Check the openapi.json",
+      "type": "mismatch",
+      "quote": "\"/items/\": {",
+      "confusion": "The sample JSON shows an /items/ path, but Alex's app only has /. Alex would wonder whether they did something wrong or whether the sample is for a different app.",
+      "suggestion": "Make the sample match the Hello World app, with the / path and root operation, or say it is only an illustration."
+    },
+    {
+      "line": 52,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "undefined-term",
+      "quote": "[tool.fastapi]\nentrypoint = \"main:app\"",
+      "confusion": "Alex has not been told what an entrypoint is or what main:app means. The step is placed before the recap that explains the code. Alex also may not have a pyproject.toml, and it is unclear whether this step is required, since the server already started without it.",
+      "suggestion": "State that this is optional, explain that main:app means the app variable in main.py, and say to create the file if it is missing."
+    },
+    {
+      "line": 63,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "undefined-term",
+      "quote": "backend.main:app",
+      "confusion": "The package and __init__.py folder structure is introduced abruptly. Alex may not know why __init__.py matters or how dotted imports map to folders.",
+      "suggestion": "Add one sentence explaining the dotted path maps to folders and that __init__.py makes a folder a package."
+    },
+    {
+      "line": 84,
+      "section": "Deploy your app (optional)",
+      "type": "detour",
+      "quote": "fastapi deploy",
+      "confusion": "Deployment appears before Alex understands the code, requires a FastAPI Cloud account that is not mentioned, and is repeated again at Step 6. It feels like a sales pitch inside a tutorial.",
+      "suggestion": "Keep deployment in one place at the end, and state that it needs an account and is not required to continue."
+    },
+    {
+      "line": 95,
+      "section": "Step 1: import FastAPI",
+      "type": "undefined-term",
+      "quote": "FastAPI is a Python class that provides all the functionality for your API.",
+      "confusion": "The Technical Details box about inheriting from Starlette is jargon that Alex does not know. It is labeled skippable, but the term Starlette is undefined.",
+      "suggestion": "Say Starlette is the underlying web toolkit, or mark the box as safe to skip."
+    },
+    {
+      "line": 104,
+      "section": "Step 2: create a FastAPI instance",
+      "type": "undefined-term",
+      "quote": "Here the app variable will be an \"instance\" of the class FastAPI .",
+      "confusion": "Alex knows classes, so this is mostly fine. The scare quotes on instance are slightly odd, and it is unclear why this variable name matters to the main:app reference seen earlier.",
+      "suggestion": "Link the variable name app back to main:app."
+    },
+    {
+      "line": 108,
+      "section": "Step 3: Path",
+      "type": "jargon",
+      "quote": "the \"path\" is the main way to separate \"concerns\" and \"resources\".",
+      "confusion": "Concerns and resources are abstract terms, and Alex has built only a Flask app. The note that path means endpoint or route helps, but the Flask connection is not made.",
+      "suggestion": "Give a concrete example, such as /users versus /items, and say a path is what Flask calls a route."
+    },
+    {
+      "line": 121,
+      "section": "Step 3: Operation",
+      "type": "undefined-term",
+      "quote": "\"Operation\" here refers to one of the HTTP \"methods\".",
+      "confusion": "The list of nine HTTP methods, including exotic ones, is overwhelming. The meaning of GET versus POST is only lightly explained. Alex does not know what HTTP methods are beyond maybe Flask's methods=['POST'].",
+      "suggestion": "Introduce only GET and POST first, and put the full list in a collapsible section."
+    },
+    {
+      "line": 150,
+      "section": "Step 3: decorator",
+      "type": "missing-explanation",
+      "quote": "A \"decorator\" takes the function below and does something with it.",
+      "confusion": "Alex knows decorators in Python basics, so this is acceptable. The hat metaphor is flippant but harmless.",
+      "suggestion": "None required. Optionally trim the hat joke."
+    },
+    {
+      "line": 180,
+      "section": "Step 4: define the path operation function",
+      "type": "undefined-term",
+      "quote": "In this case, it is an async function. You could also define it as a normal function instead of async def",
+      "confusion": "Alex does not know async. Is told that either is fine but not which to choose. The note points to a different page for the difference, which interrupts the flow.",
+      "suggestion": "Say to use plain def if unsure, or that async def is fine for this example, in one sentence, and then link."
+    },
+    {
+      "line": 187,
+      "section": "Step 4: Note",
+      "type": "detour",
+      "quote": "If you don't know the difference, check the Async: \"In a hurry?\"",
+      "confusion": "Alex does not know the difference and is sent to another page. They may leave and lose their place.",
+      "suggestion": "Give the one-sentence answer inline and keep the link as optional reading."
+    },
+    {
+      "line": 194,
+      "section": "Step 5: return the content",
+      "type": "undefined-term",
+      "quote": "You can also return Pydantic models (you'll see more about that later).",
+      "confusion": "Pydantic is unknown to Alex. The sentence is flagged as later content, so it is mild, but ORMs also appear with no context.",
+      "suggestion": "Fine to defer, but add a short gloss such as Pydantic being a data validation library covered in a later page."
+    },
+    {
+      "line": 196,
+      "section": "Step 6: Deploy it",
+      "type": "unmotivated-detail",
+      "quote": "FastAPI Cloud is the primary sponsor and funding provider for the FastAPI and friends open source projects.",
+      "confusion": "This is promotional material and does not help Alex build the API. It appears again after the optional deploy section earlier.",
+      "suggestion": "Remove the duplicate or condense to a single optional note."
+    },
+    {
+      "line": 206,
+      "section": "Recap",
+      "type": "unclear-success",
+      "quote": "Define a path operation function ; for example, def root(): ... .",
+      "confusion": "The recap is a helpful summary, but it uses def while the main example used async def, and it gives no checklist for Alex to confirm that they succeeded.",
+      "suggestion": "Make the recap example consistent with the main code."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can get a Hello World running by copying the code and running the command, and the browser check gives a clear success signal. The main friction is missing setup (installing FastAPI, project folder), unexplained async def, a dense server log, and a long OpenAPI/schema detour plus repeated deployment promotion that distract from the goal. With effort Alex succeeds, but the first ten minutes would involve some guessing."
+}

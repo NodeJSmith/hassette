@@ -1,0 +1,112 @@
+{
+  "run_id": "o05",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "steps": [
+    {
+      "line": 7,
+      "step": "Copy the code to a file main.py",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 11,
+      "step": "Run `uv run fastapi dev`",
+      "can_complete": false,
+      "blocker": "The page never says to install FastAPI or create a project/environment first. `uv run fastapi dev` will fail with no fastapi installed or no pyproject. It also doesn't say to run from the directory containing main.py."
+    },
+    {
+      "line": 18,
+      "step": "Open http://127.0.0.1:8000 in the browser",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Open /docs",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 27,
+      "step": "Open /redoc",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 43,
+      "step": "Open /openapi.json (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 53,
+      "step": "Configure entrypoint in pyproject.toml (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 76,
+      "step": "Run `uv run fastapi dev main.py` (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 86,
+      "step": "Run `uv run fastapi deploy` (optional)",
+      "can_complete": false,
+      "blocker": "Needs a FastAPI Cloud account and login, and the page does not explain how to sign up or what it costs. It is marked optional."
+    }
+  ],
+  "findings": [
+    {
+      "line": 11,
+      "section": "First Steps",
+      "type": "missing-prerequisite",
+      "quote": "$ uv run fastapi dev",
+      "confusion": "Alex has only seen a main.py file. Where does FastAPI get installed? Alex would have to guess `uv add fastapi` or `pip install \"fastapi[standard]\"`, and might not know that the `fastapi` command comes from the standard extras. `uv run` in a folder with no project would fail.",
+      "suggestion": "Add a short setup step before running: create a project, install with `uv add \"fastapi[standard]\"` (or pip), and run the command from the folder containing main.py."
+    },
+    {
+      "line": 5,
+      "section": "First Steps",
+      "type": "undefined-term",
+      "quote": "async def root():",
+      "confusion": "Alex doesn't know async/await. The first code block uses it with no explanation and the aside only appears at line 180, after the code is already copied.",
+      "suggestion": "Add a note at first use that `async def` is fine to copy as-is, with a link to the 'In a hurry?' section."
+    },
+    {
+      "line": 180,
+      "section": "Step 4: define the path operation function",
+      "type": "unexplained-pointer",
+      "quote": "If you don't know the difference, check the Async:\"In a hurry?\".",
+      "confusion": "Alex gets a pointer but not a rule of thumb, so it is unclear which form to use when writing their own functions.",
+      "suggestion": "Add one sentence such as 'if unsure, use plain `def`'."
+    },
+    {
+      "line": 11,
+      "section": "First Steps",
+      "type": "unexplained-output",
+      "quote": "Searching for package file structure from directories with __init__.py files",
+      "confusion": "The long startup output has many lines Alex can't interpret (reloader, WatchFiles, 'Importing from /home/user/code/awesomeapp'). It is unclear whether the output means success or whether Alex should see their own path.",
+      "suggestion": "Say that the 'Application startup complete' line means success and that paths will differ."
+    },
+    {
+      "line": 52,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "missing-context",
+      "quote": "You can configure where your app is located in a pyproject.toml file like:",
+      "confusion": "Alex doesn't know what a pyproject.toml is or where it goes, and `__init__.py` and the module import string `backend.main:app` are introduced without explanation.",
+      "suggestion": "State that pyproject.toml sits in the project root, and explain the 'module:variable' format in one line."
+    },
+    {
+      "line": 46,
+      "section": "Check the openapi.json",
+      "type": "inconsistency",
+      "quote": "\"/items/\": {",
+      "confusion": "The sample JSON shows an /items/ path, but the Hello World app only defines /. Alex may wonder whether they did something wrong.",
+      "suggestion": "Show the actual output for the example app or say the sample is illustrative."
+    }
+  ],
+  "summary": "Alex could get the file written and understand the concepts, but would likely stall at the very first run step because installing FastAPI is never mentioned. The `async def` in the first snippet is also unexplained until later. After that the page is clear and the optional sections can be skipped."
+}

@@ -1,0 +1,74 @@
+{
+  "run_id": "o04",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "steps": [
+    {
+      "line": 6,
+      "step": "Read the sunset handler snippet (no need to run it)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 15,
+      "step": "Replace light.porch with the entity ID of a light in your own Home Assistant",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Replace apps/main.py with the complete app from Schedule a Recurring Job",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Stop Hassette with Ctrl+C and run hassette run -e .env again",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 28,
+      "step": "Wait about a minute and check logs for the first heartbeat",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 33,
+      "step": "In Home Assistant, go to Settings -> Developer Tools",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 34,
+      "step": "Go to the States tab and find sun.sun",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 35,
+      "step": "Change the state value to below_horizon and click Set State",
+      "can_complete": true,
+      "blocker": null
+    }
+  ],
+  "findings": [
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on(). Async handlers run on Hassette's event loop",
+      "confusion": "Alex does not know async/await or event loops. The paragraph explains why, but in terms of other unfamiliar concepts. Alex can still copy the code, since it is given in full, and a link to Async Basics is provided.",
+      "suggestion": "Add one plain sentence: always write async def for handlers and put await in front of self.api and self.bus calls; the linked page explains why."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Hassette inspects them to know what to pass into each handler... This is called dependency injection.",
+      "confusion": "The page does define the term inline, but it is dense for someone who has not seen annotations drive runtime behavior. Alex will likely accept it and move on.",
+      "suggestion": "Optional: a one-line example of the alternative (a raw event dict) to show what is being avoided."
+    }
+  ],
+  "summary": "Alex can most likely succeed. Full code is given, the complete app is shown, and the manual test via Developer Tools is concrete. The main friction is the async and dependency-injection explanation, which uses unfamiliar concepts, but Alex can copy the code and push through, and a link is provided."
+}

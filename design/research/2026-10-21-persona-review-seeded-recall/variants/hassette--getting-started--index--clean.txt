@@ -1,0 +1,98 @@
+LINE 1: # Quickstart
+LINE 2: Install Hassette, write a one-file app that logs a greeting on startup, and see it connect to Home Assistant. For a containerized setup, see [Docker Setup](docker/) instead. On Home Assistant OS or Supervised, install the [Hassette add-on](addon/) instead.
+LINE 3: ## Prerequisites
+LINE 4: - Python 3.11 or later : check with python --version .
+LINE 5: - [uv](https://docs.astral.sh/uv/getting-started/installation/) : this guide uses uv to install Hassette.
+LINE 6: - A running Home Assistant instance : you'll need its URL and a long-lived access token (a token that does not expire, generated in HA).
+LINE 7: ## 1. Install Hassette
+LINE 8: ```
+LINE 9: uv tool install hassette
+LINE 10: ```
+LINE 11: ## 2. Create a Home Assistant token
+LINE 12: [Create a long-lived access token](ha_token/) from the Home Assistant UI (Profile → Security → Long-Lived Access Tokens).
+LINE 13: ## 3. Set up a project directory
+LINE 14: Create an empty directory with an apps/ folder, then create a .env file inside it:
+LINE 15: ```
+LINE 16: mkdir -p my-hassette/apps && cd my-hassette
+LINE 17: ```
+LINE 18: ```
+LINE 19: # .env
+HASSETTE__TOKEN=your_long_lived_access_token_here
+HASSETTE__BASE_URL=http://homeassistant.local:8123
+LINE 20: ```
+LINE 21: Replace the token value with the one you created in step 2. Update HASSETTE__BASE_URL to your Home Assistant address without any page path, typically http://homeassistant.local:8123 or http://<your-ip>:8123 . The double underscores in HASSETTE__TOKEN and HASSETTE__BASE_URL are required. Hassette uses them to separate configuration namespaces.
+LINE 22: ## 4. Create your first app
+LINE 23: Your app methods use async def , and calls to Hassette services need await in front of them. The rule: write async def for all your app methods, and add await before any call to self.bus , self.scheduler , or self.api . Regular calls like self.logger.info() do not need await . That covers everything in this guide.
+LINE 24: ```
+LINE 25: from hassette import App, AppConfig
+
+
+class MyAppConfig(AppConfig):
+    greeting: str = "Hello from Hassette!"
+
+
+class MyApp(App[MyAppConfig]):
+    async def on_initialize(self):
+        self.logger.info(self.app_config.greeting)
+LINE 26: ```
+LINE 27: Save this as apps/main.py . Hassette scans apps/ for any class that inherits from App and runs all of them.
+LINE 28: MyAppConfig declares your app's settings as typed class attributes. Hassette loads values from environment variables and [hassette.toml](../core-concepts/configuration/) automatically. App[MyAppConfig] ties the config to the app so self.app_config is always the right type.
+LINE 29: Every app inherits five objects from Hassette: self.logger (Python logger), self.bus (listens for things happening in Home Assistant, like a light turning on), self.scheduler (runs functions on a timer), self.api (sends commands to Home Assistant), and self.states (reads current entity states from a local cache). Hassette creates them at startup. You just use them.
+LINE 30: ## 5. Run Hassette
+LINE 31: ```
+LINE 32: hassette run -e .env
+LINE 33: ```
+LINE 34: Hassette logs each startup step. Two lines matter:
+LINE 35: ```
+LINE 36: ...
+2026-01-14T09:12:04.868953 [info     ] Connected to Home Assistant at ws://homeassistant.local:8123/api/websocket [hassette.WebsocketService] execution_id=None source_tier=framework
+...
+2026-01-14T09:12:04.998186 [info     ] Hello from Hassette!           [hassette.MyApp.0] app_key=apps.main.MyApp execution_id=None instance_index=0 instance_name=MyApp.0 source_tier=app
+LINE 37: ```
+LINE 38: The Connected to Home Assistant line confirms your URL and token work. The Hello from Hassette! line comes from your on_initialize method. If you change the greeting field in MyAppConfig and restart, you see your new text. Open a second terminal to check on the running instance:
+LINE 39: ```
+LINE 40: hassette status
+LINE 41: ```
+LINE 42: ```
+LINE 43: ╭──────────────────── SystemStatusResponse ────────────────────╮
+│  status               ok                                     │
+│  websocket_connected  True                                   │
+│  uptime_seconds       4.21                                   │
+│  app_count            1 tracked instance                     │
+╰──────────────────────────────────────────────────────────────╯
+LINE 44: ```
+LINE 45: ```
+LINE 46: hassette app
+LINE 47: ```
+LINE 48: ```
+LINE 49: ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Display Name ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File    ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━┩
+│ apps.main.MyApp │ running │ MyApp        │ 1         │ 0              │ True    │ True      │ main.py │
+└─────────────────┴─────────┴──────────────┴───────────┴────────────────┴─────────┴───────────┴─────────┘
+LINE 50: ```
+LINE 51: websocket_connected: True confirms the Home Assistant connection. apps.main.MyApp shows running . Invocations/1h counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
+LINE 52: Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and HASSETTE__TOKEN is not it. On first start, Hassette wrote a separate token to <data_dir>/.web_api_token (or to web_api.token_file , if you set it). <data_dir> is the directory where Hassette keeps its own files, such as its database. The CLI finds that file and uses it automatically, which is why the commands above needed no setup. Point the CLI at a different instance — a remote host, or a second instance on this machine — and it needs that instance's token instead. See [CLI Configuration: Web API Token](../cli/configuration/#web-api-token) for how to supply one. An Error 401 names the credential the CLI sent and what to do about it.
+LINE 53: ## 6. Open the dashboard
+LINE 54: The same running instance serves a web UI. Open [http://127.0.0.1:8126/](http://127.0.0.1:8126/) in a browser.
+LINE 55: A login screen asks for a token. Paste in the contents of <data_dir>/.web_api_token (or of web_api.token_file , if you set it) — the same credential the CLI uses. With the default <data_dir> , this prints it:
+LINE 56: [TAB: Linux]
+LINE 57: ```
+LINE 58: cat ~/.local/share/hassette/v0/.web_api_token
+LINE 59: ```
+LINE 60: [TAB: macOS]
+LINE 61: ```
+LINE 62: cat ~/Library/Application\ Support/hassette/v0/.web_api_token
+LINE 63: ```
+LINE 64: [TAB: Windows]
+LINE 65: ```
+LINE 66: Get-Content "$env:LOCALAPPDATA\hassette\hassette\v0\.web_api_token"
+LINE 67: ```
+LINE 68: If you changed data_dir , the startup log from step 5 names the file on the line beginning Generated new web API auth_token, written to . The token value itself is never logged.
+LINE 69: The dashboard shows app health, per-handler invocation history, structured logs, and the resolved configuration. It covers the same ground as hassette status and hassette app , plus history you can click through. See [Web UI](../web-ui/) for the full tour, including how to change the bind address or run it behind a reverse proxy.
+LINE 70: [ADMONITION: Having trouble?]
+LINE 71:   If Hassette fails to connect, check HASSETTE__BASE_URL in your .env and confirm the token is correct. See [Troubleshooting](../troubleshooting/) for common issues.
+LINE 72: ## Next steps
+LINE 73: - [Your First Automation](first-automation/) : react to state changes, get typed event data automatically, and schedule recurring jobs
+LINE 74: - [Web UI](../web-ui/) : app health, invocation history, and logs in the browser
+LINE 75: - [Docker Setup](docker/) : deploy Hassette in production with Docker Compose

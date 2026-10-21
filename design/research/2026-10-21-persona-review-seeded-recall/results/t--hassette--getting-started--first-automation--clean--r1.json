@@ -1,0 +1,34 @@
+{
+  "run_id": "o19",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on(). Async handlers run on Hassette's event loop: while one handler is paused at an await, other handlers keep running",
+      "confusion": "Alex does not know async/await or event loops. The explanation uses 'event loop' and 'paused at an await' without defining them, and the code has already used async def and await several times with no explanation. Alex would have to guess that they should just copy the pattern.",
+      "suggestion": "Add a one-sentence plain explanation near the first async def/await: 'Write async def for handlers and put await before Hassette calls; you can copy this pattern without understanding async fully.' Then keep the Async Basics link."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection .",
+      "confusion": "The term is named but only loosely described. Alex may not connect it to the D.StateNew annotation, and the paragraph dense with new ideas (annotations inspected at runtime, injection, Pyright) forces a re-read.",
+      "suggestion": "Lead with the practical takeaway: 'Hassette looks at your parameter's type annotation and passes in the matching value.' Treat the term 'dependency injection' as a side note."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "missing-context",
+      "quote": "class MyAppConfig(AppConfig):\n    greeting: str = \"Hello from Hassette!\"",
+      "confusion": "The page does not explain AppConfig or the config class (Alex doesn't know Pydantic). It reads as boilerplate carried over from the Quickstart, which the page assumes Alex has done, so Alex has to guess it is unrelated to the new feature.",
+      "suggestion": "Add a note that MyAppConfig and the greeting line come unchanged from the Quickstart, and that this page only adds the sun handler and the heartbeat job."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can finish by copying the code and following the Run It steps, which are clear. The async/await and dependency injection explanations assume more background than Alex has, so Alex must re-read or accept them on faith."
+}
