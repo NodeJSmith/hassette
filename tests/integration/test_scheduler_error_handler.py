@@ -14,9 +14,6 @@ if TYPE_CHECKING:
     from hassette.scheduler import Scheduler
     from hassette.testing import HassetteHarness
 
-ERROR_TIMEOUT = 2.0
-"""Seconds to wait for an error handler that fires without a duration timer in front of it."""
-
 
 class _SchedulerErrorCollector:
     """Records the `SchedulerErrorContext` values an `on_error` handler receives."""
@@ -30,7 +27,7 @@ class _SchedulerErrorCollector:
         self.contexts.append(ctx)
         self.hassette.task_bucket.post_to_loop(self.ran.set)
 
-    async def wait(self, timeout: float = ERROR_TIMEOUT) -> None:
+    async def wait(self, timeout: float = HANG_GUARD_TIMEOUT_SECONDS) -> None:
         """Block until the first error is recorded."""
         await asyncio.wait_for(self.ran.wait(), timeout=timeout)
 
@@ -41,7 +38,7 @@ class _SchedulerErrorCollector:
         return self.contexts[0]
 
     async def wait_and_assert_single(
-        self, exc_type: type[Exception], timeout: float = ERROR_TIMEOUT
+        self, exc_type: type[Exception], timeout: float = HANG_GUARD_TIMEOUT_SECONDS
     ) -> SchedulerErrorContext:
         """Wait for the error, let the loop settle, then assert and return its context."""
         await self.wait(timeout)
