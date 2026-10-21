@@ -1,14 +1,19 @@
 """Unit tests for hassette status, telemetry, and dashboard commands."""
 
+from hassette_wire import AppStatus
+
 from hassette.cli.commands.status import (
     DASHBOARD_COLUMNS,
     cmd_dashboard,
     cmd_status,
     cmd_telemetry,
 )
+from tests.support.web_manifest_helpers import make_app_summary
 from tests.support.web_response_helpers import (
+    make_app_activity,
     make_app_grid_entry,
     make_app_grid_response,
+    make_app_health,
     make_system_status_response,
     make_telemetry_status_response,
 )
@@ -195,6 +200,26 @@ class TestCmdDashboard:
         """No column is blank because its path is stale: each one reads a value from a full row."""
         row = make_app_grid_entry().model_dump(mode="json")
         assert {c.field for c in DASHBOARD_COLUMNS if resolve_path(row, c.field) is None} == set()
+
+    def test_status_and_health_are_colored_on_a_terminal_and_plain_when_piped(
+        self, cli_client_factory: CLIClientFactory
+    ) -> None:
+        entry = make_app_grid_entry(
+            app=make_app_summary(app_key="my_app", status=AppStatus.FAILED),
+            activity=make_app_activity(health=make_app_health(health_status="warning")),
+        )
+        body = make_app_grid_response([entry]).model_dump(mode="json")
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+
+        colored = runner.terminal_stdout(client, cmd_dashboard)
+        assert "\x1b[31mfailed" in colored
+        assert "\x1b[33mwarning" in colored
+        assert "mmy_app" not in colored, "the app key must stay unstyled"
+
+        plain = runner.stdout(client, cmd_dashboard)
+        assert "failed" in plain
+        assert "warning" in plain
+        assert "\x1b[" not in plain
 
     def test_dashboard_columns_count_is_compact(self) -> None:
         """Dashboard uses at most 8 columns for readability in 80-col terminals."""

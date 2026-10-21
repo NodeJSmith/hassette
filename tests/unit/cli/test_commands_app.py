@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatus
+from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatus, ExecutionStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -168,6 +168,19 @@ class TestCmdApp:
         """APP_LIST_COLUMNS uses at most 8 columns for readability."""
         assert len(APP_LIST_COLUMNS) <= 8
 
+    def test_status_is_colored_on_a_terminal_and_plain_when_piped(self, cli_client_factory: CLIClientFactory) -> None:
+        entry = make_app_grid_entry(app=make_app_summary(app_key="my_app", status=AppStatus.FAILED))
+        body = make_app_grid_response([entry]).model_dump(mode="json")
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+
+        colored = runner.terminal_stdout(client, cmd_app)
+        assert "\x1b[31mfailed" in colored
+        assert "mmy_app" not in colored, "the app key must stay unstyled"
+
+        plain = runner.stdout(client, cmd_app)
+        assert "failed" in plain
+        assert "\x1b[" not in plain
+
 
 # cmd_app_health
 
@@ -295,6 +308,18 @@ class TestCmdAppActivity:
         output = runner.stdout(client, cmd_app_activity, "my-app")
         # Rich may truncate the handler name in a narrow console — match the prefix
         assert "on_light_c" in output
+
+    def test_status_is_colored_on_a_terminal_and_plain_when_piped(self, cli_client_factory: CLIClientFactory) -> None:
+        entry = make_activity_feed_entry(status=ExecutionStatus.ERROR, handler_name="on_light_change")
+        client = cli_client_factory.build_with_routes([("GET", ACTIVITY_ENDPOINT, 200, [entry.model_dump()])])
+
+        colored = runner.terminal_stdout(client, cmd_app_activity, "my-app")
+        assert "\x1b[31merror" in colored
+        assert "mon_light" not in colored, "the handler name must stay unstyled"
+
+        plain = runner.stdout(client, cmd_app_activity, "my-app")
+        assert "error" in plain
+        assert "\x1b[" not in plain
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """App activity --json outputs entries as a JSON array."""

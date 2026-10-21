@@ -180,6 +180,26 @@ def capture_stdout():
         yield buf
 
 
+@contextmanager
+def capture_terminal_stdout():
+    """Capture Rich stdout console output as a color terminal would receive it.
+
+    ``color_system``/``no_color`` are pinned so ``NO_COLOR`` or ``TERM=dumb`` in the environment
+    can't suppress the styles under test.
+    """
+    buf = StringIO()
+    mock_console = Console(
+        file=buf,
+        highlight=False,
+        force_terminal=True,
+        color_system="standard",
+        no_color=False,
+        width=CAPTURE_CONSOLE_WIDTH,
+    )
+    with patch.object(output_module, "stdout_console", mock_console):
+        yield buf
+
+
 def capture_human(func, *args, **kwargs) -> tuple[str, str]:
     """Call ``func(*args, **kwargs)`` with Rich consoles redirected to StringIO.
 
@@ -221,6 +241,7 @@ class CommandRunner:
 
         spy = runner.spy(client, cmd_log, app="my-app")
         output = runner.stdout(client, cmd_log)
+        colored = runner.terminal_stdout(client, cmd_log)
         parsed = runner.json_output(client, cmd_log)
         assert "No results" in runner.stderr(client, cmd_log)
         code, stderr = runner.usage_error(client, cmd_log, instance="0")
@@ -243,6 +264,12 @@ class CommandRunner:
     def stdout(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> str:
         """Run ``func`` and return what it rendered to the human stdout console."""
         with capture_stdout() as buf, patch(self.make_client_path, return_value=client):
+            func(*args, **kwargs)
+        return buf.getvalue()
+
+    def terminal_stdout(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> str:
+        """Run ``func`` and return what it rendered to a forced-terminal stdout, ANSI styles included."""
+        with capture_terminal_stdout() as buf, patch(self.make_client_path, return_value=client):
             func(*args, **kwargs)
         return buf.getvalue()
 

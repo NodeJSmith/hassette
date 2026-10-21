@@ -35,7 +35,7 @@ APP_LIST_WINDOW_SECONDS = SECONDS_PER_HOUR
 
 APP_LIST_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("app.app_key", "App", max_width=20),
-    cli_output.Column("app.status", "Status", max_width=10),
+    cli_output.Column("app.status", "Status", max_width=10, style=cli_output.status_style),
     cli_output.Column("app.display_name", "Display Name", max_width=22),
     cli_output.Column("app.instance_count", "Instances", max_width=9),
     cli_output.Column(
@@ -58,7 +58,7 @@ APP_HEALTH_COLUMNS: list[cli_output.Column] = [
 APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("row_id", "ID", max_width=10),
     cli_output.Column("kind", "Kind", max_width=8),
-    cli_output.Column("status", "Status", max_width=10),
+    cli_output.Column("status", "Status", max_width=10, style=cli_output.status_style),
     cli_output.Column("app_key", "App", max_width=20),
     cli_output.Column("handler_name", "Handler", max_width=22),
     cli_output.Column("duration_ms", "Duration", max_width=9, formatter=cli_formatters.fmt_duration_ms),
