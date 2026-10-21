@@ -63,7 +63,7 @@ def make_manifest(  # factory-local: returns AppManifest, not AppManifestInfo
     app_key: str, filename: str, class_name: str, app_config: dict | list[dict] | None = None, enabled: bool = True
 ) -> AppManifest:
     """Helper to create AppManifest instances for testing."""
-    config = app_config or {"instance_name": f"{class_name}.0"}
+    config = app_config or {"instance_name": app_key}
     return AppManifest(
         app_key=app_key,
         filename=filename,

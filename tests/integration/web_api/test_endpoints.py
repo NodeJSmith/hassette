@@ -66,7 +66,7 @@ def seed_real_registry(
     every one of those tests, in both ``TestAppEndpoints`` and ``TestAppInstanceEndpoints``.
     """
     registry = AppRegistry()
-    manifest = create_app_manifest(suffix, tmp_path, app_config=app_config or {})
+    manifest = create_app_manifest(suffix, tmp_path, app_config=app_config)
     registry.set_manifests({manifest.app_key: manifest})
     mock_hassette._app_handler.registry = registry
     return manifest

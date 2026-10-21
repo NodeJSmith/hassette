@@ -8,12 +8,16 @@ def test_config_defaults(tmp_path: Path):
     assert config.web_api.run is False
 
     # Override specific fields
-    config = make_test_config(data_dir=tmp_path, base_url="http://192.168.1.100:8123")
+    config = make_test_config(
+        data_dir=tmp_path, base_url="http://192.168.1.100:8123"
+    )
     assert config.base_url == "http://192.168.1.100:8123"
 
 
 def test_config_overrides(tmp_path: Path):
-    config = make_test_config(data_dir=tmp_path, token="my-real-token", web_api={"run": True})
+    config = make_test_config(
+        data_dir=tmp_path, token="my-real-token", web_api={"run": True}
+    )
     assert config.token is not None
     assert config.token.get_secret_value() == "my-real-token"
     assert config.web_api.run is True

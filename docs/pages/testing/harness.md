@@ -12,7 +12,7 @@ A typical test creates a harness, simulates an event, and asserts on the API cal
 
 The `async with` block initializes the app (running `on_initialize`), then tears it down on exit. `simulate_state_change` publishes an event through the bus and waits for all handlers to finish. `api_recorder.assert_called` verifies the app called the expected service.
 
-The `MotionLights` app used throughout this page declares `motion_entity` as a required config field, so every example passes a `config` dict that sets it. [Testing Configuration Errors](#testing-configuration-errors) shows what happens when it is missing.
+The `MotionLights` app used throughout this page declares `motion_entity` as a required config field, so every example passes a `config` dict that sets it. Every example also sets `instance_name`, which each app instance needs (see [Instance Names](../core-concepts/apps/configuration.md#instance-names)). [Testing Configuration Errors](#testing-configuration-errors) shows what happens when it is missing.
 
 The sections below cover each piece of this pattern in detail.
 
@@ -331,8 +331,9 @@ A patched method no longer records calls, so assert on the mock itself
 `AppConfigurationError` raises during `async with AppTestHarness(...)` entry
 when the `config` dict fails validation. The `async with` body never runs.
 
-An empty `config={}` omits `MotionLights`'s required `motion_entity` field and
-fails validation:
+A `config` that sets only `instance_name` omits `MotionLights`'s required
+`motion_entity` field and fails validation. A `config` without `instance_name`
+raises `AppConfigurationError` the same way:
 
 ```python
 --8<-- "pages/testing/snippets/testing_app_configuration_error.py"
@@ -361,7 +362,7 @@ output.
 | Parameter | Type | Description |
 |---|---|---|
 | `app_cls` | `type[App]` | The `App` subclass to test |
-| `config` | `Mapping[str, Any] \| None` | Config values validated against the app's [AppConfig][hassette.app.app_config.AppConfig]. Defaults to an empty mapping. |
+| `config` | `Mapping[str, Any]` | Config values validated against the app's [AppConfig][hassette.app.app_config.AppConfig]. Must set `instance_name`. |
 | `tmp_path` | `Path \| None` | Directory for Hassette data. Auto-created and cleaned up if omitted. |
 
 ### Properties

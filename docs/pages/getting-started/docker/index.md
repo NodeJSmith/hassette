@@ -105,7 +105,7 @@ docker compose restart hassette
 Check the logs again. You see `Hello from Docker!` from your app:
 
 ```
-INFO hassette.MyApp.0 ... ─ Hello from Docker!
+INFO hassette.apps.my_app ... ─ Hello from Docker!
 ```
 
 !!! note "Upgrading from the `/apps` volume"

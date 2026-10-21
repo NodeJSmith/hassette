@@ -102,6 +102,43 @@ Hassette logs the URLs it uses at startup. A leftover path shows up in that line
 Home Assistant URLs: REST http://ha.local:8123/lovelace/0/api/, WebSocket ws://ha.local:8123/lovelace/0/api/websocket
 ```
 
+## Required `instance_name`
+
+This applies when upgrading from 0.59 or earlier. Each app section in `hassette.toml` runs one instance of the app, or one per `[[...config]]` block (see [Multiple Instances](../core-concepts/apps/configuration.md#multiple-instances)). Every instance must now set `instance_name` in its `config`. Earlier versions filled in a missing name as `ClassName.<index>` (for example `PresenceApp.0`); Hassette no longer does. A section whose instance has no `instance_name` stops Hassette at startup with an error naming the app key and instance index. That includes a section with no `config` at all, and sections with `enabled = false` or `autostart = false`. Add a name to each:
+
+=== "Before"
+
+    ```toml
+    [hassette.apps.presence]
+    filename = "presence.py"
+    class_name = "PresenceApp"
+    config = { motion_sensor = "binary_sensor.hall" }
+    ```
+
+=== "After"
+
+    ```toml
+    [hassette.apps.presence]
+    filename = "presence.py"
+    class_name = "PresenceApp"
+    config = { instance_name = "presence", motion_sensor = "binary_sensor.hall" }
+    ```
+
+A name:
+
+- starts with a lowercase letter
+- contains only lowercase letters, digits, and `_`
+- doesn't end with `_`
+- is at most 128 characters
+
+`upstairs` and `kitchen_lights_2` are valid; `MyApp.0`, `Upstairs`, and `kitchen-lights` are not. Every name must be unique across the whole config, disabled apps included. [Instance Names](../core-concepts/apps/configuration.md#instance-names) has the full rules. `hassette run --check` reports a missing, invalid, or duplicate name without starting Hassette.
+
+The old default `ClassName.<index>` isn't a valid name, so a few other things change with it:
+
+- **`self.instance_name` and `self.unique_name`** both return exactly the instance name. Code that stored a cache key or compared an event's `source` against the old `MyApp.0` form needs the new name.
+- **Logger names** are now `hassette.apps.<instance_name>`, with the app's bus, scheduler, and other loggers nested under it. Update `logging` config or log filters that referenced `hassette.MyApp.0` to `hassette.apps.my_app`.
+- **Tests that use [`AppTestHarness`](../testing/harness.md)** must set `instance_name` in the harness `config` too, as in `AppTestHarness(MyApp, config={"instance_name": "my_app"})`. Without one, entering the harness raises `AppConfigurationError`.
+
 ## Config Paths and Unknown Keys
 
 Upgrading from 0.56 or earlier, four changes can break an existing setup: Hassette resolves relative paths against the file that sets them, rejects setting names it doesn't recognize, keeps Docker apps inside the config mount, and has apps read the same `.env` files as Hassette. This section lists each one. The [Configuration](../core-concepts/configuration/index.md#file-locations) page has the full rules.

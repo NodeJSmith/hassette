@@ -130,7 +130,7 @@ class TestMakeMockParent:
         parent = make_mock_parent()
         assert parent.app_key == "test_app"
         assert parent.index == 0
-        assert parent.unique_name == "test_app.0"
+        assert parent.unique_name == "test_app"
         assert parent.source_tier == "app"
         assert parent.class_name == "TestApp"
         assert parent.app_config is None

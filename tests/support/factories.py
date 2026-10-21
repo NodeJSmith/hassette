@@ -14,6 +14,7 @@ from hassette_wire import ExecutionMode, ExecutionStatus, ScheduleStatus, Source
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.app.app import APP_LOGGER_PREFIX
 from hassette.commands import InvokeHandler
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.app_change_detector import ChangeSet
@@ -692,13 +693,14 @@ def make_mock_parent(
     """Build a MagicMock stand-in for an owning App resource.
 
     Subsumes the various local ``make_mock_parent()`` shapes across the test
-    suite — this version sets all six attributes, so callers that only cared
+    suite — this version sets every attribute below, so callers that only cared
     about a subset get harmless extras.
     """
     parent = MagicMock()
     parent.app_key = app_key
     parent.index = index
-    parent.unique_name = unique_name if unique_name is not None else f"{app_key}.{index}"
+    parent.unique_name = unique_name if unique_name is not None else app_key
+    parent._get_logger_name = MagicMock(return_value=f"{APP_LOGGER_PREFIX}.{parent.unique_name}")
     parent.source_tier = source_tier
     parent.class_name = class_name
     parent.app_config = app_config

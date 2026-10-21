@@ -69,7 +69,11 @@ async def run_harness() -> None:
         with step("build hermetic test config"):
             make_test_config(data_dir=data_dir)
 
-        config = {"motion_entity": "binary_sensor.motion", "light_entity": "light.kitchen"}
+        config = {
+            "instance_name": "smoke_app",
+            "motion_entity": "binary_sensor.motion",
+            "light_entity": "light.kitchen",
+        }
         with step("enter AppTestHarness"):
             harness_cm = AppTestHarness(SmokeApp, config=config)
             harness = await harness_cm.__aenter__()

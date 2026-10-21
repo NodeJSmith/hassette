@@ -6,5 +6,6 @@ filename = "my_app.py"
 class_name = "MyApp"
 
 [[hassette.apps.my_app.config]]
+instance_name = "kitchen_light"
 entity = "light.kitchen"
 brightness = 200

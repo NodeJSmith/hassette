@@ -83,7 +83,7 @@ class _RunOnceModeApp(App[_OneShotModeConfig]):
 
 async def test_run_in_with_mode_fires_exactly_once() -> None:
     """run_in with mode= set still fires exactly once (mode has no overlap effect on one-shot jobs)."""
-    async with AppTestHarness(_RunInModeApp, config={}) as harness:
+    async with AppTestHarness(_RunInModeApp, config={"instance_name": "run_in_mode_app"}) as harness:
         scheduler = harness.app.scheduler
 
         jobs = scheduler.list_jobs()
@@ -109,7 +109,7 @@ async def test_run_in_with_mode_fires_exactly_once() -> None:
 
 async def test_run_once_with_mode_fires_exactly_once() -> None:
     """run_once with mode= set still fires exactly once (mode has no overlap effect on one-shot jobs)."""
-    async with AppTestHarness(_RunOnceModeApp, config={}) as harness:
+    async with AppTestHarness(_RunOnceModeApp, config={"instance_name": "run_once_mode_app"}) as harness:
         scheduler = harness.app.scheduler
 
         jobs = scheduler.list_jobs()
@@ -347,7 +347,7 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         job_name = "overrun_job"
         job_mode = "single"
 
-    async with AppTestHarness(_App, config={}) as harness:
+    async with AppTestHarness(_App, config={"instance_name": "app"}) as harness:
         app = harness.app
         app.run_gate.clear()  # block the job so it overruns
 
@@ -390,7 +390,7 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
         async def task(self) -> None:
             fire_times.append(date_utils.now())
 
-    async with AppTestHarness(_QuickApp, config={}) as harness:
+    async with AppTestHarness(_QuickApp, config={"instance_name": "quick_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "quick_job")
@@ -424,7 +424,7 @@ async def test_single_mode_suppresses_overrun() -> None:
         job_name = "single_job"
         job_mode = "single"
 
-    async with AppTestHarness(_App, config={}) as harness:
+    async with AppTestHarness(_App, config={"instance_name": "app"}) as harness:
         app = harness.app
         app.run_gate.clear()  # keep job running
 
@@ -478,7 +478,7 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
             await gate.wait()
             concurrent_count[0] -= 1
 
-    async with AppTestHarness(_ParallelApp, config={}) as harness:
+    async with AppTestHarness(_ParallelApp, config={"instance_name": "parallel_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "parallel_job")
@@ -535,7 +535,7 @@ async def test_queued_mode_serializes_overrun() -> None:
                 await gate.wait()
             run_order.append(num)
 
-    async with AppTestHarness(_QueuedApp, config={}) as harness:
+    async with AppTestHarness(_QueuedApp, config={"instance_name": "queued_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "queued_job")
@@ -593,7 +593,7 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
             first_started.set()
             await gate.wait()
 
-    async with AppTestHarness(_QueuedHangApp, config={}) as harness:
+    async with AppTestHarness(_QueuedHangApp, config={"instance_name": "queued_hang_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "queued_hang_job")
@@ -662,7 +662,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
                 cancelled_count[0] += 1
                 raise
 
-    async with AppTestHarness(_RestartApp, config={}) as harness:
+    async with AppTestHarness(_RestartApp, config={"instance_name": "restart_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         mock_executor = scheduler_service._executor
 
@@ -773,7 +773,7 @@ async def test_trigger_error_runs_current_fire_then_completes_job() -> None:
         async def task(self) -> None:
             fired.set()
 
-    async with AppTestHarness(_BadTriggerApp, config={}) as harness:
+    async with AppTestHarness(_BadTriggerApp, config={"instance_name": "bad_trigger_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next((j for j in jobs if j.name == "bad_trigger_job"), None)
@@ -819,7 +819,7 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
         async def task(self) -> None:
             pass
 
-    async with AppTestHarness(_RacingApp, config={}) as harness:
+    async with AppTestHarness(_RacingApp, config={"instance_name": "racing_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
 
         jobs = await scheduler_service.get_all_jobs()
@@ -880,7 +880,7 @@ async def test_guard_release_on_remove_clears_in_flight() -> None:
                 self.task_cancelled.set()
                 raise
 
-    async with AppTestHarness(_HoldingApp, config={}) as harness:
+    async with AppTestHarness(_HoldingApp, config={"instance_name": "holding_app"}) as harness:
         app = harness.app
         scheduler = app.scheduler
         scheduler_service = harness._harness.hassette._scheduler_service
@@ -920,7 +920,7 @@ async def test_remove_completed_job_releases_guard_without_heap_entry() -> None:
     release/drain tail must not be skipped just because there was no heap occurrence to
     remove; the unified removal operation runs it unconditionally.
     """
-    async with AppTestHarness(_RunOnceModeApp, config={}) as harness:
+    async with AppTestHarness(_RunOnceModeApp, config={"instance_name": "run_once_mode_app"}) as harness:
         scheduler = harness.app.scheduler
         job = next(j for j in scheduler.list_jobs() if j.name == "runonce_mode_job")
 
@@ -958,7 +958,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
             started.set()
             await gate.wait()
 
-    async with AppTestHarness(_StalledApp, config={}) as harness:
+    async with AppTestHarness(_StalledApp, config={"instance_name": "stalled_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "stalled_job")
@@ -1002,7 +1002,7 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
             started.set()
             await gate.wait()
 
-    async with AppTestHarness(_ParallelStalledApp, config={}) as harness:
+    async with AppTestHarness(_ParallelStalledApp, config={"instance_name": "parallel_stalled_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "parallel_stalled_job")

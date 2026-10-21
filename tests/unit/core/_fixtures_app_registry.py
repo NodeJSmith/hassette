@@ -21,7 +21,7 @@ def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegi
         filename=f"{app_key}.py",
         enabled=enabled,
         autostart=autostart,
-        app_config=app_config if app_config is not None else {},
+        app_config=app_config if app_config is not None else {"instance_name": app_key},
     )
 
 
@@ -30,7 +30,7 @@ def make_app_instance(  # factory-local: SimpleNamespace App stand-in for AppReg
 ) -> SimpleNamespace:
     """Build a minimal App-like object for the registry."""
     class_name = app_key.title().replace("_", "")
-    instance_name = f"{app_key}.{index}"
+    instance_name = app_key if index == 0 else f"{app_key}_{index}"
     return SimpleNamespace(
         app_config=SimpleNamespace(instance_name=instance_name),
         class_name=class_name,

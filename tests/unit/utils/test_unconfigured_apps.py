@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from hassette import context
+from hassette.config.classes import instance_name_reason
 from hassette.config.config import HassetteConfig
 from hassette.testing import make_test_config
 from hassette.utils.app_utils import (
@@ -153,7 +154,8 @@ class TestUnconfiguredAppWarning:
             f"App class LightsApp in {path} is not configured, so it won't run. To run it, add to your config:\n\n"
             "[hassette.apps.lights_app]\n"
             'filename = "lights/porch.py"\n'
-            'class_name = "LightsApp"\n\n'
+            'class_name = "LightsApp"\n'
+            'config = { instance_name = "lights_app" }\n\n'
             "If this is a base class, configure the apps that subclass it instead. "
             "Set warn_unconfigured = false under [hassette.apps] to turn this warning off."
         )
@@ -196,7 +198,16 @@ class TestAppStartupWarnings:
     def test_disabled_entry_counts_as_configured(self, tmp_path: Path, app_dir: Path) -> None:
         write_app(app_dir, "one.py", APP_SOURCE)
         config = make_config(
-            tmp_path, app_dir, apps={"lights": {"filename": "one.py", "class_name": "LightsApp", "enabled": False}}
+            tmp_path,
+            app_dir,
+            apps={
+                "lights": {
+                    "filename": "one.py",
+                    "class_name": "LightsApp",
+                    "enabled": False,
+                    "config": {"instance_name": "lights"},
+                }
+            },
         )
 
         assert startup_warnings(config) == []
@@ -207,13 +218,21 @@ class TestAppStartupWarnings:
 
         assert startup_warnings(config) == [unconfigured_app_warning(app_dir, path, "LightsApp", "lights_app")]
 
-    def test_suggested_keys_avoid_configured_keys_settings_and_each_other(self, tmp_path: Path, app_dir: Path) -> None:
-        """Every suggested key is free, so pasting every snippet gives a config that loads each app."""
+    def test_suggested_keys_avoid_configured_keys_names_settings_and_each_other(
+        self, tmp_path: Path, app_dir: Path
+    ) -> None:
+        """Every suggested key is free as a key and as an instance name, so pasting every snippet loads each app."""
         write_app(app_dir, "configured.py", APP_SOURCE)
         porch = write_app(app_dir / "lights", "porch.py", APP_SOURCE)
         garage = write_app(app_dir / "lights", "garage.py", APP_SOURCE)
         directory = write_app(app_dir, "directory.py", "from hassette import App\n\nclass Directory(App): ...\n")
-        entries = {"lights_app": {"filename": "configured.py", "class_name": "LightsApp"}}
+        entries = {
+            "lights_app": {
+                "filename": "configured.py",
+                "class_name": "LightsApp",
+                "config": {"instance_name": "lights_app_2"},
+            }
+        }
         config = make_config(tmp_path, app_dir, apps=entries)
 
         warnings = startup_warnings(config)
@@ -223,8 +242,8 @@ class TestAppStartupWarnings:
         assert {key: manifest.full_path for key, manifest in config.apps.manifests.items()} == {
             "lights_app": (app_dir / "configured.py"),
             "directory_2": directory,
-            "lights_app_2": garage,
-            "lights_app_3": porch,
+            "lights_app_3": garage,
+            "lights_app_4": porch,
         }
         assert startup_warnings(config) == []
 
@@ -253,3 +272,22 @@ class TestAppStartupWarnings:
 )
 def test_suggested_app_key_takes_the_first_free_suffix(taken: set[str], expected: str) -> None:
     assert suggested_app_key("LightsApp", taken) == expected
+
+
+@pytest.mark.parametrize(
+    ("class_name", "expected"),
+    [
+        ("HTTPApp", "http_app"),
+        ("_PrivateApp", "private_app"),
+        ("LightsApp_", "lights_app"),
+        ("ÄpfelApp", "pfel_app"),
+        ("_", "app"),
+        ("X" * 200, "x" * 120),
+    ],
+)
+def test_suggested_app_key_is_a_valid_instance_name(class_name: str, expected: str) -> None:
+    """The snippet reuses the key as its instance name, so a class name outside the charset still gets a valid one."""
+    key = suggested_app_key(class_name, set())
+
+    assert key == expected
+    assert instance_name_reason(key) is None

@@ -17,11 +17,22 @@ from tests.support.factories import make_change_set
 from .conftest import assert_acquires_app_key_lock_once, set_registry_apps
 
 
+def stub_full_restarts(lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> MagicMock:
+    """Stub the whole-app stop/start bodies apply_changes() restarts through; returns the manifest they resolve."""
+    manifest = MagicMock()
+    mock_registry.get_manifest = Mock(return_value=manifest)
+    lifecycle_service._stop_app_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    lifecycle_service._start_app_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    return manifest
+
+
 class TestApplyChanges:
-    async def test_routes_changes_to_correct_methods(self, lifecycle_service: AppLifecycleService) -> None:
+    async def test_orphans_stop_restarts_restart_and_new_apps_start(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
         """Routes orphans/reimport/reload/new to correct methods when autostart gates pass."""
+        manifest = stub_full_restarts(lifecycle_service, mock_registry)
         lifecycle_service.stop_app = AsyncMock()
-        lifecycle_service.reload_app = AsyncMock()
         lifecycle_service.start_app = AsyncMock()
         # Gates are transparent for autostart=True apps — mock helpers so this test stays
         # focused on routing, not gating (gating is covered by TestApplyChangesGating).
@@ -38,37 +49,129 @@ class TestApplyChanges:
         await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.stop_app.assert_called_once_with("orphan_app")
-        lifecycle_service.reload_app.assert_any_call("reimport_app", force_reload=True)
-        lifecycle_service.reload_app.assert_any_call("reload_app")
+        lifecycle_service._stop_app_unlocked.assert_any_call("reimport_app")
+        lifecycle_service._stop_app_unlocked.assert_any_call("reload_app")
+        lifecycle_service._start_app_unlocked.assert_any_call("reimport_app", manifest, True)
+        lifecycle_service._start_app_unlocked.assert_any_call("reload_app", manifest, False)
         lifecycle_service.start_app.assert_called_once_with("new_app")
 
-    async def test_blocked_app_raise_does_not_abort_remaining_apps_in_bucket(
-        self, lifecycle_service: AppLifecycleService
+    async def test_blocked_app_raise_does_not_abort_remaining_apps(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
-        """Defensive isolation (code-review finding on PR #1873's P2 fix): AppBlockedError
-        from one app_key in the new_apps bucket must not abort the rest of that bucket, or
-        the reimport_apps/reload_apps buckets processed after it. This should be structurally
-        unreachable (AppChangeDetector.detect_changes() filters every bucket by only_apps
-        before apply_changes() ever sees an app_key), but the isolation must hold regardless.
+        """Defensive isolation: AppBlockedError from one app_key, whether a new app or a restart, must
+        not abort the other apps in the change. This should be structurally unreachable
+        (AppChangeDetector.detect_changes() filters every bucket by only_apps before apply_changes()
+        ever sees an app_key), but the isolation must hold regardless.
         """
 
-        async def _start_app(app_key: str) -> None:
+        async def start_app(app_key: str) -> None:
             if app_key == "blocked_app":
                 raise AppBlockedError(f"{app_key} blocked")
 
+        async def start_app_unlocked(app_key: str, _manifest: object, _force_reload: bool) -> None:
+            if app_key == "blocked_reimport":
+                raise AppBlockedError(f"{app_key} blocked")
+
+        stub_full_restarts(lifecycle_service, mock_registry)
+        lifecycle_service._start_app_unlocked = AsyncMock(side_effect=start_app_unlocked)  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.stop_app = AsyncMock()
-        lifecycle_service.reload_app = AsyncMock()
-        lifecycle_service.start_app = AsyncMock(side_effect=_start_app)
+        lifecycle_service.start_app = AsyncMock(side_effect=start_app)
         lifecycle_service.should_autostart = Mock(return_value=True)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
 
-        changes = make_change_set(new_apps={"blocked_app", "healthy_app"}, reimport_apps={"reimport_app"})
+        changes = make_change_set(
+            new_apps={"blocked_app", "healthy_app"}, reimport_apps={"blocked_reimport", "reimport_app"}
+        )
 
         await lifecycle_service.apply_changes(changes, {}, {})  # must not raise
 
         lifecycle_service.start_app.assert_any_call("blocked_app")
         lifecycle_service.start_app.assert_any_call("healthy_app")
-        lifecycle_service.reload_app.assert_any_call("reimport_app", force_reload=True)
+        restarted = {c.args[0] for c in lifecycle_service._start_app_unlocked.call_args_list}
+        assert restarted == {"blocked_reimport", "reimport_app"}
+
+    async def test_every_restart_stops_before_any_restart_starts(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Owner registries are keyed by instance name, and one change can hand a name from one app to
+        another (app_x: a -> b while app_y: b -> a). Every replaced app stops before any replacement
+        starts, with each affected app-key lock held across both phases.
+        """
+        stub_full_restarts(lifecycle_service, mock_registry)
+        calls: list[tuple[str, str]] = []
+
+        async def stop(app_key: str) -> None:
+            calls.append(("stop", app_key))
+
+        async def start(app_key: str, _manifest: object, _force_reload: bool) -> None:
+            assert lifecycle_service._get_app_key_lock("app_x").locked()
+            assert lifecycle_service._get_app_key_lock("app_y").locked()
+            calls.append(("start", app_key))
+
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=stop)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._start_app_unlocked = AsyncMock(side_effect=start)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+
+        changes = make_change_set(reload_apps={"app_x", "app_y"})
+
+        await lifecycle_service.apply_changes(changes, {}, {})
+
+        assert [phase for phase, _ in calls] == ["stop", "stop", "start", "start"]
+        assert {key for _, key in calls} == {"app_x", "app_y"}
+        assert not lifecycle_service._get_app_key_lock("app_x").locked()
+        assert not lifecycle_service._get_app_key_lock("app_y").locked()
+
+    async def test_selective_restarts_stop_every_app_before_creating_any(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_factory: MagicMock
+    ) -> None:
+        """The same ordering holds for per-instance restarts: app_x's instance renames a -> b while
+        app_y's renames b -> c, so app_y's old b must be gone before app_x's new b is created.
+        """
+        set_registry_apps(mock_registry, {"app_x": {0: MagicMock()}, "app_y": {0: MagicMock()}})
+        old = {
+            "app_x": MagicMock(app_config=[{"instance_name": "a"}]),
+            "app_y": MagicMock(app_config=[{"instance_name": "b"}]),
+        }
+        new = {
+            "app_x": MagicMock(app_config=[{"instance_name": "b"}]),
+            "app_y": MagicMock(app_config=[{"instance_name": "c"}]),
+        }
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_registry.get_manifest = Mock(side_effect=new.get)
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        calls: list[tuple[str, str]] = []
+
+        async def stop(app_key: str, _index: int) -> None:
+            calls.append(("stop", app_key))
+
+        async def create(app_key: str, _index: int, _manifest: object, _force_reload: bool = False) -> None:
+            calls.append(("create", app_key))
+
+        lifecycle_service._stop_instance_unlocked = AsyncMock(side_effect=stop)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._create_instance_unlocked = AsyncMock(side_effect=create)  # pyright: ignore[reportAttributeAccessIssue]
+
+        await lifecycle_service.apply_changes(make_change_set(reload_apps={"app_x", "app_y"}), old, new)
+
+        assert [phase for phase, _ in calls] == ["stop", "stop", "create", "create"]
+        assert {key for _, key in calls} == {"app_x", "app_y"}
+
+    async def test_failed_restart_does_not_abort_the_others(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """A replacement that fails to start is logged, and the rest of the batch still starts."""
+        stub_full_restarts(lifecycle_service, mock_registry)
+
+        async def start(app_key: str, _manifest: object, _force_reload: bool) -> None:
+            if app_key == "app_x":
+                raise RuntimeError("boom")
+
+        lifecycle_service._start_app_unlocked = AsyncMock(side_effect=start)  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+
+        await lifecycle_service.apply_changes(make_change_set(reload_apps={"app_x", "app_y"}), {}, {})  # must not raise
+
+        assert {c.args[0] for c in lifecycle_service._start_app_unlocked.call_args_list} == {"app_x", "app_y"}
+        assert not lifecycle_service._get_app_key_lock("app_x").locked()
 
 
 class TestReloadApp:
@@ -219,9 +322,7 @@ class TestReloadAppLocking:
 
 
 class TestApplyChangesPerInstanceRestart:
-    """Per-instance selective restart in apply_changes()'s reload_apps handling (design doc
-    "Data flow for selective restart").
-    """
+    """Per-instance selective restart in apply_changes()'s reload_apps handling."""
 
     async def test_only_changed_instance_reloads_when_list_length_unchanged(
         self,
@@ -270,19 +371,17 @@ class TestApplyChangesPerInstanceRestart:
         # create_single_instance(app_key, manifest, index, config_dict, app_class) — index is arg[2]
         assert mock_factory.create_single_instance.call_args.args[2] == 1
 
-    async def test_reimport_reloads_all_instances_via_reload_app_not_reload_instance(
+    async def test_reimport_restarts_all_instances_not_changed_ones(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
     ) -> None:
-        """A file-level change (reimport_apps bucket) reloads the whole app key via
-        ``reload_app``, never the per-instance ``reload_instance``/``_reload_instance_unlocked``
-        path — regardless of any per-instance config diff.
+        """A file-level change (reimport_apps bucket) restarts the whole app key with a fresh class
+        import, never the per-instance path — regardless of any per-instance config diff.
         """
-        mock_registry.get_manifest = Mock(return_value=MagicMock())
+        manifest = stub_full_restarts(lifecycle_service, mock_registry)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
-        lifecycle_service.reload_app = AsyncMock()
-        lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         changes = make_change_set(reimport_apps={"app_a"})
 
@@ -290,21 +389,22 @@ class TestApplyChangesPerInstanceRestart:
         # a full reload, so pass configs that (if they leaked into the reload_apps branch) would
         # show a per-instance diff, proving reimport truly bypasses that path.
         old_manifest = MagicMock(app_config=[{"instance_name": "a"}])
-        new_manifest = MagicMock(app_config=[{"instance_name": "a-changed"}])
+        new_manifest = MagicMock(app_config=[{"instance_name": "a_changed"}])
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service.reload_app.assert_called_once_with("app_a", force_reload=True)
-        lifecycle_service._reload_instance_unlocked.assert_not_called()
+        lifecycle_service._stop_app_unlocked.assert_called_once_with("app_a")
+        lifecycle_service._start_app_unlocked.assert_called_once_with("app_a", manifest, True)
+        lifecycle_service._stop_instance_unlocked.assert_not_called()
 
-    async def test_instance_count_change_falls_back_to_full_reload_app(
+    async def test_instance_count_change_falls_back_to_full_restart(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
         """When the instance list length changes between old and new config, the
-        system falls back to a full ``reload_app`` instead of per-instance reload.
+        system falls back to restarting every instance instead of per-instance reload.
         """
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
         old_manifest = MagicMock()
@@ -313,110 +413,38 @@ class TestApplyChangesPerInstanceRestart:
         new_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
 
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        stub_full_restarts(lifecycle_service, mock_registry)
         mock_registry.get_manifest = Mock(return_value=new_manifest)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
-        lifecycle_service.reload_app = AsyncMock()
-        lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        changes = make_change_set(reload_apps={"app_a"})
-
-        await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
-
-        lifecycle_service.reload_app.assert_called_once_with("app_a")
-        lifecycle_service._reload_instance_unlocked.assert_not_called()
-
-    async def test_changed_index_colliding_with_unchanged_sibling_falls_back_to_full_reload(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-    ) -> None:
-        """When a changed index adopts the instance_name of an unchanged sibling (index 0
-        renames a -> b while index 1 stays b), the selective batch reload would leave two live
-        instances sharing one App.unique_name — see PR #1687 review finding. Detecting the
-        overlap must fall back to a full reload_app instead of the per-index batch reload.
-        """
-        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
-        old_manifest = MagicMock()
-        old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
-        new_manifest = MagicMock()
-        new_manifest.app_config = [{"instance_name": "b"}, {"instance_name": "b"}]
-
-        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
-        mock_registry.get_manifest = Mock(return_value=new_manifest)
-
-        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
-        lifecycle_service.reload_app = AsyncMock()
-        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service.reload_app.assert_called_once_with("app_a")
-        # The selective batch-reload path must never run once the overlap is detected — proves
-        # the fallback happens before any stop/create, not after a partial batch reload.
-        lifecycle_service._create_instance_unlocked.assert_not_called()
+        lifecycle_service._stop_app_unlocked.assert_called_once_with("app_a")
+        lifecycle_service._start_app_unlocked.assert_called_once_with("app_a", new_manifest, False)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
 
-    async def test_two_changed_indices_colliding_with_each_other_falls_back_to_full_reload(
+    async def test_renamed_index_takes_selective_reload_path(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """Two *changed* indices adopting the same new instance_name from each other (index 0:
-        a -> c, index 1: b -> c) share no name with any unchanged sibling, so the unchanged-vs-
-        changed overlap check alone would miss it — but the selective batch reload's create-all
-        phase would still create two live instances both deriving App.unique_name "c", the same
-        permanent owner-registry collision. Must also fall back to a full reload_app.
-        """
+        """Renaming one instance restarts only that index, not the whole app."""
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
         new_manifest = MagicMock()
-        new_manifest.app_config = [{"instance_name": "c"}, {"instance_name": "c"}]
+        new_manifest.app_config = [{"instance_name": "a_changed"}, {"instance_name": "b"}]
 
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        stub_full_restarts(lifecycle_service, mock_registry)
         mock_registry.get_manifest = Mock(return_value=new_manifest)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
-        lifecycle_service.reload_app = AsyncMock()
-        lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-
-        changes = make_change_set(reload_apps={"app_a"})
-
-        await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
-
-        lifecycle_service.reload_app.assert_called_once_with("app_a")
-        lifecycle_service._create_instance_unlocked.assert_not_called()
-        lifecycle_service._stop_instance_unlocked.assert_not_called()
-
-    async def test_changed_index_with_no_sibling_overlap_takes_selective_reload_path(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-    ) -> None:
-        """The common case — a changed index's new name doesn't collide with any unchanged
-        sibling's current name — must still take the fast selective per-index batch reload, not
-        the full reload_app fallback (regression guard for the overlap check above; don't let a
-        false-positive overlap detection slow down the normal rename case).
-        """
-        set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
-        old_manifest = MagicMock()
-        old_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
-        new_manifest = MagicMock()
-        new_manifest.app_config = [{"instance_name": "a-changed"}, {"instance_name": "b"}]
-
-        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
-        mock_registry.get_manifest = Mock(return_value=new_manifest)
-
-        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
-        lifecycle_service.reload_app = AsyncMock()
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -424,7 +452,7 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service.reload_app.assert_not_called()
+        lifecycle_service._stop_app_unlocked.assert_not_called()
         lifecycle_service._stop_instance_unlocked.assert_called_once_with("app_a", 0)
         lifecycle_service._create_instance_unlocked.assert_called_once()
 
@@ -436,8 +464,8 @@ class TestApplyChangesPerInstanceRestart:
     ) -> None:
         """A 3-instance app where indices 0, 1, and 2 all changed config: if creating the
         replacement for index 0 raises, indices 1 and 2 must still be attempted, and the
-        exception must not escape ``apply_changes()`` (see code review finding — per-index
-        try/except around the batch reload's create phase in ``_reload_changed_indices``).
+        exception must not escape ``apply_changes()`` (the per-index try/except around the
+        create phase).
         """
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock(), 2: MagicMock()}})
         old_manifest = MagicMock()
@@ -484,12 +512,11 @@ class TestApplyChangesPerInstanceRestart:
         mock_registry: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """Each phase of the batch (stop-all, then create-all — see PR #1687 review finding)
-        uses asyncio.gather within itself, not a sequential await-per-index loop (ship-time
-        challenge finding — sequential processing held the per-app-key lock for the sum of
-        every changed instance's timeout). Proven deterministically for the create phase: index
-        1 must reach its create before index 0's create releases, which is only possible if both
-        are running concurrently under the same lock acquisition.
+        """Each phase of the batch (stop-all, then create-all) uses asyncio.gather within itself,
+        not a sequential await-per-index loop, which would hold the per-app-key lock for the sum of
+        every changed instance's timeout. Proven deterministically for the create phase: index 1
+        must reach its create before index 0's create releases, which is only possible if both are
+        running concurrently under the same lock acquisition.
         """
         set_registry_apps(mock_registry, {"app_a": {0: MagicMock(), 1: MagicMock()}})
         old_manifest = MagicMock()
@@ -534,7 +561,7 @@ class TestApplyChangesPerInstanceRestart:
         index_0_release.set()
         await asyncio.wait_for(task, timeout=1)
 
-    async def test_should_auto_reconcile_wraps_the_entire_per_instance_branch(
+    async def test_autostart_false_app_is_not_restarted_on_config_change(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
@@ -542,43 +569,44 @@ class TestApplyChangesPerInstanceRestart:
     ) -> None:
         """A config edit to one instance of a currently-dormant autostart=false app must not
         start any instance — should_auto_reconcile gates the whole per-instance branch, not just
-        individual _reload_instance_unlocked() calls.
+        individual instance restarts.
         """
         old_manifest = MagicMock()
         old_manifest.app_config = [{"instance_name": "a"}]
         new_manifest = MagicMock()
-        new_manifest.app_config = [{"instance_name": "a-changed"}]
+        new_manifest.app_config = [{"instance_name": "a_changed"}]
 
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        stub_full_restarts(lifecycle_service, mock_registry)
         mock_registry.get_manifest = Mock(return_value=new_manifest)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=False)
-        lifecycle_service.reload_app = AsyncMock()
-        lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service.reload_app.assert_not_called()
-        lifecycle_service._reload_instance_unlocked.assert_not_called()
+        lifecycle_service._stop_app_unlocked.assert_not_called()
+        lifecycle_service._start_app_unlocked.assert_not_called()
+        lifecycle_service._stop_instance_unlocked.assert_not_called()
 
     async def test_dormant_app_falls_back_to_full_reload_not_selective(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
     ) -> None:
-        """A dormant multi-instance app (no running instances) reaching _reload_app_or_changed_instances
-        via should_auto_reconcile (autostart just flipped to True) must create ALL instances via a
-        full reload_app, not just the ones whose app_config changed. The selective path only creates
+        """A dormant multi-instance app (no running instances) reaching apply_changes() via
+        should_auto_reconcile (autostart just flipped to True) must create ALL instances via a full
+        restart, not just the ones whose app_config changed. The selective path only creates
         changed indices, permanently leaving unchanged siblings unstarted.
         """
         # Explicitly dormant — no running instances (fixture default is empty, but every other test
         # in this class calls set_registry_apps explicitly, so match the convention).
         set_registry_apps(mock_registry, {})
 
+        manifest = stub_full_restarts(lifecycle_service, mock_registry)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
-        lifecycle_service.reload_app = AsyncMock()
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -586,6 +614,7 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": MagicMock()}, {"app_a": MagicMock()})
 
-        lifecycle_service.reload_app.assert_called_once_with("app_a")
+        lifecycle_service._stop_app_unlocked.assert_called_once_with("app_a")
+        lifecycle_service._start_app_unlocked.assert_called_once_with("app_a", manifest, False)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
         lifecycle_service._create_instance_unlocked.assert_not_called()

@@ -60,6 +60,7 @@ status_interval = 30.0
 [hassette.apps.security_monitor]
 filename = "security_monitor.py"
 class_name = "SecurityMonitor"
+config = { instance_name = "security_monitor" }
 
 [hassette.apps.demo_stimulator]
 filename = "demo_stimulator.py"

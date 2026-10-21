@@ -44,7 +44,7 @@ class Depth1App(App[DrainTestConfig]):
 
 async def test_drain_waits_for_depth_1_task_chain() -> None:
     """Depth-1: handler completes normally, drain returns cleanly."""
-    async with AppTestHarness(Depth1App, config={}) as harness:
+    async with AppTestHarness(Depth1App, config={"instance_name": "depth1_app"}) as harness:
         await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
         assert harness.app.turn_on_called is True
         harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
@@ -65,7 +65,7 @@ class Depth2App(App[DrainTestConfig]):
 
 async def test_drain_waits_for_depth_2_task_chain() -> None:
     """Depth-2: handler spawns a task; drain waits for the spawned task to complete."""
-    async with AppTestHarness(Depth2App, config={}) as harness:
+    async with AppTestHarness(Depth2App, config={"instance_name": "depth2_app"}) as harness:
         await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
         # Without iterative drain, this would fail because the spawned task
         # would not have run yet when the drain returned.
@@ -107,7 +107,7 @@ async def test_drain_waits_for_depth_3_task_chain() -> None:
     The gate prevents task_b from completing until we verify the drain is still
     in progress (following the regression test pattern from regression-test-patterns.md).
     """
-    async with AppTestHarness(Depth3App, config={}) as harness:
+    async with AppTestHarness(Depth3App, config={"instance_name": "depth3_app"}) as harness:
         # Start the drain in the background — it must block on task_b's gate
         drain_task = asyncio.create_task(
             harness.simulate_state_change("sensor.test", old_value="off", new_value="on"),
@@ -150,7 +150,7 @@ class PerpetualSpawnApp(App[DrainTestConfig]):
 
 async def test_drain_times_out_on_perpetually_spawning_handler() -> None:
     """Perpetually-spawning handler causes drain to raise DrainTimeout."""
-    async with AppTestHarness(PerpetualSpawnApp, config={}) as harness:
+    async with AppTestHarness(PerpetualSpawnApp, config={"instance_name": "perpetual_spawn_app"}) as harness:
         with pytest.raises(DrainTimeout):
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
         # Stop the spawner to allow clean teardown
@@ -159,7 +159,7 @@ async def test_drain_times_out_on_perpetually_spawning_handler() -> None:
 
 async def test_drain_timeout_message_includes_pending_task_names() -> None:
     """DrainTimeout message includes pending task names from task_bucket."""
-    async with AppTestHarness(PerpetualSpawnApp, config={}) as harness:
+    async with AppTestHarness(PerpetualSpawnApp, config={"instance_name": "perpetual_spawn_app"}) as harness:
         with pytest.raises(DrainTimeout) as exc_info:
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
         harness.app._keep_spawning = False
@@ -202,7 +202,7 @@ async def test_drain_surfaces_handler_exception_as_drainerror() -> None:
     raises, the iterative drain collects the exception and raises DrainError so
     test authors see the real cause instead of a misleading AssertionError later.
     """
-    async with AppTestHarness(SingleExceptionApp, config={}) as harness:
+    async with AppTestHarness(SingleExceptionApp, config={"instance_name": "single_exception_app"}) as harness:
         with pytest.raises(DrainError) as exc_info:
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
         err = exc_info.value
@@ -237,7 +237,7 @@ class TwoSpawnedExceptionApp(App[DrainTestConfig]):
 
 async def test_drain_surfaces_multiple_handler_exceptions() -> None:
     """DrainError aggregates all spawned task exceptions, not just the first."""
-    async with AppTestHarness(TwoSpawnedExceptionApp, config={}) as harness:
+    async with AppTestHarness(TwoSpawnedExceptionApp, config={"instance_name": "two_spawned_exception_app"}) as harness:
         with pytest.raises(DrainError) as exc_info:
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
         err = exc_info.value
@@ -278,7 +278,7 @@ class DebounceHintApp(App[DrainTestConfig]):
 
 async def test_drain_timeout_message_has_debounce_hint_when_applicable() -> None:
     """When a 'handler:debounce'-named task is pending and drain times out, message includes debounce hint."""
-    async with AppTestHarness(DebounceHintApp, config={}) as harness:
+    async with AppTestHarness(DebounceHintApp, config={"instance_name": "debounce_hint_app"}) as harness:
         with pytest.raises(DrainTimeout) as exc_info:
             # timeout=0.15 is shorter than the 5s sleep, so drain times out
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
@@ -289,14 +289,14 @@ async def test_drain_timeout_message_has_debounce_hint_when_applicable() -> None
 @pytest.mark.parametrize("timeout", [math.nan, math.inf, -math.inf, -1.0])
 async def test_drain_rejects_invalid_timeout(timeout: float) -> None:
     """Invalid drain timeouts fail immediately instead of disabling the deadline."""
-    async with AppTestHarness(Depth1App, config={}) as harness:
+    async with AppTestHarness(Depth1App, config={"instance_name": "depth1_app"}) as harness:
         with pytest.raises(ValueError, match="timeout must be finite and non-negative"):
             await asyncio.wait_for(harness.drain_task_bucket(timeout=timeout), timeout=0.2)
 
 
 async def test_simulation_rejects_invalid_timeout_before_dispatch() -> None:
     """Timeout validation happens before the simulation can emit an event."""
-    async with AppTestHarness(Depth1App, config={}) as harness:
+    async with AppTestHarness(Depth1App, config={"instance_name": "depth1_app"}) as harness:
         hassette = harness.require_harness().hassette
         with patch.object(hassette, "send_event", new_callable=AsyncMock) as send_event:
             with pytest.raises(ValueError, match="timeout must be finite and non-negative"):

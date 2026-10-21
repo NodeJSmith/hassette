@@ -16,6 +16,7 @@ This recipe needs an `input_boolean` helper named `vacation_mode` — create one
 [hassette.apps.vacation_mode]
 filename = "vacation_mode.py"
 class_name = "VacationMode"
+config = { instance_name = "vacation_mode" }
 ```
 
 The section name (`vacation_mode`) is the app key the `hassette` CLI commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.

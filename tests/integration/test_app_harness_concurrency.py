@@ -35,7 +35,7 @@ async def test_concurrent_same_class_no_deadlock():
     """Two harnesses for the same App class complete via asyncio.gather without deadlock."""
 
     async def run_harness() -> str:
-        async with AppTestHarness(ConcurrencyApp, config={}) as harness:
+        async with AppTestHarness(ConcurrencyApp, config={"instance_name": "concurrency_app"}) as harness:
             return harness.app.app_key
 
     results = await asyncio.wait_for(asyncio.gather(run_harness(), run_harness()), timeout=15)
@@ -47,7 +47,7 @@ async def test_concurrent_same_class_no_class_pollution():
     """Concurrent harnesses never write app_manifest onto the shared class."""
 
     async def run_harness() -> None:
-        async with AppTestHarness(ConcurrencyApp, config={}) as harness:
+        async with AppTestHarness(ConcurrencyApp, config={"instance_name": "concurrency_app"}) as harness:
             # The instance carries its own synthesized manifest...
             assert harness.app.app_manifest is not None
             assert harness.app.app_manifest.app_key == "concurrency_app"
@@ -63,7 +63,7 @@ async def test_concurrent_same_class_app_key_isolation():
     keys: list[str] = []
 
     async def run_harness() -> None:
-        async with AppTestHarness(ConcurrencyApp, config={}) as harness:
+        async with AppTestHarness(ConcurrencyApp, config={"instance_name": "concurrency_app"}) as harness:
             keys.append(harness.app.app_key)
 
     await asyncio.wait_for(asyncio.gather(run_harness(), run_harness()), timeout=15)
@@ -75,11 +75,11 @@ async def test_concurrent_different_classes_no_conflict():
     results: dict[str, str] = {}
 
     async def run_a() -> None:
-        async with AppTestHarness(ConcurrencyApp, config={}) as h:
+        async with AppTestHarness(ConcurrencyApp, config={"instance_name": "concurrency_app"}) as h:
             results["a"] = h.app.app_key
 
     async def run_b() -> None:
-        async with AppTestHarness(AltApp, config={}) as h:
+        async with AppTestHarness(AltApp, config={"instance_name": "alt_app"}) as h:
             results["b"] = h.app.app_key
 
     await asyncio.wait_for(asyncio.gather(run_a(), run_b()), timeout=15)
@@ -89,13 +89,13 @@ async def test_concurrent_different_classes_no_conflict():
 
 async def test_sequential_then_concurrent_no_leak():
     """Sequential harness followed by concurrent harnesses — no state leak between runs."""
-    async with AppTestHarness(ConcurrencyApp, config={}) as h1:
+    async with AppTestHarness(ConcurrencyApp, config={"instance_name": "concurrency_app"}) as h1:
         assert h1.app.app_key == "concurrency_app"
 
     captured: list[Any] = []
 
     async def run_harness() -> None:
-        async with AppTestHarness(ConcurrencyApp, config={}) as h:
+        async with AppTestHarness(ConcurrencyApp, config={"instance_name": "concurrency_app"}) as h:
             captured.append(h.app.app_key)
 
     await asyncio.wait_for(asyncio.gather(run_harness(), run_harness()), timeout=15)

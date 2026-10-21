@@ -186,7 +186,10 @@ class TestApps:
         )
 
         original_config = deepcopy(self.app_handler.registry.manifests)
-        self.app_handler.registry.manifests["my_app"].app_config = {"test_entity": "light.office"}
+        self.app_handler.registry.manifests["my_app"].app_config = {
+            "test_entity": "light.office",
+            "instance_name": "unique_instance_name",
+        }
 
         changes = make_change_set(reload_apps={"my_app"})
 
@@ -215,18 +218,14 @@ class TestApps:
             "my_app instance should have the specified instance_name"
         )
 
-    async def test_app_without_instance_name(self) -> None:
-        """Test that an app without a specific instance_name in config starts with default naming."""
+    async def test_app_instance_name_is_its_unique_name(self) -> None:
+        """A configured app runs under exactly the instance_name its config sets, which is also its unique_name."""
         assert "my_app_sync" in self.app_handler.registry, "Precondition: my_app_sync starts enabled"
 
-        expected_name = "MyAppSync.0"
-
-        my_app_sync_instance = self.app_handler.get("my_app_sync", 0)
-        assert my_app_sync_instance is not None, "my_app_sync instance should exist"
-        assert my_app_sync_instance.app_config.instance_name == expected_name, (
-            f"my_app_sync instance should have the default instance_name {expected_name},"
-            f" found {my_app_sync_instance.app_config.instance_name}"
-        )
+        instance = self.app_handler.get("my_app_sync", 0)
+        assert instance is not None, "my_app_sync instance should exist"
+        assert instance.app_config.instance_name == "my_app_sync"
+        assert instance.unique_name == "my_app_sync"
 
     async def test_autostart_false_app_absent_after_bootstrap(self) -> None:
         """After bootstrap, an enabled+autostart=false app has no running instances."""
@@ -312,7 +311,10 @@ class TestApps:
         assert "no_autostart_app" in self.app_handler.registry, "Precondition: no_autostart_app is manually running"
 
         new_app_config = deepcopy(self.app_handler.registry.manifests)
-        new_app_config["my_app"].app_config = {"test_entity": "light.some_other_light"}
+        new_app_config["my_app"].app_config = {
+            "test_entity": "light.some_other_light",
+            "instance_name": "unique_instance_name",
+        }
 
         await self.run_change_event(make_change_set(reload_apps={"my_app"}), new_manifests=new_app_config)
 
@@ -325,7 +327,10 @@ class TestApps:
         assert "no_autostart_app" not in self.app_handler.registry, "Precondition: not running"
 
         new_app_config = deepcopy(self.app_handler.registry.manifests)
-        new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
+        new_app_config["no_autostart_app"].app_config = {
+            "test_entity": "light.changed",
+            "instance_name": "no_autostart_instance",
+        }
 
         await self.run_change_event(make_change_set(reload_apps={"no_autostart_app"}), new_manifests=new_app_config)
 
@@ -340,7 +345,10 @@ class TestApps:
 
         original_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config = deepcopy(self.app_handler.registry.manifests)
-        new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
+        new_app_config["no_autostart_app"].app_config = {
+            "test_entity": "light.changed",
+            "instance_name": "no_autostart_instance",
+        }
         self.app_handler.registry.set_manifests(new_app_config)
 
         changes = make_change_set(reload_apps={"no_autostart_app"})
@@ -446,7 +454,9 @@ class TestPerInstanceSelectiveRestart:
         """
         lifecycle, _executor, _db_service = real_db_lifecycle
         app_key = self.MULTI_INSTANCE_APP_KEY
-        original_manifest = self._make_manifest([{"value": "a"}, {"value": "b"}])
+        original_manifest = self._make_manifest(
+            [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
+        )
         lifecycle.set_apps_configs({app_key: original_manifest})
 
         await lifecycle.start_app(app_key)
@@ -458,7 +468,10 @@ class TestPerInstanceSelectiveRestart:
 
         original_config = deepcopy(lifecycle.registry.manifests)
         # Mutate instance 1's config only — instance 0's dict stays identical.
-        lifecycle.registry.manifests[app_key].app_config = [{"value": "a"}, {"value": "changed"}]
+        lifecycle.registry.manifests[app_key].app_config = [
+            {"value": "a", "instance_name": "alpha"},
+            {"value": "changed", "instance_name": "beta"},
+        ]
 
         changes = make_change_set(reload_apps={app_key})
         await lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests)
@@ -493,7 +506,9 @@ class TestPerInstanceSelectiveRestart:
         """
         lifecycle, executor, db_service = real_db_lifecycle
         app_key = self.MULTI_INSTANCE_APP_KEY
-        manifest = self._make_manifest([{"value": "a"}, {"value": "b"}])
+        manifest = self._make_manifest(
+            [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
+        )
         lifecycle.set_apps_configs({app_key: manifest})
 
         await lifecycle.start_app(app_key)
@@ -569,7 +584,7 @@ class TestPerInstanceSelectiveRestart:
         await lifecycle.start_app(app_key)
         instance1_before = lifecycle.registry.get(app_key, 1)
         assert instance1_before is not None, "Precondition: instance 1 should be running"
-        assert instance1_before.unique_name == "MultiInstanceApp.beta"
+        assert instance1_before.unique_name == "beta"
 
         original_config = deepcopy(lifecycle.registry.manifests)
         # Rename both indices in one edit — index 0 takes the name index 1 is about to vacate.
@@ -628,8 +643,8 @@ class TestPerInstanceSelectiveRestart:
         # doesn't leave the replacement instance in a broken state.
         instance0_after = lifecycle.registry.get(app_key, 0)
         assert instance0_after is not None
-        assert instance0_after.unique_name == "MultiInstanceApp.beta"
+        assert instance0_after.unique_name == "beta"
 
         sub = await instance0_after.bus.on(topic="test.race_topic", handler=noop, name="post_reload_listener")
-        owner_listeners = lifecycle.hassette.bus_service.get_listeners_by_owner("MultiInstanceApp.beta")
+        owner_listeners = lifecycle.hassette.bus_service.get_listeners_by_owner("beta")
         assert sub.listener.listener_id in {listener.listener_id for listener in owner_listeners}

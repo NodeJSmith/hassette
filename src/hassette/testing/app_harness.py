@@ -6,7 +6,8 @@ api_recorder, and states as attributes after entry.
 
 Typical usage::
 
-    async with AppTestHarness(MotionLights, config={"motion_entity": "binary_sensor.test"}) as harness:
+    config = {"instance_name": "motion_lights", "motion_entity": "binary_sensor.test"}
+    async with AppTestHarness(MotionLights, config=config) as harness:
         await harness.simulate_state_change(
             "binary_sensor.test", old_value="off", new_value="on"
         )
@@ -148,7 +149,7 @@ def make_hermetic_config(app_cls: type[App], app_config_cls: type[AppConfig], co
         raise AppConfigurationError(app_cls, exc) from exc
 
 
-def synthesize_manifest(app_cls: type[App]) -> AppManifest:
+def synthesize_manifest(app_cls: type[App], instance_name: object) -> AppManifest:
     """Build a minimal AppManifest for app_cls without requiring a real file or TOML config.
 
     Derives app_key from the class name (snake_case), filename from the source file's parent
@@ -157,9 +158,14 @@ def synthesize_manifest(app_cls: type[App]) -> AppManifest:
 
     Args:
         app_cls: The App subclass to synthesize a manifest for.
+        instance_name: The ``instance_name`` value from the test's config, or None when it has none. It goes
+            through the same check as a configured app's, so a missing or invalid one fails.
 
     Returns:
         A synthesized AppManifest.
+
+    Raises:
+        AppConfigurationError: *instance_name* is missing or invalid.
     """
     class_name = app_cls.__name__
     # Convert CamelCase to snake_case for app_key
@@ -179,14 +185,17 @@ def synthesize_manifest(app_cls: type[App]) -> AppManifest:
 
     full_path = app_dir / filename
 
-    return AppManifest(
-        app_key=app_key,
-        filename=filename,
-        class_name=class_name,
-        app_dir=app_dir,
-        full_path=full_path,
-        app_config=[{"instance_name": f"{class_name}.0"}],
-    )
+    try:
+        return AppManifest(
+            app_key=app_key,
+            filename=filename,
+            class_name=class_name,
+            app_dir=app_dir,
+            full_path=full_path,
+            app_config=[{"instance_name": instance_name}],
+        )
+    except pydantic.ValidationError as exc:
+        raise AppConfigurationError(app_cls, exc) from exc
 
 
 class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
@@ -198,7 +207,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
 
     Usage::
 
-        async with AppTestHarness(MyApp, config={"my_setting": "value"}) as harness:
+        async with AppTestHarness(MyApp, config={"instance_name": "my_app", "my_setting": "value"}) as harness:
             harness.app      # MyApp instance
             harness.bus      # test Bus
             harness.scheduler  # test Scheduler
@@ -215,7 +224,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
     def __init__(
         self,
         app_cls: type[AppType],
-        config: Mapping[str, Any] | None = None,
+        config: Mapping[str, Any],
         *,
         tmp_path: Path | None = None,
     ) -> None:
@@ -223,13 +232,13 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
 
         Args:
             app_cls: The App subclass to instantiate and test.
-            config: Config values to validate against app_cls.app_config_cls. Defaults
-                to an empty mapping for apps without required settings.
+            config: Config values to validate against app_cls.app_config_cls. Must set
+                ``instance_name``, as every configured app instance does.
             tmp_path: Optional directory for Hassette data. Auto-created and cleaned
                 up if not provided.
         """
         self._app_cls = app_cls
-        self._config_dict = dict(config or {})
+        self._config_dict = dict(config)
         self._tmp_path = tmp_path
 
         # Set during __aenter__
@@ -300,11 +309,11 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
         )
 
         # Step 8: Synthesize a per-instance manifest and validate the config.
-        # synthesize_manifest is a pure function of the class. make_hermetic_config writes
+        # synthesize_manifest is a pure function of its arguments. make_hermetic_config writes
         # a shared closure cell, but writes and reads it with no await in between, so
         # concurrent harnesses cannot interleave there. Neither path mutates the App class,
         # so the per-instance manifest needs no locking — each harness owns its own.
-        manifest = synthesize_manifest(self._app_cls)
+        manifest = synthesize_manifest(self._app_cls, self._config_dict.get("instance_name"))
         validated_config = make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
 
         # Step 9: Instantiate the app with RecordingApi injected via constructor.

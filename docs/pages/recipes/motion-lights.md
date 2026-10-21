@@ -16,6 +16,7 @@ Save the code as `motion_lights.py` in your apps directory and register it in `h
 [hassette.apps.motion_lights]
 filename = "motion_lights.py"
 class_name = "MotionLights"
+config = { instance_name = "motion_lights" }
 ```
 
 The section name (`motion_lights`) is the app key the `hassette` CLI commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.
@@ -66,6 +67,7 @@ filename = "motion_lights.py"
 class_name = "MotionLights"
 
 [hassette.apps.hallway_motion.config]
+instance_name = "hallway_motion"
 off_delay_seconds = 60
 ```
 

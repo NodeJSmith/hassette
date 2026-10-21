@@ -8,4 +8,4 @@ log_level = "INFO"
 [hassette.apps.presence]
 filename = "presence.py"
 class_name = "Presence"
-config = {motion_sensor = "binary_sensor.hall", timeout = 300}
+config = {instance_name = "presence", motion_sensor = "binary_sensor.hall", timeout = 300}

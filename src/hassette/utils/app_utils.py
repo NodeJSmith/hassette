@@ -2,6 +2,7 @@ import ast
 import importlib.machinery
 import importlib.util
 import os
+import re
 import sys
 import traceback
 import typing
@@ -13,6 +14,7 @@ from pathlib import Path
 from pydantic.alias_generators import to_snake
 
 from hassette.app.utils import validate_app
+from hassette.config.classes import INSTANCE_NAME_MAX_LENGTH
 from hassette.config.defaults import APP_SCAN_EXCLUDE_DIRS
 from hassette.exceptions import (
     AppPrecheckFailedError,
@@ -20,6 +22,7 @@ from hassette.exceptions import (
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.types.types import AppDict, RawAppDict
 
 if typing.TYPE_CHECKING:
@@ -35,6 +38,8 @@ LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 
 EXCLUDED_PATH_PARTS = ("site-packages", "importlib", "hassette")
+# Characters kept free under the instance-name length cap for a suggested key's ``_N`` suffix.
+SUGGESTED_KEY_SUFFIX_ROOM = 8
 APP_BASE_NAMES = frozenset({"App", "AppSync"})
 
 
@@ -52,18 +57,6 @@ class AppScan:
 
 def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
     return (str(module_path), class_name)
-
-
-def is_valid_instance_name(value: object) -> typing.TypeGuard[str]:
-    """Whether a config-sourced ``instance_name`` value is usable.
-
-    A single source of truth for "usable" so the pre-instantiation check in
-    ``AppFactory.create_instances`` and the untracked-instance display fallback in
-    ``AppRegistry._resolve_instance_name`` can't silently diverge on what counts as
-    valid (e.g. one accepting a non-string truthy value like ``123`` that the other rejects).
-    A ``TypeGuard`` so callers get ``str`` narrowing on the checked value, not just a bool.
-    """
-    return isinstance(value, str) and bool(value)
 
 
 def root_cause(exc: BaseException) -> BaseException:
@@ -291,8 +284,15 @@ def is_app_base(base: ast.expr) -> bool:
 
 
 def suggested_app_key(class_name: str, taken: set[str]) -> str:
-    """The snake_case class name as an app key, or the first free ``_2``, ``_3``, ... variant of it."""
-    base = to_snake(class_name)
+    """A key that is also a valid instance name, or the first free ``_2``, ``_3``, ... variant of it.
+
+    The class name in snake_case, with characters outside the instance-name charset replaced by ``_``,
+    an ``app_`` prefix when it doesn't start with a letter, and room left under the length cap for a suffix.
+    """
+    base = re.sub(r"[^a-z0-9_]", "_", to_snake(class_name)).strip("_")
+    if not base[:1].isalpha():
+        base = f"app_{base}".rstrip("_")
+    base = base[: INSTANCE_NAME_MAX_LENGTH - SUGGESTED_KEY_SUFFIX_ROOM].rstrip("_")
     key, suffix = base, 2
     while key in taken:
         key = f"{base}_{suffix}"
@@ -301,13 +301,17 @@ def suggested_app_key(class_name: str, taken: set[str]) -> str:
 
 
 def unconfigured_app_warning(app_dir: Path, path: Path, class_name: str, key: str) -> str:
-    """The startup warning for one unconfigured app class, with an entry under `key` that loads it as pasted."""
+    """The startup warning for one unconfigured app class, with an entry under `key` that loads it as pasted.
+
+    The entry reuses `key` as the instance name, so callers pass a key no configured instance name uses either.
+    """
     filename = path.relative_to(app_dir.resolve()).as_posix()
     return (
         f"App class {class_name} in {path} is not configured, so it won't run. To run it, add to your config:\n\n"
         f"[hassette.apps.{key}]\n"
         f'filename = "{filename}"\n'
-        f'class_name = "{class_name}"\n\n'
+        f'class_name = "{class_name}"\n'
+        f'config = {{ instance_name = "{key}" }}\n\n'
         "If this is a base class, configure the apps that subclass it instead. "
         "Set warn_unconfigured = false under [hassette.apps] to turn this warning off."
     )
@@ -597,8 +601,9 @@ def app_startup_warnings(apps: "AppsConfig", *, config_files: Iterable[Path], cw
     ``warn_unconfigured`` off the scan doesn't run, so a directory holding only unconfigured classes
     gets "No apps found".
 
-    Each suggested key avoids configured keys, ``[hassette.apps]`` setting names, and earlier suggestions,
-    so pasting every snippet gives a config that loads.
+    Each suggested key avoids configured keys, configured instance names, ``[hassette.apps]`` setting names,
+    and earlier suggestions. The snippet uses the key as its instance name too, so pasting every snippet gives
+    a config that loads.
     """
     scan = AppScan()
     if apps.warn_unconfigured:
@@ -607,6 +612,11 @@ def app_startup_warnings(apps: "AppsConfig", *, config_files: Iterable[Path], cw
 
     # raw entries include ones that failed validation; setting names share the [hassette.apps] table
     taken = {*apps.apps, *apps.manifests, *type(apps).model_fields}
+    taken.update(
+        config["instance_name"]
+        for manifest in apps.manifests.values()
+        for config in normalize_app_config(manifest.app_config)
+    )
     warnings: list[str] = []
     for path, class_name in scan.unconfigured:
         key = suggested_app_key(class_name, taken)

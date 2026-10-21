@@ -168,48 +168,6 @@ class TestAppFactoryCreateInstances:
         mock_registry.register_app.assert_not_called()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    def test_create_instances_missing_instance_name(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
-    ):
-        """Records failure for config missing instance_name, continues with others."""
-        mock_manifest.app_config = [
-            {"other_field": "value"},  # Missing instance_name
-            {"instance_name": "valid_instance"},
-        ]
-        mock_load_class.return_value = mock_app_class = make_app_class()
-
-        factory.create_instances("test_app", mock_manifest)
-
-        # First config should fail
-        assert mock_registry.record_failure.call_count == 1
-        call_args = mock_registry.record_failure.call_args
-        assert call_args[0][0] == "test_app"
-        assert call_args[0][1] == 0
-        assert isinstance(call_args[0][2], ValueError)
-
-        # Second config should succeed
-        mock_registry.register_app.assert_called_once_with("test_app", 1, mock_app_class.return_value)
-
-    @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    def test_create_instances_non_string_instance_name(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
-    ):
-        """A non-string but truthy instance_name (e.g. an int) is rejected the same way a
-        missing one is -- is_valid_instance_name() requires a str, not just a truthy value.
-        """
-        mock_manifest.app_config = [{"instance_name": 123}]
-        mock_load_class.return_value = make_app_class()
-
-        factory.create_instances("test_app", mock_manifest)
-
-        mock_registry.record_failure.assert_called_once()
-        call_args = mock_registry.record_failure.call_args
-        assert call_args[0][0] == "test_app"
-        assert call_args[0][1] == 0
-        assert isinstance(call_args[0][2], ValueError)
-        mock_registry.register_app.assert_not_called()
-
-    @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_validation_failure(
         self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
     ):
@@ -393,23 +351,6 @@ class TestAppFactoryCreateSingleInstance:
         mock_app_class.assert_called_once()
         mock_registry.register_app.assert_called_once_with("test_app", 3, mock_app_class.return_value)
         mock_registry.record_failure.assert_not_called()
-
-    def test_create_single_instance_missing_instance_name(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
-    ):
-        """Records failure at the given index when instance_name is missing."""
-        mock_app_class = make_app_class()
-        config = {"other_field": "value"}
-
-        factory.create_single_instance("test_app", mock_manifest, 2, config, mock_app_class)
-
-        mock_registry.record_failure.assert_called_once()
-        call_args = mock_registry.record_failure.call_args
-        assert call_args[0][0] == "test_app"
-        assert call_args[0][1] == 2
-        assert isinstance(call_args[0][2], ValueError)
-        mock_registry.register_app.assert_not_called()
-        mock_app_class.assert_not_called()
 
     def test_create_single_instance_validation_failure_records_correct_index(
         self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest

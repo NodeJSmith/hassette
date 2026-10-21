@@ -22,6 +22,7 @@ The default directory is `{data_dir}/{app_key}/{index}/cache/cache.db`. Set `cac
 
 ```toml
 [hassette.apps.weather]
+config = { instance_name = "weather" }
 cache_key = "weather_v1/0"  # keep the cache from before the app was renamed
 ```
 

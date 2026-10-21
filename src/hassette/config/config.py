@@ -49,6 +49,7 @@ from hassette.config.sources import (
     anchor_paths,
 )
 from hassette.exceptions import ConfigError
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, AppDict, is_framework_key
 from hassette.utils.app_utils import clean_app
@@ -590,7 +591,30 @@ def validate_app_manifests(cleaned_apps: dict[str, AppDict]) -> dict[str, AppMan
             manifests[k] = AppManifest.model_validate(v)
         except ValidationError as exc:
             raise ConfigError(f"Invalid app {k!r}: {exc}") from exc
+    check_unique_instance_names(manifests)
     return manifests
+
+
+def check_unique_instance_names(manifests: Mapping[str, AppManifest]) -> None:
+    """Reject an instance name used by more than one app instance anywhere in the config.
+
+    Covers every manifest, enabled or not and autostarting or not, so a clash is caught at load rather than
+    when a dormant app is switched on. Reads the names `AppManifest` validation resolved.
+
+    Raises:
+        ConfigError: Two or more instances share a name; the message names each of them.
+    """
+    holders: dict[str, list[str]] = {}
+    for app_key, manifest in manifests.items():
+        for idx, item in enumerate(normalize_app_config(manifest.app_config)):
+            holders.setdefault(item["instance_name"], []).append(f"app {app_key!r} instance {idx}")
+
+    duplicates = {name: where for name, where in holders.items() if len(where) > 1}
+    if duplicates:
+        lines = [f"  {name!r}: {', '.join(where)}" for name, where in sorted(duplicates.items())]
+        raise ConfigError(
+            "Instance names must be unique across the config; these are used more than once:\n" + "\n".join(lines)
+        )
 
 
 def unsafe_app_key_reason(app_key: str) -> str | None:

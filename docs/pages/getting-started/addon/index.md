@@ -41,7 +41,7 @@ Watchdog restarts Hassette if it crashes or fails its health check. Without it, 
 ## Step 3: Start it
 
 1. On the **Info** tab, choose **Start**.
-2. Open the **Log** tab and wait for the line ending in `Hassette is running.`
+2. Open the **Log** tab and wait for the line containing `Hassette is running.`
 3. Open **Hassette** in the Home Assistant sidebar.
 
 On first start, the log includes these lines. Your timestamps differ, and you can skip everything else for now:
@@ -51,7 +51,7 @@ The config folder is empty; adding a starter hassette.toml and an example app
 Port mappings: none (ingress only)
 2026-10-17T08:19:58.690526 [info     ] Generated new web API auth_token, written to /config/.web_api_token. Open Hassette from the Home Assistant sidebar or the add-on's "Open Web UI" button; the token is only needed for the hassette CLI or a published port. [hassette.web.auth.tokens] execution_id=None
 2026-10-17T08:19:58.690609 [info     ] Hassette is running.           [hassette] execution_id=None
-2026-10-17T08:19:58.690670 [info     ] Hello from Hassette! Edit example_app.py in the apps folder of the add-on's config folder. [hassette.ExampleApp.0] execution_id=None
+2026-10-17T08:19:58.690670 [info     ] Hello from Hassette! Edit example_app.py in the apps folder of the add-on's config folder. [hassette.apps.example_app] execution_id=None
 Announced hassette to Home Assistant; the hassette integration can now be set up from its Discovered card
 ```
 
@@ -79,13 +79,13 @@ Find the file in your config folder:
 
 Replace the `greeting` default with your own text, such as `"Hello from my first Hassette app!"`, then save the file.
 
-Hassette starts every app it finds in `apps/`, so the app needs no `hassette.toml` entry. Restart the add-on from its **Info** tab, then open the **Log** tab again. You see a line like this with your new greeting:
+The starter `hassette.toml` already has the example app's section, so the edit needs no config change. Restart the add-on from its **Info** tab, then open the **Log** tab again. You see a line like this with your new greeting:
 
 ```text
-2026-10-17T08:24:11.102394 [info     ] Hello from my first Hassette app! [hassette.ExampleApp.0] execution_id=None
+2026-10-17T08:24:11.102394 [info     ] Hello from my first Hassette app! [hassette.apps.example_app] execution_id=None
 ```
 
-To give an app settings of its own, add a section to `hassette.toml`. The starter file shows the format in a comment, and [Add-on Configuration](configuration.md#hassettetoml) explains it.
+To give the app settings of its own, set them in its section's `config` in `hassette.toml`. The starter file shows the format in a comment, and [Add-on Configuration](configuration.md#hassettetoml) explains it.
 
 ## Step 5: Pair the integration
 

@@ -1,4 +1,4 @@
 [hassette.apps.example_app]
 filename = "example_app.py"
 class_name = "ExampleApp"
-config = { greeting = "Hello from the add-on!" }
+config = { instance_name = "example_app", greeting = "Hello from the add-on!" }

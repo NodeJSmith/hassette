@@ -1,4 +1,4 @@
 [hassette.apps.presence]
 filename = "presence.py"
 class_name = "PresenceApp"
-config = { motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
+config = { instance_name = "presence", motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }

@@ -4,7 +4,13 @@ from my_apps.door_log import DoorLog
 
 
 async def test_door_log_records_the_triggering_event():
-    async with AppTestHarness(DoorLog, config={"door_entity": "binary_sensor.front_door"}) as harness:
+    async with AppTestHarness(
+        DoorLog,
+        config={
+            "instance_name": "door_log",
+            "door_entity": "binary_sensor.front_door",
+        },
+    ) as harness:
         event = await harness.simulate_state_change(
             "binary_sensor.front_door",
             old_value="off",

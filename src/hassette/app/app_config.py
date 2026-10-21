@@ -1,8 +1,10 @@
 import os
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 from hassette_wire import LogLevel
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, DotEnvSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context
@@ -18,6 +20,9 @@ It is never read as a path: `AppConfig.settings_customise_sources` replaces the 
 the marker and gets pydantic-settings' own meaning (``None`` reads no ``.env`` file). pydantic-settings'
 default is already ``None``, which is why ``None`` can't be the marker.
 """
+
+FRAMEWORK_FIELDS = ("instance_name", "log_level", "forgotten_await_behavior", "blocking_io_behavior")
+"""`AppConfig`'s own fields, which config loading and the docs always spell by field name."""
 
 
 class AppConfig(BaseSettings):
@@ -60,7 +65,10 @@ class AppConfig(BaseSettings):
         return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     instance_name: str = ""
-    """Name for the instance of the app."""
+    """Name for the instance of the app, unique across the config.
+
+    Config loading always sets it (see `hassette.config.classes.resolve_instance_name`); the empty default only
+    applies to an App constructed directly."""
 
     log_level: LogLevel | None = None
     """Log level for the app instance.
@@ -80,6 +88,24 @@ class AppConfig(BaseSettings):
     When ``None`` (default), the global ``HassetteConfig.blocking_io.behavior`` is used,
     which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress detection for this app,
     or ``"error"`` to escalate via ``filterwarnings("error")``."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_framework_fields_by_name(cls, data: Any) -> Any:
+        """Accept the framework's fields by name even when a subclass's ``alias_generator`` renamed them.
+
+        Without this, ``instance_name`` written by config loading would land in extras under an alias
+        generator, and the app would run with an empty name.
+        """
+        if not isinstance(data, dict):
+            return data
+        renamed = dict(data)
+        for name in FRAMEWORK_FIELDS:
+            alias = cls.model_fields[name].alias
+            if alias and alias != name and name in renamed:
+                # the by-name value wins: it's the one manifest validation checked
+                renamed[alias] = renamed.pop(name)
+        return renamed
 
 
 def hassette_env_files() -> tuple[Path, ...]:

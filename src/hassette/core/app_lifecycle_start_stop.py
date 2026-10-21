@@ -124,7 +124,7 @@ class AppStartStopMixin:
             self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
             return
 
-        # create_instances() records failures (invalid instance_name, config validation, class
+        # create_instances() records failures (config validation, class
         # load error) straight to the registry without emitting an event — no App object exists
         # yet to build one from. Without this, those failures never reach app_status_changed
         # subscribers, so a WS-cached status from before this call (e.g. still "stopped" from a
@@ -398,9 +398,7 @@ class AppStartStopMixin:
     async def _reload_instance_unlocked(self, app_key: str, index: int, force_reload: bool = False) -> None:
         """Stop and reinitialize a single instance.
 
-        Caller must hold ``self._get_app_key_lock(app_key)``. Extracted so ``apply_changes()``
-        can acquire the lock once and reload several changed indices for the same app_key as a
-        single atomic batch (see design doc "Data flow for selective restart").
+        Caller must hold ``self._get_app_key_lock(app_key)``; ``reload_instance`` takes it.
         """
         app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:

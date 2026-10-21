@@ -41,13 +41,13 @@ This is a Hassette feature. Standard Python ignores type annotations at runtime,
 Replace your `apps/main.py` with the complete app from [Schedule a Recurring Job](#schedule-a-recurring-job). Stop Hassette with `Ctrl+C` and run `hassette run -e .env` again. The greeting appears at startup as before:
 
 ```
-INFO hassette.MyApp.0 — Hello from Hassette!
+INFO hassette.apps.my_app — Hello from Hassette!
 ```
 
 About a minute later, the first heartbeat appears, then another every minute after that:
 
 ```
-INFO hassette.MyApp.0 — Heartbeat
+INFO hassette.apps.my_app — Heartbeat
 ```
 
 The `Sun changed` and `Porch light turned on` lines appear at the next sunset. To test the handler now without waiting, trigger a state change manually:

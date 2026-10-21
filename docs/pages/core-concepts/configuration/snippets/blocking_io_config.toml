@@ -15,4 +15,5 @@ allow_deep_detection_in_prod = false  # default
 
 # Per-app override — suppress detection for a specific app:
 [hassette.apps.legacy_app]
+config = { instance_name = "legacy_app" }
 blocking_io_behavior = "ignore"

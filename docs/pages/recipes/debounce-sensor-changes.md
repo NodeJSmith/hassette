@@ -16,6 +16,7 @@ Save the code as `debounce_sensor.py` in your apps directory and register it in 
 [hassette.apps.debounce_sensor]
 filename = "debounce_sensor.py"
 class_name = "DebounceSensorApp"
+config = { instance_name = "debounce_sensor" }
 ```
 
 The section name (`debounce_sensor`) is the app key the `hassette` CLI commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.

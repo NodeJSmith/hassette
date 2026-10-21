@@ -337,3 +337,10 @@ Spec 135 (#3145) removes app autodetection, so there are no auto-loaded apps and
 them is moot: every instance comes from a configured section. Issue 1 (#3095, PR #3146) rebases onto spec 135
 and drops that branch of the naming function. The test harness's default manifest stays `ClassName.0` until
 issue 1 moves it to a user-chosen name.
+
+### 2026-10-21: building issue 1 (#3095)
+Two consequences of dropping the class prefix from `unique_name` were settled with the user while building, and one call site differs from *Where things live*:
+
+- **App loggers live under `hassette.apps.<instance_name>`**, with the app's children nested below it, not directly under `hassette.`. A bare `hassette.<name>` would let an app named like a framework package (`scheduler`, `api`) become the parent of that package's module loggers and set their levels. This follows pyscript's separate sub-namespace for user code. `unique_name` and `owner_id` stay the bare name. D6 still holds: logger names are readable and derived from the instance name. D7's ownerless-line rendering ("the logger name without its `hassette.` prefix") will show `apps.<name>` for such lines.
+- **A live reload stops every instance it replaces, across all app keys, before creating any replacement**, with each affected app-key lock held across both phases. Owner registries are keyed by the name, and one edit can move a name between instances or apps. This is AppDaemon's reload shape. The name-overlap fallbacks in the selective restart are gone, because duplicate names are now rejected at config load.
+- **The naming function runs once**, in `AppManifest` validation. `AppFactory` and the `AppRegistry` read the name the manifest resolved instead of calling it again. With autodetection gone (entry above) the function has no default: the test harness requires `instance_name` in its config like any configured section, rather than keeping a snake_case default of its own.

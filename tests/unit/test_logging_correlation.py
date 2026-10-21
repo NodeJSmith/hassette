@@ -332,6 +332,8 @@ class TestCorrelationFilterAppliesToChildLoggers:
         """A child logger with app_key in context gets source_tier='app'."""
         structlog.contextvars.bind_contextvars(app_key="my_app")
         child = logging.getLogger("hassette.apps.my_app.test_child")
+        # An earlier test's App named my_app can leave a level on hassette.apps.my_app; don't inherit it.
+        child.setLevel(logging.DEBUG)
         child.info("app record")
         structlog.contextvars.clear_contextvars()
         logging_pipeline.listener.stop()

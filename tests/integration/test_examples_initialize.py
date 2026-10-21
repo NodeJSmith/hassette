@@ -92,7 +92,9 @@ async def test_example_app_initializes(example_path: Path, monkeypatch: pytest.M
     for app_cls in app_classes:
         errors: list[BaseException] = []
         try:
-            async with AppTestHarness(capturing_initialize_errors(app_cls, errors)):
+            async with AppTestHarness(
+                capturing_initialize_errors(app_cls, errors), config={"instance_name": "example"}
+            ):
                 pass
         except Exception as exc:
             cause = errors[0] if errors else exc
@@ -111,6 +113,8 @@ async def test_capture_wraps_appsync_sync_hook() -> None:
     """``AppSync.on_initialize`` is final, so the capture wraps ``on_initialize_sync`` and still records its error."""
     errors: list[BaseException] = []
     with pytest.raises(Exception):  # noqa: B017, PT011 - the harness surfaces this as a RUNNING timeout
-        async with AppTestHarness(capturing_initialize_errors(FailingSyncApp, errors)):
+        async with AppTestHarness(
+            capturing_initialize_errors(FailingSyncApp, errors), config={"instance_name": "failing_sync_app"}
+        ):
             pass
     assert [str(error) for error in errors] == ["sync registration failed"]

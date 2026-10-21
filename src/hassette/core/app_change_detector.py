@@ -29,7 +29,7 @@ where the instance's cache lives. But it still belongs here: `App.__init__` buil
 edit to `cache_key` alone doesn't touch `app_config`, so `reload_apps`'s per-instance diff (which
 only compares `app_config` old-vs-new) would see no change and silently no-op, leaving the
 running instance reading and writing its old cache file indefinitely. Routing it through
-`reimport_apps` instead forces a full `reload_app(app_key, force_reload=True)`, which rebuilds
+`reimport_apps` instead forces a full restart with a fresh class import, which rebuilds
 the instance -- and its cache -- against the new manifest.
 
 See `REIMPORT_PATH_PATTERN`."""

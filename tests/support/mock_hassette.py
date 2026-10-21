@@ -163,6 +163,9 @@ def make_mock_hassette(
     # Resource children
     hassette.children = []
 
+    # Child resources derive their logger name from the parent's (Resource._get_logger_name).
+    hassette._get_logger_name = Mock(return_value="hassette")
+
     # SyncExecutorService — set both the backing field and the public accessor (same
     # pattern as fatal_shutdown_reason above) so tests that reference
     # `hassette.sync_executor_service`/`hassette._sync_executor_service` directly don't

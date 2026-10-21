@@ -6,10 +6,18 @@ from my_apps.motion_lights import MotionLights
 async def test_get_calls():
     async with AppTestHarness(
         MotionLights,
-        config={"motion_entity": "binary_sensor.motion", "light_entity": "light.kitchen"},
+        config={
+            "instance_name": "motion_lights",
+            "motion_entity": "binary_sensor.motion",
+            "light_entity": "light.kitchen",
+        },
     ) as harness:
-        await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
+        await harness.simulate_state_change(
+            "binary_sensor.motion", old_value="off", new_value="on"
+        )
 
         calls = harness.api_recorder.get_calls("call_service")
         for call in calls:
-            print(call.kwargs)  # e.g. {"domain": "light", "service": "turn_on", ...}
+            print(
+                call.kwargs
+            )  # e.g. {"domain": "light", "service": "turn_on", ...}
