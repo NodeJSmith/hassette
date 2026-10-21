@@ -346,10 +346,7 @@ class TestAppLifecycleServiceIntegration:
         multi_instance_manifest: AppManifest,
     ):
         """App status transitions to RUNNING after init."""
-        app_registry.set_manifests({"multi_instance": multi_instance_manifest})
-
-        app_factory.create_instances("multi_instance", multi_instance_manifest)
-        instances = app_registry.get_running_apps("multi_instance")
+        instances = create_app(app_factory, app_registry, multi_instance_manifest)
 
         # Before initialization
         app_instance = get_app(app_registry, "multi_instance", 0)
@@ -527,14 +524,11 @@ class TestFullIntegrationFlow:
         multi_instance_manifest: AppManifest,
     ):
         """Factory creates, lifecycle initializes, app runs."""
-        app_registry.set_manifests({"multi_instance": multi_instance_manifest})
-
         # Create
-        app_factory.create_instances("multi_instance", multi_instance_manifest)
+        instances = create_app(app_factory, app_registry, multi_instance_manifest)
         assert "multi_instance" in app_registry
 
         # Initialize
-        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, multi_instance_manifest)
 
         # Verify running
@@ -549,18 +543,15 @@ class TestFullIntegrationFlow:
         multi_instance_manifest: AppManifest,
     ):
         """Verify registry state at each step."""
-        app_registry.set_manifests({"multi_instance": multi_instance_manifest})
-
         # Before creation
         assert app_registry.get("multi_instance", 0) is None
 
         # After creation
-        app_factory.create_instances("multi_instance", multi_instance_manifest)
+        instances = create_app(app_factory, app_registry, multi_instance_manifest)
         app = get_app(app_registry, "multi_instance", 0)
         assert app.status == ResourceStatus.NOT_STARTED
 
         # After initialization
-        instances = app_registry.get_running_apps("multi_instance")
         await app_lifecycle.initialize_instances("multi_instance", instances, multi_instance_manifest)
         assert app.status == ResourceStatus.RUNNING
 
