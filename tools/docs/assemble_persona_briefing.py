@@ -64,14 +64,14 @@ def prior_block(pages: list[Path]) -> str:
     if not pages:
         return NO_PRIOR
     # Unnumbered, so a reader's LINE N can only refer to the page under review.
-    return "\n\n".join(f"Page: {site_path(p)}\n\n---\n" + "\n".join(extract_page(p)) + "\n---" for p in pages)
+    return "\n\n".join(f"Page: {page_slug(p)}\n\n---\n" + "\n".join(extract_page(p)) + "\n---" for p in pages)
 
 
 def numbered(lines: list[str]) -> str:
     return "\n".join(f"LINE {i}: {line}" for i, line in enumerate(lines, 1))
 
 
-def site_path(html_path: Path) -> str:
+def page_slug(html_path: Path) -> str:
     """Return the page path as the skill's arguments spell it, e.g. ``getting-started/first-automation``."""
     path = html_path.parent.relative_to(SITE_ROOT).as_posix()
     return path.removeprefix("pages/") if path != "." else "(home)"
@@ -90,7 +90,7 @@ def main() -> int:
 
     values = {
         "PRIOR_PAGES": prior_block(prior_pages(html_path)),
-        "PAGE_PATH": site_path(html_path),
+        "PAGE_PATH": page_slug(html_path),
         "PAGE_CONTENT": numbered(extract_page(html_path)),
     }
     # One pass, so placeholder-like text inside page content is never substituted.
