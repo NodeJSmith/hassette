@@ -38,10 +38,15 @@ This is a Hassette feature. Standard Python ignores type annotations at runtime,
 
 ## Run It
 
-Replace your `apps/main.py` with the complete app from the previous snippet. Stop Hassette with `Ctrl+C` and run `hassette run -e .env` again. You see new log lines:
+Replace your `apps/main.py` with the complete app from [Schedule a Recurring Job](#schedule-a-recurring-job). Stop Hassette with `Ctrl+C` and run `hassette run -e .env` again. The greeting appears at startup as before:
 
 ```
 INFO hassette.MyApp.0 — Hello from Hassette!
+```
+
+About a minute later, the first heartbeat appears, then another every minute after that:
+
+```
 INFO hassette.MyApp.0 — Heartbeat
 ```
 
