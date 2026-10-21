@@ -11,6 +11,7 @@ from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
 from hassette.config.classes import AppManifest
 from hassette.conversion import StateRegistry, TypeRegistry
+from hassette.logging_ import LogAuthor, LogIdentity, set_logger_identity
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -110,6 +111,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     logger: Logger
     """Logger for the instance."""
 
+    _lifecycle_logger: Logger
+    """Backs ``lifecycle_logger``; built by ``_setup_logger()`` during construction."""
+
     api: "Api"
     """API instance for interacting with Home Assistant."""
 
@@ -179,6 +183,26 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         # A sub-namespace of its own keeps an app named like a framework package (``scheduler``, ``api``)
         # from becoming the parent of that package's module loggers.
         return f"{APP_LOGGER_PREFIX}.{self.unique_name}"
+
+    def _setup_logger(self) -> None:
+        super()._setup_logger()
+        # Framework-authored and owned by this app: generic lifecycle code writes about the app
+        # here instead of on the app's own logger. Its level is LoggingConfig.app_handler, not the
+        # app's log_level.
+        self._lifecycle_logger = getLogger(f"{self.logger.name}.Lifecycle")
+        self._lifecycle_logger.setLevel(self.hassette.config.logging.app_handler)
+        set_logger_identity(self._lifecycle_logger, self.owner_log_identity("framework"))
+
+    @property
+    def lifecycle_logger(self) -> Logger:
+        """Framework-authored logger, owned by this app, that generic lifecycle code writes through."""
+        return self._lifecycle_logger
+
+    def owner_log_identity(self, author: LogAuthor) -> LogIdentity:
+        """Identity for a logger this app owns: ``author`` plus this app instance as owner."""
+        return LogIdentity(
+            author=author, app_key=self.app_key, instance_name=self.instance_name, instance_index=self.index
+        )
 
     @property
     def config_log_level(self) -> LogLevel:

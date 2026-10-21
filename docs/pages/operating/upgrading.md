@@ -139,6 +139,10 @@ The old default `ClassName.<index>` isn't a valid name, so a few other things ch
 - **Logger names** are now `hassette.apps.<instance_name>`, with the app's bus, scheduler, and other loggers nested under it. Update `logging` config or log filters that referenced `hassette.MyApp.0` to `hassette.apps.my_app`.
 - **Tests that use [`AppTestHarness`](../testing/harness.md)** must set `instance_name` in the harness `config` too, as in `AppTestHarness(MyApp, config={"instance_name": "my_app"})`. Without one, entering the harness raises `AppConfigurationError`.
 
+## App Lifecycle Log Lines
+
+This applies when upgrading from 0.59 or earlier. Hassette's lines about an app starting, stopping, and failing used to be written on the app's own logger. They now come from `hassette.apps.<instance_name>.Lifecycle`. That logger follows `logging.app_handler`, not the app's `log_level`, and its lines are marked `framework`. To keep seeing an app's lifecycle detail at `DEBUG`, set `logging.app_handler = "DEBUG"`. [Per-App Log Levels](log-levels.md#per-app-log-levels) has the full breakdown.
+
 ## Config Paths and Unknown Keys
 
 Upgrading from 0.56 or earlier, four changes can break an existing setup: Hassette resolves relative paths against the file that sets them, rejects setting names it doesn't recognize, keeps Docker apps inside the config mount, and has apps read the same `.env` files as Hassette. This section lists each one. The [Configuration](../core-concepts/configuration/index.md#file-locations) page has the full rules.

@@ -106,7 +106,7 @@ class Service(Resource):
         Keep child propagation in sync with Resource._initialize_body().
         NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Resource.
         """
-        self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
+        self.lifecycle_logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await handle_starting(self)
         try:
             await self._auto_wait_dependencies()
@@ -137,18 +137,18 @@ class Service(Resource):
 
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
-            self.logger.debug("Cancelled serve() task")
+            self.lifecycle_logger.debug("Cancelled serve() task")
             # Shares the hooks pool with before_shutdown (already ran) and on_shutdown/after_shutdown
             # (run next). A slow serve-wait squeezes later hooks, but can't starve the mandatory tail.
             timeout = hooks_pool_remaining(self)
-            self.logger.debug(
+            self.lifecycle_logger.debug(
                 "%s: entering serve-task wait with %.2fs of hooks pool remaining",
                 self.unique_name,
                 timeout,
             )
             _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
             if pending:
-                self.logger.warning(
+                self.lifecycle_logger.warning(
                     "Serve task for %s did not complete within its %.2fs hooks-pool budget",
                     self.unique_name,
                     timeout,
@@ -188,19 +188,19 @@ class Service(Resource):
             raise
         except ClosedResourceError as exc:
             if not self.hassette.shutdown_event.is_set():
-                self.logger.error("Serve() task raised ClosedResourceError outside shutdown")
+                self.lifecycle_logger.error("Serve() task raised ClosedResourceError outside shutdown")
                 with suppress(Exception):
                     await handle_failed(self, exc)
                 return
             with suppress(Exception):
                 await handle_stop(self)
         except FatalError as exc:
-            self.logger.error("Serve() task failed with fatal error: %s %s", type(exc).__name__, exc)
+            self.lifecycle_logger.error("Serve() task failed with fatal error: %s %s", type(exc).__name__, exc)
             # Crash/failure path
             await handle_crash(self, exc)
 
         except Exception as exc:
-            self.logger.error("Serve() task failed: %s %s", type(exc).__name__, exc)
+            self.lifecycle_logger.error("Serve() task failed: %s %s", type(exc).__name__, exc)
             # Crash/failure path
             await handle_failed(self, exc)
 

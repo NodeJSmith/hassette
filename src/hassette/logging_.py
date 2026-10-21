@@ -7,9 +7,11 @@ import queue
 import sys
 import threading
 import traceback
+import warnings
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
-from typing import IO, TYPE_CHECKING, Any, Literal
+from pathlib import PurePath
+from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
 
 import structlog
 import structlog.dev
@@ -18,6 +20,7 @@ import structlog.stdlib
 import structlog.types
 
 from hassette.context import CURRENT_EXECUTION_ID
+from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
 
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
@@ -45,6 +48,18 @@ LOGGER_NAMES = (HASSETTE_LOGGER_NAME, PY_WARNINGS_LOGGER_NAME)
 # Enforced in LoggingConfig.reject_reserved_logger_name (config/models.py); this is the single
 # source of truth both that validator and this module read from.
 RESERVED_EXTRA_LOGGER_NAMES = frozenset({*LOGGER_NAMES, "root"})
+
+# Top-level packages whose warning classes are Hassette's own (the workspace members ship in lockstep).
+FRAMEWORK_PACKAGE_NAMES = frozenset({"hassette", "hassette_wire", "hassette_client"})
+
+_LOG_IDENTITY_ATTR = "_hassette_log_identity"
+# Set by LogIdentityFilter on every record it resolves, so a second pass leaves the record alone.
+_IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
+# Record attributes _showwarning sets on captured warnings for LogIdentityFilter to read.
+WARNING_CATEGORY_ATTR = "warning_category"
+WARNING_FILENAME_ATTR = "warning_filename"
+
+LogAuthor = Literal["app", "framework"]
 
 _RECORD_FIELDS = (
     "source_tier",
@@ -81,7 +96,7 @@ class LogRecordEntry:
 
 
 def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
-    """Extract correlation attributes stamped by CorrelationFilter from a LogRecord."""
+    """Extract the identity and correlation attributes the handler filters stamped on a LogRecord."""
     return {
         "app_key": getattr(record, "app_key", None),
         "source_tier": getattr(record, "source_tier", None),
@@ -154,6 +169,138 @@ class LogCaptureHandler(logging.Handler):
             loop.call_soon_threadsafe(_schedule_broadcast)
 
 
+@dataclass(frozen=True)
+class LogIdentity:
+    """Who wrote a logger's lines, and which app instance owns it.
+
+    Fixed on a logger object when its resource builds it (``set_logger_identity``). An owner of
+    ``None`` means the logger belongs to no app, so its lines take their subject from bound
+    context instead.
+    """
+
+    author: LogAuthor
+    app_key: str | None = None
+    instance_name: str | None = None
+    instance_index: int | None = None
+
+
+def set_logger_identity(logger: logging.Logger, identity: LogIdentity) -> None:
+    """Fix ``identity`` on ``logger``, replacing any identity a previous resource left there."""
+    setattr(logger, _LOG_IDENTITY_ATTR, identity)
+
+
+def apply_log_level(logger: logging.Logger, level: str | int, owner_name: str) -> None:
+    """Set ``logger``'s level, falling back to INFO (and saying so) when ``level`` is invalid."""
+    try:
+        logger.setLevel(level)
+    except (ValueError, TypeError) as exc:
+        logger.error("Invalid log level %r for %s; falling back to INFO: %s", level, owner_name, exc)
+        logger.setLevel(logging.INFO)
+
+
+def get_logger_identity(logger: logging.Logger) -> LogIdentity | None:
+    """Return the identity on ``logger`` or its nearest identified ancestor, or None."""
+    current: logging.Logger | None = logger
+    while current is not None:
+        identity = getattr(current, _LOG_IDENTITY_ATTR, None)
+        if identity is not None:
+            return identity
+        current = current.parent
+    return None
+
+
+def namespace_author(logger_name: str) -> LogAuthor:
+    """Author for a logger nothing identified: framework inside the ``hassette`` tree, app outside it."""
+    if logger_name == HASSETTE_LOGGER_NAME or logger_name.startswith(f"{HASSETTE_LOGGER_NAME}."):
+        return "framework"
+    return "app"
+
+
+def warning_author(category: type[Warning] | None, filename: str | None) -> LogAuthor:
+    """Author for a captured warning: framework for Hassette's warning classes or a warning raised in hassette."""
+    if category is not None and category.__module__.partition(".")[0] in FRAMEWORK_PACKAGE_NAMES:
+        return "framework"
+    if filename and PurePath(filename).is_relative_to(HASSETTE_PACKAGE_DIR):
+        return "framework"
+    return "app"
+
+
+def _record_logger(record: logging.LogRecord) -> logging.Logger | None:
+    # Look the logger up without creating one: a record can name a logger nobody registered
+    # (LogRecord built by hand, or replayed from another process).
+    logger = logging.Logger.manager.loggerDict.get(record.name)
+    return logger if isinstance(logger, logging.Logger) else None
+
+
+class LogIdentityFilter(logging.Filter):
+    """Stamps each record's author and subject from the logger that wrote it.
+
+    Attached to both output paths: the console stream handler ``enable_basic_logging`` installs
+    (Phase 1, before the resource tree exists) and the queue handler ``LoggingService`` swaps in
+    (Phase 2), so both phases see the same identity. The writing logger's owner wins over bound
+    context; context supplies the subject only for ownerless loggers (shared services, user module
+    loggers, libraries). The author is stamped as
+    ``source_tier`` until #3096 adds the ``author`` field.
+
+    Idempotent: Phase 2 moves the stream handler under the queue listener, whose thread has no
+    bound context, so a record this filter already resolved on the caller's thread is left alone.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if getattr(record, _IDENTITY_RESOLVED_ATTR, False):
+            return True
+        setattr(record, _IDENTITY_RESOLVED_ATTR, True)
+
+        logger = _record_logger(record)
+        identity = get_logger_identity(logger) if logger is not None else None
+
+        if identity is not None:
+            author = identity.author
+        elif record.name == PY_WARNINGS_LOGGER_NAME:
+            author = warning_author(
+                getattr(record, WARNING_CATEGORY_ATTR, None), getattr(record, WARNING_FILENAME_ATTR, None)
+            )
+        else:
+            author = namespace_author(record.name)
+        record.source_tier = author  # pyright: ignore[reportAttributeAccessIssue]
+
+        if identity is not None and identity.app_key is not None:
+            record.app_key = identity.app_key  # pyright: ignore[reportAttributeAccessIssue]
+            record.instance_name = identity.instance_name  # pyright: ignore[reportAttributeAccessIssue]
+            record.instance_index = identity.instance_index  # pyright: ignore[reportAttributeAccessIssue]
+        else:
+            ctx = structlog.contextvars.get_contextvars()
+            record.app_key = ctx.get("app_key")  # pyright: ignore[reportAttributeAccessIssue]
+            record.instance_name = ctx.get("instance_name")  # pyright: ignore[reportAttributeAccessIssue]
+            record.instance_index = ctx.get("instance_index")  # pyright: ignore[reportAttributeAccessIssue]
+        return True
+
+
+def _showwarning(
+    message: Warning | str,
+    category: type[Warning],
+    filename: str,
+    lineno: int,
+    file: TextIO | None = None,
+    line: str | None = None,
+) -> None:
+    """``warnings.showwarning`` replacement that logs to ``py.warnings`` with the warning's origin.
+
+    Mirrors stdlib ``logging._showwarning`` (installed by ``logging.captureWarnings``), adding the
+    category and source file to the record so ``LogIdentityFilter`` can tell Hassette's warnings
+    from the app's.
+    """
+    original = logging._warnings_showwarning  # pyright: ignore[reportAttributeAccessIssue]
+    if file is not None:
+        if original is not None:
+            original(message, category, filename, lineno, file, line)
+        return
+    text = warnings.formatwarning(message, category, filename, lineno, line)
+    logging.getLogger(PY_WARNINGS_LOGGER_NAME).warning(
+        "%s", text, extra={WARNING_CATEGORY_ATTR: category, WARNING_FILENAME_ATTR: filename}
+    )
+
+
 class CorrelationFilter(logging.Filter):
     """Stamps correlation IDs and seq on log records before they leave the calling context.
 
@@ -162,9 +309,11 @@ class CorrelationFilter(logging.Filter):
 
     Stamps:
         - ``execution_id``: from ``CURRENT_EXECUTION_ID`` context var.
-        - ``app_key``, ``instance_name``, ``instance_index``: from structlog context vars
-          (bound by command_executor and app_lifecycle_service dispatch points).
+        - ``execution_kind``, ``listener_id``, ``job_id``: from structlog context vars
+          (bound by command_executor dispatch points).
         - ``seq``: monotonic sequence number for ordering within a session.
+
+    Author and subject are ``LogIdentityFilter``'s job.
     """
 
     _seq: itertools.count
@@ -176,15 +325,10 @@ class CorrelationFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         ctx = structlog.contextvars.get_contextvars()
         record.execution_id = CURRENT_EXECUTION_ID.get(None)  # pyright: ignore[reportAttributeAccessIssue]
-        record.app_key = ctx.get("app_key")  # pyright: ignore[reportAttributeAccessIssue]
-        record.instance_name = ctx.get("instance_name")  # pyright: ignore[reportAttributeAccessIssue]
-        record.instance_index = ctx.get("instance_index")  # pyright: ignore[reportAttributeAccessIssue]
         record.execution_kind = ctx.get("execution_kind")  # pyright: ignore[reportAttributeAccessIssue]
         record.listener_id = ctx.get("listener_id")  # pyright: ignore[reportAttributeAccessIssue]
         record.job_id = ctx.get("job_id")  # pyright: ignore[reportAttributeAccessIssue]
         record.seq = next(self._seq)  # pyright: ignore[reportAttributeAccessIssue]
-        if not getattr(record, "source_tier", None):
-            record.source_tier = "app" if record.app_key else "framework"  # pyright: ignore[reportAttributeAccessIssue]
         return True
 
 
@@ -359,7 +503,7 @@ def _extract_record_fields(
     _method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
-    """Pull custom attributes stamped by CorrelationFilter from the LogRecord into the event dict.
+    """Copy the attributes LogIdentityFilter and CorrelationFilter stamped on the LogRecord into the event dict.
 
     Runs in ProcessorFormatter's processors list (before remove_processors_meta) where _record is available.
     """
@@ -555,6 +699,7 @@ def enable_basic_logging(
     stream_handler = logging.StreamHandler(out)
     stream_handler.setLevel(logging.NOTSET)
     stream_handler.setFormatter(formatter)
+    stream_handler.addFilter(LogIdentityFilter())
     logger.addHandler(stream_handler)
 
     # Capture warnings.warn(...) and friends messages in logs. Route "py.warnings" through
@@ -567,8 +712,13 @@ def enable_basic_logging(
     # log_level to reduce noise can't silently suppress HassetteForgottenAwaitWarning too —
     # ForgottenAwaitBehavior.IGNORE is the intended lever for that.
     # LoggingService.on_initialize()/on_shutdown() (Phase 2) mirror this same wiring for
-    # the async pipeline.
+    # the async pipeline. _showwarning then replaces stdlib's capture hook so each record carries
+    # the warning's category and source file for LogIdentityFilter. It must run after
+    # captureWarnings(True), which saves the original showwarning that _showwarning and
+    # captureWarnings(False) fall back to. It's assigned unconditionally because
+    # captureWarnings(True) is a no-op when capture is already on.
     logging.captureWarnings(True)
+    warnings.showwarning = _showwarning
     warnings_logger = _reset_logger(PY_WARNINGS_LOGGER_NAME, logging.WARNING)
     warnings_logger.addHandler(stream_handler)
 

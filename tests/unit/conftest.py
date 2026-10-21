@@ -34,6 +34,7 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
     HassetteQueueListener,
+    LogIdentityFilter,
     LogPersistenceHandler,
     _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
     add_execution_id,
@@ -296,6 +297,7 @@ def logging_pipeline() -> "LoggingPipelineFixture":  # pyright: ignore[reportRet
 
     q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=100)
     queue_handler = logging.handlers.QueueHandler(q)
+    queue_handler.addFilter(LogIdentityFilter())
     queue_handler.addFilter(CorrelationFilter())
 
     listener = HassetteQueueListener(q, stream_handler, capture)

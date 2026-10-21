@@ -27,6 +27,7 @@ from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import AnyEvent, Event, HassContext, HassettePayload, HassPayload
 from hassette.logging_ import (
     LogCaptureHandler,
+    LogIdentity,
     LogRecordEntry,
     _extract_correlation_attrs,  # pyright: ignore[reportPrivateUsage]
     _format_exc_info,  # pyright: ignore[reportPrivateUsage]
@@ -701,6 +702,11 @@ def make_mock_parent(
     parent.index = index
     parent.unique_name = unique_name if unique_name is not None else app_key
     parent._get_logger_name = MagicMock(return_value=f"{APP_LOGGER_PREFIX}.{parent.unique_name}")
+    parent.owner_log_identity = MagicMock(
+        side_effect=lambda author: LogIdentity(
+            author=author, app_key=app_key, instance_name=parent.unique_name, instance_index=index
+        )
+    )
     parent.source_tier = source_tier
     parent.class_name = class_name
     parent.app_config = app_config
