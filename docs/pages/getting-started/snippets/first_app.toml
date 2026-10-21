@@ -1,0 +1,3 @@
+[hassette.apps.my_app]
+filename = "main.py"
+class_name = "MyApp"

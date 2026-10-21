@@ -176,3 +176,9 @@ GET /api/logs/recent `query` request parameter `source_tier` list-of-types was n
 
 # #2524: ResourceRole becomes internal to the server; ServiceInfo.role leaves the /api/health response.
 GET /api/health removed the required property `services/items/role` from the response with the `200` status
+
+# #3145: app autodetection is removed, so `auto_loaded` leaves every app response. The /api/apps line repeats
+# #2509's identical text above so this break stays accepted if that block is cleared first.
+GET /api/apps removed the required property `apps/items/auto_loaded` from the response with the `200` status
+GET /api/apps/{app_key} removed the required property `auto_loaded` from the response with the `200` status
+GET /api/telemetry/app-grid removed the required property `apps/items/app/auto_loaded` from the response with the `200` status

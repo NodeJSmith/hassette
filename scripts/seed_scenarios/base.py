@@ -237,7 +237,6 @@ class SeedContext:
         filename: str | None = None,
         enabled: bool = True,
         autostart: bool = True,
-        auto_loaded: bool = False,
     ) -> int:
         """Insert an app_manifests row and return its id.
 
@@ -260,7 +259,6 @@ class SeedContext:
             "filename": filename,
             "enabled": 1 if enabled else 0,
             "autostart": 1 if autostart else 0,
-            "auto_loaded": 1 if auto_loaded else 0,
         }
         sql = _build_insert_sql("app_manifests", params, returning=True)
         return insert_row(self.cursor, sql, params)

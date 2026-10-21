@@ -1074,8 +1074,6 @@ export interface components {
             filename: string;
             /** Enabled */
             enabled: boolean;
-            /** Auto Loaded */
-            auto_loaded: boolean;
             /**
              * Autostart
              * @default true

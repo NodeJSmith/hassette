@@ -43,7 +43,6 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     status: "running",
     block_reason: null,
     enabled: true,
-    auto_loaded: false,
     autostart: true,
     instance_count: 1,
     instances: [],
@@ -109,16 +108,6 @@ describe("AppTableRow", () => {
   it("shows no blocking badge for an app with no blocking events", () => {
     const { queryByTestId } = renderRow({ app: createAppRow({ blocking_event_count: 0 }) });
     expect(queryByTestId("blocking-badge")).toBeNull();
-  });
-
-  it("shows 'auto' chip when auto_loaded is true", () => {
-    const { getByText } = renderRow({ app: createAppRow({ auto_loaded: true }) });
-    expect(getByText("auto")).toBeDefined();
-  });
-
-  it("does not show 'auto' chip when auto_loaded is false", () => {
-    const { queryByText } = renderRow({ app: createAppRow({ auto_loaded: false }) });
-    expect(queryByText("auto")).toBeNull();
   });
 
   it("shows total runs as sum of invocations and executions", () => {

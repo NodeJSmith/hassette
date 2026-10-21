@@ -142,7 +142,6 @@ EXPECTED_TABLES = {
         "filename",
         "enabled",
         "autostart",
-        "auto_loaded",
         "created_at",
         "updated_at",
     },

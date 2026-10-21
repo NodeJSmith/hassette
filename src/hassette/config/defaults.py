@@ -6,7 +6,8 @@ from typing import Any
 DEV_FILE = "hassette.dev.toml"
 PROD_FILE = "hassette.prod.toml"
 FILE_LOCATION = "hassette.config"
-AUTODETECT_EXCLUDE_DIRS_DEFAULT = (".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".git")
+APP_SCAN_EXCLUDE_DIRS = frozenset({".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".git"})
+"""Directory names the unconfigured-app scan never descends into, matched against absolute path parts."""
 
 
 @lru_cache

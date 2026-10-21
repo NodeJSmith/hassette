@@ -21,7 +21,7 @@ from pathlib import Path
 import httpx2 as httpx
 import pytest
 
-from .conftest import free_port, hassette_run_env, spawn_hassette_run
+from .conftest import app_entries, free_port, hassette_run_env, spawn_hassette_run
 
 pytestmark = [pytest.mark.system_destructive]
 
@@ -33,7 +33,7 @@ STALL_MARKER = "STALL_STARTING"
 STALLING_APP_SOURCE = f'''
 """Fixture app whose on_shutdown blocks the event loop thread synchronously.
 
-Written to disk by test_sigint_shutdown.py and picked up via app autodetection — this
+Written to disk and configured through env vars by test_sigint_shutdown.py — this
 reproduces resources/operations.py's "await method()" directly awaiting a user-authored async
 hook that performs blocking synchronous work, which is what the second-SIGINT force-exit path
 must survive.
@@ -51,22 +51,28 @@ class StallingShutdownApp(App[AppConfig]):
 '''
 
 
-def _spawn_hassette(tmp_path: Path, ha_url: str, *, apps_dir: Path | None = None) -> tuple[subprocess.Popen[str], str]:
-    """Start a real ``hassette run`` subprocess and return it plus its web API base URL.
+def _spawn_hassette(tmp_path: Path, ha_url: str) -> tuple[subprocess.Popen[str], str]:
+    """Start a real ``hassette run`` subprocess on ``tmp_path / "apps"`` and return it plus its web API base URL.
 
     Uses env vars (not a config file) so ``cwd=tmp_path`` never picks up a stray
-    ``.env``/``hassette.toml`` from elsewhere on disk.
+    ``.env``/``hassette.toml`` from elsewhere on disk. Every app class already written to the apps
+    directory gets an entry, passed as nested ``HASSETTE__APPS__<KEY>__<FIELD>`` vars: a JSON value on
+    ``HASSETTE__APPS__<KEY>`` is not read as an app entry.
     """
-    resolved_apps_dir = apps_dir or (tmp_path / "apps")
-    resolved_apps_dir.mkdir(parents=True, exist_ok=True)
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir(parents=True, exist_ok=True)
     port = free_port()
 
     env = hassette_run_env(
         tmp_path / "data",
         port,
-        HASSETTE__APPS__DIRECTORY=str(resolved_apps_dir),
-        HASSETTE__APPS__AUTODETECT="true" if apps_dir else "false",
+        HASSETTE__APPS__DIRECTORY=str(apps_dir),
         HASSETTE__LIFECYCLE__STARTUP_TIMEOUT_SECONDS="30",
+        **{
+            f"HASSETTE__APPS__{key.upper()}__{field.upper()}": value
+            for key, entry in app_entries(apps_dir).items()
+            for field, value in entry.items()
+        },
     )
     proc = spawn_hassette_run(tmp_path, env, ha_url, subprocess.PIPE)
     return proc, f"http://127.0.0.1:{port}"
@@ -158,7 +164,7 @@ def test_second_sigint_forces_exit_during_stalled_shutdown(ha_container: str, tm
     apps_dir.mkdir(parents=True, exist_ok=True)
     (apps_dir / "stalling_shutdown_app.py").write_text(STALLING_APP_SOURCE)
 
-    proc, base_url = _spawn_hassette(tmp_path, ha_container, apps_dir=apps_dir)
+    proc, base_url = _spawn_hassette(tmp_path, ha_container)
     marker_seen = threading.Event()
     reader = threading.Thread(target=_drain_stdout, args=(proc, STALL_MARKER, marker_seen), daemon=True)
     reader.start()

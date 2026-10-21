@@ -3289,10 +3289,6 @@
             "type": "boolean",
             "title": "Enabled"
           },
-          "auto_loaded": {
-            "type": "boolean",
-            "title": "Auto Loaded"
-          },
           "autostart": {
             "type": "boolean",
             "title": "Autostart",
@@ -3373,7 +3369,6 @@
           "display_name",
           "filename",
           "enabled",
-          "auto_loaded",
           "status"
         ],
         "title": "AppSummary",

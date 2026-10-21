@@ -524,7 +524,7 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
 
 
 class AppsConfig(ExcludeExtrasMixin, BaseModel):
-    """App directory, auto-detection, exclusion, manifest, and raw-app-dict settings.
+    """App directory, unconfigured-app warning, manifest, and raw-app-dict settings.
 
     In TOML, app definitions live alongside these settings under ``[hassette.apps]``:
 
@@ -541,12 +541,9 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
     dicts so both coexist in the same TOML section.
     """
 
-    autodetect: bool = Field(default=True)
-    """Whether to automatically detect apps in the app directory."""
-
-    exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
-    """Additional directory names to skip when auto-detecting apps. Always added to the built-in
-    exclusions (``AUTODETECT_EXCLUDE_DIRS_DEFAULT``), never a replacement for them."""
+    warn_unconfigured: bool = Field(default=True)
+    """Whether startup warns about each ``App``/``AppSync`` subclass in the app directory that no app entry
+    configures. The scan parses files without importing them and skips ``APP_SCAN_EXCLUDE_DIRS``."""
 
     manifests: dict[str, AppManifest] = Field(default_factory=dict)
     """Validated app manifests, keyed by app name."""

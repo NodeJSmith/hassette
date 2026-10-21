@@ -87,7 +87,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 | TOML section | Controls |
 |---|---|
 | `[hassette]` | Connection (`base_url`, `verify_ssl`, `token`), timezone, runtime flags, data directory |
-| `[hassette.apps]` | App discovery, auto-detection, individual app definitions |
+| `[hassette.apps]` | Apps directory, the unconfigured-app warning, individual app definitions |
 | `[hassette.web_api]` | Web UI and API server host, port, and feature flags |
 | `[hassette.cli]` | CLI connect target (`server_url`), TLS verification, and credential settings for querying a remote instance |
 | `[hassette.database]` | Storage path, retention, and write-queue settings |
@@ -117,11 +117,13 @@ Docker containers commonly default to UTC. Home Assistant uses a local zone conf
 
 `data_dir` sets the root for all persistent data Hassette writes, including the telemetry database and caches. The default is platform-specific. A relative `data_dir` resolves against the file or directory it was set from — see [Relative Paths](#relative-paths). Changing `data_dir` between major versions requires migrating the existing data manually. No automatic migration runs. `database.path` defaults to a file inside `data_dir` but can be overridden to an independent location.
 
-### App Discovery
+### Apps Directory
 
-`apps.directory` is the root from which Hassette loads app modules. It defaults to `apps` inside the config home (see [Relative Paths](#relative-paths)). Startup logs `Apps directory: <path>` and warns when the directory doesn't exist or holds no apps. Auto-detection (`apps.autodetect`, default `true`) scans that directory recursively for Python files that define an [`App`](../apps/index.md) subclass — the base class for all Hassette automations.
+`apps.directory` is the root from which Hassette loads app modules. It defaults to `apps` inside the config home (see [Relative Paths](#relative-paths)). Startup logs `Apps directory: <path>` and warns when the directory doesn't exist or holds no apps.
 
-Auto-detection always skips `.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, and `.git`. `exclude_dirs` names more directories to skip; they are added to that list, never replace it.
+Hassette runs only the apps named by a `[hassette.apps.<key>]` section. At startup it also scans `apps.directory` for [`App`](../apps/index.md) subclasses that no section names, and logs a warning for each one with a section to paste. The scan reads files without importing them, so it never runs app code. It finds classes whose bases name `App` or `AppSync` directly, such as `class MyApp(App[MyConfig])`. A class built on an intermediate base class doesn't warn. The scan skips `.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, and `.git`.
+
+`apps.warn_unconfigured = false` turns the scan and its warnings off, for a directory that holds app classes on purpose that shouldn't run.
 
 Before starting, Hassette always runs the app precheck: it imports and validates every app module and logs each failure. A failed precheck stops startup. `allow_startup_if_app_precheck_fails` lets startup continue instead, so healthy apps still run. Development environments may enable it; production environments benefit from leaving it disabled.
 

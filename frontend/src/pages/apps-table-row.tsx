@@ -90,11 +90,6 @@ export function AppTableRow({
             <span className={cn("text-xs text-muted-foreground max-sidebar:hidden", compact && "hidden")}>
               {app.class_name}
             </span>
-            {app.auto_loaded && (
-              <Badge variant="muted" className={cn("max-sidebar:hidden", compact && "hidden")}>
-                auto
-              </Badge>
-            )}
             {!app.autostart && (
               <Badge
                 variant="muted"

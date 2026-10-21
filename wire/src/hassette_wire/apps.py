@@ -45,7 +45,6 @@ class AppSummary(BaseModel):
     display_name: str
     filename: str
     enabled: bool
-    auto_loaded: bool
     autostart: bool = True
     description: str | None = None
     """One-line description of what the app does, from the app's config; ``None`` when unset, and for an app

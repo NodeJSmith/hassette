@@ -180,9 +180,6 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     )
     """Instance configuration for the app"""
 
-    auto_loaded: bool = Field(default=False)
-    """Whether the app was auto-detected or manually configured"""
-
     full_path: Path
     """Fully resolved path to the app file"""
 
@@ -212,7 +209,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
 
         if not values.get("display_name"):
-            values["display_name"] = values.get("class_name") if values.get("auto_loaded") else values.get("app_key")
+            values["display_name"] = values.get("app_key")
 
         if app_dir.is_file():
             LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)

@@ -76,7 +76,6 @@ class AppManifestInfo:
     display_name: str
     filename: str
     enabled: bool
-    auto_loaded: bool
     status: AppStatus
     # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppSummary)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
