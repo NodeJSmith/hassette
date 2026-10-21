@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from hassette.core.database_service import CleanupAttempt, DatabaseService
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 
 
 @pytest.mark.parametrize(
@@ -79,7 +80,7 @@ async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initiali
 
     lower_task = asyncio.create_task(lower_interval())
     with patch.object(svc, "run_retention_cleanup", side_effect=run_and_stop) as run_retention:
-        await asyncio.wait_for(svc.serve(), timeout=2.0)
+        await asyncio.wait_for(svc.serve(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
     await lower_task
 
     run_retention.assert_called_once()
@@ -126,7 +127,7 @@ async def test_shutdown_requested_with_overdue_deadline_skips_maintenance(initia
     svc.shutdown_event.set()
 
     with patch.object(svc, "run_retention_cleanup", return_value=True) as run_retention:
-        await asyncio.wait_for(svc.serve(), timeout=2.0)
+        await asyncio.wait_for(svc.serve(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     run_retention.assert_not_called()
 

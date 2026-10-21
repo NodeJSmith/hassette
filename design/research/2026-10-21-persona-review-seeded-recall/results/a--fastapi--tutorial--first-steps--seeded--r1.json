@@ -1,0 +1,194 @@
+{
+  "run_id": "o10",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 5,
+      "section": "First Steps (opening example)",
+      "type": "missing-step",
+      "quote": "from fastapi import FastAPI ... app = FastAPI()",
+      "confusion": "The page shows a file but never says what to name it or where to save it. Later output mentions main.py, but Alex only learns that after the code. There is also no install step (uv add fastapi / pip install \"fastapi[standard]\") and no project setup, so Alex does not know what to type first.",
+      "suggestion": "Before the code, add a short step: create a project, install FastAPI, and save the code as main.py."
+    },
+    {
+      "line": 5,
+      "section": "First Steps (opening example)",
+      "type": "undefined-term",
+      "quote": "async def root():",
+      "confusion": "Alex does not know async/await. The first example is async, and nothing at this point says what it means or whether Alex needs to understand it. Alex is unsure if they must learn async before continuing.",
+      "suggestion": "Add a one-line note that async def can be treated as a normal function for now, and link to the async explanation."
+    },
+    {
+      "line": 10,
+      "section": "First Steps (run the server)",
+      "type": "missing-step",
+      "quote": "$ uv run fastapi dev",
+      "confusion": "Alex has not been told to install the fastapi CLI, and the command has no file argument. The output says 'Importing from /home/user/code/awesomeapp' and 'main.py', so Alex has to guess that the command finds main.py on its own. Alex does not know whether the terminal must be in the file's folder or whether a pyproject.toml is required.",
+      "suggestion": "State that the command is run from the folder containing main.py, and that fastapi[standard] provides the fastapi command."
+    },
+    {
+      "line": 10,
+      "section": "First Steps (run the server)",
+      "type": "overwhelming-output",
+      "quote": "module \ud83d\udc0d main.py ... Using import string: main:app ... Started reloader process [383138] using WatchFiles",
+      "confusion": "A wall of log output with terms Alex has not seen: import string, reloader, WatchFiles, Uvicorn, 'development mode'. Alex cannot tell which lines matter.",
+      "suggestion": "Point out the two lines that matter (the server URL and the 'Application startup complete' line) and say the rest can be ignored."
+    },
+    {
+      "line": 15,
+      "section": "First Steps (run the server)",
+      "type": "unclear-motivation",
+      "quote": "That line shows the URL where your app is being served on your local machine.",
+      "confusion": "This works, but the page quotes a Uvicorn line with a different format from the output shown above (INFO: with a colon). Alex may briefly wonder whether their output is wrong.",
+      "suggestion": "Make the quoted line match the shown output, or say 'http://127.0.0.1:8000 is the address of your app'."
+    },
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "inconsistency",
+      "quote": "{\"message\": \"Hello FastAPI\"}",
+      "confusion": "The code returns {\"message\": \"Hello World\"} but the page says Alex will see \"Hello FastAPI\". Alex will see different output than promised and will think something is broken or that they typed the code wrong. This is the 'can I tell it worked?' moment, and it fails.",
+      "suggestion": "Change the expected output to {\"message\": \"Hello World\"} to match the code."
+    },
+    {
+      "line": 24,
+      "section": "Interactive API docs",
+      "type": "missing-verification",
+      "quote": "You will see the automatic interactive API documentation (provided by Swagger UI):",
+      "confusion": "The text promises a screenshot or visible result, but nothing is shown in the extracted page. Alex cannot tell what a correct /docs page looks like or what to do with it (try the endpoint?).",
+      "suggestion": "Include the screenshot and one sentence on what to do there, such as clicking 'Try it out' on GET /."
+    },
+    {
+      "line": 29,
+      "section": "OpenAPI",
+      "type": "undefined-term",
+      "quote": "FastAPI generates a \"schema\" with all your API using the OpenAPI standard for defining APIs.",
+      "confusion": "Alex has not heard of OpenAPI or schemas, and a whole block of definitions arrives (API schema, data schema, JSON Schema) before Alex has built anything beyond Hello World. Alex wonders whether this is required reading.",
+      "suggestion": "Mark this section as optional background, or move it after the recap."
+    },
+    {
+      "line": 39,
+      "section": "OpenAPI and JSON Schema",
+      "type": "undefined-term",
+      "quote": "using JSON Schema , the standard for JSON data schemas.",
+      "confusion": "A third use of 'schema' appears in a single sentence. Alex now has OpenAPI, API schema, data schema and JSON Schema to keep apart.",
+      "suggestion": "Cut JSON Schema from this tutorial, or defer it to the pages where request bodies come up."
+    },
+    {
+      "line": 45,
+      "section": "Check the openapi.json",
+      "type": "confusing-example",
+      "quote": "\"/items/\": { \"get\": {",
+      "confusion": "The sample JSON describes /items/, but Alex's app only has /. Alex will open openapi.json and see a different path than the one shown, and may think the app is wrong.",
+      "suggestion": "Show the JSON for the / path that Alex actually wrote."
+    },
+    {
+      "line": 51,
+      "section": "Configure the app entrypoint in pyproject.toml",
+      "type": "undefined-term",
+      "quote": "[tool.fastapi]\nentrypoint = \"main:app\"",
+      "confusion": "Alex has never seen the 'main:app' format, and the page calls it 'import string' only in the earlier log. Alex does not know what a pyproject.toml is (never set up a project with one, only used pip), or whether this step is required. The package layout tree and the 'from backend.main import app' equivalence is a lot to absorb. The line numbers suggest it is mid-tutorial, which makes it feel mandatory.",
+      "suggestion": "Say this is optional, explain that 'main:app' means 'the variable app in main.py', and say where pyproject.toml lives."
+    },
+    {
+      "line": 68,
+      "section": "fastapi dev with path or with --entrypoint CLI option",
+      "type": "detour",
+      "quote": "But you would have to remember to pass the correct path\\entrypoint every time you call the fastapi command.",
+      "confusion": "Three ways to point at the app (auto-detect, file path, --entrypoint, pyproject) are presented before Alex has run one successfully twice. Alex is unsure which to use and why it matters, especially since the first run worked with no argument. The mention of the VS Code extension and FastAPI Cloud as 'other tools' is unmotivated.",
+      "suggestion": "Collapse into one recommendation and move the alternatives into a collapsible note."
+    },
+    {
+      "line": 79,
+      "section": "Deploy your app (optional)",
+      "type": "missing-step",
+      "quote": "$ uv run fastapi deploy",
+      "confusion": "Alex has no FastAPI Cloud account and no idea about cost. 'If you are not logged in, your browser will open' hints at signup but nothing says it is a paid or commercial service. Alex hesitates to run it, though it is labeled optional.",
+      "suggestion": "State plainly that it needs a FastAPI Cloud account, and whether it is free."
+    },
+    {
+      "line": 84,
+      "section": "Recap, step by step",
+      "type": "repetition",
+      "quote": "from fastapi import FastAPI\n\napp = FastAPI() ...",
+      "confusion": "The same full snippet is repeated six times. It is helpful as a recap but Alex cannot tell which line each step is about, since nothing is highlighted in the extracted text.",
+      "suggestion": "Highlight the relevant lines in each snippet, or show only the lines under discussion."
+    },
+    {
+      "line": 90,
+      "section": "Step 1: import FastAPI",
+      "type": "undefined-term",
+      "quote": "FastAPI is a Python class that provides all the functionality for your API.",
+      "confusion": "Fine for Alex, but the Technical Details note about inheriting from Starlette introduces an unknown framework with no explanation.",
+      "suggestion": "Leave the Starlette note, but mark it as skippable."
+    },
+    {
+      "line": 99,
+      "section": "Step 2: create a FastAPI \"instance\"",
+      "type": "undefined-term",
+      "quote": "Here the app variable will be an \"instance\" of the class FastAPI .",
+      "confusion": "Alex knows classes, so this is manageable. 'This will be the main point of interaction to create all your API' is vague about what that means.",
+      "suggestion": "Say that app is the object you attach routes to, and that the server is started by pointing at it."
+    },
+    {
+      "line": 103,
+      "section": "Path",
+      "type": "undefined-term",
+      "quote": "\"Path\" here refers to the last part of the URL starting from the first / .",
+      "confusion": "Alex has built a Flask app and knows routes, but then the note says 'path', 'endpoint' and 'route' are the same thing. This is useful, but 'concerns' and 'resources' in the next sentence are jargon.",
+      "suggestion": "Replace 'separate concerns and resources' with a concrete example like /users vs /items."
+    },
+    {
+      "line": 116,
+      "section": "Operation",
+      "type": "undefined-term",
+      "quote": "\"Operation\" here refers to one of the HTTP \"methods\".",
+      "confusion": "Alex knows GET and POST from Flask, but the list of eight methods, including TRACE and OPTIONS, is more than needed. The name 'operation' replaces 'method' with no gain for Alex.",
+      "suggestion": "Show GET, POST, PUT, DELETE first and put the exotic ones in a collapsed note."
+    },
+    {
+      "line": 144,
+      "section": "Define a path operation decorator",
+      "type": "ok-but-noted",
+      "quote": "That @something syntax in Python is called a \"decorator\".",
+      "confusion": "Good: Alex knows decorators, so this is a comfortable moment. The 'pretty decorative hat' joke adds nothing but does no harm.",
+      "suggestion": "No change needed."
+    },
+    {
+      "line": 175,
+      "section": "Step 4: define the path operation function",
+      "type": "undefined-term",
+      "quote": "In this case, it is an async function.\nYou could also define it as a normal function instead of async def :",
+      "confusion": "This is the first and only mention of async, and it says nothing about when to choose which. Alex wonders: which should I use? What breaks if I pick wrong? The page seems to say both are fine, but gives no guidance, and Alex does not know what an event loop is.",
+      "suggestion": "Add one sentence: 'If you are not sure, use plain def. See the async page for when async def matters.' with a link."
+    },
+    {
+      "line": 187,
+      "section": "Step 5: return the content",
+      "type": "undefined-term",
+      "quote": "You can also return Pydantic models (you'll see more about that later).",
+      "confusion": "Alex does not know Pydantic, but 'later' defers it, so this is okay. 'ORMs' appears in the next sentence and is unexplained, though Alex probably recognizes the word from Flask-SQLAlchemy.",
+      "suggestion": "Fine as is; maybe drop the ORM mention."
+    },
+    {
+      "line": 189,
+      "section": "Step 6: Deploy it",
+      "type": "unclear-motivation",
+      "quote": "FastAPI Cloud is the primary sponsor and funding provider for the FastAPI and friends open source projects. \u2728",
+      "confusion": "This reads as marketing in the middle of a tutorial. The deploy step appears twice (an optional section earlier and again as 'Step 6'), and the recap lists it as optional. Alex is unsure whether deployment is a required part of the first steps.",
+      "suggestion": "Mention deployment once, mark it optional, and keep the sponsorship note out of the tutorial flow."
+    },
+    {
+      "line": 199,
+      "section": "Recap",
+      "type": "missing-next-step",
+      "quote": "Run the development server using the command fastapi dev .",
+      "confusion": "The recap ends with no pointer to the next tutorial page. Alex has a working hello-world but no sense of what to build next.",
+      "suggestion": "Add a 'Next' link to the following tutorial page (path parameters)."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can mostly get a working app by copying the code and running fastapi dev, and the decorator and path/operation explanations are comfortable. The page has real friction: no install or file-naming step, the async def mention with no guidance, and a mismatch where the code returns 'Hello World' but the page says to expect 'Hello FastAPI'. The OpenAPI, entrypoint, and deployment sections add several unrequested concepts before Alex has done anything beyond Hello World, so Alex would succeed but with effort."
+}

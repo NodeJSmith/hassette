@@ -1,0 +1,130 @@
+{
+  "run_id": "o17",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.",
+      "confusion": "I am told to read a snippet but not run it, then wait for a later combined version. I am not sure whether to edit apps/main.py now, and I do not know what a 'complete app' is until the next section.",
+      "suggestion": "Say explicitly: do not change apps/main.py yet. Or make the first snippet a diff against the Quickstart app so Alex sees what is new."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "async def on_sun_change(self, new_state: D.StateNew[states.SunState]):",
+      "confusion": "I have never seen async/await. The snippet uses async def and await before any explanation, and the explanation only comes at the end of the section. The D.StateNew[...] syntax also looks intimidating.",
+      "suggestion": "Add a one-line note before the code: 'Handlers are written with async def and called with await. Copy the pattern for now; it is explained below.'"
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "\"sun.*\" is a glob pattern that matches any entity in the sun domain.",
+      "confusion": "I do not know what 'glob pattern' or 'domain' means in HA terms. I also do not know why the pattern is needed when sun.sun is the only match.",
+      "suggestion": "Define 'domain' as the part of the entity ID before the dot. Explain the glob as a wildcard, like * in file names."
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "The bracket syntax works like list[str] in standard Python generics.",
+      "confusion": "I know list[str] as a type hint, but 'generics' is a new word. I am not sure how a state class goes inside D.StateNew[...] or what T means.",
+      "suggestion": "Drop 'generics'. Say 'the brackets name the type you want, the same way list[str] names the contents of a list'."
+    },
+    {
+      "line": 12,
+      "section": "Subscribe to a State Change",
+      "type": "missing-import",
+      "quote": "D is hassette.event_handling.dependencies , a module of type annotations.",
+      "confusion": "The snippet imports D from hassette, but this line gives a different module path. I am not sure which one I should type. 'Module of type annotations' is also vague.",
+      "suggestion": "Say that `from hassette import D` is all that is needed, and that D is a shortcut for that longer module path."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "jargon-before-definition",
+      "quote": "This is called dependency injection .",
+      "confusion": "The explanation is clear, but it relies on 'Hassette inspects them to know what to pass'. I do not see why this is better than reading event data directly, since I have not seen the raw approach on this page.",
+      "suggestion": "Show the manual alternative in one line (event dict lookup) so the benefit is concrete."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "If my light is not light.porch, the handler may fail or do nothing, and I may not see why. The instruction comes only after the code and is easy to miss. I also do not know where to find an entity ID.",
+      "suggestion": "Put a visible note next to the code. Say where entity IDs are found (Developer Tools, States tab, or the entity settings page)."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Async handlers run on Hassette's event loop: while one handler is paused at an await , other handlers keep running",
+      "confusion": "'Event loop' and 'paused at an await' mean nothing to me. 'Fire-and-forget' is also new. I get that async def is needed but not why.",
+      "suggestion": "Use a plain-language analogy, such as a waiter taking other orders while the kitchen cooks. Or say: 'always write async def and await Hassette calls; the Async Basics link explains why'."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "missing-step",
+      "quote": "[self.scheduler.run_minutely()](../../core-concepts/scheduler/methods/) runs log_heartbeat every minute.",
+      "confusion": "The full app has no marker for what changed from the earlier snippet. I have to compare the two blocks by eye to find the new lines.",
+      "suggestion": "Highlight the new lines in the snippet (hl_lines), or add a comment on the added lines."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "undefined-term",
+      "quote": "log_heartbeat is a scheduled job : the scheduler calls it on a timer, not in response to an event.",
+      "confusion": "This is a decent definition, but the page has not said what 'the scheduler' is. self.scheduler appears with no introduction.",
+      "suggestion": "Open with: 'The scheduler runs functions at times you choose.'"
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Replace your apps/main.py with the complete app from Schedule a Recurring Job . Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "The Quickstart is not on this page, so I may not remember where apps/main.py is or what .env holds. Do I need to restart at all, or does Hassette reload on save? It also uses the heading name as a reference without a link.",
+      "suggestion": "Link to the Quickstart step that created the file and the run command. Link the section reference. State whether hot reload applies."
+    },
+    {
+      "line": 26,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "INFO hassette.MyApp.0 \u2014 Hello from Hassette!",
+      "confusion": "I do not know whether the output will look exactly like this or whether extra startup lines will appear around it. I also do not know where this output appears (same terminal?).",
+      "suggestion": "Say 'in the terminal where hassette is running, among other startup lines'."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "To test the handler now without waiting, trigger a state change manually:",
+      "confusion": "Changing sun.sun in Developer Tools may alter real state, and I am not sure it is safe. Also, with light.porch being a placeholder, I cannot tell whether a failure is expected. The step says to set below_horizon, but if the sun is already below the horizon, the state may not change and nothing fires.",
+      "suggestion": "Note that Set State only changes HA's recorded state and will be overwritten at the next real update. Tell Alex what to do if the sun is already below_horizon (set to above_horizon first). Add what to see if the light ID is wrong."
+    },
+    {
+      "line": 36,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "You see Sun changed: below_horizon and Porch light turned on in the logs.",
+      "confusion": "The text gives no sample log lines in the same format as the earlier blocks, and does not mention checking the light itself. I do not know what an error would look like if turn_on fails.",
+      "suggestion": "Show the expected log block, and say what to check if it does not appear (entity ID, token, logs)."
+    },
+    {
+      "line": 38,
+      "section": "Next Steps",
+      "type": "other",
+      "quote": "[Bus& Handlers](../../core-concepts/bus/) : attribute changes, service calls, glob patterns, predicates, and conditions",
+      "confusion": "The list contains many unfamiliar terms (predicates, conditions, jitter) and no suggested order. I do not know which to read first.",
+      "suggestion": "Mark one link as the recommended next page. Also fix the 'Bus&' spacing typo."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can probably get through this page, because the code is complete and the run steps are concrete. Friction comes from async/await, glob and domain, and the placeholder light entity, all of which appear in code before they are explained. The manual-trigger test and the missing sample output after it are the likeliest places Alex would be unsure whether it worked."
+}

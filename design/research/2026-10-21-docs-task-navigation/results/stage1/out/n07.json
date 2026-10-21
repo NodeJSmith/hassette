@@ -1,0 +1,1 @@
+{"answer": "Hassette has no cancel_timer(handle). Every scheduling call (e.g. job = await self.scheduler.run_in(cb, 30)) returns a Job object; call job.remove() on it to stop the job. Keep the returned job instead of an AppDaemon handle.", "confidence": "high", "found_on": ["pages/migration/scheduler/"], "gave_up": false}

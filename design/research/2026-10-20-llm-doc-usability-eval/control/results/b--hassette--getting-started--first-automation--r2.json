@@ -1,0 +1,145 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-friction",
+  "findings": [
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "async def on_initialize(self):",
+      "confusion": "I have never seen async def or await. The first code block uses them with no word of explanation. I don't know if I can just copy this or whether I need to learn something first.",
+      "suggestion": "Add a one-sentence note before the snippet: 'async def and await are how Hassette lets many things run at once; for now, copy them as written.' Link to Async Basics there instead of in the last paragraph."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "class MyAppConfig(AppConfig):\n    greeting: str = \"Hello from Hassette!\"",
+      "confusion": "AppConfig is not explained here and I don't know Pydantic. I see greeting is a setting, but not how it gets its value or where it is changed. The page says the code comes from the Quickstart, which I may or may not remember.",
+      "suggestion": "Add a short line saying AppConfig holds your app's settings, and that greeting is the same config from the Quickstart. Say it can be overridden in a config file, or that it can be ignored for now."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "self.bus.on_state_change()",
+      "confusion": "'bus' is never introduced. I don't know what it is or why my app has one. The link goes to a separate page, which I'd have to leave this one to read.",
+      "suggestion": "Add a plain-language gloss: 'self.bus is where your app listens for things happening in Home Assistant.' Say that once, before the call."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "\"sun.*\" is a glob pattern that matches any entity in the sun domain",
+      "confusion": "I'm not sure what 'glob pattern' or 'domain' mean here. I may guess that * is a wildcard, but 'domain' is HA jargon I might not have run into. The text then says it is really just sun.sun, which makes me wonder why a pattern is needed.",
+      "suggestion": "Say 'sun.* is a wildcard: it matches any entity whose ID starts with sun. (the part before the dot is the domain)'. Or use the exact ID sun.sun in this first example."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "missing-context",
+      "quote": "handler=self.on_sun_change, name=\"sun_change\"",
+      "confusion": "The term 'handler' is defined in a parenthetical, which helps. But I don't see why I'm passing a method without calling it (no parentheses), and name= seems to be required in some cases yet isn't explained as such.",
+      "suggestion": "Add: 'Pass the method itself, with no (), so Hassette can call it later.' Say that name= must be unique within the app."
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "new_state: D.StateNew[states.SunState]",
+      "confusion": "This is the exact syntax I'm told I don't know. The explanation helps a little ('works like list[str]'), but I still don't see how an annotation on a parameter makes anything happen. In Python I'd expect to pass the value myself. The word 'generics' is also new to me.",
+      "suggestion": "Before the jargon, show the plain idea: 'Hassette looks at the type on this parameter and passes in the matching data.' Drop 'standard Python generics' or explain it in a few words."
+    },
+    {
+      "line": 12,
+      "section": "Subscribe to a State Change",
+      "type": "missing-context",
+      "quote": "D is hassette.event_handling.dependencies, a module of type annotations.",
+      "confusion": "Is D a module or a class? The text calls it a module but the code uses D.StateNew like a class. I'm also not told why the import is just the letter D.",
+      "suggestion": "Say D is a short alias for the module and that you can treat D.StateNew as a name Hassette recognizes."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection.",
+      "confusion": "The term is dropped in after the explanation, and it still reads as jargon. 'No event dict parsing needed' refers to something I never saw: what event dict? Pyright is also new.",
+      "suggestion": "Either skip the name here and link to the DI page, or define it in one line. Remove the 'event dict' remark, or show what the alternative looks like. Mark the Pyright mention as safe to skip."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "missing-context",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "I do get this instruction, but it comes in the explanation after the code. I might have copied the code as is and then wondered why nothing happened. I don't know how to find my own entity ID, and the pointer to Developer Tools → Services is about services, not entity IDs.",
+      "suggestion": "Put a comment in the code next to light.porch. Point to Developer Tools → States for finding entity IDs."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Async handlers run on Hassette's event loop: while one handler is paused at an await, other handlers keep running",
+      "confusion": "'Event loop', 'paused at an await' and 'fire-and-forget' are all concepts I don't have. This paragraph is dense and I'd skim it. I'd still not know whether I can forget to write await.",
+      "suggestion": "Give one concrete rule: 'Always put await in front of self.api.* and self.bus.* calls.' Move the event loop explanation to Async Basics."
+    },
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "You don't need to run it yet",
+      "confusion": "The snippet is not meant to run, and I have no file to put it in yet. Then the next section shows a second, longer snippet that repeats everything. I'm unsure whether to type the first one, and I'm unsure what apps/main.py currently contains.",
+      "suggestion": "Show only the new lines in the first snippet, or merge the two sections. State up front which file you are editing."
+    },
+    {
+      "line": 19,
+      "section": "Schedule a Recurring Job",
+      "type": "missing-context",
+      "quote": "from hassette import App, AppConfig, D, states",
+      "confusion": "The second block restates the whole app with no highlighting of what is new. I have to compare the two blocks by eye to find the scheduler lines.",
+      "suggestion": "Highlight or comment the added lines (the run_minutely call and log_heartbeat)."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "unmotivated-detail",
+      "quote": "Hassette tracks the job and cancels it automatically on shutdown.",
+      "confusion": "Fine, but a heartbeat that logs every minute seems pointless. I'm not sure what it teaches me about automations.",
+      "suggestion": "Add one clause on why: it shows the scheduler running code on a timer, which is how you do things like 'every morning at 7'."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Replace your apps/main.py with the complete app from the previous snippet. Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "I assume apps/main.py and .env come from the Quickstart, but the page doesn't say where I'm running this from or how to tell what directory I should be in. 'The previous snippet' is ambiguous since there are two.",
+      "suggestion": "Say 'the second (full) snippet' and remind me of the project directory. Link back to the Quickstart step that set up .env."
+    },
+    {
+      "line": 26,
+      "section": "Run It",
+      "type": "unclear-verification",
+      "quote": "INFO hassette.MyApp.0 — Heartbeat",
+      "confusion": "The sample output shows Heartbeat right after the greeting, but the text said the first heartbeat is a minute after startup. I'd wonder whether I did it wrong if it doesn't appear instantly. The output also doesn't show the sun subscription.",
+      "suggestion": "Note that Heartbeat appears about a minute later and then repeats. Say what you see if it works vs. what if you see nothing."
+    },
+    {
+      "line": 29,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "In Home Assistant, go to Settings → Developer Tools. Go to the States tab and find sun.sun. Change the state value to below_horizon and click Set State.",
+      "confusion": "This is a clear set of steps. But in the States tab, Set State is a bit hidden, and I might not realize I need to expand the entity row first. I also worry that overwriting the sun state changes my real HA state until the next update.",
+      "suggestion": "Add a note that this is safe and will be overwritten by the next real update. Mention where Set State appears. Say that the light.porch must exist for the call to succeed, and what an error looks like if not."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "unclear-verification",
+      "quote": "You see Sun changed: below_horizon and Porch light turned on in the logs.",
+      "confusion": "Good that there is an expected result. But I'm told to check the logs, not the light itself, and there's no hint of what to do if the log shows an error (for example, entity not found).",
+      "suggestion": "Add 'Your light should also turn on' and a short troubleshooting line for the common failure."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can probably get through this by copying the code, and the final Run It steps give a concrete way to see it work. But the page leans on async/await, the bus, DI and type-annotation magic with only inline glosses, so Alex would finish with working code and a shaky understanding. The biggest risks are the light.porch placeholder being noticed late, the duplicated snippets, and the unexplained async syntax."
+}

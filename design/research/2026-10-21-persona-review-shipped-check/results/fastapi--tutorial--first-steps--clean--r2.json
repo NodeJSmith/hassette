@@ -1,0 +1,15 @@
+{
+  "run_id": "o06",
+  "page": "tutorial/first-steps",
+  "findings": [
+    {
+      "line": 46,
+      "section": "Check the openapi.json",
+      "type": "contradiction",
+      "quote": "\"paths\": {\n        \"/items/\": {\n            \"get\": {",
+      "problem": "The page's app defines only a GET at \"/\", but the sample openapi.json shows a \"/items/\" path. A reader who opens /openapi.json and sees \"/\" instead may think their app or the file is wrong, and can't tell whether this sample is supposed to match their app.",
+      "suggestion": "Show a sample that matches the app on this page (a \"/\" path with its get operation), or say the excerpt comes from a different example and your output will list \"/\"."
+    }
+  ],
+  "summary": "Introduces the smallest FastAPI app, how to run it with fastapi dev, the auto-generated docs and OpenAPI schema, entrypoint configuration, and a step-by-step recap of the code. The page is clear for its reader, with one mismatched sample output."
+}

@@ -1,0 +1,6 @@
+{
+  "run_id": "o11",
+  "page": "getting-started/first-automation",
+  "findings": [],
+  "summary": "Extends the Quickstart app with a sun state-change handler using typed dependency injection and a minutely scheduled heartbeat job, then shows how to run it and trigger the handler manually from HA Developer Tools."
+}

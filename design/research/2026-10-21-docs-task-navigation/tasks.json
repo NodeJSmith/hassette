@@ -1,0 +1,109 @@
+[
+  {
+    "id": "T01",
+    "question": "I want a function in my app to run every weekday at 7:00 in the morning, but not on Saturday or Sunday. How do I schedule that?",
+    "expected": "await self.scheduler.run_cron(self.handler, \"0 7 * * 1-5\", name=\"...\") - a 5-field cron expression (minute hour day-of-month month day-of-week; 1-5 = Monday-Friday). Alternative: self.scheduler.schedule(handler, Cron(\"0 7 * * 1-5\")). run_daily alone cannot skip weekends.",
+    "sources": [
+      "pages/core-concepts/scheduler/methods/",
+      "pages/recipes/daily-notification/",
+      "reference/hassette/scheduler/"
+    ],
+    "single_home": false
+  },
+  {
+    "id": "T02",
+    "question": "My app uses its own logging.getLogger(\"my_app.notify\") in a helper module. Its info messages never show up in the Hassette logs or the web UI log view. How do I make Hassette pick up that logger?",
+    "expected": "List the logger name in extra_loggers under [hassette.logging] in hassette.toml (e.g. extra_loggers = [\"my_app.notify\"]); it then uses the same handlers, level, formatter and telemetry DB as the hassette logger, keeping its own name.",
+    "sources": [
+      "pages/operating/log-levels/",
+      "reference/hassette/config/"
+    ],
+    "single_home": true
+  },
+  {
+    "id": "T03",
+    "question": "I renamed my app's section in hassette.toml from [hassette.apps.weather] to [hassette.apps.weather_station] and now the values it saved between restarts are gone. How do I get the old stored data back?",
+    "expected": "Set cache_key on the renamed app's section to the old cache location, e.g. cache_key = \"weather/0\" (old app_key/index); Hassette uses it as-is with no index appended, so the app reuses the old cache.db under data_dir.",
+    "sources": [
+      "pages/core-concepts/cache/",
+      "reference/hassette/config/"
+    ],
+    "single_home": true
+  },
+  {
+    "id": "T04",
+    "question": "I run Hassette in Docker and my app needs the apprise Python package, which isn't in the image. How do I get it installed in the container?",
+    "expected": "Put apprise in requirements.txt at config/requirements.txt (mounted as /config/requirements.txt, or inside the apps directory) and set HASSETTE_DOCKER_INSTALL_DEPS: \"1\" in the compose environment block, then restart the container. Alternative: pyproject.toml plus uv.lock in config/apps/ (no env var needed).",
+    "sources": [
+      "pages/getting-started/docker/dependencies/",
+      "pages/getting-started/docker/troubleshooting/"
+    ],
+    "single_home": false
+  },
+  {
+    "id": "T05",
+    "question": "In my app I want to check right away whether anyone in the household is home before turning on light.porch, without making a call to Home Assistant. What's the simplest way?",
+    "expected": "self.states.anybody_home() (synchronous, no await, reads person entities from local cache; falls back to device_tracker). Related: everybody_home(), nobody_home(), is_home(\"person.x\").",
+    "sources": [
+      "pages/core-concepts/states/",
+      "reference/hassette/state_manager/state_manager/"
+    ],
+    "single_home": true
+  },
+  {
+    "id": "T06",
+    "question": "I'm writing a test for an app that has a job scheduled for 07:00. How do I make that job run in my test without actually waiting until 7 am?",
+    "expected": "With AppTestHarness: harness.freeze_time(<Instant/ZonedDateTime>) (sync), harness.advance_time(hours=...) to move the clock, then await harness.trigger_due_jobs() to fire due jobs (advance_time alone does not run jobs).",
+    "sources": [
+      "pages/testing/time-control/",
+      "pages/testing/harness/",
+      "pages/testing/concurrency/",
+      "reference/hassette/testing/"
+    ],
+    "single_home": true
+  },
+  {
+    "id": "T07",
+    "question": "My Zigbee hallway button (event.hallway_button) automation fires once every time Home Assistant restarts, as if someone pressed it. How do I stop that?",
+    "expected": "Add where=P.EventEntityFresh(max_age=10) (from hassette import P) to the bus.on_state_change subscription for the event.* entity; it drops events whose state timestamp is older than max_age seconds relative to last_changed (restart replays).",
+    "sources": [
+      "pages/core-concepts/bus/filtering/",
+      "pages/core-concepts/bus/predicate-reference/",
+      "reference/hassette/event_handling/predicates/"
+    ],
+    "single_home": false
+  },
+  {
+    "id": "T08",
+    "question": "I want my app to ask Home Assistant for the daily weather forecast for weather.home and use the data it sends back, not just fire off the request. How do I do that?",
+    "expected": "await self.api.call_service(\"weather\", \"get_forecasts\", target={\"entity_id\": \"weather.home\"}, return_response=True, type=\"daily\"). With return_response=True it returns a ServiceResponse whose .response dict holds the payload (and .context the HA event context); without it call_service returns None. weather.get_forecasts is response-only, so HA rejects the call if return_response is omitted.",
+    "sources": [
+      "pages/core-concepts/api/methods/",
+      "reference/hassette/api/"
+    ],
+    "single_home": true
+  },
+  {
+    "id": "T09",
+    "question": "I'm moving from AppDaemon. I used self.cancel_timer(handle) to stop a timer I created with run_in. What do I do in Hassette?",
+    "expected": "Keep the Job returned by the scheduler call (e.g. job = await self.scheduler.run_in(...)) and call job.remove().",
+    "sources": [
+      "pages/migration/",
+      "pages/migration/scheduler/",
+      "pages/migration/checklist/",
+      "pages/core-concepts/scheduler/management/"
+    ],
+    "single_home": false
+  },
+  {
+    "id": "T10",
+    "question": "I want to temporarily switch off one of my apps without deleting its section from hassette.toml. How?",
+    "expected": "Set enabled = false in that app's [hassette.apps.<key>] block (app never loads; shows as disabled). Alternative: autostart = false keeps it registered but not started automatically (start on demand from UI/CLI).",
+    "sources": [
+      "pages/core-concepts/apps/configuration/",
+      "pages/web-ui/manage-apps/",
+      "pages/getting-started/home-assistant-integration/"
+    ],
+    "single_home": false
+  }
+]

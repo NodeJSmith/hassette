@@ -1,0 +1,129 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "async def on_initialize(self):\n        ...\n        await self.bus.on_state_change(",
+      "confusion": "I see async def and await in the first code block, but I don't know what they mean. The explanation only arrives several paragraphs later. I don't know what 'bus' is either, and on_initialize is never explained as a hook Hassette calls at startup.",
+      "suggestion": "Add a one-line note before the snippet: 'async def and await are needed because Hassette runs handlers on an event loop; copy the pattern for now.' Also say that on_initialize runs once when the app starts, and that self.bus is how an app subscribes to events."
+    },
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "missing-context",
+      "quote": "You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.",
+      "confusion": "The first snippet is a full app, yet I'm told not to run it. I'm unsure whether to type it into a file, and where that file lives. Line 24 says 'Replace your apps/main.py', which suggests an earlier Quickstart file I haven't seen on this page.",
+      "suggestion": "State plainly that this is a read-only walkthrough and that the file to edit is apps/main.py from the Quickstart. Mention the Quickstart prerequisite at the top."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "\"sun.*\" is a glob pattern that matches any entity in the sun domain.",
+      "confusion": "'Glob pattern' and 'domain' are a bit fuzzy. I know HA entity IDs look like sun.sun, so I can guess, but 'domain' is not defined here. Also 'whenever an entity's state changes' makes me wonder whether this fires for attribute changes too.",
+      "suggestion": "Say 'the part before the dot in an entity ID (sun in sun.sun) is its domain; * matches everything after it.'"
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "D.StateNew[states.SunState] is a type annotation that tells Hassette: when this handler fires, pass in the new state as a SunState object.",
+      "confusion": "This is better than expected: list[str] is a helpful anchor. But it's still odd that an annotation changes runtime behavior, and I don't know what 'new state' means as opposed to some old state.",
+      "suggestion": "Add a half sentence: 'a state change event carries both the old and new state; D.StateNew picks the new one.'"
+    },
+    {
+      "line": 12,
+      "section": "Subscribe to a State Change",
+      "type": "missing-import-context",
+      "quote": "D is hassette.event_handling.dependencies",
+      "confusion": "The code imports D from hassette directly (from hassette import App, AppConfig, D, states), but the explanation says it is hassette.event_handling.dependencies. I can't tell whether I should import it from there, or whether D is just re-exported. Minor confusion.",
+      "suggestion": "Say 'hassette re-exports it as D, so the import in the snippet is all you need.'"
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "class MyAppConfig(AppConfig):\n    greeting: str = \"Hello from Hassette!\"",
+      "confusion": "AppConfig and the class-based config are not explained on this page at all. I don't know where greeting comes from, how to override it, or why app_config is used. I assume it's covered in the Quickstart, but nothing here points back to it.",
+      "suggestion": "Add one sentence: 'MyAppConfig holds settings for your app; this is carried over from the Quickstart, and greeting can be changed in hassette.toml.'"
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "jargon",
+      "quote": "This is called dependency injection.",
+      "confusion": "The explanation shows the pattern first and names it second, which works. But the name is dropped in without saying why I'd care, and then the page moves on.",
+      "suggestion": "Optionally link to the DI page here. Fine otherwise."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "async-assumption",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on(). Async handlers run on Hassette's event loop: while one handler is paused at an await, other handlers keep running",
+      "confusion": "This is the first place async is explained, and it comes after the code. 'Event loop' and 'paused at an await' are new to me. I get the gist (don't block others) but not the rule: must I always write async def? What happens if I forget await?",
+      "suggestion": "Give a concrete rule: 'Always write handlers as async def and put await in front of calls like self.api.turn_on(); forgetting await means the light never turns on.' Move the explanation up near the first snippet."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Service calls like turn_on() are fire-and-forget by default: the await finishes once the command is sent, not once Home Assistant has applied it.",
+      "confusion": "A detour at this point. 'Fire-and-forget' is jargon, and I don't need it yet.",
+      "suggestion": "Cut or move to a collapsible note."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "next-step-gap",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "Good that this is flagged, but it is buried at the end of a long paragraph. If my light is not called light.porch, the call will fail and I won't know why. The page doesn't say what error to expect.",
+      "suggestion": "Make this a visible tip, and say what the logs show if the entity doesn't exist."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "missing-context",
+      "quote": "[self.scheduler.run_minutely()](../../core-concepts/scheduler/methods/) runs log_heartbeat every minute.",
+      "confusion": "Scheduler appears without introduction, like bus earlier. I can infer it from the name and the explanation, so it's a small gap. The full code is shown again, and I can't easily see what changed.",
+      "suggestion": "Introduce the scheduler in one clause ('the scheduler runs functions on a timer'). Highlight the added lines in the second snippet (e.g. hl_lines)."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Replace your apps/main.py with the complete app from the previous snippet. Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "This relies on setup from the Quickstart: apps/main.py, the .env file, and a running Hassette in another terminal. If I skipped the Quickstart or my directory is different, I'm lost. 'Replace' is also ambiguous: replace the whole file? Yes, presumably.",
+      "suggestion": "Add a Prerequisites line: 'Complete the Quickstart first; Hassette should be running from your project directory.' Say 'replace the entire contents of'."
+    },
+    {
+      "line": 26,
+      "section": "Run It",
+      "type": "verification",
+      "quote": "INFO hassette.MyApp.0 — Hello from Hassette!\nINFO hassette.MyApp.0 — Heartbeat",
+      "confusion": "The expected output shows 'Heartbeat' immediately next to 'Hello', but line 21 says the first run fires one minute after startup. I'd wait a minute and wonder if it is broken. Also, there's no timestamp in the sample, and I'm not told that the lines may be interleaved with other startup logs.",
+      "suggestion": "Say 'Hello appears at startup; Heartbeat appears after about a minute, then every minute.' Show them as two separate moments."
+    },
+    {
+      "line": 28,
+      "section": "Run It",
+      "type": "verification",
+      "quote": "To test the handler now without waiting, trigger a state change manually:",
+      "confusion": "Helpful. But the steps say 'Settings → Developer Tools', and in HA Developer Tools is a sidebar item rather than under Settings in current versions. Also, setting sun.sun's state this way may revert quickly and may not be allowed. If nothing appears in the logs I'd have no troubleshooting pointers.",
+      "suggestion": "Verify the navigation path. Add what to check if nothing shows (is the app running? is the entity ID right? link to a troubleshooting page)."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "verification",
+      "quote": "You see Sun changed: below_horizon and Porch light turned on in the logs.",
+      "confusion": "I'm not told to also check that the light actually turned on in HA, nor what happens if I use a light.porch that doesn't exist (logs would say 'Porch light turned on' only if no exception is raised, but I can't tell).",
+      "suggestion": "Add: 'Check the light in Home Assistant too' and mention what an error would look like."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can mostly follow this page and probably gets a working automation, especially thanks to the list[str] analogy and the short explanations of D and states. The main friction is that async/await, the bus, the scheduler, and AppConfig show up in code before they are explained, and the Run It section silently depends on the Quickstart setup. The expected-output timing for the heartbeat is also misleading, which could make Alex think it's broken."
+}

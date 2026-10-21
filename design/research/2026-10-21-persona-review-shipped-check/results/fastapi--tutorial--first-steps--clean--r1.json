@@ -1,0 +1,15 @@
+{
+  "run_id": "o12",
+  "page": "tutorial/first-steps",
+  "findings": [
+    {
+      "line": 46,
+      "section": "Check the openapi.json",
+      "type": "contradiction",
+      "quote": "\"paths\": {\n        \"/items/\": {\n            \"get\": {",
+      "problem": "The page says this is the schema FastAPI generates for the app, but the app only defines a GET operation on \"/\". The sample shows a \"/items/\" path that doesn't exist in the code. A reader who opens /openapi.json will see \"/\" and may think they did something wrong.",
+      "suggestion": "Change the sample to show the \"/\" path, or say the excerpt is only illustrative and that their own output will list \"/\"."
+    }
+  ],
+  "summary": "Introduces the smallest FastAPI app, how to run it with fastapi dev, and what the interactive docs and OpenAPI schema show. It then breaks the code into steps (import, instance, path operation, function, return) and mentions the entrypoint config and optional deployment."
+}

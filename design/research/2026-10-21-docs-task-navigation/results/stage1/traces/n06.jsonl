@@ -1,0 +1,2 @@
+{"cmd": "search", "arg": "test scheduler time travel run job", "results": ["CHANGELOG/#scheduler_1", "CHANGELOG/#test-utilities", "pages/testing/time-control/#time-control", "#why-hassette", "pages/core-concepts/scheduler/management/#run-a-job-on-demand-submit", "pages/core-concepts/scheduler/#run-on-a-repeating-interval", "pages/cli/commands/#hassette-job", "pages/core-concepts/scheduler/management/#job-not-running"]}
+{"cmd": "open", "arg": "pages/testing/time-control/", "found": true}

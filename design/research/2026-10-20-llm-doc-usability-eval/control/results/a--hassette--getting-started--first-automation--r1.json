@@ -1,0 +1,153 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "unclear-next-step",
+      "quote": "You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.",
+      "confusion": "I see a full code block but am told not to run it. I don't know whether to paste it into apps/main.py now or wait. The page also assumes I already have the Quickstart app and apps/main.py set up.",
+      "suggestion": "State plainly 'read this, don't copy yet', and say in the intro that the file is apps/main.py from the Quickstart."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "class MyAppConfig(AppConfig):\n    greeting: str = \"Hello from Hassette!\"",
+      "confusion": "I don't know AppConfig, Pydantic, or why the class has a field with no __init__. The page never says it is carried over from the Quickstart or what it does here.",
+      "suggestion": "Add one sentence: 'AppConfig holds settings for your app; this is unchanged from the Quickstart.'"
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "async def on_initialize(self):",
+      "confusion": "I don't know async/await. I also don't know when on_initialize gets called or why the method is async.",
+      "suggestion": "Say on_initialize runs once when the app starts, and point to the async explanation sooner (before the code, not after)."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "await self.bus.on_state_change(",
+      "confusion": "'await' appears in the first code block, and 'bus' is never explained here. I don't know what the bus is or why I have to await a registration call.",
+      "suggestion": "Add a short note that await is required on these calls, or a plain-language line on what self.bus is."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "a glob pattern that matches any entity in the sun domain",
+      "confusion": "I know glob loosely from shell wildcards, but 'domain' of an entity is HA vocabulary I only half remember. It's also unclear why 'sun.*' is used when only sun.sun exists.",
+      "suggestion": "Explain 'domain' as the part before the dot in an entity ID, with one example."
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "D.StateNew[states.SunState] is a type annotation that tells Hassette",
+      "confusion": "Annotations tell my editor about types; I don't expect them to change what happens at runtime. The leap that Hassette reads them to decide what to pass in is surprising, and the explanation arrives only a few lines later.",
+      "suggestion": "Lead with 'Hassette fills in this parameter for you' before the syntax breakdown. The explanation at line 14 should come first."
+    },
+    {
+      "line": 12,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "D is hassette.event_handling.dependencies , a module of type annotations.",
+      "confusion": "The import is 'from hassette import D' but the description points at a different module path. A module of annotations is a strange idea to me. I can't tell why it's 'D' or what else lives in it.",
+      "suggestion": "Say it is a shortcut name imported from hassette, and link to the full list."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection .",
+      "confusion": "The term is introduced after I already understood the behavior, which is fine, but I don't know why I should care about the name or whether I'll need it later.",
+      "suggestion": "Keep the show-then-name order but add a short pointer to the DI page for when the name shows up elsewhere."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "unclear-next-step",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "Good guidance, but it comes at the end of a paragraph after the code. I might not notice it. The page does not say where to find an entity ID besides Developer Tools, and that pointer is about services.",
+      "suggestion": "Put a callout before the code or a comment in the snippet (# replace with your light's entity ID). Mention Developer Tools > States for finding IDs."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Async handlers run on Hassette's event loop: while one handler is paused at an await , other handlers keep running",
+      "confusion": "Event loop and 'paused at an await' are new to me. I get a vague sense that things run concurrently, but I can't tell what I must do differently as a result.",
+      "suggestion": "Give a one-line rule: 'always write handlers as async def and put await before Hassette calls.' Leave the event loop detail to the linked page."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Service calls like turn_on() are fire-and-forget by default: the await finishes once the command is sent",
+      "confusion": "Confusing next to 'await', which I'd assume waits for the result. This detail is a detour at this stage.",
+      "suggestion": "Move to a collapsed note or the API page; it doesn't help me get my first automation running."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "missing-context",
+      "quote": "[self.scheduler.run_minutely()](../../core-concepts/scheduler/methods/) runs log_heartbeat every minute.",
+      "confusion": "The second code block repeats the whole file with no indication of what changed. I have to diff by eye to find the two new pieces.",
+      "suggestion": "Highlight the added lines (hl_lines) or add comments marking the new scheduler call and the log_heartbeat method."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "undefined-term",
+      "quote": "Hassette tracks the job and cancels it automatically on shutdown.",
+      "confusion": "Fine, but 'scheduler' was never introduced as a concept before this section, only used.",
+      "suggestion": "Open with one sentence saying the scheduler runs functions on a timer."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "unclear-next-step",
+      "quote": "Replace your apps/main.py with the complete app from the previous snippet. Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "'The previous snippet' is the second block, but the first is also a complete-looking file. I have to confirm which one. I also don't know whether apps/ is relative to where I run the command, since the Quickstart isn't repeated.",
+      "suggestion": "Say 'the Schedule a Recurring Job snippet' and repeat the working directory and full command."
+    },
+    {
+      "line": 26,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "INFO hassette.MyApp.0 — Hello from Hassette!\nINFO hassette.MyApp.0 — Heartbeat",
+      "confusion": "The sample shows Heartbeat right after Hello, but the text says the first heartbeat fires a minute after startup. I'd wonder whether it's broken if I see only the greeting at first. Real logs likely have timestamps and other lines too.",
+      "suggestion": "Note that Heartbeat appears about a minute after the greeting and that other startup lines will appear in between."
+    },
+    {
+      "line": 29,
+      "section": "Run It",
+      "type": "unclear-next-step",
+      "quote": "Change the state value to below_horizon and click Set State .",
+      "confusion": "In HA Developer Tools the sun.sun state may already be below_horizon at night. Then no change occurs and nothing fires. Also the light.porch call will fail if my entity isn't named that, and the page says nothing about what an error looks like.",
+      "suggestion": "Tell me to pick the value opposite to the current one, and say what log line appears if the light entity doesn't exist."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "The handler fires within milliseconds. You see Sun changed: below_horizon and Porch light turned on in the logs.",
+      "confusion": "Good confirmation, but it does not tell me to check the physical or HA light actually turned on, nor what to do if the logs show the line but the light stays off.",
+      "suggestion": "Add 'check that the light is on in HA' and a pointer to troubleshooting."
+    },
+    {
+      "line": 34,
+      "section": "Next Steps",
+      "type": "undefined-term",
+      "quote": "[Bus& Handlers](../../core-concepts/bus/)",
+      "confusion": "Minor: link text reads 'Bus& Handlers' (missing space), and similarly 'SchedulerMethods'. Looks sloppy.",
+      "suggestion": "Fix spacing in link labels."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can probably get to a working automation because the code is copy-pasteable and Run It gives a concrete way to trigger the handler. The main friction is that async/await, the event bus, and dependency injection are explained late or in more depth than needed, and the second snippet repeats the whole file without marking what is new. Verdict: followable-with-effort, with the sun.sun state-change test and entity-ID replacement as the likeliest places to get stuck."
+}

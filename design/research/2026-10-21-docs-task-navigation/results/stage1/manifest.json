@@ -1,0 +1,45 @@
+{
+  "site": "/tmp/claude-1000/-home-jessica-source-hassette--claude-worktrees-3148/5d0b0fd8-d6d7-40c6-9346-08b24e65b789/scratchpad/nav-queue/site-copy",
+  "runs": {
+    "n01": {
+      "task": "T04",
+      "run": 1
+    },
+    "n02": {
+      "task": "T03",
+      "run": 1
+    },
+    "n03": {
+      "task": "T08",
+      "run": 1
+    },
+    "n04": {
+      "task": "T10",
+      "run": 1
+    },
+    "n05": {
+      "task": "T05",
+      "run": 1
+    },
+    "n06": {
+      "task": "T06",
+      "run": 1
+    },
+    "n07": {
+      "task": "T09",
+      "run": 1
+    },
+    "n08": {
+      "task": "T07",
+      "run": 1
+    },
+    "n09": {
+      "task": "T02",
+      "run": 1
+    },
+    "n10": {
+      "task": "T01",
+      "run": 1
+    }
+  }
+}

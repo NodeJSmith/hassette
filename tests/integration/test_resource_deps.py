@@ -7,6 +7,7 @@ from hassette import Hassette
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.utils.service_utils import topological_levels, topological_sort
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 
 
 async def test_coordinator_uses_topological_sort(hassette_instance: Hassette) -> None:
@@ -74,7 +75,7 @@ async def test_service_with_depends_on_waits_for_dep(hassette_instance: Hassette
     # Release the gate — mark the dependency ready.
     mark_ready(gated, "test: gate released")
 
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     assert _DependentService.initialized.is_set(), "on_initialize must have run after dependency became ready"
 

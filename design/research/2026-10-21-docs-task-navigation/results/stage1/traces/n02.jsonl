@@ -1,0 +1,3 @@
+{"cmd": "nav", "arg": ""}
+{"cmd": "search", "arg": "renamed app key persisted data", "results": ["CHANGELOG/#breaking-changes_8", "pages/core-concepts/cache/#instance-scoped-directories", "pages/core-concepts/bus/handlers/#cross-app-communication", "reference/hassette/config/#hassette.config.AppsConfig.extract_app_definitions", "pages/troubleshooting/#cache-not-persisting", "pages/core-concepts/cache/#basic-usage", "pages/core-concepts/cache/#ttl-and-expiration", "pages/core-concepts/bus/filtering/#dict-filtering"]}
+{"cmd": "open", "arg": "pages/core-concepts/cache/", "found": true}
