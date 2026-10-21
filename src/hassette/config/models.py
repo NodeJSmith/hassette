@@ -543,7 +543,8 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
 
     warn_unconfigured: bool = Field(default=True)
     """Whether startup warns about each ``App``/``AppSync`` subclass in the app directory that no app entry
-    configures. The scan parses files without importing them and skips ``APP_SCAN_EXCLUDE_DIRS``."""
+    configures. The scan parses files without importing them and skips virtualenv, cache, version-control,
+    and vendored-package directories."""
 
     manifests: dict[str, AppManifest] = Field(default_factory=dict)
     """Validated app manifests, keyed by app name."""

@@ -121,7 +121,7 @@ Docker containers commonly default to UTC. Home Assistant uses a local zone conf
 
 `apps.directory` is the root from which Hassette loads app modules. It defaults to `apps` inside the config home (see [Relative Paths](#relative-paths)). Startup logs `Apps directory: <path>` and warns when the directory doesn't exist or holds no apps.
 
-Hassette runs only the apps named by a `[hassette.apps.<key>]` section. At startup it also scans `apps.directory` for [`App`](../apps/index.md) subclasses that no section names, and logs a warning for each one with a section to paste. The scan reads files without importing them, so it never runs app code. It finds classes whose bases name `App` or `AppSync` directly, such as `class MyApp(App[MyConfig])`. A class built on an intermediate base class doesn't warn. The scan skips `.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, and `.git`.
+Hassette runs only the apps named by a `[hassette.apps.<key>]` section. At startup it also scans `apps.directory` for [`App`](../apps/index.md) subclasses that no section names, and logs a warning for each one with a section to paste. The scan reads files without importing them, so it never runs app code. It finds classes whose bases name `App` or `AppSync` directly, such as `class MyApp(App[MyConfig])`. A class built on an intermediate base class doesn't warn. The scan skips `.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.git`, `node_modules`, and `site-packages`. If no apps are found and some files couldn't be parsed, the "No apps found" warning lists those files and their errors.
 
 `apps.warn_unconfigured = false` turns the scan and its warnings off, for a directory that holds app classes on purpose that shouldn't run.
 

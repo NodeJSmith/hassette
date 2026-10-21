@@ -334,7 +334,7 @@
       "properties": {
         "warn_unconfigured": {
           "default": true,
-          "description": "Whether startup warns about each ``App``/``AppSync`` subclass in the app directory that no app entry\nconfigures. The scan parses files without importing them and skips ``APP_SCAN_EXCLUDE_DIRS``.",
+          "description": "Whether startup warns about each ``App``/``AppSync`` subclass in the app directory that no app entry\nconfigures. The scan parses files without importing them and skips virtualenv, cache, version-control,\nand vendored-package directories.",
           "title": "Warn Unconfigured",
           "type": "boolean"
         },

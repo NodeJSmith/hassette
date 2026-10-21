@@ -134,6 +134,20 @@ class TestAccepted:
     def test_app_definition_tables_are_opaque(self, cfg: Path) -> None:
         load(cfg, toml="[hassette.apps.my_app]\nfilename = 'a.py'\nclass_name = 'A'\nanything = 1\n")
 
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"toml": "[hassette.apps]\nwarn_unconfigured = false\n"}, id="toml"),
+            pytest.param({"env": {"HASSETTE__APPS__WARN_UNCONFIGURED": "false"}}, id="env"),
+        ],
+    )
+    def test_warn_unconfigured_is_a_setting_not_an_app(self, cfg: Path, kwargs: dict[str, object]) -> None:
+        """The scalar sits beside app tables in ``[hassette.apps]`` and still loads as the setting."""
+        config = load(cfg, **kwargs)  # pyright: ignore[reportArgumentType]
+
+        assert config.apps.warn_unconfigured is False
+        assert config.apps.apps == {}
+
 
 class TestSuggestions:
     def test_typo_suggests_the_setting(self, cfg: Path) -> None:

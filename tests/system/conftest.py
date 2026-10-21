@@ -330,7 +330,7 @@ def app_entries(app_dir: Path) -> dict[str, RawAppDict]:
     """
     return {
         class_name: RawAppDict(filename=path.relative_to(app_dir.resolve()).as_posix(), class_name=class_name)
-        for path, class_name in find_unconfigured_app_classes(app_dir, set())
+        for path, class_name in find_unconfigured_app_classes(app_dir, set()).unconfigured
     }
 
 
