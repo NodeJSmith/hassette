@@ -55,6 +55,9 @@ FRAMEWORK_PACKAGE_NAMES = frozenset({"hassette", "hassette_wire", "hassette_clie
 _LOG_IDENTITY_ATTR = "_hassette_log_identity"
 # Set by LogIdentityFilter on every record it resolves, so a second pass leaves the record alone.
 _IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
+# Record attributes _showwarning sets on captured warnings for LogIdentityFilter to read.
+WARNING_CATEGORY_ATTR = "warning_category"
+WARNING_FILENAME_ATTR = "warning_filename"
 
 LogAuthor = Literal["app", "framework"]
 
@@ -186,6 +189,15 @@ def set_logger_identity(logger: logging.Logger, identity: LogIdentity) -> None:
     setattr(logger, _LOG_IDENTITY_ATTR, identity)
 
 
+def apply_log_level(logger: logging.Logger, level: str | int, owner_name: str) -> None:
+    """Set ``logger``'s level, falling back to INFO (and saying so) when ``level`` is invalid."""
+    try:
+        logger.setLevel(level)
+    except (ValueError, TypeError) as exc:
+        logger.error("Invalid log level %r for %s; falling back to INFO: %s", level, owner_name, exc)
+        logger.setLevel(logging.INFO)
+
+
 def get_logger_identity(logger: logging.Logger) -> LogIdentity | None:
     """Return the identity on ``logger`` or its nearest identified ancestor, or None."""
     current: logging.Logger | None = logger
@@ -227,8 +239,8 @@ class LogIdentityFilter(logging.Filter):
     (Phase 1, before the resource tree exists) and the queue handler ``LoggingService`` swaps in
     (Phase 2), so both phases see the same identity. The writing logger's owner wins over bound
     context; context supplies the subject only for ownerless loggers (shared services, user module
-    loggers, libraries). Until the ``author`` record field lands, the author is stamped as
-    ``source_tier``.
+    loggers, libraries). The author is stamped as
+    ``source_tier`` until #3096 adds the ``author`` field.
 
     Idempotent: Phase 2 moves the stream handler under the queue listener, whose thread has no
     bound context, so a record this filter already resolved on the caller's thread is left alone.
@@ -246,7 +258,7 @@ class LogIdentityFilter(logging.Filter):
             author = identity.author
         elif record.name == PY_WARNINGS_LOGGER_NAME:
             author = warning_author(
-                getattr(record, "warning_category", None), getattr(record, "warning_filename", None)
+                getattr(record, WARNING_CATEGORY_ATTR, None), getattr(record, WARNING_FILENAME_ATTR, None)
             )
         else:
             author = namespace_author(record.name)
@@ -285,7 +297,7 @@ def _showwarning(
         return
     text = warnings.formatwarning(message, category, filename, lineno, line)
     logging.getLogger(PY_WARNINGS_LOGGER_NAME).warning(
-        "%s", text, extra={"warning_category": category, "warning_filename": filename}
+        "%s", text, extra={WARNING_CATEGORY_ATTR: category, WARNING_FILENAME_ATTR: filename}
     )
 
 
@@ -753,12 +765,3 @@ def enable_basic_logging(
     )
 
     return stream_handler
-
-
-def apply_log_level(logger: logging.Logger, level: str | int, owner_name: str) -> None:
-    """Set ``logger``'s level, falling back to INFO (and saying so) when ``level`` is invalid."""
-    try:
-        logger.setLevel(level)
-    except (ValueError, TypeError) as exc:
-        logger.error("Invalid log level %r for %s; falling back to INFO: %s", level, owner_name, exc)
-        logger.setLevel(logging.INFO)

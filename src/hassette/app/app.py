@@ -11,7 +11,7 @@ from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
 from hassette.config.classes import AppManifest
 from hassette.conversion import StateRegistry, TypeRegistry
-from hassette.logging_ import LogAuthor, LogIdentity, apply_log_level, set_logger_identity
+from hassette.logging_ import LogAuthor, LogIdentity, set_logger_identity
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -190,7 +190,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         # here instead of on the app's own logger. Its level is LoggingConfig.app_handler, not the
         # app's log_level.
         self._lifecycle_logger = getLogger(f"{self.logger.name}.Lifecycle")
-        apply_log_level(self._lifecycle_logger, self.hassette.config.logging.app_handler, self.unique_name)
+        self._lifecycle_logger.setLevel(self.hassette.config.logging.app_handler)
         set_logger_identity(self._lifecycle_logger, self.owner_log_identity("framework"))
 
     @property

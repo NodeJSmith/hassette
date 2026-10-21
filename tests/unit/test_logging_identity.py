@@ -16,6 +16,7 @@ import logging
 import warnings
 from collections.abc import Iterator
 from io import StringIO
+from logging.handlers import BufferingHandler
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,7 @@ from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
 from tests.support.factories import make_log_record
 from tests.support.helpers import first_json_record_containing
 
+USER_APP_FILE = "/home/user/apps/my_app.py"
 OWNER = LogIdentity(author="framework", app_key="owner_app", instance_name="owner_inst", instance_index=1)
 
 
@@ -84,7 +86,7 @@ class TestOwnedLoggers:
         set_logger_identity(logging.getLogger("hassette.identity_test.parent"), OWNER)
         nearer = LogIdentity(author="app", app_key="near_app", instance_name="near", instance_index=0)
         set_logger_identity(logging.getLogger("hassette.identity_test.parent.mid"), nearer)
-        logging.getLogger("hassette.identity_test.parent.mid.leaf")
+        logging.getLogger("hassette.identity_test.parent.mid.leaf")  # registers the leaf logger
 
         record = stamp_identity("hassette.identity_test.parent.mid.leaf")
 
@@ -140,18 +142,18 @@ class TestOwnerlessLoggers:
 
 class TestCapturedWarnings:
     def test_hassette_warning_category_is_framework(self) -> None:
-        assert warning_author(HassetteForgottenAwaitWarning, "/home/user/apps/my_app.py") == "framework"
+        assert warning_author(HassetteForgottenAwaitWarning, USER_APP_FILE) == "framework"
 
     def test_warning_raised_in_a_hassette_module_is_framework(self) -> None:
         assert warning_author(DeprecationWarning, str(HASSETTE_PACKAGE_DIR / "bus" / "bus.py")) == "framework"
 
     def test_user_warning_from_user_code_is_app(self) -> None:
-        assert warning_author(UserWarning, "/home/user/apps/my_app.py") == "app"
+        assert warning_author(UserWarning, USER_APP_FILE) == "app"
 
     def test_workspace_member_warning_category_is_framework(self) -> None:
         client_warning = type("ClientWarning", (UserWarning,), {"__module__": "hassette_client.errors"})
 
-        assert warning_author(client_warning, "/home/user/apps/my_app.py") == "framework"
+        assert warning_author(client_warning, USER_APP_FILE) == "framework"
 
     def test_sibling_directory_with_a_shared_prefix_is_not_hassette(self) -> None:
         sibling = Path(f"{HASSETTE_PACKAGE_DIR}_extras") / "mod.py"
@@ -159,13 +161,11 @@ class TestCapturedWarnings:
         assert warning_author(UserWarning, str(sibling)) == "app"
 
     def test_py_warnings_record_uses_the_warning_origin(self) -> None:
-        record = stamp_identity(
-            PY_WARNINGS_LOGGER_NAME, warning_category=UserWarning, warning_filename="/home/user/apps/my_app.py"
-        )
+        record = stamp_identity(PY_WARNINGS_LOGGER_NAME, warning_category=UserWarning, warning_filename=USER_APP_FILE)
         framework = stamp_identity(
             PY_WARNINGS_LOGGER_NAME,
             warning_category=HassetteForgottenAwaitWarning,
-            warning_filename="/home/user/apps/my_app.py",
+            warning_filename=USER_APP_FILE,
         )
 
         assert record.source_tier == "app"  # pyright: ignore[reportAttributeAccessIssue]
@@ -173,23 +173,18 @@ class TestCapturedWarnings:
 
     def test_showwarning_puts_category_and_filename_on_the_record(self) -> None:
         """Calls the hook directly: pytest replaces warnings.showwarning around each test body."""
-        records: list[logging.LogRecord] = []
-
-        class Collect(logging.Handler):
-            def emit(self, record: logging.LogRecord) -> None:
-                records.append(record)
-
         warnings_logger = logging.getLogger(PY_WARNINGS_LOGGER_NAME)
-        handler = Collect()
+        handler = BufferingHandler(capacity=10)
         warnings_logger.addHandler(handler)
         try:
-            _showwarning(UserWarning("careful"), UserWarning, "/home/user/apps/my_app.py", 12)
+            _showwarning(UserWarning("careful"), UserWarning, USER_APP_FILE, 12)
         finally:
             warnings_logger.removeHandler(handler)
 
+        records = handler.buffer
         assert len(records) == 1
         assert records[0].warning_category is UserWarning  # pyright: ignore[reportAttributeAccessIssue]
-        assert records[0].warning_filename == "/home/user/apps/my_app.py"  # pyright: ignore[reportAttributeAccessIssue]
+        assert records[0].warning_filename == USER_APP_FILE  # pyright: ignore[reportAttributeAccessIssue]
         assert "careful" in records[0].getMessage()
 
     def test_enable_basic_logging_installs_the_hook(self) -> None:
