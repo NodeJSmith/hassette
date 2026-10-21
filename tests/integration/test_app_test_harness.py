@@ -475,36 +475,38 @@ async def test_simulate_attribute_change_without_set_state():
         assert received_old[0].value is None
 
 
-async def test_simulate_component_loaded():
-    """simulate_component_loaded fires on_component_loaded handler."""
+@pytest.mark.parametrize(
+    ("bus_method", "simulate_method", "simulate_args", "simulate_kwargs"),
+    [
+        pytest.param("on_component_loaded", "simulate_component_loaded", ("my_component",), {}, id="component_loaded"),
+        pytest.param(
+            "on_service_registered", "simulate_service_registered", ("light", "turn_on"), {}, id="service_registered"
+        ),
+        pytest.param(
+            "on_hassette_service_failed",
+            "simulate_hassette_service_failed",
+            ("MyService",),
+            {"exception": RuntimeError("boom")},
+            id="hassette_service_failed",
+        ),
+    ],
+)
+async def test_simulate_fires_handler(
+    bus_method: str, simulate_method: str, simulate_args: tuple[Any, ...], simulate_kwargs: dict[str, Any]
+):
+    """Each simulate_* method fires the handler registered via the matching bus subscription method."""
     calls: list[Any] = []
 
-    class ComponentApp(App[SensorConfig]):
+    class SimulateApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            await self.bus.on_component_loaded(handler=self.on_loaded, name="component_loaded")
+            await getattr(self.bus, bus_method)(handler=self.on_event, name=bus_method)
 
-        async def on_loaded(self) -> None:
+        async def on_event(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(ComponentApp, config={}) as harness:
-        await harness.simulate_component_loaded("my_component")
-        await wait_for_calls(calls, desc="component_loaded handler called")
-
-
-async def test_simulate_service_registered():
-    """simulate_service_registered fires on_service_registered handler."""
-    calls: list[Any] = []
-
-    class ServiceRegApp(App[SensorConfig]):
-        async def on_initialize(self) -> None:
-            await self.bus.on_service_registered(handler=self.on_registered, name="service_registered")
-
-        async def on_registered(self) -> None:
-            calls.append(True)
-
-    async with AppTestHarness(ServiceRegApp, config={}) as harness:
-        await harness.simulate_service_registered("light", "turn_on")
-        await wait_for_calls(calls, desc="service_registered handler called")
+    async with AppTestHarness(SimulateApp, config={}) as harness:
+        await getattr(harness, simulate_method)(*simulate_args, **simulate_kwargs)
+        await wait_for_calls(calls, desc=f"{bus_method} handler called")
 
 
 async def test_simulate_hassette_service_status():
@@ -523,22 +525,6 @@ async def test_simulate_hassette_service_status():
         # Filter by sentinel resource_name — startup services use real names, never "MyService"
         my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
         assert len(my_events) == 1
-
-
-async def test_simulate_hassette_service_failed():
-    """simulate_hassette_service_failed fires on_hassette_service_failed handler."""
-    calls: list[Any] = []
-
-    class ServiceFailedApp(App[SensorConfig]):
-        async def on_initialize(self) -> None:
-            await self.bus.on_hassette_service_failed(handler=self.on_failed, name="service_failed")
-
-        async def on_failed(self) -> None:
-            calls.append(True)
-
-    async with AppTestHarness(ServiceFailedApp, config={}) as harness:
-        await harness.simulate_hassette_service_failed("MyService", exception=RuntimeError("boom"))
-        await wait_for_calls(calls, desc="service_failed handler called")
 
 
 async def test_simulate_hassette_service_crashed():
