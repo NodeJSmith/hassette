@@ -47,7 +47,7 @@ class AppScan:
 
     unreadable: list[tuple[Path, str]] = field(default_factory=list)
     """``(file path, error message)`` for each ``.py`` file the scan skipped because reading, parsing, or
-    resolving it failed."""
+    resolving it failed, or because it links to a file outside the apps directory."""
 
 
 def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
@@ -226,8 +226,9 @@ def find_unconfigured_app_classes(app_dir: Path, configured: set[tuple[Path, str
     indirect subclasses aren't resolved: the result is a newcomer hint, not a completeness check.
 
     Never raises: an unreadable directory is skipped, and a file that fails to read, parse, or resolve is
-    skipped, logged at DEBUG, and reported in ``unreadable``. Directories named in ``APP_SCAN_EXCLUDE_DIRS``
-    are never entered, and an `app_dir` whose own absolute path contains one of those names isn't scanned.
+    skipped, logged at DEBUG, and reported in ``unreadable``, as is a symlink whose target is outside `app_dir`
+    (no app entry could load it). Directories named in ``APP_SCAN_EXCLUDE_DIRS`` are never entered, and an
+    `app_dir` whose own absolute path contains one of those names isn't scanned.
 
     Args:
         app_dir: The apps directory to scan.
@@ -257,6 +258,12 @@ def find_unconfigured_app_classes(app_dir: Path, configured: set[tuple[Path, str
                 LOGGER.debug("Skipping %s in the unconfigured-app scan: %s", path, exc)
                 # SyntaxError's str() repeats the file name the warning already shows
                 error = f"{exc.msg} (line {exc.lineno})" if isinstance(exc, SyntaxError) else str(exc)
+                unreadable.append((path, error))
+                continue
+            # an app entry can't name a file outside the apps directory, so a snippet for it couldn't load
+            if not resolved.is_relative_to(root):
+                error = f"links to {resolved}, outside the apps directory"
+                LOGGER.debug("Skipping %s in the unconfigured-app scan: %s", path, error)
                 unreadable.append((path, error))
                 continue
             unconfigured.extend((path, name) for name in class_names if (resolved, name) not in configured)
@@ -634,7 +641,7 @@ def apps_dir_warning(
     if unreadable:
         root = apps_dir.resolve()
         noun = "file" if len(unreadable) == 1 else "files"
-        warning += f". {len(unreadable)} {noun} could not be parsed:"
+        warning += f". {len(unreadable)} {noun} could not be scanned:"
         warning += "".join(f"\n  {path.relative_to(root).as_posix()}: {error}" for path, error in unreadable)
     return warning
 

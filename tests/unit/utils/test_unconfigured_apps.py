@@ -234,7 +234,8 @@ class TestAppStartupWarnings:
         [warning] = startup_warnings(make_config(tmp_path, app_dir))
 
         assert warning.startswith(
-            f"No apps found or configured in apps directory {app_dir}. 1 file could not be parsed:\n  lights/porch.py: "
+            f"No apps found or configured in apps directory {app_dir}. 1 file could not be scanned:\n"
+            "  lights/porch.py: "
         )
 
     def test_unparseable_files_are_not_mentioned_when_apps_were_found(self, tmp_path: Path, app_dir: Path) -> None:
