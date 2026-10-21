@@ -1,7 +1,7 @@
 # Design: Replace app autodetection with an unconfigured-app warning
 
 **Date:** 2026-10-20
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3145
 
@@ -210,7 +210,7 @@ With either, when no apps are configured but unconfigured classes were found, th
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - Startup's apps-directory warnings come from one pure function, `app_startup_warnings` in `utils/app_utils.py`, which `startup_tasks` logs: D6/D9's behavior is then pinned by asserting its return value rather than by capturing logs.
