@@ -1,0 +1,118 @@
+{
+  "run_id": "o54",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "terms": [
+    {
+      "line": 8,
+      "term": "async def / await",
+      "explained": true,
+      "where": "Quickstart gives the rule (async def for app methods, await before bus/scheduler/api calls); line 16 explains the event loop and links Async Basics"
+    },
+    {
+      "line": 10,
+      "term": "self.bus.on_state_change() / handler registration",
+      "explained": true,
+      "where": "Line 10 says it registers a handler that fires whenever an entity's state changes; quickstart describes self.bus"
+    },
+    {
+      "line": 10,
+      "term": "glob pattern \"sun.*\"",
+      "explained": true,
+      "where": "Line 10: matches any entity in the sun domain, in practice sun.sun"
+    },
+    {
+      "line": 10,
+      "term": "name= parameter",
+      "explained": true,
+      "where": "Line 10: labels the handler in logs and the web UI"
+    },
+    {
+      "line": 11,
+      "term": "D.StateNew[states.SunState]",
+      "explained": true,
+      "where": "Lines 11-13 explain the annotation, the bracket syntax, and what D and states are"
+    },
+    {
+      "line": 14,
+      "term": "dependency injection",
+      "explained": true,
+      "where": "Line 14 defines it in context (Hassette inspects annotations and fills in the parameter) and links a page"
+    },
+    {
+      "line": 14,
+      "term": "Pyright",
+      "explained": true,
+      "where": "Line 14: a Python type checker, optional"
+    },
+    {
+      "line": 16,
+      "term": "event loop",
+      "explained": true,
+      "where": "Line 16 explains that handlers share the loop and others keep running while one awaits, and links Async Basics"
+    },
+    {
+      "line": 16,
+      "term": "fire-and-forget",
+      "explained": true,
+      "where": "Line 16: await finishes once the command is sent, not once HA has applied it"
+    },
+    {
+      "line": 15,
+      "term": "service / light.turn_on / domain",
+      "explained": true,
+      "where": "Line 15 explains turn_on calls the light.turn_on service and where to find services in HA Developer Tools"
+    },
+    {
+      "line": 21,
+      "term": "scheduled job / run_minutely",
+      "explained": true,
+      "where": "Line 21: scheduler calls it on a timer, not in response to an event"
+    },
+    {
+      "line": 22,
+      "term": "run_daily, run_cron, run_once",
+      "explained": true,
+      "where": "Linked to SchedulerMethods"
+    },
+    {
+      "line": 10,
+      "term": "web UI",
+      "explained": true,
+      "where": "Line 10 parenthetical: a monitoring dashboard Hassette includes"
+    },
+    {
+      "line": 8,
+      "term": "states.SunState .value",
+      "explained": true,
+      "where": "Line 13: .value holds above_horizon or below_horizon"
+    },
+    {
+      "line": 38,
+      "term": "predicates and conditions",
+      "explained": false,
+      "where": "Only named in a Next Steps link description; not needed to finish this page"
+    }
+  ],
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code logs \"Heartbeat\" (self.logger.info(\"Heartbeat\")) but the expected output shows \"Tick\". Alex would wait a minute, see a different line (or wonder whether the code is wrong), and doubt that the job is working. The log format also differs from the real startup lines shown in the quickstart.",
+      "suggestion": "Change the expected output to show Heartbeat and match the real log line format from the quickstart."
+    },
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "This first snippet shows only the sunset handler... You don't need to run it yet",
+      "confusion": "The page never says where the code goes: replace the contents of apps/main.py from the quickstart, or add a new file. Alex has to guess, and a second file with another App subclass would run both apps.",
+      "suggestion": "State that these snippets replace the contents of apps/main.py."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can follow this page to the end: the new vocabulary (state change handler, glob, D.StateNew, dependency injection, async, scheduling) is explained where it first appears. Two small problems would cost a re-read or a guess: the expected heartbeat log says \"Tick\" while the code logs \"Heartbeat\", and the page never says which file the code replaces."
+}

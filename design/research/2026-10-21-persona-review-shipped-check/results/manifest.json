@@ -1,0 +1,84 @@
+{
+  "briefings": {
+    "b01": {
+      "condition": "shipped",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "b02": {
+      "condition": "shipped",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    },
+    "b03": {
+      "condition": "shipped",
+      "page": "hassette--getting-started--index",
+      "variant": "clean"
+    },
+    "b04": {
+      "condition": "shipped",
+      "page": "fastapi--tutorial--path-params",
+      "variant": "clean"
+    },
+    "b05": {
+      "condition": "shipped",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "b06": {
+      "condition": "shipped",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    }
+  },
+  "runs": {
+    "o01": {
+      "briefing": "b03",
+      "run": 1
+    },
+    "o02": {
+      "briefing": "b06",
+      "run": 2
+    },
+    "o03": {
+      "briefing": "b02",
+      "run": 2
+    },
+    "o04": {
+      "briefing": "b04",
+      "run": 2
+    },
+    "o05": {
+      "briefing": "b06",
+      "run": 1
+    },
+    "o06": {
+      "briefing": "b01",
+      "run": 2
+    },
+    "o07": {
+      "briefing": "b04",
+      "run": 1
+    },
+    "o08": {
+      "briefing": "b03",
+      "run": 2
+    },
+    "o09": {
+      "briefing": "b05",
+      "run": 1
+    },
+    "o10": {
+      "briefing": "b05",
+      "run": 2
+    },
+    "o11": {
+      "briefing": "b02",
+      "run": 1
+    },
+    "o12": {
+      "briefing": "b01",
+      "run": 1
+    }
+  }
+}

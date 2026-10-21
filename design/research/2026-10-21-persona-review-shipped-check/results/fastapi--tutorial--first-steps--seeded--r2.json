@@ -1,0 +1,23 @@
+{
+  "run_id": "o10",
+  "page": "tutorial/first-steps",
+  "findings": [
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "contradiction",
+      "quote": "{\"message\": \"Hello FastAPI\"}",
+      "problem": "The code returns {\"message\": \"Hello World\"}, but the page says the browser will show \"Hello FastAPI\". A reader who sees \"Hello World\" can't tell whether they typed something wrong or are running the wrong file.",
+      "suggestion": "Change the expected response to {\"message\": \"Hello World\"} so it matches the code."
+    },
+    {
+      "line": 45,
+      "section": "Check the openapi.json",
+      "type": "contradiction",
+      "quote": "\"paths\": {\n        \"/items/\": {\n            \"get\": {",
+      "problem": "The page says this is what the schema for the app looks like, but the app defines only the \"/\" path. Opening /openapi.json shows \"/\", not \"/items/\", so the reader will think their app differs from the example.",
+      "suggestion": "Show a \"paths\" entry for \"/\" with the root operation, or say the snippet is only an illustrative example of the format."
+    }
+  ],
+  "summary": "Introduces the smallest FastAPI app, how to run it with fastapi dev, the auto-generated docs and OpenAPI schema, the entrypoint setting, and a step-by-step recap of the code. Two examples of expected output don't match the code the reader just ran."
+}

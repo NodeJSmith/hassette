@@ -1,0 +1,130 @@
+{
+  "run_id": "o28",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.",
+      "confusion": "Alex is shown a full code block but told not to run it. It is unclear which file it goes in and whether to type it now. Alex may stall or paste it anyway.",
+      "suggestion": "Say the snippet is for reading only and that the complete file to paste comes in the next section. Name the file (apps/main.py) where it first matters."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "registers a handler (a method Hassette calls for you when an event arrives, here on_sun_change)",
+      "confusion": "The parenthetical definition helps, but 'event' is never explained. 'Glob pattern' and 'domain' are also used without definition, and sun.* may read like a regex.",
+      "suggestion": "Define 'event' in one clause (something HA reports, such as a state change). Add that sun.* means 'sun.' followed by anything, and that the domain is the part before the dot."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "missing-explanation",
+      "quote": "await self.bus.on_state_change(",
+      "confusion": "Alex has never seen async/await. The snippet uses 'async def' and 'await' before any explanation, which comes several paragraphs later. Alex does not know why await is there or whether to copy it.",
+      "suggestion": "Add a one-line note right after the first snippet saying 'async' and 'await' are required in Hassette handlers and to copy them as written. Link to Async Basics there."
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "confusing-syntax",
+      "quote": "new_state: D.StateNew[states.SunState] is a type annotation that tells Hassette: when this handler fires, pass in the new state as a SunState object. The bracket syntax works like list[str]",
+      "confusion": "Alex knows basic hints like list[str], but D.StateNew[states.SunState] is two dotted names plus brackets. Alex has also never seen type hints that change runtime behavior, which is surprising.",
+      "suggestion": "Walk through the expression piece by piece (D = a helper module, StateNew = which part of the event, SunState = the shape you want). Put the 'Hassette reads this annotation at runtime' note before the details, not three paragraphs later."
+    },
+    {
+      "line": 12,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "D is hassette.event_handling.dependencies, a module of type annotations.",
+      "confusion": "The import is 'from hassette import D', but the text says D is hassette.event_handling.dependencies, a different path. Alex wonders where to import from and whether the two are the same.",
+      "suggestion": "State that 'from hassette import D' is a shortcut alias for that module, so no extra import is needed."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection.",
+      "confusion": "The term is introduced after the explanation, which is good. But 'Pyright' is a new tool name and 'event dict parsing' refers to something Alex never saw. It reads like noise.",
+      "suggestion": "Drop 'No event dict parsing needed' or explain that the raw event is a nested dictionary. Keep Pyright as an optional aside."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "class MyAppConfig(AppConfig):\n    greeting: str = \"Hello from Hassette!\"",
+      "confusion": "Alex does not know Pydantic or AppConfig. The config class is carried over from the Quickstart with no recap, and it is unclear whether it must be kept or why it exists.",
+      "suggestion": "Add one sentence saying this config class is unchanged from the Quickstart and supplies the startup greeting."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "This is easy to miss in a long paragraph at the end of the explanation. Alex may paste the code, never see the light turn on, and not know why. The Developer Tools pointer does not say how to find an entity ID.",
+      "suggestion": "Put a callout right under the first snippet: 'Change light.porch to a real light. Find its ID under Developer Tools -> States.'"
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Async handlers run on Hassette's event loop: while one handler is paused at an await, other handlers keep running",
+      "confusion": "'Event loop', 'fire-and-forget' and 'paused at an await' are all new. This dense paragraph asks Alex to absorb concurrency just to continue. Link text suggests Async Basics is optional, but it is needed to understand the paragraph.",
+      "suggestion": "Cut to two sentences for this page: async def and await are required when calling Hassette APIs, and the await returns once the command is sent. Defer the event loop and fire-and-forget detail to the linked pages."
+    },
+    {
+      "line": 19,
+      "section": "Schedule a Recurring Job",
+      "type": "missing-step",
+      "quote": "from hassette import App, AppConfig, D, states\n\n\nclass MyAppConfig(AppConfig):",
+      "confusion": "The whole file is repeated with one new call and one new method. Alex cannot tell which lines are new compared with the first snippet.",
+      "suggestion": "Highlight the added lines (hl_lines) or add comments such as '# new'."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "undefined-term",
+      "quote": "Hassette tracks the job and cancels it automatically on shutdown.",
+      "confusion": "'The scheduler' appears without being introduced as a thing. Alex can follow run_minutely by name, but 'scheduler' and 'job' are used before being defined.",
+      "suggestion": "Add a brief first-use definition: the scheduler runs functions on a timer."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Replace your apps/main.py with the complete app from Schedule a Recurring Job. Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "Alex has to remember the file path and the run command from the Quickstart. It is also unclear whether Hassette needs a restart or reloads on file changes.",
+      "suggestion": "Repeat the project layout in one line, and confirm that the stop-and-restart is required."
+    },
+    {
+      "line": 29,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "INFO hassette.MyApp.0 \u2014 Heartbeat",
+      "confusion": "The expected output is shown, which is good, but Alex is not told where the logs appear (the terminal that is running Hassette, or the web UI).",
+      "suggestion": "Say that these lines print in the terminal where hassette run is running."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "Change the state value to below_horizon and click Set State.",
+      "confusion": "Alex is told that the Sun changed log line will show. The sun.sun state is normally above_horizon or below_horizon, so if it is already below_horizon nothing changes. The light will also only turn on if light.porch was replaced, and failure is silent otherwise.",
+      "suggestion": "Note that if the sun is already below_horizon, set it to above_horizon first and then back. Add what to check if no 'Porch light turned on' line appears, for example a wrong entity ID error."
+    },
+    {
+      "line": 36,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "The handler fires within milliseconds.",
+      "confusion": "Alex may not realise that setting the state manually through Developer Tools does not move the real sun. Another HA update could overwrite the value. There is also no check that the actual light changed in HA.",
+      "suggestion": "Add a line telling Alex to look at the light in HA to confirm it turned on, and mention that the sun entity will correct itself on the next real update."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can reach a working automation by pasting the final snippet, but gets there with effort. async/await, dependency injection, and the D and states imports arrive in a dense block of new concepts before anything is run. The biggest risks are the 'do not run this yet' snippet, the easy-to-miss light.porch replacement, and a test step that can silently show nothing."
+}

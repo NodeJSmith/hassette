@@ -1,0 +1,23 @@
+{
+  "run_id": "o09",
+  "page": "tutorial/first-steps",
+  "findings": [
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "contradiction",
+      "quote": "{\"message\": \"Hello FastAPI\"}",
+      "problem": "The code returns {\"message\": \"Hello World\"}, but the page says the browser will show \"Hello FastAPI\". A careful reader would think their app is wrong or that they are running a different file.",
+      "suggestion": "Change the expected response to {\"message\": \"Hello World\"} to match the code."
+    },
+    {
+      "line": 45,
+      "section": "Check the openapi.json",
+      "type": "contradiction",
+      "quote": "\"paths\": {\n        \"/items/\": {\n            \"get\": {",
+      "problem": "The example app only defines the path \"/\", but the sample openapi.json starts with a \"/items/\" path. The reader cannot tell whether their output should match this or whether something is wrong with their app.",
+      "suggestion": "Show a \"/\" path with a root operation, or say the snippet is from a different example app."
+    }
+  ],
+  "summary": "Walks through creating, running and checking a minimal FastAPI app, explains OpenAPI, the app instance, path operations and decorators, and optionally configuring the entrypoint and deploying. The code and commands are clear, but two expected outputs do not match the example app."
+}

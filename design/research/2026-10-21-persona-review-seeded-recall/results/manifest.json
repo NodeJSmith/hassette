@@ -1,0 +1,370 @@
+{
+  "briefings": {
+    "q0b08": {
+      "condition": "s",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    },
+    "q0b01": {
+      "condition": "a",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    },
+    "q0b06": {
+      "condition": "p",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    },
+    "q0b15": {
+      "condition": "s",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    },
+    "q0b02": {
+      "condition": "s",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "q0b16": {
+      "condition": "a",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    },
+    "q0b13": {
+      "condition": "a",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "q0b14": {
+      "condition": "p",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "q0b17": {
+      "condition": "a",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "q0b11": {
+      "condition": "t",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "q0b10": {
+      "condition": "c",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "q0b05": {
+      "condition": "p",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "q0b03": {
+      "condition": "t",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    },
+    "q0b07": {
+      "condition": "c",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    },
+    "q0b20": {
+      "condition": "c",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    },
+    "q0b18": {
+      "condition": "t",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    },
+    "q0b19": {
+      "condition": "t",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "q0b09": {
+      "condition": "p",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    },
+    "q0b12": {
+      "condition": "c",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "q0b04": {
+      "condition": "s",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "q1b02": {
+      "condition": "pd",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    },
+    "q1b05": {
+      "condition": "ps",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "q1b07": {
+      "condition": "pd",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "clean"
+    },
+    "q1b01": {
+      "condition": "ps",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "q1b04": {
+      "condition": "pd",
+      "page": "fastapi--tutorial--first-steps",
+      "variant": "seeded"
+    },
+    "q1b08": {
+      "condition": "ps",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "seeded"
+    },
+    "q1b03": {
+      "condition": "ps",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    },
+    "q1b06": {
+      "condition": "pd",
+      "page": "hassette--getting-started--first-automation",
+      "variant": "clean"
+    }
+  },
+  "runs": {
+    "o01": {
+      "briefing": "q0b20",
+      "run": 2
+    },
+    "o02": {
+      "briefing": "q0b18",
+      "run": 2
+    },
+    "o03": {
+      "briefing": "q0b12",
+      "run": 2
+    },
+    "o04": {
+      "briefing": "q1b08",
+      "run": 2
+    },
+    "o05": {
+      "briefing": "q1b08",
+      "run": 1
+    },
+    "o06": {
+      "briefing": "q1b03",
+      "run": 2
+    },
+    "o07": {
+      "briefing": "q0b13",
+      "run": 1
+    },
+    "o08": {
+      "briefing": "q0b08",
+      "run": 2
+    },
+    "o09": {
+      "briefing": "q0b05",
+      "run": 1
+    },
+    "o10": {
+      "briefing": "q0b17",
+      "run": 1
+    },
+    "o11": {
+      "briefing": "q1b03",
+      "run": 1
+    },
+    "o12": {
+      "briefing": "q0b02",
+      "run": 1
+    },
+    "o13": {
+      "briefing": "q0b15",
+      "run": 2
+    },
+    "o14": {
+      "briefing": "q1b06",
+      "run": 1
+    },
+    "o15": {
+      "briefing": "q0b17",
+      "run": 2
+    },
+    "o16": {
+      "briefing": "q0b20",
+      "run": 1
+    },
+    "o17": {
+      "briefing": "q0b16",
+      "run": 2
+    },
+    "o18": {
+      "briefing": "q0b04",
+      "run": 2
+    },
+    "o19": {
+      "briefing": "q0b09",
+      "run": 1
+    },
+    "o20": {
+      "briefing": "q0b09",
+      "run": 2
+    },
+    "o21": {
+      "briefing": "q1b05",
+      "run": 2
+    },
+    "o22": {
+      "briefing": "q1b06",
+      "run": 2
+    },
+    "o23": {
+      "briefing": "q0b06",
+      "run": 2
+    },
+    "o24": {
+      "briefing": "q1b04",
+      "run": 2
+    },
+    "o25": {
+      "briefing": "q0b12",
+      "run": 1
+    },
+    "o26": {
+      "briefing": "q0b01",
+      "run": 2
+    },
+    "o27": {
+      "briefing": "q0b19",
+      "run": 2
+    },
+    "o28": {
+      "briefing": "q0b16",
+      "run": 1
+    },
+    "o29": {
+      "briefing": "q0b07",
+      "run": 1
+    },
+    "o30": {
+      "briefing": "q0b19",
+      "run": 1
+    },
+    "o31": {
+      "briefing": "q1b05",
+      "run": 1
+    },
+    "o32": {
+      "briefing": "q0b03",
+      "run": 1
+    },
+    "o33": {
+      "briefing": "q0b11",
+      "run": 2
+    },
+    "o34": {
+      "briefing": "q0b18",
+      "run": 1
+    },
+    "o35": {
+      "briefing": "q0b11",
+      "run": 1
+    },
+    "o36": {
+      "briefing": "q1b01",
+      "run": 2
+    },
+    "o37": {
+      "briefing": "q1b07",
+      "run": 2
+    },
+    "o38": {
+      "briefing": "q0b13",
+      "run": 2
+    },
+    "o39": {
+      "briefing": "q0b14",
+      "run": 2
+    },
+    "o40": {
+      "briefing": "q0b01",
+      "run": 1
+    },
+    "o41": {
+      "briefing": "q0b06",
+      "run": 1
+    },
+    "o42": {
+      "briefing": "q0b08",
+      "run": 1
+    },
+    "o43": {
+      "briefing": "q0b15",
+      "run": 1
+    },
+    "o44": {
+      "briefing": "q0b07",
+      "run": 2
+    },
+    "o45": {
+      "briefing": "q0b10",
+      "run": 1
+    },
+    "o46": {
+      "briefing": "q0b02",
+      "run": 2
+    },
+    "o47": {
+      "briefing": "q1b04",
+      "run": 1
+    },
+    "o48": {
+      "briefing": "q0b05",
+      "run": 2
+    },
+    "o49": {
+      "briefing": "q1b07",
+      "run": 1
+    },
+    "o50": {
+      "briefing": "q0b03",
+      "run": 2
+    },
+    "o51": {
+      "briefing": "q0b14",
+      "run": 1
+    },
+    "o52": {
+      "briefing": "q0b04",
+      "run": 1
+    },
+    "o53": {
+      "briefing": "q0b10",
+      "run": 2
+    },
+    "o54": {
+      "briefing": "q1b02",
+      "run": 2
+    },
+    "o55": {
+      "briefing": "q1b02",
+      "run": 1
+    },
+    "o56": {
+      "briefing": "q1b01",
+      "run": 1
+    }
+  }
+}

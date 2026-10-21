@@ -1,0 +1,42 @@
+{
+  "run_id": "o02",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 107,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "on_sun_change is async def so it can await Hassette calls like self.api.turn_on(). Async handlers run on Hassette's event loop: while one handler is paused at an await, other handlers keep running",
+      "confusion": "Alex does not know async/await or event loops. The explanation uses 'event loop' and 'paused at an await' without defining them, so Alex is unsure whether they must understand this or just copy the pattern.",
+      "suggestion": "Add one plain sentence: 'Just write async def and put await before Hassette calls; you do not need to understand how it works yet.' Keep the link to Async Basics for later."
+    },
+    {
+      "line": 102,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "The bracket syntax works like list[str] in standard Python generics. D.StateNew[T] means \"a new-state value, typed as T.\"",
+      "confusion": "Alex knows list[str] as a type hint but not generics. Together with the heavy D.StateNew[states.SunState] syntax, this section is dense and takes a re-read to get through.",
+      "suggestion": "Say first, in plain words, that new_state will be a SunState object holding the new state, then explain the notation."
+    },
+    {
+      "line": 105,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection.",
+      "confusion": "The term is introduced and named, but Alex gets no reason to care and may wonder whether they need to know more. This is minor, since the surrounding explanation does supply the behavior.",
+      "suggestion": "Optional: note that the term is only a label and no further knowledge is needed to continue."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-context",
+      "quote": "Replace your apps/main.py with the complete app from Schedule a Recurring Job .",
+      "confusion": "The page begins with 'adds two features to the app from the Quickstart', so Alex must already have the Quickstart's project layout. The first snippet is described as not-to-run, and the final code only appears in the second section. Alex has to infer that the second snippet is the complete file.",
+      "suggestion": "Say explicitly 'copy the full code block in Schedule a Recurring Job into apps/main.py'."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can finish by copying the code and following the Run It steps. The async/event-loop and generics explanations are the main friction, since Alex has to guess how much of it matters. The page is mostly clear and the pointers to deeper docs are helpful."
+}

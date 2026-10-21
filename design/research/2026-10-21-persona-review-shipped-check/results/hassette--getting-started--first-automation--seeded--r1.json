@@ -1,0 +1,23 @@
+{
+  "run_id": "o05",
+  "page": "getting-started/first-automation",
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "contradiction",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "problem": "The heartbeat job logs \"Heartbeat\" (self.logger.info(\"Heartbeat\")), but the expected output shows \"Tick\". A reader watching for the heartbeat line would think the job isn't running.",
+      "suggestion": "Change the expected output to \"Heartbeat\" (or change the code to log \"Tick\")."
+    },
+    {
+      "line": 19,
+      "section": "Schedule a Recurring Job",
+      "type": "unclear-next-step",
+      "quote": "from hassette import App, AppConfig, D, states",
+      "problem": "The page never says where this code goes. The reader saved their app as apps/main.py in the Quickstart, and this snippet is a complete file that repeats the whole app. The reader may add it as a second file, which would leave two App classes running, or may not know that it replaces the contents of apps/main.py.",
+      "suggestion": "State that this full snippet replaces the contents of apps/main.py, then run it from the same project directory."
+    }
+  ],
+  "summary": "Extends the Quickstart app with a typed sun state-change handler that turns on a light, and a minutely scheduled heartbeat job, then shows how to run it and trigger the handler manually."
+}

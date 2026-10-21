@@ -3,11 +3,11 @@
 # requires-python = ">=3.11"
 # dependencies = ["beautifulsoup4"]
 # ///
-"""Extract rendered doc page content for persona review.
+"""Extract rendered doc page content for doc review skills.
 
 Reads the built HTML from site/ and extracts the article content as
 numbered lines, preserving code blocks and headings. Output is suitable
-for feeding directly to LLM persona subagents.
+for feeding directly to LLM review subagents.
 
 Requires `uv run mkdocs build` to have been run first.
 

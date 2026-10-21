@@ -1,0 +1,89 @@
+{
+  "run_id": "o37",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "overall_verdict": "followable",
+  "terms": [
+    {
+      "line": 151,
+      "term": "async def",
+      "explained": true,
+      "where": "Line 180-187: says the function is async, shows the plain def alternative, and points to the Async 'In a hurry?' page for the difference"
+    },
+    {
+      "line": 150,
+      "term": "decorator (@app.get)",
+      "explained": true,
+      "where": "Lines 149-154 explain the @something syntax and what the path operation decorator does"
+    },
+    {
+      "line": 108,
+      "term": "path",
+      "explained": true,
+      "where": "Lines 108-119 define path with a URL example and note it is also called endpoint or route"
+    },
+    {
+      "line": 121,
+      "term": "operation / HTTP methods",
+      "explained": true,
+      "where": "Lines 121-140 list the methods, what each is normally used for, and define operation"
+    },
+    {
+      "line": 30,
+      "term": "schema / OpenAPI",
+      "explained": true,
+      "where": "Lines 31-40 define schema, API schema, data schema, and OpenAPI"
+    },
+    {
+      "line": 40,
+      "term": "JSON Schema",
+      "explained": true,
+      "where": "Line 40 describes it as the standard for JSON data schemas"
+    },
+    {
+      "line": 25,
+      "term": "Swagger UI / ReDoc",
+      "explained": true,
+      "where": "Lines 25-28 say they are the automatic interactive API documentation systems"
+    },
+    {
+      "line": 194,
+      "term": "Pydantic models",
+      "explained": true,
+      "where": "Line 194 says 'you'll see more about that later', which defers it and is enough for a first page"
+    },
+    {
+      "line": 97,
+      "term": "Starlette",
+      "explained": true,
+      "where": "Lines 97-98 say FastAPI inherits from it and link to it; it is an optional technical detail"
+    },
+    {
+      "line": 195,
+      "term": "ORMs",
+      "explained": false,
+      "where": "Mentioned in passing in a parenthetical; Alex can ignore it and push through"
+    },
+    {
+      "line": 168,
+      "term": "GraphQL",
+      "explained": false,
+      "where": "Used only as an example in a tip; not needed to continue"
+    },
+    {
+      "line": 55,
+      "term": "entrypoint in pyproject.toml",
+      "explained": true,
+      "where": "Lines 53-72 explain what it does, with examples of main:app and backend.main:app"
+    },
+    {
+      "line": 85,
+      "term": "deploy / FastAPI Cloud",
+      "explained": true,
+      "where": "Lines 85-88 and 196-202 say what it is and mark it optional"
+    }
+  ],
+  "findings": [],
+  "stopped_at": null,
+  "summary": "Alex can copy the code into main.py, run uv run fastapi dev, and see the JSON response and the /docs page without trouble. async def appears before it is explained, but the page shows the plain def alternative and links to the async page. The unexplained terms (ORMs, GraphQL) are asides Alex can skip."
+}

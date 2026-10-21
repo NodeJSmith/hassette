@@ -1,0 +1,6 @@
+{
+  "run_id": "o07",
+  "page": "tutorial/path-params",
+  "findings": [],
+  "summary": "Covers declaring path parameters, typing them for automatic conversion and validation, route ordering, predefined values via str Enums, and path-containing parameters with :path."
+}
