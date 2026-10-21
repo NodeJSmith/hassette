@@ -1,6 +1,6 @@
 import asyncio
 
-from hassette_wire import ScheduleStatus
+from hassette_wire import ExecutionStatus, ScheduleStatus
 from whenever import SYSTEM_TZ, ZonedDateTime
 
 from hassette.app.app import App
@@ -521,7 +521,7 @@ async def test_recurring_job_skip_records_and_reschedules(hassette_with_schedule
         assert handler_called is False, "Handler should not run when predicate returns False"
         executor.enqueue_record.assert_called_once()
         record = executor.enqueue_record.call_args[0][0]
-        assert record.status == "skipped", f"Expected status='skipped', got {record.status!r}"
+        assert record.status is ExecutionStatus.SKIPPED, f"Expected status='skipped', got {record.status!r}"
         assert record.duration_ms == 0.0, f"Expected duration_ms=0.0, got {record.duration_ms}"
         assert job.next_run > original_next_run, "Recurring job should be rescheduled for its next occurrence"
 
@@ -555,7 +555,7 @@ async def test_one_shot_job_skip_records_and_completes(hassette_with_scheduler: 
     assert handler_called is False, "Handler should not run when predicate returns False"
     executor.enqueue_record.assert_called_once()
     record = executor.enqueue_record.call_args[0][0]
-    assert record.status == "skipped", f"Expected status='skipped', got {record.status!r}"
+    assert record.status is ExecutionStatus.SKIPPED, f"Expected status='skipped', got {record.status!r}"
     assert record.duration_ms == 0.0, f"Expected duration_ms=0.0, got {record.duration_ms}"
 
     assert job.schedule_status is ScheduleStatus.COMPLETED
@@ -600,7 +600,7 @@ async def test_predicate_exception_records_failure_and_does_not_run(
 
     executor.enqueue_record.assert_called_once()
     record = executor.enqueue_record.call_args[0][0]
-    assert record.status == "error", f"Expected status='error', got {record.status!r}"
+    assert record.status is ExecutionStatus.ERROR, f"Expected status='error', got {record.status!r}"
     assert record.error_type == "ZeroDivisionError"
     assert record.error_message == "boom"
     assert record.error_traceback is not None

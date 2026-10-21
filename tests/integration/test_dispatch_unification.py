@@ -14,6 +14,8 @@ Tests verify:
 import time
 from unittest.mock import AsyncMock, MagicMock
 
+from hassette_wire import ExecutionStatus
+
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
@@ -33,7 +35,7 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
 
     record = pop_execution_record(executor)
     assert record.listener_id == 42
-    assert record.status == "success"
+    assert record.status is ExecutionStatus.SUCCESS
     assert record.source_tier == "app"
 
 
@@ -46,7 +48,7 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
 
     record = pop_execution_record(executor)
     assert record.listener_id is None
-    assert record.status == "success"
+    assert record.status is ExecutionStatus.SUCCESS
 
 
 async def test_framework_listener_registration(
@@ -101,7 +103,7 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
     record = pop_execution_record(executor)
     assert record.listener_id == 99
     assert record.source_tier == "framework"
-    assert record.status == "success"
+    assert record.status is ExecutionStatus.SUCCESS
 
 
 async def test_reconciliation_guard_rejects_hassette(
@@ -365,7 +367,7 @@ async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
 
     record = await execute_job_and_pop_record(executor, job, _callable, job_db_id=55)
     assert record.job_id == 55
-    assert record.status == "success"
+    assert record.status is ExecutionStatus.SUCCESS
     assert record.source_tier == "app"
 
 
@@ -379,4 +381,4 @@ async def test_pre_registration_job_produces_orphan_record(executor: CommandExec
 
     record = await execute_job_and_pop_record(executor, job, _callable, job_db_id=None)
     assert record.job_id is None
-    assert record.status == "success"
+    assert record.status is ExecutionStatus.SUCCESS
