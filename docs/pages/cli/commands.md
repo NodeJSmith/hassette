@@ -21,7 +21,7 @@ hassette run
 | `--token`, `-t`   | Home Assistant access token. Overrides config file and environment.   |
 | `--ha-url`, `-u`  | URL of the Home Assistant instance to connect to.                     |
 | `--ha-verify-ssl` | Whether to verify SSL certificates for the Home Assistant connection. |
-| `--dev-mode`      | Enables developer mode.                                               |
+| `--dev-mode`      | Enables developer mode: extra logging, automatic app reloads on file changes, and deeper blocking-call detection. See [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging). |
 | `--app`, `-a`     | Run only this app key, excluding all others. Repeatable.              |
 | `--check`         | Validates the configuration, prints the resolved locations, and exits without starting. See [Checking the Resolved Locations](../core-concepts/configuration/index.md#check-config). |
 
@@ -318,7 +318,7 @@ $ hassette job trigger 1
 
 ## `hassette log`
 
-Recent log entries from the telemetry database (requires log persistence).
+Recent log entries from the telemetry database. Log persistence is always on. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Only records at or above `log_persistence_level` are stored.
 
 ```console
 $ hassette log --limit 5
@@ -479,7 +479,7 @@ These flags appear across multiple commands.
 
 ### Global flags
 
-These flags apply to every command and are placed before the subcommand name.
+These flags apply to every command and can go before or after the subcommand name, for example `hassette --json app` or `hassette app --json`.
 
 | Flag              | Aliases       | Description                                                                                  |
 | ----------------- | ------------- | ---------------------------------------------------------------------------------------------- |
