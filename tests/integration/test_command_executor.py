@@ -65,7 +65,7 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
 
     # Record should have been queued
     record = pop_execution_record(executor)
-    assert record.status == "cancelled"
+    assert record.status is ExecutionStatus.CANCELLED
     assert record.listener_id == 1
 
 
@@ -121,7 +121,7 @@ async def test_handler_error_swallowed(executor: CommandExecutor, exc: Exception
     await executor.execute(invoke_cmd(listener))
 
     record = pop_execution_record(executor)
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
     assert record.error_type == type(exc).__name__
     assert record.error_message == str(exc)
     if expect_traceback:
@@ -136,7 +136,7 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
     await executor.execute(invoke_cmd(make_mock_listener()))
 
     record = pop_execution_record(executor)
-    assert record.status == "success"
+    assert record.status is ExecutionStatus.SUCCESS
     assert record.listener_id == 1
     assert record.error_type is None
     assert record.error_message is None
@@ -156,14 +156,14 @@ async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
 
     await executor.execute(invoke_cmd(listener, effective_timeout=0.05))
 
-    assert pop_execution_record(executor).status == "timed_out"
+    assert pop_execution_record(executor).status is ExecutionStatus.TIMED_OUT
 
 
 async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
     """effective_timeout=None does not enforce timeout."""
     await executor.execute(invoke_cmd(make_mock_listener()))
 
-    assert pop_execution_record(executor).status == "success"
+    assert pop_execution_record(executor).status is ExecutionStatus.SUCCESS
 
 
 @pytest.mark.parametrize("effective_timeout", [None, 10.0], ids=["no_timeout", "unexpired_timeout"])
@@ -310,7 +310,7 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
     callable_mock = AsyncMock(return_value=None)
 
     record = await execute_job_and_pop_record(executor, job, callable_mock, job_db_id=42)
-    assert record.status == "success"
+    assert record.status is ExecutionStatus.SUCCESS
     assert record.job_id == 42
     assert record.duration_ms >= 0
 
@@ -321,7 +321,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     callable_mock = AsyncMock(side_effect=RuntimeError("job failed"))
 
     record = await execute_job_and_pop_record(executor, job, callable_mock, job_db_id=42)
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "RuntimeError"
     assert record.error_message == "job failed"
     assert record.error_traceback is not None
