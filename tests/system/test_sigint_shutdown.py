@@ -58,23 +58,28 @@ def _spawn_hassette(tmp_path: Path, ha_url: str) -> tuple[subprocess.Popen[str],
 
     Uses env vars (not a config file) so ``cwd=tmp_path`` never picks up a stray
     ``.env``/``hassette.toml`` from elsewhere on disk. Every app class already written to the apps
-    directory gets an entry, passed as nested ``HASSETTE__APPS__<KEY>__<FIELD>`` vars: a JSON value on
-    ``HASSETTE__APPS__<KEY>`` is not read as an app entry.
+    directory gets an entry, passed as nested ``HASSETTE__APPS__<KEY>__<FIELD>`` vars (``config`` keys one
+    level deeper, as ``__CONFIG__<KEY>``): a JSON value on ``HASSETTE__APPS__<KEY>`` is not read as an app entry.
     """
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir(parents=True, exist_ok=True)
     port = free_port()
+
+    app_vars: dict[str, str] = {}
+    for key, entry in app_entries(apps_dir).items():
+        prefix = f"HASSETTE__APPS__{key.upper()}__"
+        for field, value in entry.items():
+            if isinstance(value, dict):
+                app_vars.update({f"{prefix}{field.upper()}__{k.upper()}": str(v) for k, v in value.items()})
+            else:
+                app_vars[f"{prefix}{field.upper()}"] = str(value)
 
     env = hassette_run_env(
         tmp_path / "data",
         port,
         HASSETTE__APPS__DIRECTORY=str(apps_dir),
         HASSETTE__LIFECYCLE__STARTUP_TIMEOUT_SECONDS="30",
-        **{
-            f"HASSETTE__APPS__{key.upper()}__{field.upper()}": value
-            for key, entry in app_entries(apps_dir).items()
-            for field, value in entry.items()
-        },
+        **app_vars,
     )
     proc = spawn_hassette_run(tmp_path, env, ha_url, subprocess.PIPE)
     return proc, f"http://127.0.0.1:{port}"

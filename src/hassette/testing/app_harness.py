@@ -149,7 +149,7 @@ def make_hermetic_config(app_cls: type[App], app_config_cls: type[AppConfig], co
         raise AppConfigurationError(app_cls, exc) from exc
 
 
-def synthesize_manifest(app_cls: type[App], instance_name: str | None) -> AppManifest:
+def synthesize_manifest(app_cls: type[App], instance_name: object) -> AppManifest:
     """Build a minimal AppManifest for app_cls without requiring a real file or TOML config.
 
     Derives app_key from the class name (snake_case), filename from the source file's parent
@@ -158,7 +158,8 @@ def synthesize_manifest(app_cls: type[App], instance_name: str | None) -> AppMan
 
     Args:
         app_cls: The App subclass to synthesize a manifest for.
-        instance_name: The ``instance_name`` from the test's config, checked by the same rule as a configured app's.
+        instance_name: The ``instance_name`` value from the test's config, or None when it has none. It goes
+            through the same check as a configured app's, so a missing or invalid one fails.
 
     Returns:
         A synthesized AppManifest.
@@ -308,7 +309,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
         )
 
         # Step 8: Synthesize a per-instance manifest and validate the config.
-        # synthesize_manifest is a pure function of the class. make_hermetic_config writes
+        # synthesize_manifest is a pure function of its arguments. make_hermetic_config writes
         # a shared closure cell, but writes and reads it with no await in between, so
         # concurrent harnesses cannot interleave there. Neither path mutates the App class,
         # so the per-instance manifest needs no locking — each harness owns its own.

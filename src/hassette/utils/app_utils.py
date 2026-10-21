@@ -2,6 +2,7 @@ import ast
 import importlib.machinery
 import importlib.util
 import os
+import re
 import sys
 import traceback
 import typing
@@ -13,6 +14,7 @@ from pathlib import Path
 from pydantic.alias_generators import to_snake
 
 from hassette.app.utils import validate_app
+from hassette.config.classes import INSTANCE_NAME_MAX_LENGTH
 from hassette.config.defaults import APP_SCAN_EXCLUDE_DIRS
 from hassette.exceptions import (
     AppPrecheckFailedError,
@@ -36,6 +38,8 @@ LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 
 EXCLUDED_PATH_PARTS = ("site-packages", "importlib", "hassette")
+# Characters kept free under the instance-name length cap for a suggested key's ``_N`` suffix.
+SUGGESTED_KEY_SUFFIX_ROOM = 8
 APP_BASE_NAMES = frozenset({"App", "AppSync"})
 
 
@@ -280,8 +284,15 @@ def is_app_base(base: ast.expr) -> bool:
 
 
 def suggested_app_key(class_name: str, taken: set[str]) -> str:
-    """The snake_case class name as an app key, or the first free ``_2``, ``_3``, ... variant of it."""
-    base = to_snake(class_name)
+    """A key that is also a valid instance name, or the first free ``_2``, ``_3``, ... variant of it.
+
+    The class name in snake_case, with characters outside the instance-name charset replaced by ``_``,
+    an ``app_`` prefix when it doesn't start with a letter, and room left under the length cap for a suffix.
+    """
+    base = re.sub(r"[^a-z0-9_]", "_", to_snake(class_name)).strip("_")
+    if not base[:1].isalpha():
+        base = f"app_{base}".rstrip("_")
+    base = base[: INSTANCE_NAME_MAX_LENGTH - SUGGESTED_KEY_SUFFIX_ROOM].rstrip("_")
     key, suffix = base, 2
     while key in taken:
         key = f"{base}_{suffix}"

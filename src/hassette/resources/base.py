@@ -203,7 +203,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     def _get_logger_name(self) -> str:
         # Asks the parent for its name rather than reading parent.logger, which doesn't exist yet when
         # Hassette builds its own TaskBucket child.
-        # A root resource is its own parent (as Hassette is); recursing into it would never end.
+        # A root resource is its own parent; recursing into it would never end. (Hassette overrides this method.)
         if self.parent is None or self.parent is self:
             return f"hassette.{self.unique_name}"
         return f"{self.parent._get_logger_name()}.{self.class_name}"

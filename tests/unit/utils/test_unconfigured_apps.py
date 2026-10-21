@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from hassette import context
+from hassette.config.classes import instance_name_reason
 from hassette.config.config import HassetteConfig
 from hassette.testing import make_test_config
 from hassette.utils.app_utils import (
@@ -271,3 +272,22 @@ class TestAppStartupWarnings:
 )
 def test_suggested_app_key_takes_the_first_free_suffix(taken: set[str], expected: str) -> None:
     assert suggested_app_key("LightsApp", taken) == expected
+
+
+@pytest.mark.parametrize(
+    ("class_name", "expected"),
+    [
+        ("HTTPApp", "http_app"),
+        ("_PrivateApp", "private_app"),
+        ("LightsApp_", "lights_app"),
+        ("ÄpfelApp", "pfel_app"),
+        ("_", "app"),
+        ("X" * 200, "x" * 120),
+    ],
+)
+def test_suggested_app_key_is_a_valid_instance_name(class_name: str, expected: str) -> None:
+    """The snippet reuses the key as its instance name, so a class name outside the charset still gets a valid one."""
+    key = suggested_app_key(class_name, set())
+
+    assert key == expected
+    assert instance_name_reason(key) is None

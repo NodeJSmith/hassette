@@ -94,7 +94,7 @@ def make_execution_id(scenario: str, app_key: str, index: int) -> str:
 
 
 def make_instance_name(class_name: str, instance_index: int) -> str:
-    """Build the display instance name, matching the production default fallback."""
+    """Build a seeded instance name. Telemetry rows store it as an opaque display string, never parsed as config."""
     return f"{class_name}.{instance_index}"
 
 

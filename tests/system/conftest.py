@@ -29,7 +29,7 @@ from hassette.events import Event, RawStateChangeEvent
 from hassette.scheduler import Scheduler
 from hassette.testing import wait_for
 from hassette.types.types import RawAppDict
-from hassette.utils.app_utils import find_unconfigured_app_classes
+from hassette.utils.app_utils import find_unconfigured_app_classes, suggested_app_key
 
 logger = logging.getLogger(__name__)
 
@@ -325,13 +325,21 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
 def app_entries(app_dir: Path) -> dict[str, RawAppDict]:
     """An app entry for every app class in `app_dir`, keyed by class name so a class-name lookup finds its key.
 
-    Reuses the unconfigured-app scan with nothing configured, so every class it finds gets an entry; the
-    scan's own behavior is pinned in ``tests/unit/utils/test_unconfigured_apps.py``.
+    Reuses the unconfigured-app scan with nothing configured, so every class it finds gets an entry, named the
+    way the scan's warning would suggest; the scan's own behavior is pinned in
+    ``tests/unit/utils/test_unconfigured_apps.py``.
     """
-    return {
-        class_name: RawAppDict(filename=path.relative_to(app_dir.resolve()).as_posix(), class_name=class_name)
-        for path, class_name in find_unconfigured_app_classes(app_dir, set()).unconfigured
-    }
+    entries: dict[str, RawAppDict] = {}
+    names: set[str] = set()
+    for path, class_name in find_unconfigured_app_classes(app_dir, set()).unconfigured:
+        name = suggested_app_key(class_name, names)
+        names.add(name)
+        entries[class_name] = RawAppDict(
+            filename=path.relative_to(app_dir.resolve()).as_posix(),
+            class_name=class_name,
+            config={"instance_name": name},
+        )
+    return entries
 
 
 def with_app_entries(config: HassetteConfig, app_dir: Path) -> HassetteConfig:

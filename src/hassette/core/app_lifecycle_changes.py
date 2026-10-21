@@ -35,7 +35,8 @@ class AppRestart:
     indices: tuple[int, ...] | None = None
     """The instance indices to restart, or None for every instance of the app."""
     force_reload: bool = False
-    """Re-import the app class from disk before recreating (a file change)."""
+    """Re-import the app class from disk before recreating (a file change). Only set with ``indices=None``:
+    a re-import always restarts every instance."""
 
 
 class AppChangeReconcilerMixin:
@@ -105,18 +106,14 @@ class AppChangeReconcilerMixin:
             await self.stop_app(app_key)
 
         restarts = [
-            *(
-                AppRestart(app_key, force_reload=True)
-                for app_key in changes.reimport_apps
-                if self._should_restart(app_key)
-            ),
-            *(
-                restart
-                for app_key in changes.reload_apps
-                if self._should_restart(app_key)
-                and (restart := self._plan_reload(app_key, original_config, current_config)) is not None
-            ),
+            AppRestart(app_key, force_reload=True) for app_key in changes.reimport_apps if self._should_restart(app_key)
         ]
+        for app_key in changes.reload_apps:
+            if not self._should_restart(app_key):
+                continue
+            restart = self._plan_reload(app_key, original_config, current_config)
+            if restart is not None:
+                restarts.append(restart)
         await self._restart_apps(restarts)
 
         for app_key in changes.new_apps:

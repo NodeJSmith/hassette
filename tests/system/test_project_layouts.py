@@ -115,7 +115,11 @@ def test_flat_layout_starts_the_app(ha_container: str, tmp_path: Path) -> None:
     """``hassette.toml`` and ``apps/`` in the working directory: the configured app runs."""
     project = tmp_path / "home-automations"
     # no [hassette.apps] directory: apps default to ./apps
-    write_file(project / "hassette.toml", '[hassette.apps.greeter]\nfilename = "greeter.py"\nclass_name = "Greeter"\n')
+    write_file(
+        project / "hassette.toml",
+        '[hassette.apps.greeter]\nfilename = "greeter.py"\nclass_name = "Greeter"\n'
+        'config = { instance_name = "greeter" }\n',
+    )
     write_file(project / "apps" / "greeter.py", GREETER_APP)
 
     run = start_hassette(project, ha_container)
@@ -147,6 +151,7 @@ def test_src_layout_project_starts_the_app(ha_container: str, tmp_path: Path) ->
             [hassette.apps.greeter]
             filename = "greeter.py"
             class_name = "Greeter"
+            config = { instance_name = "greeter" }
             """
         ),
     )
