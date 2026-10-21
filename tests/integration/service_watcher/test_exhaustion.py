@@ -12,6 +12,7 @@ from hassette.events import AnyEvent
 from hassette.testing import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import RestartType
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 
 from .helpers import (
     ALWAYS_FAIL,
@@ -220,7 +221,7 @@ async def test_cooldown_then_recovery(watcher: ServiceWatcher):
     cooldown_task = watcher._cooldown_tasks[dummy.key]
 
     # Wait for the cooldown task to complete
-    await asyncio.wait_for(asyncio.shield(cooldown_task), timeout=2.0)
+    await asyncio.wait_for(asyncio.shield(cooldown_task), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     # After cooldown, budget should have been reset and restart attempted
     if watcher._budgets.get(dummy.key):
