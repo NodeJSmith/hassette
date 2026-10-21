@@ -131,7 +131,7 @@ A name:
 - doesn't end with `_`
 - is at most 128 characters
 
-`upstairs` and `kitchen_lights_2` are valid; `MyApp.0`, `Upstairs`, and `kitchen-lights` are not. Every name must be unique across the whole config, disabled apps included. [Instance Names](../core-concepts/apps/configuration.md#instance-names) has the full rules.
+`upstairs` and `kitchen_lights_2` are valid; `MyApp.0`, `Upstairs`, and `kitchen-lights` are not. Every name must be unique across the whole config, disabled apps included. [Instance Names](../core-concepts/apps/configuration.md#instance-names) has the full rules. `hassette run --check` reports a missing, invalid, or duplicate name without starting Hassette.
 
 The old default `ClassName.<index>` isn't a valid name, so a few other things change with it:
 

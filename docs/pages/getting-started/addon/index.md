@@ -41,7 +41,7 @@ Watchdog restarts Hassette if it crashes or fails its health check. Without it, 
 ## Step 3: Start it
 
 1. On the **Info** tab, choose **Start**.
-2. Open the **Log** tab and wait for the line ending in `Hassette is running.`
+2. Open the **Log** tab and wait for the line containing `Hassette is running.`
 3. Open **Hassette** in the Home Assistant sidebar.
 
 On first start, the log includes these lines. Your timestamps differ, and you can skip everything else for now:
