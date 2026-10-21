@@ -7,6 +7,7 @@ config's inputs, and anchor relative paths: values from a file are relative to t
 directory, values from the process env and init kwargs to the working directory.
 """
 
+import json
 import tomllib
 from collections.abc import Iterable, Mapping, Sequence
 from logging import getLogger
@@ -51,7 +52,7 @@ class SnapshotEnvSettingsSource(EnvSettingsSource):
         return parse_env_vars(environ, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
 
     def __call__(self) -> dict[str, Any]:
-        return anchor_paths(self.settings_cls, super().__call__(), self.build.cwd)
+        return anchor_paths(self.settings_cls, decode_json_app_entries(super().__call__()), self.build.cwd)
 
 
 class FileDotEnvSettingsSource(DotEnvSettingsSource):
@@ -76,7 +77,7 @@ class FileDotEnvSettingsSource(DotEnvSettingsSource):
         return parse_env_vars(raw, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
 
     def __call__(self) -> dict[str, Any]:
-        return anchor_paths(self.settings_cls, super().__call__(), self.path.parent)
+        return anchor_paths(self.settings_cls, decode_json_app_entries(super().__call__()), self.path.parent)
 
 
 class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
@@ -154,6 +155,31 @@ def anchor_paths(model: type[BaseModel], data: dict[str, Any], base: Path) -> di
         elif model is AppsConfig and key == "apps" and isinstance(value, dict):  # [hassette.apps.apps.my_app]
             out[key] = {k: anchor_paths(AppManifest, v, base) if isinstance(v, dict) else v for k, v in value.items()}
     return out
+
+
+def decode_json_app_entries(data: dict[str, Any]) -> dict[str, Any]:
+    """Return `data` with each JSON-object app entry under ``apps`` decoded to a dict.
+
+    pydantic-settings decodes JSON only for declared fields, so ``HASSETTE__APPS__<KEY>='{...}'`` arrives
+    as a string; decoded, it becomes the same app entry as the ``HASSETTE__APPS__<KEY>__<FIELD>`` form.
+    """
+    apps = data.get("apps")
+    if not isinstance(apps, dict):
+        return data
+    decoded = {
+        key: json.loads(value) if key not in AppsConfig.model_fields and is_json_object(value) else value
+        for key, value in apps.items()
+    }
+    return {**data, "apps": decoded}
+
+
+def is_json_object(value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        return isinstance(json.loads(value), dict)
+    except ValueError:
+        return False
 
 
 def config_file_error(path: Path, exc: Exception) -> ConfigError:

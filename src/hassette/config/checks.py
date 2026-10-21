@@ -19,6 +19,7 @@ from hassette.config.build import ENVIRONMENT_SOURCE, ConfigBuild
 from hassette.config.classes import AppManifest, is_mapping_annotation, model_annotation
 from hassette.config.locations import ENV_NESTED_DELIMITER, SETTINGS_ENV_PREFIX, ConfigLocations, is_config_dir_env
 from hassette.config.models import AppsConfig
+from hassette.config.sources import is_json_object
 from hassette.exceptions import ConfigError
 from hassette.utils.alias_utils import str_aliases
 
@@ -229,12 +230,3 @@ def field_spellings(name: str, info: FieldInfo) -> list[str]:
 def field_names(model: type[BaseModel]) -> Iterator[str]:
     for name, info in model.model_fields.items():
         yield from field_spellings(name, info)
-
-
-def is_json_object(value: str | None) -> bool:
-    if not value:
-        return False
-    try:
-        return isinstance(json.loads(value), dict)
-    except ValueError:
-        return False

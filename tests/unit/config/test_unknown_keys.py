@@ -106,13 +106,20 @@ class TestAccepted:
             pytest.param({"hassette__base_url": "http://ha:8123"}, id="lowercase"),
             pytest.param({"HASSETTE__TOKEN": "t", "HA_TOKEN": "t"}, id="token-aliases"),
             pytest.param({"HASSETTE__APPS__MY_APP__CONFIG__SENSOR": "s"}, id="app-definition-path"),
-            pytest.param({"HASSETTE__APPS__MY_APP": '{"filename": "a.py"}'}, id="app-definition-json"),
             pytest.param({"HASSETTE__APPS": '{"directory": "/apps"}'}, id="json-group"),
             pytest.param({"HASSETTE_DOCKER_INSTALL_DEPS": "1", "CAR_STATUS_X": "1"}, id="other-prefixes"),
         ],
     )
     def test_process_env(self, cfg: Path, env: dict[str, str]) -> None:
         load(cfg, env=env)
+
+    @pytest.mark.parametrize("source", ["env", "dotenv"])
+    def test_app_definition_json_loads_as_the_app_entry(self, cfg: Path, source: str) -> None:
+        """``HASSETTE__APPS__<KEY>='{...}'`` becomes the same app entry as the nested ``__<FIELD>`` form."""
+        name, value = "HASSETTE__APPS__MY_APP", '{"filename": "a.py", "class_name": "A"}'
+        config = load(cfg, env={name: value}) if source == "env" else load(cfg, dotenv=f"{name}='{value}'\n")
+
+        assert config.apps.apps["my_app"] == {"filename": "a.py", "class_name": "A"}
 
     def test_unprefixed_dotenv_keys_are_ignored(self, cfg: Path) -> None:
         load(cfg, dotenv="MY_APP_SECRET=1\n")
