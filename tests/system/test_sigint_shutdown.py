@@ -21,6 +21,8 @@ from pathlib import Path
 import httpx2 as httpx
 import pytest
 
+from tests.support.helpers import write_app
+
 from .conftest import app_entries, free_port, hassette_run_env, spawn_hassette_run
 
 pytestmark = [pytest.mark.system_destructive]
@@ -160,9 +162,7 @@ def test_second_sigint_forces_exit_during_stalled_shutdown(ha_container: str, tm
     inside the blocking call — proving the dedicated sigwait() thread still receives and
     handles the signal while loop.add_signal_handler()'s callback could not have.
     """
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir(parents=True, exist_ok=True)
-    (apps_dir / "stalling_shutdown_app.py").write_text(STALLING_APP_SOURCE)
+    write_app(tmp_path / "apps", "stalling_shutdown_app.py", STALLING_APP_SOURCE)
 
     proc, base_url = _spawn_hassette(tmp_path, ha_container)
     marker_seen = threading.Event()

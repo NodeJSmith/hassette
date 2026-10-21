@@ -242,7 +242,7 @@ def find_unconfigured_app_classes(app_dir: Path, configured: set[tuple[Path, str
     if not root.is_dir() or APP_SCAN_EXCLUDE_DIRS.intersection(root.parts):
         return AppScan()
 
-    found: list[tuple[Path, str]] = []
+    unconfigured: list[tuple[Path, str]] = []
     unreadable: list[tuple[Path, str]] = []
     # os.walk skips directories it can't read instead of raising
     for dirpath, dirnames, filenames in os.walk(root):
@@ -259,8 +259,8 @@ def find_unconfigured_app_classes(app_dir: Path, configured: set[tuple[Path, str
                 error = f"{exc.msg} (line {exc.lineno})" if isinstance(exc, SyntaxError) else str(exc)
                 unreadable.append((path, error))
                 continue
-            found.extend((path, name) for name in class_names if (resolved, name) not in configured)
-    return AppScan(unconfigured=found, unreadable=unreadable)
+            unconfigured.extend((path, name) for name in class_names if (resolved, name) not in configured)
+    return AppScan(unconfigured=unconfigured, unreadable=unreadable)
 
 
 def app_class_names(tree: ast.Module) -> list[str]:
@@ -606,7 +606,7 @@ def app_startup_warnings(apps: "AppsConfig", *, config_files: Iterable[Path], cw
         taken.add(key)
         warnings.append(unconfigured_app_warning(apps.directory, path, class_name, key))
 
-    has_apps = bool(apps.manifests) or bool(scan.unconfigured)
+    has_apps = bool(apps.manifests or scan.unconfigured)
     if warning := apps_dir_warning(
         apps.directory, has_apps=has_apps, config_files=config_files, cwd=cwd, unreadable=scan.unreadable
     ):

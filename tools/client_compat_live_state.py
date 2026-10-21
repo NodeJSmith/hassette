@@ -62,7 +62,7 @@ MANIFEST_SEED_FIELDS = (
 )
 """The ``AppManifestInfo`` fields :func:`seed_live_state` copies into ``SeedContext.add_app_manifest``.
 
-Spelled as names rather than as keyword arguments because the same six keyword arguments already appear in
+Spelled as names rather than as keyword arguments because the same keyword arguments already appear in
 ``AppRegistry`` and the e2e manifest fixtures, and the duplicate-code gate rejects a third copy."""
 
 SERVICE_CHILDREN = (

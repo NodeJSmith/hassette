@@ -207,7 +207,7 @@ class TestAppStartupWarnings:
         config = make_config(tmp_path, app_dir, apps=entries, **pasted_entries(warnings))
 
         # suffixes follow walk order: root files first, then lights/ with garage.py before porch.py
-        assert {key: m.full_path for key, m in config.apps.manifests.items()} == {
+        assert {key: manifest.full_path for key, manifest in config.apps.manifests.items()} == {
             "lights_app": (app_dir / "configured.py"),
             "directory_2": directory,
             "lights_app_2": garage,
