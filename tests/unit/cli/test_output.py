@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import CliFormat
+from hassette_wire import AppStatus, CliFormat, ExecutionStatus
 from pydantic import BaseModel
 from rich.console import Console
 from whenever import Instant
@@ -491,10 +491,12 @@ class TestStatusStyle:
             ("warn", "yellow"),
             ("degraded", "yellow"),
             ("timed_out", "yellow"),
+            ("blocked", "yellow"),
             ("stopped", "dim"),
             ("disabled", "dim"),
             ("cancelled", "dim"),
             ("starting", "dim"),
+            ("skipped", "dim"),
             ("RUNNING", "green"),
             ("Failed", "red"),
             ("unknown", None),
@@ -505,6 +507,10 @@ class TestStatusStyle:
     )
     def test_maps_value_to_style(self, value: Any, expected: str | None) -> None:
         assert status_style(value) == expected
+
+    @pytest.mark.parametrize("status", [*AppStatus, *ExecutionStatus])
+    def test_every_app_and_execution_status_has_a_style(self, status: AppStatus | ExecutionStatus) -> None:
+        assert status_style(status) is not None
 
 
 class TestRenderTableStatusStyling:
