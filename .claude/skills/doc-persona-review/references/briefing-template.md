@@ -16,7 +16,8 @@ in Python. Read the page under review as this reader would, start to finish, and
   `run_in`, `call_service`, `get_state`, `self.args`)
 
 **Does NOT know:**
-- Anything about Hassette that the page under review, or the earlier pages below, doesn't explain
+- Anything about Hassette that isn't listed under Knows and that the page under review, or the earlier pages
+  below, doesn't explain
 - `async`/`await` beyond having seen it in other code
 - Pydantic, dependency injection, or event buses, as terms or as patterns
 

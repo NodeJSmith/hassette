@@ -48,7 +48,7 @@ Read the file at {briefing_path} and follow the instructions inside. Return only
 
 Cap at 5 concurrent subagents.
 
-Strip any code fence around each result and parse it as JSON. It must have `page`, `findings` (a list) and `summary`. Each finding's `type` must be one of `missing-step`, `missing-prerequisite`, `undefined-term`, `contradiction`, `no-verification` or `unclear-next-step`. If a result fails those checks, re-dispatch that page once. If the second result also fails, list the page under "not reviewed" in Phase 4 with the reason.
+Strip any code fence around each result and parse it as JSON. It must have `page`, `findings` (a list) and `summary`. Each finding must have `line` as an integer, `section`, `quote`, `problem` and `suggestion` as non-empty strings, and a `type` that is one of `missing-step`, `missing-prerequisite`, `undefined-term`, `contradiction`, `no-verification` or `unclear-next-step`. If a result fails those checks, re-dispatch that page once. If the second result also fails, list the page under "not reviewed" in Phase 4 with the reason.
 
 ## Phase 4: Verify and Present
 
@@ -69,7 +69,7 @@ List pages with findings first. Then name the pages that came back clean in one 
 Before changing the briefing or the reader, check that the change still separates a good page from a broken copy of it. Don't commit seeded copies: they go stale as the pages change. Seed fresh ones from the current site each time:
 
 1. Pick a page and save two copies of its extracted text: one untouched, and one with four planted defects. Plant a missing step, output that contradicts the code, a removed link or prerequisite, and a removed definition. Remove the whole definition: leaving text that half-explains the term is not a removal.
-2. Build a briefing for each copy with the page's real earlier pages, and run each twice. The assembler only reads the built site, so fill the template yourself for the seeded copy (the research directory's `build.py` shows how).
+2. Build a briefing for each copy with the page's real earlier pages, and run each twice. The assembler only reads the built site, so fill `references/briefing-template.md` yourself for the seeded copy. The research directory's `build.py` shows the mechanics, but it fills the pre-rework template from a snapshot, so its placeholders differ from the live one.
 3. The clean copy should come back with zero or one finding per run. Every seeded run should report more findings than every clean run. At least half the planted defects should be caught in at least one of the two runs; the current baseline is about two-thirds.
 
 `design/research/2026-10-21-persona-review-seeded-recall/` is a worked example (`prep.py` for seeding, `build.py` for briefings, `score.py` for a blind judge). The baseline is the `p` condition there: clean copies averaged 0.2 findings, seeded copies 3.2, and the reviewer caught about two-thirds of the seeds that were real defects.
