@@ -224,7 +224,7 @@ The generic service call method. Service data passes as keyword arguments. They 
 ```
 
 `call_service` is fire-and-forget by default. The payload goes out and a Home Assistant-side
-failure — a misspelled entity, a rejected value — is never reported back.
+failure — an unknown service, invalid service data — is never reported back.
 
 `wait_for_ack=True` waits for Home Assistant's confirmation instead, and raises
 [`FailedMessageError`][hassette.exceptions.FailedMessageError] when the call fails. The wait
@@ -233,6 +233,10 @@ Unlike `return_response=True`, it works with any service that returns no respons
 asks for none. The exception is the small set of services Home Assistant declares as
 *response-only* (`weather.get_forecasts`, `conversation.process`): those reject a call that does
 not request the response. Pass `return_response=True` for them; it waits on the same confirmation.
+
+A nonexistent entity id in `target` or `entity_id` is not a failure, so `wait_for_ack` does not
+raise for it. Home Assistant logs a warning and the call succeeds. `self.states.get(...)` returns
+`None` for an unknown entity id, so a check before the call catches the typo instead.
 
 Whenever `call_service` waits, through either flag, it sends the call exactly once. If the
 confirmation never arrives, it raises
@@ -357,7 +361,7 @@ returns a reply. Set `return_response=True` to include the response payload. Wit
 
 Home Assistant rejects `return_response=True` for any service that does not declare a response,
 and rejects a call that omits it for a service that returns *only* a response. `return_response`
-is therefore not a general "did this work?" check — `wait_for_ack=True` covers that case.
+is therefore not a way to confirm Home Assistant accepted a call — `wait_for_ack=True` covers that case.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_response.py"
