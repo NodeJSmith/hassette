@@ -1,19 +1,12 @@
 """An app's unique_name, logger names and owner_id all derive from its instance name (#3095)."""
 
-from hassette.app.app import App
-from hassette.app.app_config import AppConfig
+from hassette import App, AppConfig
 from hassette.testing import AppTestHarness
 
 
 class PorchLightApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         pass
-
-
-async def test_harness_app_is_named_after_its_class() -> None:
-    async with AppTestHarness(PorchLightApp, config={"instance_name": "porch_light_app"}) as harness:
-        assert harness.app.instance_name == "porch_light_app"
-        assert harness.app.unique_name == "porch_light_app"
 
 
 async def test_identity_derives_from_the_configured_name() -> None:
