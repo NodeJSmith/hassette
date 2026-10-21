@@ -95,6 +95,18 @@ Each app sets its own log level with `log_level` in that app's config section.
 
 The per-app `log_level` lives under `[hassette.apps.<key>]` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` inherit `logging.apps`, which in turn defaults to the global `log_level`.
 
+An app's `log_level` covers the lines its own code writes: `self.logger` and any logger you create under it with `self.logger.getChild(...)`. Lines Hassette writes about the app come from framework loggers and follow framework levels:
+
+| Lines about your app | Logger | Level field |
+|----------------------|--------|-------------|
+| Starting, stopping, hook failures, readiness | `hassette.apps.<instance_name>.Lifecycle` | `logging.app_handler` |
+| Listener and job activity | the app's `Bus` and `Scheduler` children | `logging.bus_service`, `logging.scheduler_service` |
+
+These lines still carry your app's name and instance, so the app's own log view and `hassette log --app <key>` show them. They are marked `framework`, not `app`, so `--source-tier app` leaves them out. To see an app's lifecycle detail, set `logging.app_handler = "DEBUG"`.
+
+!!! note "Upgrading from 0.59 or earlier"
+    Lifecycle lines about an app used to be written on the app's own logger, so they followed the app's `log_level` and were marked `app`. They now follow `logging.app_handler` and are marked `framework`. An app at `DEBUG` no longer shows Hassette's lifecycle detail unless `app_handler` is also `DEBUG`, and an app at `ERROR` now shows lifecycle warnings, such as cleanup timeouts, at the default `app_handler` level.
+
 ## Runtime Log Level Changes
 
 `PUT /api/logs/level` changes a logger's effective level on a running instance — no restart, no `hassette.toml` edit. The change applies immediately to both structlog and stdlib callers on that logger:

@@ -202,6 +202,7 @@ def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: 
     app.shutdown = AsyncMock()
     app.ready_event = asyncio.Event()
     app.logger = Mock()
+    app.lifecycle_logger = Mock()
     app.bus = MagicMock()
     app.bus.get_listeners = Mock(return_value=[])
     app.bus.owner_id = f"{class_name}.{instance_name}"

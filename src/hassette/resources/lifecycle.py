@@ -77,9 +77,9 @@ def mark_ready(resource: _LifecycleHostP, reason: str | None = None) -> None:
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.ready_event.is_set():
-        resource.logger.debug("%s already ready, skipping reason %s", resource.unique_name, reason)
+        resource.lifecycle_logger.debug("%s already ready, skipping reason %s", resource.unique_name, reason)
         return
-    resource.logger.debug("ready: %s", reason or "no reason provided")
+    resource.lifecycle_logger.debug("ready: %s", reason or "no reason provided")
     resource._ready_reason = reason
     resource.ready_event.set()
 
@@ -93,7 +93,7 @@ def mark_not_ready(resource: _LifecycleHostP, reason: str | None = None) -> None
     """
     resource = typing.cast("LifecycleMixin", resource)
     if not resource.ready_event.is_set():
-        resource.logger.debug("%s already not ready, skipping reason %s", resource.unique_name, reason)
+        resource.lifecycle_logger.debug("%s already not ready, skipping reason %s", resource.unique_name, reason)
         return
 
     resource._ready_reason = reason
@@ -118,7 +118,9 @@ def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> No
     """Set the sticky shutdown flag. Idempotent."""
     resource = typing.cast("LifecycleMixin", resource)
     if not resource.shutdown_event.is_set():
-        resource.logger.debug("%s shutdown requested: %s", resource.unique_name, reason or "no reason", stacklevel=2)
+        resource.lifecycle_logger.debug(
+            "%s shutdown requested: %s", resource.unique_name, reason or "no reason", stacklevel=2
+        )
         resource.shutdown_event.set()
     # clear readiness early so callers back off
     mark_not_ready(resource, reason or "shutdown requested")
@@ -165,7 +167,7 @@ def start(resource: _LifecycleHostP) -> None:
             try:
                 start(resource)
             except Exception:
-                resource.logger.exception(
+                resource.lifecycle_logger.exception(
                     "%s: cross-thread start() failed after re-dispatch onto the loop thread",
                     resource.unique_name,
                 )
@@ -176,7 +178,7 @@ def start(resource: _LifecycleHostP) -> None:
     reject_lifecycle_reentry(resource, "start")
 
     if resource._init_task is not None and not resource._init_task.done():
-        resource.logger.debug("%s already started or running", resource.unique_name, stacklevel=2)
+        resource.lifecycle_logger.debug("%s already started or running", resource.unique_name, stacklevel=2)
         return
 
     # A second guard, not a duplicate of the one above: _init_task is only assigned once the
@@ -185,14 +187,14 @@ def start(resource: _LifecycleHostP) -> None:
     # _init_task still None and spawn a second, redundant joiner. See _pending_start_task's
     # docstring for the shutdown-race this same field also closes.
     if resource._pending_start_task is not None and not resource._pending_start_task.done():
-        resource.logger.debug("%s start already pending", resource.unique_name, stacklevel=2)
+        resource.lifecycle_logger.debug("%s start already pending", resource.unique_name, stacklevel=2)
         return
 
     report = resource._teardown_report
     if report is not None and not report.is_restart_safe:
         raise RestartRefusedError(resource.unique_name, report)
 
-    resource.logger.debug("%s starting", resource.unique_name)
+    resource.lifecycle_logger.debug("%s starting", resource.unique_name)
     joiner = create_lifecycle_task(resource.initialize(), name="resource:resource_initialize")
     _install_exception_observer(resource, joiner, "start joiner")
     resource._pending_start_task = joiner
@@ -236,7 +238,7 @@ def cancel(resource: _LifecycleHostP) -> None:
             try:
                 cancel(resource)
             except Exception:
-                resource.logger.exception(
+                resource.lifecycle_logger.exception(
                     "%s: cross-thread cancel() failed after re-dispatch onto the loop thread",
                     resource.unique_name,
                 )
@@ -248,16 +250,16 @@ def cancel(resource: _LifecycleHostP) -> None:
 
     if resource._pending_start_task is not None and not resource._pending_start_task.done():
         resource._pending_start_task.cancel()
-        resource.logger.debug("%s cancelled pending start joiner", resource.unique_name)
+        resource.lifecycle_logger.debug("%s cancelled pending start joiner", resource.unique_name)
         cancelled_something = True
 
     if resource._init_task and not resource._init_task.done():
         resource._init_task.cancel()
-        resource.logger.debug("%s cancelled task", resource.unique_name)
+        resource.lifecycle_logger.debug("%s cancelled task", resource.unique_name)
         cancelled_something = True
 
     if not cancelled_something:
-        resource.logger.debug("%s no running task to cancel", resource.unique_name)
+        resource.lifecycle_logger.debug("%s no running task to cancel", resource.unique_name)
 
 
 # dup-ignore-start: lifecycle state handlers share cast → guard → transition → emit-event structure by design
@@ -269,10 +271,10 @@ async def handle_stop(resource: _LifecycleHostP) -> None:
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.STOPPED:
-        resource.logger.debug("%s already stopped", resource.unique_name, stacklevel=2)
+        resource.lifecycle_logger.debug("%s already stopped", resource.unique_name, stacklevel=2)
         return
 
-    resource.logger.debug("%s stopping", resource.unique_name, stacklevel=2)
+    resource.lifecycle_logger.debug("%s stopping", resource.unique_name, stacklevel=2)
     resource.status = ResourceStatus.STOPPED
     mark_not_ready(resource, "Stopped")
     event = create_service_status_event(
@@ -297,7 +299,7 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.FAILED:
-        resource.logger.debug("%s already in failed state", resource.unique_name, stacklevel=2)
+        resource.lifecycle_logger.debug("%s already in failed state", resource.unique_name, stacklevel=2)
         return
 
     if resource.status in TERMINAL_STATUSES:
@@ -311,7 +313,7 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
         # Only terminal end-states are guarded. Non-terminal states (NOT_STARTED, STARTING,
         # RUNNING, STOPPING, EXHAUSTED_COOLING) keep failing normally — a failure there is real,
         # and callers do invoke handle_failed() on a not-yet-started resource.
-        resource.logger.debug(
+        resource.lifecycle_logger.debug(
             "%s already terminal (%s); ignoring failure: %s - %s",
             resource.unique_name,
             resource.status,
@@ -321,7 +323,7 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
         )
         return
 
-    resource.logger.log(
+    resource.lifecycle_logger.log(
         log_level,
         "%s failed: %s - %s",
         resource.unique_name,
@@ -345,10 +347,10 @@ async def handle_running(resource: _LifecycleHostP) -> None:
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.RUNNING:
-        resource.logger.debug("%s already running", resource.unique_name, stacklevel=2)
+        resource.lifecycle_logger.debug("%s already running", resource.unique_name, stacklevel=2)
         return
 
-    resource.logger.debug("%s running", resource.unique_name, stacklevel=2)
+    resource.lifecycle_logger.debug("%s running", resource.unique_name, stacklevel=2)
     resource.status = ResourceStatus.RUNNING
     event = create_service_status_event(
         resource, ResourceStatus.RUNNING, ready=resource.is_ready(), ready_phase=resource._ready_reason
@@ -364,9 +366,9 @@ async def handle_starting(resource: _LifecycleHostP) -> None:
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.STARTING:
-        resource.logger.debug("%s already starting", resource.unique_name, stacklevel=2)
+        resource.lifecycle_logger.debug("%s already starting", resource.unique_name, stacklevel=2)
         return
-    resource.logger.debug("%s starting", resource.unique_name, stacklevel=2)
+    resource.lifecycle_logger.debug("%s starting", resource.unique_name, stacklevel=2)
     resource.status = ResourceStatus.STARTING
     event = create_service_status_event(
         resource, ResourceStatus.STARTING, ready=resource.is_ready(), ready_phase=resource._ready_reason
@@ -383,10 +385,12 @@ async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.CRASHED:
-        resource.logger.debug("%s already in crashed state", resource.unique_name, stacklevel=2)
+        resource.lifecycle_logger.debug("%s already in crashed state", resource.unique_name, stacklevel=2)
         return
 
-    resource.logger.error("%s crashed: %s - %s", resource.unique_name, type(exception).__name__, str(exception))
+    resource.lifecycle_logger.error(
+        "%s crashed: %s - %s", resource.unique_name, type(exception).__name__, str(exception)
+    )
     resource.status = ResourceStatus.CRASHED
     mark_not_ready(resource, "Crashed")
     event = create_service_status_event(
@@ -467,7 +471,7 @@ def _install_exception_observer(
             return
         exc = t.exception()
         if exc is not None:
-            resource.logger.log(
+            resource.lifecycle_logger.log(
                 log_level,
                 "%s: %s task %r finished with an unhandled exception",
                 resource.unique_name,
@@ -571,7 +575,7 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
     timeout = hooks_pool_remaining(resource)
     observe_start = asyncio.get_running_loop().time()
     _done, pending = await asyncio.wait([init_task], timeout=timeout)
-    resource.logger.debug(
+    resource.lifecycle_logger.debug(
         "%s: initializer observation completed in %.2fs (budget %.2fs)",
         resource.unique_name,
         elapsed_since(observe_start),
@@ -615,7 +619,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
 
         initialization_pending = await _observe_active_initializer(resource)
         if initialization_pending:
-            resource.logger.warning(
+            resource.lifecycle_logger.warning(
                 "%s: shutdown proceeding while initialization is still running and did not "
                 "observe cancellation -- init and shutdown may now race on shared state",
                 resource.unique_name,
@@ -652,13 +656,15 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
                     causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",)
                 )
             except Exception:
-                resource.logger.exception("Shutdown body for %s raised", resource.unique_name)
+                resource.lifecycle_logger.exception("Shutdown body for %s raised", resource.unique_name)
                 report = TeardownReport(
                     causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",)
                 )
-            resource.logger.debug("%s: shutdown body completed in %.2fs", resource.unique_name, body_wait_elapsed)
+            resource.lifecycle_logger.debug(
+                "%s: shutdown body completed in %.2fs", resource.unique_name, body_wait_elapsed
+            )
         else:
-            resource.logger.warning(
+            resource.lifecycle_logger.warning(
                 "%s shutdown body did not complete within its %.2fs deadline (%.2fs configured timeout, %.2fs elapsed)",
                 resource.unique_name,
                 wait_timeout,
@@ -694,7 +700,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
         # left to propagate silently, so the "a completed attempt always produces a report"
         # invariant coordinate_initialize() relies on for its RestartRefusedError guard holds
         # even when the coordinator itself fails outside the body.
-        resource.logger.exception("Shutdown coordinator for %s raised", resource.unique_name)
+        resource.lifecycle_logger.exception("Shutdown coordinator for %s raised", resource.unique_name)
         report = TeardownReport(
             causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
         )
@@ -711,7 +717,7 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
     if existing is not None:
         report = merge_teardown_reports(existing, report)
 
-    resource.logger.debug(
+    resource.lifecycle_logger.debug(
         "%s: shutdown coordinator completed in %.2fs",
         resource.unique_name,
         elapsed_since(coordinator_start),

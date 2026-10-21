@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
+from hassette.logging_ import LogIdentity
 from hassette.testing.config import TEST_TOTAL_TIMEOUT_SECONDS, TEST_WS_URL, make_test_config
 
 
@@ -165,6 +166,8 @@ def make_mock_hassette(
 
     # Child resources derive their logger name from the parent's (Resource._get_logger_name).
     hassette._get_logger_name = Mock(return_value="hassette")
+    # ...and their log identity from the parent's (Resource.owner_log_identity); Hassette owns no app.
+    hassette.owner_log_identity = Mock(side_effect=lambda author: LogIdentity(author=author))
 
     # SyncExecutorService — set both the backing field and the public accessor (same
     # pattern as fatal_shutdown_reason above) so tests that reference

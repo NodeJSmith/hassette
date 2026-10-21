@@ -76,7 +76,7 @@ async def restart(resource: "Resource") -> None:
     clear message instead of relying on ``initialize()`` to raise the same error one call later.
     """
     reject_lifecycle_reentry(resource, "restart")
-    resource.logger.debug("Restarting '%s' %s", resource.class_name, resource.role)
+    resource.lifecycle_logger.debug("Restarting '%s' %s", resource.class_name, resource.role)
     report = await resource.shutdown()
     if not report.is_restart_safe:
         raise RestartRefusedError(resource.unique_name, report)
@@ -134,7 +134,7 @@ async def run_hooks(
         try:
             if bound_to_shutdown_budget:
                 budget = hooks_pool_remaining(resource)
-                resource.logger.debug(
+                resource.lifecycle_logger.debug(
                     "%s: entering hook %s with %.2fs of hooks pool remaining",
                     resource.unique_name,
                     getattr(method, "__name__", repr(method)),
@@ -146,13 +146,13 @@ async def run_hooks(
                 await method()
         except asyncio.CancelledError as exc:
             if continue_on_error:
-                resource.logger.warning("Shutdown hook was cancelled, forcing cleanup")
+                resource.lifecycle_logger.warning("Shutdown hook was cancelled, forcing cleanup")
             with suppress(Exception):
                 await handle_failed(resource, exc)
             raise
         except Exception as exc:
             if continue_on_error:
-                resource.logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
+                resource.lifecycle_logger.error("Error during shutdown: %s %s", type(exc).__name__, exc)
                 with suppress(Exception):
                     await handle_failed(resource, exc)
                 handled.append(exc)
@@ -224,7 +224,7 @@ async def shutdown_batch(resource: "Resource", batch: "list[Resource]", timeout:
             ]
             results = await asyncio.gather(*child_tasks, return_exceptions=True)
     except TimeoutError:
-        resource.logger.error(
+        resource.lifecycle_logger.error(
             "Timed out waiting for children to shut down after %ss: [%s]",
             timeout,
             ", ".join(child.class_name for child in batch),
@@ -241,7 +241,7 @@ async def shutdown_batch(resource: "Resource", batch: "list[Resource]", timeout:
 
     for child, result in zip(batch, results, strict=True):
         if isinstance(result, BaseException):
-            resource.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+            resource.lifecycle_logger.error("Child %s shutdown failed: %s", child.unique_name, result)
             causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
             affected.append(child.unique_name)
             child_report = child.teardown_report
