@@ -16,13 +16,7 @@ import pytest
 import tomli_w
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
-from hassette.bus.listeners import (
-    DurationConfig,
-    HandlerInvoker,
-    Listener,
-    ListenerIdentity,
-    ListenerOptions,
-)
+from hassette.bus.listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent
@@ -98,6 +92,10 @@ DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 5
 GENEROUS_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 """``resource_shutdown_timeout_seconds`` for shutdown-body tests that need enough budget
 to run without racing the coordinator's own outer deadline."""
+
+HANG_GUARD_TIMEOUT_SECONDS = 10.0
+"""Real-clock ``wait_for`` budget that only turns a genuine hang into a failure (no assertion weight);
+widened for xdist/CI jitter. Tests that assert a deadline should use their own short budget instead."""
 
 SHORT_TASK_CANCEL_TIMEOUT_SECONDS = 0.1
 """Short ``task_cancellation_timeout_seconds`` for tests that need the TaskBucket cancel stage

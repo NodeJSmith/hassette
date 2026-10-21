@@ -37,7 +37,7 @@ from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler import Job
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness
-from tests.support.helpers import noop
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, noop
 
 # App for one-shot mode tests: verifies mode= is accepted and fires exactly once
 
@@ -362,7 +362,7 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         dispatch_task = asyncio.create_task(harness._harness.hassette._scheduler_service.dispatch_and_log(job))
 
         # Wait until the job has started
-        await asyncio.wait_for(app.started.wait(), timeout=2.0)
+        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # At this point, the job is still running (gate is closed).
         # The next occurrence should already be on the heap.
@@ -371,7 +371,7 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
 
         # Unblock and clean up
         app.run_gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=2.0)
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 # Fire sequence unchanged for non-overrunning jobs
@@ -435,7 +435,7 @@ async def test_single_mode_suppresses_overrun() -> None:
         # Dispatch first fire (will block)
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(app.started.wait(), timeout=2.0)
+        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Wait for next occurrence to be on heap
         await asyncio.sleep(0)
@@ -456,7 +456,7 @@ async def test_single_mode_suppresses_overrun() -> None:
 
         # Clean up
         app.run_gate.set()
-        await asyncio.wait_for(dispatch1, timeout=2.0)
+        await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 # parallel mode runs overlapping invocations concurrently
@@ -503,8 +503,8 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
 
         # Unblock both
         gate.set()
-        await asyncio.wait_for(dispatch1, timeout=2.0)
-        await asyncio.wait_for(dispatch2, timeout=2.0)
+        await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(dispatch2, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Should have seen at least 2 concurrent invocations at some point
         assert max_concurrent[0] >= 2, (
@@ -543,7 +543,7 @@ async def test_queued_mode_serializes_overrun() -> None:
         # Dispatch first fire — it will block
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Get next occurrence off heap
         await asyncio.sleep(0)
@@ -562,8 +562,8 @@ async def test_queued_mode_serializes_overrun() -> None:
 
         # Unblock first; the queued one should run after
         gate.set()
-        await asyncio.wait_for(dispatch1, timeout=2.0)
-        await asyncio.wait_for(dispatch2, timeout=2.0)
+        await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(dispatch2, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         assert 1 in run_order, "First invocation should have run"
         assert 2 in run_order, "Second (queued) invocation should have run"
@@ -601,7 +601,7 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
         # Dispatch first fire — blocks on gate (first invocation is now running)
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Get next occurrence off heap
         await asyncio.sleep(0)
@@ -630,7 +630,7 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
         # Unblock first dispatch and clean up
         gate.set()
         with contextlib.suppress(asyncio.CancelledError, TimeoutError):
-            await asyncio.wait_for(dispatch1, timeout=2.0)
+            await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 # restart mode cancels in-flight and starts fresh
@@ -685,7 +685,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
         # Dispatch first fire — will block
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Get next occurrence
         await asyncio.sleep(0)
@@ -702,7 +702,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
         await asyncio.sleep(0.1)
 
         # Second invocation starts fresh (first_started should set again)
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # First invocation should have been cancelled (user-side evidence)
         assert cancelled_count[0] >= 1, (
@@ -891,7 +891,7 @@ async def test_guard_release_on_remove_clears_in_flight() -> None:
         # Dispatch the job — it will block
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(app.started.wait(), timeout=2.0)
+        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Guard should be holding current_task
         assert job.guard.is_running(), "Guard should be running"
@@ -974,7 +974,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
         ):
             harness.freeze_time(job.next_run.add(seconds=1))
             dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-            await asyncio.wait_for(started.wait(), timeout=2.0)
+            await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
             # Wait longer than patched threshold for watchdog to fire
             await asyncio.sleep(0.2)
@@ -984,7 +984,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
 
         # Unblock and clean up
         gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=2.0)
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 async def test_parallel_mode_has_no_stall_watchdog() -> None:
@@ -1015,11 +1015,11 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
         ):
             harness.freeze_time(job.next_run.add(seconds=1))
             dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-            await asyncio.wait_for(started.wait(), timeout=2.0)
+            await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
             # dispatch_task is still pending because run_job awaits the callable inline
             assert not dispatch_task.done(), "Dispatch should be pending while job runs"
             await asyncio.sleep(0.2)  # outlast the patched threshold
             mock_warn.assert_not_called()
 
         gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=2.0)
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
