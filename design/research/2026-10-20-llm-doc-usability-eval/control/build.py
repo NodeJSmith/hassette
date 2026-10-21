@@ -11,13 +11,14 @@ def find(pattern: str, text: str, flags: int = 0) -> str:
     return m.group(0)
 
 
-R = Path(".claude")
+# The skill and doc rules as they were when this run (and the 2026-10-21 seeded-recall run) happened.
+R = Path(__file__).parent / "skill-snapshot"
 S = Path(sys.argv[1])
-tpl = (R / "skills/doc-persona-review/references/briefing-template.md").read_text()
-personas = (R / "skills/doc-persona-review/references/personas.md").read_text()
+tpl = (R / "briefing-template.md").read_text()
+personas = (R / "personas.md").read_text()
 alex = find(r"## Persona 1:.*?(?=\n---\n)", personas, re.S).strip()
-voice = (R / "rules/voice-guide.md").read_text()
-rules = (R / "rules/doc-rules.md").read_text()
+voice = (R / "voice-guide.md").read_text()
+rules = (R / "doc-rules.md").read_text()
 GOALS = {
     "hassette": "Follow the getting-started guide from zero to a working automation.",
     "fastapi": "Follow the FastAPI tutorial from zero to a working API.",

@@ -14,8 +14,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).parent
-SKILL = Path(".claude/skills/doc-persona-review/references")
-RULES = Path(".claude/rules")
+# The skill and doc rules as they were when this experiment ran, before the skill was reworked from its results.
+SNAPSHOT = HERE.parent / "2026-10-20-llm-doc-usability-eval" / "control" / "skill-snapshot"
 
 PAGES = ["fastapi--tutorial--first-steps", "hassette--getting-started--first-automation"]
 PREVIOUS = {
@@ -161,10 +161,10 @@ def main() -> None:
     queue = Path(sys.argv[1])
     conditions = sys.argv[2:] or CONDITIONS
     queue.mkdir(parents=True, exist_ok=True)
-    tpl = (SKILL / "briefing-template.md").read_text()
-    alex = find(r"## Persona 1:.*?(?=\n---\n)", (SKILL / "personas.md").read_text(), re.S).strip()
-    voice = (RULES / "voice-guide.md").read_text()
-    rules = (RULES / "doc-rules.md").read_text()
+    tpl = (SNAPSHOT / "briefing-template.md").read_text()
+    alex = find(r"## Persona 1:.*?(?=\n---\n)", (SNAPSHOT / "personas.md").read_text(), re.S).strip()
+    voice = (SNAPSHOT / "voice-guide.md").read_text()
+    rules = (SNAPSHOT / "doc-rules.md").read_text()
     cells = [(c, s, v) for c in conditions for s in PAGES for v in ("clean", "seeded")]
     random.Random(3148).shuffle(cells)  # noqa: S311 — deterministic shuffle for blinding, not crypto
     manifest = {"briefings": {}, "runs": {}}

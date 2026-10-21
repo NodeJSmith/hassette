@@ -37,7 +37,7 @@ Experiment E1 for #3148, plus two follow-up conditions. It asks whether any brie
   | Removed definition | F4: drop the explanation of `main:app` | H3: drop the definition of a handler |
 
 - **Conditions:** all use the Alex persona and Sonnet. `build.py` builds them from one letter per change.
-  - **a:** the current skill briefing.
+  - **a:** the skill briefing at the time of the experiment, before it was reworked from these results. `build.py` reads it, with the persona, voice guide and doc rules, from the control run's `../2026-10-20-llm-doc-usability-eval/control/skill-snapshot/`.
   - **c:** the 2026-10-20 neutral condition (no voice guide or doc rules, no "must flag", verdict rules spelled out). Every condition below starts from c.
   - **s:** the verdict replaced by a true/false check of each step: "could Alex complete it using only this page?"
   - **p:** the preceding page in nav order, given as already read. That's FastAPI `tutorial/` and Hassette `getting-started/`.
