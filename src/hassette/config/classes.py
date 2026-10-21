@@ -166,7 +166,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     """Class name of the app"""
 
     display_name: str = Field(default=..., examples=["My App"])
-    """Display name of the app, will use class_name if not set"""
+    """Display name of the app, will use app_key if not set"""
 
     description: str | None = Field(default=None, max_length=200, examples=["Turns on the porch light at sunset"])
     """Optional one-line description of what the app does. Surrounding whitespace is stripped; line breaks are

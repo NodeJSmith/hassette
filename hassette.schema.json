@@ -249,7 +249,7 @@
           "type": "string"
         },
         "display_name": {
-          "description": "Display name of the app, will use class_name if not set",
+          "description": "Display name of the app, will use app_key if not set",
           "examples": [
             "My App"
           ],

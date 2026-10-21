@@ -14,7 +14,7 @@ Below the strip, the app table shows one row per app with the following columns:
 
 | Column | What it shows |
 |--------|--------------|
-| **APP** | Status dot, app key, and class name. |
+| **APP** | Status dot, app key, and class name. Apps with `autostart = false` also show a **no autostart** chip. |
 | **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DEGRADED`, `DISABLED`, or `BLOCKED`. An amber **N blocking** badge follows it when the app [blocked the event loop](../core-concepts/blocking-io-detection.md#finding-blocking-calls) in the selected time window. Click it to see the call sites on the app's overview. The badge is unrelated to the `BLOCKED` status, which comes from `hassette run --app`. |
 | **LAST ERROR** | Most recent error message, truncated. Click to expand the full message. Shows `—` when the app is healthy. |
 | **RUNS** | An activity sparkline showing invocation frequency over the selected time window, plus the total run count. |
