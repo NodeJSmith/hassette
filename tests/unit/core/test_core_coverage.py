@@ -10,6 +10,7 @@ wrapper, _on_children_stopped(), and several one-line accessors/helpers.
 import asyncio
 import queue
 from contextlib import contextmanager, suppress
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -29,6 +30,7 @@ from hassette.testing import wait_for
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 from tests.support.factories import make_log_record
 from tests.support.harness import preserve_config
+from tests.support.helpers import write_app
 from tests.support.run_forever import stub_run_forever_collaborators
 
 # wire_services() creates anyio memory streams that are closed explicitly in the
@@ -156,6 +158,29 @@ class TestStartupTasksEnvFiles:
             hassette.startup_tasks()
 
         load_dotenv_mock.assert_not_called()
+
+
+class TestStartupTasksAppWarnings:
+    def test_unconfigured_app_warning_is_logged_at_warning(
+        self, test_config: HassetteConfig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """startup_tasks() logs each startup warning at WARNING.
+
+        The log line is the warning's only delivery surface, so the logger is the boundary under test;
+        the warning text itself is pinned in tests/unit/utils/test_unconfigured_apps.py.
+        """
+        monkeypatch.setattr(core_module, "run_apps_pre_check", Mock())
+        write_app(tmp_path, "lights.py", "from hassette import App\n\nclass LightsApp(App): ...\n")
+
+        with preserve_config(test_config):
+            test_config.apps.directory = tmp_path
+            test_config.apps.apps = {}
+            hassette = Hassette(test_config)
+            hassette.logger = Mock()
+            hassette.startup_tasks()
+
+        [warning] = [call.args[0] for call in hassette.logger.warning.call_args_list]
+        assert "[hassette.apps.lights_app]" in warning
 
 
 class TestStartupTasksAppPrecheck:

@@ -651,7 +651,7 @@ Committed apps in `tests/system/apps/` cover common patterns:
 | `bus_handler_app.py` | App that registers bus handlers and captures events |
 | `config_app.py` | App with a custom `AppConfig` for config-loading tests |
 
-For test-specific variants, write an inline app to `tmp_path` and point `config.app_dir` at it. `autodetect_apps=True` is required when using `app_dir`.
+For test-specific variants, write an inline app to `tmp_path` and pass the config through `with_app_entries(config, app_dir)` (`tests/system/conftest.py`), which points `apps.directory` at it and adds an entry for each app class there.
 
 ### Key Conventions
 

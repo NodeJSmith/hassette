@@ -61,10 +61,10 @@ class TestHassetteConfigNested:
         config = isolated_config_cls()
         assert config.web_api.run is True
 
-    def test_app_autodetect_default(self, isolated_config_cls):
-        """config.apps.autodetect returns True by default."""
+    def test_app_warn_unconfigured_default(self, isolated_config_cls):
+        """config.apps.warn_unconfigured returns True by default."""
         config = isolated_config_cls()
-        assert config.apps.autodetect is True
+        assert config.apps.warn_unconfigured is True
 
     def test_scheduler_job_timeout_default(self, isolated_config_cls):
         """config.scheduler.job_timeout_seconds returns 600.0 by default."""

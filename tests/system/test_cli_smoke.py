@@ -30,6 +30,7 @@ from hassette.cli.client import HassetteCLIClient
 from .conftest import (
     HA_TOKEN,
     SystemTestConfig,
+    app_entries,
     free_port,
     live_web_server,
     make_web_system_config,
@@ -52,7 +53,7 @@ def _cli_client(config: SystemTestConfig) -> Iterator[HassetteCLIClient]:
 
 
 def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestConfig, str]:
-    """Build a web-enabled config that autodetects apps from the system apps dir.
+    """Build a web-enabled config with an entry for each app in the system apps dir.
 
     BusHandlerApp in tests/system/apps/ registers a listener for
     light.kitchen_lights — gives us an app with real listeners for filter tests.
@@ -63,7 +64,7 @@ def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestCon
         base_url=ha_url,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
-        apps={"directory": str(SYSTEM_APPS_DIR), "autodetect": True},
+        apps={"directory": str(SYSTEM_APPS_DIR), "apps": app_entries(SYSTEM_APPS_DIR)},
         web_api={"run": True, "port": port},
         lifecycle={"startup_timeout_seconds": HASSETTE_STARTUP_TIMEOUT_SECONDS},
     )
@@ -224,7 +225,7 @@ def test_wrong_port_exits_with_code_2(tmp_path: Path) -> None:
         base_url="http://localhost:18123",
         token="dummy",
         data_dir=tmp_path / "data",
-        apps={"directory": str(tmp_path / "apps"), "autodetect": False},
+        apps={"directory": str(tmp_path / "apps")},
         web_api={"run": False, "port": 19999},
         lifecycle={"startup_timeout_seconds": HASSETTE_STARTUP_TIMEOUT_SECONDS},
     )

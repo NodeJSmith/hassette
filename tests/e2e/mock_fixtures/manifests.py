@@ -184,7 +184,6 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
             filename=manifest.filename,
             enabled=int(manifest.enabled),
             autostart=int(manifest.autostart),
-            auto_loaded=int(manifest.auto_loaded),
         )
         for manifest in manifests
     }

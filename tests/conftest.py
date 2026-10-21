@@ -178,7 +178,7 @@ def build_logging_config() -> LoggingConfig:
 
 
 def build_apps_config() -> AppsConfig:
-    return AppsConfig(directory=TEST_APPS_PATH, autodetect=False)
+    return AppsConfig(directory=TEST_APPS_PATH)
 
 
 def build_web_api_config() -> WebApiConfig:

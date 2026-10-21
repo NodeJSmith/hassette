@@ -1074,7 +1074,12 @@ export interface components {
             filename: string;
             /** Enabled */
             enabled: boolean;
-            /** Auto Loaded */
+            /**
+             * Auto Loaded
+             * @description Deprecated: always ``False``, since app autodetection is gone. Kept because released clients up to
+             *     0.59.0 require it; removed in #3161.
+             * @default false
+             */
             auto_loaded: boolean;
             /**
              * Autostart

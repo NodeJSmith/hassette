@@ -223,7 +223,7 @@ def write_app_toml(
     """Write a hassette.toml with specified apps, and `only_apps` (the file form of ``hassette run --app``) if given."""
     apps = apps or []
 
-    apps_section: dict[str, Any] = {"directory": app_dir.as_posix(), "autodetect": False}
+    apps_section: dict[str, Any] = {"directory": app_dir.as_posix()}
     for app in apps:
         apps_section[app.app_key] = get_app_manifest_for_toml(app)
 
@@ -246,7 +246,7 @@ def write_app_toml(
 def write_app(app_dir: Path, filename: str, source: str) -> Path:
     """Write `source` as a module inside `app_dir`, creating the directory if needed.
 
-    For app files whose exact source matters (auto-detect discovery, import behavior). Use
+    For app files whose exact source matters (the unconfigured-app scan, import behavior). Use
     `write_test_app_with_decorator` instead when a canned App subclass is enough.
     """
     app_dir.mkdir(parents=True, exist_ok=True)

@@ -70,7 +70,6 @@ def minimal_app_summary(**overrides: Any) -> AppSummary:
             "display_name": "My App",
             "filename": "my_app.py",
             "enabled": True,
-            "auto_loaded": False,
             "status": "stopped",
         },
         overrides,

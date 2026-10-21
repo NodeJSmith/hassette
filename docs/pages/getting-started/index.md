@@ -40,7 +40,13 @@ Your app methods use `async def`, and calls to Hassette services need `await` in
 --8<-- "pages/getting-started/snippets/first_app.py"
 ```
 
-Save this as `apps/main.py`. Hassette scans `apps/` for any class that inherits from `App` and runs all of them.
+Save this as `apps/main.py`. Then tell Hassette to run it: create `hassette.toml` in `my-hassette/`, next to `.env`:
+
+```toml
+--8<-- "pages/getting-started/snippets/first_app.toml"
+```
+
+Each app gets a `[hassette.apps.<key>]` section. The key, `my_app`, is a name you choose. `filename` is the file inside `apps/`, and `class_name` is the class to run. Hassette runs only the apps listed here. If you forget the section, startup logs a warning with the section to paste.
 
 `MyAppConfig` declares your app's settings as typed class attributes. Hassette loads values from environment variables and [`hassette.toml`](../core-concepts/configuration/index.md) automatically. `App[MyAppConfig]` ties the config to the app so `self.app_config` is always the right type.
 
@@ -78,14 +84,14 @@ hassette app
 ```
 
 ```console
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┓
-┃ App             ┃ Status  ┃ Display Name ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File    ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━┩
-│ apps.main.MyApp │ running │ MyApp        │ 1         │ 0              │ True    │ True      │ main.py │
-└─────────────────┴─────────┴──────────────┴───────────┴────────────────┴─────────┴───────────┴─────────┘
+┏━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┓
+┃ App    ┃ Status  ┃ Display Name ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File    ┃
+┡━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━┩
+│ my_app │ running │ my_app       │ 1         │ 0              │ True    │ True      │ main.py │
+└────────┴─────────┴──────────────┴───────────┴────────────────┴─────────┴───────────┴─────────┘
 ```
 
-`websocket_connected: True` confirms the Home Assistant connection. `apps.main.MyApp` shows `running`. `Invocations/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
+`websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`. `Invocations/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
 
 Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and `HASSETTE__TOKEN` is not it. On first start, Hassette wrote a separate token to `<data_dir>/.web_api_token` (or to `web_api.token_file`, if you set it). `<data_dir>` is the directory where Hassette keeps its own files, such as its database. The CLI finds that file and uses it automatically, which is why the commands above needed no setup. Point the CLI at a *different* instance — a remote host, or a second instance on this machine — and it needs that instance's token instead. See [CLI Configuration: Web API Token](../cli/configuration.md#web-api-token) for how to supply one. An `Error 401` names the credential the CLI sent and what to do about it.
 

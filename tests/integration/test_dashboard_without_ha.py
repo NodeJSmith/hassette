@@ -132,7 +132,6 @@ def _wire_hassette_without_ha(
         websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
         apps={
             "directory": TEST_APPS_PATH,
-            "autodetect": False,
             "apps": {
                 # my_app skips its on_initialize() body under pytest (checks PYTEST_VERSION),
                 # so it bootstraps instantly without touching HA — unlike my_app_sync, which
@@ -325,7 +324,6 @@ class TestInitialStateSyncBeforeApps:
             web_api={"run": True, "port": unused_tcp_port_factory()},
             apps={
                 "directory": app_dir,
-                "autodetect": False,
                 "apps": {
                     "state_reader": {
                         "filename": "state_reader.py",

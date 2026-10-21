@@ -112,10 +112,10 @@ def stop(run: HassetteRun) -> int | None:
 
 
 def test_flat_layout_starts_the_app(ha_container: str, tmp_path: Path) -> None:
-    """``hassette.toml`` and ``apps/`` in the working directory: the app is autodetected and runs."""
+    """``hassette.toml`` and ``apps/`` in the working directory: the configured app runs."""
     project = tmp_path / "home-automations"
-    # an empty [hassette] table: the file only has to exist for discovery; apps default to ./apps
-    write_file(project / "hassette.toml", "[hassette]\n")
+    # no [hassette.apps] directory: apps default to ./apps
+    write_file(project / "hassette.toml", '[hassette.apps.greeter]\nfilename = "greeter.py"\nclass_name = "Greeter"\n')
     write_file(project / "apps" / "greeter.py", GREETER_APP)
 
     run = start_hassette(project, ha_container)

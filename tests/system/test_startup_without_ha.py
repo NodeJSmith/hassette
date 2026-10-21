@@ -13,7 +13,13 @@ Assistant was never reachable, not just in the mocked integration test
 import httpx2 as httpx
 import pytest
 
-from .conftest import dashboard_ready_without_apps, make_web_system_config, startup_context, wait_for_web_server
+from .conftest import (
+    dashboard_ready_without_apps,
+    make_web_system_config,
+    startup_context,
+    wait_for_web_server,
+    with_app_entries,
+)
 
 pytestmark = [pytest.mark.system]
 
@@ -35,9 +41,7 @@ async def test_starts_and_serves_without_ha(tmp_path, system_app_dir) -> None:
     keeps retrying.
     """
     config, base_url = make_web_system_config(UNREACHABLE_HA_URL, tmp_path)
-    config = config.model_copy(deep=True)
-    config.apps.autodetect = True
-    config.apps.directory = system_app_dir
+    config = with_app_entries(config, system_app_dir)
     config.lifecycle.startup_timeout_seconds = STARTUP_TIMEOUT_SECONDS
 
     async with startup_context(

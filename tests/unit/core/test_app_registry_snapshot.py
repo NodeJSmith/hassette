@@ -119,7 +119,6 @@ class TestAppRegistryGetFullSnapshot:
             display_name="A",
             filename="a.py",
             enabled=True,
-            auto_loaded=False,
             status=AppStatus.RUNNING,
             instances=instances,  # pyright: ignore[reportArgumentType]
         )

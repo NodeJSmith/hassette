@@ -90,22 +90,6 @@ describe("AppDetailPage header", () => {
     expect(queryByTestId("error-display")).toBeNull();
   });
 
-  it("renders auto-loaded badge when auto_loaded is true", async () => {
-    const manifest = createAppSummary({ auto_loaded: true });
-    setupApi(manifest);
-    const { findByTestId } = renderPage({ key: "test_app" });
-    expect(await findByTestId("auto-loaded-badge")).toBeDefined();
-  });
-
-  it("does not render auto-loaded badge when auto_loaded is false", async () => {
-    const manifest = createAppSummary({ auto_loaded: false });
-    setupApi(manifest);
-    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
-    // Wait for data to load before asserting absence
-    await findByTestId("app-title");
-    expect(queryByTestId("auto-loaded-badge")).toBeNull();
-  });
-
   it("renders no-autostart badge when autostart is false", async () => {
     const manifest = createAppSummary({ autostart: false });
     setupApi(manifest);

@@ -121,7 +121,7 @@ def check_config(init_kwargs: dict[str, Any]) -> None:
     """Build and check the config as ``hassette run`` would, then print the resolved locations for ``docker_start.sh``.
 
     Beyond construction's checks, it requires a token and validates the app entries written in the
-    config. Autodetected apps are skipped, since finding them imports app modules.
+    config. It doesn't scan for unconfigured app classes; that warning is startup's alone.
 
     On success, stdout carries only shell-quoted ``KEY=VALUE`` lines, which the entrypoint
     evaluates: the resolved, absolute ``CONFIG_DIR``, ``CONFIG_HOME`` and ``APPS_DIR``. The
@@ -140,7 +140,7 @@ def check_config(init_kwargs: dict[str, Any]) -> None:
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         raise SystemExit(EX_CONFIG) from None
-    # apps aren't detected here, so only a missing directory is reported, not an empty one
+    # apps aren't scanned here, so only a missing directory is reported, not an empty one
     if warning := missing_apps_dir_warning(
         config.apps.directory, config_files=config.toml_files | config.env_files, cwd=config.locations.cwd
     ):

@@ -329,3 +329,11 @@ Two milestones, in order: *Log identity*, then *Instance identity*. Each issue's
 Applies to all: D6 (logger names stay readable labels derived from the instance name).
 
 Close as won't-do: #740 (D6) and #739 (D8). Cross-link only: #2938. Follow-up outside both milestones: #345 (the per-app level toggle, on D4's model).
+
+## Addendum
+
+### 2026-10-20: auto-loaded apps no longer exist (spec 135)
+Spec 135 (#3145) removes app autodetection, so there are no auto-loaded apps and D5's snake_case default for
+them is moot: every instance comes from a configured section. Issue 1 (#3095, PR #3146) rebases onto spec 135
+and drops that branch of the naming function. The test harness's default manifest stays `ClassName.0` until
+issue 1 moves it to a user-chosen name.

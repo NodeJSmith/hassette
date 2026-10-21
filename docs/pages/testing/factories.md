@@ -126,7 +126,6 @@ When `old_value` or `new_value` is `None`, the corresponding state dict is `None
 | `data_dir` | required (no default) |
 | `token` | `"test-token"` |
 | `base_url` | `"http://test.invalid:8123"` |
-| `apps` | `{"autodetect": False}` |
 | `web_api` | `{"run": False}` |
 
 `**overrides` replace any of the defaults.

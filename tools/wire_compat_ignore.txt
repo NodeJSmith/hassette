@@ -176,3 +176,9 @@ GET /api/logs/recent `query` request parameter `source_tier` list-of-types was n
 
 # #2524: ResourceRole becomes internal to the server; ServiceInfo.role leaves the /api/health response.
 GET /api/health removed the required property `services/items/role` from the response with the `200` status
+
+# #3145: `auto_loaded` is now always false and defaults to False on the wire model. The server still sends it on
+# every response, so released clients that require it keep parsing; it leaves the responses in #3161.
+GET /api/apps the response property `apps/items/auto_loaded` became optional for the status `200`
+GET /api/apps/{app_key} the response property `auto_loaded` became optional for the status `200`
+GET /api/telemetry/app-grid the response property `apps/items/app/auto_loaded` became optional for the status `200`

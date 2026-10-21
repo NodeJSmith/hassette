@@ -88,7 +88,15 @@ Create `config/apps/my_app.py`:
 
 Two pieces of syntax worth knowing: `App[MyAppConfig]` pairs your app with its config class — that's how `self.app_config` knows its type. And lifecycle hooks like `on_initialize` are `async def` — Hassette runs the event loop for you, so you can follow the pattern without prior async experience.
 
-Dropping a `.py` file with an `App` subclass into `config/apps/` is enough: Hassette finds it by autodetection, so no `hassette.toml` entry is needed. Restart the container to pick up the new file:
+Hassette runs only the apps that `hassette.toml` names. Create `config/hassette.toml` with a section for your app:
+
+```toml
+--8<-- "pages/getting-started/docker/snippets/hassette-my-app.toml"
+```
+
+`my_app` is a name you choose for the app. `filename` is the file's path inside `config/apps/`, and `class_name` is the class to run. If you forget this section, startup logs a warning with the section to paste.
+
+Restart the container to pick up the new app:
 
 ```bash
 docker compose restart hassette

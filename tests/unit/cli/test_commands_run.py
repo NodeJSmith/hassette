@@ -14,6 +14,7 @@ from hassette.cli import app
 from hassette.cli.commands.run import EX_CONFIG, cmd_run
 from hassette.cli.context import CLIContext
 from hassette.exceptions import AppPrecheckFailedError, ConfigError, FatalError
+from tests.support.helpers import write_app
 from tests.unit.cli.conftest import capture_stderr
 
 
@@ -163,17 +164,22 @@ class TestRunCheck:
             f"APPS_DIR='{clean_hassette_env / 'my apps'}'",
         ]
 
-    @patch("hassette.config.config.autodetect_apps")
-    def test_does_not_autodetect_apps_or_start(
-        self, mock_autodetect: AsyncMock, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    def test_does_not_import_or_warn_about_apps_or_start(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Autodetect imports app modules, which `--check` must never do."""
+        """`--check` never imports app modules, and the unconfigured-app warning is startup's alone."""
+        write_app(
+            clean_hassette_env / "apps",
+            "my_app.py",
+            "raise RuntimeError('imported')\nfrom hassette import App\n\nclass MyApp(App): ...\n",
+        )
         with patch("hassette.cli.commands.run.run_server", new_callable=AsyncMock) as mock_run_server:
             cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
 
-        mock_autodetect.assert_not_called()
         mock_run_server.assert_not_called()
-        assert len(capsys.readouterr().out.splitlines()) == 3
+        captured = capsys.readouterr()
+        assert len(captured.out.splitlines()) == 3
+        assert captured.err == ""
 
     def test_missing_token_exits_78(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch

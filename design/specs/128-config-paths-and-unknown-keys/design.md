@@ -451,3 +451,11 @@ Under A:
 - The TOML settings source takes the resolver's absolute file list directly; the `toml_paths` normalizer it no longer needs is deleted.
 
 ## Addendum
+
+### 2026-10-20: app autodetection removed (spec 135)
+Spec 135 (#3145) removes `apps.autodetect` and `apps.exclude_dirs`. Every app now comes from an explicit
+`[hassette.apps.<key>]` entry, so the references above to autodetected apps, `autodetect_apps` importing user
+modules, and manifest validation ordered after the `.env` import for autodetect's sake no longer hold.
+`hassette run --check` and startup validate the same explicit entries; startup alone scans `apps.directory`
+(by parsing, without importing) to warn about unconfigured app classes. D10's "no apps found" warning still
+fires, but unconfigured classes replace it when the directory holds any.
