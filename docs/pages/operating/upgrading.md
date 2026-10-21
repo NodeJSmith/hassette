@@ -133,13 +133,11 @@ A name:
 
 `upstairs` and `kitchen_lights_2` are valid; `MyApp.0`, `Upstairs`, and `kitchen-lights` are not. Every name must be unique across the whole config, disabled apps included. [Instance Names](../core-concepts/apps/configuration.md#instance-names) has the full rules.
 
-Apps that Hassette auto-loads with no config section take their class name in snake_case: `MyApp` becomes `my_app`. If that isn't a valid name, or two classes produce the same one, startup fails; configure the app with an explicit `instance_name`.
-
-The old default `ClassName.<index>` isn't a valid name, so a few things built from a defaulted name change. Skip this list if your apps already set `instance_name` and you don't reference logger names:
+The old default `ClassName.<index>` isn't a valid name, so a few other things change with it:
 
 - **`self.instance_name` and `self.unique_name`** both return exactly the instance name. Code that stored a cache key or compared an event's `source` against the old `MyApp.0` form needs the new name.
 - **Logger names** are now `hassette.apps.<instance_name>`, with the app's bus, scheduler, and other loggers nested under it. Update `logging` config or log filters that referenced `hassette.MyApp.0` to `hassette.apps.my_app`.
-- **Tests that use [`AppTestHarness`](../testing/harness.md)** get the class name in snake_case as `instance_name` unless the test's config sets one. Tests that relied on `ClassName.0` or an empty name see the new value. The harness app's `app_key`, and so its default [cache](../core-concepts/cache/index.md) directory, uses the same conversion, which keeps acronyms together: `HTTPApp` was `h_t_t_p_app` and is now `http_app`.
+- **Tests that use [`AppTestHarness`](../testing/harness.md)** must set `instance_name` in the harness `config` too, as in `AppTestHarness(MyApp, config={"instance_name": "my_app"})`. Without one, entering the harness raises `AppConfigurationError`.
 
 ## Config Paths and Unknown Keys
 

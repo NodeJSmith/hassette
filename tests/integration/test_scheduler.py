@@ -1,6 +1,6 @@
 import asyncio
 
-from hassette_wire import ScheduleStatus
+from hassette_wire import ExecutionStatus, ScheduleStatus
 from whenever import SYSTEM_TZ, ZonedDateTime
 
 from hassette.app.app import App
@@ -289,7 +289,7 @@ class _OnceGroupApp(App[_ExhaustionConfig]):
 
 async def test_once_job_exhausts_after_firing() -> None:
     """A Once job completes (stays live, leaves the heap) after it fires."""
-    async with AppTestHarness(_OnceExhaustionApp, config={}) as harness:
+    async with AppTestHarness(_OnceExhaustionApp, config={"instance_name": "once_exhaustion_app"}) as harness:
         scheduler = harness.app.scheduler
 
         # Verify job is registered
@@ -314,7 +314,7 @@ async def test_once_job_exhausts_after_firing() -> None:
 
 async def test_after_job_exhausts_after_firing() -> None:
     """An After job completes (stays live, leaves the heap) after it fires."""
-    async with AppTestHarness(_AfterExhaustionApp, config={}) as harness:
+    async with AppTestHarness(_AfterExhaustionApp, config={"instance_name": "after_exhaustion_app"}) as harness:
         scheduler = harness.app.scheduler
 
         # Verify job is registered
@@ -345,7 +345,7 @@ async def test_jitter_offset_applied_to_sort_index() -> None:
     within the jitter bound — today the offset is 0 because jitter is not yet
     applied, but the assertion will still hold once it is.
     """
-    async with AppTestHarness(_OnceExhaustionApp, config={}) as harness:
+    async with AppTestHarness(_OnceExhaustionApp, config={"instance_name": "once_exhaustion_app"}) as harness:
         scheduler = harness.app.scheduler
 
         job = await scheduler.schedule(lambda: None, Every(hours=1), name="jittered_job", jitter=60)
@@ -365,7 +365,7 @@ async def test_jitter_offset_applied_to_sort_index() -> None:
 
 async def test_group_remove_removes_all_members() -> None:
     """remove_group marks all group members as cancelled and removes from list_jobs."""
-    async with AppTestHarness(_GroupApp, config={}) as harness:
+    async with AppTestHarness(_GroupApp, config={"instance_name": "group_app"}) as harness:
         scheduler = harness.app.scheduler
 
         # Verify all 3 jobs are in the group
@@ -386,7 +386,7 @@ async def test_group_remove_removes_all_members() -> None:
 
 async def test_once_job_completes_but_remains_in_group_after_exhaustion() -> None:
     """A Once job in a group completes (stays live and in the group) when it exhausts."""
-    async with AppTestHarness(_OnceGroupApp, config={}) as harness:
+    async with AppTestHarness(_OnceGroupApp, config={"instance_name": "once_group_app"}) as harness:
         scheduler = harness.app.scheduler
 
         # Verify both jobs are in the group
@@ -521,7 +521,7 @@ async def test_recurring_job_skip_records_and_reschedules(hassette_with_schedule
         assert handler_called is False, "Handler should not run when predicate returns False"
         executor.enqueue_record.assert_called_once()
         record = executor.enqueue_record.call_args[0][0]
-        assert record.status == "skipped", f"Expected status='skipped', got {record.status!r}"
+        assert record.status is ExecutionStatus.SKIPPED, f"Expected status='skipped', got {record.status!r}"
         assert record.duration_ms == 0.0, f"Expected duration_ms=0.0, got {record.duration_ms}"
         assert job.next_run > original_next_run, "Recurring job should be rescheduled for its next occurrence"
 
@@ -555,7 +555,7 @@ async def test_one_shot_job_skip_records_and_completes(hassette_with_scheduler: 
     assert handler_called is False, "Handler should not run when predicate returns False"
     executor.enqueue_record.assert_called_once()
     record = executor.enqueue_record.call_args[0][0]
-    assert record.status == "skipped", f"Expected status='skipped', got {record.status!r}"
+    assert record.status is ExecutionStatus.SKIPPED, f"Expected status='skipped', got {record.status!r}"
     assert record.duration_ms == 0.0, f"Expected duration_ms=0.0, got {record.duration_ms}"
 
     assert job.schedule_status is ScheduleStatus.COMPLETED
@@ -600,7 +600,7 @@ async def test_predicate_exception_records_failure_and_does_not_run(
 
     executor.enqueue_record.assert_called_once()
     record = executor.enqueue_record.call_args[0][0]
-    assert record.status == "error", f"Expected status='error', got {record.status!r}"
+    assert record.status is ExecutionStatus.ERROR, f"Expected status='error', got {record.status!r}"
     assert record.error_type == "ZeroDivisionError"
     assert record.error_message == "boom"
     assert record.error_traceback is not None

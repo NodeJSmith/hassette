@@ -37,7 +37,7 @@ from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler import Job
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness
-from tests.support.helpers import noop
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, noop
 
 # App for one-shot mode tests: verifies mode= is accepted and fires exactly once
 
@@ -83,7 +83,7 @@ class _RunOnceModeApp(App[_OneShotModeConfig]):
 
 async def test_run_in_with_mode_fires_exactly_once() -> None:
     """run_in with mode= set still fires exactly once (mode has no overlap effect on one-shot jobs)."""
-    async with AppTestHarness(_RunInModeApp, config={}) as harness:
+    async with AppTestHarness(_RunInModeApp, config={"instance_name": "run_in_mode_app"}) as harness:
         scheduler = harness.app.scheduler
 
         jobs = scheduler.list_jobs()
@@ -109,7 +109,7 @@ async def test_run_in_with_mode_fires_exactly_once() -> None:
 
 async def test_run_once_with_mode_fires_exactly_once() -> None:
     """run_once with mode= set still fires exactly once (mode has no overlap effect on one-shot jobs)."""
-    async with AppTestHarness(_RunOnceModeApp, config={}) as harness:
+    async with AppTestHarness(_RunOnceModeApp, config={"instance_name": "run_once_mode_app"}) as harness:
         scheduler = harness.app.scheduler
 
         jobs = scheduler.list_jobs()
@@ -347,7 +347,7 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         job_name = "overrun_job"
         job_mode = "single"
 
-    async with AppTestHarness(_App, config={}) as harness:
+    async with AppTestHarness(_App, config={"instance_name": "app"}) as harness:
         app = harness.app
         app.run_gate.clear()  # block the job so it overruns
 
@@ -362,7 +362,7 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         dispatch_task = asyncio.create_task(harness._harness.hassette._scheduler_service.dispatch_and_log(job))
 
         # Wait until the job has started
-        await asyncio.wait_for(app.started.wait(), timeout=2.0)
+        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # At this point, the job is still running (gate is closed).
         # The next occurrence should already be on the heap.
@@ -371,7 +371,7 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
 
         # Unblock and clean up
         app.run_gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=2.0)
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 # Fire sequence unchanged for non-overrunning jobs
@@ -390,7 +390,7 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
         async def task(self) -> None:
             fire_times.append(date_utils.now())
 
-    async with AppTestHarness(_QuickApp, config={}) as harness:
+    async with AppTestHarness(_QuickApp, config={"instance_name": "quick_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "quick_job")
@@ -424,7 +424,7 @@ async def test_single_mode_suppresses_overrun() -> None:
         job_name = "single_job"
         job_mode = "single"
 
-    async with AppTestHarness(_App, config={}) as harness:
+    async with AppTestHarness(_App, config={"instance_name": "app"}) as harness:
         app = harness.app
         app.run_gate.clear()  # keep job running
 
@@ -435,7 +435,7 @@ async def test_single_mode_suppresses_overrun() -> None:
         # Dispatch first fire (will block)
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(app.started.wait(), timeout=2.0)
+        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Wait for next occurrence to be on heap
         await asyncio.sleep(0)
@@ -456,7 +456,7 @@ async def test_single_mode_suppresses_overrun() -> None:
 
         # Clean up
         app.run_gate.set()
-        await asyncio.wait_for(dispatch1, timeout=2.0)
+        await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 # parallel mode runs overlapping invocations concurrently
@@ -478,7 +478,7 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
             await gate.wait()
             concurrent_count[0] -= 1
 
-    async with AppTestHarness(_ParallelApp, config={}) as harness:
+    async with AppTestHarness(_ParallelApp, config={"instance_name": "parallel_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "parallel_job")
@@ -503,8 +503,8 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
 
         # Unblock both
         gate.set()
-        await asyncio.wait_for(dispatch1, timeout=2.0)
-        await asyncio.wait_for(dispatch2, timeout=2.0)
+        await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(dispatch2, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Should have seen at least 2 concurrent invocations at some point
         assert max_concurrent[0] >= 2, (
@@ -535,7 +535,7 @@ async def test_queued_mode_serializes_overrun() -> None:
                 await gate.wait()
             run_order.append(num)
 
-    async with AppTestHarness(_QueuedApp, config={}) as harness:
+    async with AppTestHarness(_QueuedApp, config={"instance_name": "queued_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "queued_job")
@@ -543,7 +543,7 @@ async def test_queued_mode_serializes_overrun() -> None:
         # Dispatch first fire — it will block
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Get next occurrence off heap
         await asyncio.sleep(0)
@@ -562,8 +562,8 @@ async def test_queued_mode_serializes_overrun() -> None:
 
         # Unblock first; the queued one should run after
         gate.set()
-        await asyncio.wait_for(dispatch1, timeout=2.0)
-        await asyncio.wait_for(dispatch2, timeout=2.0)
+        await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(dispatch2, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         assert 1 in run_order, "First invocation should have run"
         assert 2 in run_order, "Second (queued) invocation should have run"
@@ -593,7 +593,7 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
             first_started.set()
             await gate.wait()
 
-    async with AppTestHarness(_QueuedHangApp, config={}) as harness:
+    async with AppTestHarness(_QueuedHangApp, config={"instance_name": "queued_hang_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "queued_hang_job")
@@ -601,7 +601,7 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
         # Dispatch first fire — blocks on gate (first invocation is now running)
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Get next occurrence off heap
         await asyncio.sleep(0)
@@ -630,7 +630,7 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
         # Unblock first dispatch and clean up
         gate.set()
         with contextlib.suppress(asyncio.CancelledError, TimeoutError):
-            await asyncio.wait_for(dispatch1, timeout=2.0)
+            await asyncio.wait_for(dispatch1, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 # restart mode cancels in-flight and starts fresh
@@ -662,7 +662,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
                 cancelled_count[0] += 1
                 raise
 
-    async with AppTestHarness(_RestartApp, config={}) as harness:
+    async with AppTestHarness(_RestartApp, config={"instance_name": "restart_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         mock_executor = scheduler_service._executor
 
@@ -685,7 +685,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
         # Dispatch first fire — will block
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Get next occurrence
         await asyncio.sleep(0)
@@ -702,7 +702,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
         await asyncio.sleep(0.1)
 
         # Second invocation starts fresh (first_started should set again)
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # First invocation should have been cancelled (user-side evidence)
         assert cancelled_count[0] >= 1, (
@@ -773,7 +773,7 @@ async def test_trigger_error_runs_current_fire_then_completes_job() -> None:
         async def task(self) -> None:
             fired.set()
 
-    async with AppTestHarness(_BadTriggerApp, config={}) as harness:
+    async with AppTestHarness(_BadTriggerApp, config={"instance_name": "bad_trigger_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next((j for j in jobs if j.name == "bad_trigger_job"), None)
@@ -819,7 +819,7 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
         async def task(self) -> None:
             pass
 
-    async with AppTestHarness(_RacingApp, config={}) as harness:
+    async with AppTestHarness(_RacingApp, config={"instance_name": "racing_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
 
         jobs = await scheduler_service.get_all_jobs()
@@ -880,7 +880,7 @@ async def test_guard_release_on_remove_clears_in_flight() -> None:
                 self.task_cancelled.set()
                 raise
 
-    async with AppTestHarness(_HoldingApp, config={}) as harness:
+    async with AppTestHarness(_HoldingApp, config={"instance_name": "holding_app"}) as harness:
         app = harness.app
         scheduler = app.scheduler
         scheduler_service = harness._harness.hassette._scheduler_service
@@ -891,7 +891,7 @@ async def test_guard_release_on_remove_clears_in_flight() -> None:
         # Dispatch the job — it will block
         harness.freeze_time(job.next_run.add(seconds=1))
         dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(app.started.wait(), timeout=2.0)
+        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Guard should be holding current_task
         assert job.guard.is_running(), "Guard should be running"
@@ -920,7 +920,7 @@ async def test_remove_completed_job_releases_guard_without_heap_entry() -> None:
     release/drain tail must not be skipped just because there was no heap occurrence to
     remove; the unified removal operation runs it unconditionally.
     """
-    async with AppTestHarness(_RunOnceModeApp, config={}) as harness:
+    async with AppTestHarness(_RunOnceModeApp, config={"instance_name": "run_once_mode_app"}) as harness:
         scheduler = harness.app.scheduler
         job = next(j for j in scheduler.list_jobs() if j.name == "runonce_mode_job")
 
@@ -958,7 +958,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
             started.set()
             await gate.wait()
 
-    async with AppTestHarness(_StalledApp, config={}) as harness:
+    async with AppTestHarness(_StalledApp, config={"instance_name": "stalled_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "stalled_job")
@@ -974,7 +974,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
         ):
             harness.freeze_time(job.next_run.add(seconds=1))
             dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-            await asyncio.wait_for(started.wait(), timeout=2.0)
+            await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
             # Wait longer than patched threshold for watchdog to fire
             await asyncio.sleep(0.2)
@@ -984,7 +984,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
 
         # Unblock and clean up
         gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=2.0)
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 async def test_parallel_mode_has_no_stall_watchdog() -> None:
@@ -1002,7 +1002,7 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
             started.set()
             await gate.wait()
 
-    async with AppTestHarness(_ParallelStalledApp, config={}) as harness:
+    async with AppTestHarness(_ParallelStalledApp, config={"instance_name": "parallel_stalled_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
         jobs = await scheduler_service.get_all_jobs()
         job = next(j for j in jobs if j.name == "parallel_stalled_job")
@@ -1015,11 +1015,11 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
         ):
             harness.freeze_time(job.next_run.add(seconds=1))
             dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-            await asyncio.wait_for(started.wait(), timeout=2.0)
+            await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
             # dispatch_task is still pending because run_job awaits the callable inline
             assert not dispatch_task.done(), "Dispatch should be pending while job runs"
             await asyncio.sleep(0.2)  # outlast the patched threshold
             mock_warn.assert_not_called()
 
         gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=2.0)
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)

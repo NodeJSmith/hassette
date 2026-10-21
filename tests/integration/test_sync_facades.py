@@ -59,7 +59,7 @@ class SyncHomeassistantLifecycleApp(AppSync[SyncFacadeConfig]):
 
 async def test_bus_sync_facade_registers_listener_from_sync_init():
     """A listener registered via self.bus.sync in on_initialize_sync is live with a real db_id."""
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         listeners = harness.bus.get_listeners()
         by_name = {listener.identity.name: listener for listener in listeners}
 
@@ -71,7 +71,9 @@ async def test_bus_sync_facade_registers_listener_from_sync_init():
 
 async def test_bus_sync_facade_registers_ha_lifecycle_listeners_from_sync_init():
     """bus.sync.on_homeassistant_restart/start/stop registered from on_initialize_sync are live."""
-    async with AppTestHarness(SyncHomeassistantLifecycleApp, config={}) as harness:
+    async with AppTestHarness(
+        SyncHomeassistantLifecycleApp, config={"instance_name": "sync_homeassistant_lifecycle_app"}
+    ) as harness:
         listeners = harness.bus.get_listeners()
         by_name = {listener.identity.name: listener for listener in listeners}
 
@@ -84,7 +86,7 @@ async def test_bus_sync_facade_registers_ha_lifecycle_listeners_from_sync_init()
 
 async def test_scheduler_sync_facade_schedules_job_from_sync_init():
     """A job scheduled via self.scheduler.sync in on_initialize_sync is live with a real db_id."""
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         jobs = harness.scheduler.list_jobs()
         by_name = {job.name: job for job in jobs}
 
@@ -96,7 +98,7 @@ async def test_scheduler_sync_facade_schedules_job_from_sync_init():
 
 async def test_scheduler_sync_facade_run_in_accepts_unit_keywords():
     """self.scheduler.sync.run_in forwards minutes= to the async scheduler; the components add up."""
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         job = next(job for job in harness.scheduler.list_jobs() if job.name == "sync_delayed_units")
 
         assert job.trigger is not None
@@ -109,7 +111,7 @@ async def test_bus_sync_facade_raises_inside_event_loop():
     def noop(event: RawStateChangeEvent) -> None:  # factory-local: sync handler with event param for facade tests
         pass
 
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         with pytest.raises(RuntimeError, match="called from within an event loop"):
             harness.bus.sync.on_state_change("sensor.other", handler=noop, name="loop_call")
 
@@ -120,7 +122,7 @@ async def test_scheduler_sync_facade_raises_inside_event_loop():
     def noop() -> None:  # factory-local: sync no-arg handler for facade tests
         pass
 
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         with pytest.raises(RuntimeError, match="called from within an event loop"):
             harness.scheduler.sync.run_in(noop, 30, name="loop_job")
 
@@ -132,7 +134,7 @@ async def test_api_sync_facade_fires_service_from_sync_init() -> None:
     ``task_bucket.run_sync`` drives it to completion, so the call reaches
     RecordingApi and is appended to api_recorder.calls.
     """
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         calls_by_method = {c.method: c for c in harness.api_recorder.calls}
         assert "turn_on" in calls_by_method, f"Expected 'turn_on' in api_recorder.calls, got {sorted(calls_by_method)}"
         turn_on_call = calls_by_method["turn_on"]
@@ -148,7 +150,7 @@ async def test_bus_sync_facade_wait_for_uses_none_timeout_on_bridge() -> None:
     The sync bridge uses timeout_seconds=None ("block forever") so registration overhead never
     races the inner timeout.
     """
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         fake_event = MagicMock()
 
         def fake_run_sync(coro, **_kwargs):
@@ -173,7 +175,7 @@ async def test_entity_sync_facade_delegates_to_call_service() -> None:
     recording facade, not a MagicMock. The run_sync bridge itself is covered separately by
     ``test_task_bucket.test_run_sync_drives_coroutine_from_worker_thread``.
     """
-    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+    async with AppTestHarness(SyncRegisteringApp, config={"instance_name": "sync_registering_app"}) as harness:
         recorder = harness.api_recorder
         # Point the entity's context api at the harness recorder, matching the make_*_entity
         # wiring in the unit tests. Scoped to try/finally so harness teardown sees the original

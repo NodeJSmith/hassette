@@ -96,8 +96,6 @@ Names are modelled on Home Assistant's entity object ID rule:
 
 Names are unique across the whole config. No two instances, under any app key and enabled or not, share a name. A duplicate fails at config load with an error that lists every instance using the name.
 
-Apps that Hassette auto-loads through [`apps.autodetect`](../configuration/index.md#app-discovery), with no config section, are named after their class in snake_case: `MyApp` becomes `my_app`, `HTTPServerApp` becomes `http_server_app`, `MyApp2` becomes `my_app2`, and `BlockingIOLab` becomes `blocking_io_lab`. Leading and trailing underscores are dropped, so `_HelperApp` becomes `helper_app`. If the result is not a valid name, loading fails and the error names the class. Configure that app with an explicit `instance_name`. Two auto-loaded classes that produce the same name collide the same way; give one of them an `instance_name`.
-
 !!! note "Storage, routes, and the CLI still use the index"
     The name keys logging and `self.unique_name`. Persistent storage, web routes, and the CLI still address an instance by its app key and index (its zero-based position among the app's `config` blocks). The CLI's `--instance` flag resolves a name to its index.
 

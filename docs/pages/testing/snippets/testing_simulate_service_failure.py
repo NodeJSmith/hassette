@@ -9,14 +9,20 @@ class WatchdogConfig(AppConfig):
 
 class WatchdogApp(App[WatchdogConfig]):
     async def on_initialize(self):
-        await self.bus.on_hassette_service_failed(handler=self.on_service_failed, name="service_watchdog")
+        await self.bus.on_hassette_service_failed(
+            handler=self.on_service_failed, name="service_watchdog"
+        )
 
     async def on_service_failed(self) -> None:
-        await self.api.call_service("notify", "send_message", message="Service failed")
+        await self.api.call_service(
+            "notify", "send_message", message="Service failed"
+        )
 
 
 async def test_service_failure_triggers_notification():
-    async with AppTestHarness(WatchdogApp, config={}) as harness:
+    async with AppTestHarness(
+        WatchdogApp, config={"instance_name": "watchdog_app"}
+    ) as harness:
         await harness.simulate_hassette_service_failed("WebSocketService")
         harness.api_recorder.assert_called(
             "call_service",
@@ -28,7 +34,9 @@ async def test_service_failure_triggers_notification():
 
 async def test_granular_service_status():
     """You can also simulate specific status transitions."""
-    async with AppTestHarness(WatchdogApp, config={}) as harness:
+    async with AppTestHarness(
+        WatchdogApp, config={"instance_name": "watchdog_app"}
+    ) as harness:
         await harness.simulate_hassette_service_status(
             "SchedulerService",
             ResourceStatus.FAILED,

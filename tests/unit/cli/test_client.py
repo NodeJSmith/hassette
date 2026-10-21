@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
-from hassette.config.models import WebApiConfig
+from hassette.config.models import DEFAULT_WEB_API_PORT, WebApiConfig
 from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
 from tests.unit.cli.conftest import APPS_ENDPOINT, REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
@@ -58,7 +58,7 @@ def make_transport(
     return httpx.MockTransport(_fixed_response)
 
 
-def make_host_port_config(host: str = "127.0.0.1", port: int = 8126) -> HassetteConfig:
+def make_host_port_config(host: str = "127.0.0.1", port: int = DEFAULT_WEB_API_PORT) -> HassetteConfig:
     """Bare host/port config for base-URL construction tests.
 
     Narrower than the shared ``make_cli_config()`` (from ``conftest.py``) — no ``cli``/``data_dir``
@@ -220,12 +220,12 @@ class TestBaseUrl:
     def test_default_address(self) -> None:
         config = make_host_port_config()
         client = HassetteCLIClient(config, json_mode=False)
-        assert client.base_url == "http://127.0.0.1:8126"
+        assert client.base_url == f"http://127.0.0.1:{DEFAULT_WEB_API_PORT}"
 
     def test_bind_all_ipv4_substituted(self) -> None:
-        config = make_host_port_config("0.0.0.0", 8126)
+        config = make_host_port_config("0.0.0.0", DEFAULT_WEB_API_PORT)
         client = HassetteCLIClient(config, json_mode=False)
-        assert client.base_url == "http://127.0.0.1:8126"
+        assert client.base_url == f"http://127.0.0.1:{DEFAULT_WEB_API_PORT}"
 
     def test_bind_all_ipv6_substituted(self) -> None:
         config = make_host_port_config("::", 8080)
@@ -252,7 +252,7 @@ class TestSuccessfulRequests:
 
     def test_returns_dict_for_dict_response(self) -> None:
         config = make_host_port_config()
-        body = {"web_api": {"port": 8126}}
+        body = {"web_api": {"port": DEFAULT_WEB_API_PORT}}
         transport = make_transport(200, body)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         result = client.get("/api/config", dict)
@@ -522,7 +522,7 @@ class TestNetworkErrors:
 
     def test_connection_refused_mentions_address_stderr(self) -> None:
         stderr = stderr_for_connect_error(make_host_port_config())
-        assert "127.0.0.1" in stderr or "8126" in stderr
+        assert "127.0.0.1" in stderr or str(DEFAULT_WEB_API_PORT) in stderr
 
     def test_timeout_exits_code_2(self) -> None:
         config = make_host_port_config()

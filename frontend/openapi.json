@@ -3291,7 +3291,9 @@
           },
           "auto_loaded": {
             "type": "boolean",
-            "title": "Auto Loaded"
+            "title": "Auto Loaded",
+            "description": "Deprecated: always ``False``, since app autodetection is gone. Kept because released clients up to\n0.59.0 require it; removed in #3161.",
+            "default": false
           },
           "autostart": {
             "type": "boolean",
@@ -3373,7 +3375,6 @@
           "display_name",
           "filename",
           "enabled",
-          "auto_loaded",
           "status"
         ],
         "title": "AppSummary",

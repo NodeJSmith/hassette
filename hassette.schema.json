@@ -30,7 +30,7 @@
         },
         "apps": {
           "$ref": "#/$defs/AppsConfig",
-          "description": "App directory, auto-detection, and manifest settings."
+          "description": "App directory, unconfigured-app warning, and manifest settings."
         },
         "scheduler": {
           "$ref": "#/$defs/SchedulerConfig"
@@ -249,7 +249,7 @@
           "type": "string"
         },
         "display_name": {
-          "description": "Display name of the app, will use class_name if not set",
+          "description": "Display name of the app, will use app_key if not set",
           "examples": [
             "My App"
           ],
@@ -299,12 +299,6 @@
           "description": "Instance configuration for the app",
           "title": "Config"
         },
-        "auto_loaded": {
-          "default": false,
-          "description": "Whether the app was auto-detected or manually configured",
-          "title": "Auto Loaded",
-          "type": "boolean"
-        },
         "full_path": {
           "description": "Fully resolved path to the app file",
           "format": "path",
@@ -336,21 +330,13 @@
       "type": "object"
     },
     "AppsConfig": {
-      "description": "App directory, auto-detection, exclusion, manifest, and raw-app-dict settings.\n\nIn TOML, app definitions live alongside these settings under ``[hassette.apps]``:\n\n.. code-block:: toml\n\n    [hassette.apps]\n    directory = \"apps\"\n\n    [hassette.apps.my_app]\n    filename = \"my_app.py\"\n    class_name = \"MyApp\"\n\nThe ``model_validator`` separates known config fields from app-definition\ndicts so both coexist in the same TOML section.",
+      "description": "App directory, unconfigured-app warning, manifest, and raw-app-dict settings.\n\nIn TOML, app definitions live alongside these settings under ``[hassette.apps]``:\n\n.. code-block:: toml\n\n    [hassette.apps]\n    directory = \"apps\"\n\n    [hassette.apps.my_app]\n    filename = \"my_app.py\"\n    class_name = \"MyApp\"\n\nThe ``model_validator`` separates known config fields from app-definition\ndicts so both coexist in the same TOML section.",
       "properties": {
-        "autodetect": {
+        "warn_unconfigured": {
           "default": true,
-          "description": "Whether to automatically detect apps in the app directory.",
-          "title": "Autodetect",
+          "description": "Whether startup warns about each ``App``/``AppSync`` subclass in the app directory that no app entry\nconfigures. The scan parses files without importing them and skips virtualenv, cache, version-control,\nand vendored-package directories.",
+          "title": "Warn Unconfigured",
           "type": "boolean"
-        },
-        "exclude_dirs": {
-          "description": "Additional directory names to skip when auto-detecting apps. Always added to the built-in\nexclusions (``AUTODETECT_EXCLUDE_DIRS_DEFAULT``), never a replacement for them.",
-          "items": {
-            "type": "string"
-          },
-          "title": "Exclude Dirs",
-          "type": "array"
         },
         "manifests": {
           "additionalProperties": {
@@ -1175,10 +1161,6 @@
             }
           ],
           "title": "Config"
-        },
-        "auto_loaded": {
-          "title": "Auto Loaded",
-          "type": "boolean"
         },
         "cache_key": {
           "title": "Cache Key",

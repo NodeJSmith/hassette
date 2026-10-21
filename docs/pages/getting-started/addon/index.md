@@ -79,13 +79,13 @@ Find the file in your config folder:
 
 Replace the `greeting` default with your own text, such as `"Hello from my first Hassette app!"`, then save the file.
 
-Hassette starts every app it finds in `apps/`, so the app needs no `hassette.toml` entry. Restart the add-on from its **Info** tab, then open the **Log** tab again. You see a line like this with your new greeting:
+The starter `hassette.toml` already has the example app's section, so the edit needs no config change. Restart the add-on from its **Info** tab, then open the **Log** tab again. You see a line like this with your new greeting:
 
 ```text
 2026-10-17T08:24:11.102394 [info     ] Hello from my first Hassette app! [hassette.apps.example_app] execution_id=None
 ```
 
-To give an app settings of its own, add a section to `hassette.toml`. The starter file shows the format in a comment, and [Add-on Configuration](configuration.md#hassettetoml) explains it.
+To give the app settings of its own, set them in its section's `config` in `hassette.toml`. The starter file shows the format in a comment, and [Add-on Configuration](configuration.md#hassettetoml) explains it.
 
 ## Step 5: Pair the integration
 

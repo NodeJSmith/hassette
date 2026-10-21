@@ -35,7 +35,7 @@ This applies to every path setting: `apps.directory`, `data_dir`, `database.path
 
 ### Checking the Resolved Locations {#check-config}
 
-`hassette run --check` loads and validates the configuration without importing apps or starting Hassette. It also requires a token and checks the app entries written in `hassette.toml`; autodetected apps aren't checked, since finding them imports their modules. On success it prints the resolved locations and exits 0:
+`hassette run --check` loads and validates the configuration without importing apps or starting Hassette. It also requires a token and checks the app entries written in `hassette.toml`. It doesn't warn about app classes without an entry; only startup does. On success it prints the resolved locations and exits 0:
 
 ```console
 $ hassette run --check

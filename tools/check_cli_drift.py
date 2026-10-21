@@ -14,7 +14,7 @@ help text, added/removed/renamed table column) without the docs being
 updated to match. This catches the common case cheaply; pure formatting
 changes in ``output.py`` that don't change any signature are not caught
 here — those are expected to surface during normal doc maintenance instead
-(currently a manual doc edit; see #855 for tracked Cog-based automation).
+(currently a manual doc edit; see #840 for generating CLI doc output).
 
 Usage:
     uv run python tools/check_cli_drift.py            # check (default)

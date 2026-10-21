@@ -6,7 +6,9 @@ from my_apps.reminder import ReminderApp
 
 
 async def test_reminder_fires_after_one_hour():
-    async with AppTestHarness(ReminderApp, config={}) as harness:
+    async with AppTestHarness(
+        ReminderApp, config={"instance_name": "reminder_app"}
+    ) as harness:
         # 1. Freeze time at a known point
         start = Instant.from_utc(2024, 1, 15, 9, 0, 0)  # 2024-01-15 09:00 UTC
         harness.freeze_time(start)
@@ -21,4 +23,6 @@ async def test_reminder_fires_after_one_hour():
         assert count == 1
 
         # 5. Assert your app made the expected API call
-        harness.api_recorder.assert_called("fire_event", event_type="reminder_fired")
+        harness.api_recorder.assert_called(
+            "fire_event", event_type="reminder_fired"
+        )

@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.commands import ExecuteJob
@@ -49,7 +50,7 @@ async def test_error_handler_runs_after_framework_log(executor: CommandExecutor)
     assert received_ctx[0].topic == "test.topic"
     # Framework still recorded the error in the write queue
     record = pop_execution_record(executor)
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
 
 
 async def test_sync_error_handler_wraps_in_thread(executor: CommandExecutor) -> None:
@@ -151,7 +152,7 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
 
     # Write queue should have a timed_out record
     record = pop_execution_record(executor)
-    assert record.status == "timed_out"
+    assert record.status is ExecutionStatus.TIMED_OUT
 
 
 async def test_error_handler_timeout_logs_warning(executor: CommandExecutor) -> None:

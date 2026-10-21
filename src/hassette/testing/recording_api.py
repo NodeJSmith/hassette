@@ -552,7 +552,7 @@ class RecordingApi(Resource):
 
     Example::
 
-        async with AppTestHarness(MotionLights, config={}) as harness:
+        async with AppTestHarness(MotionLights, config={"instance_name": "motion_lights"}) as harness:
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
             harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
     """

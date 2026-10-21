@@ -4,7 +4,9 @@ from my_apps.slow_app import SlowApp
 
 
 async def test_with_custom_timeout():
-    async with AppTestHarness(SlowApp, config={}) as harness:
+    async with AppTestHarness(
+        SlowApp, config={"instance_name": "slow_app"}
+    ) as harness:
         await harness.simulate_state_change(
             "sensor.slow_device",
             old_value="off",

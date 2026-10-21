@@ -66,7 +66,6 @@ def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
         description=manifest.description,
         filename=manifest.filename,
         enabled=manifest.enabled,
-        auto_loaded=manifest.auto_loaded,
         autostart=manifest.autostart,
         status=manifest.status,
         block_reason=manifest.block_reason,

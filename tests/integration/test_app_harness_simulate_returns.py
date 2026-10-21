@@ -90,7 +90,7 @@ SIMULATIONS: list[tuple[str, Simulate, type[AnyEvent]]] = [
 )
 async def test_simulate_returns_dispatched_event(simulate: Simulate, event_type: type[AnyEvent]) -> None:
     """The returned event is the instance handlers received, delivered before the call returned."""
-    async with AppTestHarness(CaptureAllApp, config={}) as harness:
+    async with AppTestHarness(CaptureAllApp, config={"instance_name": "capture_all_app"}) as harness:
         event = await simulate(harness)
 
         assert isinstance(event, event_type)
@@ -105,7 +105,7 @@ def test_every_simulate_method_is_covered() -> None:
 
 async def test_convenience_wrapper_returns_delegated_event_payload() -> None:
     """Convenience wrappers return the event built by the delegated simulation, with their preset values."""
-    async with AppTestHarness(CaptureAllApp, config={}) as harness:
+    async with AppTestHarness(CaptureAllApp, config={"instance_name": "capture_all_app"}) as harness:
         ready = await harness.simulate_hassette_service_ready("MyService", ready_phase="connected")
         restart = await harness.simulate_homeassistant_restart()
 

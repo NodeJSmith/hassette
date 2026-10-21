@@ -2,8 +2,8 @@
 
 Regression for #1062: app_manifest used to be a ClassVar the factory overwrote
 once per ``[apps.*]`` section, so when two sections reused one App subclass the
-section loaded last clobbered ``display_name``/``enabled``/``auto_loaded`` for
-every instance of that class. This mirrors the per-instance app_key fix
+section loaded last clobbered ``display_name``/``enabled`` for every
+instance of that class. This mirrors the per-instance app_key fix
 (#1060/#1064): each instance now carries its own manifest.
 """
 

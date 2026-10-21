@@ -271,7 +271,7 @@ async def test_list_isolation_preserves_nested_collections():
 
 async def test_seed_helper_rejects_duplicate_id():
     """seed_helper raises ValueError when seeding a duplicate id in the same domain."""
-    async with AppTestHarness(_HarnessApp, config={}) as harness:
+    async with AppTestHarness(_HarnessApp, config={"instance_name": "harness_app"}) as harness:
         harness.seed_helper(InputBooleanRecord(id="vacation_mode", name="First"))
 
         def seed_duplicate() -> None:
@@ -288,7 +288,7 @@ async def test_harness_seed_helper_rejects_unknown_record_type():
         id: str
         name: str
 
-    async with AppTestHarness(_HarnessApp, config={}) as harness:
+    async with AppTestHarness(_HarnessApp, config={"instance_name": "harness_app"}) as harness:
         unknown = UnknownRecord(id="foo", name="Foo")
 
         def seed_unknown() -> None:
@@ -304,7 +304,7 @@ async def test_harness_seed_helper_rejects_unknown_record_type():
 
 async def test_seed_helper_isolates_caller_mutations():
     """seed_helper deep-copies the record so later caller-side mutations don't leak."""
-    async with AppTestHarness(_HarnessApp, config={}) as harness:
+    async with AppTestHarness(_HarnessApp, config={"instance_name": "harness_app"}) as harness:
         caller_record = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
         harness.seed_helper(caller_record)
 

@@ -39,16 +39,6 @@ def local_overlay_paths(files: list[Path]) -> list[Path]:
     return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in files]
 
 
-def snake_case(name: str) -> str:
-    """Convert a CamelCase class name to snake_case, keeping acronyms whole (``HTTPServerApp`` -> ``http_server_app``).
-
-    Leading and trailing underscores are dropped, so a private class (``_HelperApp``) still yields a valid name.
-    """
-    name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name.strip("_"))
-    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
-    return name.lower()
-
-
 def instance_name_reason(name: str) -> str | None:
     """Return why *name* can't be an instance name, or None if it is valid."""
     if len(name) > INSTANCE_NAME_MAX_LENGTH:
@@ -60,29 +50,19 @@ def instance_name_reason(name: str) -> str | None:
     return None
 
 
-def resolve_instance_name(configured: object, *, app_key: str, index: int, class_name: str, auto_loaded: bool) -> str:
+def resolve_instance_name(configured: object, *, app_key: str, index: int) -> str:
     """Return the instance name for one app instance, or raise if it has none or it is invalid.
 
-    The single place an instance's name is decided. A configured instance must set ``instance_name``; only an
-    auto-loaded app (no config section) gets a default, its class name in snake_case.
+    The single place an instance's name is checked. Every instance must set ``instance_name``; there is no default.
 
     Raises:
-        ValueError: The instance has no name and isn't auto-loaded, or the name fails the charset rule.
+        ValueError: The instance has no name, or the name fails the charset rule.
     """
     if configured is None or configured == "":
-        if not auto_loaded:
-            raise ValueError(
-                f"app {app_key!r} instance {index} has no instance_name; every configured app instance must set "
-                "`instance_name` in its config"
-            )
-        name = snake_case(class_name)
-        if reason := instance_name_reason(name):
-            raise ValueError(
-                f"auto-loaded app class {class_name!r} gives the instance name {name!r}, which {reason}; "
-                "configure the app with an explicit `instance_name`"
-            )
-        return name
-
+        raise ValueError(
+            f"app {app_key!r} instance {index} has no instance_name; every app instance must set "
+            "`instance_name` in its config"
+        )
     if not isinstance(configured, str):
         raise ValueError(f"app {app_key!r} instance {index} has a non-string instance_name {configured!r}")
     if reason := instance_name_reason(configured):
@@ -223,7 +203,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     """Class name of the app"""
 
     display_name: str = Field(default=..., examples=["My App"])
-    """Display name of the app, will use class_name if not set"""
+    """Display name of the app, will use app_key if not set"""
 
     description: str | None = Field(default=None, max_length=200, examples=["Turns on the porch light at sunset"])
     """Optional one-line description of what the app does. Surrounding whitespace is stripped; line breaks are
@@ -236,9 +216,6 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         default_factory=dict, validation_alias=AliasChoices("config", "app_config"), validate_default=True
     )
     """Instance configuration for the app"""
-
-    auto_loaded: bool = Field(default=False)
-    """Whether the app was auto-detected or manually configured"""
 
     full_path: Path
     """Fully resolved path to the app file"""
@@ -269,7 +246,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         values["app_dir"] = app_dir = Path(values["app_dir"]).resolve()
 
         if not values.get("display_name"):
-            values["display_name"] = values.get("class_name") if values.get("auto_loaded") else values.get("app_key")
+            values["display_name"] = values.get("app_key")
 
         if app_dir.is_file():
             LOGGER.warning("App directory %s is a file, using the parent directory as app_dir", app_dir)
@@ -339,13 +316,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         self.app_config = [
             {
                 **item,
-                "instance_name": resolve_instance_name(
-                    item.get("instance_name"),
-                    app_key=self.app_key,
-                    index=idx,
-                    class_name=self.class_name,
-                    auto_loaded=self.auto_loaded,
-                ),
+                "instance_name": resolve_instance_name(item.get("instance_name"), app_key=self.app_key, index=idx),
             }
             for idx, item in enumerate(configs)
         ]

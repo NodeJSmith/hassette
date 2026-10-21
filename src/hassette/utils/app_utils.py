@@ -1,24 +1,27 @@
+import ast
 import importlib.machinery
 import importlib.util
-import inspect
-import json
 import os
 import sys
 import traceback
 import typing
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
 
+from pydantic.alias_generators import to_snake
+
 from hassette.app.utils import validate_app
+from hassette.config.defaults import APP_SCAN_EXCLUDE_DIRS
 from hassette.exceptions import (
     AppPrecheckFailedError,
     CannotOverrideFinalError,
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
+from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.types.types import AppDict, RawAppDict
-from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
     from types import ModuleType
@@ -26,12 +29,26 @@ if typing.TYPE_CHECKING:
     from hassette import AppConfig, HassetteConfig
     from hassette.app import App
     from hassette.config.classes import AppManifest
+    from hassette.config.models import AppsConfig
 
 LOGGER = getLogger(__name__)
 LOADED_CLASSES: "dict[tuple[str, str], type[App[AppConfig]]]" = {}
 FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 
 EXCLUDED_PATH_PARTS = ("site-packages", "importlib", "hassette")
+APP_BASE_NAMES = frozenset({"App", "AppSync"})
+
+
+@dataclass
+class AppScan:
+    """What the unconfigured-app scan found under an apps directory."""
+
+    unconfigured: list[tuple[Path, str]] = field(default_factory=list)
+    """``(file path, class name)`` for each app class no app entry configures."""
+
+    unreadable: list[tuple[Path, str]] = field(default_factory=list)
+    """``(file path, error message)`` for each ``.py`` file the scan skipped because reading, parsing, or
+    resolving it failed, or because it links to a file outside the apps directory."""
 
 
 def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
@@ -127,9 +144,6 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
         if not app_manifest.enabled:
             continue
 
-        if app_manifest.auto_loaded:
-            continue
-
         try:
             load_app_class_from_manifest(app_manifest=app_manifest, config=config)
 
@@ -178,7 +192,6 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
         enabled=app_dict.get("enabled", True),
         autostart=app_dict.get("autostart", True),
         config=app_configs,
-        auto_loaded=app_dict.get("auto_loaded", False),
         full_path=full_path,
         cache_key=app_dict.get("cache_key", ""),
         cache_shared=app_dict.get("cache_shared", False),
@@ -193,73 +206,104 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
     return clean_app_dict
 
 
-def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str]) -> dict[str, AppDict]:
-    """Auto-detect app manifests in the provided app directory.
+def find_unconfigured_app_classes(app_dir: Path, configured: set[tuple[Path, str]]) -> AppScan:
+    """Find app classes under `app_dir` that no app entry configures, without importing anything.
+
+    Each ``.py`` file is parsed, not imported, so unconfigured files run no code. A class counts when it
+    is defined at module top level and one of its bases, with any subscript stripped (``App[MyConfig]``),
+    is the name ``App`` or ``AppSync`` or an attribute ending in one (``hassette.App``). Import aliases and
+    indirect subclasses aren't resolved: the result is a newcomer hint, not a completeness check.
+
+    Never raises: an unreadable directory is skipped, and a file that fails to read, parse, or resolve is
+    skipped, logged at DEBUG, and reported in ``unreadable``, as is a symlink whose target is outside `app_dir`
+    (no app entry could load it). Directories named in ``APP_SCAN_EXCLUDE_DIRS`` are never entered, and an
+    `app_dir` whose own absolute path contains one of those names isn't scanned.
 
     Args:
-        app_dir: Directory to search for app manifests.
-        known_paths: Set of paths that are already known/configured.
-        exclude_dirs: Directory names to skip; any file whose path contains one of these is ignored.
+        app_dir: The apps directory to scan.
+        configured: ``(resolved file path, class name)`` pairs already configured by an app entry.
 
     Returns:
-        Detected app manifests, keyed by app key.
+        The unconfigured classes and unreadable files, both in walk order: each directory's files sorted by
+        name, then its subdirectories sorted by name, and classes in file order. Paths start with the
+        resolved `app_dir` but aren't resolved themselves, so a warning can name them relative to `app_dir`.
     """
-    from hassette.app import (  # house-lint: ignore[HSL002] - break circular import, hassette.app imports this module
-        App,
-        AppSync,
+    root = app_dir.resolve()
+    if not root.is_dir() or APP_SCAN_EXCLUDE_DIRS.intersection(root.parts):
+        return AppScan()
+
+    unconfigured: list[tuple[Path, str]] = []
+    unreadable: list[tuple[Path, str]] = []
+    # os.walk skips directories it can't read instead of raising
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in APP_SCAN_EXCLUDE_DIRS)
+        for filename in sorted(f for f in filenames if f.endswith(".py")):
+            path = Path(dirpath, filename)
+            try:
+                class_names = app_class_names(ast.parse(path.read_bytes(), filename=str(path)))
+                # manifests hold resolved paths, so a symlinked file matches its configured target
+                resolved = path.resolve()
+            except Exception as exc:
+                LOGGER.debug("Skipping %s in the unconfigured-app scan: %s", path, exc)
+                # SyntaxError's str() repeats the file name the warning already shows
+                error = f"{exc.msg} (line {exc.lineno})" if isinstance(exc, SyntaxError) else str(exc)
+                unreadable.append((path, error))
+                continue
+            # an app entry can't name a file outside the apps directory, so a snippet for it couldn't load
+            if not resolved.is_relative_to(root):
+                error = f"links to {resolved}, outside the apps directory"
+                LOGGER.debug("Skipping %s in the unconfigured-app scan: %s", path, error)
+                unreadable.append((path, error))
+                continue
+            unconfigured.extend((path, name) for name in class_names if (resolved, name) not in configured)
+    return AppScan(unconfigured=unconfigured, unreadable=unreadable)
+
+
+def app_class_names(tree: ast.Module) -> list[str]:
+    """Names of the module top-level classes whose bases visibly name ``App`` or ``AppSync``."""
+    return [
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and any(is_app_base(base) for base in node.bases)
+    ]
+
+
+def is_app_base(base: ast.expr) -> bool:
+    """Whether a class base is ``App``/``AppSync``, bare or as an attribute, with any subscript stripped."""
+    if isinstance(base, ast.Subscript):
+        base = base.value
+    if isinstance(base, ast.Name):
+        return base.id in APP_BASE_NAMES
+    if isinstance(base, ast.Attribute):
+        return base.attr in APP_BASE_NAMES
+    return False
+
+
+def suggested_app_key(class_name: str, taken: set[str]) -> str:
+    """The snake_case class name as an app key, or the first free ``_2``, ``_3``, ... variant of it."""
+    base = to_snake(class_name)
+    key, suffix = base, 2
+    while key in taken:
+        key = f"{base}_{suffix}"
+        suffix += 1
+    return key
+
+
+def unconfigured_app_warning(app_dir: Path, path: Path, class_name: str, key: str) -> str:
+    """The startup warning for one unconfigured app class, with an entry under `key` that loads it as pasted.
+
+    The entry reuses `key` as the instance name, so callers pass a key no configured instance name uses either.
+    """
+    filename = path.relative_to(app_dir.resolve()).as_posix()
+    return (
+        f"App class {class_name} in {path} is not configured, so it won't run. To run it, add to your config:\n\n"
+        f"[hassette.apps.{key}]\n"
+        f'filename = "{filename}"\n'
+        f'class_name = "{class_name}"\n'
+        f'config = {{ instance_name = "{key}" }}\n\n'
+        "If this is a base class, configure the apps that subclass it instead. "
+        "Set warn_unconfigured = false under [hassette.apps] to turn this warning off."
     )
-
-    app_manifests: dict[str, AppDict] = {}
-
-    py_files = app_dir.rglob("*.py")
-    for py_file in py_files:
-        full_path = py_file.resolve()
-        if intersection := exclude_dirs.intersection(full_path.parts):
-            LOGGER.debug(
-                "Excluding auto-detected app at %s due to excluded directory %s",
-                full_path,
-                intersection,
-            )
-            continue
-        if full_path in known_paths:
-            LOGGER.debug(
-                "Skipping auto-detected app at %s as it is already configured",
-                full_path,
-            )
-            continue
-        try:
-            path_str, module = import_module(app_dir, py_file, app_dir.name)
-            classes = inspect.getmembers(module, inspect.isclass)
-            for class_name, cls in classes:
-                class_module = cls.__module__
-                # ensure the class is defined in this module
-                if class_module != module.__name__:
-                    continue
-                if issubclass(cls, (App, AppSync)) and cls not in (App, AppSync):
-                    app_key = f"{path_str}.{class_name}"
-                    app_dict = AppDict(
-                        filename=py_file.name,
-                        class_name=class_name,
-                        app_dir=app_dir,
-                        app_key=app_key,
-                        enabled=True,
-                        auto_loaded=True,
-                        full_path=full_path,
-                        config=[],
-                    )
-                    app_manifests[app_key] = app_dict
-                    LOGGER.debug(
-                        "Auto-detected app manifest: %s",
-                        json.dumps(app_dict, default=str, indent=2),
-                    )
-        except Exception:
-            LOGGER.error(
-                "Failed to auto-detect app classes in '%s':\n%s",
-                py_file,
-                get_short_traceback(),
-            )
-
-    return app_manifests
 
 
 def load_app_class_from_manifest(
@@ -536,13 +580,69 @@ def _ensure_on_sys_path(dir_path: Path) -> None:
         sys.path.insert(0, str(dir_path))
 
 
-def apps_dir_warning(apps_dir: Path, *, has_apps: bool, config_files: Iterable[Path], cwd: Path) -> str | None:
-    """Return the startup warning for an apps directory that is missing or holds no apps, else None."""
+def app_startup_warnings(apps: "AppsConfig", *, config_files: Iterable[Path], cwd: Path) -> list[str]:
+    """Return the startup warnings about the apps directory and the apps found in it.
+
+    One warning per unconfigured app class (when ``apps.warn_unconfigured`` is set), then the missing- or
+    empty-directory warning. Unconfigured classes count as apps for the empty-directory check, so a
+    newcomer whose only app lacks an entry sees that cause alone, not "No apps found" as well; files the
+    scan couldn't parse are named in "No apps found", since a broken app file is its likeliest cause. With
+    ``warn_unconfigured`` off the scan doesn't run, so a directory holding only unconfigured classes
+    gets "No apps found".
+
+    Each suggested key avoids configured keys, configured instance names, ``[hassette.apps]`` setting names,
+    and earlier suggestions. The snippet uses the key as its instance name too, so pasting every snippet gives
+    a config that loads.
+    """
+    scan = AppScan()
+    if apps.warn_unconfigured:
+        configured = {(manifest.full_path, manifest.class_name) for manifest in apps.manifests.values()}
+        scan = find_unconfigured_app_classes(apps.directory, configured)
+
+    # raw entries include ones that failed validation; setting names share the [hassette.apps] table
+    taken = {*apps.apps, *apps.manifests, *type(apps).model_fields}
+    taken.update(
+        config["instance_name"]
+        for manifest in apps.manifests.values()
+        for config in normalize_app_config(manifest.app_config)
+    )
+    warnings: list[str] = []
+    for path, class_name in scan.unconfigured:
+        key = suggested_app_key(class_name, taken)
+        taken.add(key)
+        warnings.append(unconfigured_app_warning(apps.directory, path, class_name, key))
+
+    has_apps = bool(apps.manifests or scan.unconfigured)
+    if warning := apps_dir_warning(
+        apps.directory, has_apps=has_apps, config_files=config_files, cwd=cwd, unreadable=scan.unreadable
+    ):
+        warnings.append(warning)
+    return warnings
+
+
+def apps_dir_warning(
+    apps_dir: Path,
+    *,
+    has_apps: bool,
+    config_files: Iterable[Path],
+    cwd: Path,
+    unreadable: Sequence[tuple[Path, str]] = (),
+) -> str | None:
+    """Return the startup warning for an apps directory that is missing or holds no apps, else None.
+
+    The no-apps warning names each `unreadable` file (``(path, error)`` from the scan) and why it failed.
+    """
     if warning := missing_apps_dir_warning(apps_dir, config_files=config_files, cwd=cwd):
         return warning
-    if not has_apps:
-        return f"No apps found or configured in apps directory {apps_dir}"
-    return None
+    if has_apps:
+        return None
+    warning = f"No apps found or configured in apps directory {apps_dir}"
+    if unreadable:
+        root = apps_dir.resolve()
+        noun = "file" if len(unreadable) == 1 else "files"
+        warning += f". {len(unreadable)} {noun} could not be scanned:"
+        warning += "".join(f"\n  {path.relative_to(root).as_posix()}: {error}" for path, error in unreadable)
+    return warning
 
 
 def missing_apps_dir_warning(apps_dir: Path, *, config_files: Iterable[Path], cwd: Path) -> str | None:

@@ -114,7 +114,6 @@ def write_toml(
             f"""
             [hassette.apps]
             directory = {app_dir.as_posix()!r}
-            autodetect = false
 
             [hassette.apps.{APP_KEY}]
             enabled = true

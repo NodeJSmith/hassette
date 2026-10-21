@@ -17,7 +17,7 @@ from websockets import connect as ws_connect
 
 from hassette.testing import wait_for
 
-from .conftest import HA_TOKEN, make_web_system_config, startup_context, wait_for_web_server
+from .conftest import HA_TOKEN, make_web_system_config, startup_context, wait_for_web_server, with_app_entries
 
 pytestmark = [pytest.mark.system]
 
@@ -138,8 +138,7 @@ async def test_integration_controls_hassette_apps(ha_container: str, tmp_path: P
     token = secrets.token_urlsafe(TOKEN_BYTES)
     config, base_url = make_web_system_config(ha_container, tmp_path, host="0.0.0.0", auth_token=token)
     # make_web_system_config starts with an empty app dir; this test needs the fixture apps loaded.
-    config.apps.autodetect = True
-    config.apps.directory = system_app_dir
+    config = with_app_entries(config, system_app_dir)
 
     async with (
         startup_context(config) as hassette,

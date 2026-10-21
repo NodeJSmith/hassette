@@ -11,7 +11,7 @@ class PorchLightApp(App[AppConfig]):
 
 
 async def test_harness_app_is_named_after_its_class() -> None:
-    async with AppTestHarness(PorchLightApp, config={}) as harness:
+    async with AppTestHarness(PorchLightApp, config={"instance_name": "porch_light_app"}) as harness:
         assert harness.app.instance_name == "porch_light_app"
         assert harness.app.unique_name == "porch_light_app"
 

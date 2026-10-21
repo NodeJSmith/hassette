@@ -6,7 +6,8 @@ api_recorder, and states as attributes after entry.
 
 Typical usage::
 
-    async with AppTestHarness(MotionLights, config={"motion_entity": "binary_sensor.test"}) as harness:
+    config = {"instance_name": "motion_lights", "motion_entity": "binary_sensor.test"}
+    async with AppTestHarness(MotionLights, config=config) as harness:
         await harness.simulate_state_change(
             "binary_sensor.test", old_value="off", new_value="on"
         )
@@ -16,6 +17,7 @@ See design/specs/025-end-user-test-utils/design.md for architecture details.
 """
 
 import inspect
+import re
 import shutil
 import tempfile
 from collections.abc import Mapping
@@ -34,10 +36,9 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.app.utils import get_app_config_class
 from hassette.bus import Bus
-from hassette.config.classes import AppManifest, snake_case
+from hassette.config.classes import AppManifest
 from hassette.resources.lifecycle import start
 from hassette.scheduler import Scheduler
-from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.state_manager import StateManager
 from hassette.testing._factories import make_state_dict
 from hassette.testing._harness import HassetteHarness
@@ -148,23 +149,26 @@ def make_hermetic_config(app_cls: type[App], app_config_cls: type[AppConfig], co
         raise AppConfigurationError(app_cls, exc) from exc
 
 
-def synthesize_manifest(app_cls: type[App], instance_name: str | None = None) -> AppManifest:
+def synthesize_manifest(app_cls: type[App], instance_name: str | None) -> AppManifest:
     """Build a minimal AppManifest for app_cls without requiring a real file or TOML config.
 
-    The manifest is an auto-loaded app's: app_key is the class name in snake_case, and so is the
-    instance name unless *instance_name* is given. Filename comes from the source file's parent
+    Derives app_key from the class name (snake_case), filename from the source file's parent
     directory, and class_name from __name__. Falls back to Path.cwd() with a warning if
     inspect.getfile() raises TypeError (namespace packages or C extensions).
 
     Args:
         app_cls: The App subclass to synthesize a manifest for.
-        instance_name: The test's own instance name, if it set one.
+        instance_name: The ``instance_name`` from the test's config, checked by the same rule as a configured app's.
 
     Returns:
         A synthesized AppManifest.
+
+    Raises:
+        AppConfigurationError: *instance_name* is missing or invalid.
     """
     class_name = app_cls.__name__
-    app_key = snake_case(class_name)
+    # Convert CamelCase to snake_case for app_key
+    app_key = re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower()
 
     try:
         source_file = Path(inspect.getfile(app_cls))
@@ -180,15 +184,17 @@ def synthesize_manifest(app_cls: type[App], instance_name: str | None = None) ->
 
     full_path = app_dir / filename
 
-    return AppManifest(
-        app_key=app_key,
-        filename=filename,
-        class_name=class_name,
-        app_dir=app_dir,
-        full_path=full_path,
-        auto_loaded=True,
-        app_config=[{"instance_name": instance_name}] if instance_name else [],
-    )
+    try:
+        return AppManifest(
+            app_key=app_key,
+            filename=filename,
+            class_name=class_name,
+            app_dir=app_dir,
+            full_path=full_path,
+            app_config=[{"instance_name": instance_name}],
+        )
+    except pydantic.ValidationError as exc:
+        raise AppConfigurationError(app_cls, exc) from exc
 
 
 class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
@@ -200,7 +206,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
 
     Usage::
 
-        async with AppTestHarness(MyApp, config={"my_setting": "value"}) as harness:
+        async with AppTestHarness(MyApp, config={"instance_name": "my_app", "my_setting": "value"}) as harness:
             harness.app      # MyApp instance
             harness.bus      # test Bus
             harness.scheduler  # test Scheduler
@@ -217,7 +223,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
     def __init__(
         self,
         app_cls: type[AppType],
-        config: Mapping[str, Any] | None = None,
+        config: Mapping[str, Any],
         *,
         tmp_path: Path | None = None,
     ) -> None:
@@ -225,13 +231,13 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
 
         Args:
             app_cls: The App subclass to instantiate and test.
-            config: Config values to validate against app_cls.app_config_cls. Defaults
-                to an empty mapping for apps without required settings.
+            config: Config values to validate against app_cls.app_config_cls. Must set
+                ``instance_name``, as every configured app instance does.
             tmp_path: Optional directory for Hassette data. Auto-created and cleaned
                 up if not provided.
         """
         self._app_cls = app_cls
-        self._config_dict = dict(config or {})
+        self._config_dict = dict(config)
         self._tmp_path = tmp_path
 
         # Set during __aenter__
@@ -307,9 +313,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
         # concurrent harnesses cannot interleave there. Neither path mutates the App class,
         # so the per-instance manifest needs no locking — each harness owns its own.
         manifest = synthesize_manifest(self._app_cls, self._config_dict.get("instance_name"))
-        instance_name = normalize_app_config(manifest.app_config)[0]["instance_name"]
-        config_dict = {**self._config_dict, "instance_name": instance_name}
-        validated_config = make_hermetic_config(self._app_cls, app_config_cls, config_dict)
+        validated_config = make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
 
         # Step 9: Instantiate the app with RecordingApi injected via constructor.
         # The manifest is passed per instance, so its app_key is authoritative for

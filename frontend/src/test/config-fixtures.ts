@@ -65,7 +65,7 @@ const MINIMAL_CONFIG_SCHEMA = {
       type: "object",
       title: "Apps",
       properties: {
-        autodetect: { type: "boolean", title: "Autodetect" },
+        warn_unconfigured: { type: "boolean", title: "Warn Unconfigured" },
         directory: { type: "string", title: "Directory", format: "path" },
       },
     },
@@ -115,7 +115,7 @@ const DEFAULT_CONFIG_VALUES: Record<string, unknown> = {
     app_shutdown_timeout_seconds: 10,
   },
   apps: {
-    autodetect: true,
+    warn_unconfigured: true,
     directory: "/config/apps",
   },
   scheduler: {

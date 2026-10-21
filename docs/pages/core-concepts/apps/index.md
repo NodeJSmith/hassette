@@ -47,7 +47,7 @@ Hassette's own variables can still carry app config, through the app's entry in 
 
 Every `AppConfig` includes four built-in fields. Two identify and log the app:
 
-- `instance_name`: a required string that names one running instance of the app. It must be unique across the whole config and follow the [naming rules](configuration.md#instance-names). Apps that Hassette auto-loads, with no config section, get their class name in snake_case.
+- `instance_name`: a required string that names one running instance of the app. It must be unique across the whole config and follow the [naming rules](configuration.md#instance-names).
 - `log_level`: controls the logging verbosity for this app's logger. When not set, the app inherits the global `logging.apps` level from `[hassette.logging]` in `hassette.toml`.
 
 The other two, `forgotten_await_behavior` and `blocking_io_behavior`, override the global developer settings for one app. See [Developer Settings](configuration.md#developer-settings).

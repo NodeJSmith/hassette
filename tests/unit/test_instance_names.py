@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from hassette.config.classes import AppManifest, snake_case
+from hassette.config.classes import AppManifest
 from hassette.config.config import validate_app_manifests
 from hassette.exceptions import ConfigError
 
@@ -37,22 +37,6 @@ def validate(entry: dict[str, Any]) -> AppManifest:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         return AppManifest.model_validate(entry)
-
-
-@pytest.mark.parametrize(
-    ("class_name", "expected"),
-    [
-        ("MyApp", "my_app"),
-        ("HTTPServerApp", "http_server_app"),
-        ("MyApp2", "my_app2"),
-        ("BlockingIOLab", "blocking_io_lab"),
-        ("App2Go", "app2_go"),
-        ("_HelperApp", "helper_app"),
-    ],
-)
-def test_snake_case_conversion(class_name: str, expected: str) -> None:
-    """The auto-loaded default becomes a permanent key, so its conversion is pinned."""
-    assert snake_case(class_name) == expected
 
 
 class TestConfiguredInstances:
@@ -96,16 +80,6 @@ class TestConfiguredInstances:
             validate(app_entry("presence", {"instance_name": 123}))
 
 
-class TestAutoLoadedInstances:
-    def test_defaults_to_snake_case_class_name(self) -> None:
-        manifest = validate(app_entry("apps.main.HTTPServerApp", class_name="HTTPServerApp", auto_loaded=True))
-        assert manifest_names(manifest) == ["http_server_app"]
-
-    def test_class_name_with_no_valid_snake_case_form_fails_naming_the_class(self) -> None:
-        with pytest.raises(ValidationError, match=r"auto-loaded app class 'Über'"):
-            validate(app_entry("apps.main.Über", class_name="Über", auto_loaded=True))
-
-
 class TestUniqueness:
     def test_duplicate_across_app_keys_fails_naming_both(self) -> None:
         entries = {
@@ -131,14 +105,6 @@ class TestUniqueness:
             "presence_lab": app_entry("presence_lab", {"instance_name": "hall"}, enabled=False),
         }
         with pytest.raises(ConfigError, match="'hall'"):
-            validate_app_manifests(entries)
-
-    def test_auto_loaded_default_colliding_with_a_configured_name_fails(self) -> None:
-        entries = {
-            "presence": app_entry("presence", {"instance_name": "presence_app"}),
-            "apps.main.PresenceApp": app_entry("apps.main.PresenceApp", auto_loaded=True),
-        }
-        with pytest.raises(ConfigError, match="'presence_app'"):
             validate_app_manifests(entries)
 
     def test_distinct_names_pass(self) -> None:

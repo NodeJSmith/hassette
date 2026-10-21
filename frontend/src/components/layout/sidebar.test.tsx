@@ -151,20 +151,6 @@ describe("Sidebar — app list", () => {
     expect(link?.getAttribute("href")).toBe("/apps/my_app");
   });
 
-  it("shows auto badge on auto-loaded apps", async () => {
-    withManifests([createAppSummary({ auto_loaded: true, display_name: "My App" })]);
-    renderWithAppState(<Sidebar />);
-    await screen.findByText("My App");
-    expect(screen.getByTitle("Auto-loaded")).toBeDefined();
-  });
-
-  it("does not show auto badge on non-auto-loaded apps", async () => {
-    withManifests([createAppSummary({ auto_loaded: false, display_name: "My App" })]);
-    renderWithAppState(<Sidebar />);
-    await screen.findByText("My App");
-    expect(screen.queryByTitle("Auto-loaded")).toBeNull();
-  });
-
   it("groups apps so FAILING group header appears before RUNNING group header in DOM", async () => {
     withManifests([
       createAppSummary({ app_key: "running_app", display_name: "Running App", status: "running" }),

@@ -53,7 +53,7 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
     The replace path removes the running job, whose guard tracks the very task executing the
     callback; that invocation must run to completion rather than being cancelled or awaited.
     """
-    async with AppTestHarness(_SelfReplaceApp, config={"mode": mode}) as harness:
+    async with AppTestHarness(_SelfReplaceApp, config={"instance_name": "self_replace_app", "mode": mode}) as harness:
         app = harness.app
         scheduler_service = harness._harness.hassette._scheduler_service
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
@@ -105,7 +105,9 @@ async def test_sync_job_replaces_itself_from_own_callback(mode: str) -> None:
     The sync facade runs the replace in a separate event-loop task, not the tracked invocation
     task, so self-release detection must recognize it through the invocation's context.
     """
-    async with AppTestHarness(_SyncSelfReplaceApp, config={"mode": mode}) as harness:
+    async with AppTestHarness(
+        _SyncSelfReplaceApp, config={"instance_name": "sync_self_replace_app", "mode": mode}
+    ) as harness:
         app = harness.app
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
 

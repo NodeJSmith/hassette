@@ -4,7 +4,9 @@ from my_apps.light_app import LightApp
 
 
 async def test_simulate_attribute_change():
-    async with AppTestHarness(LightApp, config={}) as harness:
+    async with AppTestHarness(
+        LightApp, config={"instance_name": "light_app"}
+    ) as harness:
         await harness.simulate_attribute_change(
             "light.kitchen",
             "brightness",

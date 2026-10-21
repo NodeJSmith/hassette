@@ -19,14 +19,7 @@ from hassette.execution_mode import (
     run_through_guard,
     run_with_stall_watch,
 )
-from tests.support.helpers import prime_guard
-
-#: Hang guard for this module's event handshakes, which complete in milliseconds. It only converts
-#: a genuine hang into a failure, so it needs generous headroom over xdist scheduling jitter on a
-#: loaded CI runner — well above the ``wait_for`` helper's own 3.0s default. Distinct from the
-#: ``threshold`` argument passed to ``run_with_stall_watch``/``run_through_guard``, which is the
-#: production stall-warning value under test rather than a test-side wait budget.
-HANG_GUARD_TIMEOUT = 10.0
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, prime_guard
 
 
 def make_spawn() -> tuple[Callable[..., asyncio.Task[None]], list[asyncio.Task[None]]]:
@@ -88,10 +81,10 @@ class TestRunWithStallWatch:
 
         threshold = 0.05  # short threshold for testing
         task = asyncio.create_task(run_with_stall_watch(invoke, warn, threshold=threshold))
-        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         # warn.set() unblocks the gate, so awaiting the task is the deterministic
         # signal that the watchdog fired.
-        await asyncio.wait_for(task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         assert warn_calls == [threshold], f"expected warn called with {threshold}, got {warn_calls}"
 
@@ -123,7 +116,7 @@ class TestRunWithStallWatch:
             await asyncio.sleep(10)  # will be cancelled
 
         task = asyncio.create_task(run_with_stall_watch(invoke, warn, threshold=0.05))
-        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
@@ -172,7 +165,7 @@ class TestRunThroughGuard:
         spawn, _tasks = make_spawn()
         pending_done: set[asyncio.Future[None]] = set()
 
-        primed = await prime_guard(guard, spawn, pending_done, hang_guard_timeout=HANG_GUARD_TIMEOUT)
+        primed = await prime_guard(guard, spawn, pending_done, hang_guard_timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Second call — guard will SUPPRESS it; must return without hanging.
         warn = MagicMock()
@@ -186,14 +179,14 @@ class TestRunThroughGuard:
         second_task = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, second_invoke, warn, "t2", 60.0)
         )
-        await asyncio.wait_for(second_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(second_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         assert not second_task.exception(), "second task raised unexpectedly"
         # The suppressed future was added then resolved+discarded inline, so the
         # set is back to exactly what it held before (the running first future).
         assert len(pending_done) == pending_before_second
 
         primed.gate.set()
-        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     async def test_dropped_resolves_future_inline(self) -> None:
         """DROPPED outcome: future is resolved inline; function returns."""
@@ -208,18 +201,18 @@ class TestRunThroughGuard:
             pass
 
         primed = await prime_guard(
-            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT
+            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT_SECONDS
         )
 
         # Third — queue is full; this should be DROPPED and return quickly.
         third = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_dropped, MagicMock(), "d", 60.0)
         )
-        await asyncio.wait_for(third, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(third, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         primed.gate.set()
-        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
-        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     async def test_ran_awaits_done_future(self) -> None:
         """RAN outcome: await completes after the spawned task finishes."""
@@ -245,12 +238,12 @@ class TestRunThroughGuard:
         spawn, _tasks = make_spawn()
         pending_done: set[asyncio.Future[None]] = set()
 
-        primed = await prime_guard(guard, spawn, pending_done, hang_guard_timeout=HANG_GUARD_TIMEOUT)
+        primed = await prime_guard(guard, spawn, pending_done, hang_guard_timeout=HANG_GUARD_TIMEOUT_SECONDS)
         # While the spawned task is running, pending_done should have the future.
         assert len(pending_done) == 1
 
         primed.gate.set()
-        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         # After completion it should be gone.
         assert len(pending_done) == 0
 
@@ -294,7 +287,7 @@ class TestRunThroughGuard:
             raise AssertionError("the queued factory must never run once its spawn is rejected")
 
         primed = await prime_guard(
-            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT
+            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT_SECONDS
         )
 
         # Seal, then let the running invocation finish so drain_next pops the queued factory
@@ -302,8 +295,8 @@ class TestRunThroughGuard:
         sealed = True
         primed.gate.set()
 
-        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
-        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         assert len(pending_done) == 0
         assert len(guard.pending) == 0
 
@@ -338,7 +331,7 @@ class TestRunThroughGuard:
             pass
 
         primed = await prime_guard(
-            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT
+            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT_SECONDS
         )
 
         # Release + drain.
@@ -346,8 +339,8 @@ class TestRunThroughGuard:
         drain_pending_done(pending_done)
 
         # Both futures should now be resolved; second_task should complete.
-        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT)
-        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         assert len(pending_done) == 0
 
 
@@ -384,12 +377,12 @@ class TestSelfRelease:
         dispatch = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", STALL_THRESHOLD_SECONDS)
         )
-        await asyncio.wait_for(released.wait(), timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(released.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         await asyncio.sleep(0)
         assert not dispatch.done(), "the dispatch must keep waiting while the detached callback runs"
         assert guard.current_task is None
         resume.set()
-        await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         return log
 
     async def test_release_inside_tracked_task_detaches_it(self) -> None:
@@ -418,8 +411,8 @@ class TestSelfRelease:
         dispatch = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", STALL_THRESHOLD_SECONDS)
         )
-        await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT)
-        await asyncio.wait_for(release_task[0], timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(release_task[0], timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         assert tasks[0].cancelled()
         assert not pending_done

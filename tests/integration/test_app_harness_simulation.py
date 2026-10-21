@@ -47,7 +47,7 @@ class SimTestApp(App[SimConfig]):
 async def test_freeze_time_patches_now():
     """freeze_time patches hassette's now() to return the frozen time."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen)
         result = date_utils.now()
         expected = frozen.to_tz(SYSTEM_TZ)
@@ -58,7 +58,7 @@ async def test_freeze_time_idempotent():
     """freeze_time can be called multiple times; second call replaces the first."""
     frozen1 = Instant.from_utc(2026, 4, 7, 6, 0)
     frozen2 = Instant.from_utc(2026, 4, 7, 8, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen1)
         harness.freeze_time(frozen2)
         result = date_utils.now()
@@ -68,7 +68,7 @@ async def test_freeze_time_idempotent():
 
 async def test_advance_time_without_freeze_raises():
     """advance_time raises RuntimeError if freeze_time has not been called."""
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         with pytest.raises(RuntimeError, match="freeze_time"):
             harness.advance_time(seconds=60)
 
@@ -76,7 +76,7 @@ async def test_advance_time_without_freeze_raises():
 async def test_advance_time_moves_clock():
     """After freeze_time + advance_time, now() returns the advanced time."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen)
         harness.advance_time(seconds=60)
         result = date_utils.now()
@@ -87,7 +87,7 @@ async def test_advance_time_moves_clock():
 async def test_advance_time_hours_and_minutes():
     """advance_time accepts hours and minutes parameters."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen)
         harness.advance_time(hours=1, minutes=30)
         result = date_utils.now()
@@ -106,7 +106,7 @@ async def test_advance_time_hours_and_minutes():
 async def test_advance_time_rejects_non_finite_values(field: str, value: float):
     """advance_time rejects values that cannot produce a finite clock delta."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen)
         with pytest.raises(ValueError, match=rf"{field} must be finite"):
             harness.advance_time(**{field: value})
@@ -115,7 +115,7 @@ async def test_advance_time_rejects_non_finite_values(field: str, value: float):
 async def test_advance_time_rejects_negative_total_duration():
     """advance_time is forward-only even when multiple units are combined."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen)
         with pytest.raises(ValueError, match="total duration must be non-negative"):
             harness.advance_time(minutes=1, seconds=-61)
@@ -124,7 +124,7 @@ async def test_advance_time_rejects_negative_total_duration():
 async def test_advance_time_rejects_overflowed_total_duration():
     """Individually finite units cannot overflow into an infinite total delta."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen)
         with pytest.raises(ValueError, match="total duration must be finite"):
             harness.advance_time(hours=1e308)
@@ -133,7 +133,7 @@ async def test_advance_time_rejects_overflowed_total_duration():
 async def test_freeze_time_fails_closed_and_releases_lock(monkeypatch: pytest.MonkeyPatch):
     """A missing patch target fails without poisoning later freeze attempts."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         monkeypatch.setattr(harness, "_NOW_PATCH_TARGETS", ("hassette.utils.date_utils.missing_now",))
         with pytest.raises(AttributeError, match=r"hassette\.utils\.date_utils\.missing_now"):
             harness.freeze_time(frozen)
@@ -203,7 +203,7 @@ async def test_failed_freeze_cleanup_cannot_release_another_owner():
 async def test_trigger_due_jobs_fires_scheduled():
     """Freeze at 6:00, advance to 7:00, trigger — daily job fires."""
     # The app registers run_daily at 7:00 during on_initialize.
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         jobs = await harness._harness.hassette._scheduler_service._job_queue.get_all()
         assert len(jobs) > 0, "No jobs registered"
         daily_job = next((j for j in jobs if j.name == "daily"), None)
@@ -223,7 +223,7 @@ async def test_trigger_due_jobs_fires_scheduled():
 
 async def test_trigger_due_jobs_returns_count():
     """trigger_due_jobs returns the number of jobs fired."""
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         jobs = await harness._harness.hassette._scheduler_service._job_queue.get_all()
         daily_job = next((j for j in jobs if j.name == "daily"), None)
         assert daily_job is not None
@@ -235,7 +235,7 @@ async def test_trigger_due_jobs_returns_count():
 
 async def test_trigger_due_jobs_snapshot_prevents_infinite_loop():
     """trigger_due_jobs fires a repeating job exactly once per call, not infinitely."""
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         jobs = await harness._harness.hassette._scheduler_service._job_queue.get_all()
         daily_job = next((j for j in jobs if j.name == "daily"), None)
         assert daily_job is not None
@@ -251,7 +251,7 @@ async def test_trigger_due_jobs_snapshot_prevents_infinite_loop():
 async def test_trigger_due_jobs_no_due_jobs_returns_zero():
     """trigger_due_jobs returns 0 when no jobs are due at the frozen time."""
     frozen_past = Instant.from_utc(2000, 1, 1, 0, 0)  # very far in the past
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen_past)
         count = await harness.trigger_due_jobs()
         assert count == 0
@@ -260,7 +260,7 @@ async def test_trigger_due_jobs_no_due_jobs_returns_zero():
 async def test_freeze_time_cleanup_on_exit():
     """After exiting AppTestHarness, now() returns real time (not frozen)."""
     frozen = Instant.from_utc(2000, 1, 1, 0, 0)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(frozen)
         assert date_utils.now() == frozen.to_tz(SYSTEM_TZ)
 
@@ -273,7 +273,7 @@ async def test_freeze_time_cleanup_on_exit():
 async def test_freeze_time_accepts_zoned_datetime():
     """freeze_time accepts a ZonedDateTime directly (not just Instant)."""
     zdt = ZonedDateTime(2026, 4, 7, 6, 0, tz=SYSTEM_TZ)
-    async with AppTestHarness(SimTestApp, config={}) as harness:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
         harness.freeze_time(zdt)
         result = date_utils.now()
         assert result == zdt
@@ -295,12 +295,12 @@ async def test_freeze_time_concurrent_lock_raises():
     """
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
 
-    async with AppTestHarness(SimTestApp, config={}) as harness1:
+    async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness1:
         harness1.freeze_time(frozen)
 
         # Use a different App class to avoid per-class asyncio.Lock deadlock.
         # Attempting a second freeze_time() while the first is active must raise RuntimeError
         # because the global lock is held.
-        async with AppTestHarness(SimTestApp2, config={}) as harness2:
+        async with AppTestHarness(SimTestApp2, config={"instance_name": "sim_test_app2"}) as harness2:
             with pytest.raises(RuntimeError, match="freeze_time is already held"):
                 harness2.freeze_time(frozen)

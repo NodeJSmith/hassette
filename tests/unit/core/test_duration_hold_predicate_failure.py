@@ -7,6 +7,8 @@ Covers ``DurationHoldManager.hold_matches`` (reached via the duration-fire reche
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
+from hassette_wire import ExecutionStatus
+
 from hassette.bus.error_context import BusErrorContext
 from hassette.bus.listeners import Listener
 from hassette.core.bus_service import BusService
@@ -46,7 +48,7 @@ def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> Non
     svc._executor.enqueue_record.assert_called_once()
     record = svc._executor.enqueue_record.call_args[0][0]
     assert record.kind == "handler"
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "ValueError"
     assert record.error_message == "predicate boom"
     assert record.listener_id == listener.db_id

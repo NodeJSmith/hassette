@@ -20,7 +20,7 @@ from hassette import context as ctx
 from hassette.config.build import ACTIVE_BUILD, ConfigBuild, default_build_data_dir, open_build
 from hassette.config.checks import check_config_dir_not_in_files, check_explicit_locations, check_unknown_keys
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin, local_overlay_paths, unsafe_cache_path_reason
-from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT, get_defaults_dict
+from hassette.config.defaults import get_defaults_dict
 from hassette.config.helpers import filter_paths_to_unique_existing, get_dev_mode
 from hassette.config.locations import (
     ENV_NESTED_DELIMITER,
@@ -52,7 +52,7 @@ from hassette.exceptions import ConfigError
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, AppDict, is_framework_key
-from hassette.utils.app_utils import autodetect_apps, clean_app
+from hassette.utils.app_utils import clean_app
 
 LOGGER = getLogger(__name__)
 
@@ -140,7 +140,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Web API and UI server settings."""
 
     apps: AppsConfig = Field(default_factory=AppsConfig)
-    """App directory, auto-detection, and manifest settings."""
+    """App directory, unconfigured-app warning, and manifest settings."""
 
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     """Scheduler threshold and job-timeout settings."""
@@ -536,7 +536,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             )
 
     def check_explicit_app_manifests(self) -> None:
-        """Validate the app entries written in the config, without autodetect (which imports app modules).
+        """Validate the app entries written in the config without storing them.
 
         Raises:
             ConfigError: An entry has a reserved or unsafe key, or fails `AppManifest` validation.
@@ -544,26 +544,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         validate_app_manifests(clean_explicit_apps(self.apps))
 
     def set_validated_app_manifests(self):
-        """Cleans up and validates the apps configuration, including auto-detection."""
+        """Cleans up and validates the app entries written in the config, and stores them as manifests."""
         cleaned_apps_dict = clean_explicit_apps(self.apps)
-
-        # track known paths to simplify dupe detection during auto-detect
-        known_paths: set[Path] = {v["full_path"] for v in cleaned_apps_dict.values()}
-
-        if self.apps.autodetect:
-            autodetected_apps = autodetect_apps(
-                self.apps.directory, known_paths, {*AUTODETECT_EXCLUDE_DIRS_DEFAULT, *self.apps.exclude_dirs}
-            )
-            for k, v in autodetected_apps.items():
-                app_dir = v["app_dir"]
-                full_path = app_dir / v["filename"]
-                LOGGER.debug("Auto-detected app %s from %s", k, full_path)
-                if k in cleaned_apps_dict:
-                    LOGGER.debug("Skipping auto-detected app %s as it conflicts with manually configured app", k)
-                    continue
-                cleaned_apps_dict[k] = v
-                known_paths.add(full_path.resolve())
-
         app_manifest_dict = validate_app_manifests(cleaned_apps_dict)
         self.apps.manifests = app_manifest_dict
 

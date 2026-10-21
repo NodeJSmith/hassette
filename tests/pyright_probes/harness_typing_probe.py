@@ -23,7 +23,7 @@ class ProbeApp(App[ProbeConfig]):
 
 
 async def probe_harness_type() -> None:
-    harness = AppTestHarness(ProbeApp)
+    harness = AppTestHarness(ProbeApp, config={"instance_name": "probe_app"})
     assert_type(harness, AppTestHarness[ProbeApp])
 
     async with harness as active:
@@ -33,7 +33,7 @@ async def probe_harness_type() -> None:
 
 
 async def probe_simulate_return_types() -> None:
-    async with AppTestHarness(ProbeApp) as harness:
+    async with AppTestHarness(ProbeApp, config={"instance_name": "probe_app"}) as harness:
         assert_type(await harness.simulate_state_change("sensor.x", old_value="a", new_value="b"), RawStateChangeEvent)
         assert_type(
             await harness.simulate_attribute_change("sensor.x", "unit", old_value="a", new_value="b"),

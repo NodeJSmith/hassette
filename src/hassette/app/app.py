@@ -97,10 +97,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     Stored per instance, not on the class: two config sections can point at the same
     App subclass, so each instance carries its own manifest rather than reading a
-    class-shared one — otherwise the section loaded last would overwrite display_name,
-    enabled, and auto_loaded for every instance. Mirrors how app_key is stored per
-    instance. None only when an App is constructed directly without a manifest; the
-    factory and the test harness both pass one.
+    class-shared one — otherwise the section loaded last would overwrite display_name
+    and enabled for every instance. Mirrors how app_key is stored per instance. None
+    only when an App is constructed directly without a manifest; the factory and the
+    test harness both pass one.
     """
 
     app_config_cls: ClassVar[type[AppConfig]]
