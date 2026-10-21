@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_call_service_event, wait_for
-from tests.support.helpers import settle
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, settle
 
 from .helpers import ErrorCollector
 
@@ -84,7 +84,7 @@ async def test_no_handler_framework_default_behavior(hassette_with_bus: "Hassett
     await hassette.send_event(event)
 
     # Handler ran (exception was raised) and harness didn't crash
-    await asyncio.wait_for(completed.wait(), timeout=2.0)
+    await asyncio.wait_for(completed.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
     await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks drained")
 
 

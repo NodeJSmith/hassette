@@ -19,7 +19,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.events import RawStateChangeEvent
 from hassette.schemas.live_counts import LiveCounts
 from hassette.testing import wait_for
-from tests.support.helpers import create_listener
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, create_listener
 
 from .helpers import ENTITY, fire, make_gated_handler, pump_event_loop, seed
 
@@ -275,7 +275,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
         unittest.mock.patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled") as mock_warn,
     ):
         await fire(harness, "off", "on")
-        await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Wait deterministically for the watchdog to fire (past the patched 0.05s
         # threshold) rather than sleeping a fixed interval and hoping.
@@ -325,7 +325,7 @@ async def test_queued_trigger_pending_done_resolved_on_release(
     )
 
     await fire(harness, "v0", "a")  # starts the first handler — blocks on release_first
-    await asyncio.wait_for(first_started.wait(), timeout=2.0)
+    await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     # Queue a second trigger while the first is running.
     await fire(harness, "a", "b")
@@ -381,5 +381,5 @@ async def test_handler_cancelling_own_subscription_is_cancelled(
 
     await fire(harness, "v0", "a")
 
-    await asyncio.wait_for(handler_cancelled.wait(), timeout=2.0)
-    await asyncio.wait_for(harness.bus_service.await_dispatch_idle(), timeout=2.0)
+    await asyncio.wait_for(handler_cancelled.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+    await asyncio.wait_for(harness.bus_service.await_dispatch_idle(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
