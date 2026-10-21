@@ -58,7 +58,10 @@ def load_runs(queue: Path) -> tuple[dict, dict]:
 
 def items(result: dict) -> list[str]:
     """Every reviewer statement a judge should consider: findings, failing steps, and unexplained terms."""
-    out = [f"[{f.get('type')}] L{f.get('line')} {f.get('quote')!r}: {f.get('confusion')}" for f in result["findings"]]
+    out = [
+        f"[{f.get('type')}] L{f.get('line')} {f.get('quote')!r}: {f.get('confusion') or f.get('problem')}"
+        for f in result["findings"]
+    ]
     out += [
         f"[step cannot be completed] L{s.get('line')} {s.get('step')!r}: {s.get('blocker')}"
         for s in result.get("steps", [])

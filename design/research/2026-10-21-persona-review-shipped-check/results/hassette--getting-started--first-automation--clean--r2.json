@@ -1,0 +1,6 @@
+{
+  "run_id": "o03",
+  "page": "getting-started/first-automation",
+  "findings": [],
+  "summary": "Extends the Quickstart app with a typed sunset state-change handler that turns on a light and a once-a-minute heartbeat job, then shows how to run it and trigger the handler by setting sun.sun's state in Developer Tools."
+}
