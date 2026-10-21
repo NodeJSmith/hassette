@@ -4,7 +4,7 @@ Real issues found while building this feature and intentionally left unfixed.
 
 ## KI-001: A JSON app entry in `HASSETTE__APPS__<KEY>` is accepted but ignored
 
-Status: open
+Status: filed (#3157)
 Recorded: 2026-10-20 (3145)
 Source: pre-commit-review
 Reason not fixed now: out-of-scope
@@ -47,7 +47,7 @@ Acceptance criteria:
 
 ## KI-003: No test pins that startup logs the unconfigured-app warnings
 
-Status: open
+Status: resolved — fixed before ship
 Recorded: 2026-10-21 (3145)
 Source: ship-challenge
 Reason not fixed now: accepted-limitation

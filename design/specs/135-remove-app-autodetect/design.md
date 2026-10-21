@@ -224,4 +224,5 @@ With either, when no apps are configured but unconfigured classes were found, th
 - The `--check` test now writes an unconfigured app that raises on import and asserts `--check` neither imports it nor prints a warning (D8).
 - `LATEST_MIGRATION_VERSION` in `hassette.testing.config` moves to 14 with `014.sql`.
 - The external add-on repo was checked (shallow clone, 2026-10-20): no `autodetect`, `exclude_dirs`, or `HASSETTE__APPS__*` references.
+- `startup_tasks` logging the warnings at WARNING is pinned by a test that swaps in a mock logger (`tests/unit/core/test_core_coverage.py`, `TestStartupTasksAppWarnings`): the log line is the warning's only delivery surface, so the logger is the boundary under test, not captured log output.
 - The scan returns an `AppScan` (unconfigured classes plus unreadable files) so `app_startup_warnings` can name unparseable files in "No apps found" (D9) without a second walk.
