@@ -1,98 +1,104 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
+# dependencies = ["beautifulsoup4"]
 # ///
-"""Assemble a persona briefing file for doc review.
+"""Assemble a reader briefing for doc-persona-review.
 
-Combines the briefing template with a persona definition, voice guide,
-doc rules, and extracted page content into a single file that a subagent
-can read and execute.
+Fills the briefing template with a page and the pages before it in nav order, so the reader treats what those
+pages explain as already known. Earlier pages come from the built site's footer "Previous" links, walking back
+at most MAX_PRIOR_PAGES and stopping at the edge of the page's top-level section.
+
+Requires `uv run mkdocs build` to have been run first.
 
 Usage:
-    uv run tools/docs/assemble_persona_briefing.py Alex /tmp/pages/core-concepts--bus--index.txt /tmp/briefings/
-    uv run tools/docs/assemble_persona_briefing.py Jordan /tmp/pages/recipes--motion-lights.txt /tmp/briefings/
+    uv run tools/docs/assemble_persona_briefing.py getting-started/first-automation /tmp/briefings/
 
-Output file is named {persona}--{page-slug}.md in the output directory.
+Output file is named {page-slug}.md in the output directory.
 """
 
 import argparse
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+from extract_doc_page import SITE_DIR, extract_page, resolve_html_path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "doc-persona-review"
-RULES_DIR = REPO_ROOT / ".claude" / "rules"
-
-TEMPLATE_PATH = SKILL_DIR / "references" / "briefing-template.md"
-PERSONAS_PATH = SKILL_DIR / "references" / "personas.md"
-VOICE_GUIDE_PATH = RULES_DIR / "voice-guide.md"
-DOC_RULES_PATH = RULES_DIR / "doc-rules.md"
-
-PERSONA_PATTERN = re.compile(
-    r"^## Persona \d+:.*?\n\*\*Name:\*\* (\w+)\n(.*?)(?=\n---\n|\n## Persona \d+:|\Z)",
-    re.MULTILINE | re.DOTALL,
-)
+TEMPLATE_PATH = REPO_ROOT / ".claude" / "skills" / "doc-persona-review" / "references" / "briefing-template.md"
+SITE_ROOT = SITE_DIR.parent
+MAX_PRIOR_PAGES = 3
+NO_PRIOR = "(None: this is the first page of its section.)"
+PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
 
 
-def extract_persona(name: str) -> str | None:
-    text = PERSONAS_PATH.read_text()
-    available = []
-    for match in PERSONA_PATTERN.finditer(text):
-        available.append(match.group(1))
-        if match.group(1).lower() == name.lower():
-            return match.group(0).strip()
-    print(f"ERROR: persona '{name}' not found. Available: {', '.join(available)}", file=sys.stderr)
-    return None
+def previous_page(html_path: Path) -> Path | None:
+    """Return the built HTML of the page before ``html_path`` in nav order, or None for the first page."""
+    link = BeautifulSoup(html_path.read_text(), "html.parser").select_one("a.md-footer__link--prev")
+    href = link.get("href") if link else None
+    if not isinstance(href, str):
+        return None
+    page_url = "/" + html_path.parent.relative_to(SITE_ROOT).as_posix() + "/"
+    target = SITE_ROOT / urljoin(page_url, href).strip("/") / "index.html"
+    return target if target.exists() else None
 
 
-def page_path_from_content_file(content_file: Path) -> str:
-    return content_file.stem.replace("--", "/")
+def prior_pages(html_path: Path) -> list[Path]:
+    """Return up to MAX_PRIOR_PAGES pages before ``html_path`` in its top-level section, earliest first."""
+    section = section_of(html_path)
+    pages: list[Path] = []
+    current = previous_page(html_path)
+    while current is not None and len(pages) < MAX_PRIOR_PAGES and section_of(current) == section:
+        pages.append(current)
+        current = previous_page(current)
+    return pages[::-1]
+
+
+def section_of(html_path: Path) -> tuple[str, ...]:
+    return html_path.parent.relative_to(SITE_ROOT).parts[:2]
+
+
+def prior_block(pages: list[Path]) -> str:
+    if not pages:
+        return NO_PRIOR
+    # Unnumbered, so a reader's LINE N can only refer to the page under review.
+    return "\n\n".join(f"Page: {site_path(p)}\n\n---\n" + "\n".join(extract_page(p)) + "\n---" for p in pages)
+
+
+def numbered(lines: list[str]) -> str:
+    return "\n".join(f"LINE {i}: {line}" for i, line in enumerate(lines, 1))
+
+
+def site_path(html_path: Path) -> str:
+    """Return the page path as the skill's arguments spell it, e.g. ``getting-started/first-automation``."""
+    path = html_path.parent.relative_to(SITE_ROOT).as_posix()
+    return path.removeprefix("pages/") if path != "." else "(home)"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("persona", help="Persona name (Alex, Sam, or Jordan)")
-    parser.add_argument("content_file", help="Path to extracted page content file")
+    parser.add_argument("page", help="Page path relative to docs/pages/, without .md")
     parser.add_argument("output_dir", help="Directory to write the briefing file")
     args = parser.parse_args()
 
-    content_path = Path(args.content_file)
-    if not content_path.exists():
-        print(f"ERROR: content file not found: {content_path}", file=sys.stderr)
+    html_path = resolve_html_path(args.page)
+    if html_path is None:
+        print(f"ERROR: page not found in site/: {args.page!r}. Run `uv run mkdocs build`.", file=sys.stderr)
         return 1
 
-    for path, label in [
-        (TEMPLATE_PATH, "briefing template"),
-        (PERSONAS_PATH, "personas"),
-        (VOICE_GUIDE_PATH, "voice guide"),
-        (DOC_RULES_PATH, "doc rules"),
-    ]:
-        if not path.exists():
-            print(f"ERROR: {label} not found: {path}", file=sys.stderr)
-            return 1
+    values = {
+        "PRIOR_PAGES": prior_block(prior_pages(html_path)),
+        "PAGE_PATH": site_path(html_path),
+        "PAGE_CONTENT": numbered(extract_page(html_path)),
+    }
+    # One pass, so placeholder-like text inside page content is never substituted.
+    briefing = PLACEHOLDER_RE.sub(lambda m: values[m.group(1)], TEMPLATE_PATH.read_text())
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    template = TEMPLATE_PATH.read_text()
-    persona_def = extract_persona(args.persona)
-    if persona_def is None:
-        return 1
-    voice_guide = VOICE_GUIDE_PATH.read_text()
-    doc_rules = DOC_RULES_PATH.read_text()
-    page_content = content_path.read_text()
-    page_path = page_path_from_content_file(content_path)
-
-    briefing = template.replace("{{PERSONA_NAME}}", args.persona)
-    briefing = briefing.replace("{{PERSONA_DEFINITION}}", persona_def)
-    briefing = briefing.replace("{{VOICE_GUIDE}}", voice_guide)
-    briefing = briefing.replace("{{DOC_RULES}}", doc_rules)
-    briefing = briefing.replace("{{PAGE_CONTENT}}", page_content)
-    briefing = briefing.replace("{{PAGE_PATH}}", page_path)
-
-    slug = content_path.stem
-    out_path = output_dir / f"{args.persona.lower()}--{slug}.md"
+    out_path = output_dir / f"{args.page.strip('/').removesuffix('.md').replace('/', '--')}.md"
     out_path.write_text(briefing)
     print(out_path)
     return 0

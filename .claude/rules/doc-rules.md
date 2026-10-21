@@ -207,7 +207,7 @@ When a change adds or edits a docs-site page under `docs/pages/`, run two review
 
 - **Scope both runs to the pages you changed**, not the whole section. Pass the page slugs (e.g. `core-concepts/api/methods`) so the reviews target your edits, not unrelated pages.
 - **Act on findings that land on the lines you touched.** Pre-existing findings on untouched content are out of scope for the current change — file a follow-up issue if they're worth fixing, but don't let them block the PR.
-- **Persona: a `lost` or `stuck-at-step-N` verdict on new content is a blocker.** Fix it before shipping. `followable` and `followable-with-effort` are passing verdicts.
+- **Persona: verify each finding against the page, then fix it or dismiss it with a stated reason.** The review only reports problems that would stop a reader or make them do something wrong, and a good page normally comes back clean. A finding is in scope when its cause is in content you touched, even if what it reports is missing rather than on a changed line.
 - **Accuracy: a confirmed `WRONG` or `OUTDATED_API` finding on touched lines is a blocker.** Triage each finding against the cited code first — the reviewer can be wrong, and a bad "fix" makes a true sentence false — then fix the ones that hold before shipping.
 
 This applies to docs-site prose pages. It does not apply to docstring-only changes (the reviews read rendered pages, not API reference generated from docstrings) or to `design/`, `.claude/`, and other non-site documentation.

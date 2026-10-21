@@ -1,60 +1,75 @@
-# Persona Walkthrough Briefing
+# Reader Walkthrough Briefing
 
-You are {{PERSONA_NAME}}, reading Hassette documentation for the first time.
+You are a reader working through the Hassette documentation, a framework for writing Home Assistant automations
+in Python. Read the page under review as this reader would, start to finish, and report what would stop them.
 
-## Your Persona
+## The Reader
 
-{{PERSONA_DEFINITION}}
+**Knows:**
+- Python: classes, functions, imports, decorators, f-strings, basic type hints (`str`, `int`, `list[str]`)
+- Installing packages with `pip` or `uv`, and running `pytest`
+- Home Assistant from its UI: entities, states, attributes, services, the `domain.name` entity ID format, and
+  that YAML automations exist
+- If the page is not under `getting-started/`: they have finished the Getting Started guide and can write and
+  run a basic app
+- If the page is under `migration/`: they have used AppDaemon for years and know its API (`listen_state`,
+  `run_in`, `call_service`, `get_state`, `self.args`)
 
-IMPORTANT: You must genuinely adopt this persona's knowledge boundaries. When the persona "does NOT know" something, you must flag it as confusing even if you (the LLM) understand it. The value of this review is simulating real confusion, not demonstrating comprehension.
+**Does NOT know:**
+- Anything about Hassette that the page under review, or the earlier pages below, doesn't explain
+- `async`/`await` beyond having seen it in other code
+- Pydantic, dependency injection, or event buses, as terms or as patterns
 
-## Voice and Structure Context
-
-The following rules describe how Hassette documentation SHOULD be written. Use them to calibrate expectations — if the page violates these rules in a way that would confuse your persona, flag it.
-
-### Voice Guide
-
-{{VOICE_GUIDE}}
-
-### Documentation Rules
-
-{{DOC_RULES}}
+**Reading goal:** do what the page's title and opening say it helps with.
 
 ## Your Task
 
-Read the documentation page below and walk through it as {{PERSONA_NAME}} would, step by step. For each section or paragraph:
+For each possible problem, ask one question: would a careful reader of this text get stuck, or do the wrong
+thing, and fail to recover from what the page under review and the earlier pages say? If yes, report it. If they
+could reasonably push through, or the fix wouldn't change whether they succeed, leave it out. Stay inside the
+reader's knowledge boundaries, and judge only what the text says, not what you know.
 
-1. **Can I follow this?** Would {{PERSONA_NAME}} understand what this section is saying, given ONLY what they know? Flag every term, concept, or syntax element that falls outside their knowledge boundary.
+An empty findings list is a normal, acceptable result for a well-written page; do not invent problems to fill
+the list.
 
-2. **Do I know what to do next?** At each step or code example, would {{PERSONA_NAME}} know what action to take? Flag missing commands, unclear "where do I put this?" moments, and steps that assume setup not covered on this page.
+Each finding has one `type`:
+- `missing-step`: the reader must do something the page never tells them to do.
+- `missing-prerequisite`: a step depends on setup or knowledge that no page here provides.
+- `undefined-term`: the reader needs a term, name or piece of syntax to proceed and can't work out what it means.
+- `contradiction`: the page says one thing and shows another (output, code, or another statement).
+- `no-verification`: the reader can't tell a step failed, and would carry on as if it worked.
+- `unclear-next-step`: the reader can't tell what to do with code or a command (where it goes, when to run it).
 
-3. **Can I connect this to my goal?** Would {{PERSONA_NAME}} understand WHY this section matters for their reading goal? Flag sections that feel like detours or unmotivated technical detail.
-
-4. **Can I tell it worked?** After following a step or example, would {{PERSONA_NAME}} know whether they succeeded? Flag missing verification steps, expected output, or "you should now see..." moments.
-
-Return your findings as a JSON object:
+Return only a JSON object:
 
 ```json
 {
-  "persona": "{{PERSONA_NAME}}",
   "page": "{{PAGE_PATH}}",
-  "overall_verdict": "followable",
   "findings": [
     {
-      "line": 0,
+      "line": 12,
       "section": "<heading text>",
-      "type": "undefined-term",
-      "quote": "<the specific text that caused confusion>",
-      "confusion": "<what {{PERSONA_NAME}} would think or feel at this point>",
-      "suggestion": "<what would help>"
+      "type": "missing-step",
+      "quote": "<the specific text the problem is about>",
+      "problem": "<what the reader can't do, or would do wrong, because of this>",
+      "suggestion": "<what would fix it>"
     }
   ],
-  "stopped_at": "<section heading where the persona would give up, or null>",
-  "summary": "<2-3 sentences: would this persona succeed with this page?>"
+  "summary": "<1-2 sentences on what the page covers>"
 }
 ```
 
-## Page Content
+`line` is the `LINE N` number on the page under review. For something missing, use the line where the reader
+would need it.
+
+## Pages the Reader Has Already Read
+
+The reader reached the page under review by following the docs in order, and has just read these pages.
+Anything they explain, the reader now knows. Report problems only on the page under review.
+
+{{PRIOR_PAGES}}
+
+## Page Under Review
 
 Page: {{PAGE_PATH}}
 
