@@ -7,7 +7,7 @@ import pytest
 
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.utils import date_utils
-from tests.support.helpers import settle
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, settle
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -106,7 +106,7 @@ async def test_no_handler_framework_default(hassette_with_scheduler: "HassetteHa
     await scheduler.run_once(bad_job, at=date_utils.now(), name="no_handler_framework_default_run_once")
 
     # Job ran (exception was raised) and harness didn't crash
-    await asyncio.wait_for(ran.wait(), timeout=2.0)
+    await asyncio.wait_for(ran.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
     await settle()
 
 
