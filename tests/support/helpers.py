@@ -99,6 +99,14 @@ GENEROUS_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 """``resource_shutdown_timeout_seconds`` for shutdown-body tests that need enough budget
 to run without racing the coordinator's own outer deadline."""
 
+HANG_GUARD_TIMEOUT_SECONDS = 10.0
+"""Real-clock ``asyncio.wait_for`` budget for handshakes that complete in milliseconds.
+
+It carries no assertion weight: it only turns a genuine hang into a failure instead of a stuck
+test. Widened well past the expected duration so xdist scheduling jitter on a loaded CI runner
+can't trip it. Tests that assert a deadline should use their own deliberately short budget.
+"""
+
 SHORT_TASK_CANCEL_TIMEOUT_SECONDS = 0.1
 """Short ``task_cancellation_timeout_seconds`` for tests that need the TaskBucket cancel stage
 to resolve quickly."""
