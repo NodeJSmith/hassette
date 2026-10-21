@@ -1,4 +1,6 @@
-"""``AppManifest.description`` reaches ``GET /api/apps`` and ``GET /api/apps/{app_key}``."""
+"""What ``GET /api/apps`` and ``GET /api/apps/{app_key}`` serve for a configured app: its ``description``, and the
+deprecated ``auto_loaded`` field released clients still require.
+"""
 
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -52,6 +54,19 @@ async def test_description_served_by_app_list_and_detail(
         assert "description" in body
         assert body["description"] == description
         assert body["in_current_config"] is True
+
+
+async def test_deprecated_auto_loaded_is_still_served(
+    client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+) -> None:
+    """Released clients up to 0.59.0 require ``auto_loaded``, so both routes keep sending it as false (#3161)."""
+    seed_registry(mock_hassette, tmp_path, None)
+
+    listed = next(a for a in (await client.get("/api/apps")).json()["apps"] if a["app_key"] == APP_KEY)
+    detail = (await client.get(f"/api/apps/{APP_KEY}")).json()
+
+    assert listed["auto_loaded"] is False
+    assert detail["auto_loaded"] is False
 
 
 async def test_description_is_null_for_db_only_app(client: "AsyncClient", mock_hassette: MagicMock) -> None:

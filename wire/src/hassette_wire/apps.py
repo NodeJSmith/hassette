@@ -45,6 +45,9 @@ class AppSummary(BaseModel):
     display_name: str
     filename: str
     enabled: bool
+    auto_loaded: bool = False
+    """Deprecated: always ``False``, since app autodetection is gone. Kept because released clients up to
+    0.59.0 require it; removed in #3161."""
     autostart: bool = True
     description: str | None = None
     """One-line description of what the app does, from the app's config; ``None`` when unset, and for an app
