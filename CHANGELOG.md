@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.60.0](https://github.com/NodeJSmith/hassette/compare/v0.59.0...v0.60.0) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* Log records identify their writer with `author` instead of `source_tier`, and log views default to app lines plus framework lines at ERROR and above.
+    #### Renamed field and filters
+    - `LogEntry.source_tier` (wire, `GET /api/logs/recent`, `GET
+    /api/executions/{execution_id}`) is now `LogEntry.author`, `"app"` or
+    `"framework"`.
+    - The `source_tier` query parameter on `GET /api/logs/recent` is
+    replaced by `author` (`all`, `app` or `framework`). A `source_tier` sent
+    to the log routes is now ignored and the default view applies; send
+    `author=all` for every line. `GET /api/executions/{execution_id}` also
+    accepts `author`.
+    - `HassetteClient.get_recent_logs(source_tier=...)` is now `author=...`,
+    and `get_execution_logs` accepts `author`. The client requires API
+    schema 3.
+    - `hassette log --source-tier` is replaced by `--author`; `hassette
+    execution` accepts `--author`.
+    #### New default view
+    - With no `author`, log queries return app-authored lines plus framework
+    lines at ERROR and above, where they previously returned every line.
+    Pass `author=all` (API and client), `--author all` (CLI), or turn on
+    "all framework lines" (web UI) to see Hassette's DEBUG, INFO and WARNING
+    lines.
+* lifecycle lines about an app (starting, stopping, hook failures, readiness) now come from `hassette.apps.<instance_name>.Lifecycle`, follow `logging.app_handler` instead of the app's `log_level`, and are marked `framework` instead of `app`. Set `logging.app_handler = "DEBUG"` to see an app's lifecycle detail at DEBUG. See the Upgrading page.
+* a configured app instance without `instance_name` now fails at config load, and names must be unique across the config. A valid name starts with a lowercase letter, contains only lowercase letters, digits and `_`, doesn't end in `_`, and is at most 128 characters. Old defaults like `MyApp.0` are no longer generated or valid, so cache keys, event `source` comparisons and logger names built from them change; app loggers are now `hassette.apps.<instance_name>`. `AppTestHarness` now requires a `config` that sets `instance_name`. See the Upgrading page.
+* `apps.autodetect` and `apps.exclude_dirs` are removed, so `HASSETTE__APPS__AUTODETECT` and `HASSETTE__APPS__EXCLUDE_DIRS` now fail startup as unknown keys; delete them. Every app now needs a `[hassette.apps.<key>]` entry, including apps built on a shared base class, or it won't run. An autodetected app's history stays under its old key (`<apps dir name>.<module path>.<ClassName>`, e.g. `apps.lights.LightsApp`, the key the Apps page shows), listed as not in the current config until retention clears it; to keep that history, reuse the old key as a quoted table name, e.g. `[hassette.apps."apps.lights.LightsApp"]`. The `auto_loaded` field in app API responses is deprecated and always `false`; it will be removed in a future release ([#3161](https://github.com/NodeJSmith/hassette/issues/3161)).
+
+### Features
+
+* add per-app framework_log_level for Hassette's lines about an app ([#3178](https://github.com/NodeJSmith/hassette/issues/3178)) ([593e3d1](https://github.com/NodeJSmith/hassette/commit/593e3d1eeaad845f512aa43383a32d6b624c1b27))
+* add typed state models for schedule and legacy group domains ([#3131](https://github.com/NodeJSmith/hassette/issues/3131)) ([e9e81cb](https://github.com/NodeJSmith/hassette/commit/e9e81cb3ad55ea579758585e591d5f17c3db42f6))
+* **cli:** color status values in CLI tables ([#3126](https://github.com/NodeJSmith/hassette/issues/3126)) ([1861f86](https://github.com/NodeJSmith/hassette/commit/1861f863d057970b61fcad19a08bc7765c7a1a4b))
+* mark who wrote each log line and hide Hassette's routine lines by default ([#3197](https://github.com/NodeJSmith/hassette/issues/3197)) ([35bade5](https://github.com/NodeJSmith/hassette/commit/35bade50905720eeb0b5c32d1a8fa734f35e595b))
+* replace app autodetection with an unconfigured-app warning ([#3158](https://github.com/NodeJSmith/hassette/issues/3158)) ([690da7f](https://github.com/NodeJSmith/hassette/commit/690da7f8a46a44957c13e26c2d3e9d02955b19e7))
+* require unique, user-chosen app instance names ([#3146](https://github.com/NodeJSmith/hassette/issues/3146)) ([430130e](https://github.com/NodeJSmith/hassette/commit/430130ea3ac65d8206c055993a56bc8ab99ffe9c))
+* show one identity column on console log lines and add a compact add-on format ([#3203](https://github.com/NodeJSmith/hassette/issues/3203)) ([b143aab](https://github.com/NodeJSmith/hassette/commit/b143aab2a9991092e37bc2e3e1ca5ade6a873fef))
+* **testing:** support get_state_raw and get_states_raw on RecordingApi ([#3130](https://github.com/NodeJSmith/hassette/issues/3130)) ([12e50a9](https://github.com/NodeJSmith/hassette/commit/12e50a974e79fede4f396038b165712e6a311f29))
+* **testing:** support get_state_value and get_attribute in AppTestHarness ([#3132](https://github.com/NodeJSmith/hassette/issues/3132)) ([5cfaa75](https://github.com/NodeJSmith/hassette/commit/5cfaa752bac1af4b3288396ff902f19be6d107c3))
+
+
+### Bug Fixes
+
+* attribute framework log lines about an app to the framework ([#3173](https://github.com/NodeJSmith/hassette/issues/3173)) ([f9f8df5](https://github.com/NodeJSmith/hassette/commit/f9f8df5df39b8af7be36e80616446ce9ab3cffa8))
+* **cli:** color status and health columns in app, activity and dashboard tables ([#3150](https://github.com/NodeJSmith/hassette/issues/3150)) ([ee6d026](https://github.com/NodeJSmith/hassette/commit/ee6d026a34d6bb3e7793b75b2a3ca7293af3fd4a))
+* keep hassette log columns readable on multi-line messages ([#3147](https://github.com/NodeJSmith/hassette/issues/3147)) ([3643105](https://github.com/NodeJSmith/hassette/commit/36431050dbf974b8d95c1907ce611da8355dec87))
+
+
+### Refactoring
+
+* **client:** build app paths and telemetry filters in one place ([#3198](https://github.com/NodeJSmith/hassette/issues/3198)) ([f93cb0a](https://github.com/NodeJSmith/hassette/commit/f93cb0a46776aa6b167f518ec0c694cd00a172ef))
+* extract snapshot read from get_all_app_summaries into a helper ([#3136](https://github.com/NodeJSmith/hassette/issues/3136)) ([dde22c4](https://github.com/NodeJSmith/hassette/commit/dde22c4982f2915dfbb2a1bf502a8865d0936d71))
+
+
+### Documentation
+
+* clarify CLI global flag placement, log persistence, and --dev-mode ([#3171](https://github.com/NodeJSmith/hassette/issues/3171)) ([dfd058e](https://github.com/NodeJSmith/hassette/commit/dfd058e2c555376f598a88aec8fa3ec3907a0dd6))
+* clarify heartbeat timing and web UI token location in getting started ([#3159](https://github.com/NodeJSmith/hassette/issues/3159)) ([8db5c42](https://github.com/NodeJSmith/hassette/commit/8db5c42e7b358257f21fc6e9f65b036fdad0f39c))
+* clarify reload settings and per-app developer overrides in app configuration ([#3179](https://github.com/NodeJSmith/hassette/issues/3179)) ([031f9ee](https://github.com/NodeJSmith/hassette/commit/031f9eebb15c2b00c7193f199c5716feef71aa53))
+* correct which call_service failures wait_for_ack surfaces ([#3165](https://github.com/NodeJSmith/hassette/issues/3165)) ([db6453f](https://github.com/NodeJSmith/hassette/commit/db6453f49560075515299e3a001c792dccebb3c8))
+* describe get_state() .value as a converted, domain-typed value ([#3180](https://github.com/NodeJSmith/hassette/issues/3180)) ([9f97034](https://github.com/NodeJSmith/hassette/commit/9f9703426bb4f67695c81a7beb496ff8cf331d85))
+* explain restarts, logger names, and the API port on the log-levels page ([#3182](https://github.com/NodeJSmith/hassette/issues/3182)) ([9b4e983](https://github.com/NodeJSmith/hassette/commit/9b4e983156e84f3d2d8a3635bc203d6030091dc2))
+* explain zsh fpath setup so shell completion actually loads ([#3183](https://github.com/NodeJSmith/hassette/issues/3183)) ([e2dddbd](https://github.com/NodeJSmith/hassette/commit/e2dddbd871c67e2b8dd633f1c5cc843a30652929))
+* fix get_attribute dot-path example and show full AppSync cover example ([#3202](https://github.com/NodeJSmith/hassette/issues/3202)) ([6218f01](https://github.com/NodeJSmith/hassette/commit/6218f010df1d297c084c32f4a1cbd5b7d623d082))
+* fix sun test steps, log output, and scheduler/cross-app migration examples ([#3181](https://github.com/NodeJSmith/hassette/issues/3181)) ([5a4e1cd](https://github.com/NodeJSmith/hassette/commit/5a4e1cd1f9f00f651164586612f3abb36914d325))
+
 ## [0.59.0](https://github.com/NodeJSmith/hassette/compare/v0.58.0...v0.59.0) (2026-10-19)
 
 ### Breaking Changes
