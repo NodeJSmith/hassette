@@ -492,7 +492,7 @@
         "formatter": null,
         "header": "Message",
         "max_width": null,
-        "overflow": "ellipsis"
+        "overflow": "fold"
       }
     ],
     "LOG_COLUMNS": [
@@ -543,7 +543,7 @@
         "formatter": null,
         "header": "Message",
         "max_width": null,
-        "overflow": "ellipsis"
+        "overflow": "fold"
       }
     ]
   },

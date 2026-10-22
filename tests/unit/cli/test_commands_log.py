@@ -18,6 +18,12 @@ from hassette.cli.output import Column, render_table
 from tests.support.web_telemetry_helpers import make_log_entry, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
+NARROW_CONSOLE_WIDTH = 100
+TRACEBACK_MESSAGE = "Job error in demo_stimulator.tick: something went wrong\n" + "\n".join(
+    f'  File "/usr/src/app/apps/demo_stimulator/really/long/path/module_{i}.py", line {i}, in handler_{i}'
+    for i in range(6)
+)
+
 runner = CommandRunner("hassette.cli.commands.log.make_client")
 
 # cmd_log — recent log entries
@@ -224,12 +230,6 @@ class TestCmdExecution:
 
 
 # Column allocation at narrow widths
-
-NARROW_CONSOLE_WIDTH = 100
-TRACEBACK_MESSAGE = "Job error in demo_stimulator.tick: something went wrong\n" + "\n".join(
-    f'  File "/usr/src/app/apps/demo_stimulator/really/long/path/module_{i}.py", line {i}, in handler_{i}'
-    for i in range(6)
-)
 
 
 @pytest.mark.parametrize("columns", [LOG_COLUMNS, EXECUTION_LOG_COLUMNS], ids=["log", "execution"])
