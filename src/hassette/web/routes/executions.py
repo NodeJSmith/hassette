@@ -10,7 +10,7 @@ from hassette_wire import LogEntry, LogsByExecutionResponse, ProblemCode
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.web.dependencies import HassetteDep, TelemetryDep
+from hassette.web.dependencies import AuthorQuery, HassetteDep, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
 
 if TYPE_CHECKING:
@@ -65,8 +65,9 @@ async def get_execution_logs(
     hassette: HassetteDep,
     telemetry: TelemetryDep,
     limit: Annotated[int, Query(ge=1, le=EXECUTION_LOGS_LIMIT_CAP)] = EXECUTION_LOGS_DEFAULT_LIMIT,
+    author: AuthorQuery = None,
 ) -> LogsByExecutionResponse:
-    """Return all log records for a single execution, with retention-expired detection.
+    """Return a single execution's log records, with retention-expired detection.
 
     For UUIDv7 execution IDs, the embedded timestamp is extracted directly without a
     database lookup. For historical UUIDv4 IDs, the database is queried to determine
@@ -82,7 +83,7 @@ async def get_execution_logs(
             ProblemCode.VALIDATION_FAILED, f"Invalid execution_id: {execution_id!r} is not a valid UUID"
         ) from exc
 
-    records, truncated = await telemetry.get_log_records_by_execution(execution_id, limit=limit)
+    records, truncated = await telemetry.get_log_records_by_execution(execution_id, limit=limit, author=author)
 
     retention_expired = False
     if not records:

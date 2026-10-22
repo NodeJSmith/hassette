@@ -473,7 +473,7 @@ async def test_on_homeassistant_start_on_error_passthrough() -> None:
         async def on_err(self, ctx: BusErrorContext) -> None:
             await errors.record(self.hassette, ctx)
 
-    async with AppTestHarness(HaStartErrorApp, config={}) as harness:
+    async with AppTestHarness(HaStartErrorApp, config={"instance_name": "ha_start_error_app"}) as harness:
         await harness.simulate_homeassistant_start()
         await errors.wait()
         await settle()
@@ -497,7 +497,7 @@ async def test_on_hassette_service_failed_on_error_passthrough() -> None:
         async def on_err(self, ctx: BusErrorContext) -> None:
             await errors.record(self.hassette, ctx)
 
-    async with AppTestHarness(ServiceFailedErrorApp, config={}) as harness:
+    async with AppTestHarness(ServiceFailedErrorApp, config={"instance_name": "service_failed_error_app"}) as harness:
         await harness.simulate_hassette_service_failed("SyntheticErrorPassthroughService")
         await errors.wait()
         await settle()
@@ -521,7 +521,9 @@ async def test_on_websocket_connected_on_error_passthrough() -> None:
         async def on_err(self, ctx: BusErrorContext) -> None:
             await errors.record(self.hassette, ctx)
 
-    async with AppTestHarness(WebsocketConnectedErrorApp, config={}) as harness:
+    async with AppTestHarness(
+        WebsocketConnectedErrorApp, config={"instance_name": "websocket_connected_error_app"}
+    ) as harness:
         await harness.simulate_websocket_connected()
         await errors.wait()
         await settle()
@@ -543,7 +545,7 @@ async def test_on_app_running_on_error_passthrough() -> None:
         async def on_err(self, ctx: BusErrorContext) -> None:
             await errors.record(self.hassette, ctx)
 
-    async with AppTestHarness(AppRunningErrorApp, config={}) as harness:
+    async with AppTestHarness(AppRunningErrorApp, config={"instance_name": "app_running_error_app"}) as harness:
         await harness.simulate_app_running()
         await errors.wait()
         await settle()

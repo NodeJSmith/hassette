@@ -34,10 +34,10 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
     HassetteQueueListener,
+    LogIdentityFilter,
     LogPersistenceHandler,
-    _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
-    add_execution_id,
 )
+from hassette.logging_processors import add_execution_id, extract_record_fields
 from hassette.models.entities.base import BaseEntity
 from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
@@ -281,7 +281,7 @@ def logging_pipeline() -> "LoggingPipelineFixture":  # pyright: ignore[reportRet
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
         processors=[
-            _extract_record_fields,
+            extract_record_fields,
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             structlog.processors.JSONRenderer(),
         ],
@@ -296,6 +296,7 @@ def logging_pipeline() -> "LoggingPipelineFixture":  # pyright: ignore[reportRet
 
     q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=100)
     queue_handler = logging.handlers.QueueHandler(q)
+    queue_handler.addFilter(LogIdentityFilter())
     queue_handler.addFilter(CorrelationFilter())
 
     listener = HassetteQueueListener(q, stream_handler, capture)

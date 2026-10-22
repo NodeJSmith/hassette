@@ -1069,8 +1069,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Only records at this level. Without 'author', framework lines below ERROR stay excluded whatever level this asks for; pass author=all to see them.",
               "title": "Level"
-            }
+            },
+            "description": "Only records at this level. Without 'author', framework lines below ERROR stay excluded whatever level this asks for; pass author=all to see them."
           },
           {
             "name": "since",
@@ -1105,21 +1107,27 @@
             }
           },
           {
-            "name": "source_tier",
+            "name": "author",
             "in": "query",
             "required": false,
             "schema": {
-              "enum": [
-                "app",
-                "framework",
-                "all"
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
               ],
-              "type": "string",
-              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
-              "default": "all",
-              "title": "Source Tier"
+              "description": "Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines.",
+              "title": "Author"
             },
-            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
+            "description": "Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines."
           },
           {
             "name": "instance_index",
@@ -1229,7 +1237,7 @@
           "executions"
         ],
         "summary": "Get Execution Logs",
-        "description": "Return all log records for a single execution, with retention-expired detection.\n\nFor UUIDv7 execution IDs, the embedded timestamp is extracted directly without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried to determine\nwhether retention has expired.\n\nReturns 422 if the execution_id is not a valid UUID. Returns an empty record list\nwith ``retention_expired=True`` if the execution is older than the log retention window.",
+        "description": "Return a single execution's log records, with retention-expired detection.\n\nFor UUIDv7 execution IDs, the embedded timestamp is extracted directly without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried to determine\nwhether retention has expired.\n\nReturns 422 if the execution_id is not a valid UUID. Returns an empty record list\nwith ``retention_expired=True`` if the execution is older than the log retention window.",
         "operationId": "get_execution_logs_api_executions__execution_id__get",
         "parameters": [
           {
@@ -1252,6 +1260,29 @@
               "default": 500,
               "title": "Limit"
             }
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines.",
+              "title": "Author"
+            },
+            "description": "Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines."
           }
         ],
         "responses": {
@@ -3291,7 +3322,9 @@
           },
           "auto_loaded": {
             "type": "boolean",
-            "title": "Auto Loaded"
+            "title": "Auto Loaded",
+            "description": "Deprecated: always ``False``, since app autodetection is gone. Kept because released clients up to\n0.59.0 require it; removed in #3161.",
+            "default": false
           },
           "autostart": {
             "type": "boolean",
@@ -3373,7 +3406,6 @@
           "display_name",
           "filename",
           "enabled",
-          "auto_loaded",
           "status"
         ],
         "title": "AppSummary",
@@ -4770,7 +4802,7 @@
             ],
             "title": "Instance Index"
           },
-          "source_tier": {
+          "author": {
             "anyOf": [
               {
                 "type": "string",
@@ -4783,7 +4815,7 @@
                 "type": "null"
               }
             ],
-            "title": "Source Tier"
+            "title": "Author"
           },
           "execution_kind": {
             "anyOf": [
@@ -4833,7 +4865,7 @@
           "message"
         ],
         "title": "LogEntry",
-        "description": "One captured log record.\n\n``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``\nand ``instance_*`` are set for records an app emitted and ``None`` for framework records.\n``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or\njob was running."
+        "description": "One captured log record.\n\n``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``\nand ``instance_*`` are set for records an app emitted and ``None`` for framework records.\n``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or\njob was running. ``author`` says who wrote the line: ``\"app\"`` for an app's own code, ``\"framework\"`` for\nHassette's, including its lines about an app."
       },
       "LogLevelRequest": {
         "properties": {

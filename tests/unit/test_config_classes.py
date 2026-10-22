@@ -23,6 +23,7 @@ def make_manifest(**overrides) -> AppManifest:  # factory-local: returns AppMani
         "display_name": "Test App",
         "app_dir": Path("/tmp/apps"),
         "full_path": Path("/tmp/apps/test_app.py"),
+        "app_config": {"instance_name": "test_app"},
     }
     defaults.update(overrides)
     with warnings.catch_warnings():
@@ -144,6 +145,7 @@ class TestAppManifestAutostart:
             "display_name": "Test App",
             "app_dir": Path("/tmp/apps"),
             "full_path": Path("/tmp/apps/test_app.py"),
+            "app_config": {"instance_name": "test_app"},
         }
         assert "autostart" not in values
         manifest = AppManifest.model_validate(values)
@@ -174,21 +176,8 @@ class TestAppManifestDisplayName:
         manifest = make_manifest(display_name=None)
         assert manifest.display_name == "test_app"
 
-    def test_auto_loaded_app_defaults_display_name_to_class_name(self) -> None:
-        manifest = make_manifest(
-            app_key="examples.security_monitor.SecurityMonitor",
-            class_name="SecurityMonitor",
-            auto_loaded=True,
-            display_name=None,
-        )
-        assert manifest.display_name == "SecurityMonitor"
-
     def test_explicit_display_name_preserved(self) -> None:
         manifest = make_manifest(display_name="Custom Name")
-        assert manifest.display_name == "Custom Name"
-
-    def test_explicit_display_name_preserved_for_auto_loaded(self) -> None:
-        manifest = make_manifest(display_name="Custom Name", auto_loaded=True)
         assert manifest.display_name == "Custom Name"
 
 

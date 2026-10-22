@@ -48,7 +48,7 @@ The demo also loads the fixture apps in [`scripts/demo_apps/`](../scripts/demo_a
 
 ## App Registry
 
-`hassette.toml` configures 4 apps and autodetects `security_monitor.py`, for 7 instances in total:
+`hassette.toml` configures 5 apps, for 7 instances in total:
 
 | Instance | App | Key patterns |
 |---|---|---|

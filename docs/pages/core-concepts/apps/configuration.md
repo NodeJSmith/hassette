@@ -6,7 +6,7 @@ This page covers the TOML side of app configuration. [Apps](../apps/index.md) co
 
 ## Registering an App
 
-An app block requires two fields: `filename` and `class_name`. `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
+An app block requires `filename` and `class_name`, and its `config` must set an `instance_name` (see [Instance Names](#instance-names)). `filename` is the path to the Python file, relative to [`apps.directory`](../configuration/index.md) (the root directory for app source files, configured in `hassette.toml`). `class_name` is the name of the [App][hassette.app.app.App] subclass to load.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
@@ -18,6 +18,8 @@ The app key (`presence` here) also names the app's [cache directory](../cache/in
 
 `description` holds an optional one-line summary of what the app does, up to 200 characters. Hassette strips surrounding whitespace and rejects a description containing a line break at startup. The `/api/apps` endpoints return it as `description`, or `null` when unset.
 
+Every configured app needs an `instance_name`, including blocks with `enabled = false` or `autostart = false`. A block without one fails at config load.
+
 `enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
 
 ```toml
@@ -25,13 +27,14 @@ The app key (`presence` here) also names the app's [cache directory](../cache/in
 filename = "heavy_processor.py"
 class_name = "HeavyProcessorApp"
 autostart = false
+config = { instance_name = "heavy_processor" }
 ```
 
 `enabled = false` is the hard off-switch — the app never loads or starts, but it stays registered and the apps dashboard lists it as **disabled**. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
 
 ## Passing Configuration
 
-The `config` field supplies values to the app's `AppConfig` model. Two TOML forms are equivalent for single-instance apps.
+The `config` field supplies values to the app's `AppConfig` model, and it must set `instance_name`. A section with no `config` at all fails at config load, naming the app key and instance index. Two TOML forms are equivalent for single-instance apps.
 
 Inline form:
 
@@ -39,7 +42,7 @@ Inline form:
 [hassette.apps.presence]
 filename = "presence.py"
 class_name = "PresenceApp"
-config = { motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
+config = { instance_name = "presence", motion_sensor = "binary_sensor.hall", lights = ["light.entry"] }
 ```
 
 Table form:
@@ -50,12 +53,13 @@ filename = "presence.py"
 class_name = "PresenceApp"
 
 [hassette.apps.presence.config]
+instance_name = "presence"
 motion_sensor = "binary_sensor.hall"
 lights = ["light.entry"]
 ```
 
 !!! note "Two TOML paths, two purposes"
-    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
+    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields, including `instance_name`, live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
 
 Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
 
@@ -67,11 +71,33 @@ The same app class runs as separate instances by replacing `config = ...` with `
 --8<-- "pages/core-concepts/configuration/snippets/multiple_instances.toml"
 ```
 
-The `name` field distinguishes instances in logs and the web UI. Without it, Hassette generates a name from the class name and index (e.g., `PresenceApp.0`).
+Each block sets its own `instance_name`, which distinguishes the instance in logs and the web UI. Names must be unique across the whole config, not only within one app key. See [Instance Names](#instance-names).
 
 Single-instance apps are the default. Most apps never need `[[...]]` blocks. Multiple instances let the same logic run across different rooms, devices, or entity sets without duplicating app code.
 
-A live config reload (on when `dev_mode` or `allow_reload_in_prod` is set) restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the equivalent per-instance REST API endpoints — the web UI dashboard doesn't expose per-instance controls yet.
+Live config reload runs when the `hassette.toml` setting [`dev_mode`](../configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../configuration/index.md#development-and-debugging) is on. With both off, a config edit takes effect only after Hassette restarts. A live config reload restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. A restart stops every instance the change replaces, across all affected apps, before starting any replacement, so a name can move from one instance or app to another in a single edit. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the per-instance controls in the web UI and the equivalent REST API endpoints.
+
+## Instance Names {#instance-names}
+
+`instance_name` is required on every configured app instance. The name identifies the instance throughout Hassette:
+
+- `self.instance_name` returns it. `self.unique_name` returns the same value; it's the identity Hassette uses for the app's logger and for ownership of its handlers and jobs.
+- The app's logger is `hassette.apps.<instance_name>`, and the app's bus, scheduler, and other per-app loggers nest under it (`hassette.apps.upstairs.Bus`).
+- Log lines and telemetry carry it as `instance_name`.
+
+Names are modelled on Home Assistant's entity object ID rule:
+
+- The name starts with a lowercase letter.
+- It contains only lowercase letters, digits, and `_`.
+- It does not end with `_`.
+- It is at most 128 characters long.
+
+`upstairs` and `kitchen_lights_2` are valid. `Upstairs`, `kitchen-lights`, `PresenceApp.0`, `2nd_floor`, and `lights_` are not. An invalid name fails at config load.
+
+Names are unique across the whole config. No two instances, under any app key and enabled or not, share a name. A duplicate fails at config load with an error that lists every instance using the name.
+
+!!! note "Storage, routes, and the CLI still use the index"
+    The name keys logging and `self.unique_name`. Persistent storage, web routes, and the CLI still address an instance by its app key and index (its zero-based position among the app's `config` blocks). The CLI's `--instance` flag resolves a name to its index.
 
 ## Typed Configuration
 
@@ -79,9 +105,17 @@ The values supplied under `config` are validated at startup against an [`AppConf
 
 ## Developer Settings {#developer-settings}
 
-`AppConfig` includes two developer-facing fields:
+`AppConfig` includes three developer-facing fields. Each one is a key in the app's `config` table in `hassette.toml`, set per instance like any other config value.
 
-- **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+- **`framework_log_level`** (a log level name such as `"DEBUG"`, or `None`): Level for the lines Hassette writes about this instance: its lifecycle, bus, scheduler, API, state and task lines. The app's own `log_level` is unaffected. `None` (the default) leaves those lines at their `logging.*` levels. See [Per-App Log Levels](../../operating/log-levels.md#hassettes-lines-about-one-app).
+
+- **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when an async Hassette method runs without `await`. Examples include `self.bus.on_state_change(...)`, `self.scheduler.run_in(...)`, and `self.api.call_service(...)`. Without `await`, the call never takes effect. [Forgotten `await`](../../troubleshooting.md#forgotten-await) lists every covered method. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+
+    ```toml
+    --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.toml"
+    ```
+
+    An `AppConfig` subclass can also change the field's default in Python. This step is optional; the TOML key works without it.
 
     ```python
     --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.py"
@@ -91,11 +125,17 @@ The values supplied under `config` are validated at startup against an [`AppConf
 
 - **`blocking_io_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for blocking-call detection behavior. `None` (the default) falls back to the global `blocking_io.behavior` setting in `hassette.toml`, which itself defaults to `"warn"`.
 
+    ```toml
+    --8<-- "pages/core-concepts/apps/snippets/app_config_blocking_io.toml"
+    ```
+
+    The same optional Python default applies here:
+
     ```python
     --8<-- "pages/core-concepts/apps/snippets/app_config_blocking_io.py"
     ```
 
-    `BlockingIOBehavior` is imported from `hassette`. Set to `"ignore"` to suppress both the warning and the `blocking_events` DB row for this app — useful when migrating legacy code that uses synchronous I/O. Set to `"error"` to escalate detections to raised exceptions (via `filterwarnings("error")`). See [Blocking-Call Detection](../blocking-io-detection.md) for context and [Global Settings](../configuration/index.md#blocking-io-detection) for the global defaults.
+    `BlockingIOBehavior` is imported from `hassette`. Under `"warn"`, each detection logs a warning and records the call. Recorded calls appear on the app's overview, the apps list, and `hassette blocking`. `"ignore"` turns off both the warning and the record for this app. It suits legacy code that still uses synchronous I/O. `"error"` lets a warning filter turn call-site (Tier 2) detections into exceptions that stop the blocking call. Loop-watchdog (Tier 1) stalls are reported after the call finishes and never raise. See [Blocking-Call Detection](../blocking-io-detection.md) for where detections show up and how to set up that filter. [Global Settings](../configuration/index.md#blocking-io-detection) covers the global defaults.
 
 ## Next Steps
 

@@ -8,7 +8,6 @@ from hassette_wire import ResourceStatus
 def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output
     app_key: str,
     enabled: bool = True,
-    auto_loaded: bool = False,
     autostart: bool = True,
     app_config: dict | list[dict] | None = None,
     description: str | None = None,
@@ -21,9 +20,8 @@ def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegi
         description=description,
         filename=f"{app_key}.py",
         enabled=enabled,
-        auto_loaded=auto_loaded,
         autostart=autostart,
-        app_config=app_config if app_config is not None else {},
+        app_config=app_config if app_config is not None else {"instance_name": app_key},
     )
 
 
@@ -32,7 +30,7 @@ def make_app_instance(  # factory-local: SimpleNamespace App stand-in for AppReg
 ) -> SimpleNamespace:
     """Build a minimal App-like object for the registry."""
     class_name = app_key.title().replace("_", "")
-    instance_name = f"{app_key}.{index}"
+    instance_name = app_key if index == 0 else f"{app_key}_{index}"
     return SimpleNamespace(
         app_config=SimpleNamespace(instance_name=instance_name),
         class_name=class_name,

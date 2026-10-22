@@ -52,11 +52,17 @@ class TestCmdLog:
         assert params["since"] == since_epoch
         assert params["limit"] == 20
 
-    def test_source_tier_passed_as_param(self, logs_client: HassetteCLIClient) -> None:
-        """Log --source-tier framework passes source_tier=framework as a query param."""
-        spy = runner.spy(logs_client, cmd_log, source_tier="framework")
+    def test_author_passed_as_param(self, logs_client: HassetteCLIClient) -> None:
+        """Log --author framework passes author=framework as a query param."""
+        spy = runner.spy(logs_client, cmd_log, author="framework")
 
-        assert spy.params_for("logs/recent")["source_tier"] == "framework"
+        assert spy.params_for("logs/recent")["author"] == "framework"
+
+    def test_author_omitted_by_default(self, logs_client: HassetteCLIClient) -> None:
+        """Without --author the server's default view applies, so no author param is sent."""
+        spy = runner.spy(logs_client, cmd_log)
+
+        assert "author" not in spy.params_for("logs/recent")
 
     def test_instance_flag_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Log --instance 0 exits non-zero with a usage error (not supported on log)."""
@@ -128,6 +134,33 @@ class TestCmdExecution:
         spy = runner.spy(client, cmd_execution, uuid="abc-123", limit=50)
 
         assert spy.params_for("executions")["limit"] == 50
+
+    def test_author_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
+        """Execution <uuid> --author all passes author=all as a query param."""
+        response_obj = make_logs_by_execution_response()
+        client = cli_client_factory.build_with_routes(
+            [("GET", "/api/executions/abc-123", 200, response_obj.model_dump())]
+        )
+        spy = runner.spy(client, cmd_execution, uuid="abc-123", author="all")
+
+        assert spy.params_for("executions")["author"] == "all"
+
+    def test_marks_framework_lines_only(self, cli_client_factory: CLIClientFactory) -> None:
+        """The Author column reads ``framework`` on framework lines and stays blank on app lines."""
+        records = [
+            make_log_entry(message="first line", author="app"),
+            make_log_entry(id=2, seq=2, message="second line", author="framework"),
+        ]
+        response_obj = make_logs_by_execution_response(records=records)
+        client = cli_client_factory.build_with_routes(
+            [("GET", "/api/executions/exec-1", 200, response_obj.model_dump())]
+        )
+        output = runner.stdout(client, cmd_execution, uuid="exec-1")
+
+        app_row = next(line for line in output.splitlines() if "first line" in line)
+        framework_row = next(line for line in output.splitlines() if "second line" in line)
+        assert "framework" not in app_row
+        assert "framework" in framework_row
 
     def test_extracts_records_from_wrapper(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution renders the records list from the LogsByExecutionResponse wrapper."""

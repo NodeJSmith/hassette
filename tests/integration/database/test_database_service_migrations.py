@@ -115,7 +115,7 @@ EXPECTED_TABLES = {
         "instance_name",
         "instance_index",
         "execution_id",
-        "source_tier",
+        "author",
         # dup-ignore-end
     },
     "blocking_events": {
@@ -142,7 +142,6 @@ EXPECTED_TABLES = {
         "filename",
         "enabled",
         "autostart",
-        "auto_loaded",
         "created_at",
         "updated_at",
     },

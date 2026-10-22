@@ -41,7 +41,6 @@ def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
     """manifest_insert_params() maps AppManifest fields to the UPSERT param dict, coercing bools to int."""
     manifest = create_app_manifest("test", tmp_path, enabled=False)
     manifest.autostart = False
-    manifest.auto_loaded = True
 
     params = manifest_insert_params(manifest)
 
@@ -56,7 +55,6 @@ def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
         "filename": manifest.filename,
         "enabled": 0,
         "autostart": 0,
-        "auto_loaded": 1,
     }
     # dup-ignore-end
     assert isinstance(params["enabled"], int)

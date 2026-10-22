@@ -124,7 +124,7 @@ describe("ConfigPage", () => {
   it("renders directory field under the apps group", async () => {
     server.use(
       http.get("/api/config", () =>
-        HttpResponse.json(createSystemConfig({ apps: { autodetect: true, directory: "/my/apps" } })),
+        HttpResponse.json(createSystemConfig({ apps: { warn_unconfigured: true, directory: "/my/apps" } })),
       ),
     );
     const { findByTestId } = renderWithAppState(<ConfigPage />);

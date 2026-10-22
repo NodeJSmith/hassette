@@ -70,7 +70,6 @@ def minimal_app_summary(**overrides: Any) -> AppSummary:
             "display_name": "My App",
             "filename": "my_app.py",
             "enabled": True,
-            "auto_loaded": False,
             "status": "stopped",
         },
         overrides,
@@ -131,7 +130,15 @@ def minimal_log_record(**overrides: Any) -> LogRecord:
     """LogRecord with only its required fields set."""
     return build(
         LogRecord,
-        {"id": 1, "seq": 1, "timestamp": 1.0, "level": "INFO", "logger_name": "test", "message": "test"},
+        {
+            "id": 1,
+            "seq": 1,
+            "timestamp": 1.0,
+            "level": "INFO",
+            "logger_name": "test",
+            "message": "test",
+            "author": "app",
+        },
         overrides,
     )
 
@@ -352,13 +359,13 @@ class TestLogLevelType:
         with pytest.raises(ValidationError):
             minimal_log_entry(level="WARN")
 
-    def test_rejects_bogus_source_tier_on_log_entry(self) -> None:
+    def test_rejects_bogus_author_on_log_entry(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_log_entry(source_tier="bogus")
+            minimal_log_entry(author="bogus")
 
-    def test_accepts_valid_source_tiers_on_log_entry(self) -> None:
-        for tier in ("app", "framework", None):
-            assert minimal_log_entry(source_tier=tier).source_tier == tier
+    def test_accepts_valid_authors_on_log_entry(self) -> None:
+        for author in ("app", "framework", None):
+            assert minimal_log_entry(author=author).author == author
 
     def test_accepts_all_five_standard_levels_on_log_entry(self) -> None:
         for level in STANDARD_LOG_LEVELS:

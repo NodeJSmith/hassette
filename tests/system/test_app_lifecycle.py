@@ -9,23 +9,14 @@ import pytest
 from hassette_wire import ResourceStatus
 
 from hassette import Hassette
-from hassette.config.config import HassetteConfig
 from hassette.testing import wait_for
 
-from .conftest import make_system_config, startup_context
+from .conftest import make_system_config, startup_context, with_app_entries
 
 pytestmark = [pytest.mark.system]
 
 ENTITY = "light.kitchen_lights"
 DOMAIN = "light"
-
-
-def enable_autodetect(config: HassetteConfig, app_dir: Path) -> HassetteConfig:
-    """Return a deep copy of config with app autodetection enabled and directory set."""
-    config = config.model_copy(deep=True)
-    config.apps.autodetect = True
-    config.apps.directory = app_dir
-    return config
 
 
 def find_app(hassette, class_name: str):
@@ -48,21 +39,21 @@ async def start_with_inline_app(ha_container: str, tmp_path: Path, **modules: st
             one to bring up several apps together.
 
     Yields:
-        The running Hassette instance, with autodetection pointed at the apps directory.
+        The running Hassette instance, with an app entry for each class in the written modules.
     """
     config = make_system_config(ha_container, tmp_path)
     apps_dir = config.apps.directory
     for stem, source in modules.items():
         (apps_dir / f"{stem}.py").write_text(source)
 
-    async with startup_context(enable_autodetect(config, apps_dir)) as hassette:
+    async with startup_context(with_app_entries(config, apps_dir)) as hassette:
         yield hassette
 
 
 async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """An app loaded from disk appears in the registry with RUNNING status after startup."""
     config = make_system_config(ha_container, tmp_path)
-    config = enable_autodetect(config, system_app_dir)
+    config = with_app_entries(config, system_app_dir)
 
     async with startup_context(config) as hassette:
         trivial_key, app_instance = find_app(hassette, "TrivialApp")
@@ -92,7 +83,7 @@ class ApiCheckApp(App):
 async def test_app_bus_handler_fires(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """A bus handler registered in on_initialize receives real HA state-change events."""
     config = make_system_config(ha_container, tmp_path)
-    config = enable_autodetect(config, system_app_dir)
+    config = with_app_entries(config, system_app_dir)
 
     async with startup_context(config) as hassette:
         _, app_instance = find_app(hassette, "BusHandlerApp")

@@ -117,7 +117,7 @@ class _HassetteP(Protocol):
 if typing.TYPE_CHECKING:
 
     class _LifecycleHostP(Protocol):
-        logger: Logger
+        lifecycle_logger: Logger
         hassette: _HassetteP
         role: ResourceRole
         class_name: str

@@ -9,11 +9,8 @@ export type LogSortState = SortState<LogSortKey>;
 
 export type LevelFilter = "" | "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
 
-export type TierFilter = "all" | "app" | "framework";
-
 export interface FilterState {
   level: LevelFilter;
-  tier: TierFilter;
   app: string;
   search: string;
   func: string;

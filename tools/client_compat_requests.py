@@ -44,6 +44,9 @@ gets the empty result, so the route is still requested."""
 ALL_TIERS = {"source_tier": "all"}
 """Routes that filter by source tier default to ``app``; ``all`` puts framework rows in the fixtures too."""
 
+ALL_AUTHORS = {"author": "all"}
+"""Log routes hide framework lines below ERROR by default; ``all`` puts every seeded log row in the fixtures."""
+
 SINCE_EPOCH = {"since": "0"}
 """Makes app-grid compute its windowed parts: it fills ``activity_buckets`` and ``last_error`` only when given
 ``since``, so it's requested both with and without one. The window starts at the epoch, so it covers every
@@ -252,9 +255,9 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
         FixtureRequest("app-config", "GET", "/api/apps/{app_key}/config", my_app),
         FixtureRequest("app-multi-config", "GET", "/api/apps/{app_key}/config", multi_app),
         FixtureRequest("app-source", "GET", "/api/apps/{app_key}/source", my_app),
-        FixtureRequest("logs-recent", "GET", "/api/logs/recent", query=ALL_TIERS),
+        FixtureRequest("logs-recent", "GET", "/api/logs/recent", query=ALL_AUTHORS),
         FixtureRequest("log-level", "PUT", "/api/logs/level", body={"logger": "hassette", "level": "DEBUG"}),
-        FixtureRequest("execution-logs", "GET", "/api/executions/{execution_id}", logged_execution),
+        FixtureRequest("execution-logs", "GET", "/api/executions/{execution_id}", logged_execution, ALL_AUTHORS),
         FixtureRequest("bus-listeners", "GET", "/api/bus/listeners", query=ALL_TIERS),
         FixtureRequest("config", "GET", "/api/config"),
         FixtureRequest("telemetry-status", "GET", "/api/telemetry/status"),

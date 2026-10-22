@@ -1,0 +1,3 @@
+{"cmd": "search", "arg": "disable app enabled hassette.toml", "results": ["pages/core-concepts/configuration/#configuration", "pages/core-concepts/apps/#restricting-which-apps-run", "pages/core-concepts/apps/configuration/#registering-an-app", "pages/core-concepts/apps/#toml-registration", "pages/troubleshooting/#lifecycle", "pages/web-ui/manage-apps/#understand-app-states", "pages/cli/commands/#hassette-app", "CHANGELOG/#apps"]}
+{"cmd": "open", "arg": "pages/core-concepts/apps/#restricting-which-apps-run", "found": true}
+{"cmd": "open", "arg": "pages/core-concepts/apps/configuration/", "found": true}

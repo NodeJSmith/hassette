@@ -5,5 +5,6 @@ enabled = true
 
 # Configuration matches your AppConfig model
 [[hassette.apps.my_monitor.config]]
+instance_name = "kitchen"
 location_name = "Kitchen"
 threshold = 30.0

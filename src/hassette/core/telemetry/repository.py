@@ -201,9 +201,9 @@ class TelemetryRepository:
         cursor = await db.execute(
             """
             INSERT INTO app_manifests (
-                app_key, class_name, display_name, filename, enabled, autostart, auto_loaded
+                app_key, class_name, display_name, filename, enabled, autostart
             ) VALUES (
-                :app_key, :class_name, :display_name, :filename, :enabled, :autostart, :auto_loaded
+                :app_key, :class_name, :display_name, :filename, :enabled, :autostart
             )
             ON CONFLICT(app_key)
             DO UPDATE SET
@@ -212,7 +212,6 @@ class TelemetryRepository:
                 filename = excluded.filename,
                 enabled = excluded.enabled,
                 autostart = excluded.autostart,
-                auto_loaded = excluded.auto_loaded,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%f', 'now')  -- format must match migrations_sql/011.sql
             RETURNING id
             """,

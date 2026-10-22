@@ -1,0 +1,302 @@
+LINE 1: # First Steps¶
+LINE 2: The simplest FastAPI file could look like this:
+LINE 3: [TAB: Python 3.10+]
+LINE 4: ```
+LINE 5: from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+LINE 6: ```
+LINE 7: Copy that to a file main.py .
+LINE 8: [ADMONITION: Tip]
+LINE 9:   FastAPI has an [official extension for VS Code](https://marketplace.visualstudio.com/items?itemName=FastAPILabs.fastapi-vscode) (and Cursor), which provides a lot of features, including a path operation explorer, path operation search, CodeLens navigation in tests (jump to definition from tests), and FastAPI Cloud deployment and logs, all from your editor.
+LINE 10: Run the live server:
+LINE 11: $ <font color = "#4E9A06" >uv run fastapi</font> dev <span style="background-color:#009485"><font color="#D3D7CF"> FastAPI </font></span>  Starting development server 🚀 Searching for package file structure from directories with <font color="#3465A4">__init__.py</font> files Importing from <font color="#75507B">/home/user/code/</font><font color="#AD7FA8">awesomeapp</font> <span style="background-color:#007166"><font color="#D3D7CF"> module </font></span>  🐍 main.py <span style="background-color:#007166"><font color="#D3D7CF"> code </font></span>  Importing the FastAPI app object from the module with the following code: <u style="text-decoration-style:solid">from </u><u style="text-decoration-style:solid"><b>main</b></u><u style="text-decoration-style:solid"> import </u><u style="text-decoration-style:solid"><b>app</b></u> <span style="background-color:#007166"><font color="#D3D7CF"> app </font></span>  Using import string: <font color="#3465A4">main:app</font> <span style="background-color:#007166"><font color="#D3D7CF"> server </font></span>  Server started at <font color="#729FCF"><u style="text-decoration-style:solid">http://127.0.0.1:8000</u></font> <span style="background-color:#007166"><font color="#D3D7CF"> server </font></span>  Documentation at <font color="#729FCF"><u style="text-decoration-style:solid">http://127.0.0.1:8000/docs</u></font> <span style="background-color:#007166"><font color="#D3D7CF"> tip </font></span>  Running in development mode, for production use: <b>fastapi run</b> Logs: <span style="background-color:#007166"><font color="#D3D7CF"> INFO </font></span>  Will watch for changes in these directories: <b>[</b><font color="#4E9A06">&apos;/home/user/code/awesomeapp&apos;</font><b>]</b> <span style="background-color:#007166"><font color="#D3D7CF"> INFO </font></span>  Uvicorn running on <font color="#729FCF"><u style="text-decoration-style:solid">http://127.0.0.1:8000</u></font> <b>(</b>Press CTRL+C to quit<b>)</b> <span style="background-color:#007166"><font color="#D3D7CF"> INFO </font></span>  Started reloader process <b>[</b><font color="#34E2E2"><b>383138</b></font><b>]</b> using WatchFiles <span style="background-color:#007166"><font color="#D3D7CF"> INFO </font></span>  Started server process <b>[</b><font color="#34E2E2"><b>383153</b></font><b>]</b> <span style="background-color:#007166"><font color="#D3D7CF"> INFO </font></span>  Waiting for application startup. <span style="background-color:#007166"><font color="#D3D7CF"> INFO </font></span>  Application startup complete.
+LINE 12: In the output, there's a line with something like:
+LINE 13: ```
+LINE 14: INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+
+LINE 15: ```
+LINE 16: That line shows the URL where your app is being served on your local machine.
+LINE 17: ### Check it¶
+LINE 18: Open your browser at [http://127.0.0.1:8000](http://127.0.0.1:8000) .
+LINE 19: You will see the JSON response as:
+LINE 20: ```
+LINE 21: {"message": "Hello World"}
+
+LINE 22: ```
+LINE 23: ### Interactive API docs¶
+LINE 24: Now go to [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) .
+LINE 25: You will see the automatic interactive API documentation (provided by [Swagger UI](https://github.com/swagger-api/swagger-ui) ):
+LINE 26: ### Alternative API docs¶
+LINE 27: And now, go to [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc) .
+LINE 28: You will see the alternative automatic documentation (provided by [ReDoc](https://github.com/Redocly/redoc) ):
+LINE 29: ### OpenAPI¶
+LINE 30: FastAPI generates a "schema" with all your API using the OpenAPI standard for defining APIs.
+LINE 31: #### "Schema"¶
+LINE 32: A "schema" is a definition or description of something. Not the code that implements it, but just an abstract description.
+LINE 33: #### API "schema"¶
+LINE 34: In this case, [OpenAPI](https://github.com/OAI/OpenAPI-Specification) is a specification that dictates how to define a schema of your API.
+LINE 35: This schema definition includes your API paths, the possible parameters they take, etc.
+LINE 36: #### Data "schema"¶
+LINE 37: The term "schema" might also refer to the shape of some data, like a JSON content.
+LINE 38: In that case, it would mean the JSON attributes, and data types they have, etc.
+LINE 39: #### OpenAPI and JSON Schema¶
+LINE 40: OpenAPI defines an API schema for your API. And that schema includes definitions (or "schemas") of the data sent and received by your API using JSON Schema , the standard for JSON data schemas.
+LINE 41: #### Check theopenapi.json¶
+LINE 42: If you are curious about what the raw OpenAPI schema looks like, FastAPI automatically generates a JSON (schema) with the descriptions of all your API.
+LINE 43: You can see it directly at: [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json) .
+LINE 44: It will show a JSON starting with something like:
+LINE 45: ```
+LINE 46: {
+    "openapi": "3.1.0",
+    "info": {
+        "title": "FastAPI",
+        "version": "0.1.0"
+    },
+    "paths": {
+        "/items/": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+
+
+
+...
+
+LINE 47: ```
+LINE 48: #### What is OpenAPI for¶
+LINE 49: The OpenAPI schema is what powers the two interactive documentation systems included.
+LINE 50: And there are dozens of alternatives, all based on OpenAPI. You could easily add any of those alternatives to your application built with FastAPI .
+LINE 51: You could also use it to generate code automatically, for clients that communicate with your API. For example, frontend, mobile or IoT applications.
+LINE 52: ### Configure the appentrypointinpyproject.toml¶
+LINE 53: You can configure where your app is located in a pyproject.toml file like:
+LINE 54: ```
+LINE 55: [tool.fastapi]
+entrypoint = "main:app"
+
+LINE 56: ```
+LINE 57: That entrypoint will tell the fastapi command that it should import the app like:
+LINE 58: ```
+LINE 59: from main import app
+
+LINE 60: ```
+LINE 61: If your code was structured like:
+LINE 62: ```
+LINE 63: .
+├── backend
+│   ├── main.py
+│   ├── __init__.py
+
+LINE 64: ```
+LINE 65: Then you would set the entrypoint as:
+LINE 66: ```
+LINE 67: [tool.fastapi]
+entrypoint = "backend.main:app"
+
+LINE 68: ```
+LINE 69: which would be equivalent to:
+LINE 70: ```
+LINE 71: from backend.main import app
+
+LINE 72: ```
+LINE 73: ### fastapi devwith path or with--entrypointCLI option¶
+LINE 74: You can also pass the file path to the fastapi dev command, and it will guess the FastAPI app object to use:
+LINE 75: ```
+LINE 76: $ uv run fastapi dev main.py
+
+LINE 77: ```
+LINE 78: Or, you can also pass the --entrypoint option to the fastapi dev command:
+LINE 79: ```
+LINE 80: $ uv run fastapi dev --entrypoint main:app
+
+LINE 81: ```
+LINE 82: But you would have to remember to pass the correct path\entrypoint every time you call the fastapi command.
+LINE 83: Additionally, other tools might not be able to find it, for example the [VS Code Extension](../../editor-support/) or [FastAPI Cloud](https://fastapicloud.com) , so it is recommended to use the entrypoint in pyproject.toml .
+LINE 84: ### Deploy your app (optional)¶
+LINE 85: You can optionally deploy your FastAPI app to [FastAPI Cloud](https://fastapicloud.com) with a single command. 🚀
+LINE 86: $ uv run fastapi deploy Deploying to FastAPI Cloud... ✅ Deployment successful! 🐔 Ready the chicken! Your app is ready at https://myapp.fastapicloud.dev
+LINE 87: The CLI will automatically detect your FastAPI application and deploy it to the cloud. If you are not logged in, your browser will open to complete the authentication process.
+LINE 88: That's it! Now you can access your app at that URL. ✨
+LINE 89: ## Recap, step by step¶
+LINE 90: ### Step 1: importFastAPI¶
+LINE 91: [TAB: Python 3.10+]
+LINE 92: ```
+LINE 93: from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+LINE 94: ```
+LINE 95: FastAPI is a Python class that provides all the functionality for your API.
+LINE 96: [ADMONITION: Technical Details]
+LINE 97:   FastAPI is a class that inherits directly from Starlette .
+LINE 98:   You can use all the [Starlette](https://starlette.dev/) functionality with FastAPI too.
+LINE 99: ### Step 2: create aFastAPI"instance"¶
+LINE 100: [TAB: Python 3.10+]
+LINE 101: ```
+LINE 102: from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+LINE 103: ```
+LINE 104: Here the app variable will be an "instance" of the class FastAPI .
+LINE 105: This will be the main point of interaction to create all your API.
+LINE 106: ### Step 3: create apath operation¶
+LINE 107: #### Path¶
+LINE 108: "Path" here refers to the last part of the URL starting from the first / .
+LINE 109: So, in a URL like:
+LINE 110: ```
+LINE 111: https://example.com/items/foo
+
+LINE 112: ```
+LINE 113: ...the path would be:
+LINE 114: ```
+LINE 115: /items/foo
+
+LINE 116: ```
+LINE 117: [ADMONITION: Note]
+LINE 118:   A "path" is also commonly called an "endpoint" or a "route".
+LINE 119: While building an API, the "path" is the main way to separate "concerns" and "resources".
+LINE 120: #### Operation¶
+LINE 121: "Operation" here refers to one of the HTTP "methods".
+LINE 122: One of:
+LINE 123: - POST
+LINE 124: - GET
+LINE 125: - PUT
+LINE 126: - DELETE
+LINE 127: ...and the more exotic ones:
+LINE 128: - OPTIONS
+LINE 129: - HEAD
+LINE 130: - PATCH
+LINE 131: - TRACE
+LINE 132: In the HTTP protocol, you can communicate to each path using one (or more) of these "methods".
+LINE 133: When building APIs, you normally use these specific HTTP methods to perform a specific action.
+LINE 134: Normally you use:
+LINE 135: - POST : to create data.
+LINE 136: - GET : to read data.
+LINE 137: - PUT : to update data.
+LINE 138: - DELETE : to delete data.
+LINE 139: So, in OpenAPI, each of the HTTP methods is called an "operation".
+LINE 140: We are going to call them " operations " too.
+LINE 141: #### Define apath operation decorator¶
+LINE 142: [TAB: Python 3.10+]
+LINE 143: ```
+LINE 144: from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+LINE 145: ```
+LINE 146: The @app.get("/") tells FastAPI that the function right below is in charge of handling requests that go to:
+LINE 147: - the path /
+LINE 148: - using a get operation
+LINE 149: [ADMONITION: @decoratorInfo]
+LINE 150:   That @something syntax in Python is called a "decorator".
+LINE 151:   You put it on top of a function. Like a pretty decorative hat (I guess that's where the term came from).
+LINE 152:   A "decorator" takes the function below and does something with it.
+LINE 153:   In our case, this decorator tells FastAPI that the function below corresponds to the path / with an operation get .
+LINE 154:   It is the " path operation decorator ".
+LINE 155: You can also use the other operations:
+LINE 156: - @app.post()
+LINE 157: - @app.put()
+LINE 158: - @app.delete()
+LINE 159: And the more exotic ones:
+LINE 160: - @app.options()
+LINE 161: - @app.head()
+LINE 162: - @app.patch()
+LINE 163: - @app.trace()
+LINE 164: [ADMONITION: Tip]
+LINE 165:   You are free to use each operation (HTTP method) as you wish.
+LINE 166:   FastAPI doesn't enforce any specific meaning.
+LINE 167:   The information here is presented as a guideline, not a requirement.
+LINE 168:   For example, when using GraphQL you normally perform all the actions using only POST operations.
+LINE 169: ### Step 4: define thepath operation function¶
+LINE 170: This is our " path operation function ":
+LINE 171: - path : is / .
+LINE 172: - operation : is get .
+LINE 173: - function : is the function below the "decorator" (below @app.get("/") ).
+LINE 174: [TAB: Python 3.10+]
+LINE 175: ```
+LINE 176: from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+LINE 177: ```
+LINE 178: This is a Python function.
+LINE 179: It will be called by FastAPI whenever it receives a request to the URL " / " using a GET operation.
+LINE 180: In this case, it is an async function.
+LINE 181: You could also define it as a normal function instead of async def :
+LINE 182: [TAB: Python 3.10+]
+LINE 183: ```
+LINE 184: from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+def root():
+    return {"message": "Hello World"}
+
+LINE 185: ```
+LINE 186: [ADMONITION: Note]
+LINE 187:   If you don't know the difference, check the [Async:"In a hurry?"](../../async/#in-a-hurry) .
+LINE 188: ### Step 5: return the content¶
+LINE 189: [TAB: Python 3.10+]
+LINE 190: ```
+LINE 191: from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+LINE 192: ```
+LINE 193: You can return a dict , list , singular values as str , int , etc.
+LINE 194: You can also return Pydantic models (you'll see more about that later).
+LINE 195: There are many other objects and models that will be automatically converted to JSON (including ORMs, etc). Try using your favorite ones, it's highly probable that they are already supported.
+LINE 196: ### Step 6: Deploy it¶
+LINE 197: Deploy your app to [FastAPI Cloud](https://fastapicloud.com) with one command: fastapi deploy . 🎉
+LINE 198: #### About FastAPI Cloud¶
+LINE 199: [FastAPI Cloud](https://fastapicloud.com) is built by the same author and team behind FastAPI .
+LINE 200: It streamlines the process of building , deploying , and accessing an API with minimal effort.
+LINE 201: It brings the same developer experience of building apps with FastAPI to deploying them to the cloud. 🎉
+LINE 202: FastAPI Cloud is the primary sponsor and funding provider for the FastAPI and friends open source projects. ✨
+LINE 203: #### Deploy to other cloud providers¶
+LINE 204: FastAPI is open source and based on standards. You can deploy FastAPI apps to any cloud provider you choose.
+LINE 205: Follow your cloud provider's guides to deploy FastAPI apps with them. 🤓
+LINE 206: ## Recap¶
+LINE 207: - Import FastAPI .
+LINE 208: - Create an app instance.
+LINE 209: - Write a path operation decorator using decorators like @app.get("/") .
+LINE 210: - Define a path operation function ; for example, def root(): ... .
+LINE 211: - Run the development server using the command fastapi dev .
+LINE 212: - Optionally deploy your app with fastapi deploy .

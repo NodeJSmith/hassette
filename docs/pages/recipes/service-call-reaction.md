@@ -18,6 +18,7 @@ filename = "service_call_reaction.py"
 class_name = "LightGroupApp"
 
 [hassette.apps.light_group.config]
+instance_name = "light_group"
 primary_light = "light.living_room_main"
 accent_light = "light.living_room_shelf"
 ```

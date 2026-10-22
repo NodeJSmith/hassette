@@ -64,7 +64,7 @@ class TestLogsEndpoints:
     async def test_get_logs_recent_new_fields_present(
         self, client: "AsyncClient", mock_hassette: MagicMock, sample_records: list[dict]
     ) -> None:
-        """New fields (execution_id, instance_name, instance_index, source_tier) are in the response."""
+        """New fields (execution_id, instance_name, instance_index, author) are in the response."""
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=sample_records[:1])
         response = await client.get(LOGS_RECENT_PATH)
         assert response.status_code == 200
@@ -72,7 +72,7 @@ class TestLogsEndpoints:
         assert "execution_id" in entry
         assert "instance_name" in entry
         assert "instance_index" in entry
-        assert "source_tier" in entry
+        assert "author" in entry
 
     async def test_get_logs_recent_accepts_execution_id_param(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -81,16 +81,24 @@ class TestLogsEndpoints:
         response = await client.get(f"{LOGS_RECENT_PATH}?execution_id=abc-123")
         assert response.status_code == 200
 
-    @pytest.mark.parametrize("tier", ["app", "framework", "all"])
-    async def test_get_logs_recent_accepts_source_tier_param(
-        self, client: "AsyncClient", mock_hassette: MagicMock, tier: str
+    @pytest.mark.parametrize("author", ["app", "framework", "all"])
+    async def test_get_logs_recent_accepts_author_param(
+        self, client: "AsyncClient", mock_hassette: MagicMock, author: str
     ) -> None:
-        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, f"?source_tier={tier}")
-        assert forwarded["source_tier"] == tier
+        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, f"?author={author}")
+        assert forwarded["author"] == author
 
-    async def test_get_logs_recent_defaults_to_all_tiers(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+    async def test_get_logs_recent_omitted_author_requests_the_default_view(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
         forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette)
-        assert forwarded["source_tier"] == "all"
+        assert forwarded["author"] is None
+
+    async def test_get_logs_recent_ignores_source_tier(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """``source_tier`` is not a log filter any more; unknown query params are ignored, so it filters nothing."""
+        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, "?source_tier=framework")
+        assert "source_tier" not in forwarded
+        assert forwarded["author"] is None
 
     async def test_get_logs_recent_forwards_instance_index(
         self, client: "AsyncClient", mock_hassette: MagicMock

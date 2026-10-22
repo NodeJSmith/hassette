@@ -1,8 +1,8 @@
 # Doc Persona Review
 
-Evaluate documentation pages from the perspective of beginner personas. Each persona does a cognitive walkthrough, flagging where a real reader with that background would get confused, lost, or stuck.
+Walk through documentation pages as a reader new to Hassette, and report only the problems that would stop them or make them do something wrong. Each reader gets the page under review plus a few pages before it in nav order (within its top-level section), treated as already read.
 
-Based on cognitive walkthrough methodology (Wharton/Lewis) and the UW 2025 synthetic heuristic evaluation study showing LLM evaluators catch 73-77% of usability issues vs 57-63% for human experts.
+The findings list is meant to be short. A well-written page normally comes back with none, so every finding is worth fixing or explicitly dismissing. This setup comes from the #3148 experiments in `design/research/2026-10-21-persona-review-seeded-recall/`.
 
 ## Arguments
 
@@ -10,163 +10,84 @@ The page or section to review. Examples:
 - `getting-started/first-automation`
 - `recipes/motion-lights`
 - `core-concepts/bus` (reviews all pages in the section)
-- `migration` (reviews all migration pages)
 
 If empty, ask what to review.
 
-## Phase 1: Select Pages and Personas
+## Phase 1: Resolve Pages
 
-### Resolve pages
+Build the site, then resolve the argument to page paths:
 
-If the argument is a section, expand to all `.md` files in that directory (excluding `snippets/`). If it's a single page, use that page.
+```bash
+uv run mkdocs build --strict
+uv run tools/docs/extract_doc_page.py --list | grep -E '^<section>(/|$)'   # for a section
+```
 
-### Pick personas
+A single page is used as given; the assembler reports it if the path doesn't exist. Don't read `references/briefing-template.md` yourself; the assembler fills it in.
 
-Select which personas to run based on page type:
-
-| Page type | Personas |
-|-----------|----------|
-| `getting-started/*` | Alex (fresh Python dev) |
-| `migration/*` | Sam (AppDaemon migrator) |
-| `core-concepts/*` | Jordan (experienced dev) |
-| `recipes/*` | Alex + Sam + Jordan (all three) |
-| `testing/*` | Jordan (experienced dev) |
-| `cli/*`, `operating/*`, `web-ui/*` | Alex + Jordan |
-
-Do NOT read `references/personas.md`, `voice-guide.md`, or `doc-rules.md` yourself. The assembler script handles all of that.
-
-## Phase 2: Extract and Assemble
-
-Two scripts handle all file preparation. Run them, don't read their output.
-
-### Step 1: Get a tmp directory
+## Phase 2: Assemble Briefings
 
 ```bash
 get-skill-tmpdir doc-persona-review
 ```
 
-This prints a path like `/tmp/claude-doc-persona-review-a8Kx3Q`. Use it as `$TMPDIR` below.
-
-### Step 2: Build docs and extract pages
+This prints a path like `/tmp/claude-doc-persona-review-a8Kx3Q`. Substitute that literal path for `<tmpdir>` below. A shell variable won't survive to the next command. Then, once per page:
 
 ```bash
-uv run mkdocs build --strict
-uv run tools/docs/extract_doc_page.py --section <section> --output-dir $TMPDIR/pages
-# or for a single page:
-uv run tools/docs/extract_doc_page.py <page> --output-dir $TMPDIR/pages
+uv run tools/docs/assemble_persona_briefing.py <page> <tmpdir>/briefings
 ```
 
-This writes one `.txt` file per page to `$TMPDIR/pages/`. The output lists the files created. Note the filenames — you'll need them for the next step.
+Each call writes `<tmpdir>/briefings/<page-slug>.md`. It contains the reader, the instructions, and the page under review with numbered lines. It also includes the earlier pages: the assembler walks back through the built site's footer "Previous" links, up to `MAX_PRIOR_PAGES` and stopping at the edge of the page's top-level section. Chain the calls with `&&` for a section.
 
-### Step 3: Assemble briefing files
-
-For each (page, persona) pair, run the assembler:
-
-```bash
-uv run tools/docs/assemble_persona_briefing.py <Persona> $TMPDIR/pages/<page-slug>.txt $TMPDIR/briefings
-```
-
-This writes a complete briefing file to `$TMPDIR/briefings/<persona>--<page-slug>.md` containing the task instructions, persona definition, voice guide, doc rules, and page content. The assembler pulls all reference files from their known repo paths.
-
-Run one command per (page, persona) pair. For efficiency, chain them:
-
-```bash
-uv run tools/docs/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--index.txt $TMPDIR/briefings && \
-uv run tools/docs/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--handlers.txt $TMPDIR/briefings && \
-uv run tools/docs/assemble_persona_briefing.py Jordan $TMPDIR/pages/core-concepts--bus--filtering.txt $TMPDIR/briefings
-```
-
-## Phase 3: Dispatch Persona Walkthroughs
+## Phase 3: Dispatch Readers
 
 For each briefing file, dispatch a **Sonnet** subagent with this prompt:
 
 ```
-Read the file at {briefing_path} and follow the instructions inside. Return the JSON result exactly as specified.
+Read the file at {briefing_path} and follow the instructions inside. Return only the JSON object it asks for.
 ```
 
-Use `schema` on the agent call to enforce the JSON structure:
+Cap at 5 concurrent subagents.
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "persona": {"type": "string"},
-    "page": {"type": "string"},
-    "overall_verdict": {"type": "string", "pattern": "^(followable|followable-with-effort|stuck-at-step-\\d+|lost)$"},
-    "findings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "line": {"type": "integer"},
-          "section": {"type": "string"},
-          "type": {"type": "string", "enum": ["undefined-term", "missing-prerequisite", "unclear-next-step", "no-verification", "assumed-knowledge", "unmotivated-content", "missing-import", "jargon"]},
-          "quote": {"type": "string"},
-          "confusion": {"type": "string"},
-          "suggestion": {"type": "string"}
-        },
-        "required": ["line", "section", "type", "quote", "confusion", "suggestion"]
-      }
-    },
-    "stopped_at": {"type": ["string", "null"]},
-    "summary": {"type": "string"}
-  },
-  "required": ["persona", "page", "overall_verdict", "findings", "stopped_at", "summary"]
-}
-```
+Strip any code fence around each result and parse it as JSON. It must have `page`, `findings` (a list) and `summary`. Each finding must have `line` as an integer, `section`, `quote`, `problem` and `suggestion` as non-empty strings, and a `type` that is one of `missing-step`, `missing-prerequisite`, `undefined-term`, `contradiction`, `no-verification` or `unclear-next-step`. If a result fails those checks, re-dispatch that page once. If the second result also fails, list the page under "not reviewed" in Phase 4 with the reason.
 
-### Parallelism
+## Phase 4: Verify and Present
 
-- Single page with 1 persona: one subagent.
-- Single page with 3 personas: three subagents in parallel.
-- Multi-page section: batch by page, all personas for each page in parallel. Cap at 5 concurrent subagents.
+Before passing a finding on, check it against the briefing file. Read the cited `LINE N` and the text around it, and search the earlier pages in that file for the term or step the finding says is missing. The reader can miss something a page does say. Drop a finding the pages already answer, and say why.
 
-## Phase 4: Collate and Present
-
-### Per-page summary
-
-For each page, merge findings across personas. Group by section heading. When multiple personas flag the same line/section, note the overlap (higher confidence).
-
-### Severity classification
-
-| Verdict | Meaning |
-|---------|---------|
-| **lost** | Persona would abandon the page. At least one blocking undefined term or missing prerequisite with no path forward. |
-| **stuck-at-step-N** | Persona would stall at a specific step. Could recover with external help (Google, asking someone). |
-| **followable-with-effort** | Persona could finish but would need to re-read sections, guess at meanings, or make assumptions. |
-| **followable** | Persona could follow the page start to finish without confusion. |
-
-### Output format
-
-Present findings to the user grouped by page, then by section within each page. Lead with the worst verdicts. For each finding, show:
+List pages with findings first. Then name the pages that came back clean in one line, and any pages not reviewed. For each finding:
 
 ```
-## page-name.md — verdict (persona)
+## page-name
 
-### Section: <heading>
-
-- **[type]** L{line}: "{quote}"
-  {persona_name}: {confusion}
-  Suggestion: {suggestion}
+- **[type]** L{line} ({section}): "{quote}"
+  Problem: {problem}
+  Fix: {suggestion}
 ```
 
-### Summary table
+## Changing This Skill
 
-End with a summary table:
+Before changing the briefing or the reader, check that the change still separates a good page from a broken copy of it. Don't commit seeded copies: they go stale as the pages change. Seed fresh ones from the current site each time:
 
-| Page | Alex | Sam | Jordan |
-|------|------|-----|--------|
-| first-automation.md | followable-with-effort | — | — |
-| motion-lights.md | stuck-at-step-3 | followable | followable |
+1. Pick a page and save two copies of its extracted text: one untouched, and one with four planted defects. Plant a missing step, output that contradicts the code, a removed link or prerequisite, and a removed definition. Remove the whole definition: leaving text that half-explains the term is not a removal.
+2. Build a briefing for each copy with the page's real earlier pages, and run each twice. The assembler only reads the built site, so fill `references/briefing-template.md` yourself for the seeded copy. The research directory's `build.py` shows the mechanics, but it fills the pre-rework template from a snapshot, so its placeholders differ from the live one.
+3. The clean copy should come back with zero or one finding per run. Every seeded run should report more findings than every clean run. At least half the planted defects should be caught in at least one of the two runs; the current baseline is about two-thirds.
 
-(`—` means that persona was not run on that page.)
+`design/research/2026-10-21-persona-review-seeded-recall/` is a worked example (`prep.py` for seeding, `build.py` for briefings, `score.py` for a blind judge). The baseline is the `p` condition there: clean copies averaged 0.2 findings, seeded copies 3.2, and the reviewer caught about two-thirds of the seeds that were real defects.
 
 ## Design Decisions
 
-**Why Sonnet for personas?** Haiku finds roughly the same issues but with weaker reasoning and less precise suggestions. Sonnet produces findings that can be trusted without human verification of each one. The 2x cost difference is worth it since the output directly drives editing decisions. Tested on `first-automation.md`: both models returned the same verdict (followable-with-effort) and overlapping findings, but Sonnet caught unexpanded jargon ("DI parameters"), missing starting-state context, and produced actionable suggestions ("Stop Hassette with Ctrl+C, then run `hassette run` again") where Haiku gave vague pointers.
+**Why no verdict?** The old four-level verdict (`followable` to `lost`) came back `followable-with-effort` on every page in the 2026-10-20 control run (`design/research/2026-10-20-llm-doc-usability-eval/`), including FastAPI's tutorial. The number and kind of findings is the signal.
 
-**Why briefing files?** The main agent only needs page names, persona assignments, and returned findings. All heavy content (page HTML, persona definitions, voice rules, doc rules) is assembled into files by `tools/docs/assemble_persona_briefing.py` and read only by the subagents. This keeps the main context small enough to handle large section audits without compaction.
+**Why earlier pages?** Reading a page alone made the reader flag terms and steps the preceding page already covers. Including the previous page cut clean-page findings from about 3 to 0.2 per page in the seeded-recall experiment, more than any other change. That experiment tested a single previous page. The skill takes several (`MAX_PRIOR_PAGES` in the assembler) because the page a reader builds on isn't always the one right before it: `first-automation` follows the token page but builds on the Quickstart, two pages back. More than one page is untested. If the reader starts treating things as explained by pages a real reader would have skipped, lower it.
 
-**Why not a Python script?** The cognitive walkthrough requires genuine language comprehension (is this term defined? would this step confuse someone?). Pattern matching can't do that. The voice audit script handles mechanical rules; this handles semantic ones.
+**Why one reader with only knowledge boundaries?** A stripped-down persona (what the reader knows, what they don't, and their goal) performed the same as the detailed persona it replaced in the same experiment. The `getting-started/` and `migration/` lines in the template shift those boundaries for those sections instead of adding separate personas.
 
-**Why structured JSON output?** Freeform prose findings are hard to compare across personas, hard to track across runs, and hard to act on. Structured findings with line numbers, types, and quotes are directly actionable.
+**Why no voice guide or doc rules?** Removing them from the briefing didn't change finding counts in the control, and style is covered elsewhere. This review asks whether a reader can follow the page, not whether it matches house style.
+
+**Why neutral wording?** "You must flag" and a checklist for every section produced 13–25 findings per page on known-good docs. The briefing now says an empty list is normal, and only keeps problems whose fix would change whether the reader succeeds.
+
+**Known gap:** the experiment's definition seeds left a partial explanation behind, so how well this catches a cleanly removed definition hasn't been measured.
+
+**Why Sonnet?** Its findings are precise enough to act on with a quick check against the page, and Haiku's suggestions were vaguer in earlier testing.
+
+**Why briefing files?** The main agent handles page names and returned findings, and opens a briefing only to check a specific finding. Page text is assembled into files the subagents read, so a large section review doesn't fill the main context.

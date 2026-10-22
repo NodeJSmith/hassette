@@ -1,0 +1,112 @@
+{
+  "run_id": "o18",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "steps": [
+    {
+      "line": 5,
+      "step": "Create main.py with the example code",
+      "can_complete": false,
+      "blocker": "The page never says to save the code in a file, or that the file must be named main.py. The later output mentions main.py but only after the fact."
+    },
+    {
+      "line": 10,
+      "step": "Run `uv run fastapi dev`",
+      "can_complete": false,
+      "blocker": "The page never says to install FastAPI first (`uv add fastapi[standard]` or similar), to be in the folder with main.py, or to have a uv project. Alex may hit a command-not-found or missing-module error."
+    },
+    {
+      "line": 17,
+      "step": "Open http://127.0.0.1:8000 in the browser",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 23,
+      "step": "Open /docs",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 26,
+      "step": "Open /redoc",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 42,
+      "step": "Open /openapi.json (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 54,
+      "step": "Add [tool.fastapi] entrypoint to pyproject.toml (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 71,
+      "step": "Run `uv run fastapi dev main.py` (optional)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 81,
+      "step": "Run `uv run fastapi deploy` (optional)",
+      "can_complete": false,
+      "blocker": "No mention of needing a FastAPI Cloud account or what the login flow involves. It is optional, so this is a minor blocker."
+    }
+  ],
+  "findings": [
+    {
+      "line": 5,
+      "section": "First Steps",
+      "type": "missing-step",
+      "quote": "The simplest FastAPI file could look like this:",
+      "confusion": "Alex sees code but is not told to save it as main.py. Later output shows 'main.py' and 'from main import app', but the page never links the two. Alex is left wondering what to type and where.",
+      "suggestion": "Say 'Copy this into a file named main.py.'"
+    },
+    {
+      "line": 10,
+      "section": "First Steps",
+      "type": "missing-prerequisite",
+      "quote": "$ uv run fastapi dev",
+      "confusion": "The page goes straight to running the server. It never covers installing fastapi, creating a project or virtualenv, or which directory to run from. Alex would likely get an error or 'command not found'.",
+      "suggestion": "Add a short install step (`uv init`, `uv add \"fastapi[standard]\"`) and say to run the command from the folder containing main.py."
+    },
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "example-mismatch",
+      "quote": "{\"message\": \"Hello FastAPI\"}",
+      "confusion": "The code returns 'Hello World', but the page says the browser shows 'Hello FastAPI'. Alex would think they made a mistake or that the code is wrong.",
+      "suggestion": "Make the expected output match the code: {\"message\": \"Hello World\"}."
+    },
+    {
+      "line": 152,
+      "section": "Check the openapi.json",
+      "type": "example-mismatch",
+      "quote": "\"/items/\": {",
+      "confusion": "The sample openapi.json shows an /items/ path, but the app only defines /. Alex may think their app is misconfigured.",
+      "suggestion": "Show the actual output for this app (a '/' path), or note that the snippet is illustrative."
+    },
+    {
+      "line": 175,
+      "section": "Step 4: define the path operation function",
+      "type": "undefined-term",
+      "quote": "In this case, it is an async function. You could also define it as a normal function instead of async def",
+      "confusion": "Alex does not know async/await. The page does not explain what async means, why it is used, or when to choose one over the other. Alex can push through by copying the code, but the 'async def' versus 'def' choice is a puzzle.",
+      "suggestion": "Add a one-line note, e.g. 'If unsure, use plain def; you can learn async later,' with a link to the async explainer."
+    },
+    {
+      "line": 29,
+      "section": "OpenAPI",
+      "type": "jargon-overload",
+      "quote": "FastAPI generates a \"schema\" with all your API using the OpenAPI standard",
+      "confusion": "A long run of schema, OpenAPI, JSON Schema and so on appears before Alex has a working mental model. This slows Alex down, though it is skippable.",
+      "suggestion": "Mark the OpenAPI section as optional background so beginners can skip to the recap."
+    }
+  ],
+  "summary": "Alex could mostly follow the page but would stall at the start: it never says to save the code as main.py or to install FastAPI. The expected output ('Hello FastAPI') also contradicts the code ('Hello World'). The async explanation is thin but not blocking, since Alex can copy the example."
+}

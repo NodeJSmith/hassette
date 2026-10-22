@@ -20,6 +20,10 @@ class TestLoggingConfig:
         assert cfg.all_hass_events is False
         assert cfg.all_hassette_events is False
 
+    def test_accepts_compact_log_format(self):
+        """log_format accepts "compact", the add-on's format."""
+        assert LoggingConfig(log_format="compact").log_format == "compact"
+
     def test_per_service_levels_filled_from_log_level_default(self):
         """With no overrides, per-service log levels default to log_level (INFO)."""
         cfg = LoggingConfig()

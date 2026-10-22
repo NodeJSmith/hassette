@@ -36,7 +36,7 @@ def make_app_state_event(app_key: str, status: ResourceStatus) -> HassetteAppSta
 
 async def test_simulate_event_drives_cross_app_lifecycle_listener() -> None:
     """A listener filtered on another app's key fires for a hand-built event, drained before return."""
-    async with AppTestHarness(UpstreamWatcher, config={}) as harness:
+    async with AppTestHarness(UpstreamWatcher, config={"instance_name": "upstream_watcher"}) as harness:
         event = make_app_state_event("upstream", ResourceStatus.RUNNING)
 
         returned = await harness.simulate_event(event)
@@ -47,7 +47,7 @@ async def test_simulate_event_drives_cross_app_lifecycle_listener() -> None:
 
 async def test_simulate_event_ignores_other_app_keys() -> None:
     """The app_key filter still applies to events dispatched through simulate_event."""
-    async with AppTestHarness(UpstreamWatcher, config={}) as harness:
+    async with AppTestHarness(UpstreamWatcher, config={"instance_name": "upstream_watcher"}) as harness:
         await harness.simulate_event(make_app_state_event("someone_else", ResourceStatus.RUNNING))
 
         assert harness.app.upstream_ready == []
@@ -55,7 +55,7 @@ async def test_simulate_event_ignores_other_app_keys() -> None:
 
 async def test_simulate_event_outside_context_raises() -> None:
     """Calling simulate_event on a harness that was never entered fails with a clear error."""
-    harness = AppTestHarness(UpstreamWatcher, config={})
+    harness = AppTestHarness(UpstreamWatcher, config={"instance_name": "upstream_watcher"})
 
     with pytest.raises(RuntimeError, match="not active"):
         await harness.simulate_event(make_app_state_event("upstream", ResourceStatus.RUNNING))

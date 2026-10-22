@@ -1,0 +1,138 @@
+{
+  "run_id": "o40",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "findings": [
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "confusing-step",
+      "quote": "You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.",
+      "confusion": "Alex sees a full code block but is told not to run it. Alex is unsure whether to type it in, where to put the file, or whether to replace an earlier file from a previous page.",
+      "suggestion": "Say which file holds this code (the app file from the Quickstart) and that the next section shows the complete version to paste in."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "missing-prerequisite",
+      "quote": "from hassette import App, AppConfig, D, states",
+      "confusion": "Alex doesn't know where this code goes. It reuses MyApp and MyAppConfig from an earlier page, but this page never says so.",
+      "suggestion": "Add a one-line prerequisite naming the earlier page and the app file to edit."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "async def on_sun_change(self, new_state: D.StateNew[states.SunState]):",
+      "confusion": "Alex doesn't know async/await. The snippet shows async def and await before the page explains them, and the explanation is pushed to the end.",
+      "suggestion": "Add a short note near the first snippet: copy async def and await as written, with a pointer to the later explanation."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "registers a handler that fires whenever an entity's state changes",
+      "confusion": "Alex has never met 'handler' or 'registers' in the event-driven sense. 'Fires' is also unclear.",
+      "suggestion": "Define handler in one clause: a function Hassette calls for you when something happens."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "\"sun.*\" is a glob pattern that matches any entity in the sun domain",
+      "confusion": "Alex may not know what a glob is or what a domain is in HA terms.",
+      "suggestion": "Add a short example, such as sun.* matching sun.sun, and say that the domain is the part of the entity ID before the dot."
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "The bracket syntax works like list[str] in standard Python generics. D.StateNew[T] means \"a new-state value, typed as T .\"",
+      "confusion": "Alex knows list[str] but not generics or the type variable T. The explanation adds a new term without making things clearer.",
+      "suggestion": "Skip the generics framing. Say: put the type you want inside the brackets, and Hassette converts the state to it."
+    },
+    {
+      "line": 12,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "hassette.event_handling.dependencies , a module of type annotations",
+      "confusion": "Alex sees D imported from hassette, but the text says it is hassette.event_handling.dependencies. It is unclear why the import path differs, and 'module of type annotations' is vague.",
+      "suggestion": "State that from hassette import D is a shortcut for that module, and explain the module's purpose in plain words."
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection .",
+      "confusion": "The mechanism is explained well and the term comes after, which helps. But the earlier sentence 'Hassette inspects them' may leave Alex wondering how annotations get read at runtime.",
+      "suggestion": "Fine to keep. Optionally add that the annotation is how Hassette knows what to pass."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "missing-verification",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "This is clear, but Alex doesn't know how to find an entity ID. The text points to Developer Tools Services, which lists services, not entities.",
+      "suggestion": "Point to Developer Tools, States tab, or the entity settings in HA for finding entity IDs."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Async handlers run on Hassette's event loop: while one handler is paused at an await , other handlers keep running",
+      "confusion": "Alex doesn't know event loops or what 'paused at an await' means. The paragraph is dense, and the fire-and-forget remark adds more detail Alex can't use yet.",
+      "suggestion": "Cut this to two sentences: use async def and await for anything that talks to HA. Move the event loop and fire-and-forget detail into the linked Async Basics page."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "confusing-step",
+      "quote": "runs log_heartbeat every minute. log_heartbeat is a scheduled job",
+      "confusion": "Alex isn't told whether to replace the earlier code with this full block or add to it. The diff against the first snippet is not highlighted.",
+      "suggestion": "Say 'replace your app file with this version' and mark the new lines with comments or highlighting."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-prerequisite",
+      "quote": "Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "Alex needs to have Hassette running from a previous page and may not know where the .env file is or which directory to run from.",
+      "suggestion": "Link back to the Quickstart step that started Hassette and state the working directory."
+    },
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code logs 'Heartbeat' but the expected output shows 'Tick'. Alex waits for a line that never appears and concludes something is broken.",
+      "suggestion": "Change the expected output to 'Heartbeat' to match the code."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "confusing-step",
+      "quote": "The Sun changed and Porch light turned on lines appear at the next sunset.",
+      "confusion": "The wording is slightly off and the handler only turns the light on for below_horizon. Alex doesn't know whether a light.porch entity must exist, or what happens if it doesn't.",
+      "suggestion": "Note that light.porch must exist in HA, and say what the log shows if the service call fails."
+    },
+    {
+      "line": 35,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "Change the state value to below_horizon and click Set State .",
+      "confusion": "Alex doesn't know that sun.sun may already be in that state, so no change event fires, or that the HA sun integration may overwrite the value. Alex also can't tell whether the real light turned on.",
+      "suggestion": "Tell Alex to set it to above_horizon first if needed, and to check the physical or UI light state as well as the logs."
+    },
+    {
+      "line": 36,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "You see Sun changed: below_horizon and Porch light turned on in the logs.",
+      "confusion": "Alex isn't told where the logs are: the terminal running hassette run, or the web UI.",
+      "suggestion": "Say the lines appear in the terminal where Hassette is running."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can mostly follow the page. The explanations of D, states and dependency injection are good, and the order is mostly code first, then explanation. Friction comes from not knowing where each snippet goes or whether to run it, the dense async and event loop paragraph, and the 'Tick' vs 'Heartbeat' mismatch, which would make Alex think the heartbeat is broken."
+}

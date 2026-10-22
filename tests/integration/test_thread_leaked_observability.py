@@ -15,6 +15,7 @@ from collections.abc import Awaitable, Callable
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
@@ -23,6 +24,7 @@ from hassette.core.execution_record import ExecutionRecord
 from hassette.core.sync_executor import SyncExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
 from tests.support.factories import make_listener_registration, make_mock_listener
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import invoke_cmd, pop_execution_record, pop_user_timeout_error_record
@@ -59,7 +61,7 @@ def make_invoker_listener(invoke: InvokeFn) -> MagicMock:
 def assert_timed_out(executor: CommandExecutor, *, thread_leaked: bool, reason: str) -> None:
     """Assert the queued record is a timeout with the expected thread_leaked verdict."""
     record = pop_execution_record(executor)
-    assert record.status == "timed_out"
+    assert record.status is ExecutionStatus.TIMED_OUT
     assert record.thread_leaked is thread_leaked, reason
 
 
@@ -81,7 +83,7 @@ async def test_not_started_sync_timeout_no_false_positive(
     started = threading.Barrier(3)
 
     def pool_filler() -> None:
-        started.wait(timeout=2.0)
+        started.wait(timeout=HANG_GUARD_TIMEOUT_SECONDS)
         pool_gate.wait(timeout=10.0)
 
     # Submit two jobs to saturate both workers (max_workers=2 on the sync executor's pool).
@@ -91,7 +93,7 @@ async def test_not_started_sync_timeout_no_false_positive(
     filler_f2 = loop.run_in_executor(sync_executor.executor, pool_filler)
 
     # Wait until both fillers have definitely dequeued and started.
-    await asyncio.to_thread(started.wait, 2.0)
+    await asyncio.to_thread(started.wait, HANG_GUARD_TIMEOUT_SECONDS)
 
     # Now submit the real handler — it will queue behind the two fillers.
     def sync_fn(_event: object) -> None:

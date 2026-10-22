@@ -8,16 +8,28 @@ test_logging_persistence.py (LogPersistenceHandler batching/flush).
 
 import inspect
 import logging
+import re
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from io import StringIO
+from typing import Literal
 from unittest.mock import MagicMock
 
 import pytest
 import structlog
 
 import hassette.logging_ as logging_module
-from hassette.logging_ import enable_basic_logging
+from hassette.const import HASSETTE_LOGGER_NAME
+from hassette.context import CURRENT_EXECUTION_ID
+from hassette.logging_ import LogIdentity, enable_basic_logging, set_logger_identity
+from hassette.logging_processors import console_identity, identity_label
 from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
+
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+# A UUIDv7 execution id and the short id the console shows for it.
+EXECUTION_ID = "0192f3a1-7c2e-7b44-9d0f-6e1a41c09e7b"
+SHORT_EXECUTION_ID = "@41c09e7b"
 
 # Fixture-only logger names used across TestExtraLoggers and TestExtraLoggerReconfiguration.
 # Not real loggers anything else in the codebase writes to, but enable_basic_logging()'s
@@ -90,16 +102,14 @@ class TestLoggingPipelineJSONRenderer:
         logger.warning("level test")
         assert last_json_record(stream)["level"] == "warning"
 
-    def test_source_tier_appears_in_json_output_via_record_filter(self) -> None:
-        """source_tier appears in JSON output when stamped by a filter."""
+    def test_author_appears_in_json_output_from_logger_identity(self) -> None:
+        """The author fixed on the writing logger appears as author in JSON output."""
         stream = StringIO()
         enable_basic_logging("INFO", log_format="json", stream=stream)
-        logger = logging.getLogger("hassette.test_source_tier_json")
-        logger.addFilter(
-            type("F", (logging.Filter,), {"filter": lambda _self, r: setattr(r, "source_tier", "app") or True})()
-        )
-        logger.info("tier test")
-        assert last_json_record(stream).get("source_tier") == "app"
+        logger = logging.getLogger("hassette.test_author_json")
+        set_logger_identity(logger, LogIdentity(author="app"))
+        logger.info("author test")
+        assert last_json_record(stream).get("author") == "app"
 
 
 class TestEnableBasicLoggingAutoFormat:
@@ -118,6 +128,136 @@ class TestEnableBasicLoggingAutoFormat:
         logger = logging.getLogger("hassette.test_auto_notty")
         logger.info("auto json")
         assert last_json_record(stream)["event"] == "auto json"
+
+
+class TestIdentityLabel:
+    """identity_label: subject or logger, framework marker, short execution id."""
+
+    def test_app_line_shows_subject(self) -> None:
+        event = {"logger": "hassette.apps.garage_door", "author": "app", "instance_name": "garage_door"}
+        assert identity_label(event) == "garage_door"
+
+    def test_framework_line_about_app_is_marked(self) -> None:
+        event = {"logger": "hassette.core.bus_service", "author": "framework", "instance_name": "garage_door"}
+        assert identity_label(event) == "hassette:garage_door"
+
+    @pytest.mark.parametrize(
+        ("logger_name", "expected"),
+        [
+            ("hassette.core.websocket_service", "core.websocket_service"),
+            ("hassette.apps.garage_door", "apps.garage_door"),
+            ("hassette", "hassette"),
+            ("uvicorn.error", "uvicorn.error"),
+        ],
+    )
+    def test_ownerless_line_shows_logger_without_hassette_prefix(self, logger_name: str, expected: str) -> None:
+        assert identity_label({"logger": logger_name, "author": "framework"}) == expected
+
+    def test_execution_id_shows_random_tail(self) -> None:
+        """UUIDv7 ids share their leading timestamp characters, so the short id is the tail."""
+        event = {
+            "logger": "hassette.core.bus_service",
+            "author": "framework",
+            "instance_name": "garage_door",
+            "execution_id": EXECUTION_ID,
+        }
+        assert identity_label(event) == f"hassette:garage_door {SHORT_EXECUTION_ID}"
+
+    def test_no_logger_and_no_subject_is_empty(self) -> None:
+        assert identity_label({}) == ""
+
+
+class TestConsoleIdentityProcessor:
+    """console_identity keeps only what a console line renders."""
+
+    def test_drops_every_other_key(self) -> None:
+        event = {
+            "timestamp": "2026-10-22T14:44:54.728999",
+            "level": "info",
+            "event": "hello",
+            "logger": "hassette.apps.garage_door",
+            "author": "app",
+            "app_key": "garage",
+            "instance_name": "garage_door",
+            "instance_index": 0,
+            "listener_id": 7,
+        }
+        assert console_identity(None, "info", event) == {
+            "timestamp": "2026-10-22T14:44:54.728999",
+            "level": "info",
+            "event": "hello",
+            "identity": "garage_door",
+        }
+
+    def test_keeps_exception_keys(self) -> None:
+        event = {"event": "boom", "logger": "hassette", "exc_info": True, "stack": "s"}
+        out = console_identity(None, "error", event)
+        assert out["exc_info"] is True
+        assert out["stack"] == "s"
+
+    def test_does_not_mutate_input(self) -> None:
+        event = {"event": "hello", "logger": "hassette.core", "app_key": "garage"}
+        console_identity(None, "info", event)
+        assert event == {"event": "hello", "logger": "hassette.core", "app_key": "garage"}
+
+
+class TestConsoleLineFormat:
+    """Rendered console and compact lines: identity column before the message, no key=value tail."""
+
+    @pytest.fixture
+    def app_logger(self) -> logging.Logger:
+        logger = logging.getLogger("hassette.apps.example_app")
+        set_logger_identity(
+            logger, LogIdentity(author="app", app_key="example", instance_name="example_app", instance_index=0)
+        )
+        return logger
+
+    def render(self, log_format: Literal["console", "compact"], emit: Callable[[], None]) -> str:
+        """Log one line through a fresh enable_basic_logging handler and return it without ANSI codes."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format=log_format, stream=stream)
+        emit()
+        return ANSI_ESCAPE.sub("", stream.getvalue()).rstrip("\n")
+
+    def test_compact_app_line(self, app_logger: logging.Logger) -> None:
+        line = self.render("compact", lambda: app_logger.info("hello"))
+        assert re.fullmatch(r"\d{2}:\d{2}:\d{2} \[info\] \[example_app\] hello", line), line
+
+    def test_console_line_has_no_tail(self, app_logger: logging.Logger) -> None:
+        line = self.render("console", lambda: app_logger.info("hello"))
+        assert re.fullmatch(r"\S+ \[info +\] \[example_app\] hello", line), line
+
+    def test_framework_line_about_app_inside_execution(self) -> None:
+        def emit() -> None:
+            with execution_scope(EXECUTION_ID, instance_name="garage_door"):
+                logging.getLogger("hassette.core.test_executor").error("Handler failed")
+
+        line = self.render("compact", emit)
+        assert line.endswith(f"[error] [hassette:garage_door {SHORT_EXECUTION_ID}] Handler failed"), line
+
+    def test_ownerless_framework_line_shows_logger(self) -> None:
+        line = self.render("compact", lambda: logging.getLogger("hassette.core.test_ws").info("Connected"))
+        assert line.endswith("[info] [core.test_ws] Connected"), line
+
+    @pytest.mark.parametrize("log_format", ["console", "compact"])
+    def test_stdlib_stack_info_is_rendered(
+        self, app_logger: logging.Logger, log_format: Literal["console", "compact"]
+    ) -> None:
+        output = self.render(log_format, lambda: app_logger.info("where am I", stack_info=True))
+        assert "Stack (most recent call last):" in output, output
+        assert "test_stdlib_stack_info_is_rendered" in output, output
+
+
+@contextmanager
+def execution_scope(execution_id: str, *, instance_name: str) -> Iterator[None]:
+    """Bind an execution id and an app subject the way command_executor does around a handler run."""
+    token = CURRENT_EXECUTION_ID.set(execution_id)
+    structlog.contextvars.bind_contextvars(instance_name=instance_name)
+    try:
+        yield
+    finally:
+        structlog.contextvars.unbind_contextvars("instance_name")
+        CURRENT_EXECUTION_ID.reset(token)
 
 
 class TestNoisyLibrarySuppression:
@@ -462,7 +602,7 @@ class TestNoModuleGlobals:
 
 def _installed_renderer() -> object:
     """Return the final processor of the formatter on the stream handler enable_basic_logging installed."""
-    handlers = logging.getLogger(logging_module.HASSETTE_LOGGER_NAME).handlers
+    handlers = logging.getLogger(HASSETTE_LOGGER_NAME).handlers
     stream_handlers = [h for h in handlers if isinstance(h, logging.StreamHandler)]
     assert len(stream_handlers) == 1, f"expected one stream handler on the hassette logger, got {handlers}"
     formatter = stream_handlers[0].formatter

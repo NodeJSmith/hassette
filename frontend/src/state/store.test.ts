@@ -214,6 +214,13 @@ describe("useAppStore", () => {
       expect(useAppStore.getState().sidebarCollapsed).toBe(true);
     });
 
+    it("setShowAllFrameworkLogs persists to localStorage", () => {
+      useAppStore.getState().setShowAllFrameworkLogs(true);
+
+      expect(localStorage.getItem("hassette:showAllFrameworkLogs")).toBe("true");
+      expect(useAppStore.getState().showAllFrameworkLogs).toBe(true);
+    });
+
     it("setTimePreset persists to localStorage", () => {
       useAppStore.getState().setTimePreset("1h");
 

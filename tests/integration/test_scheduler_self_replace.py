@@ -13,6 +13,7 @@ import pytest
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.testing import AppTestHarness
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 
 
 class _SelfReplaceConfig(AppConfig):
@@ -53,13 +54,13 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
     The replace path removes the running job, whose guard tracks the very task executing the
     callback; that invocation must run to completion rather than being cancelled or awaited.
     """
-    async with AppTestHarness(_SelfReplaceApp, config={"mode": mode}) as harness:
+    async with AppTestHarness(_SelfReplaceApp, config={"instance_name": "self_replace_app", "mode": mode}) as harness:
         app = harness.app
         scheduler_service = harness._harness.hassette._scheduler_service
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
 
         harness.freeze_time(original.next_run.add(seconds=1))
-        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=2.0)
+        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         assert count == 1
         assert app.callback_finished, "the self-replacing invocation must run to completion"
@@ -71,8 +72,8 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
         # Enqueuing the replacement woke the harness's serve() loop, which can pop the second
         # firing before trigger_due_jobs does — so wait for the firing, not for this call's count.
         harness.freeze_time(replacement.next_run.add(seconds=1))
-        await asyncio.wait_for(harness.trigger_due_jobs(), timeout=2.0)
-        await asyncio.wait_for(app.refired.wait(), timeout=2.0)
+        await asyncio.wait_for(harness.trigger_due_jobs(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(app.refired.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         assert app.fire_count == 2, "the replacement should fire on its own schedule"
 
 
@@ -105,12 +106,14 @@ async def test_sync_job_replaces_itself_from_own_callback(mode: str) -> None:
     The sync facade runs the replace in a separate event-loop task, not the tracked invocation
     task, so self-release detection must recognize it through the invocation's context.
     """
-    async with AppTestHarness(_SyncSelfReplaceApp, config={"mode": mode}) as harness:
+    async with AppTestHarness(
+        _SyncSelfReplaceApp, config={"instance_name": "sync_self_replace_app", "mode": mode}
+    ) as harness:
         app = harness.app
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
 
         harness.freeze_time(original.next_run.add(seconds=1))
-        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=2.0)
+        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         assert count == 1
         assert app.callback_finished, "the dispatch must wait for the sync callback to finish"

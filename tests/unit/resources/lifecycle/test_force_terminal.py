@@ -21,14 +21,12 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from hassette_wire import ResourceStatus
 
-from hassette.app.app import App
-from hassette.app.app_config import AppConfig
 from hassette.cache import AsyncCache
 from hassette.resources.base import Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
-from tests.support.factories import make_scheduled_job
+from tests.support.factories import make_app, make_scheduled_job
 from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -66,7 +64,7 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
     hassette.config.lifecycle.app_shutdown_timeout_seconds = 5
     hassette.config.logging.apps = "DEBUG"
 
-    app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0, app_key="test_app")
+    app = make_app(hassette=hassette, instance_name="test_app", app_key="test_app")
 
     await app.initialize()
 
@@ -97,8 +95,7 @@ async def test_force_terminal_stops_cache_connections():
     tests/integration/test_hot_reload.py::TestBasicHotReload::test_hot_reload_starts_newly_enabled_app
     leaked two open connections this way when an app's shutdown was force-terminated.
     """
-    hassette = make_mock_hassette(sealed=False)
-    app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0, app_key="test_app")
+    app = make_app(instance_name="test_app", app_key="test_app")
 
     await app.initialize()
 

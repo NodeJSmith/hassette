@@ -9,6 +9,7 @@ import logging
 import queue
 from unittest.mock import MagicMock
 
+import pytest
 from hassette_wire import LogHintWsMessage
 
 from hassette.logging_ import HassetteQueueHandler, LogCaptureHandler
@@ -32,23 +33,21 @@ class TestLogCaptureHandlerStillCaptures:
         assert len(entries) == initial_count + 1
         assert entries[-1].message == "captured message"
 
-    def test_capture_handler_reads_source_tier_from_record(self) -> None:
-        """LogCaptureHandler reads source_tier from record attribute (not prefix-matching)."""
+    def test_capture_handler_reads_author_from_record(self) -> None:
+        """LogCaptureHandler reads author from record attribute (not prefix-matching)."""
         record = make_log_record(name="hassette.apps.my_app", pathname="test.py", lineno=1, msg="test msg")
-        record.source_tier = "app"
+        record.author = "app"
 
         entry = build_log_entry(record)
 
-        assert entry.source_tier == "app"
+        assert entry.author == "app"
 
-    def test_capture_handler_source_tier_none_when_missing(self) -> None:
-        """source_tier is None when record has no source_tier attribute."""
-        record = make_log_record(name="hassette.core", pathname="test.py", lineno=1, msg="framework msg")
-        # No source_tier attribute set
+    def test_entry_requires_author(self) -> None:
+        """A record that skipped LogIdentityFilter has no author, and building an entry from it fails."""
+        record = make_log_record(name="hassette.core", pathname="test.py", lineno=1, msg="framework msg", author=None)
 
-        entry = build_log_entry(record)
-
-        assert entry.source_tier is None
+        with pytest.raises(AttributeError, match="author"):
+            build_log_entry(record)
 
     def test_no_register_app_logger_method(self) -> None:
         """register_app_logger() is removed from LogCaptureHandler."""

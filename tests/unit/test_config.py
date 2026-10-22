@@ -58,20 +58,6 @@ def test_env_overrides_are_used(test_config_class, monkeypatch, tmp_path):
     )
 
 
-def test_exclude_dirs_adds_to_builtin_exclusions(test_config_class, tmp_path):
-    """exclude_dirs is additive: autodetect skips both the configured dirs and every built-in one."""
-    app_dir = tmp_path / "apps"
-    for sub in ("custom_dir", ".venv", "kept"):
-        (app_dir / sub).mkdir(parents=True)
-        (app_dir / sub / f"{sub.strip('.')}_app.py").write_text(
-            f"from hassette import App\n\nclass {sub.strip('.').title().replace('_', '')}App(App):\n    pass\n",
-            encoding="utf-8",
-        )
-    config = test_config_class(apps={"directory": app_dir, "exclude_dirs": ["custom_dir"]})
-    config.set_validated_app_manifests()
-    assert [manifest.full_path.parent.name for manifest in config.apps.manifests.values()] == ["kept"]
-
-
 def test_env_files_can_be_configured_as_multiple_files(monkeypatch, tmp_path):
     """env_file accepts multiple paths; env_files returns them resolved.
 

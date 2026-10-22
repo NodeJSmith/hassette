@@ -36,6 +36,7 @@ def _make_manifest(tmp_path: Path, *, app_key: str = "kitchen_lights", cache_key
         app_dir=tmp_path,
         full_path=tmp_path / f"{app_key}.py",
         cache_key=cache_key,
+        app_config={"instance_name": app_key},
     )
 
 

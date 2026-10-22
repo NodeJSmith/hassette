@@ -8,9 +8,11 @@ are imported from ``hassette_wire`` directly.
 
 from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from datetime import time
+from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, Required, TypeAlias, TypeVar, runtime_checkable
 
+from hassette_wire import LogLevel
 from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
 
@@ -47,6 +49,18 @@ APP_SOURCE_TIER: Final = "app"
 """The ``source_tier`` for user-app telemetry, and the default tier for telemetry queries.
 
 A ``QuerySourceTier`` value: excludes framework-internal listeners, jobs, and executions."""
+
+LOG_LEVELS: dict[LogLevel, int] = {
+    "DEBUG": DEBUG,
+    "INFO": INFO,
+    "WARNING": WARNING,
+    "ERROR": ERROR,
+    "CRITICAL": CRITICAL,
+}
+"""The standard level names, mapped to their numeric ``logging`` values."""
+
+ERROR_AND_ABOVE_LEVEL_NAMES: tuple[LogLevel, ...] = tuple(name for name, value in LOG_LEVELS.items() if value >= ERROR)
+"""The level names whose numeric value is at or above ``ERROR``, in ``LOG_LEVELS`` order."""
 
 
 IfExistsPolicy = Literal["error", "skip", "replace"]
@@ -306,7 +320,6 @@ class RawAppDict(TypedDict, total=False):
     enabled: bool
     autostart: bool
     config: dict[str, Any] | list[dict[str, Any]]
-    auto_loaded: bool
     cache_key: str
     cache_shared: bool
 
@@ -323,7 +336,6 @@ class AppDict(TypedDict, total=False):
     enabled: bool
     autostart: bool
     config: list[dict[str, Any]]
-    auto_loaded: bool
     full_path: Required[Path]
     cache_key: str
     cache_shared: bool

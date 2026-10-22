@@ -68,7 +68,7 @@ export function createAppSummary(overrides: Partial<AppSummary> = {}): AppSummar
     display_name: "Test App",
     filename: "test_app.py",
     enabled: true,
-    auto_loaded: true,
+    auto_loaded: false,
     autostart: true,
     status: "running",
     block_reason: null,

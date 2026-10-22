@@ -1,6 +1,7 @@
 from .colors import COLORS, Color
 from .misc import (
     ANY_VALUE,
+    HASSETTE_LOGGER_NAME,
     MISSING_VALUE,
     NOT_PROVIDED,
     SECONDS_PER_DAY,
@@ -14,6 +15,7 @@ __all__ = [
     "ANY_VALUE",
     "COLORS",
     "DEVICE_CLASS",
+    "HASSETTE_LOGGER_NAME",
     "MISSING_VALUE",
     "NOT_PROVIDED",
     "SECONDS_PER_DAY",

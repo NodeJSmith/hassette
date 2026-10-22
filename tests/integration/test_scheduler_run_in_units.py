@@ -36,7 +36,7 @@ async def test_run_in_unit_keywords_schedule_expected_delay(
     args: tuple[Any, ...], kwargs: dict[str, Any], expected_seconds: int
 ) -> None:
     """The delay components add up, and the job fires exactly when the total elapses."""
-    async with AppTestHarness(_RunInApp, config={}) as harness:
+    async with AppTestHarness(_RunInApp, config={"instance_name": "run_in_app"}) as harness:
         harness.freeze_time(FROZEN)
         job = await harness.app.scheduler.run_in(harness.app.task, *args, name="unit_job", **kwargs)
 
@@ -63,7 +63,7 @@ async def test_run_in_unit_keywords_schedule_expected_delay(
 )
 async def test_run_in_non_positive_total_raises(args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
     """No duration, or a total of zero or less, raises ValueError instead of scheduling."""
-    async with AppTestHarness(_RunInApp, config={}) as harness:
+    async with AppTestHarness(_RunInApp, config={"instance_name": "run_in_app"}) as harness:
         with pytest.raises(ValueError, match="delay must be positive"):
             await harness.app.scheduler.run_in(harness.app.task, *args, name="bad_job", **kwargs)
         assert not any(j.name == "bad_job" for j in harness.app.scheduler.list_jobs())

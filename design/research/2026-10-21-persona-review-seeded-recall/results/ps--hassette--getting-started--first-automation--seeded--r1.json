@@ -1,0 +1,60 @@
+{
+  "run_id": "o05",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "steps": [
+    {
+      "line": 19,
+      "step": "Update apps/main.py to the combined sunset + heartbeat version",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Stop Hassette with Ctrl+C and rerun hassette run -e .env",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 28,
+      "step": "Wait about a minute and check the heartbeat log line appears",
+      "can_complete": false,
+      "blocker": "The page says the line will read 'Tick', but the code logs 'Heartbeat'. Alex would be unsure whether the job is working."
+    },
+    {
+      "line": 33,
+      "step": "In Home Assistant, open Settings -> Developer Tools",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 34,
+      "step": "Go to the States tab and find sun.sun",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 35,
+      "step": "Set the sun.sun state to below_horizon and click Set State",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 36,
+      "step": "Check the logs for 'Sun changed: below_horizon' and 'Porch light turned on'",
+      "can_complete": true,
+      "blocker": null
+    }
+  ],
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "wrong-output",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code calls self.logger.info(\"Heartbeat\"), so Alex will see 'Heartbeat' in the log, not 'Tick'. Alex will wonder whether this is a different job or a bug. The sample log format also differs from the real format shown on the previous page.",
+      "suggestion": "Change the expected output to match the code ('Heartbeat'), and ideally use the same log line format as the quickstart."
+    }
+  ],
+  "summary": "Alex can follow this page and reach a working automation. The one real snag is that the expected heartbeat output ('Tick') doesn't match what the code logs ('Heartbeat'). Async, dependency injection and the type annotations are all explained inline."
+}

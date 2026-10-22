@@ -1,0 +1,23 @@
+{
+  "run_id": "o02",
+  "page": "getting-started/first-automation",
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "contradiction",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "problem": "The heartbeat job in the code logs \"Heartbeat\" (self.logger.info(\"Heartbeat\")), but the expected output shows \"Tick\". A reader watching the logs for \"Tick\" will not find it and may conclude the scheduled job is not running.",
+      "suggestion": "Change the expected output to \"Heartbeat\" so it matches log_heartbeat."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "unclear-next-step",
+      "quote": "Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "problem": "The page never says where the combined code goes. The reader is not told to replace the contents of apps/main.py from the Quickstart with the second snippet. If they only read the code and restart, they run the old app and see no heartbeat or sunset handling.",
+      "suggestion": "Before Run It, add a line such as \"Replace the contents of apps/main.py with this version\", and say so at the first snippet too."
+    }
+  ],
+  "summary": "Extends the Quickstart app with a typed sun state-change handler and a once-a-minute scheduled heartbeat job, then shows how to run it and trigger the handler by hand from HA Developer Tools."
+}

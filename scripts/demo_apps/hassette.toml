@@ -8,7 +8,6 @@
 
 [hassette.apps]
 directory = "../../examples"
-autodetect = true
 
 # The user templates in examples/, configured here for the demo HA's entities.
 [hassette.apps.motion_lights]
@@ -57,6 +56,11 @@ instance_name = "home_boy"
 tracker_entity = "device_tracker.demo_home_boy"
 person_name = "HomeBoy"
 status_interval = 30.0
+
+[hassette.apps.security_monitor]
+filename = "security_monitor.py"
+class_name = "SecurityMonitor"
+config = { instance_name = "security_monitor" }
 
 [hassette.apps.demo_stimulator]
 filename = "demo_stimulator.py"

@@ -21,7 +21,7 @@ hassette run
 | `--token`, `-t`   | Home Assistant access token. Overrides config file and environment.   |
 | `--ha-url`, `-u`  | URL of the Home Assistant instance to connect to.                     |
 | `--ha-verify-ssl` | Whether to verify SSL certificates for the Home Assistant connection. |
-| `--dev-mode`      | Enables developer mode.                                               |
+| `--dev-mode`      | Enables developer mode: extra logging, automatic app reloads on file changes, and deeper blocking-call detection. See [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging). |
 | `--app`, `-a`     | Run only this app key, excluding all others. Repeatable.              |
 | `--check`         | Validates the configuration, prints the resolved locations, and exits without starting. See [Checking the Resolved Locations](../core-concepts/configuration/index.md#check-config). |
 
@@ -318,24 +318,22 @@ $ hassette job trigger 1
 
 ## `hassette log`
 
-Recent log entries from the telemetry database (requires log persistence).
+Recent log entries from the telemetry database. Log persistence is always enabled and has no setting to turn it off, but it can fail to start. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Only records at or above `log_persistence_level` are stored.
 
 ```console
-$ hassette log --limit 5
-┏━━━━━━━━━┳━━━━━━━┳━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ When    ┃ Level ┃ App ┃ Instance ┃ Function            ┃ Message                    ┃
-┡━━━━━━━━━╇━━━━━━━╇━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ 31s ago │ INFO  │     │          │ run_forever         │ Hassette is running.       │
-│ 31s ago │ INFO  │     │          │ run_forever         │ All services started       │
-│         │       │     │          │                     │ successfully.              │
-│ 32s ago │ INFO  │     │          │ serve               │ Web API server starting    │
-│         │       │     │          │                     │ on 0.0.0.0:8126            │
-│ 32s ago │ INFO  │     │          │ _auto_wait_depend…  │ Waiting for dependencies:  │
-│         │       │     │          │                     │ [RuntimeQueryService, …]   │
-│ 32s ago │ INFO  │     │          │ _auto_wait_depend…  │ Waiting for dependencies:  │
-│         │       │     │          │                     │ [BusService, StateProxy, …]│
-└─────────┴───────┴─────┴──────────┴─────────────────────┴────────────────────────────┘
+$ hassette log --author all --limit 5
+┏━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ When    ┃ Level   ┃ Author    ┃ App    ┃ Instance ┃ Function        ┃ Message                              ┃
+┡━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ 30s ago │ INFO    │           │ my_app │ my_app   │ on_initialize   │ Hello from Hassette!                 │
+│ 31s ago │ INFO    │ framework │        │          │ run_forever     │ Hassette is running.                 │
+│ 31s ago │ INFO    │ framework │        │          │ run_forever     │ All services started successfully.   │
+│ 45s ago │ WARNING │           │ my_app │ my_app   │ on_light_change │ Kitchen light reported no brightness │
+│ 50s ago │ ERROR   │ framework │ my_app │ my_app   │ call_service    │ Failed to call service light.turn_on │
+└─────────┴─────────┴───────────┴────────┴──────────┴─────────────────┴──────────────────────────────────────┘
 ```
+
+By default, the list holds app-authored lines plus Hassette's own lines at ERROR and above. `--author all` adds the rest of Hassette's lines. The Author column marks Hassette's lines `framework`. `--author app` and `--author framework` show only one side.
 
 `--instance` is not supported on this command; the CLI exits with a usage error if provided. `--app` filters by app key.
 
@@ -346,7 +344,7 @@ $ hassette log --limit 5
 | `--app <key>`          | Filters to log entries from this app.    |
 | `--since <duration>`   | Time window filter.                      |
 | `--limit <n>`          | Maximum number of entries to return.     |
-| `--source-tier <tier>` | Filters by `app`, `framework`, or `all`. |
+| `--author <author>`    | Filters by `app`, `framework`, or `all`. |
 | `--json`               | Outputs as JSON.                         |
 
 **API endpoint:** `GET /api/logs/recent`
@@ -361,14 +359,15 @@ hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 The execution UUID appears in the Execution ID column of `hassette listener <id>` and `hassette job <id>` output. [Workflows](workflows.md) covers the full drill-down pattern.
 
-The table shows timestamp, level, function name, line number, and message for each log entry captured during that execution.
+The table shows timestamp, level, author, function name, line number, and message for each log entry captured during that execution. Like `hassette log`, it leaves out Hassette's own lines below ERROR unless `--author all` is passed.
 
 ### Flags
 
-| Flag          | Description                              |
-| ------------- | ---------------------------------------- |
-| `--limit <n>` | Maximum number of log entries to return. |
-| `--json`      | Outputs as JSON.                         |
+| Flag                | Description                              |
+| ------------------- | ---------------------------------------- |
+| `--limit <n>`       | Maximum number of log entries to return. |
+| `--author <author>` | Filters by `app`, `framework`, or `all`. |
+| `--json`            | Outputs as JSON.                         |
 
 **API endpoint:** `GET /api/executions/{execution_id}`
 
@@ -382,9 +381,9 @@ $ hassette blocking --since 7d
 ┃ App              ┃ Instances         ┃ Call site                    ┃ Calls into                   ┃ Count ┃ Max   ┃ Last seen ┃
 ┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
 │ presence         │ bedroom, office   │ presence.py:44 in refresh    │ requests/api.py get          │ 4     │ 5.0s  │ 30m ago   │
-│ car_climate      │ CarClimate.0      │ calendar_service.py:98 in    │ gcsa/_services/events_servi… │ 9     │ 534ms │ 2h ago    │
+│ car_climate      │ car_climate       │ calendar_service.py:98 in    │ gcsa/_services/events_servi… │ 9     │ 534ms │ 2h ago    │
 │                  │                   │ get_calendar_events          │ get_events                   │       │       │           │
-│ garage_proximity │ GarageProximity.0 │ call site not captured       │                              │ 1     │ 212ms │ 2d ago    │
+│ garage_proximity │ garage_proximity  │ call site not captured       │                              │ 1     │ 212ms │ 2d ago    │
 │                  │                   │ (on_phone_arrive)            │                              │       │       │           │
 └──────────────────┴───────────────────┴──────────────────────────────┴──────────────────────────────┴───────┴───────┴───────────┘
 
@@ -474,12 +473,13 @@ These flags appear across multiple commands.
 | `--instance <n>`       | int or string                | `listener`, `job`, `blocking`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). Requires `--app` for `listener`/`job`/`blocking`; requires the positional `<key>` for all `app` subcommands.         |
 | `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `blocking`, `app health`, `app activity` | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
 | `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
-| `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health`                       | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
+| `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `app health`                              | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
+| `--author <author>`    | `app`, `framework`, or `all` | `log`, `execution`                                           | Filters log lines by who wrote them. `app` returns lines from app code. `framework` returns lines Hassette wrote. `all` returns both. Omitted, it returns app lines plus framework lines at ERROR and above. |
 | `--json`               | n/a                          | all commands                                                 | Outputs as JSON. See [Output Modes](configuration.md#output-modes).                                                                         |
 
 ### Global flags
 
-These flags apply to every command and are placed before the subcommand name.
+These flags apply to every command and can go before or after the subcommand name, for example `hassette --json app` or `hassette app --json`.
 
 | Flag              | Aliases       | Description                                                                                  |
 | ----------------- | ------------- | ---------------------------------------------------------------------------------------------- |

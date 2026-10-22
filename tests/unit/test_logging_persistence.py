@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable, Coroutine, Generator
 from contextlib import contextmanager
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from hassette.logging_ import DEQUEUE_TIMEOUT_SECONDS, HassetteQueueListener, LogPersistenceHandler
 from tests.support.factories import make_log_record
@@ -148,6 +148,22 @@ class TestLogPersistenceHandlerBatching:
 
             assert handler.db_write_queue_drops == 3
             assert len(handler._batch) == 0
+
+    def test_drops_a_record_without_author_alone(self) -> None:
+        """A record that skipped LogIdentityFilter is dropped on its own; it never reaches the batch.
+
+        ``log_records.author`` is NOT NULL, so a NULL author in the batch would fail the whole insert.
+        """
+        with _persistence_handler() as (handler, _loop):
+            stamped = make_log_record(lineno=1, msg="stamped")
+            unstamped = make_log_record(lineno=2, msg="unstamped", author=None)
+
+            with patch.object(handler, "handleError") as handle_error:
+                handler.emit(unstamped)
+                handler.emit(stamped)
+
+            handle_error.assert_called_once_with(unstamped)
+            assert [row["message"] for row in handler._batch] == ["stamped"]
 
 
 class TestLogPersistenceDropCountWithDB:

@@ -92,6 +92,24 @@ describe("useLogData", () => {
     expect(capturedUrl?.searchParams.get("execution_id")).toBe("exec-1");
     expect(capturedUrl?.searchParams.get("limit")).toBe(String(REST_FETCH_LIMIT));
     expect(capturedUrl?.searchParams.has("since")).toBe(true);
+    // No author: the server applies its default view.
+    expect(capturedUrl?.searchParams.has("author")).toBe(false);
+  });
+
+  it("requests author=all when the framework-lines toggle is on, and refetches when it changes", async () => {
+    const authors: (string | null)[] = [];
+    server.use(
+      http.get(LOGS_ENDPOINT, ({ request }) => {
+        authors.push(new URL(request.url).searchParams.get("author"));
+        return HttpResponse.json([]);
+      }),
+    );
+
+    await renderLoaded();
+    expect(authors).toEqual([null]);
+
+    act(() => useAppStore.getState().setShowAllFrameworkLogs(true));
+    await vi.waitFor(() => expect(authors).toEqual([null, "all"]));
   });
 
   it("refetches exactly once after the debounce window following a single hint", async () => {

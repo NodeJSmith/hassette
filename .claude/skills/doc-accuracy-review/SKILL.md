@@ -131,7 +131,7 @@ When the user asks for fixes (or pre-authorized auto-fixing), edit the markdown 
 
 ## Design Decisions
 
-**Why a separate skill from doc-persona-review?** Opposite stances toward the repo. The persona reviewer is deliberately blind — it must not know more than the persona does. The accuracy reviewer is the opposite: it greps and reads source freely. One briefing template can't serve both without contradicting itself.
+**Why a separate skill from doc-persona-review?** Opposite stances toward the repo. The persona reviewer is deliberately blind — it must not know more than its reader does. The accuracy reviewer is the opposite: it greps and reads source freely. One briefing template can't serve both without contradicting itself.
 
 **Why no second adversarial verification pass?** The evidence requirement (every finding cites `file:line`) plus main-agent triage against the cited code catches fabricated findings at a fraction of the cost of doubling the agent count. If triage starts rejecting a large share of findings, revisit this.
 

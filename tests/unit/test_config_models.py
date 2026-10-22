@@ -195,8 +195,7 @@ class TestAppsConfig:
     def test_defaults(self):
         """AppsConfig constructs with all defaults."""
         cfg = AppsConfig()
-        assert cfg.autodetect is True
-        assert cfg.exclude_dirs == ()
+        assert cfg.warn_unconfigured is True
         assert cfg.manifests == {}
         assert cfg.apps == {}
 
@@ -213,9 +212,9 @@ class TestAppsConfig:
 
     def test_inline_app_defs_extracted(self):
         """Dict-valued unknown keys are extracted as app definitions."""
-        cfg = AppsConfig(**{"my_app": {"filename": "f.py", "class_name": "C"}, "autodetect": False})
+        cfg = AppsConfig(**{"my_app": {"filename": "f.py", "class_name": "C"}, "warn_unconfigured": False})
         assert "my_app" in cfg.apps
-        assert cfg.autodetect is False
+        assert cfg.warn_unconfigured is False
 
     def test_inline_defs_merged_with_existing_apps_key(self):
         """Inline app defs merge with an explicit apps dict."""
@@ -230,8 +229,8 @@ class TestAppsConfig:
 
     def test_non_dict_unknown_key_ignored(self):
         """Non-dict unknown keys don't blow up or get extracted."""
-        cfg = AppsConfig(**{"some_string": "value", "autodetect": False})
-        assert cfg.autodetect is False
+        cfg = AppsConfig(**{"some_string": "value", "warn_unconfigured": False})
+        assert cfg.warn_unconfigured is False
         assert cfg.apps == {}
 
     def test_caller_dict_not_mutated(self):
@@ -241,7 +240,7 @@ class TestAppsConfig:
         AppsConfig(**original)
         assert original == snapshot
 
-    @pytest.mark.parametrize("reserved_name", ["directory", "autodetect", "exclude_dirs"])
+    @pytest.mark.parametrize("reserved_name", ["directory", "warn_unconfigured"])
     def test_reserved_app_name_raises(self, reserved_name: str):
         """App names that collide with config fields produce a clear error."""
         with pytest.raises(ValidationError, match="conflicts with a reserved config field"):

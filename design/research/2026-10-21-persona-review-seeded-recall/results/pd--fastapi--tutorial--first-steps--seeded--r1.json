@@ -1,0 +1,158 @@
+{
+  "run_id": "o47",
+  "persona": "Alex",
+  "page": "tutorial/first-steps",
+  "overall_verdict": "followable-with-effort",
+  "terms": [
+    {
+      "line": 5,
+      "term": "async def / async function",
+      "explained": false,
+      "where": "Page says only 'it is an async function' and that a normal def also works (lines 175-180). It never says what async means or when to choose which, and gives no link."
+    },
+    {
+      "line": 152,
+      "term": "await / event loop",
+      "explained": false,
+      "where": "Not used in the example code, and not explained. Alex can ignore it here because the page says a plain def works."
+    },
+    {
+      "line": 147,
+      "term": "app = FastAPI() (class instance)",
+      "explained": true,
+      "where": "Step 2 explains that app is an instance of the FastAPI class and the main point of interaction."
+    },
+    {
+      "line": 150,
+      "term": "@app.get(\"/\") decorator",
+      "explained": true,
+      "where": "The decorator info box in Step 3 explains the @ syntax and what this decorator does."
+    },
+    {
+      "line": 103,
+      "term": "path (URL path)",
+      "explained": true,
+      "where": "Step 3 'Path' section defines it with an example URL."
+    },
+    {
+      "line": 116,
+      "term": "operation / HTTP method (GET, POST, PUT, DELETE)",
+      "explained": true,
+      "where": "Step 3 'Operation' section lists the methods and what each is normally used for."
+    },
+    {
+      "line": 165,
+      "term": "path operation function",
+      "explained": true,
+      "where": "Step 4 defines it: path, operation, and the function below the decorator."
+    },
+    {
+      "line": 29,
+      "term": "OpenAPI",
+      "explained": true,
+      "where": "Explained in the OpenAPI section as a specification for defining an API schema, with a link."
+    },
+    {
+      "line": 31,
+      "term": "schema",
+      "explained": true,
+      "where": "The 'Schema', 'API schema' and 'Data schema' subsections define it."
+    },
+    {
+      "line": 39,
+      "term": "JSON Schema",
+      "explained": true,
+      "where": "Described as the standard for JSON data schemas, with a link."
+    },
+    {
+      "line": 24,
+      "term": "Swagger UI / ReDoc",
+      "explained": true,
+      "where": "Described as automatic interactive and alternative API documentation, with links."
+    },
+    {
+      "line": 92,
+      "term": "Starlette",
+      "explained": false,
+      "where": "Mentioned in an optional 'Technical Details' box, with a link but no description of what it is. Alex can skip it."
+    },
+    {
+      "line": 187,
+      "term": "Pydantic models",
+      "explained": true,
+      "where": "Page says 'you'll see more about that later', which counts as a pointer."
+    },
+    {
+      "line": 188,
+      "term": "ORMs",
+      "explained": false,
+      "where": "Mentioned in an aside only and not explained. Alex can ignore it."
+    },
+    {
+      "line": 163,
+      "term": "GraphQL",
+      "explained": false,
+      "where": "Used in a tip as a comparison and not explained. Alex can ignore it."
+    },
+    {
+      "line": 114,
+      "term": "\"concerns\" and \"resources\"",
+      "explained": false,
+      "where": "Used loosely in 'the main way to separate concerns and resources'. No definition is given."
+    },
+    {
+      "line": 54,
+      "term": "[tool.fastapi] entrypoint in pyproject.toml",
+      "explained": true,
+      "where": "Shown with examples of how the string maps to a Python import. Alex already has a pyproject.toml from the index page."
+    },
+    {
+      "line": 170,
+      "term": "Uvicorn / reloader process / WatchFiles",
+      "explained": false,
+      "where": "These appear in the log output. The page does not say what they are, but Alex only needs to find the URL, which the page points out."
+    },
+    {
+      "line": 81,
+      "term": "fastapi deploy / FastAPI Cloud",
+      "explained": true,
+      "where": "Marked optional and described as a single command that deploys to FastAPI Cloud."
+    }
+  ],
+  "findings": [
+    {
+      "line": 20,
+      "section": "Check it",
+      "type": "inconsistency",
+      "quote": "{\"message\": \"Hello FastAPI\"}",
+      "confusion": "The code returns {\"message\": \"Hello World\"}, but the page says the browser will show \"Hello FastAPI\". Alex would wonder whether they copied the code wrongly or are running a different file, and may re-check the code.",
+      "suggestion": "Make the expected output match the code: {\"message\": \"Hello World\"}."
+    },
+    {
+      "line": 175,
+      "section": "Step 4: define the path operation function",
+      "type": "undefined-term",
+      "quote": "In this case, it is an async function. You could also define it as a normal function instead of async def :",
+      "confusion": "Alex does not know async. The first code block uses async def with no explanation, and the page raises it only here. They are left guessing whether they must understand it and which version to use.",
+      "suggestion": "Add a one-line note, for example: 'If you're not sure, just use plain def. async def only matters later', and link to the async explainer."
+    },
+    {
+      "line": 45,
+      "section": "Check the openapi.json",
+      "type": "inconsistency",
+      "quote": "\"paths\": {\n        \"/items/\": {\n            \"get\": {",
+      "confusion": "The sample openapi.json shows a '/items/' path, but the app has only '/'. Alex would expect to see '/' and may suspect their app is wrong when they open the URL.",
+      "suggestion": "Show a '/' path in the sample, or say the sample is illustrative."
+    },
+    {
+      "line": 22,
+      "section": "Interactive API docs",
+      "type": "missing-step",
+      "quote": "Now go to http://127.0.0.1:8000/docs . You will see the automatic interactive API documentation",
+      "confusion": "Alex is told what the docs are called but not what to do there. The page gives no hint that the 'Try it out' button can call the endpoint, so the section feels like a dead end.",
+      "suggestion": "Add one sentence on what Alex can do in the docs UI, such as expanding the GET / operation and trying it."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can run the example with the commands from the index page and see it work, so they would finish. They would have to guess about async def, which the page uses without explaining, and the 'Hello FastAPI' output does not match the 'Hello World' code. The vocabulary for the core ideas (path, operation, decorator, schema) is explained well."
+}

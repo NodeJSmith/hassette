@@ -1,13 +1,21 @@
+from datetime import time
+
 from appdaemon.plugins.hass import Hass
 
 
-class NightLight(Hass):
-    # function which will be called at startup and reload
+class MySchedulerApp(Hass):
     def initialize(self):
-        # Schedule a daily callback that will call run_daily_callback() at 7pm every night
-        self.run_daily(self.run_daily_callback, "19:00:00")
+        self.run_in(self.delayed_task, 60)
+        self.run_daily(self.morning_task, time(7, 30))
+        self.periodic_handle = self.run_every(
+            self.periodic_task, "now", 300
+        )
 
-    # Our callback function will be called by the scheduler every day at 7pm
-    def run_daily_callback(self, **kwargs):
-        # Call to Home Assistant to turn the porch light on
-        self.turn_on("light.porch")
+    def delayed_task(self, **kwargs):
+        pass
+
+    def morning_task(self, **kwargs):
+        pass
+
+    def periodic_task(self, **kwargs):
+        pass

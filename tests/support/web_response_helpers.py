@@ -147,7 +147,7 @@ def make_config_schema_response() -> ConfigSchemaResponse:
                 "app_startup_timeout_seconds": 20,
                 "app_shutdown_timeout_seconds": 10,
             },
-            "apps": {"autodetect": True, "directory": "apps"},
+            "apps": {"warn_unconfigured": True, "directory": "apps"},
             "scheduler": {"behind_schedule_threshold_seconds": 5, "job_timeout_seconds": 600.0},
             "file_watcher": {"watch_files": True, "debounce_milliseconds": 500},
             "database": {"retention_days": 7, "max_size_mb": 500},

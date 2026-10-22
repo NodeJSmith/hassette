@@ -6,17 +6,15 @@ class MyConfig(AppConfig):
 
 
 class NightLight(App[MyConfig]):
-    # function which will be called at startup and reload
     async def on_initialize(self):
-        # Schedule a daily callback that will call run_daily_callback() at 7pm every night
-        job = await self.scheduler.run_daily(
-            self.run_daily_callback, at="19:00", name="run_daily_callback"
+        await self.scheduler.run_daily(
+            self.light_on,
+            at="19:00",
+            name="porch_light_on",
+            kwargs={"entity_id": "light.porch"},
         )
-        self.logger.info("Scheduled job: %r", job)
 
-        # 2025-10-13 19:57:02.670 INFO hassette.NightLight.0.on_initialize:11 - Scheduled job: Job(name='run_daily_callback', owner_id=NightLight.0)
-
-    # Our callback function will be called by the scheduler every day at 7pm
-    async def run_daily_callback(self):
-        # Call to Home Assistant to turn the porch light on
-        await self.api.turn_on("light.office_light_1", color_name=self.app_config.color_name)
+    async def light_on(self, entity_id: str):
+        await self.api.turn_on(
+            entity_id, color_name=self.app_config.color_name
+        )

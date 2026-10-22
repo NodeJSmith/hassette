@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from hassette_wire import ExecutionStatus, LogLevel, SourceTier
+from hassette_wire import ExecutionStatus, LogAuthor, LogLevel, SourceTier
 from whenever import Instant
 
 from hassette.core.database_service import LOG_RECORD_COLUMNS
@@ -94,7 +94,7 @@ def make_execution_id(scenario: str, app_key: str, index: int) -> str:
 
 
 def make_instance_name(class_name: str, instance_index: int) -> str:
-    """Build the display instance name, matching the production default fallback."""
+    """Build a seeded instance name. Telemetry rows store it as an opaque display string, never parsed as config."""
     return f"{class_name}.{instance_index}"
 
 
@@ -237,7 +237,6 @@ class SeedContext:
         filename: str | None = None,
         enabled: bool = True,
         autostart: bool = True,
-        auto_loaded: bool = False,
     ) -> int:
         """Insert an app_manifests row and return its id.
 
@@ -260,7 +259,6 @@ class SeedContext:
             "filename": filename,
             "enabled": 1 if enabled else 0,
             "autostart": 1 if autostart else 0,
-            "auto_loaded": 1 if auto_loaded else 0,
         }
         sql = _build_insert_sql("app_manifests", params, returning=True)
         return insert_row(self.cursor, sql, params)
@@ -293,7 +291,7 @@ class SeedContext:
         instance_name: str | None = None,
         instance_index: int | None = None,
         execution_id: str | None = None,
-        source_tier: str | None = None,
+        author: LogAuthor,
     ) -> None:
         """Insert a log_records row. ``execution_id`` may be None (framework logs)."""
         params = {
@@ -309,7 +307,7 @@ class SeedContext:
             "instance_name": instance_name,
             "instance_index": instance_index,
             "execution_id": execution_id,
-            "source_tier": source_tier,
+            "author": author,
         }
         insert_row(self.cursor, _LOG_INSERT_SQL, params)
 
@@ -461,7 +459,7 @@ def seed_log_records(
             app_key=app_key,
             instance_name=instance_name,
             instance_index=instance_index,
-            source_tier="app",
+            author="app",
         )
     return start_seq + count
 

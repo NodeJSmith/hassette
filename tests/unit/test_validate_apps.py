@@ -1,13 +1,7 @@
-"""Tests for the validate_apps / set_validated_app_manifests behavior.
-
-Split out of `test_autodetect_apps.py` (see design/specs/100-decompose-oversized-test-files).
-Complements `test_autodetect_apps.py` (TestAutoDetectAppsCurrDir, TestAutoDetectApps) and
-`test_autodetect_apps_integration.py` (TestAutoDetectIntegration).
-"""
+"""Tests for the validate_apps / set_validated_app_manifests behavior."""
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
@@ -17,18 +11,11 @@ from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import ConfigError
 from hassette.testing import make_test_config
 from hassette.web.mappers import app_summary_from
-from tests.support.helpers import write_app
 
 
 @pytest.fixture
 def app_dir(tmp_path: Path) -> Path:
-    """Return an existing, empty app directory under `tmp_path`.
-
-    The `test_apps` name is load-bearing, not scaffolding: autodetect_apps() passes
-    `app_dir.name` as the package name, so a discovered app's key is
-    "{app_dir.name}.{module_stem}.{class_name}" — the key literals asserted in the
-    autodetect tests below change if this directory is renamed.
-    """
+    """Return an existing, empty app directory under `tmp_path`."""
     path = tmp_path / "test_apps"
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -50,7 +37,11 @@ def make_two_apps(
         ("app_one", "AppOne", cache_key_one, shared_one),
         ("app_two", "AppTwo", cache_key_two, shared_two),
     ):
-        app: dict[str, Any] = {"filename": f"{app_key}.py", "class_name": class_name}
+        app: dict[str, Any] = {
+            "filename": f"{app_key}.py",
+            "class_name": class_name,
+            "config": {"instance_name": app_key},
+        }
         if cache_key is not None:
             app["cache_key"] = cache_key
         if cache_shared:
@@ -62,15 +53,19 @@ def make_two_apps(
 class TestValidateApps:
     """Test the validate_apps function."""
 
+    def make_my_app_config(self, tmp_path: Path, app_dir: Path, **extra: Any) -> HassetteConfig:
+        """A config with one named ``my_app`` entry; ``extra`` adds registration fields to it."""
+        app = {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}, **extra}
+        return self.make_config(tmp_path, directory=app_dir, apps={"my_app": app})
+
     def make_config(
         self,
         tmp_path: Path,
         *,
-        autodetect: bool = False,
         directory: Path | None = None,
         apps: dict[str, Any] | None = None,
     ) -> HassetteConfig:
-        apps_cfg: dict[str, Any] = {"autodetect": autodetect}
+        apps_cfg: dict[str, Any] = {}
         if directory is not None:
             apps_cfg["directory"] = directory
         if apps is not None:
@@ -82,7 +77,7 @@ class TestValidateApps:
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp"}},
+            apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}}},
         )
 
         with context.use_hassette_config(config):
@@ -103,7 +98,14 @@ class TestValidateApps:
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={"my_app": {"filename": "my_app.py", "class_name": "MyApp", "app_dir": custom_dir}},
+            apps={
+                "my_app": {
+                    "filename": "my_app.py",
+                    "class_name": "MyApp",
+                    "app_dir": custom_dir,
+                    "config": {"instance_name": "my_app"},
+                }
+            },
         )
 
         with context.use_hassette_config(config):
@@ -123,6 +125,7 @@ class TestValidateApps:
                 "valid_app": {
                     "filename": "valid.py",
                     "class_name": "ValidApp",
+                    "config": {"instance_name": "valid_app"},
                 },
                 "missing_filename": {
                     "class_name": "MissingFilename",
@@ -155,140 +158,6 @@ class TestValidateApps:
             f"Expected app_key to be 'valid_app', got {result['valid_app'].app_key}"
         )
 
-    def test_validate_apps_merges_autodetected_and_manual_apps(self, tmp_path: Path, app_dir: Path) -> None:
-        """Real discovery runs when autodetect=True and merges with manually configured apps."""
-        write_app(
-            app_dir,
-            "validate_auto_app.py",
-            """
-            from hassette import App, AppConfig
-
-            class ValidateAutoApp(App[AppConfig]): ...
-            """,
-        )
-        write_app(
-            app_dir,
-            "validate_manual_app.py",
-            """
-            from hassette import App, AppConfig
-
-            class ValidateManualApp(App[AppConfig]): ...
-            """,
-        )
-
-        config = self.make_config(
-            tmp_path,
-            autodetect=True,
-            directory=app_dir,
-            apps={
-                "manual_app": {
-                    "filename": "validate_manual_app.py",
-                    "class_name": "ValidateManualApp",
-                }
-            },
-        )
-
-        with context.use_hassette_config(config):
-            config.set_validated_app_manifests()
-        result = config.apps.manifests
-
-        autodetected_key = "test_apps.validate_auto_app.ValidateAutoApp"
-        assert sorted(result) == sorted(["manual_app", autodetected_key]), (
-            f"Expected the manual app plus the auto-detected one, got {sorted(result)}"
-        )
-
-        # Discovery ran against the configured app directory.
-        auto_manifest = result[autodetected_key]
-        assert auto_manifest.app_dir == app_dir, f"Expected app_dir to be {app_dir}, got {auto_manifest.app_dir}"
-        assert auto_manifest.filename == "validate_auto_app.py", (
-            f"Expected filename to be 'validate_auto_app.py', got {auto_manifest.filename}"
-        )
-
-        # The manually configured file is handed to discovery as a known path, so it is not
-        # detected a second time under its derived key.
-        assert "test_apps.validate_manual_app.ValidateManualApp" not in result, (
-            f"Expected the manually configured file to be skipped by discovery, got {sorted(result)}"
-        )
-
-    def test_validate_apps_skips_conflicting_autodetected(self, tmp_path: Path, app_dir: Path) -> None:
-        """Auto-detected apps whose key is already claimed by a manual app are dropped.
-
-        The manual entry deliberately points at a *different* file than the one discovery finds:
-        a manually configured file is excluded from discovery via known_paths, so pointing both
-        at the same file would never reach the key-conflict branch.
-        """
-        write_app(
-            app_dir,
-            "validate_conflict_app.py",
-            """
-            from hassette import App, AppConfig
-
-            class ValidateConflictApp(App[AppConfig]): ...
-            """,
-        )
-        write_app(
-            app_dir,
-            "validate_override_app.py",
-            """
-            from hassette import App, AppConfig
-
-            class ValidateOverrideApp(App[AppConfig]): ...
-            """,
-        )
-
-        conflicting_key = "test_apps.validate_conflict_app.ValidateConflictApp"
-        config = self.make_config(
-            tmp_path,
-            autodetect=True,
-            directory=app_dir,
-            apps={
-                conflicting_key: {
-                    "filename": "validate_override_app.py",
-                    "class_name": "ValidateOverrideApp",
-                }
-            },
-        )
-
-        with context.use_hassette_config(config):
-            config.set_validated_app_manifests()
-        result = config.apps.manifests
-
-        # Only the manual app survives — the auto-detected app that resolved to the same key
-        # is skipped rather than overwriting it.
-        assert sorted(result) == [conflicting_key], f"Expected only {conflicting_key!r}, got {sorted(result)}"
-        manifest = result[conflicting_key]
-        assert manifest.filename == "validate_override_app.py", (
-            f"Expected filename to be 'validate_override_app.py', got {manifest.filename}"
-        )
-        assert manifest.class_name == "ValidateOverrideApp", (
-            f"Expected class_name to be 'ValidateOverrideApp', got {manifest.class_name}"
-        )
-
-    def test_validate_apps_skips_autodetect_when_disabled(self, tmp_path: Path, app_dir: Path) -> None:
-        """Test that validate_apps skips auto-detection when autodetect=False."""
-        config = self.make_config(
-            tmp_path,
-            directory=app_dir,
-            apps={
-                "manual_app": {
-                    "filename": "manual.py",
-                    "class_name": "ManualApp",
-                }
-            },
-        )
-
-        with patch("hassette.config.config.autodetect_apps") as mock_autodetect:
-            with context.use_hassette_config(config):
-                config.set_validated_app_manifests()
-            result = config.apps.manifests
-
-            # Should not call autodetect_apps since autodetect=False
-            mock_autodetect.assert_not_called()
-
-            # Should only have the manual app
-            assert len(result) == 1, f"Expected 1 app, got {len(result)}"
-            assert "manual_app" in result, "Expected to find 'manual_app' in detected apps"
-
     @pytest.mark.parametrize(
         ("app_key", "reason"),
         [
@@ -310,7 +179,7 @@ class TestValidateApps:
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp"}},
+            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}}},
         )
 
         with context.use_hassette_config(config), pytest.raises(ValueError, match=reason) as exc_info:
@@ -322,11 +191,11 @@ class TestValidateApps:
 
     @pytest.mark.parametrize("app_key", ["my_app", "my-app", "test_apps.my_module.MyApp", "a..b"])
     def test_validate_apps_accepts_ordinary_app_keys(self, tmp_path: Path, app_dir: Path, app_key: str) -> None:
-        """Plain and dotted (autodetect-style) app keys pass validation."""
+        """Plain and dotted app keys pass validation."""
         config = self.make_config(
             tmp_path,
             directory=app_dir,
-            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp"}},
+            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp", "config": {"instance_name": "my_app"}}},
         )
 
         with context.use_hassette_config(config):
@@ -376,11 +245,15 @@ class TestValidateApps:
             "weather": {
                 "filename": "weather.py",
                 "class_name": "Weather",
-                "config": [{"city": "nyc"}, {"city": "sf"}],
+                "config": [
+                    {"city": "nyc", "instance_name": "weather_nyc"},
+                    {"city": "sf", "instance_name": "weather_sf"},
+                ],
             },
             "other_app": {
                 "filename": "other_app.py",
                 "class_name": "OtherApp",
+                "config": {"instance_name": "other_app"},
                 "cache_key": "weather/1",
             },
         }
@@ -422,8 +295,7 @@ class TestValidateApps:
         self, tmp_path: Path, app_dir: Path, extra: dict[str, str], expected: str
     ) -> None:
         """`display_name` in config is carried onto the manifest and the API summary; unset, it is the app key."""
-        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", **extra}}
-        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+        config = self.make_my_app_config(tmp_path, app_dir, **extra)
 
         with context.use_hassette_config(config):
             config.set_validated_app_manifests()
@@ -444,8 +316,7 @@ class TestValidateApps:
         self, tmp_path: Path, app_dir: Path, extra: dict[str, str], expected: str | None
     ) -> None:
         """`description` in config survives cleaning onto the manifest and the API summary; unset, it is None."""
-        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", **extra}}
-        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+        config = self.make_my_app_config(tmp_path, app_dir, **extra)
 
         with context.use_hassette_config(config):
             config.set_validated_app_manifests()
@@ -457,8 +328,7 @@ class TestValidateApps:
 
     def test_multiline_description_in_config_is_rejected(self, tmp_path: Path, app_dir: Path) -> None:
         """A configured description with a line break fails validation instead of being silently dropped."""
-        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", "description": "line one\nline two"}}
-        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+        config = self.make_my_app_config(tmp_path, app_dir, description="line one\nline two")
 
         with context.use_hassette_config(config), pytest.raises(ConfigError, match="single line"):
             config.set_validated_app_manifests()

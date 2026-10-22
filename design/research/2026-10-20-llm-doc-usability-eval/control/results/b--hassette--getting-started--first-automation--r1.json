@@ -1,0 +1,129 @@
+{
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-friction",
+  "findings": [
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "async def on_initialize(self):",
+      "confusion": "I have never seen async def or await. The page shows them in the first code block with no explanation until much later, so I do not know whether I must understand them to proceed.",
+      "suggestion": "Add one sentence before the first snippet: 'async def and await are needed here; just copy them for now, explained below.'"
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "class MyAppConfig(AppConfig):\n    greeting: str = \"Hello from Hassette!\"",
+      "confusion": "AppConfig and this config class are not explained. I do not know where app_config comes from or why a greeting exists. The page assumes the Quickstart covered it, but I cannot tell.",
+      "suggestion": "Say this config class is already in the Quickstart app and is unchanged, or give a one-line explanation of what it is for."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "self.bus.on_state_change() registers a handler",
+      "confusion": "'bus' is undefined and I do not know what registering means. The parenthetical explains handler, but the bus and the registration idea stay fuzzy.",
+      "suggestion": "Describe it in plain terms: 'tell Hassette to call your method whenever X changes'. Introduce self.bus as the thing that delivers HA events."
+    },
+    {
+      "line": 10,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "\"sun.*\" is a glob pattern that matches any entity in the sun domain",
+      "confusion": "'Glob pattern' and 'domain' (as an HA term) are used without definition. I have an HA instance but have only used the UI, so 'domain' may be new.",
+      "suggestion": "Explain that entity IDs look like domain.name (sun.sun, light.porch) and that * is a wildcard."
+    },
+    {
+      "line": 11,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "new_state: D.StateNew[states.SunState]",
+      "confusion": "This is the exact syntax I do not know. 'Works like list[str]' helps a bit, but I still do not understand why a function parameter annotation would make Hassette pass me data. It feels like magic.",
+      "suggestion": "Show a plain-language mapping first (new_state is the sun's new state as an object), then the annotation. Say explicitly that you can copy this pattern without understanding it."
+    },
+    {
+      "line": 12,
+      "section": "Subscribe to a State Change",
+      "type": "missing-prerequisite",
+      "quote": "D is hassette.event_handling.dependencies , a module of type annotations",
+      "confusion": "The explanation uses more unfamiliar terms (module of type annotations, converted to type T) and does not say why the import is named D, which looks odd.",
+      "suggestion": "Say 'D is just a short name for Hassette's helper annotations; import it as shown.'"
+    },
+    {
+      "line": 14,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "This is called dependency injection .",
+      "confusion": "The term appears and gets a name, but I do not know why it matters. 'Pyright' also appears as another new tool, and I only know Pylance.",
+      "suggestion": "Frame it as 'Hassette hands you the data you ask for in the signature.' Mention that Pylance does the same checking in VS Code."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "unclear-next-step",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "This note comes after the code. I would already have copied the snippet. It also does not tell me where to find my entity ID (Developer Tools > States? Entities page?).",
+      "suggestion": "Put the replace-this note directly beside the code or in a comment on that line, and say where to look up entity IDs."
+    },
+    {
+      "line": 16,
+      "section": "Subscribe to a State Change",
+      "type": "undefined-term",
+      "quote": "Async handlers run on Hassette's event loop: while one handler is paused at an await , other handlers keep running",
+      "confusion": "'Event loop' and 'paused at an await' are completely new to me. I read this as a detour and feel pressure to understand async before moving on, though the link to the Async Basics page helps.",
+      "suggestion": "Shorten to 'write async def and await for anything that talks to Home Assistant; see Async Basics for why.' Keep the event-loop detail in the linked page."
+    },
+    {
+      "line": 6,
+      "section": "Subscribe to a State Change",
+      "type": "unclear-next-step",
+      "quote": "You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.",
+      "confusion": "The full file is repeated in the next section. It is not obvious whether I should edit the file now, wait, or copy only the second snippet. The two near-identical code blocks make me look for differences.",
+      "suggestion": "Highlight the lines added in the second snippet. Say that the second snippet is the full file to copy."
+    },
+    {
+      "line": 21,
+      "section": "Schedule a Recurring Job",
+      "type": "undefined-term",
+      "quote": "log_heartbeat is a scheduled job : the scheduler calls it on a timer",
+      "confusion": "This is mostly clear. 'self.scheduler' appears without introduction as a sibling of self.bus. Passing a method with no parentheses is a small leap, but I know that from Python callbacks.",
+      "suggestion": "Add a brief note that self.scheduler, like self.bus, is provided by App."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "missing-prerequisite",
+      "quote": "Replace your apps/main.py with the complete app from the previous snippet. Stop Hassette with Ctrl+C and run hassette run -e .env again.",
+      "confusion": "I need to remember what apps/main.py, .env and hassette run are from the Quickstart. If I jumped here or my setup differs, I am lost. It is also ambiguous which 'previous snippet' is meant: the sunset-only one or the combined one.",
+      "suggestion": "Say 'the second (combined) snippet'. Restate the directory and command briefly or link back to the Quickstart step."
+    },
+    {
+      "line": 26,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "INFO hassette.MyApp.0 — Heartbeat",
+      "confusion": "The expected output shows Heartbeat once, but it fires every minute and the first run is a minute after startup. I do not know whether to wait, or whether a missing line means something is broken. The sample also hides other startup lines I would see, which could confuse me.",
+      "suggestion": "State 'wait about a minute for the Heartbeat line' and say it repeats every minute. Mention that other startup log lines may appear."
+    },
+    {
+      "line": 29,
+      "section": "Run It",
+      "type": "unclear-next-step",
+      "quote": "In Home Assistant, go to Settings → Developer Tools . Go to the States tab and find sun.sun . Change the state value to below_horizon and click Set State .",
+      "confusion": "Developer Tools is usually a top-level sidebar item in HA, not under Settings, so the path may not match what I see. I also worry about messing up my real sun entity, and it will presumably revert on the next real update.",
+      "suggestion": "Fix the navigation path and add a note that this is a harmless fake state that HA will overwrite. Mention that light.porch must exist or the call will fail, and say what an error looks like."
+    },
+    {
+      "line": 32,
+      "section": "Run It",
+      "type": "missing-verification",
+      "quote": "You see Sun changed: below_horizon and Porch light turned on in the logs.",
+      "confusion": "Good that there is an expected result. If light.porch does not exist in my instance there is likely an error, and the page does not say what failure looks like. It also does not say whether the light physically turns on.",
+      "suggestion": "Add a troubleshooting line for the case where nothing logs or an error appears (wrong entity ID, app not reloaded). Mention checking the real light."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex could probably get through by copy-pasting, since the steps and the manual test are concrete and the expected log output is given. The main friction is the unexplained async/await, D.StateNew annotation and bus/scheduler concepts, plus reliance on Quickstart state (apps/main.py, .env, config class). A small number of missing clarifications (entity ID placement, first-heartbeat timing, Developer Tools path) could stall a first run."
+}

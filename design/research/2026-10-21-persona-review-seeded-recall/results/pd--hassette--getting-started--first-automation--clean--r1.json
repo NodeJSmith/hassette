@@ -1,0 +1,140 @@
+{
+  "run_id": "o14",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "overall_verdict": "followable-with-effort",
+  "terms": [
+    {
+      "line": 8,
+      "term": "async def / await",
+      "explained": true,
+      "where": "Quickstart gives a rule (async def for methods, await before self.bus/scheduler/api calls); line 16 explains the event loop in plain terms and links Async Basics."
+    },
+    {
+      "line": 8,
+      "term": "self.bus.on_state_change",
+      "explained": true,
+      "where": "Line 10 explains it registers a handler that fires on entity state changes; the Quickstart introduced self.bus."
+    },
+    {
+      "line": 10,
+      "term": "handler",
+      "explained": true,
+      "where": "Line 10 defines it inline: a method Hassette calls for you when an event arrives."
+    },
+    {
+      "line": 10,
+      "term": "glob pattern (\"sun.*\")",
+      "explained": true,
+      "where": "Line 10 says it matches any entity in the sun domain, i.e. sun.sun."
+    },
+    {
+      "line": 10,
+      "term": "domain (sun domain)",
+      "explained": false,
+      "where": "Used without definition. Alex can infer it from the entity ID sun.sun, but the page never says it means the part of the entity ID before the dot."
+    },
+    {
+      "line": 11,
+      "term": "type annotation on a parameter",
+      "explained": true,
+      "where": "Line 11 says it tells Hassette what to pass in, and compares the bracket syntax to list[str], which Alex knows."
+    },
+    {
+      "line": 11,
+      "term": "D.StateNew[states.SunState]",
+      "explained": true,
+      "where": "Lines 11-13 explain D and states and what the expression means."
+    },
+    {
+      "line": 14,
+      "term": "dependency injection",
+      "explained": true,
+      "where": "Line 14 names the pattern and describes it as Hassette inspecting annotations and filling in parameters."
+    },
+    {
+      "line": 14,
+      "term": "Pyright",
+      "explained": true,
+      "where": "Line 14 describes it as an optional Python type checker."
+    },
+    {
+      "line": 15,
+      "term": "service call (light.turn_on)",
+      "explained": true,
+      "where": "Line 15 says it is the same action as toggling a light in the HA UI, and where to find services."
+    },
+    {
+      "line": 16,
+      "term": "event loop",
+      "explained": true,
+      "where": "Line 16 gives a short explanation (other handlers keep running while one is paused at an await) and links Async Basics."
+    },
+    {
+      "line": 16,
+      "term": "fire-and-forget",
+      "explained": true,
+      "where": "Line 16 explains it: await finishes when the command is sent, not when HA has applied it."
+    },
+    {
+      "line": 21,
+      "term": "scheduler.run_minutely",
+      "explained": true,
+      "where": "Line 21 says it runs the job every minute, with the first run one minute after startup."
+    },
+    {
+      "line": 21,
+      "term": "scheduled job",
+      "explained": true,
+      "where": "Line 21 defines it as a function the scheduler calls on a timer rather than in response to an event."
+    },
+    {
+      "line": 24,
+      "term": "hassette run -e .env",
+      "explained": true,
+      "where": "Introduced in the Quickstart."
+    },
+    {
+      "line": 2,
+      "term": "Pydantic/AppConfig",
+      "explained": true,
+      "where": "Unchanged class carried over from the Quickstart, which explained it."
+    }
+  ],
+  "findings": [
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "missing-context",
+      "quote": "This first snippet shows only the sunset handler... You don't need to run it yet",
+      "confusion": "Alex expects each code block to be the next step. The first snippet is a partial version and the page says not to run it, so Alex may wonder whether to paste it into apps/main.py or wait. This is minor and the page does say what to do.",
+      "suggestion": "Optional: restate in the Run It section that the complete version is the one to paste. It is already stated there."
+    },
+    {
+      "line": 24,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "INFO hassette.MyApp.0 \u2014 Hello from Hassette!",
+      "confusion": "The Quickstart showed full log lines with a timestamp, [info     ] and extra key=value fields. This shows a shorter format. Alex may think something is wrong with their output, and may not notice the Heartbeat line if the format differs. They can still match the message text.",
+      "suggestion": "Say the log lines are abbreviated, or use the same format as the Quickstart."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "missing-prerequisite",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "If Alex does not have a light.porch, the sunset test will log 'Porch light turned on' but the service call will likely fail or do nothing. The page tells Alex to replace it, but does not say what the failure looks like if they skip that. Alex can push through.",
+      "suggestion": "Mention that an unknown entity ID will produce an error in the logs, or point to Developer Tools -> States for finding entity IDs (it currently points to Services)."
+    },
+    {
+      "line": 36,
+      "section": "Run It",
+      "type": "missing-context",
+      "quote": "Change the state value to below_horizon and click Set State.",
+      "confusion": "The page does not say that this only overwrites the state in HA's state machine, so it can revert at the next real sun update, and that it will really turn on the light named in the handler. Alex follows the steps fine; the effect on their real light is a surprise at worst.",
+      "suggestion": "Add a note that this will turn on the real light you configured."
+    }
+  ],
+  "stopped_at": null,
+  "summary": "Alex can finish this page. It defines handler, dependency injection, the event loop, and the D/states imports at the point of use and links deeper pages. The remaining friction is small: a shortened log format that differs from the Quickstart, an undefined 'domain', and an example entity ID the reader has to swap for their own."
+}

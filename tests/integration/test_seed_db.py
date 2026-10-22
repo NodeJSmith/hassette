@@ -116,10 +116,11 @@ def test_app_manifests_cover_all_listener_and_job_app_keys(scenario: str, tmp_pa
 
 
 @pytest.mark.parametrize("table", ["listeners", "scheduled_jobs", "executions", "log_records"])
-def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path):
-    """``adversarial`` seeds framework-tier rows in every tier-filtered table, so ``source_tier=all``
-    responses (the client-compat fixtures) carry framework rows too.
+def test_adversarial_scenario_has_framework_rows(table: str, tmp_path: Path):
+    """``adversarial`` seeds framework rows in every tier- or author-filtered table, so ``source_tier=all``
+    and ``author=all`` responses (the client-compat fixtures) carry framework rows too.
     """
+    column = "author" if table == "log_records" else "source_tier"
     output = tmp_path / "test.db"
 
     result = _run_seed_script("adversarial", output)
@@ -127,11 +128,11 @@ def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path
 
     conn = sqlite3.connect(output)
     try:
-        count = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE source_tier = 'framework'").fetchone()[0]
+        count = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {column} = 'framework'").fetchone()[0]
     finally:
         conn.close()
 
-    assert count > 0, f"adversarial has no framework-tier rows in {table}"
+    assert count > 0, f"adversarial has no framework rows in {table}"
 
 
 def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: Path):
@@ -229,7 +230,6 @@ def _app_manifest_scenario(ctx: seed_scenarios.SeedContext) -> None:
         filename="manifest_test_app.py",
         enabled=False,
         autostart=False,
-        auto_loaded=True,
     )
 
 
@@ -247,15 +247,15 @@ def test_add_app_manifest_inserts_row_with_correct_fields(tmp_path: Path, monkey
     conn = sqlite3.connect(output)
     try:
         row = conn.execute(
-            "SELECT app_key, class_name, display_name, filename, enabled, autostart, auto_loaded "
+            "SELECT app_key, class_name, display_name, filename, enabled, autostart "
             "FROM app_manifests WHERE app_key = ?",
             ("manifest_test_app",),
         ).fetchone()
     finally:
         conn.close()
 
-    # positions match the SELECT column list above: ..., enabled=0, autostart=0, auto_loaded=1
-    assert row == ("manifest_test_app", "ManifestTestApp", "Manifest Test App", "manifest_test_app.py", 0, 0, 1)
+    # positions match the SELECT column list above: ..., enabled=0, autostart=0
+    assert row == ("manifest_test_app", "ManifestTestApp", "Manifest Test App", "manifest_test_app.py", 0, 0)
 
 
 def _bad_fk_scenario(ctx: seed_scenarios.SeedContext) -> None:
@@ -301,6 +301,7 @@ def _bad_log_record_scenario(ctx: seed_scenarios.SeedContext) -> None:
         logger_name="hassette.test",
         message="dangling execution_id",
         execution_id="test_dangling_exec_0001",  # no executions row has this execution_id
+        author="app",
     )
 
 

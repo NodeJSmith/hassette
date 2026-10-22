@@ -1,0 +1,6 @@
+{
+  "run_id": "o08",
+  "page": "getting-started/index",
+  "findings": [],
+  "summary": "Quickstart that installs Hassette with uv, sets up a token and .env, writes a one-file app that logs a greeting, runs it, checks it with the CLI, and opens the web dashboard."
+}

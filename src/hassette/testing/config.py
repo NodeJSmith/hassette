@@ -33,7 +33,7 @@ TEST_ISO_TIMESTAMP = "2024-01-01T00:00:00.000000"
 """ISO-format counterpart to TEST_EPOCH_* for DB rows whose timestamp columns are TEXT
 (e.g. app_manifests.created_at/updated_at) rather than epoch floats."""
 
-LATEST_MIGRATION_VERSION = 13
+LATEST_MIGRATION_VERSION = 15
 """PRAGMA user_version after a fresh DB is migrated to head. Bump alongside adding a new
 numbered file to migrations_sql/."""
 
@@ -113,7 +113,6 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         - ``token``: ``"test-token"`` (stored as ``SecretStr``; read via
           ``config.token.get_secret_value()``)
         - ``base_url``: ``"http://test.invalid:8123"`` (unreachable by design)
-        - ``apps``: ``{"autodetect": False}``
         - ``web_api``: ``{"run": False}``
 
     Overrides are merged on top of these defaults before validation. Nested
@@ -145,7 +144,6 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         "token": TEST_TOKEN,
         "base_url": TEST_BASE_URL,
         "data_dir": data_dir,
-        "apps": {"autodetect": False},
         "web_api": {"run": False},
     }
     merged = {**defaults, **overrides}

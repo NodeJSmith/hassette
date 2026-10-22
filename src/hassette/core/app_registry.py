@@ -17,7 +17,6 @@ from hassette.schemas.app_snapshots import (
     tally_app_statuses,
 )
 from hassette.types.enums import BlockReason
-from hassette.utils.app_utils import is_valid_instance_name
 from hassette.utils.exception_utils import get_traceback_string
 
 if TYPE_CHECKING:
@@ -219,24 +218,17 @@ class AppRegistry:
     def _resolve_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
         """Resolve the configured ``instance_name`` for an index with no live ``App`` object —
         a failed entry, or an index that isn't tracked in the registry at all.
+
+        An index past the manifest's configured instances has no name; it gets a display label
+        that can never pass instance-name validation, so it can't be mistaken for a real name.
         """
         if manifest is None:
             return f"{UNKNOWN_LABEL}.{index}"
 
         configs = AppFactory.normalize_configs(manifest.app_config)
-        fallback = f"{manifest.class_name}.{index}"
         if index < len(configs):
-            # AppInstanceInfo.instance_name is a required str -- a config value of `None` or
-            # some other non-string (e.g. `instance_name = false`, or explicit YAML/TOML null)
-            # must not pass through here, or the eventual AppInstance Pydantic mapping
-            # raises a validation error and turns the status endpoint into a 500 precisely when
-            # it should be reporting the configuration failure. is_valid_instance_name() is the
-            # same check AppFactory.create_instances() uses to decide whether to even attempt
-            # instantiation, so the two can't silently diverge on what counts as valid.
-            configured = configs[index].get("instance_name")
-            if is_valid_instance_name(configured):
-                return configured
-        return fallback
+            return configs[index]["instance_name"]
+        return f"{manifest.class_name}.{index}"
 
     def _info_from_entry(
         self, app_key: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None
@@ -360,7 +352,6 @@ class AppRegistry:
             description=manifest.description,
             filename=manifest.filename,
             enabled=manifest.enabled,
-            auto_loaded=manifest.auto_loaded,
             status=status,
             autostart=manifest.autostart,
             block_reason=block_reason.value if block_reason else None,
@@ -410,9 +401,9 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     - If absent (a DB-only / removed app): status defaults to ``AppStatus.STOPPED`` with
       zero instances, and ``in_current_config`` is ``False``.
 
-    Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``,
-    ``auto_loaded``) always comes from the DB row, never from the in-memory manifest — the DB
-    is the source of truth for metadata, the registry is the source of truth for live status.
+    Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``) always
+    comes from the DB row, never from the in-memory manifest — the DB is the source of truth
+    for metadata, the registry is the source of truth for live status.
     ``enabled`` is the exception: it is also the highest-priority input to the registry's
     status derivation (``disabled > blocked > degraded > running > failed > stopped``), so
     when the app is in-memory it is sourced from the registry alongside ``status`` —
@@ -439,7 +430,6 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
             "class_name": db_row["class_name"],
             "display_name": db_row["display_name"],
             "filename": db_row["filename"],
-            "auto_loaded": bool(db_row["auto_loaded"]),
             "autostart": bool(db_row["autostart"]),
         }
 

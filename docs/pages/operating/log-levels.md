@@ -48,7 +48,23 @@ Set both to `true` to log every event the bus processes. The bus logs these even
 |-------|--------|
 | `"auto"` | Console format when running in a terminal, JSON when running as a service or in a container (default) |
 | `"console"` | Human-readable format with colors and alignment |
+| `"compact"` | Console format trimmed for narrow screens: time-only timestamp, no level padding. The add-on's default; `"auto"` never picks it. |
 | `"json"` | Structured JSON, one object per line |
+
+Console and compact lines name what each line is about in one bracketed column before the message:
+
+```
+14:44:54 [info] [garage_door] Door opened
+14:44:55 [error] [hassette:garage_door @41c09e7b] Handler failed
+14:44:56 [info] [WebsocketService] Connected to Home Assistant
+```
+
+- `[garage_door]` marks a line the `garage_door` app instance wrote.
+- `[hassette:garage_door]` marks a line Hassette wrote about that instance, such as an error from one of its handlers.
+- `@41c09e7b` is the end of the execution ID of the handler or job run that wrote the line. Every line from one run carries the same ID.
+- A line about no app shows its logger name, without the `hassette.` prefix.
+
+Console lines carry nothing else. App key, listener and job IDs, and the full execution ID are in JSON output and in the telemetry database.
 
 `log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `log_level`. `DEBUG` makes debug output queryable via `hassette log` and visible on the dashboard.
 
@@ -87,13 +103,39 @@ Both counters are cumulative since process start. Neither affects app behavior �
 
 ## Per-App Log Levels
 
-Each app sets its own log level with `log_level` in that app's config section.
+Each app sets its own log level with `log_level` in that app's `config`.
 
 ```toml
 --8<-- "pages/operating/snippets/per_app_log_level.toml"
 ```
 
-The per-app `log_level` lives under `[hassette.apps.<key>]` — `<key>` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` inherit `logging.apps`, which in turn defaults to the global `log_level`.
+`<key>` in `[hassette.apps.<key>]` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` inherit `logging.apps`, which in turn defaults to the global `log_level`.
+
+An app's `log_level` covers the lines its own code writes: `self.logger` and any logger created under it with `self.logger.getChild(...)`. Lines Hassette writes about the app come from framework loggers, which follow framework levels by default:
+
+| Lines about the app | Logger | Default level field |
+|---------------------|--------|---------------------|
+| Starting, stopping, hook failures, readiness | `hassette.apps.<instance_name>.Lifecycle` | `logging.app_handler` |
+| Listener and job activity | the app's `Bus` and `Scheduler` children | `logging.bus_service`, `logging.scheduler_service` |
+| API calls and state reads | the app's `Api` and `StateManager` children | `logging.api`, `logging.state_proxy` |
+| Task spawning and cleanup | the app's `TaskBucket` | `logging.task_bucket` |
+
+These lines still carry the app's name and instance, so the app's own log view and `hassette log --app <key>` show them. They are marked `framework`, not `app`. Below ERROR, the web UI hides them until **all framework lines** is on, and `hassette log` hides them until `--author all` is passed. `--author app` leaves them out entirely.
+
+### Hassette's Lines About One App
+
+`framework_log_level` in an app's `config` sets the level of every logger in the table above, for that instance only. The app's own `log_level` is unaffected, so an app can stay at `INFO` while Hassette's detail about it runs at `DEBUG`:
+
+```toml
+--8<-- "pages/operating/snippets/per_app_framework_log_level.toml"
+```
+
+With `framework_log_level` unset, those loggers follow the `logging.*` fields in the table. `logging.app_handler = "DEBUG"` shows lifecycle detail for every app at once.
+
+Shared services, such as the command executor that runs handlers and jobs, also write lines about apps. Their loggers serve every app, so `framework_log_level` doesn't reach them. Their warnings and errors about an app still show at default levels; raise their own `logging.*` field (`logging.command_executor`) for their debug detail.
+
+!!! note "Upgrading from 0.59 or earlier"
+    Lifecycle lines about an app used to be written on the app's own logger, so they followed the app's `log_level` and were marked `app`. They now follow the app's `framework_log_level`, else `logging.app_handler`, and are marked `framework`. An app at `DEBUG` no longer shows Hassette's lifecycle detail unless its `framework_log_level` is also `DEBUG`. An app at `ERROR` now shows lifecycle warnings, such as cleanup timeouts, at the default `app_handler` level.
 
 ## Runtime Log Level Changes
 

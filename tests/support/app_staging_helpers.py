@@ -114,13 +114,13 @@ def write_toml(
             f"""
             [hassette.apps]
             directory = {app_dir.as_posix()!r}
-            autodetect = false
 
             [hassette.apps.{APP_KEY}]
             enabled = true
             filename = {filename!r}
             class_name = {class_name!r}
             app_dir = {app_dir.as_posix()!r}
+            config = {{ instance_name = {APP_KEY!r} }}
             """
         ).lstrip(),
         encoding="utf-8",

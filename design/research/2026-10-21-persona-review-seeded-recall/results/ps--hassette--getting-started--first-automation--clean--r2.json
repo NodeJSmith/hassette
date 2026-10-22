@@ -1,0 +1,78 @@
+{
+  "run_id": "o06",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "steps": [
+    {
+      "line": 8,
+      "step": "Read the sunset handler snippet (no need to run yet)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 15,
+      "step": "Replace light.porch with a real light entity ID from own HA instance",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 19,
+      "step": "Write the combined app with heartbeat job",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Replace apps/main.py with the complete app from Schedule a Recurring Job",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Stop Hassette with Ctrl+C and run hassette run -e .env again",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 28,
+      "step": "Wait about a minute and check for Heartbeat log lines",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 33,
+      "step": "In HA go to Settings -> Developer Tools",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 34,
+      "step": "Open States tab and find sun.sun",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 35,
+      "step": "Set state to below_horizon and click Set State",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 36,
+      "step": "Check logs for Sun changed and Porch light turned on",
+      "can_complete": true,
+      "blocker": null
+    }
+  ],
+  "findings": [
+    {
+      "line": 26,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "INFO hassette.MyApp.0 \u2014 Hello from Hassette!",
+      "confusion": "The quickstart showed a different log format (timestamp, [info     ], execution_id=...). Alex may briefly wonder whether this output is wrong, though the message text is easy to find.",
+      "suggestion": "Use the same log format as the quickstart, or note that the lines are abbreviated."
+    }
+  ],
+  "summary": "Alex would succeed with this page. The jargon it introduces (handler, dependency injection, glob pattern, async) is explained when it first appears, and each step has the code and the expected output. The only friction is a minor log-format mismatch with the quickstart."
+}

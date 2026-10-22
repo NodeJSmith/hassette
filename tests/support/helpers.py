@@ -16,13 +16,7 @@ import pytest
 import tomli_w
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
-from hassette.bus.listeners import (
-    DurationConfig,
-    HandlerInvoker,
-    Listener,
-    ListenerIdentity,
-    ListenerOptions,
-)
+from hassette.bus.listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent
@@ -98,6 +92,10 @@ DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 5
 GENEROUS_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 """``resource_shutdown_timeout_seconds`` for shutdown-body tests that need enough budget
 to run without racing the coordinator's own outer deadline."""
+
+HANG_GUARD_TIMEOUT_SECONDS = 10.0
+"""Real-clock ``wait_for`` budget that only turns a genuine hang into a failure (no assertion weight);
+widened for xdist/CI jitter. Tests that assert a deadline should use their own short budget instead."""
 
 SHORT_TASK_CANCEL_TIMEOUT_SECONDS = 0.1
 """Short ``task_cancellation_timeout_seconds`` for tests that need the TaskBucket cancel stage
@@ -183,12 +181,15 @@ def create_app_manifest(
     suffix: str,
     app_dir: Path,
     enabled: bool = True,
-    app_config: dict | None = None,
+    app_config: dict | list[dict] | None = None,
 ) -> AppManifest:
-    """Helper to create an AppManifest instance."""
-    app_config = app_config or {}
-
+    """Create an AppManifest; each instance is named the app key (``<key>_<index>`` for a list) unless set."""
     key = f"my_app_{suffix}"
+    if isinstance(app_config, list):
+        app_config = [{"instance_name": f"{key}_{i}", **cfg} for i, cfg in enumerate(app_config)]
+    else:
+        app_config = {"instance_name": key, **(app_config or {})}
+
     filename = f"my_app_{suffix}.py"
     class_name = f"MyApp{suffix.capitalize()}"
     full_path = app_dir / filename
@@ -225,7 +226,7 @@ def write_app_toml(
     """Write a hassette.toml with specified apps, and `only_apps` (the file form of ``hassette run --app``) if given."""
     apps = apps or []
 
-    apps_section: dict[str, Any] = {"directory": app_dir.as_posix(), "autodetect": False}
+    apps_section: dict[str, Any] = {"directory": app_dir.as_posix()}
     for app in apps:
         apps_section[app.app_key] = get_app_manifest_for_toml(app)
 
@@ -248,7 +249,7 @@ def write_app_toml(
 def write_app(app_dir: Path, filename: str, source: str) -> Path:
     """Write `source` as a module inside `app_dir`, creating the directory if needed.
 
-    For app files whose exact source matters (auto-detect discovery, import behavior). Use
+    For app files whose exact source matters (the unconfigured-app scan, import behavior). Use
     `write_test_app_with_decorator` instead when a canned App subclass is enough.
     """
     app_dir.mkdir(parents=True, exist_ok=True)

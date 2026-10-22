@@ -12,22 +12,15 @@ from types import SimpleNamespace
 from hassette_wire import ResourceStatus
 
 from hassette.app.app import App
-from hassette.app.app_config import AppConfig
 from hassette.events.hassette import HassetteAppStateEvent
+from tests.support.factories import make_app
 from tests.support.mock_hassette import make_mock_hassette
 
 
 class TestAppKey:
     def test_app_key_is_per_instance(self) -> None:
         """Each instance reports the app_key it was constructed with."""
-        hassette = make_mock_hassette(sealed=False)
-
-        app = App(
-            hassette,
-            app_config=AppConfig(instance_name="kitchen"),
-            index=0,
-            app_key="kitchen_lights",
-        )
+        app = make_app()
 
         assert app.app_key == "kitchen_lights"
 
@@ -38,18 +31,8 @@ class TestAppKey:
         """
         hassette = make_mock_hassette(sealed=False)
 
-        app_a = App(
-            hassette,
-            app_config=AppConfig(instance_name="blocking_io_lab"),
-            index=0,
-            app_key="blocking_io_lab",
-        )
-        app_b = App(
-            hassette,
-            app_config=AppConfig(instance_name="blocking_io_lab_ignore"),
-            index=0,
-            app_key="blocking_io_lab_ignore",
-        )
+        app_a = make_app(hassette=hassette, instance_name="blocking_io_lab", app_key="blocking_io_lab")
+        app_b = make_app(hassette=hassette, instance_name="blocking_io_lab_ignore", app_key="blocking_io_lab_ignore")
 
         # Mimic the factory writing the shared ClassVar for the last section loaded.
         # App has no app_manifest in its own __dict__ by default, so deleting (not

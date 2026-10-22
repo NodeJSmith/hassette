@@ -59,11 +59,10 @@ MANIFEST_SEED_FIELDS = (
     "filename",
     "enabled",
     "autostart",
-    "auto_loaded",
 )
 """The ``AppManifestInfo`` fields :func:`seed_live_state` copies into ``SeedContext.add_app_manifest``.
 
-Spelled as names rather than as keyword arguments because the same seven keyword arguments already appear in
+Spelled as names rather than as keyword arguments because the same keyword arguments already appear in
 ``AppRegistry`` and the e2e manifest fixtures, and the duplicate-code gate rejects a third copy."""
 
 SERVICE_CHILDREN = (
@@ -370,7 +369,7 @@ def seed_failed_execution(ctx: SeedContext, conn: sqlite3.Connection, base: Base
         **linked,
         "logger_name": f"hassette.apps.{base.app_key}",
         "func_name": "on_change",
-        "source_tier": "app",
+        "author": "app",
     }
     ctx.add_log_record(
         seq=seq,

@@ -244,7 +244,7 @@ entry = make_log_record_entry(seq=42, execution_id="exec-abc")
 
 ### `make_mock_parent(**kwargs)` — `tests/support/factories.py`
 
-Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
+Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set, plus a `_get_logger_name` that returns the app logger name its children nest under. Callers that only care about a subset of these get harmless extra attributes.
 
 ### `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — `tests/support/factories.py`
 
@@ -651,7 +651,7 @@ Committed apps in `tests/system/apps/` cover common patterns:
 | `bus_handler_app.py` | App that registers bus handlers and captures events |
 | `config_app.py` | App with a custom `AppConfig` for config-loading tests |
 
-For test-specific variants, write an inline app to `tmp_path` and point `config.app_dir` at it. `autodetect_apps=True` is required when using `app_dir`.
+For test-specific variants, write an inline app to `tmp_path` and pass the config through `with_app_entries(config, app_dir)` (`tests/system/conftest.py`), which points `apps.directory` at it and adds an entry for each app class there.
 
 ### Key Conventions
 

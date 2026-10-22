@@ -165,7 +165,6 @@ def manifest_insert_params(manifest: AppManifest) -> dict[str, Any]:
         "filename": manifest.filename,
         "enabled": 1 if manifest.enabled else 0,
         "autostart": 1 if manifest.autostart else 0,
-        "auto_loaded": 1 if manifest.auto_loaded else 0,
     }
     # dup-ignore-end
 

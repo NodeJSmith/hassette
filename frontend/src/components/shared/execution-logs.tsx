@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 import { FIELD_LABEL_CLASS } from "./field-label";
-import { LogTableView, LogTableWithDrawer, useLogTable } from "./log-table";
+import { FrameworkLinesToggle, LogTableView, LogTableWithDrawer, useLogTable } from "./log-table";
 import { TableCard } from "./table-card";
 import { TableFooter } from "./table-footer";
 
@@ -20,6 +20,7 @@ export function ExecutionLogs({ executionId }: Props) {
       count={log.countLabel}
       columnFilters={log.columnFilters}
       onResetFilters={log.hasActiveFilter ? log.resetFilters : undefined}
+      extras={<FrameworkLinesToggle />}
     />
   );
 

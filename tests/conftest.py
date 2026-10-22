@@ -27,8 +27,8 @@ from hassette.config.models import (
     WebApiConfig,
     WebSocketConfig,
 )
+from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.core.migration_runner import run_migrations
-from hassette.logging_ import HASSETTE_LOGGER_NAME
 from hassette.models.states.catalog import restore_catalog, snapshot_catalog
 from hassette.task_bucket import TaskBucket
 
@@ -178,7 +178,7 @@ def build_logging_config() -> LoggingConfig:
 
 
 def build_apps_config() -> AppsConfig:
-    return AppsConfig(directory=TEST_APPS_PATH, autodetect=False)
+    return AppsConfig(directory=TEST_APPS_PATH)
 
 
 def build_web_api_config() -> WebApiConfig:

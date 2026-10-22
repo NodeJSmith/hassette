@@ -63,7 +63,7 @@ def make_manifest(  # factory-local: returns AppManifest, not AppManifestInfo
     app_key: str, filename: str, class_name: str, app_config: dict | list[dict] | None = None, enabled: bool = True
 ) -> AppManifest:
     """Helper to create AppManifest instances for testing."""
-    config = app_config or {"instance_name": f"{class_name}.0"}
+    config = app_config or {"instance_name": app_key}
     return AppManifest(
         app_key=app_key,
         filename=filename,
@@ -420,12 +420,14 @@ class TestAppLifecycleServiceIntegration:
         """
         instances = create_app(app_factory, app_registry, failing_manifest)
 
-        # Each Resource's own logger gets an explicit level set (INFO by default) in
-        # _setup_logger(), which shadows the ancestor "hassette" logger's level for
-        # isEnabledFor() checks -- caplog.at_level(logger="hassette") alone would not
-        # unblock DEBUG records from these specific loggers.
+        # Each Resource's own logger, and each App's lifecycle logger, gets an explicit level set
+        # (INFO by default) in _setup_logger(), which shadows the ancestor "hassette" logger's
+        # level for isEnabledFor() checks -- caplog.at_level(logger="hassette") alone would not
+        # unblock DEBUG records from these specific loggers. run_hooks() and the initialization
+        # coordinator write through the lifecycle logger.
         for inst in instances.values():
             inst.logger.setLevel(logging.DEBUG)
+            inst.lifecycle_logger.setLevel(logging.DEBUG)
         app_lifecycle.logger.setLevel(logging.DEBUG)
 
         with caplog.at_level(logging.DEBUG, logger="hassette"):
@@ -434,7 +436,11 @@ class TestAppLifecycleServiceIntegration:
         # Only count records from the loggers involved in this init failure. The module-scoped
         # harness autostarts the configured test apps (MyAppSync schedules a job ~1s after boot),
         # so unrelated framework errors can land inside this capture window.
-        init_failure_loggers = {app_lifecycle.logger.name, *(inst.logger.name for inst in instances.values())}
+        init_failure_loggers = {
+            app_lifecycle.logger.name,
+            *(inst.logger.name for inst in instances.values()),
+            *(inst.lifecycle_logger.name for inst in instances.values()),
+        }
         init_records = [record for record in caplog.records if record.name in init_failure_loggers]
 
         error_records = [record for record in init_records if record.levelno == logging.ERROR]

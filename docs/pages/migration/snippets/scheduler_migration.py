@@ -9,7 +9,7 @@ class MySchedulerApp(App):
         await self.scheduler.run_daily(
             self.morning_task, at="07:30", name="morning_task"
         )
-        job = await self.scheduler.run_every(
+        self.periodic_job = await self.scheduler.run_every(
             self.periodic_task, seconds=300, name="periodic_task"
         )
 

@@ -111,16 +111,6 @@ describe("AppTableRow", () => {
     expect(queryByTestId("blocking-badge")).toBeNull();
   });
 
-  it("shows 'auto' chip when auto_loaded is true", () => {
-    const { getByText } = renderRow({ app: createAppRow({ auto_loaded: true }) });
-    expect(getByText("auto")).toBeDefined();
-  });
-
-  it("does not show 'auto' chip when auto_loaded is false", () => {
-    const { queryByText } = renderRow({ app: createAppRow({ auto_loaded: false }) });
-    expect(queryByText("auto")).toBeNull();
-  });
-
   it("shows total runs as sum of invocations and executions", () => {
     const { getByTestId } = renderRow({
       app: createAppRow({ stats: createAppActivityStats({ total_invocations: 80, total_executions: 20 }) }),

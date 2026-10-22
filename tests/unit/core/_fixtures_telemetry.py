@@ -33,7 +33,7 @@ CREATE TABLE log_records (
     instance_name   TEXT,
     instance_index  INTEGER,
     execution_id    TEXT,
-    source_tier     TEXT
+    author          TEXT NOT NULL CHECK (author IN ('app', 'framework'))
 );
 CREATE INDEX idx_lr_time ON log_records(timestamp);
 CREATE INDEX idx_lr_exec ON log_records(execution_id) WHERE execution_id IS NOT NULL;

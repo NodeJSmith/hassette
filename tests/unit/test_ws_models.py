@@ -25,6 +25,7 @@ from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPa
 from hassette.types.enums import ResourceRole
 
 TEST_TIMESTAMP = 1234567890.0
+TEST_RETRY_TIMESTAMP = TEST_TIMESTAMP + 300
 
 MESSAGE_ADAPTER = TypeAdapter(WsServerMessage)
 
@@ -267,9 +268,9 @@ class TestServiceStatusDataRetryAt:
         data = ServiceStatusData(
             resource_name="my_service",
             status="exhausted_cooling",
-            retry_at=1714000000.0,
+            retry_at=TEST_TIMESTAMP,
         )
-        assert data.retry_at == 1714000000.0
+        assert data.retry_at == TEST_TIMESTAMP
 
     def test_service_status_data_retry_at_defaults_to_none(self) -> None:
         """retry_at defaults to None when not provided."""
@@ -288,7 +289,7 @@ class TestServiceStatusDataRetryAt:
                 status="exhausted_dead",
                 retry_at=None,
             ),
-            timestamp=1714000000.0,
+            timestamp=TEST_TIMESTAMP,
         )
         dumped = msg.model_dump()
         assert dumped["data"]["status"] == "exhausted_dead"
@@ -296,19 +297,18 @@ class TestServiceStatusDataRetryAt:
 
     def test_service_status_exhausted_cooling_with_retry_at(self) -> None:
         """EXHAUSTED_COOLING includes retry_at timestamp in serialized output."""
-        retry_timestamp = 1714000300.0
         msg = ServiceStatusWsMessage(
             type="service_status",
             data=ServiceStatusData(
                 resource_name="cooling_service",
                 status="exhausted_cooling",
-                retry_at=retry_timestamp,
+                retry_at=TEST_RETRY_TIMESTAMP,
             ),
-            timestamp=1714000000.0,
+            timestamp=TEST_TIMESTAMP,
         )
         dumped = msg.model_dump()
         assert dumped["data"]["status"] == "exhausted_cooling"
-        assert dumped["data"]["retry_at"] == retry_timestamp
+        assert dumped["data"]["retry_at"] == TEST_RETRY_TIMESTAMP
 
     def test_service_status_data_mirrors_event_dataclass_retry_at(self) -> None:
         """ServiceStatusData mirrors ServiceStatusPayload.retry_at field."""
@@ -316,13 +316,13 @@ class TestServiceStatusDataRetryAt:
             resource_name="cooling_service",
             role=ResourceRole.SERVICE,
             status=ResourceStatus.EXHAUSTED_COOLING,
-            retry_at=1714000300.0,
+            retry_at=TEST_RETRY_TIMESTAMP,
             ready=False,
             ready_phase=None,
         )
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
         data = ServiceStatusData.model_validate(serialized)
         assert data.status == ResourceStatus.EXHAUSTED_COOLING
-        assert data.retry_at == 1714000300.0
+        assert data.retry_at == TEST_RETRY_TIMESTAMP
         assert data.ready is False
         assert data.ready_phase is None

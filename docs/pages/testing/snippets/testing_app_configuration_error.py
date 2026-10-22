@@ -7,7 +7,9 @@ from my_apps.motion_lights import MotionLights
 
 async def test_missing_config_raises():
     with pytest.raises(AppConfigurationError) as exc_info:
-        async with AppTestHarness(MotionLights, config={}) as harness:
+        async with AppTestHarness(
+            MotionLights, config={"instance_name": "motion_lights"}
+        ) as harness:
             pass
 
     # The error message includes the field name and validation failure reason

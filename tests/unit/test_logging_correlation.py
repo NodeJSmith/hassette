@@ -12,7 +12,8 @@ import pytest
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import CorrelationFilter, LogRecordEntry, add_execution_id
+from hassette.logging_ import CorrelationFilter, LogRecordEntry
+from hassette.logging_processors import add_execution_id
 from tests.support.factories import make_log_record, make_log_record_entry, make_recording_log_capture_handler
 from tests.support.helpers import first_json_record_containing
 from tests.unit.conftest import LoggingPipelineFixture
@@ -118,7 +119,7 @@ class TestLogRecordEntryToDictIncludesSeq:
             message="hello",
             exc_info="Traceback: boom",
             app_key="my_app",
-            source_tier="app",
+            author="app",
             execution_id="exec-1",
             instance_name="inst",
             instance_index=2,
@@ -131,9 +132,9 @@ class TestLogRecordEntryToDictIncludesSeq:
             "func_name": "do_work",
             "lineno": 99,
             "message": "hello",
+            "author": "app",
             "exc_info": "Traceback: boom",
             "app_key": "my_app",
-            "source_tier": "app",
             "execution_id": "exec-1",
             "instance_name": "inst",
             "instance_index": 2,
@@ -177,30 +178,6 @@ class TestCorrelationFilter:
         seqs = [r.seq for r in records]  # pyright: ignore[reportAttributeAccessIssue]
         assert seqs == list(range(seqs[0], seqs[0] + 5))
 
-    def test_filter_stamps_app_key_from_contextvars(self) -> None:
-        """Filter reads app_key from structlog contextvars and stamps it on the record."""
-        corr_filter = CorrelationFilter()
-        record = make_log_record(name="hassette.test")
-        structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(app_key="my_app", instance_name="MyApp.0", instance_index=0)
-        try:
-            corr_filter.filter(record)
-        finally:
-            structlog.contextvars.clear_contextvars()
-        assert record.app_key == "my_app"  # pyright: ignore[reportAttributeAccessIssue]
-        assert record.instance_name == "MyApp.0"  # pyright: ignore[reportAttributeAccessIssue]
-        assert record.instance_index == 0  # pyright: ignore[reportAttributeAccessIssue]
-
-    def test_filter_stamps_none_app_key_outside_context(self) -> None:
-        """Filter stamps None for app_key/instance_name/instance_index when not bound."""
-        corr_filter = CorrelationFilter()
-        record = make_log_record(name="hassette.test")
-        structlog.contextvars.clear_contextvars()
-        corr_filter.filter(record)
-        assert record.app_key is None  # pyright: ignore[reportAttributeAccessIssue]
-        assert record.instance_name is None  # pyright: ignore[reportAttributeAccessIssue]
-        assert record.instance_index is None  # pyright: ignore[reportAttributeAccessIssue]
-
 
 class TestAddExecutionIdProcessor:
     """add_execution_id structlog processor reads CURRENT_EXECUTION_ID."""
@@ -233,7 +210,14 @@ class TestLogRecordEntryCorrelationFields:
         # dataclass's own default for each optional field, and the factory passes every optional
         # field explicitly, which would assert the factory's default instead.
         entry = LogRecordEntry(
-            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
+            seq=1,
+            timestamp=0.0,
+            level="INFO",
+            logger_name="test",
+            func_name="fn",
+            lineno=1,
+            message="msg",
+            author="app",
         )
         assert hasattr(entry, field)
         assert getattr(entry, field) is None
@@ -318,25 +302,24 @@ class TestCorrelationFilterAppliesToChildLoggers:
         assert len(child_entries) == 1
         assert child_entries[0].seq > 0, "seq not stamped on child logger record — filter not running"
 
-    def test_child_logger_records_have_source_tier_stamped(self, logging_pipeline: LoggingPipelineFixture) -> None:
-        """A child logger record gets source_tier defaulted by CorrelationFilter."""
-        child = logging.getLogger("hassette.core.test_child_tier")
+    def test_child_logger_records_have_author_stamped(self, logging_pipeline: LoggingPipelineFixture) -> None:
+        """An unidentified hassette child logger's record is stamped framework by LogIdentityFilter."""
+        child = logging.getLogger("hassette.core.test_child_author")
         child.info("framework record")
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
         parsed = first_json_record_containing(logging_pipeline.stream, "framework record")
-        assert parsed.get("source_tier") == "framework"
+        assert parsed.get("author") == "framework"
 
-    def test_app_child_logger_gets_app_tier(self, logging_pipeline: LoggingPipelineFixture) -> None:
-        """A child logger with app_key in context gets source_tier='app'."""
+    def test_bound_app_key_sets_subject_not_author(self, logging_pipeline: LoggingPipelineFixture) -> None:
+        """An ownerless hassette logger takes its subject from context but stays framework-authored."""
         structlog.contextvars.bind_contextvars(app_key="my_app")
-        child = logging.getLogger("hassette.apps.my_app.test_child")
-        child.info("app record")
+        child = logging.getLogger("hassette.core.test_child_subject")
+        child.info("framework record about an app")
         structlog.contextvars.clear_contextvars()
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        entries = logging_pipeline.capture.captured
-        app_entries = [e for e in entries if e.message == "app record"]
-        assert any(e.app_key == "my_app" for e in app_entries)
+        entries = [e for e in logging_pipeline.capture.captured if e.message == "framework record about an app"]
+        assert [(e.app_key, e.author) for e in entries] == [("my_app", "framework")]

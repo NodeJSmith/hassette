@@ -1,0 +1,82 @@
+{
+  "run_id": "o08",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "steps": [
+    {
+      "line": 15,
+      "step": "Replace light.porch with the entity ID of a light in your own Home Assistant",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 19,
+      "step": "Use the combined code (with heartbeat) as your app",
+      "can_complete": false,
+      "blocker": "The page never says to copy this snippet into the app file from the previous page, or which file that is. Alex has to infer it."
+    },
+    {
+      "line": 24,
+      "step": "Stop Hassette with Ctrl+C and run hassette run -e .env again",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 28,
+      "step": "Wait about a minute and check for the heartbeat log line",
+      "can_complete": false,
+      "blocker": "The code logs 'Heartbeat' but the page says to expect 'INFO hassette.MyApp.0 \u2014 Tick', so Alex will think the job is not running."
+    },
+    {
+      "line": 33,
+      "step": "In Home Assistant, go to Settings \u2192 Developer Tools",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 34,
+      "step": "Open the States tab and find sun.sun",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 35,
+      "step": "Set the state to below_horizon and click Set State",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 36,
+      "step": "Check the logs for 'Sun changed: below_horizon' and 'Porch light turned on'",
+      "can_complete": true,
+      "blocker": null
+    }
+  ],
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "example-mismatch",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code calls self.logger.info(\"Heartbeat\"), so the log will say 'Heartbeat', not 'Tick'. Alex waits, sees different output, and wonders whether the scheduler works or the code is wrong.",
+      "suggestion": "Change the expected output to 'INFO hassette.MyApp.0 \u2014 Heartbeat'."
+    },
+    {
+      "line": 19,
+      "section": "Schedule a Recurring Job",
+      "type": "missing-step",
+      "quote": "```\nfrom hassette import App, AppConfig, D, states\n...",
+      "confusion": "A second full code block appears with no instruction to save it. The earlier note says Run It uses this version, but Alex has to work out that it replaces the app file from the previous page.",
+      "suggestion": "Add a sentence such as 'Replace the contents of your app file with this version', and name the file."
+    },
+    {
+      "line": 35,
+      "section": "Run It",
+      "type": "missing-context",
+      "quote": "Change the state value to below_horizon and click Set State .",
+      "confusion": "If it is already night, sun.sun is already below_horizon, and setting the same value may not produce a visible change or trigger the handler. Alex would see nothing in the logs and not know why.",
+      "suggestion": "Add a note: if the sun is already below the horizon, set it to above_horizon first, then back to below_horizon."
+    }
+  ],
+  "summary": "Mostly clear. Alex gets the pieces (decorator-free DI, async, scheduler) explained in plain terms with the page supplying what Alex lacks. The 'Tick' vs 'Heartbeat' mismatch would make Alex doubt a working job, and the missing 'save this as your app file' instruction forces a guess. With those two fixed, Alex would succeed."
+}

@@ -7,7 +7,6 @@ import { Spinner } from "@/components/shared/spinner";
 import { StatusShape } from "@/components/shared/status-shape";
 import { SystemHealth } from "@/components/shared/system-health";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useManifests } from "@/hooks/use-manifests";
 import { useSidebarHidden } from "@/hooks/use-sidebar-hidden";
@@ -73,11 +72,6 @@ function AppEntry({ manifest, location, searchString, appStatuses, labelIsAmbigu
           >
             <StatusShape kind={kind} size={STATUS_SHAPE_SIZE} />
             <span className="min-w-0 flex-1 truncate">{label}</span>
-            {manifest.auto_loaded && (
-              <Badge variant="muted" title="Auto-loaded">
-                auto
-              </Badge>
-            )}
           </Link>
           {isMulti && (
             <CollapsiblePrimitive.Trigger asChild>

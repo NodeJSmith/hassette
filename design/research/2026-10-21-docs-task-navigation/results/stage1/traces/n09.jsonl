@@ -1,0 +1,4 @@
+{"cmd": "search", "arg": "logging getLogger", "results": ["CHANGELOG/#logging_3", "CHANGELOG/#logging_2", "CHANGELOG/#logging_1", "pages/migration/api/#logging", "CHANGELOG/#logging", "reference/hassette/config/#hassette.config.HassetteConfig.logging", "CHANGELOG/#logging-add-on", "pages/web-ui/python-client/#logging"]}
+{"cmd": "search", "arg": "extra_loggers", "results": ["reference/hassette/config/#hassette.config.LoggingConfig.extra_loggers", "pages/operating/log-levels/#attaching-loggers-outside-the-hassette-tree", "reference/hassette/config/#hassette.config.LoggingConfig.reject_reserved_logger_name", "reference/hassette/config/#hassette.config.LoggingConfig"]}
+{"cmd": "nav", "arg": ""}
+{"cmd": "open", "arg": "pages/operating/log-levels/", "found": true}

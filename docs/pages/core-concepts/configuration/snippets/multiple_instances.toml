@@ -3,11 +3,11 @@ filename = "presence.py"
 class_name = "PresenceApp"
 
 [[hassette.apps.presence.config]]
-name = "upstairs"
+instance_name = "upstairs"
 motion_sensor = "binary_sensor.upstairs_motion"
 lights = ["light.bedroom", "light.hallway"]
 
 [[hassette.apps.presence.config]]
-name = "downstairs"
+instance_name = "downstairs"
 motion_sensor = "binary_sensor.downstairs_motion"
 lights = ["light.living_room", "light.kitchen"]

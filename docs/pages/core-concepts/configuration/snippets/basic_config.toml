@@ -8,3 +8,4 @@ directory = "src/apps"  # path containing app modules
 filename = "my_app.py"
 class_name = "MyApp"
 enabled = true
+config = { instance_name = "my_app" }

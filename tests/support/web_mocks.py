@@ -136,7 +136,7 @@ def wire_config(
     config.lifecycle.app_startup_timeout_seconds = STUB_APP_STARTUP_TIMEOUT
     config.lifecycle.app_shutdown_timeout_seconds = STUB_APP_SHUTDOWN_TIMEOUT
     # app group
-    config.apps.autodetect = True
+    config.apps.warn_unconfigured = True
     config.apps.directory = STUB_APPS_DIR
     # scheduler group
     config.scheduler.behind_schedule_threshold_seconds = STUB_BEHIND_SCHEDULE_THRESHOLD
@@ -172,7 +172,7 @@ def wire_config(
             "app_startup_timeout_seconds": STUB_APP_STARTUP_TIMEOUT,
             "app_shutdown_timeout_seconds": STUB_APP_SHUTDOWN_TIMEOUT,
         },
-        "apps": {"autodetect": True, "directory": STUB_APPS_DIR},
+        "apps": {"warn_unconfigured": True, "directory": STUB_APPS_DIR},
         "scheduler": {"behind_schedule_threshold_seconds": STUB_BEHIND_SCHEDULE_THRESHOLD},
         "file_watcher": {"watch_files": True, "debounce_milliseconds": STUB_DEBOUNCE_MS},
         "database": {"retention_days": STUB_RETENTION_DAYS},

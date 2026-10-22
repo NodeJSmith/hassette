@@ -101,7 +101,6 @@ export function AppDetailHeader({
         {manifest?.class_name && manifest.class_name !== appKey && <> &middot; {manifest.class_name}</>}
         {instanceScoped && <> &middot; instance {resolvedInstanceIndex}</>}
         {instanceOrphaned && <MetaBadge label="not in config" testId="not-in-config-badge" />}
-        {manifest?.auto_loaded && <MetaBadge label="auto" testId="auto-loaded-badge" />}
         {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
             loading, and we must not flash the chip before the manifest arrives. */}
         {manifest?.autostart === false && <MetaBadge label="no autostart" testId="no-autostart-badge" />}

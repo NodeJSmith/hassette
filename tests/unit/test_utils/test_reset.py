@@ -78,12 +78,12 @@ class TestResetHassetteLifecycleOriginalChildren:
         hassette._shutdown_task = None
         hassette._teardown_report = None
         # reset_hassette_lifecycle() calls mark_ready(hassette, ...), which logs via
-        # resource.logger.debug(...). A plain AsyncMock's un-configured attribute chains are
-        # themselves AsyncMock (unlike MagicMock, whose children default to MagicMock), so an
-        # untouched `.logger` here would make that debug() call return an unawaited coroutine
-        # instead of actually logging synchronously, like the real Resource logger it stands in
-        # for.
-        hassette.logger = logging.getLogger("test.fake_hassette")
+        # resource.lifecycle_logger.debug(...). A plain AsyncMock's un-configured attribute chains
+        # are themselves AsyncMock (unlike MagicMock, whose children default to MagicMock), so an
+        # untouched `.lifecycle_logger` here would make that debug() call return an unawaited
+        # coroutine instead of actually logging synchronously, like the real Resource logger it
+        # stands in for.
+        hassette.lifecycle_logger = logging.getLogger("test.fake_hassette")
         original_child = ConcreteResource(hassette)
         hassette.children.append(original_child)
         snapshot = list(hassette.children)

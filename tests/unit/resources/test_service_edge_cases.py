@@ -33,6 +33,7 @@ from hassette.testing import wait_for
 from tests.support.factories import wire_dependent_resource
 from tests.support.helpers import (
     GENEROUS_SHUTDOWN_TIMEOUT_SECONDS,
+    HANG_GUARD_TIMEOUT_SECONDS,
     SHORT_SHUTDOWN_TIMEOUT_SECONDS,
     SHORT_TASK_CANCEL_TIMEOUT_SECONDS,
 )
@@ -40,6 +41,15 @@ from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.lifecycle.conftest import ShutdownCounter, SimpleService
 
 from .conftest import build_hassette, wait_for_running
+
+BOUNDED_SHUTDOWN_WAIT_SECONDS = 5
+"""Outer ``wait_for`` budget proving a shutdown with 0.1s config bounds stays bounded (not tight)."""
+
+SLOW_BEFORE_SHUTDOWN_SECONDS = 0.6
+"""Real time ``UnresponsiveService.before_shutdown()`` spends, consuming part of the shutdown budget."""
+
+SLOW_SERVE_CANCEL_SECONDS = 1.5
+"""Real time ``SlowServeService.serve()`` takes to honor cancellation, consuming most of the hooks pool."""
 
 
 class _DepType(Resource):
@@ -274,7 +284,7 @@ class TestServiceShutdownBodyServeTaskPending:
         try:
             # Generous headroom over the 0.1s config bounds above (see regression-test-patterns.md's guidance on
             # config-driven real-clock timeouts) — this proves boundedness, not tightness.
-            report = await asyncio.wait_for(svc._shutdown_body(), timeout=5)
+            report = await asyncio.wait_for(svc._shutdown_body(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
 
             assert report.is_restart_safe is False
             assert TeardownCause.SERVE_TASK_PENDING in report.causes
@@ -300,7 +310,7 @@ class UnresponsiveService(Service):
     restart_spec = RestartSpec()
 
     async def before_shutdown(self) -> None:
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(SLOW_BEFORE_SHUTDOWN_SECONDS)
 
     async def serve(self) -> None:
         try:
@@ -332,7 +342,7 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
         svc._shutdown_budget = compute_shutdown_budget(GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, loop.time())
         start_time = loop.time()
 
-        report = await asyncio.wait_for(svc._shutdown_body(), timeout=10)
+        report = await asyncio.wait_for(svc._shutdown_body(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         elapsed = loop.time() - start_time
 
         assert TeardownCause.SERVE_TASK_PENDING in report.causes, (
@@ -370,7 +380,7 @@ class TestServiceResistantServeNeverReplaced:
         assert old_task is not None
 
         try:
-            report = await asyncio.wait_for(svc.shutdown(), timeout=5)
+            report = await asyncio.wait_for(svc.shutdown(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
             assert report.is_restart_safe is False
             assert svc.teardown_report is report
 
@@ -402,7 +412,7 @@ class SlowServeService(Service):
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(SLOW_SERVE_CANCEL_SECONDS)
             raise
 
 
@@ -430,7 +440,7 @@ async def test_slow_serve_wait_records_late_hooks_as_failed():
     loop = asyncio.get_running_loop()
     start_time = loop.time()
 
-    report = await asyncio.wait_for(svc.shutdown(), timeout=10)
+    report = await asyncio.wait_for(svc.shutdown(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
     elapsed = loop.time() - start_time
 
     assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, (

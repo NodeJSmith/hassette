@@ -47,7 +47,6 @@ def manifest_body(status: str, instance_status: str = "running") -> dict[str, An
         "display_name": "A",
         "filename": "a.py",
         "enabled": True,
-        "auto_loaded": False,
         "status": status,
         "instances": [{"app_key": "a", "index": 0, "instance_name": "a", "class_name": "A", "status": instance_status}],
     }

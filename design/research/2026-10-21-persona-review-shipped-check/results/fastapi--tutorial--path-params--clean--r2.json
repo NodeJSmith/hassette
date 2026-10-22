@@ -1,0 +1,6 @@
+{
+  "run_id": "o04",
+  "page": "tutorial/path-params",
+  "findings": [],
+  "summary": "Shows how to declare path parameters, add type annotations for parsing and validation, handle route ordering, use Enum for predefined values, and capture path-like values with :path."
+}

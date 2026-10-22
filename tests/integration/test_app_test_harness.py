@@ -63,26 +63,27 @@ class RequiredFieldApp(App[RequiredFieldConfig]):
 
 async def test_basic_lifecycle():
     """AppTestHarness starts and stops cleanly; harness.app is a SensorApp in RUNNING state."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         assert isinstance(harness.app, SensorApp)
         assert harness.app.status == ResourceStatus.RUNNING
 
 
-async def test_empty_config_defaults_when_omitted():
-    """Apps without required settings do not need config={} ceremony."""
-    async with AppTestHarness(SensorApp) as harness:
-        assert harness.app.app_config.test_entity == "sensor.test"
+async def test_omitted_instance_name_fails():
+    """A harness app needs an instance_name like any configured app; there is no default."""
+    with pytest.raises(AppConfigurationError, match="has no instance_name"):
+        async with AppTestHarness(SensorApp, config={}):
+            pass
 
 
 async def test_api_recorder_is_recording_api():
     """harness.api_recorder is a RecordingApi instance."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         assert isinstance(harness.api_recorder, RecordingApi)
 
 
 async def test_bus_scheduler_states_exposed():
     """harness.bus, harness.scheduler, harness.states are the app's actual resources."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         assert harness.bus is harness.app.bus
         assert harness.scheduler is harness.app.scheduler
         assert harness.states is harness.app.states
@@ -92,7 +93,7 @@ async def test_bad_config_raises_app_configuration_error():
     """Passing an invalid config raises AppConfigurationError with the app class name."""
     # RequiredFieldApp needs "required_field" — passing nothing should fail
     with pytest.raises(AppConfigurationError) as exc_info:
-        async with AppTestHarness(RequiredFieldApp, config={}):
+        async with AppTestHarness(RequiredFieldApp, config={"instance_name": "required_field_app"}):
             pass
 
     error = exc_info.value
@@ -106,7 +107,7 @@ async def test_config_hermetic_ignores_env(monkeypatch: pytest.MonkeyPatch):
     # Even if TEST_ENTITY env var is set, the hermetic factory should ignore it
     monkeypatch.setenv("TEST_ENTITY", "sensor.from_env")
 
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         # test_entity should be the default "sensor.test", not "sensor.from_env"
         assert harness.app.app_config.test_entity == "sensor.test"
 
@@ -125,7 +126,7 @@ async def test_cleanup_on_aenter_failure():
     # Harness startup still uses a bare TimeoutError, so DrainTimeout is not the
     # right exception to expect here.
     with pytest.raises((RuntimeError, TimeoutError)):
-        async with AppTestHarness(BrokenApp, config={}):
+        async with AppTestHarness(BrokenApp, config={"instance_name": "broken_app"}):
             pass  # Should not reach here
 
     # ContextVar should be reset to its pre-test state
@@ -135,17 +136,17 @@ async def test_cleanup_on_aenter_failure():
 
 async def test_sequential_tests_dont_collide():
     """Two sequential async with blocks do not raise 'already set' ContextVar errors."""
-    async with AppTestHarness(SensorApp, config={}) as harness1:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness1:
         assert harness1.app is not None
 
     # Second block should work without error
-    async with AppTestHarness(SensorApp, config={}) as harness2:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness2:
         assert harness2.app is not None
 
 
 async def test_manifest_is_per_instance_not_on_class():
     """The harness gives the app instance its own manifest without touching the class."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         assert harness.app.app_manifest is not None
         assert harness.app.app_manifest.class_name == "SensorApp"
         # The synthesized manifest lives on the instance, never on the shared class.
@@ -154,7 +155,7 @@ async def test_manifest_is_per_instance_not_on_class():
 
 async def test_recording_api_injected_via_constructor():
     """AppTestHarness injects RecordingApi via api_factory constructor parameter."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         assert isinstance(harness.app.api, RecordingApi)
 
 
@@ -166,7 +167,7 @@ async def test_auto_tmpdir_created_and_cleaned():
         async def on_initialize(self) -> None:
             captured_data_dir.append(self.hassette.config.data_dir)
 
-    async with AppTestHarness(DirCapturingApp, config={}):
+    async with AppTestHarness(DirCapturingApp, config={"instance_name": "dir_capturing_app"}):
         pass
 
     assert len(captured_data_dir) == 1
@@ -187,7 +188,7 @@ async def test_cache_usable_when_before_initialize_override_skips_super():
             await self.cache.set("key", "value")
             cached.append(await self.cache.get("key"))
 
-    async with AppTestHarness(NoSuperApp, config={}) as harness:
+    async with AppTestHarness(NoSuperApp, config={"instance_name": "no_super_app"}) as harness:
         assert harness.app.status == ResourceStatus.RUNNING
 
     assert cached == ["value"]
@@ -195,7 +196,7 @@ async def test_cache_usable_when_before_initialize_override_skips_super():
 
 async def test_simulate_state_change_triggers_handler():
     """simulate_state_change fires the bus handler and it completes before the call returns."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         assert harness.app.handler_calls == []
 
         await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
@@ -213,7 +214,7 @@ async def test_api_recorder_records_calls():
         async def on_change(self, event: RawStateChangeEvent) -> None:
             await self.api.turn_on("light.kitchen")
 
-    async with AppTestHarness(CallsApiApp, config={}) as harness:
+    async with AppTestHarness(CallsApiApp, config={"instance_name": "calls_api_app"}) as harness:
         harness.api_recorder.assert_not_called("turn_on")
 
         await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
@@ -223,7 +224,7 @@ async def test_api_recorder_records_calls():
 
 async def test_set_state_seeds_proxy():
     """set_state populates the StateProxy so states.get() returns the value."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         await harness.set_state("light.kitchen", "on", brightness=255)
 
         state = harness.app.states.get("light.kitchen")
@@ -233,7 +234,7 @@ async def test_set_state_seeds_proxy():
 
 async def test_set_state_does_not_fire_events():
     """set_state is silent — no bus events, no handler invocations."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         # SensorApp listens to sensor.test — setting its state should NOT trigger the handler
         await harness.set_state("sensor.test", "25.5")
 
@@ -242,7 +243,7 @@ async def test_set_state_does_not_fire_events():
 
 async def test_set_states_multiple():
     """set_states seeds multiple entities at once."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         await harness.set_states(
             {
                 "light.kitchen": "on",
@@ -270,14 +271,14 @@ async def test_simulate_state_change_drains_handlers():
             await asyncio.sleep(0.05)  # Simulate async work
             self.handler_finished = True
 
-    async with AppTestHarness(SlowHandlerApp, config={}) as harness:
+    async with AppTestHarness(SlowHandlerApp, config={"instance_name": "slow_handler_app"}) as harness:
         await harness.simulate_state_change("sensor.test", old_value="off", new_value="on")
         assert harness.app.handler_finished, "Handler should have completed before simulate returned"
 
 
 async def test_simulate_call_service():
     """simulate_call_service sends a call_service event through the bus without error."""
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         # Verify the method executes without raising — the event is sent through the bus
         await harness.simulate_call_service("light", "turn_on")
 
@@ -288,7 +289,7 @@ async def test_simulate_attribute_change_uses_explicit_state():
     Patches simulate_state_change to capture the call args, verifying the explicit
     state= value is forwarded rather than the cached proxy value.
     """
-    async with AppTestHarness(SensorApp, config={}) as harness:
+    async with AppTestHarness(SensorApp, config={"instance_name": "sensor_app"}) as harness:
         await harness.set_state("sensor.test", "20.0")
 
         # Patch simulate_state_change to capture call args without actually sending
@@ -319,7 +320,7 @@ async def test_simulate_state_change_typed_di_state_new():
         async def on_change(self, new_state: D.StateNew[states.BinarySensorState]) -> None:
             received.append(new_state)
 
-    async with AppTestHarness(BinarySensorApp, config={}) as harness:
+    async with AppTestHarness(BinarySensorApp, config={"instance_name": "binary_sensor_app"}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
         await wait_for(lambda: len(received) == 1, desc="state_new handler called")
         assert isinstance(received[0], states.BinarySensorState)
@@ -338,7 +339,7 @@ async def test_simulate_state_change_typed_di_state_old():
         async def on_change(self, old_state: D.StateOld[states.BinarySensorState]) -> None:
             received.append(old_state)
 
-    async with AppTestHarness(BinarySensorOldApp, config={}) as harness:
+    async with AppTestHarness(BinarySensorOldApp, config={"instance_name": "binary_sensor_old_app"}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
         await wait_for(lambda: len(received) == 1, desc="state_old handler called")
         assert isinstance(received[0], states.BinarySensorState)
@@ -357,7 +358,7 @@ async def test_simulate_state_change_none_old_value():
         async def on_change(self, old_state: D.MaybeStateOld[states.BinarySensorState]) -> None:
             received_old.append(old_state)
 
-    async with AppTestHarness(NewEntityApp, config={}) as harness:
+    async with AppTestHarness(NewEntityApp, config={"instance_name": "new_entity_app"}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value=None, new_value="on")
         await wait_for(lambda: len(received_old) == 1, desc="maybe_state_old handler called")
         assert received_old[0] is None
@@ -374,7 +375,7 @@ async def test_simulate_state_change_none_new_value():
         async def on_change(self, event: RawStateChangeEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(RemovedEntityApp, config={}) as harness:
+    async with AppTestHarness(RemovedEntityApp, config={"instance_name": "removed_entity_app"}) as harness:
         await harness.simulate_state_change("binary_sensor.test", old_value="on", new_value=None)
         await wait_for(lambda: len(received) == 1, desc="removed_entity handler called")
         assert received[0].payload.data.new_state is None
@@ -391,7 +392,7 @@ async def test_simulate_call_service_typed_di_domain():
         async def on_call(self, domain: D.Domain) -> None:
             received_domains.append(domain)
 
-    async with AppTestHarness(CallServiceApp, config={}) as harness:
+    async with AppTestHarness(CallServiceApp, config={"instance_name": "call_service_app"}) as harness:
         await harness.simulate_call_service("light", "turn_on")
         await wait_for(lambda: len(received_domains) == 1, desc="call_service domain handler called")
         assert received_domains[0] == "light"
@@ -408,7 +409,7 @@ async def test_simulate_call_service_is_real_call_service_event():
         async def on_call(self, event: CallServiceEvent) -> None:
             received_events.append(event)
 
-    async with AppTestHarness(EventCapturingApp, config={}) as harness:
+    async with AppTestHarness(EventCapturingApp, config={"instance_name": "event_capturing_app"}) as harness:
         await harness.simulate_call_service("light", "turn_on", brightness=255)
         await wait_for(lambda: len(received_events) == 1, desc="call_service event handler called")
         event = received_events[0]
@@ -431,7 +432,7 @@ async def test_simulate_attribute_change_typed_di():
         async def on_attr(self, new_state: D.StateNew[states.SensorState]) -> None:
             received.append(new_state)
 
-    async with AppTestHarness(TempSensorApp, config={}) as harness:
+    async with AppTestHarness(TempSensorApp, config={"instance_name": "temp_sensor_app"}) as harness:
         await harness.set_state("sensor.test", "25.5")
         await harness.simulate_attribute_change(
             "sensor.test",
@@ -466,7 +467,7 @@ async def test_simulate_attribute_change_without_set_state():
             received_old.append(old)
             received_new.append(new)
 
-    async with AppTestHarness(UnseededAttrApp, config={}) as harness:
+    async with AppTestHarness(UnseededAttrApp, config={"instance_name": "unseeded_attr_app"}) as harness:
         await harness.simulate_attribute_change("sensor.unseeded", "temperature", old_value=20, new_value=25)
         await wait_for(lambda: len(received_new) == 1, desc="unseeded attr handler called")
         # State falls back to "unknown" when entity is not seeded.
@@ -504,7 +505,7 @@ async def test_simulate_fires_handler(
         async def on_event(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(SimulateApp, config={}) as harness:
+    async with AppTestHarness(SimulateApp, config={"instance_name": "simulate_app"}) as harness:
         await getattr(harness, simulate_method)(*simulate_args, **simulate_kwargs)
         await wait_for_calls(calls, desc=f"{bus_method} handler called")
 
@@ -520,7 +521,7 @@ async def test_simulate_hassette_service_status():
         async def on_status(self, event: HassetteServiceEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(ServiceStatusApp, config={}) as harness:
+    async with AppTestHarness(ServiceStatusApp, config={"instance_name": "service_status_app"}) as harness:
         await harness.simulate_hassette_service_status("MyService", ResourceStatus.RUNNING)
         # Filter by sentinel resource_name — startup services use real names, never "MyService"
         my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
@@ -538,7 +539,7 @@ async def test_simulate_hassette_service_crashed():
         async def on_crashed(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(ServiceCrashedApp, config={}) as harness:
+    async with AppTestHarness(ServiceCrashedApp, config={"instance_name": "service_crashed_app"}) as harness:
         await harness.simulate_hassette_service_crashed("MyService")
         await wait_for_calls(calls, desc="service_crashed handler called")
 
@@ -554,7 +555,7 @@ async def test_simulate_hassette_service_started():
         async def on_started(self, event: HassetteServiceEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(ServiceStartedApp, config={}) as harness:
+    async with AppTestHarness(ServiceStartedApp, config={"instance_name": "service_started_app"}) as harness:
         await harness.simulate_hassette_service_started("MyService")
         # Filter by sentinel resource_name — startup services use real names, never "MyService"
         my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
@@ -572,7 +573,7 @@ async def test_simulate_hassette_service_ready():
         async def on_status(self, event: HassetteServiceEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(ServiceReadyApp, config={}) as harness:
+    async with AppTestHarness(ServiceReadyApp, config={"instance_name": "service_ready_app"}) as harness:
         await harness.simulate_hassette_service_ready("MyService")
         my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
         assert len(my_events) == 1
@@ -591,7 +592,7 @@ async def test_simulate_websocket_connected():
         async def on_connected(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(WsConnectedApp, config={}) as harness:
+    async with AppTestHarness(WsConnectedApp, config={"instance_name": "ws_connected_app"}) as harness:
         await harness.simulate_websocket_connected()
         await wait_for_calls(calls, desc="ws_connected handler called")
 
@@ -607,7 +608,7 @@ async def test_simulate_websocket_disconnected():
         async def on_disconnected(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(WsDisconnectedApp, config={}) as harness:
+    async with AppTestHarness(WsDisconnectedApp, config={"instance_name": "ws_disconnected_app"}) as harness:
         await harness.simulate_websocket_disconnected()
         await wait_for_calls(calls, desc="ws_disconnected handler called")
 
@@ -623,7 +624,7 @@ async def test_simulate_app_state_changed():
         async def on_state(self, event: HassetteAppStateEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(AppStateApp, config={}) as harness:
+    async with AppTestHarness(AppStateApp, config={"instance_name": "app_state_app"}) as harness:
         await harness.simulate_app_state_changed(ResourceStatus.STOPPING)
         # Filter by STOPPING — startup emits RUNNING/STARTING, teardown emits STOPPING
         stopping_events = [e for e in received if e.payload.data.status == ResourceStatus.STOPPING]
@@ -641,7 +642,7 @@ async def test_simulate_app_running():
         async def on_running(self, event: HassetteAppStateEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(AppRunningApp, config={}) as harness:
+    async with AppTestHarness(AppRunningApp, config={"instance_name": "app_running_app"}) as harness:
         await harness.simulate_app_running()
         # Filter by harness app key — startup may emit RUNNING for the app itself
         app_key = harness.app.app_key
@@ -661,7 +662,7 @@ async def test_simulate_app_stopping():
         async def on_stopping(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(AppStoppingApp, config={}) as harness:
+    async with AppTestHarness(AppStoppingApp, config={"instance_name": "app_stopping_app"}) as harness:
         await harness.simulate_app_stopping()
         await wait_for_calls(calls, desc="app_stopping handler called")
 
@@ -677,7 +678,7 @@ async def test_simulate_homeassistant_restart():
         async def on_restart(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(HaRestartApp, config={}) as harness:
+    async with AppTestHarness(HaRestartApp, config={"instance_name": "ha_restart_app"}) as harness:
         await harness.simulate_homeassistant_restart()
         await wait_for_calls(calls, desc="ha_restart handler called")
 
@@ -693,7 +694,7 @@ async def test_simulate_homeassistant_start():
         async def on_start(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(HaStartApp, config={}) as harness:
+    async with AppTestHarness(HaStartApp, config={"instance_name": "ha_start_app"}) as harness:
         await harness.simulate_homeassistant_start()
         await wait_for_calls(calls, desc="ha_start handler called")
 
@@ -709,7 +710,7 @@ async def test_simulate_homeassistant_stop():
         async def on_stop(self) -> None:
             calls.append(True)
 
-    async with AppTestHarness(HaStopApp, config={}) as harness:
+    async with AppTestHarness(HaStopApp, config={"instance_name": "ha_stop_app"}) as harness:
         await harness.simulate_homeassistant_stop()
         await wait_for_calls(calls, desc="ha_stop handler called")
 
@@ -725,7 +726,7 @@ async def test_simulate_hassette_service_status_typed_di():
         async def on_status(self, event: HassetteServiceEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(ServiceStatusDiApp, config={}) as harness:
+    async with AppTestHarness(ServiceStatusDiApp, config={"instance_name": "service_status_di_app"}) as harness:
         await harness.simulate_hassette_service_status("SyntheticTestService", ResourceStatus.FAILED)
         # Filter by sentinel resource_name to isolate from startup/teardown noise
         test_events = [e for e in received if e.payload.data.resource_name == "SyntheticTestService"]
@@ -745,7 +746,7 @@ async def test_simulate_app_state_changed_typed_di():
         async def on_state(self, event: HassetteAppStateEvent) -> None:
             received.append(event)
 
-    async with AppTestHarness(AppStateDiApp, config={}) as harness:
+    async with AppTestHarness(AppStateDiApp, config={"instance_name": "app_state_di_app"}) as harness:
         await harness.simulate_app_state_changed(ResourceStatus.STOPPING)
         expected_key = harness.app.app_key
         await wait_for(

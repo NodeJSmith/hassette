@@ -1,4 +1,9 @@
-from hassette.testing import AppTestHarness, DrainError, DrainFailure, DrainTimeout
+from hassette.testing import (
+    AppTestHarness,
+    DrainError,
+    DrainFailure,
+    DrainTimeout,
+)
 
 from my_apps.motion_lights import MotionLights
 
@@ -6,10 +11,16 @@ from my_apps.motion_lights import MotionLights
 async def test_drain_exception_handling():
     async with AppTestHarness(
         MotionLights,
-        config={"motion_entity": "binary_sensor.motion", "light_entity": "light.kitchen"},
+        config={
+            "instance_name": "motion_lights",
+            "motion_entity": "binary_sensor.motion",
+            "light_entity": "light.kitchen",
+        },
     ) as harness:
         try:
-            await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
+            await harness.simulate_state_change(
+                "binary_sensor.motion", old_value="off", new_value="on"
+            )
         except DrainFailure:
             # Catch any drain failure with a single except clause.
             # Inspect the type to distinguish cause:
@@ -19,10 +30,16 @@ async def test_drain_exception_handling():
 async def test_drain_specific_handling():
     async with AppTestHarness(
         MotionLights,
-        config={"motion_entity": "binary_sensor.motion", "light_entity": "light.kitchen"},
+        config={
+            "instance_name": "motion_lights",
+            "motion_entity": "binary_sensor.motion",
+            "light_entity": "light.kitchen",
+        },
     ) as harness:
         try:
-            await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
+            await harness.simulate_state_change(
+                "binary_sensor.motion", old_value="off", new_value="on"
+            )
         except DrainError as exc:
             # exc.task_exceptions is a list of (task_name, exception) pairs
             raise

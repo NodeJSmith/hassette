@@ -5,6 +5,7 @@ import uuid
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 import uuid_utils
 
 from .conftest import get_json, make_log_record
@@ -133,6 +134,18 @@ class TestGetExecutionLogs:
 
         _, kwargs = mock_hassette.telemetry_query_service.get_log_records_by_execution.call_args
         assert kwargs["limit"] == 100
+
+    @pytest.mark.parametrize(("query", "expected"), [("", None), ("?author=all", "all"), ("?author=app", "app")])
+    async def test_author_parameter_is_forwarded(
+        self, client: "AsyncClient", mock_hassette: MagicMock, query: str, expected: str | None
+    ) -> None:
+        """``author`` is forwarded as given; omitting it forwards ``None``, which applies the default view."""
+        mock_hassette.config.logging.log_retention_days = 3
+
+        await get_execution_logs(client, mock_hassette, str(uuid_utils.uuid7()), query=query)
+
+        _, kwargs = mock_hassette.telemetry_query_service.get_log_records_by_execution.call_args
+        assert kwargs["author"] == expected
 
 
 class TestOldExecutionPathRemoved:

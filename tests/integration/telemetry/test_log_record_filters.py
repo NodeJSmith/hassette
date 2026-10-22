@@ -1,10 +1,13 @@
 """Integration tests for get_log_records filter clauses (summary_queries.py).
 
-Covers the execution_id, source_tier, level, since, app_key, and instance_index filter branches
+Covers the execution_id, author, level, since, app_key, and instance_index filter branches
 that are uncovered by the web API mock layer.
 """
 
 import time
+
+import pytest
+from hassette_wire import LogAuthor
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
@@ -20,7 +23,7 @@ async def insert_log_record(
     app_key: str = "test_app",
     level: str = "INFO",
     execution_id: str | None = None,
-    source_tier: str = "app",
+    author: LogAuthor = "app",
     instance_index: int = 0,
     timestamp: float | None = None,
     message: str = "test message",
@@ -31,7 +34,7 @@ async def insert_log_record(
     await db_svc.db.execute(
         """INSERT INTO log_records
                (seq, timestamp, level, logger_name, func_name, lineno, message,
-                exc_info, app_key, instance_name, instance_index, execution_id, source_tier)
+                exc_info, app_key, instance_name, instance_index, execution_id, author)
            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?)""",
         (
             SEQ_COUNTER,
@@ -44,7 +47,7 @@ async def insert_log_record(
             app_key,
             instance_index,
             execution_id,
-            source_tier,
+            author,
         ),
     )
     await db_svc.db.commit()
@@ -63,25 +66,59 @@ class TestGetLogRecordsFilters:
         assert results[0]["message"] == "match"
         assert results[0]["execution_id"] == "exec-aaa"
 
-    async def test_source_tier_all_applies_no_filter(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
+    async def test_author_all_applies_no_filter(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
-        await insert_log_record(db_svc, source_tier="framework", message="fw")
-        await insert_log_record(db_svc, source_tier="app", message="app")
+        await insert_log_record(db_svc, author="framework", message="fw")
+        await insert_log_record(db_svc, author="app", message="app")
 
-        results = await query_service.get_log_records(source_tier="all")
+        results = await query_service.get_log_records(author="all")
 
         assert {r["message"] for r in results} == {"fw", "app"}
 
-    async def test_filter_by_source_tier(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
+    @pytest.mark.parametrize("author", ["app", "framework"])
+    async def test_filter_by_author(
+        self, db: DbFixture, query_service: TelemetryQueryService, author: LogAuthor
+    ) -> None:
         db_svc, _ = db
-        await insert_log_record(db_svc, source_tier="framework", message="fw")
-        await insert_log_record(db_svc, source_tier="app", message="app")
+        await insert_log_record(db_svc, author="framework", level="ERROR", message="framework")
+        await insert_log_record(db_svc, author="app", level="DEBUG", message="app")
 
-        results = await query_service.get_log_records(source_tier="framework")
+        results = await query_service.get_log_records(author=author)
 
-        assert len(results) == 1
-        assert results[0]["message"] == "fw"
-        assert results[0]["source_tier"] == "framework"
+        assert [(r["message"], r["author"]) for r in results] == [(author, author)]
+
+    async def test_default_keeps_app_lines_and_framework_errors(
+        self, db: DbFixture, query_service: TelemetryQueryService
+    ) -> None:
+        """No author: every app line, plus framework lines at ERROR and above."""
+        db_svc, _ = db
+        for level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+            await insert_log_record(db_svc, author="app", level=level, message=f"app {level}")
+            await insert_log_record(db_svc, author="framework", level=level, message=f"framework {level}")
+
+        results = await query_service.get_log_records()
+
+        assert {r["message"] for r in results} == {
+            "app DEBUG",
+            "app INFO",
+            "app WARNING",
+            "app ERROR",
+            "app CRITICAL",
+            "framework ERROR",
+            "framework CRITICAL",
+        }
+
+    async def test_default_filters_before_the_limit(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
+        """Hidden framework lines never use up the row cap, even when they are the newest rows."""
+        db_svc, _ = db
+        now = time.time()
+        await insert_log_record(db_svc, author="app", timestamp=now - 100, message="older app line")
+        for i in range(5):
+            await insert_log_record(db_svc, author="framework", level="DEBUG", timestamp=now - i, message="noise")
+
+        results = await query_service.get_log_records(limit=1)
+
+        assert [r["message"] for r in results] == ["older app line"]
 
     async def test_filter_by_level(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db

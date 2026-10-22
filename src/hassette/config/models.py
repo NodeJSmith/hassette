@@ -9,7 +9,7 @@ import os
 from functools import partial
 from logging import getLevelNamesMapping, getLogger
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from hassette_wire import LogLevel
 from pydantic import (
@@ -26,7 +26,7 @@ from pydantic import (
 from hassette.config.build import default_apps_dir
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
-from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES
+from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES, LogFormat
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import RawAppDict
 
@@ -185,9 +185,11 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_level: LogLevelAnnotation = Field(default="INFO")
     """Logging level for Hassette."""
 
-    log_format: Literal["auto", "console", "json"] = Field(default="auto")
+    log_format: LogFormat = Field(default="auto")
     """Console output format. ``"auto"`` detects TTY vs pipe automatically. ``"console"`` forces
-    colored human-readable output. ``"json"`` forces one-JSON-object-per-line output."""
+    colored human-readable output. ``"compact"`` is the console format with a time-only timestamp and
+    no level padding, for narrow viewers such as the add-on's Log tab; ``"auto"`` never picks it.
+    ``"json"`` forces one-JSON-object-per-line output."""
 
     log_queue_max: int = Field(default=2000, ge=1)
     """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
@@ -524,7 +526,7 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
 
 
 class AppsConfig(ExcludeExtrasMixin, BaseModel):
-    """App directory, auto-detection, exclusion, manifest, and raw-app-dict settings.
+    """App directory, unconfigured-app warning, manifest, and raw-app-dict settings.
 
     In TOML, app definitions live alongside these settings under ``[hassette.apps]``:
 
@@ -541,12 +543,10 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
     dicts so both coexist in the same TOML section.
     """
 
-    autodetect: bool = Field(default=True)
-    """Whether to automatically detect apps in the app directory."""
-
-    exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
-    """Additional directory names to skip when auto-detecting apps. Always added to the built-in
-    exclusions (``AUTODETECT_EXCLUDE_DIRS_DEFAULT``), never a replacement for them."""
+    warn_unconfigured: bool = Field(default=True)
+    """Whether startup warns about each ``App``/``AppSync`` subclass in the app directory that no app entry
+    configures. The scan parses files without importing them and skips virtualenv, cache, version-control,
+    and vendored-package directories."""
 
     manifests: dict[str, AppManifest] = Field(default_factory=dict)
     """Validated app manifests, keyed by app name."""

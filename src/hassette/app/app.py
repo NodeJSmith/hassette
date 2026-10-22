@@ -2,7 +2,7 @@ import typing
 from logging import Logger, getLogger
 from typing import ClassVar, Generic, TypeVar, cast, final
 
-from hassette_wire import LogLevel, SourceTier
+from hassette_wire import LogAuthor, LogLevel, SourceTier
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -11,6 +11,7 @@ from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
 from hassette.config.classes import AppManifest
 from hassette.conversion import StateRegistry, TypeRegistry
+from hassette.logging_ import LogIdentity, set_logger_identity
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -23,6 +24,8 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 LOGGER = getLogger(__name__)
+
+APP_LOGGER_PREFIX = "hassette.apps"
 
 AppT = TypeVar("AppT", bound="App")
 
@@ -95,10 +98,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     Stored per instance, not on the class: two config sections can point at the same
     App subclass, so each instance carries its own manifest rather than reading a
-    class-shared one — otherwise the section loaded last would overwrite display_name,
-    enabled, and auto_loaded for every instance. Mirrors how app_key is stored per
-    instance. None only when an App is constructed directly without a manifest; the
-    factory and the test harness both pass one.
+    class-shared one — otherwise the section loaded last would overwrite display_name
+    and enabled for every instance. Mirrors how app_key is stored per instance. None
+    only when an App is constructed directly without a manifest; the factory and the
+    test harness both pass one.
     """
 
     app_config_cls: ClassVar[type[AppConfig]]
@@ -107,6 +110,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     logger: Logger
     """Logger for the instance."""
+
+    _lifecycle_logger: Logger
+    """Backs ``lifecycle_logger``; built by ``_setup_logger()`` during construction."""
 
     api: "Api"
     """API instance for interacting with Home Assistant."""
@@ -141,8 +147,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         parent: Resource | None = None,
         cache: CacheProtocol | None = None,
     ) -> None:
-        # app_config and index must be set before super().__init__ because
-        # unique_name (used by the logger) depends on app_config
+        # app_config and index must be set before super().__init__ because unique_name (used by the
+        # logger) and owner_framework_log_level (used by the lifecycle logger's level) read app_config
         self.app_config = app_config
         self.index = index
         self._app_key = app_key
@@ -167,10 +173,43 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     @property
     def unique_name(self) -> str:
-        """Unique name for the app instance, used for logging and ownership of resources."""
-        if self.app_config.instance_name.startswith(self.class_name):
-            return self.app_config.instance_name
-        return f"{self.class_name}.{self.app_config.instance_name}"
+        """Unique name for the app instance, used for logging and ownership of resources.
+
+        The instance name itself, which config validation keeps unique across every app.
+        """
+        return self.app_config.instance_name
+
+    def _get_logger_name(self) -> str:
+        # A sub-namespace of its own keeps an app named like a framework package (``scheduler``, ``api``)
+        # from becoming the parent of that package's module loggers.
+        return f"{APP_LOGGER_PREFIX}.{self.unique_name}"
+
+    def _setup_logger(self) -> None:
+        super()._setup_logger()
+        # Framework-authored and owned by this app: generic lifecycle code writes about the app
+        # here instead of on the app's own logger. Its level is the app's framework_log_level, else
+        # LoggingConfig.app_handler, never the app's log_level.
+        self._lifecycle_logger = getLogger(f"{self.logger.name}.Lifecycle")
+        self._lifecycle_logger.setLevel(self.resolve_log_level("framework", self.hassette.config.logging.app_handler))
+        set_logger_identity(self._lifecycle_logger, self.owner_log_identity("framework"))
+
+    @property
+    def lifecycle_logger(self) -> Logger:
+        """Framework-authored logger, owned by this app, that generic lifecycle code writes through."""
+        return self._lifecycle_logger
+
+    def owner_log_identity(self, author: LogAuthor) -> LogIdentity:
+        """Identity for a logger this app owns: ``author`` plus this app instance as owner."""
+        return LogIdentity(
+            author=author, app_key=self.app_key, instance_name=self.instance_name, instance_index=self.index
+        )
+
+    def owner_framework_log_level(self) -> LogLevel | None:
+        """Return this app's ``framework_log_level``, or None when unset.
+
+        The level for the framework loggers this app owns, not its own logger's level (`config_log_level`).
+        """
+        return self.app_config.framework_log_level
 
     @property
     def config_log_level(self) -> LogLevel:

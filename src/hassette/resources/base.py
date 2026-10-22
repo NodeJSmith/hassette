@@ -1,12 +1,13 @@
 import asyncio
 import typing
 import uuid
-from logging import INFO, Filter, Logger, LogRecord, getLogger
+from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
-from hassette_wire import LogLevel, ResourceStatus, SourceTier
+from hassette_wire import LogAuthor, LogLevel, ResourceStatus, SourceTier
 
 from hassette.exceptions import CannotOverrideFinalError
+from hassette.logging_ import LogIdentity, apply_log_level, set_logger_identity
 from hassette.resources.lifecycle import (
     cancel,
     coordinate_initialize,
@@ -87,30 +88,6 @@ class FinalMeta(type):
                     loc = f"{code.co_filename}:{code.co_firstlineno}"
 
                 raise CannotOverrideFinalError(method_name, origin_name, subclass_name, suggested_alt, loc)
-
-
-class _ResourceContextFilter(Filter):
-    """Stamps source_tier on every LogRecord so downstream handlers and structlog processors can read it."""
-
-    def __init__(self, source_tier: str) -> None:
-        super().__init__()
-        self.source_tier = source_tier
-
-    def filter(self, record: LogRecord) -> bool:
-        record.source_tier = self.source_tier  # pyright: ignore[reportAttributeAccessIssue]
-        return True
-
-    # Value-based equality so stdlib Filterer.addFilter()'s `filter not in self.filters`
-    # dedup works across repeated Resource constructions sharing a process-global logger
-    # (e.g. hot-reload). Without this, every construction appends a duplicate filter.
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, _ResourceContextFilter):
-            return NotImplemented
-        return self.source_tier == other.source_tier
-
-    def __hash__(self) -> int:
-        return hash((_ResourceContextFilter, self.source_tier))
 
 
 class Resource(LifecycleMixin, metaclass=FinalMeta):
@@ -201,30 +178,62 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self.task_bucket = factory(self.hassette, self)
 
     def _get_logger_name(self) -> str:
-        if self.class_name == "Hassette":
-            return "hassette"
-
-        logger_name = (
-            self.unique_name[len("Hassette.") :] if self.unique_name.startswith("Hassette.") else self.unique_name
-        )
-
-        return f"hassette.{logger_name}"
+        # Asks the parent for its name rather than reading parent.logger, which doesn't exist yet when
+        # Hassette builds its own TaskBucket child.
+        # A root resource is its own parent; recursing into it would never end. (Hassette overrides this method.)
+        if self.parent is None or self.parent is self:
+            return f"hassette.{self.unique_name}"
+        return f"{self.parent._get_logger_name()}.{self.class_name}"
 
     def _setup_logger(self) -> None:
         self.logger = getLogger(self._get_logger_name())
+        # Only an app's own logger is app-authored; its children and every framework resource write
+        # framework lines.
+        author: LogAuthor = "app" if self.role is ResourceRole.APP else "framework"
+        apply_log_level(self.logger, self.resolve_log_level(author, self.config_log_level), self.unique_name)
+        set_logger_identity(self.logger, self.owner_log_identity(author))
 
-        try:
-            self.logger.setLevel(self.config_log_level)
-        except (ValueError, TypeError) as exc:
-            self.logger.error(
-                "Invalid log level %r for %s; falling back to INFO: %s",
-                self.config_log_level,
-                self.unique_name,
-                exc,
-            )
-            self.logger.setLevel(INFO)
+    def resolve_log_level(self, author: LogAuthor, default_level: LogLevel) -> LogLevel:
+        """Level for a logger this resource builds: the owning app's override, else ``default_level``.
 
-        self.logger.addFilter(_ResourceContextFilter(self.source_tier))
+        A framework-authored logger takes the owning app's ``framework_log_level`` when it is set. An
+        app-authored logger always keeps ``default_level``, since the app's own ``log_level`` already feeds
+        `App.config_log_level`.
+        """
+        if author == "app":
+            return default_level
+        return self.owner_framework_log_level() or default_level
+
+    def owner_framework_log_level(self) -> LogLevel | None:
+        """The owning app's ``framework_log_level``, or None when no app owns this resource or it is unset.
+
+        Found the same way as `owner_log_identity`: App answers for itself, every other resource asks its
+        parent.
+        """
+        if self.parent is None or self.parent is self:
+            return None
+        return self.parent.owner_framework_log_level()
+
+    @property
+    def lifecycle_logger(self) -> Logger:
+        """Logger generic lifecycle code writes through about this resource.
+
+        The resource's own logger. App overrides it with a framework-authored logger the app owns,
+        so lifecycle lines about an app aren't attributed to the app's code.
+        """
+        return self.logger
+
+    def owner_log_identity(self, author: LogAuthor) -> LogIdentity:
+        """Identity for a logger this resource builds: the given ``author`` plus the owning app instance.
+
+        The owner is the nearest App at or above this resource. App overrides this to name itself;
+        every other resource asks its parent, so an App's children and their descendants carry the
+        app, and framework resources reach the root and carry no owner.
+        """
+        # A root resource is its own parent (see _get_logger_name).
+        if self.parent is None or self.parent is self:
+            return LogIdentity(author=author)
+        return self.parent.owner_log_identity(author)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"
@@ -336,7 +345,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                     deps.append(match)
 
         dep_names = ", ".join(dep.class_name for dep in deps)
-        self.logger.debug("Waiting for dependencies: [%s]", dep_names)
+        self.lifecycle_logger.debug("Waiting for dependencies: [%s]", dep_names)
 
         ready = await self.hassette.wait_for_ready(deps)
         if not ready:
@@ -346,7 +355,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             status_report = ", ".join(f"{dep.class_name}({dep.status.value})" for dep in deps)
             raise RuntimeError(f"{self.class_name} timed out waiting for dependencies: {status_report}")
 
-        self.logger.debug("Dependencies satisfied: [%s]", dep_names)
+        self.lifecycle_logger.debug("Dependencies satisfied: [%s]", dep_names)
 
     def _force_terminal(self) -> None:
         """Recursively force this resource and all descendants to STOPPED terminal state.
@@ -407,7 +416,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             # Don't silently clobber a status this resource already reached on its own (e.g.
             # EXHAUSTED_DEAD from the confirmed-quiescent restart-refusal path) -- overwriting it
             # to STOPPED here would erase that evidence with no trace for post-incident triage.
-            self.logger.debug(
+            self.lifecycle_logger.debug(
                 "%s: force-terminal called but status is already terminal (%s) -- leaving unchanged",
                 self.unique_name,
                 self._status.value,
@@ -430,7 +439,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         their slack to children naturally.
         """
         timeout = children_budget_remaining(self)
-        self.logger.debug(
+        self.lifecycle_logger.debug(
             "%s: entering _shutdown_children() with %.2fs budgeted",
             self.unique_name,
             timeout,
@@ -458,14 +467,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.task_bucket.seal()
         budget = self._shutdown_budget
         cancel_budget = budget.task_cancel_seconds if budget is not None else TASK_CANCEL_SECONDS
-        self.logger.debug(
+        self.lifecycle_logger.debug(
             "%s: entering task-bucket cancel with %.2fs budgeted",
             self.unique_name,
             cancel_budget,
         )
         cancel_start = asyncio.get_running_loop().time()
         await self.task_bucket.cancel_all(timeout=cancel_budget)
-        self.logger.debug(
+        self.lifecycle_logger.debug(
             "%s: task-bucket cancel stage completed in %.2fs",
             self.unique_name,
             elapsed_since(cancel_start),
@@ -488,7 +497,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         budget = self._shutdown_budget
         cleanup_timeout = budget.cleanup_seconds if budget is not None else CLEANUP_SECONDS
-        self.logger.debug(
+        self.lifecycle_logger.debug(
             "%s: entering cleanup() with %.2fs budgeted",
             self.unique_name,
             cleanup_timeout,
@@ -498,12 +507,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             async with asyncio.timeout(cleanup_timeout):
                 await self.cleanup()
         except TimeoutError:
-            self.logger.warning("cleanup() timed out after %.2fs for %s", cleanup_timeout, self.unique_name)
+            self.lifecycle_logger.warning("cleanup() timed out after %.2fs for %s", cleanup_timeout, self.unique_name)
             reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,), failed_operations=("cleanup",)))
         except Exception as exc:
-            self.logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
+            self.lifecycle_logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
             reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_FAILED,), failed_operations=("cleanup",)))
-        self.logger.debug(
+        self.lifecycle_logger.debug(
             "%s: cleanup() stage completed in %.2fs",
             self.unique_name,
             elapsed_since(cleanup_start),
@@ -511,7 +520,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         children_start = asyncio.get_running_loop().time()
         children_report = await self._shutdown_children()
-        self.logger.debug(
+        self.lifecycle_logger.debug(
             "%s: child shutdown propagation completed in %.2fs",
             self.unique_name,
             elapsed_since(children_start),
@@ -525,9 +534,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             try:
                 await handle_stop(self)
             except Exception as exc:
-                self.logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
+                self.lifecycle_logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
         else:
-            self.logger.debug("Skipping STOPPED event as event streams are closed")
+            self.lifecycle_logger.debug("Skipping STOPPED event as event streams are closed")
 
         return merge_teardown_reports(*reports)
 
@@ -566,7 +575,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         NOTE: keep child propagation in sync with Service._initialize_body().
         NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Service.
         """
-        self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
+        self.lifecycle_logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await handle_starting(self)
 
         try:
@@ -673,7 +682,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             )
             await self.hassette.send_event(event)
         except Exception:
-            self.logger.warning(
+            self.lifecycle_logger.warning(
                 "%s failed to emit readiness event (ready=%s, phase=%s)",
                 self.unique_name,
                 self.is_ready(),
@@ -689,4 +698,4 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         and cancelled the TaskBucket's tracked work. Subclass overrides use this for resources they
         own directly (caches, connections, etc.); the base implementation owns nothing.
         """
-        self.logger.debug("Cleaned up resources")
+        self.lifecycle_logger.debug("Cleaned up resources")

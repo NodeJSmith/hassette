@@ -25,7 +25,9 @@ class DoorbellApp(App[AppConfig]):
 
 
 async def test_unconfirmed_increment_is_not_retried():
-    async with AppTestHarness(DoorbellApp, config={}) as harness:
+    async with AppTestHarness(
+        DoorbellApp, config={"instance_name": "doorbell_app"}
+    ) as harness:
         timeout = ResponseTimeoutError("'call_service' (id 7): no response")
         with patch.object(
             harness.api_recorder,

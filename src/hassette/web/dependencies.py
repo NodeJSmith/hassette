@@ -1,14 +1,13 @@
 """FastAPI dependency injection helpers for the Hassette Web API."""
 
 from dataclasses import dataclass
-from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING
 from typing import TYPE_CHECKING, Annotated, TypedDict, TypeGuard
 
 from fastapi import Depends, Path, Query, Request
-from hassette_wire import LogLevel, QuerySourceTier
+from hassette_wire import LogLevel, QueryAuthor, QuerySourceTier
 
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
-from hassette.types.types import APP_SOURCE_TIER
+from hassette.types.types import APP_SOURCE_TIER, LOG_LEVELS
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -18,13 +17,6 @@ if TYPE_CHECKING:
     from hassette.core.telemetry.query_service import TelemetryQueryService
 
 
-LOG_LEVELS: dict[LogLevel, int] = {
-    "DEBUG": DEBUG,
-    "INFO": INFO,
-    "WARNING": WARNING,
-    "ERROR": ERROR,
-    "CRITICAL": CRITICAL,
-}
 VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
 
 DEFAULT_INSTANCE_INDEX = 0
@@ -54,10 +46,19 @@ SourceTierQuery = Annotated[
         "'framework' returns only internal actors. 'all' returns everything."
     ),
 ]
-"""Source-tier filter shared by the web routes; each route chooses its own default.
+"""Source-tier filter shared by the telemetry routes; each route chooses its own default (usually ``"app"``).
 
-Telemetry-metrics endpoints default to ``"app"``; ``GET /logs/recent`` defaults to ``"all"`` — see ``routes/logs.py``.
+Log routes filter by ``AuthorQuery`` instead.
 """
+AuthorQuery = Annotated[
+    QueryAuthor | None,
+    Query(
+        description="Filter log lines by who wrote them. Omit for the default view: app-authored lines plus "
+        "framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only "
+        "that author's lines."
+    ),
+]
+"""Author filter shared by the log routes; ``None`` applies the default view (see ``log_author_clause``)."""
 LimitQuery = Annotated[int, Query(ge=1, le=MAX_QUERY_LIMIT)]
 """Row limit, capped at ``MAX_QUERY_LIMIT``."""
 

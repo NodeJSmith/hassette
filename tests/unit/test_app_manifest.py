@@ -2,8 +2,8 @@
 
 Regression for #1062: app_manifest used to be a ClassVar the factory overwrote
 once per ``[apps.*]`` section, so when two sections reused one App subclass the
-section loaded last clobbered ``display_name``/``enabled``/``auto_loaded`` for
-every instance of that class. This mirrors the per-instance app_key fix
+section loaded last clobbered ``display_name``/``enabled`` for every
+instance of that class. This mirrors the per-instance app_key fix
 (#1060/#1064): each instance now carries its own manifest.
 """
 
@@ -11,24 +11,16 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from hassette.app.app import App
-from hassette.app.app_config import AppConfig
+from tests.support.factories import make_app
 from tests.support.helpers import create_app_manifest
-from tests.support.mock_hassette import make_mock_hassette
 
 
 class TestAppManifest:
     def test_app_manifest_is_per_instance(self, tmp_path: Path) -> None:
         """Each instance reports the manifest it was constructed with."""
-        hassette = make_mock_hassette(sealed=False)
         manifest = create_app_manifest("kitchen", app_dir=tmp_path)
 
-        app = App(
-            hassette,
-            app_config=AppConfig(instance_name="kitchen"),
-            index=0,
-            app_key="my_app_kitchen",
-            app_manifest=manifest,
-        )
+        app = make_app(instance_name="kitchen", app_key="my_app_kitchen", app_manifest=manifest)
 
         assert app.app_manifest is manifest
 
@@ -36,24 +28,11 @@ class TestAppManifest:
         """Two instances sharing one App subclass keep their own manifest, even
         after a clobbering class-level attribute is written for the last section.
         """
-        hassette = make_mock_hassette(sealed=False)
         manifest_a = create_app_manifest("a", app_dir=tmp_path)
         manifest_b = create_app_manifest("b", app_dir=tmp_path)
 
-        app_a = App(
-            hassette,
-            app_config=AppConfig(instance_name="a"),
-            index=0,
-            app_key="my_app_a",
-            app_manifest=manifest_a,
-        )
-        app_b = App(
-            hassette,
-            app_config=AppConfig(instance_name="b"),
-            index=0,
-            app_key="my_app_b",
-            app_manifest=manifest_b,
-        )
+        app_a = make_app(instance_name="a", app_key="my_app_a", app_manifest=manifest_a)
+        app_b = make_app(instance_name="b", app_key="my_app_b", app_manifest=manifest_b)
 
         # Clobber a shared class attr with a value matching neither instance, so the
         # assertions below fail if an instance read falls through to the class.

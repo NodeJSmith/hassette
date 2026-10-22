@@ -1,0 +1,4 @@
+[hassette.apps.my_app]
+filename = "main.py"
+class_name = "MyApp"
+config = { instance_name = "my_app" }

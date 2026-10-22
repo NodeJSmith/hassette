@@ -1,0 +1,12 @@
+{
+"n01": {"verdict": "correct", "note": "matches: requirements.txt in config, HASSETTE_DOCKER_INSTALL_DEPS=1, restart, plus pyproject/uv.lock alternative."},
+"n02": {"verdict": "correct", "note": "matches: cache_key = \"weather/0\" used as-is."},
+"n03": {"verdict": "correct", "note": "matches: call_service with return_response=True, type=\"daily\", ServiceResponse.response."},
+"n04": {"verdict": "correct", "note": "matches: enabled = false, with autostart = false alternative."},
+"n05": {"verdict": "correct", "note": "matches: synchronous self.states.anybody_home() with related methods."},
+"n06": {"verdict": "correct", "note": "matches: freeze_time, advance_time, then await trigger_due_jobs, noting advance_time does not run jobs."},
+"n07": {"verdict": "correct", "note": "matches: keep the returned Job and call job.remove()."},
+"n08": {"verdict": "correct", "note": "matches: where=P.EventEntityFresh(max_age=10) on on_state_change."},
+"n09": {"verdict": "correct", "note": "matches: extra_loggers under [hassette.logging]."},
+"n10": {"verdict": "correct", "note": "matches: run_cron with \"0 7 * * 1-5\" and name=."}
+}

@@ -9,20 +9,20 @@ Hassette scheduling lives on `self.scheduler`. All methods are `async` and retur
 
 | AppDaemon | Hassette | Notes |
 |-----------|----------|-------|
-| `self.run_in(cb, 60)` | `await self.scheduler.run_in(cb, delay=60)` | Delay in seconds |
-| `self.run_once(cb, time(7, 30))` | `await self.scheduler.run_once(cb, at="07:30")` | `"HH:MM"` string or `ZonedDateTime` (from the [`whenever`](https://whenever.readthedocs.io/) library, which ships with Hassette) |
-| `self.run_every(cb, "now", 300)` | `await self.scheduler.run_every(cb, seconds=300)` | Use `hours=`, `minutes=`, or `seconds=` |
-| `self.run_minutely(cb)` | `await self.scheduler.run_minutely(cb)` | Every 1 minute |
-| `self.run_hourly(cb, time(0, 30))` | `await self.scheduler.run_hourly(cb)` | Every 1 hour |
-| `self.run_daily(cb, time(7, 30))` | `await self.scheduler.run_daily(cb, at="07:30")` | Wall-clock, DST-safe |
+| `self.run_in(cb, 60)` | `await self.scheduler.run_in(cb, delay=60, name="cb")` | Delay in seconds |
+| `self.run_once(cb, time(7, 30))` | `await self.scheduler.run_once(cb, at="07:30", name="cb")` | `"HH:MM"` string or `ZonedDateTime` (from the [`whenever`](https://whenever.readthedocs.io/) library, which ships with Hassette) |
+| `self.run_every(cb, "now", 300)` | `await self.scheduler.run_every(cb, seconds=300, name="cb")` | Use `hours=`, `minutes=`, or `seconds=` |
+| `self.run_minutely(cb)` | `await self.scheduler.run_minutely(cb, name="cb")` | Every 1 minute |
+| `self.run_hourly(cb, time(0, 30))` | `await self.scheduler.run_cron(cb, "30 * * * *", name="cb")` | `run_hourly` takes an hour interval, not a start time. Use `run_cron` for a minute offset |
+| `self.run_daily(cb, time(7, 30))` | `await self.scheduler.run_daily(cb, at="07:30", name="cb")` | Wall-clock, DST-safe |
 | `self.cancel_timer(handle)` | `job.remove()` | Remove via the returned job object |
-| — | `await self.scheduler.run_cron(cb, "0 7 * * *")` | Hassette-only; cron expression |
-| — | `await self.scheduler.schedule(cb, trigger)` | Hassette-only; custom [trigger object](../core-concepts/scheduler/triggers.md) |
+| — | `await self.scheduler.run_cron(cb, "0 7 * * *", name="cb")` | Hassette-only; cron expression |
+| — | `await self.scheduler.schedule(cb, trigger, name="cb")` | Hassette-only; custom [trigger object](../core-concepts/scheduler/triggers.md) |
 
 !!! note "`run_daily` is now cron-backed"
     Hassette's `run_daily` fires at the specified wall-clock time every day, handling DST transitions correctly. An interval-based approach drifts by an hour across a DST boundary. The cron-backed implementation does not.
 
-Every scheduling call returns a [`Job`][hassette.scheduler.classes.Job]. Call `.remove()` on it to stop the job.
+Every scheduling call takes a required `name=` that identifies the job in logs and the web UI. Each call returns a [`Job`][hassette.scheduler.classes.Job]. Call `.remove()` on it to stop the job.
 
 ## Callback Signatures
 
@@ -34,7 +34,7 @@ Hassette accepts any callable, async or sync, with any parameters. To pass data 
 --8<-- "pages/migration/snippets/scheduler_hassette.py"
 ```
 
-No fixed signature. No `**kwargs` unwrapping.
+`kwargs={"entity_id": "light.porch"}` arrives as the `entity_id` parameter of `light_on`. `args=` works the same way for positional parameters. No fixed signature. No `**kwargs` unwrapping.
 
 ## Migration Example
 

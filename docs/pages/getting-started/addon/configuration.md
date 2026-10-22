@@ -39,7 +39,7 @@ In YAML, the options look like this:
 
 Every other setting goes in `hassette.toml`. The [configuration reference](../../core-concepts/configuration/index.md) lists the settings and the order Hassette resolves sources in. [App Configuration](../../core-concepts/apps/configuration.md) covers per-app settings.
 
-Apps in `apps/` are found and started without an entry. To give an app its own settings, add a `[hassette.apps.<key>]` section, where `<key>` is a name you choose. `filename` and `class_name` are required. The starter file ships this section commented out:
+Every app in `apps/` needs a `[hassette.apps.<key>]` section, where `<key>` is a name you choose. `filename` and `class_name` are required, and `config` must set an [`instance_name`](../../core-concepts/apps/configuration.md#instance-names) and can hold the app's own settings. An app without a section doesn't run; startup logs a warning with the section to paste. The starter file ships the example app's section, with a commented-out `config` line that adds a setting:
 
 ```toml
 --8<-- "pages/getting-started/addon/snippets/config-app-section.toml"
@@ -62,7 +62,7 @@ Nothing in this table needs setting: the add-on handles it. It sets these as env
 | `web_api.token_file` | `/config/.web_api_token` | Samba and the editors can see the config folder, so you can read the token. |
 | `database.path` | `/data/hassette.db` | The backup snapshot, backup exclusions and restore all name this file. |
 | `database.shutdown_snapshot_path` | `/data/backup/hassette-snapshot.db` | Backups carry this snapshot instead of the live database. See [Backups](operating.md#backups). |
-| `logging.log_format` | `console` | The **Log** tab shows readable lines. Supervisor gives the add-on no terminal, so `auto` would pick JSON. |
+| `logging.log_format` | `compact` | The **Log** tab shows readable lines, trimmed for phone screens. Supervisor gives the add-on no terminal, so `auto` would pick JSON. |
 
 !!! warning "Don't set `web_api.auth_token` in the add-on"
     A configured `web_api.auth_token` wins over the token file. Discovery still sends the file's token, so a paired integration gets a token that fails. Hassette logs a warning when this happens. Remove the setting to go back to the token file.

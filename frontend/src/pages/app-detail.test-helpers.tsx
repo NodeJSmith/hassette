@@ -81,6 +81,7 @@ export function createLogTableStub() {
       isEmpty: true,
       isLoading: false,
     }),
+    FrameworkLinesToggle: () => null,
     LogTableView: () => <div data-testid="log-table" />,
     LogTableWithDrawer: ({ children }: { children: ReactNode }) => <div data-testid="log-table-drawer">{children}</div>,
   };

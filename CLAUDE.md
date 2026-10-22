@@ -40,6 +40,7 @@ The release workflow builds each package into its own `dist/<name>/` directory a
 
 - `wire/**`-style path filters in the `tests`, `lint`, `e2e-tests` and `docker-tests` workflows, plus a `uv run nox -s <member>` line in `tests.yml`'s `workspace-members` job
 - `pyrightconfig.json`, `prek.toml`, and `[tool.house-lint]`/`norecursedirs` in `pyproject.toml`
+- `FRAMEWORK_PACKAGE_NAMES` in `src/hassette/logging_.py`, so warnings the member raises are framework-authored
 - `ruff.toml`'s per-file-ignores, if the member's tests use `assert` (a `<member>/tests/**/*.py` → `["S101"]` entry)
 - `release-please-config.json`'s `extra-files` (the `# x-release-please-version` marker on the member's `pyproject.toml` does nothing without this)
 - `Dockerfile`, if the member is a runtime dependency of `hassette` rather than a dev-only tool

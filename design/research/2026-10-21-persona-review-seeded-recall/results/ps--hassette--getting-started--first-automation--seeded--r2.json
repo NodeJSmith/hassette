@@ -1,0 +1,96 @@
+{
+  "run_id": "o04",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "steps": [
+    {
+      "line": 8,
+      "step": "Read the sunset handler snippet (no need to run it)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 15,
+      "step": "Replace light.porch with a light entity ID from own HA instance",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 19,
+      "step": "Update apps/main.py to the combined version with the heartbeat job",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Stop Hassette with Ctrl+C and rerun hassette run -e .env",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 28,
+      "step": "Wait about a minute and check for the heartbeat log line",
+      "can_complete": false,
+      "blocker": "The expected output shows 'INFO hassette.MyApp.0 \u2014 Tick', but the code logs 'Heartbeat', so Alex will not find the line shown. The format also differs from the structured log format seen on the previous page."
+    },
+    {
+      "line": 33,
+      "step": "In HA, go to Settings -> Developer Tools",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 34,
+      "step": "Open the States tab and find sun.sun",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 35,
+      "step": "Change the state to below_horizon and click Set State",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 36,
+      "step": "Check logs for 'Sun changed: below_horizon' and 'Porch light turned on'",
+      "can_complete": true,
+      "blocker": null
+    }
+  ],
+  "findings": [
+    {
+      "line": 30,
+      "section": "Run It",
+      "type": "inconsistency",
+      "quote": "INFO hassette.MyApp.0 \u2014 Tick",
+      "confusion": "The code logs 'Heartbeat', not 'Tick'. Alex waits a minute, sees 'Heartbeat', and wonders whether the job is the right one or the code was copied wrongly. The log format also differs from the previous page's output.",
+      "suggestion": "Change the sample output to match the code ('Heartbeat') and use the same log format as the quickstart."
+    },
+    {
+      "line": 8,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "You don't need to run it yet: the next section adds the heartbeat job, and Run It uses that combined version.",
+      "confusion": "The page never says where to put the code. Alex has to infer that the combined snippet replaces apps/main.py, and Run It only says to restart.",
+      "suggestion": "Say explicitly in the Schedule section: 'Replace the contents of apps/main.py with this version.'"
+    },
+    {
+      "line": 36,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Change the state value to below_horizon and click Set State.",
+      "confusion": "If sun.sun is already below_horizon (testing at night), setting the same value may not fire a state change. Alex would see nothing and not know why.",
+      "suggestion": "Add a note: if it is already below_horizon, set it to above_horizon first, then back to below_horizon."
+    },
+    {
+      "line": 15,
+      "section": "Subscribe to a State Change",
+      "type": "missing-step",
+      "quote": "light.porch is an example: replace it with the entity ID of a light in your own Home Assistant instance.",
+      "confusion": "If Alex ignores this or has no light.porch, the handler errors at the sunset test with no guidance on what the failure looks like.",
+      "suggestion": "Repeat the reminder in Run It before the manual test, or say where the error would show up."
+    }
+  ],
+  "summary": "Alex can mostly succeed: the page explains async, dependency injection and the typed annotations in plain terms, and the steps are clear. The main problems are the sample heartbeat output ('Tick' versus the code's 'Heartbeat'), which makes the check look failed, and no explicit instruction to put the combined code into apps/main.py. A small note on the manual sun.sun test would also help."
+}

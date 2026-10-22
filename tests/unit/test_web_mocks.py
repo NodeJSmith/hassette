@@ -76,7 +76,7 @@ class TestConfig:
         assert dump["web_api"]["port"] == cfg.web_api.port
         assert dump["logging"] == {"log_level": "DEBUG", "web_api": "DEBUG"}
         assert dump["lifecycle"]["startup_timeout_seconds"] == cfg.lifecycle.startup_timeout_seconds
-        assert dump["apps"] == {"autodetect": cfg.apps.autodetect, "directory": cfg.apps.directory}
+        assert dump["apps"] == {"warn_unconfigured": cfg.apps.warn_unconfigured, "directory": cfg.apps.directory}
         assert dump["scheduler"]["behind_schedule_threshold_seconds"] == cfg.scheduler.behind_schedule_threshold_seconds
         assert dump["file_watcher"]["debounce_milliseconds"] == cfg.file_watcher.debounce_milliseconds
         assert set(dump) >= {"database", "websocket", "blocking_io"}

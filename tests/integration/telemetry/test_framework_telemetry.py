@@ -11,8 +11,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ExecutionStatus, SourceTier
 
 from hassette import HassetteConfig
+from hassette.commands import InvokeHandler
 from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
@@ -129,10 +131,7 @@ async def test_command_executor_records_source_tier_on_error(framework_hassette:
     listener.invoker.invoke = AsyncMock(side_effect=ValueError("handler error"))
     listener.invoker.error_handler = None
 
-    mock_event = MagicMock()
-    mock_event.payload.event_id = None
-    mock_event.payload.origin = None
-    cmd = invoke_cmd(listener, topic="test.topic", source_tier="framework", event=mock_event)
+    cmd = invoke_cmd_with_payload_event(listener, topic="test.topic", source_tier="framework")
 
     # Execute the command
     await executor.execute(cmd)
@@ -141,7 +140,7 @@ async def test_command_executor_records_source_tier_on_error(framework_hassette:
     record = pop_execution_record(executor)
     assert record.kind == "handler"
     assert record.source_tier == "framework"
-    assert record.status == "error"
+    assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "ValueError"
 
 
@@ -189,10 +188,7 @@ async def test_queue_persistence_via_drain_and_persist(framework_hassette: Magic
     listener.invoker.invoke = AsyncMock()
     listener.invoker.error_handler = None
 
-    mock_event = MagicMock()
-    mock_event.payload.event_id = None
-    mock_event.payload.origin = None
-    cmd = invoke_cmd(listener, listener_id=listener_id, event=mock_event)
+    cmd = invoke_cmd_with_payload_event(listener, listener_id=listener_id)
     await executor.execute(cmd)
 
     # Drain and persist
@@ -280,20 +276,14 @@ async def test_drop_counter_overflow_when_queue_full(framework_hassette: MagicMo
     listener.invoker.error_handler = None
 
     for i in range(hassette.config.database.telemetry_write_queue_max):
-        mock_event = MagicMock()
-        mock_event.payload.event_id = None
-        mock_event.payload.origin = None
-        cmd = invoke_cmd(listener, listener_id=i + 1, event=mock_event)
+        cmd = invoke_cmd_with_payload_event(listener, listener_id=i + 1)
         await executor.execute(cmd)
 
     # Queue should be full
     assert executor._write_queue.full()
 
     # Try to enqueue one more — should be dropped
-    overflow_event = MagicMock()
-    overflow_event.payload.event_id = None
-    overflow_event.payload.origin = None
-    cmd = invoke_cmd(listener, listener_id=999, event=overflow_event)
+    cmd = invoke_cmd_with_payload_event(listener, listener_id=999)
     await executor.execute(cmd)
 
     # Verify drop counter incremented
@@ -315,3 +305,11 @@ async def test_get_drop_counters_returns_tuple(framework_hassette: MagicMock) ->
     assert overflow == 0
     assert exhausted == 0
     assert shutdown == 0
+
+
+def invoke_cmd_with_payload_event(
+    listener: MagicMock, *, listener_id: int | None = 1, topic: str = "test", source_tier: SourceTier = "app"
+) -> InvokeHandler:
+    """Build an ``InvokeHandler`` whose mock event carries no ``event_id`` or ``origin`` in its payload."""
+    event = MagicMock(payload=MagicMock(event_id=None, origin=None))
+    return invoke_cmd(listener, listener_id=listener_id, topic=topic, source_tier=source_tier, event=event)

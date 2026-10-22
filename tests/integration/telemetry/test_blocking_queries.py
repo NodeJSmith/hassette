@@ -32,6 +32,7 @@ def configured_app(db_hassette: MagicMock) -> None:
                 "class_name": "MyApp",
                 "app_dir": APP_DIR,
                 "full_path": f"{APP_DIR}/my_app.py",
+                "app_config": {"instance_name": "my_app"},
             }
         )
     }

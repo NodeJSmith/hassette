@@ -13,6 +13,7 @@ from hassette.logging_ import (
     HassetteQueueHandler,
     HassetteQueueListener,
     LogCaptureHandler,
+    LogIdentityFilter,
     LogPersistenceHandler,
 )
 from hassette.resources.base import Resource
@@ -135,6 +136,7 @@ class LoggingService(Resource):
 
         log_queue: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
         queue_handler = HassetteQueueHandler(log_queue)
+        queue_handler.addFilter(LogIdentityFilter())
         queue_handler.addFilter(CorrelationFilter())
 
         listener = HassetteQueueListener(log_queue, *handlers)

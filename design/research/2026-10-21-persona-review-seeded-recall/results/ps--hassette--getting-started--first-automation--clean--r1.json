@@ -1,0 +1,78 @@
+{
+  "run_id": "o11",
+  "persona": "Alex",
+  "page": "getting-started/first-automation",
+  "steps": [
+    {
+      "line": 8,
+      "step": "Read the sunset handler snippet (no need to run it yet)",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 15,
+      "step": "Replace light.porch with a light entity ID from own HA instance",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 15,
+      "step": "Optionally look up services in HA Developer Tools -> Services",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Replace apps/main.py with the complete app from the Schedule a Recurring Job section",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 24,
+      "step": "Stop Hassette with Ctrl+C and rerun hassette run -e .env",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 28,
+      "step": "Wait about a minute and check the log for the Heartbeat line",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 33,
+      "step": "In HA, go to Settings -> Developer Tools",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 34,
+      "step": "Open the States tab and find sun.sun",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 35,
+      "step": "Change the state value to below_horizon and click Set State",
+      "can_complete": true,
+      "blocker": null
+    },
+    {
+      "line": 36,
+      "step": "Check logs for Sun changed and Porch light turned on",
+      "can_complete": true,
+      "blocker": null
+    }
+  ],
+  "findings": [
+    {
+      "line": 35,
+      "section": "Run It",
+      "type": "missing-step",
+      "quote": "Change the state value to below_horizon and click Set State .",
+      "confusion": "If it is already night, sun.sun is already below_horizon. Setting the same value produces no state change, so nothing fires. Alex would see no log lines and not know why, and might think the code is broken.",
+      "suggestion": "Add a note: if sun.sun is already below_horizon, set it to above_horizon first, then to below_horizon. Also note the sun entity's state reverts on its next real update."
+    }
+  ],
+  "summary": "Alex would very likely succeed. The page explains async, dependency injection, and handlers in plain terms when they come up, and the steps are concrete. The one real snag is the manual test step, which silently does nothing if the sun is already below the horizon."
+}

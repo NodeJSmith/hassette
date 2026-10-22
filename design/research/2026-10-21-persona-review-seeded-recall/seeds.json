@@ -1,0 +1,63 @@
+{
+  "fastapi--tutorial--first-steps": [
+    {
+      "id": "F1",
+      "kind": "missing-step",
+      "description": "The instruction to save the code as main.py is removed, so the reader runs the server without knowing which file to create.",
+      "find": "Copy that to a file main.py .",
+      "replace": ""
+    },
+    {
+      "id": "F2",
+      "kind": "contradicting-output",
+      "description": "The expected browser response says \"Hello FastAPI\" while the code returns \"Hello World\".",
+      "after": "You will see the JSON response as:",
+      "find": "{\"message\": \"Hello World\"}",
+      "replace": "{\"message\": \"Hello FastAPI\"}"
+    },
+    {
+      "id": "F3",
+      "kind": "removed-link",
+      "description": "The note pointing readers who don't know async to the Async 'In a hurry?' page is removed, leaving async def vs def unexplained.",
+      "find": "[ADMONITION: Note]\n  If you don't know the difference, check the [Async:\"In a hurry?\"](../../async/#in-a-hurry) .",
+      "replace": ""
+    },
+    {
+      "id": "F4",
+      "kind": "removed-definition",
+      "description": "The sentence and snippet explaining that entrypoint = \"main:app\" means `from main import app` are removed, so the module:attribute syntax is never explained.",
+      "find": "That entrypoint will tell the fastapi command that it should import the app like:\n```\nfrom main import app\n```",
+      "replace": ""
+    }
+  ],
+  "hassette--getting-started--first-automation": [
+    {
+      "id": "H1",
+      "kind": "missing-step",
+      "description": "The instruction to replace apps/main.py with the combined app is removed, so the reader restarts Hassette without updating the file.",
+      "find": "Replace your apps/main.py with the complete app from Schedule a Recurring Job . Stop",
+      "replace": "Stop"
+    },
+    {
+      "id": "H2",
+      "kind": "contradicting-output",
+      "description": "The expected heartbeat log line says \"Tick\" while log_heartbeat logs \"Heartbeat\".",
+      "find": "INFO hassette.MyApp.0 — Heartbeat",
+      "replace": "INFO hassette.MyApp.0 — Tick"
+    },
+    {
+      "id": "H3",
+      "kind": "removed-definition",
+      "description": "The parenthetical defining a handler is removed, so \"handler\" is used without ever being explained.",
+      "find": "registers a handler (a method Hassette calls for you when an event arrives, here on_sun_change ) that fires",
+      "replace": "registers a handler that fires"
+    },
+    {
+      "id": "H4",
+      "kind": "removed-prerequisite",
+      "description": "The opening no longer says the page builds on the Quickstart app (and drops the link), so the reader doesn't know which app or which apps/main.py the page means.",
+      "find": "This page adds two features to the app from the [Quickstart](../) :",
+      "replace": "This page adds two features to your app:"
+    }
+  ]
+}
