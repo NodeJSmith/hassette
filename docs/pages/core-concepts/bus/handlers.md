@@ -81,13 +81,25 @@ Apps can broadcast data to other apps through custom topics.
 topic with `on()`. [`D.EventData[T]`](dependency-injection.md) delivers the
 payload pre-extracted and typed.
 
-```python
---8<-- "pages/core-concepts/bus/snippets/handlers_cross_app.py:sender"
-```
+Both apps need the same payload class, so it lives in its own module in the apps directory, here `apps/shared.py`:
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/handlers_cross_app.py:receiver"
+--8<-- "pages/core-concepts/bus/snippets/cross_app/shared.py"
 ```
+
+The sender app imports the class and emits it whenever the kitchen light changes:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/cross_app/sender.py"
+```
+
+The receiver app imports the same class and subscribes to the topic:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/cross_app/receiver.py"
+```
+
+Hassette imports app files as modules of one package named after the apps directory. A relative import like `from .shared import LightsSyncedData` resolves from any app file beside `shared.py`.
 
 A frozen dataclass or Pydantic model works well for `T` — the type is passed in-process, not persisted, but keeping it immutable prevents accidental cross-app state mutation. Any type passed as `data` to `emit()` can be received via `D.EventData[T]`. `self.instance_name` is the app's instance identifier, set in [`hassette.toml`](../configuration/index.md).
 
