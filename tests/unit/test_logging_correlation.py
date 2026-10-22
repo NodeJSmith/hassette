@@ -131,9 +131,9 @@ class TestLogRecordEntryToDictIncludesSeq:
             "func_name": "do_work",
             "lineno": 99,
             "message": "hello",
+            "author": "app",
             "exc_info": "Traceback: boom",
             "app_key": "my_app",
-            "author": "app",
             "execution_id": "exec-1",
             "instance_name": "inst",
             "instance_index": 2,
@@ -209,7 +209,14 @@ class TestLogRecordEntryCorrelationFields:
         # dataclass's own default for each optional field, and the factory passes every optional
         # field explicitly, which would assert the factory's default instead.
         entry = LogRecordEntry(
-            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
+            seq=1,
+            timestamp=0.0,
+            level="INFO",
+            logger_name="test",
+            func_name="fn",
+            lineno=1,
+            message="msg",
+            author="app",
         )
         assert hasattr(entry, field)
         assert getattr(entry, field) is None

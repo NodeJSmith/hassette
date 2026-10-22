@@ -8,6 +8,7 @@ Covers:
 """
 
 import sqlite3
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -135,6 +136,47 @@ def test_apply_migration_creates_table(tmp_path: Path) -> None:
 
     assert "foo" in tables(db_path)
     assert _user_version(db_path) == 1
+
+
+def test_overlapping_runs_apply_each_migration_once(tmp_path: Path) -> None:
+    """A run that starts while another is still applying waits for it, then applies nothing twice.
+
+    A run abandoned by a startup timeout keeps going in its thread while the next run starts on the same
+    database; without serialization both read the same starting version and apply the same migrations.
+    """
+    db_path = tmp_path / "test.db"
+    first_started = threading.Event()
+    release_first = threading.Event()
+    applied: list[int] = []
+    errors: list[Exception] = []
+
+    def slow_apply(path: Path, version: int, sql_path: Path) -> None:
+        applied.append(version)
+        if version == 1:
+            first_started.set()
+            release_first.wait(timeout=5)
+        _apply_migration(path, version, sql_path)
+
+    def run() -> None:
+        try:
+            run_migrations(db_path)
+        except Exception as exc:
+            errors.append(exc)
+
+    with patch("hassette.core.migration_runner._apply_migration", side_effect=slow_apply):
+        abandoned = threading.Thread(target=run)
+        abandoned.start()
+        assert first_started.wait(timeout=5)
+        second = threading.Thread(target=run)
+        second.start()
+        second.join(timeout=0.3)  # time for an unserialized second run to reach its own first migration
+        release_first.set()
+        abandoned.join(timeout=10)
+        second.join(timeout=10)
+
+    assert errors == []
+    assert applied == list(range(1, LATEST_MIGRATION_VERSION + 1))
+    assert _user_version(db_path) == LATEST_MIGRATION_VERSION
 
 
 def test_apply_migration_sets_version_atomically(tmp_path: Path) -> None:

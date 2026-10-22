@@ -9,6 +9,7 @@ import logging
 import queue
 from unittest.mock import MagicMock
 
+import pytest
 from hassette_wire import LogHintWsMessage
 
 from hassette.logging_ import HassetteQueueHandler, LogCaptureHandler
@@ -41,14 +42,12 @@ class TestLogCaptureHandlerStillCaptures:
 
         assert entry.author == "app"
 
-    def test_capture_handler_author_none_when_missing(self) -> None:
-        """Author is None when record has no author attribute."""
-        record = make_log_record(name="hassette.core", pathname="test.py", lineno=1, msg="framework msg")
-        # No author attribute set
+    def test_entry_requires_author(self) -> None:
+        """A record that skipped LogIdentityFilter has no author, and building an entry from it fails."""
+        record = make_log_record(name="hassette.core", pathname="test.py", lineno=1, msg="framework msg", author=None)
 
-        entry = build_log_entry(record)
-
-        assert entry.author is None
+        with pytest.raises(AttributeError, match="author"):
+            build_log_entry(record)
 
     def test_no_register_app_logger_method(self) -> None:
         """register_app_logger() is removed from LogCaptureHandler."""

@@ -5,7 +5,7 @@ import logging
 import sqlite3
 import time
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import aiosqlite
 import pytest
@@ -1249,7 +1249,6 @@ class TestRuntimeQueryServiceWiring:
         record.instance_name = None  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_index = None  # pyright: ignore[reportAttributeAccessIssue]
         record.execution_id = None  # pyright: ignore[reportAttributeAccessIssue]
-        record.author = None  # pyright: ignore[reportAttributeAccessIssue]
 
         handler.emit(record)
         handler.flush_if_pending()
@@ -1257,6 +1256,22 @@ class TestRuntimeQueryServiceWiring:
         # _flush schedules via call_soon_threadsafe; yield to the loop to process it
         await asyncio.sleep(0)
         assert mock_db_service.enqueue.called
+
+    async def test_persistence_handler_drops_a_record_without_author_alone(self) -> None:
+        """A record that skipped LogIdentityFilter is dropped on its own; it never reaches the batch.
+
+        ``log_records.author`` is NOT NULL, so a NULL author in the batch would fail the whole insert.
+        """
+        handler = LogPersistenceHandler(MagicMock(), asyncio.get_running_loop(), persistence_level=logging.INFO)
+        stamped = make_log_record(lineno=1, msg="stamped")
+        unstamped = make_log_record(lineno=2, msg="unstamped", author=None)
+
+        with patch.object(handler, "handleError") as handle_error:
+            handler.emit(unstamped)
+            handler.emit(stamped)
+
+        handle_error.assert_called_once_with(unstamped)
+        assert [row["message"] for row in handler._batch] == ["stamped"]  # pyright: ignore[reportPrivateUsage]
 
     async def test_persistence_handler_filters_below_persistence_level(self) -> None:
         """Records below persistence_level are not accumulated."""

@@ -58,7 +58,13 @@ async def get_logs(
     telemetry: TelemetryDep,
     limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
-    level: Annotated[str | None, Query()] = None,
+    level: Annotated[
+        str | None,
+        Query(
+            description="Only records at this level. Without 'author', framework lines below ERROR stay excluded "
+            "whatever level this asks for; pass author=all to see them."
+        ),
+    ] = None,
     since: SinceQuery = None,
     execution_id: Annotated[str | None, Query()] = None,
     author: AuthorQuery = None,

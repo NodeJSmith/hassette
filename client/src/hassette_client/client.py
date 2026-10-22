@@ -194,7 +194,8 @@ class HassetteClient:
             limit: The most records to return.
             app_key: Only records emitted by this app.
             instance_index: Only records emitted by this app instance. ``None`` covers every instance.
-            level: Only records at this level.
+            level: Only records at this level. Without ``author``, framework lines below ERROR stay excluded
+                whatever level this asks for; pass ``author="all"`` to see them.
             since: Only records at or after this Unix timestamp.
             execution_id: Only records emitted during this handler or job execution.
             author: ``"app"`` or ``"framework"`` lines only, or ``"all"``. ``None`` returns the server's default

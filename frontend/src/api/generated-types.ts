@@ -2933,6 +2933,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 app_key?: string | null;
+                /** @description Only records at this level. Without 'author', framework lines below ERROR stay excluded whatever level this asks for; pass author=all to see them. */
                 level?: string | null;
                 since?: number | null;
                 execution_id?: string | null;

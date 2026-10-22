@@ -89,7 +89,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 
 `POST /api/auth/session` has no method. It trades a token for a browser session cookie, which a client sending its token on every request doesn't need.
 
-Filters such as `since`, `limit`, `instance_index` and `source_tier` are keyword-only and use the server's own parameter names. `since` is a Unix timestamp in seconds. A filter you leave as `None` isn't sent, so the server applies its own default.
+Filters such as `since`, `limit`, `instance_index` and `source_tier` are keyword-only and use the server's own parameter names. `since` is a Unix timestamp in seconds. A filter you leave as `None` isn't sent, so the server applies its own default. For `get_recent_logs()` and `get_execution_logs()`, an unsent `author` leaves out Hassette's own lines below ERROR. On `get_recent_logs()` that holds even when `level` asks for `WARNING` or `INFO`. Pass `author="all"` to include them.
 
 A method returning a list fails as a whole when any one item doesn't match its model, so a schema change shows up as an error rather than as missing rows.
 

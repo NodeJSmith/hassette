@@ -83,9 +83,9 @@ class LogRecordEntry:
     func_name: str
     lineno: int
     message: str
+    author: LogAuthor
     exc_info: str | None = None
     app_key: str | None = None
-    author: LogAuthor | None = None
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
@@ -98,7 +98,10 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
     """Extract the identity and correlation attributes the handler filters stamped on a LogRecord."""
     return {
         "app_key": getattr(record, "app_key", None),
-        "author": getattr(record, "author", None),
+        # Read directly: LogIdentityFilter stamps every record, and log_records.author is NOT NULL. A record
+        # that skipped the filter raises AttributeError here, which LogPersistenceHandler.emit routes to
+        # handleError, so it fails alone instead of failing the whole batch insert.
+        "author": record.author,  # pyright: ignore[reportAttributeAccessIssue]
         "execution_id": getattr(record, "execution_id", None),
         "instance_name": getattr(record, "instance_name", None),
         "instance_index": getattr(record, "instance_index", None),
@@ -429,7 +432,12 @@ class LogPersistenceHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         if record.levelno < self._persistence_level:
             return
-        self._batch.append(self.record_to_dict(record))
+        try:
+            row = self.record_to_dict(record)
+        except Exception:
+            self.handleError(record)
+            return
+        self._batch.append(row)
         if len(self._batch) >= self.BATCH_SIZE:
             self._flush()
 

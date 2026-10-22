@@ -1069,8 +1069,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Only records at this level. Without 'author', framework lines below ERROR stay excluded whatever level this asks for; pass author=all to see them.",
               "title": "Level"
-            }
+            },
+            "description": "Only records at this level. Without 'author', framework lines below ERROR stay excluded whatever level this asks for; pass author=all to see them."
           },
           {
             "name": "since",
