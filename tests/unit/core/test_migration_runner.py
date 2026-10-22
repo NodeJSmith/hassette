@@ -178,6 +178,8 @@ def test_overlapping_runs_apply_each_migration_once(tmp_path: Path) -> None:
         release_first.set()
         abandoned.join(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
         second.join(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        assert not abandoned.is_alive(), "first migration run did not finish"
+        assert not second.is_alive(), "second migration run did not finish"
 
     assert errors == []
     assert applied == list(range(1, LATEST_MIGRATION_VERSION + 1))
