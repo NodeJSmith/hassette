@@ -85,7 +85,7 @@ It suits code that needs the original strings, and debugging the raw HA payload.
 ### `get_attribute(entity_id, attribute)`
 
 Returns a single attribute value. `attribute` supports dot-path notation for nested fields
-(`"color_modes.0"`). Returns [`MISSING_VALUE`](../bus/dependency-injection.md#identity-extractors) — a falsy sentinel from `hassette.const` — when the attribute is absent, rather than raising.
+(`"effect_list.0"`). Returns [`MISSING_VALUE`](../bus/dependency-injection.md#identity-extractors) — a falsy sentinel from `hassette.const` — when the attribute is absent, rather than raising.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -145,7 +145,7 @@ callbacks. Calling one from a regular `async` handler blocks the event loop. `aw
 entity's async method there instead.
 
 ```python
---8<-- "pages/core-concepts/api/snippets/api_get_entity_sync.py:entity_sync_domain_action"
+--8<-- "pages/core-concepts/api/snippets/api_get_entity_sync.py:cover_app"
 ```
 
 ```python
