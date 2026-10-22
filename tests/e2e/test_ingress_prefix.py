@@ -64,6 +64,7 @@ def ingress_url(fastapi_app_ingress: FastAPI, runtime_query_service_ingress: Run
         yield url
 
 
+@pytest.mark.own_server
 def test_ui_works_under_ingress_prefix(page: Page, ingress_url: str) -> None:
     escaped: list[str] = []
     failed: list[str] = []
