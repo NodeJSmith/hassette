@@ -12,7 +12,8 @@ import pytest
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import CorrelationFilter, LogRecordEntry, add_execution_id
+from hassette.logging_ import CorrelationFilter, LogRecordEntry
+from hassette.logging_processors import add_execution_id
 from tests.support.factories import make_log_record, make_log_record_entry, make_recording_log_capture_handler
 from tests.support.helpers import first_json_record_containing
 from tests.unit.conftest import LoggingPipelineFixture

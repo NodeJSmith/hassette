@@ -14,13 +14,18 @@ from pathlib import PurePath
 from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
 
 import structlog
-import structlog.dev
 import structlog.processors
 import structlog.stdlib
-import structlog.types
 from hassette_wire import LogAuthor
 
+from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
+from hassette.logging_processors import (
+    add_execution_id,
+    console_identity,
+    console_renderer,
+    extract_record_fields,
+)
 from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
 
 if TYPE_CHECKING:
@@ -28,7 +33,6 @@ if TYPE_CHECKING:
 
 DEQUEUE_TIMEOUT_SECONDS = 0.2
 
-HASSETTE_LOGGER_NAME = "hassette"
 # logging.captureWarnings(True) routes warnings.warn(...) calls (e.g.
 # HassetteForgottenAwaitWarning) to this logger. It must stay wired to the same handlers
 # as HASSETTE_LOGGER_NAME — see enable_basic_logging() below and LoggingService in
@@ -60,16 +64,7 @@ _IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
 WARNING_CATEGORY_ATTR = "warning_category"
 WARNING_FILENAME_ATTR = "warning_filename"
 
-_RECORD_FIELDS = (
-    "author",
-    "app_key",
-    "execution_id",
-    "instance_name",
-    "instance_index",
-    "execution_kind",
-    "listener_id",
-    "job_id",
-)
+LogFormat = Literal["auto", "console", "compact", "json"]
 
 
 @dataclass
@@ -488,40 +483,6 @@ class LogPersistenceHandler(logging.Handler):
         super().close()
 
 
-def add_execution_id(
-    _logger: object,
-    _method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Structlog processor: stamp execution_id from CURRENT_EXECUTION_ID context var.
-
-    Inserted in the shared processor chain after TimeStamper so structlog-native callers
-    carry the execution correlation identifier. Stdlib callers rely on CorrelationFilter
-    instead (the processor chain does not run for them until ProcessorFormatter picks them
-    up, which is after the calling context).
-    """
-    event_dict["execution_id"] = CURRENT_EXECUTION_ID.get(None)
-    return event_dict
-
-
-def _extract_record_fields(
-    _logger: object,
-    _method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Copy the attributes LogIdentityFilter and CorrelationFilter stamped on the LogRecord into the event dict.
-
-    Runs in ProcessorFormatter's processors list (before remove_processors_meta) where _record is available.
-    """
-    record = event_dict.get("_record")
-    if record:
-        for key in _RECORD_FIELDS:
-            val = getattr(record, key, None)
-            if val is not None:
-                event_dict[key] = val
-    return event_dict
-
-
 @dataclass(frozen=True)
 class _ExtraLoggerSnapshot:
     """The pre-Hassette state of a ``LoggingConfig.extra_loggers`` name.
@@ -634,7 +595,7 @@ def _reset_logger(name: str, level: int | str) -> logging.Logger:
 def enable_basic_logging(
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     *,
-    log_format: Literal["auto", "console", "json"] = "auto",
+    log_format: LogFormat = "auto",
     stream: IO[str] | None = None,
     extra_loggers: tuple[str, ...] | None = None,
 ) -> logging.StreamHandler:
@@ -650,9 +611,10 @@ def enable_basic_logging(
     Args:
         log_level: Minimum log level for the hassette logger.
         log_format: Output format selection.
-            ``"console"`` always uses ConsoleRenderer (colored human-readable).
+            ``"console"`` always uses ConsoleRenderer (colored human-readable, one identity column).
+            ``"compact"`` is ``"console"`` with a time-only timestamp and no level padding.
             ``"json"`` always uses JSONRenderer (one JSON object per line).
-            ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``).
+            ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``); it never picks ``"compact"``.
         stream: Output stream. Defaults to ``sys.stdout``.
         extra_loggers: Additional logger names (outside the ``hassette.`` tree) to attach to
             this same pipeline — see ``LoggingConfig.extra_loggers``. Each is reset and wired
@@ -664,18 +626,14 @@ def enable_basic_logging(
     """
     out: IO[str] = stream if stream is not None else sys.stdout
 
-    if log_format == "json":
-        use_json = True
-    elif log_format == "console":
-        use_json = False
-    else:
-        use_json = not out.isatty()
+    use_json = not out.isatty() if log_format == "auto" else log_format == "json"
 
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso", utc=False),
+        # The compact format is read live on narrow screens, where the date is noise.
+        structlog.processors.TimeStamper(fmt="%H:%M:%S" if log_format == "compact" else "iso", utc=False),
         add_execution_id,
     ]
 
@@ -689,14 +647,19 @@ def enable_basic_logging(
         cache_logger_on_first_use=True,
     )
 
-    renderer = structlog.processors.JSONRenderer() if use_json else structlog.dev.ConsoleRenderer()
+    if use_json:
+        output_processors: list = [structlog.processors.JSONRenderer()]
+    elif log_format == "compact":
+        output_processors = [console_identity, console_renderer(compact=True)]
+    else:
+        output_processors = [console_identity, console_renderer(compact=False)]
 
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
         processors=[
-            _extract_record_fields,
+            extract_record_fields,
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            renderer,
+            *output_processors,
         ],
     )
 

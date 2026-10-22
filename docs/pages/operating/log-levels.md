@@ -48,7 +48,23 @@ Set both to `true` to log every event the bus processes. The bus logs these even
 |-------|--------|
 | `"auto"` | Console format when running in a terminal, JSON when running as a service or in a container (default) |
 | `"console"` | Human-readable format with colors and alignment |
+| `"compact"` | Console format trimmed for narrow screens: time-only timestamp, no level padding. The add-on's default; `"auto"` never picks it. |
 | `"json"` | Structured JSON, one object per line |
+
+Console and compact lines name what each line is about in one bracketed column before the message:
+
+```
+14:44:54 [info] [garage_door] Door opened
+14:44:55 [error] [hassette:garage_door @41c09e7b] Handler failed
+14:44:56 [info] [WebsocketService] Connected to Home Assistant
+```
+
+- `[garage_door]` marks a line the `garage_door` app instance wrote.
+- `[hassette:garage_door]` marks a line Hassette wrote about that instance, such as an error from one of its handlers.
+- `@41c09e7b` is the end of the execution ID of the handler or job run that wrote the line. Every line from one run carries the same ID.
+- A line about no app shows its logger name, without the `hassette.` prefix.
+
+Console lines carry nothing else. App key, listener and job IDs, and the full execution ID are in JSON output and in the telemetry database.
 
 `log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `log_level`. `DEBUG` makes debug output queryable via `hassette log` and visible on the dashboard.
 
