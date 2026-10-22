@@ -18,13 +18,13 @@ The filter controls narrow the table to specific entries.
 
 ## Hassette's Own Lines
 
-By default, every log view shows the lines your apps wrote, plus Hassette's own lines at ERROR and above. Hassette's lines carry a **Framework** badge at the start of the message, including lines it writes about one of your apps, such as its listener and API activity.
+By default, every log view shows app-authored lines plus Hassette's own lines at ERROR and above. Hassette's lines carry a **Framework** badge at the start of the message. That includes lines it writes about an app, such as listener and API activity.
 
-The **all framework lines** checkbox in the table footer adds the rest of Hassette's lines: its DEBUG, INFO and WARNING output. The checkbox is one setting for every log view, the Logs page, an app's logs and an execution's logs alike, and the browser remembers it.
+The **all framework lines** checkbox in the table footer adds the rest of Hassette's lines: its DEBUG, INFO and WARNING output. The checkbox is one setting shared by every log view: the Logs page, an app's logs, and an execution's logs. The browser remembers it.
 
 ## Entry Count
 
-The footer shows how many entries match. When the result exceeds 500, the footer reads "showing 500 of N". Narrowing the filters surfaces specific entries.
+The footer shows how many entries match. When the result exceeds 200, the footer reads "showing 200 of N". Narrowing the filters surfaces specific entries.
 
 ## Trace a Single Execution
 

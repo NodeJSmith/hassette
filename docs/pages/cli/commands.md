@@ -333,7 +333,7 @@ $ hassette log --author all --limit 5
 └─────────┴─────────┴───────────┴────────┴──────────┴─────────────────┴──────────────────────────────────────┘
 ```
 
-By default, the list holds every line your apps wrote, plus Hassette's own lines at ERROR and above. `--author all` adds the rest of Hassette's lines, and the Author column marks each one `framework`. `--author app` and `--author framework` show only one side.
+By default, the list holds app-authored lines plus Hassette's own lines at ERROR and above. `--author all` adds the rest of Hassette's lines. The Author column marks Hassette's lines `framework`. `--author app` and `--author framework` show only one side.
 
 `--instance` is not supported on this command; the CLI exits with a usage error if provided. `--app` filters by app key.
 
@@ -359,7 +359,7 @@ hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 The execution UUID appears in the Execution ID column of `hassette listener <id>` and `hassette job <id>` output. [Workflows](workflows.md) covers the full drill-down pattern.
 
-The table shows timestamp, level, author, function name, line number, and message for each log entry captured during that execution. Like `hassette log`, it leaves out Hassette's own lines below ERROR unless you pass `--author all`.
+The table shows timestamp, level, author, function name, line number, and message for each log entry captured during that execution. Like `hassette log`, it leaves out Hassette's own lines below ERROR unless `--author all` is passed.
 
 ### Flags
 
@@ -474,7 +474,7 @@ These flags appear across multiple commands.
 | `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `blocking`, `app health`, `app activity` | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
 | `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
 | `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `app health`                              | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
-| `--author <author>`    | `app`, `framework`, or `all` | `log`, `execution`                                           | Filters log lines by who wrote them. `app` returns lines from your apps' code. `framework` returns lines Hassette wrote. `all` returns both. Omitted, it returns app lines plus framework lines at ERROR and above. |
+| `--author <author>`    | `app`, `framework`, or `all` | `log`, `execution`                                           | Filters log lines by who wrote them. `app` returns lines from app code. `framework` returns lines Hassette wrote. `all` returns both. Omitted, it returns app lines plus framework lines at ERROR and above. |
 | `--json`               | n/a                          | all commands                                                 | Outputs as JSON. See [Output Modes](configuration.md#output-modes).                                                                         |
 
 ### Global flags

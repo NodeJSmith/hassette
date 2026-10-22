@@ -104,7 +104,7 @@ An app's `log_level` covers the lines its own code writes: `self.logger` and any
 | API calls and state reads | the app's `Api` and `StateManager` children | `logging.api`, `logging.state_proxy` |
 | Task spawning and cleanup | the app's `TaskBucket` | `logging.task_bucket` |
 
-These lines still carry the app's name and instance, so the app's own log view and `hassette log --app <key>` show them. They are marked `framework`, not `app`, so below ERROR they're hidden unless you turn on **all framework lines** in the web UI or pass `--author all` to `hassette log`. `--author app` leaves them out entirely.
+These lines still carry the app's name and instance, so the app's own log view and `hassette log --app <key>` show them. They are marked `framework`, not `app`. Below ERROR, the web UI hides them until **all framework lines** is on, and `hassette log` hides them until `--author all` is passed. `--author app` leaves them out entirely.
 
 ### Hassette's Lines About One App
 

@@ -73,7 +73,7 @@ async def seed_recent_job_execution(db: aiosqlite.Connection, app_key: str) -> N
 
 async def seed_recent_log_record(db: aiosqlite.Connection, app_key: str) -> None:
     await db.execute(
-        "INSERT INTO log_records (seq, timestamp, level, logger_name, message, app_key, instance_index, source_tier) "
+        "INSERT INTO log_records (seq, timestamp, level, logger_name, message, app_key, instance_index, author) "
         "VALUES (1, ?, 'INFO', 'x', 'm', ?, 1, 'app')",
         (RECENT_TS, app_key),
     )
