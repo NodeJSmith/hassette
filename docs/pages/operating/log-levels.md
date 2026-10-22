@@ -174,7 +174,7 @@ A `[hassette.logging]` field can set the level of several loggers. Each Hassette
 
 Some services also own a `Bus` or `Scheduler`, and `Bus`, `Scheduler`, and `Api` each own a sync facade. These loggers add their class name under their owner, as in `hassette.StateProxy.Bus` or `hassette.Bus.BusSyncFacade`. They follow the field for their own class (`bus_service`, `scheduler_service`, or `api`), not the field for their owner.
 
-To match what a field does at runtime, send one `PUT` for each logger in its row. Most of the time you only need the first one, which writes the service's main activity.
+To match what a field does at runtime, send one `PUT` for each logger in its row. Most of the time you only need the first one, which writes the service's main activity. The `web_api` access log is the exception: Hassette turns it on or off from `logging.web_api` when the web server starts, so a `PUT` doesn't change it. Edit `logging.web_api` and restart instead.
 
 An app's own logger is `hassette.apps.<instance_name>`, using the app's [instance name](../core-concepts/apps/configuration.md#instance-names). [Per-App Log Levels](#per-app-log-levels) lists the loggers for Hassette's lines about an app.
 
