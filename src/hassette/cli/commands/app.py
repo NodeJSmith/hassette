@@ -15,7 +15,6 @@ from hassette_wire import (
 import hassette.cli.formatters as cli_formatters
 import hassette.cli.output as cli_output
 from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
-from hassette.cli.columns import health_activity_columns
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
 from hassette.const.misc import SECONDS_PER_HOUR
@@ -35,7 +34,7 @@ APP_LIST_WINDOW_SECONDS = SECONDS_PER_HOUR
 
 APP_LIST_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("app.app_key", "App", max_width=20),
-    cli_output.Column("app.status", "Status", max_width=10),
+    cli_output.Column("app.status", "Status", max_width=10, style=cli_output.status_style),
     cli_output.Column("app.display_name", "Display Name", max_width=22),
     cli_output.Column("app.instance_count", "Instances", max_width=9),
     cli_output.Column(
@@ -48,17 +47,10 @@ APP_LIST_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("app.filename", "File", max_width=20),
 ]
 
-APP_HEALTH_COLUMNS: list[cli_output.Column] = [
-    cli_output.Column("health_status", "Health", max_width=10),
-    cli_output.Column("error_rate", "Error Rate", max_width=10),
-    cli_output.Column("error_rate_class", "Rate Class", max_width=10),
-    *health_activity_columns(),
-]
-
 APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("row_id", "ID", max_width=10),
     cli_output.Column("kind", "Kind", max_width=8),
-    cli_output.Column("status", "Status", max_width=10),
+    cli_output.Column("status", "Status", max_width=10, style=cli_output.status_style),
     cli_output.Column("app_key", "App", max_width=20),
     cli_output.Column("handler_name", "Handler", max_width=22),
     cli_output.Column("duration_ms", "Duration", max_width=9, formatter=cli_formatters.fmt_duration_ms),

@@ -7,12 +7,11 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatus
+from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatus, ExecutionStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
     APP_ACTIVITY_COLUMNS,
-    APP_HEALTH_COLUMNS,
     APP_LIST_COLUMNS,
     cmd_app,
     cmd_app_activity,
@@ -168,6 +167,19 @@ class TestCmdApp:
         """APP_LIST_COLUMNS uses at most 8 columns for readability."""
         assert len(APP_LIST_COLUMNS) <= 8
 
+    def test_status_is_colored_on_a_terminal_and_plain_when_piped(self, cli_client_factory: CLIClientFactory) -> None:
+        entry = make_app_grid_entry(app=make_app_summary(app_key="my_app", status=AppStatus.FAILED))
+        body = make_app_grid_response([entry]).model_dump(mode="json")
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+
+        colored = runner.terminal_stdout(client, cmd_app)
+        assert "\x1b[31mfailed" in colored
+        assert "mmy_app" not in colored, "the app key must stay unstyled"
+
+        plain = runner.stdout(client, cmd_app)
+        assert "failed" in plain
+        assert "\x1b[" not in plain
+
 
 # cmd_app_health
 
@@ -236,13 +248,6 @@ class TestCmdAppHealth:
         assert parsed["error_rate"] == pytest.approx(0.1)
         assert "health_status" in parsed
 
-    def test_health_columns_defined(self) -> None:
-        """APP_HEALTH_COLUMNS includes key health fields."""
-        field_names = [c.field for c in APP_HEALTH_COLUMNS]
-        assert "health_status" in field_names
-        assert "error_rate" in field_names
-        assert "last_activity_ts" in field_names
-
 
 # cmd_app_activity
 
@@ -295,6 +300,18 @@ class TestCmdAppActivity:
         output = runner.stdout(client, cmd_app_activity, "my-app")
         # Rich may truncate the handler name in a narrow console — match the prefix
         assert "on_light_c" in output
+
+    def test_status_is_colored_on_a_terminal_and_plain_when_piped(self, cli_client_factory: CLIClientFactory) -> None:
+        entry = make_activity_feed_entry(status=ExecutionStatus.ERROR, handler_name="on_light_change")
+        client = cli_client_factory.build_with_routes([("GET", ACTIVITY_ENDPOINT, 200, [entry.model_dump()])])
+
+        colored = runner.terminal_stdout(client, cmd_app_activity, "my-app")
+        assert "\x1b[31merror" in colored
+        assert "mon_light" not in colored, "the handler name must stay unstyled"
+
+        plain = runner.stdout(client, cmd_app_activity, "my-app")
+        assert "error" in plain
+        assert "\x1b[" not in plain
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """App activity --json outputs entries as a JSON array."""

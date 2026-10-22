@@ -77,6 +77,7 @@ aborted `nox -s tests_with_coverage` before it wrote `coverage.xml`, since the s
 - `GetSpy` — wraps `client.get` to record paths and params; `spy.params_for(fragment)` returns the
   query params of the first recorded GET whose path contains `fragment`
 - `capture_stdout()` / `capture_stderr()` — Rich console capture
+- `capture_terminal_stdout()` — stdout capture through a forced color terminal, for asserting `Column.style`
 - `capture_json_stdout()` — raw `sys.stdout.write` capture for JSON-mode commands
 - `capture_human(func, *args)` — returns `(stdout, stderr)` strings
 - `parse_json_stdout(capsys)` — parses what a json-mode `render_*` wrote to the real stdout
@@ -92,6 +93,7 @@ runner = CommandRunner("hassette.cli.commands.log.make_client")
 
 spy = runner.spy(client, cmd_log, app="my-app")          # GET paths and params
 output = runner.stdout(client, cmd_log)                  # human table/panel output
+colored = runner.terminal_stdout(client, cmd_log)        # same, as a color terminal gets it (ANSI styles)
 parsed = runner.json_output(client, cmd_log)             # --json document (ctx is injected)
 assert "No results" in runner.stderr(client, cmd_log)    # stderr, stdout suppressed
 code, stderr = runner.usage_error(client, cmd_log, instance="0")  # expects SystemExit
