@@ -15,7 +15,7 @@ Apply these tests to every proposed size: each child's, and each RELABEL or RESI
 **Autofix eligibility** (for any outcome that leaves an issue size:small). Autofix's picker takes an issue only if it has:
 - at least one of type:bug, type:enhancement, type:documentation, type:CICD, topic:code-quality;
 - an author autofix trusts: NodeJSmith, or app/jessica-claude (`is_allowed_author` in dfl_common, `~/Dotfiles/packages/dfl-common/src/dfl_common/__init__.py`);
-- no label in dfl_common's EXCLUDE_LABELS, which includes PARKED_LABELS (a parked issue, or a child inheriting a parked label, is never eligible, so a small outcome for it only matters once it's unparked);
+- no label in dfl_common's EXCLUDE_LABELS, except the PARKED_LABELS among them. A parked issue, or a child inheriting a parked label, stays parked until a human unparks it, so its honest size is still small; check every other condition here, but don't count the parked label against it;
 - a title not opening with Investigate/Evaluate/Audit/Consider/Explore/Decide;
 - no open blocked_by issue that is size:medium or larger;
 - no fix left open for the bot to choose.
@@ -76,7 +76,7 @@ For each issue, verify:
 2. The verdict: is STALE really done (find the shipping evidence)? Is DUPLICATE really the same scope? Is the size right on the Sizes pasted below?
 3. For SPLIT/PARTIAL: do the children cover the whole parent? Is each child's size honest? Do any duplicate existing open issues or sub-issues? Are blocked_by targets open and correct?
 4. Proposed blocked_by links: both issues open, no cycles, ordering justified. Apply "Small behind a medium": move an unjustified link into the child's body as an ordering note.
-5. Every outcome that leaves an issue size:small passes "Autofix eligibility".
+5. Every outcome that leaves an issue size:small passes "Autofix eligibility" (a parked label doesn't count against it, per that section).
 
 <paste "Sizes" (with Autofix eligibility and Small behind a medium), the Categories rows for this tier, and "Duplicate survivor">
 
@@ -96,7 +96,7 @@ Before changing an issue, re-fetch it (state, labels, comments). If it is closed
 
 Every issue you act on (except closes) gets a comment starting `Size triage:`. Later runs skip issues carrying one (except the two hand-on kinds in SKILL.md Phase 1), so use the exact wording below.
 
-1. RELABEL / RESIZE: swap the size label (`gh issue edit <n> -R NodeJSmith/hassette --remove-label size:<old> --add-label size:<new>`). An issue relabeled to size:small must then pass autofix's picker (Autofix eligibility, pasted below); retitle it to a plain imperative if only the title fails.
+1. RELABEL / RESIZE: swap the size label (`gh issue edit <n> -R NodeJSmith/hassette --remove-label size:<old> --add-label size:<new>`). An issue relabeled to size:small must then pass autofix's picker (Autofix eligibility, pasted below; a parked label doesn't count against it); retitle it to a plain imperative if only the title fails.
    If it can't pass, don't relabel it; report it as a deviation. Comment `Size triage: relabeled small.` (or `Size triage: resized to <size>.`), plus the corrected scope (files and fix shape) if the body is stale against main.
 
 2. CHILDREN (SPLIT and PARTIAL):
@@ -117,7 +117,7 @@ Every issue you act on (except closes) gets a comment starting `Size triage:`. L
 
 5. DUPLICATE: copy any unique finding to the survivor as a comment, comment on the duplicate naming the survivor, then `gh issue close <n> -R NodeJSmith/hassette --duplicate-of <survivor>`, which sets the duplicate reason and records the link.
 
-6. DECISION: `gh issue edit <n> -R NodeJSmith/hassette --add-label autofix:needs-decision` and comment `Size triage: needs a decision. <the choice in one line>. <option> would make it <smaller size>.` Leave the size label: once the maintainer picks that option, the Requeue outcome in `triage-autofix-issues` swaps it. If no option makes it smaller, say so instead of naming one. For a DECISION the report marks comment-only, skip the label and comment `Size triage: re-triage after <milestone>. <why>.`
+6. DECISION: `gh issue edit <n> -R NodeJSmith/hassette --add-label autofix:needs-decision` and comment `Size triage: needs a decision. <the choice in one line>. <option> would make it <smaller size>.` Leave the size label: once the maintainer picks that option, `triage-autofix-issues` swaps it (Requeue when the result is small and not parked, otherwise Resize). If no option makes it smaller, say so instead of naming one. For a DECISION the report marks comment-only, skip the label and comment `Size triage: re-triage after <milestone>. <why>.`
 
 7. RESEARCH: swap to size:medium, retitle to start with "Research" (unless it already does), and comment `Size triage: research, not buildable as written. <next step>.`
 
