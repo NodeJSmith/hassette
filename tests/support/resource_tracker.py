@@ -34,9 +34,6 @@ from anyio.streams.memory import MemoryObjectReceiveStream
 
 from hassette.core.event_stream_service import EventStreamService
 
-if typing.TYPE_CHECKING:
-    from collections.abc import Iterator
-
 # Frames of caller context to capture in creation stacks.
 _STACK_CONTEXT_FRAMES = 6
 
@@ -266,6 +263,10 @@ class ResourceTracker:
             json.dump(data, f, indent=2)
 
 
+# The session's tracker, alive between pytest_sessionstart and pytest_sessionfinish.
+_tracker: ResourceTracker | None = None
+
+
 def _results_dir(config: pytest.Config) -> Path:
     base = config.rootpath / ".resource-tracker"
     base.mkdir(exist_ok=True)
@@ -310,23 +311,24 @@ def format_report(results: list[dict[str, typing.Any]]) -> str:
     return "\n".join(lines)
 
 
-@pytest.fixture(autouse=True, scope="session")
-def _resource_tracker(request: pytest.FixtureRequest) -> "Iterator[None]":  # pyright: ignore[reportUnusedFunction]
+def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
+    global _tracker
     if os.environ.get("HASSETTE_DISABLE_RESOURCE_TRACKER"):
-        yield
         return
-
-    tracker = ResourceTracker()
-    tracker.install_patches()
-    yield
-    tracker.remove_patches()
-
-    results_dir = _results_dir(request.config)
-    worker = _worker_id()
-    tracker.save_results(str(results_dir / f"{worker}.json"))
+    _tracker = ResourceTracker()
+    _tracker.install_patches()
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:  # noqa: ARG001
+    # Saved here rather than in a session fixture's teardown: fixtures other plugins pull in ahead
+    # of the tracker (e.g. the e2e live_server) tear down later, so a fixture would save too early
+    # and report their resources as unclosed. sessionfinish runs after all fixture teardown.
+    global _tracker
+    if _tracker is not None:
+        _tracker.remove_patches()
+        _tracker.save_results(str(_results_dir(session.config) / f"{_worker_id()}.json"))
+        _tracker = None
+
     if os.environ.get("HASSETTE_DISABLE_RESOURCE_TRACKER"):
         return
     if _worker_id() != "main":
