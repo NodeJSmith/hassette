@@ -53,7 +53,8 @@ This release completes the **Log Identity** milestone ([milestone 17](https://gi
 ### Documentation
 
 - Clarified CLI global flag placement, log persistence, `--dev-mode`, reload settings, per-app developer overrides, heartbeat timing, and where the web UI token lives. (#3171, #3179, #3159)
-- Corrected which `call_service` failures `wait_for_ack` surfaces, described `get_state()` `.value` as a converted, domain-typed value, and fixed the `get_attribute` dot-path example and the sun-test, scheduler and cross-app migration examples. (#3165, #3180, #3202, #3181)
+- Corrected which `call_service` failures `wait_for_ack` surfaces (a nonexistent entity ID is only logged by Home Assistant), described `get_state()` `.value` as a converted, domain-typed value, fixed the `get_attribute` dot-path example, and showed the full `AppSync` cover example. (#3165, #3180, #3202)
+- Fixed the First Automation test steps and expected log output, split the cross-app bus example into real modules, and corrected the scheduler migration page's examples. (#3181)
 - Added zsh `fpath` setup so shell completion loads. (#3183)
 
 ## [0.59.0](https://github.com/NodeJSmith/hassette/compare/v0.58.0...v0.59.0) (2026-10-19)
