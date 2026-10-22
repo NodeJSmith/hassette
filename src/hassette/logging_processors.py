@@ -27,7 +27,7 @@ _RECORD_FIELDS = (
 # Event-dict key the console identity column travels under, from console_identity to the renderer.
 IDENTITY_KEY = "identity"
 # Prefix on the identity column of a framework-authored line about an app.
-FRAMEWORK_MARKER = "hassette:"
+FRAMEWORK_MARKER = f"{HASSETTE_LOGGER_NAME}:"
 # Execution ids are UUIDv7, whose leading characters are a timestamp shared by executions close in
 # time, so the short id is the random tail. The web UI's truncateId (frontend/src/utils/format.ts)
 # shows the same tail, so a console id greps against the Log tab.
@@ -78,24 +78,6 @@ def console_identity(
     return out
 
 
-# dup-ignore-start: structlog fixes the processor signature
-def compact_timestamp(
-    _logger: object,
-    _method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    # dup-ignore-end
-    """Structlog processor: cut the ISO timestamp to ``HH:MM:SS`` for the compact format.
-
-    The shared ``TimeStamper`` renders local ISO time (``YYYY-MM-DDTHH:MM:SS.ffffff``), whose
-    characters 11-19 are the time of day. A missing timestamp, or one too short to hold a time, is left alone.
-    """
-    timestamp = event_dict.get("timestamp")
-    if not isinstance(timestamp, str) or len(timestamp) < len("YYYY-MM-DDTHH:MM:SS"):
-        return event_dict
-    return {**event_dict, "timestamp": timestamp[11:19]}
-
-
 def console_renderer(*, compact: bool) -> structlog.dev.ConsoleRenderer:
     """A ConsoleRenderer that prints the identity column between the level and the event.
 
@@ -103,17 +85,17 @@ def console_renderer(*, compact: bool) -> structlog.dev.ConsoleRenderer:
     never padded: nothing follows it on the line.
     """
     renderer = structlog.dev.ConsoleRenderer(pad_level=not compact, pad_event_to=0)
-    # Reorder the renderer's own default columns so they keep its colors and padding settings.
-    # Columns render in list order. The identity column reuses the logger column's formatter, which
-    # brackets and colors it. The "" column is the renderer's required key=value fallback; it
-    # renders nothing here because console_identity drops every key without a column.
-    columns = {column.key: column for column in renderer.columns}
+    # Reorder the renderer's own default columns so they keep its colors and padding settings. The
+    # identity column reuses the logger column's formatter, which brackets and colors it. The ""
+    # column is the renderer's required key=value fallback; it renders nothing here because
+    # console_identity drops every key without a column.
+    by_key = {column.key: column for column in renderer.columns}
     renderer.columns = [
-        columns[""],
-        columns["timestamp"],
-        columns["level"],
-        structlog.dev.Column(IDENTITY_KEY, columns["logger"].formatter),
-        columns["event"],
+        by_key[""],
+        by_key["timestamp"],
+        by_key["level"],
+        structlog.dev.Column(IDENTITY_KEY, by_key["logger"].formatter),
+        by_key["event"],
     ]
     return renderer
 

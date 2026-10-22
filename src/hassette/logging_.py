@@ -22,7 +22,6 @@ from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_processors import (
     add_execution_id,
-    compact_timestamp,
     console_identity,
     console_renderer,
     extract_record_fields,
@@ -633,7 +632,8 @@ def enable_basic_logging(
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso", utc=False),
+        # The compact format is read live on narrow screens, where the date is noise.
+        structlog.processors.TimeStamper(fmt="%H:%M:%S" if log_format == "compact" else "iso", utc=False),
         add_execution_id,
     ]
 
@@ -650,7 +650,7 @@ def enable_basic_logging(
     if use_json:
         output_processors: list = [structlog.processors.JSONRenderer()]
     elif log_format == "compact":
-        output_processors = [console_identity, compact_timestamp, console_renderer(compact=True)]
+        output_processors = [console_identity, console_renderer(compact=True)]
     else:
         output_processors = [console_identity, console_renderer(compact=False)]
 

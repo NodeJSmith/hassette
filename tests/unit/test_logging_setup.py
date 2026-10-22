@@ -22,11 +22,14 @@ import hassette.logging_ as logging_module
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import LogIdentity, enable_basic_logging, set_logger_identity
-from hassette.logging_processors import compact_timestamp, console_identity, identity_label
+from hassette.logging_processors import console_identity, identity_label
 from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+# A UUIDv7 execution id and the short id the console shows for it.
+EXECUTION_ID = "0192f3a1-7c2e-7b44-9d0f-6e1a41c09e7b"
+SHORT_EXECUTION_ID = "@41c09e7b"
 
 # Fixture-only logger names used across TestExtraLoggers and TestExtraLoggerReconfiguration.
 # Not real loggers anything else in the codebase writes to, but enable_basic_logging()'s
@@ -156,9 +159,9 @@ class TestIdentityLabel:
             "logger": "hassette.core.bus_service",
             "author": "framework",
             "instance_name": "garage_door",
-            "execution_id": "0192f3a1-7c2e-7b44-9d0f-6e1a41c09e7b",
+            "execution_id": EXECUTION_ID,
         }
-        assert identity_label(event) == "hassette:garage_door @41c09e7b"
+        assert identity_label(event) == f"hassette:garage_door {SHORT_EXECUTION_ID}"
 
     def test_no_logger_and_no_subject_is_empty(self) -> None:
         assert identity_label({}) == ""
@@ -198,23 +201,6 @@ class TestConsoleIdentityProcessor:
         assert event == {"event": "hello", "logger": "hassette.core", "app_key": "garage"}
 
 
-class TestCompactTimestamp:
-    """compact_timestamp cuts ISO timestamps to HH:MM:SS."""
-
-    def test_iso_timestamp_becomes_time_only(self) -> None:
-        out = compact_timestamp(None, "info", {"timestamp": "2026-10-17T14:44:54.728999"})
-        assert out["timestamp"] == "14:44:54"
-
-    @pytest.mark.parametrize("event", [{"timestamp": "14:44"}, {}, {"timestamp": 1.5}])
-    def test_short_or_missing_timestamp_left_alone(self, event: dict) -> None:
-        assert compact_timestamp(None, "info", dict(event)) == event
-
-    def test_does_not_mutate_input(self) -> None:
-        event = {"timestamp": "2026-10-17T14:44:54.728999"}
-        compact_timestamp(None, "info", event)
-        assert event == {"timestamp": "2026-10-17T14:44:54.728999"}
-
-
 class TestConsoleLineFormat:
     """Rendered console and compact lines: identity column before the message, no key=value tail."""
 
@@ -226,7 +212,7 @@ class TestConsoleLineFormat:
         )
         return logger
 
-    def _render(self, log_format: Literal["console", "compact"], emit: Callable[[], None]) -> str:
+    def render(self, log_format: Literal["console", "compact"], emit: Callable[[], None]) -> str:
         """Log one line through a fresh enable_basic_logging handler and return it without ANSI codes."""
         stream = StringIO()
         enable_basic_logging("INFO", log_format=log_format, stream=stream)
@@ -234,28 +220,28 @@ class TestConsoleLineFormat:
         return ANSI_ESCAPE.sub("", stream.getvalue()).rstrip("\n")
 
     def test_compact_app_line(self, app_logger: logging.Logger) -> None:
-        line = self._render("compact", lambda: app_logger.info("hello"))
+        line = self.render("compact", lambda: app_logger.info("hello"))
         assert re.fullmatch(r"\d{2}:\d{2}:\d{2} \[info\] \[example_app\] hello", line), line
 
     def test_console_line_has_no_tail(self, app_logger: logging.Logger) -> None:
-        line = self._render("console", lambda: app_logger.info("hello"))
+        line = self.render("console", lambda: app_logger.info("hello"))
         assert re.fullmatch(r"\S+ \[info +\] \[example_app\] hello", line), line
 
     def test_framework_line_about_app_inside_execution(self) -> None:
         def emit() -> None:
-            with _execution_scope("0192f3a1-7c2e-7b44-9d0f-6e1a41c09e7b", instance_name="garage_door"):
+            with execution_scope(EXECUTION_ID, instance_name="garage_door"):
                 logging.getLogger("hassette.core.test_executor").error("Handler failed")
 
-        line = self._render("compact", emit)
-        assert line.endswith("[error] [hassette:garage_door @41c09e7b] Handler failed"), line
+        line = self.render("compact", emit)
+        assert line.endswith(f"[error] [hassette:garage_door {SHORT_EXECUTION_ID}] Handler failed"), line
 
     def test_ownerless_framework_line_shows_logger(self) -> None:
-        line = self._render("compact", lambda: logging.getLogger("hassette.core.test_ws").info("Connected"))
+        line = self.render("compact", lambda: logging.getLogger("hassette.core.test_ws").info("Connected"))
         assert line.endswith("[info] [core.test_ws] Connected"), line
 
 
 @contextmanager
-def _execution_scope(execution_id: str, *, instance_name: str) -> Iterator[None]:
+def execution_scope(execution_id: str, *, instance_name: str) -> Iterator[None]:
     """Bind an execution id and an app subject the way command_executor does around a handler run."""
     token = CURRENT_EXECUTION_ID.set(execution_id)
     structlog.contextvars.bind_contextvars(instance_name=instance_name)
