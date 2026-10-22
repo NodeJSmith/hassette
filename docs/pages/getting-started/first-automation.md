@@ -38,23 +38,20 @@ This is a Hassette feature. Standard Python ignores type annotations at runtime,
 
 ## Run It
 
-Replace your `apps/main.py` with the complete app from [Schedule a Recurring Job](#schedule-a-recurring-job). Stop Hassette with `Ctrl+C` and run `hassette run -e .env` again. The greeting appears at startup as before:
+Replace your `apps/main.py` with the complete app from [Schedule a Recurring Job](#schedule-a-recurring-job). Stop Hassette with `Ctrl+C` and run `hassette run -e .env` again. The greeting appears at startup as before. About a minute later, the first heartbeat appears, then another every minute after that:
 
 ```
-INFO hassette.apps.my_app — Hello from Hassette!
+--8<-- "pages/getting-started/snippets/first_automation_output.txt"
 ```
 
-About a minute later, the first heartbeat appears, then another every minute after that:
-
-```
-INFO hassette.apps.my_app — Heartbeat
-```
+Each heartbeat line carries an `execution_id` that identifies that run of the job, plus `execution_kind=job` and the `job_id` of the scheduled job it belongs to. Timestamps and IDs differ on every run.
 
 The `Sun changed` and `Porch light turned on` lines appear at the next sunset. To test the handler now without waiting, trigger a state change manually:
 
 1. In Home Assistant, go to **Settings → Developer Tools**.
 2. Go to the **States** tab and find `sun.sun`.
-3. Change the state value to `below_horizon` and click **Set State**.
+3. Change the state value to `above_horizon` and click **Set State**. You see `Sun changed: above_horizon` in the logs. If the sun is already above the horizon, nothing is logged, because the state didn't change.
+4. Change the state value to `below_horizon` and click **Set State** again.
 
 The handler fires within milliseconds. You see `Sun changed: below_horizon` and `Porch light turned on` in the logs.
 
