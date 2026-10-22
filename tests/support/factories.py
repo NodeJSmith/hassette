@@ -701,6 +701,7 @@ def make_mock_parent(
     parent.app_key = app_key
     parent.index = index
     parent.unique_name = unique_name if unique_name is not None else app_key
+    parent.app_config = app_config
     parent._get_logger_name = MagicMock(return_value=f"{APP_LOGGER_PREFIX}.{parent.unique_name}")
     parent.owner_log_identity = MagicMock(
         side_effect=lambda author: LogIdentity(
@@ -712,7 +713,6 @@ def make_mock_parent(
     )
     parent.source_tier = source_tier
     parent.class_name = class_name
-    parent.app_config = app_config
     return parent
 
 

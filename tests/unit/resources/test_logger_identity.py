@@ -18,6 +18,7 @@ import pytest
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.logging_ import LogIdentity, LogIdentityFilter, get_logger_identity
+from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -27,9 +28,14 @@ FRAMEWORK_CHILD_LEVEL_FIELDS = ("bus_service", "scheduler_service", "api", "stat
 """The ``LoggingConfig`` fields of an app's framework children; the tests set them all to ERROR."""
 
 
+def framework_children(app: App) -> list[Resource]:
+    """An app's direct framework children, one per ``FRAMEWORK_CHILD_LEVEL_FIELDS`` entry."""
+    return [app.bus, app.scheduler, app.api, app.states, app.task_bucket]
+
+
 def framework_loggers(app: App) -> list[logging.Logger]:
     """The loggers an app owns that are framework-authored, a grandchild (``api.sync``) included."""
-    resources = (app.bus, app.scheduler, app.api, app.states, app.task_bucket, app.api.sync)
+    resources = [*framework_children(app), app.api.sync]
     return [app.lifecycle_logger, *(resource.logger for resource in resources)]
 
 
@@ -95,7 +101,7 @@ class TestFrameworkLogLevel:
     def test_children_keep_service_levels_when_unset(self) -> None:
         app = build_identity_app("fw_unset")
 
-        for child in (app.bus, app.scheduler, app.api, app.states, app.task_bucket):
+        for child in framework_children(app):
             assert child.logger.level == logging.ERROR, child.class_name
 
     def test_app_log_level_alone_does_not_raise_framework_loggers(self) -> None:

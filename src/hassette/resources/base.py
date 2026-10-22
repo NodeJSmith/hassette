@@ -198,9 +198,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         A framework-authored logger takes the owning app's ``framework_log_level`` when it is set. An
         app-authored logger always keeps ``default_level``, since the app's own ``log_level`` already feeds
-        `App.config_log_level`. ``default_level`` is the configured level for the logger: `config_log_level`
-        for the resource's own logger, which reads its ``LoggingConfig`` field (itself defaulting to the
-        global ``log_level``).
+        `App.config_log_level`.
         """
         if author == "app":
             return default_level
