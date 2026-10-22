@@ -10,13 +10,16 @@ from typing import Any
 from hassette_wire import StackFrame
 
 # Capture the original open before block_io_guard monkeypatches builtins.open.
-# Source capture reads Python files for AST analysis during handler/job registration;
-# these reads are small, LRU-cached, and happen only at initialization — not the kind
-# of event-loop-stalling I/O the guard exists to catch.
+# Source capture reads Python files for AST analysis during handler/job registration, which
+# runs on the event loop at any time — including runtime registrations from handlers. Each
+# file is read at most once per modification (LRU-cached by mtime), so repeat registrations
+# never reach this open; the guard would only flag the first, already-bounded read.
 _builtin_open = builtins.open
 
 # Per-file source/AST cache entries kept before LRU eviction.
 SOURCE_CACHE_MAX_SIZE = 256
+# Per-call-site snippet cache entries kept before LRU eviction — one per registering line.
+CALL_SOURCE_CACHE_MAX_SIZE = 2048
 # Stack frames inspected after skipping internal frames — user code is 1-3 frames
 # from the public def, so 8 leaves generous headroom.
 DEFAULT_FRAME_LIMIT = 8
@@ -61,12 +64,28 @@ def get_source_and_ast(filename: str, mtime: int | None) -> tuple[str, ast.Modul
 def find_call_source(filename: str, lineno: int) -> str | None:
     """Find the source snippet of the Call node at *lineno* in *filename*.
 
+    The only per-call work is one ``stat`` (no ``open``, so the blocking-IO guard does not
+    flag it) to read the file's mtime; the AST walk and segment extraction are cached per
+    ``(filename, mtime, lineno)`` by ``call_source_at``, so repeat registrations from the
+    same line — e.g. ``run_in(..., if_exists="replace")`` inside a handler — are a cache hit.
+    An edited file has a new mtime and so yields a fresh snippet.
+
     Returns the source segment string, or None if unavailable.
     """
     try:
         mtime: int | None = Path(filename).stat().st_mtime_ns
     except OSError:
         mtime = None
+    return call_source_at(filename, mtime, lineno)
+
+
+@functools.lru_cache(maxsize=CALL_SOURCE_CACHE_MAX_SIZE)
+def call_source_at(filename: str, mtime: int | None, lineno: int) -> str | None:
+    """Return the cached source segment of the first Call node at *lineno* in *filename*.
+
+    ``mtime`` keys both this cache and ``get_source_and_ast``, so a modified file misses
+    both and is re-read. Returns None if the file is unreadable or has no Call at *lineno*.
+    """
     cached = get_source_and_ast(filename, mtime)
     if cached is None:
         return None
@@ -175,8 +194,12 @@ def capture_registration_source(
     Attribution uses the module-name check, not filesystem path fragments, so
     it works from site-packages, on Windows, and with any directory layout.
 
-    The per-file AST and source are cached (LRU, ``SOURCE_CACHE_MAX_SIZE`` entries) so repeated
-    calls from the same file only read and parse the file once.
+    Runs synchronously on the caller's thread — the event loop — for every registration,
+    including runtime ones made from handlers, not just during initialization. The stack
+    walk is always done; the snippet lookup is cached, so the file is read and parsed once
+    per modification (``SOURCE_CACHE_MAX_SIZE`` files) and each call site's snippet is
+    extracted once per modification (``CALL_SOURCE_CACHE_MAX_SIZE`` sites). Repeat calls
+    from an unchanged line cost one ``stat`` plus a cache lookup.
 
     This function never raises — ``find_caller_frame`` catches stack-walk
     failures and ``find_call_source`` catches AST failures.  Any failure
