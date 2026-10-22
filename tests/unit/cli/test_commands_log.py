@@ -238,10 +238,10 @@ def test_multiline_message_does_not_collapse_columns(columns: list[Column]) -> N
     entry = make_log_entry(
         level="ERROR",
         message=TRACEBACK_MESSAGE,
+        app_key="demo_app",
+        instance_name="primary",
         func_name="tick",
-        app_key="garage",
-        instance_name="garage_door",
-        lineno=4242,
+        lineno=314,
     )
     buf = StringIO()
     console = Console(file=buf, highlight=False, no_color=True, width=NARROW_CONSOLE_WIDTH)
@@ -249,17 +249,17 @@ def test_multiline_message_does_not_collapse_columns(columns: list[Column]) -> N
     with patch.object(output_module, "stdout_console", console):
         render_table([entry], columns, json_mode=False)
 
-    output = buf.getvalue()
-    header_line = output.splitlines()[1]
+    lines = buf.getvalue().splitlines()
+    header_line, first_row_line = lines[1], lines[3]
     for col in columns:
         assert col.header in header_line
     identity_values = {
         "level": "ERROR",
-        "app_key": "garage",
-        "instance_name": "garage_door",
+        "app_key": "demo_app",
+        "instance_name": "primary",
         "func_name": "tick",
-        "lineno": "4242",
+        "lineno": "314",
     }
     for col in columns:
         if col.field in identity_values:
-            assert identity_values[col.field] in output, f"{col.header} value clipped"
+            assert identity_values[col.field] in first_row_line, f"{col.header} value clipped: {first_row_line!r}"
