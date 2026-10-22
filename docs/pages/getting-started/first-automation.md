@@ -44,7 +44,7 @@ Replace your `apps/main.py` with the complete app from [Schedule a Recurring Job
 --8<-- "pages/getting-started/snippets/first_automation_output.txt"
 ```
 
-Each heartbeat line carries an `execution_id` that identifies that run of the job. Timestamps and IDs differ on every run.
+Each heartbeat line carries an `execution_id` that identifies that run of the job, plus `execution_kind=job` and the `job_id` of the scheduled job it belongs to. Timestamps and IDs differ on every run.
 
 The `Sun changed` and `Porch light turned on` lines appear at the next sunset. To test the handler now without waiting, trigger a state change manually:
 
