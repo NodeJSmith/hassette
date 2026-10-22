@@ -132,6 +132,7 @@ Hassette provides tab completion for commands and flags via [cyclopts](https://g
 
 ```bash
 # Zsh
+mkdir -p ~/.zsh/completions
 hassette --generate-completion zsh > ~/.zsh/completions/_hassette
 
 # Bash
@@ -148,6 +149,15 @@ hassette --generate-completion fish > ~/.config/fish/completions/hassette.fish
 ```bash
 hassette --install-completion --shell zsh
 ```
+
+For Zsh, `--install-completion` writes to `~/.zsh/completions`, the same directory as the example above. Zsh loads completions only from directories on `fpath`, and Hassette never edits `~/.zshrc`. Add the directory to `fpath` in `~/.zshrc`, above the line that runs `compinit`:
+
+```zsh
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+Under oh-my-zsh, `--install-completion` writes to its custom completions directory instead, which is already on `fpath`.
 
 Omitting `--shell` from either command triggers auto-detection of the current shell. Reload your shell config afterward (`source ~/.zshrc` for Zsh, `source ~/.bashrc` for Bash) or restart the terminal. To confirm it works, type `hassette ` and press Tab — available commands appear. Subcommand-specific flags complete alongside top-level commands.
 
