@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.60.0](https://github.com/NodeJSmith/hassette/compare/v0.59.0...v0.60.0) (2026-10-22)
+
+This release completes the **Log Identity** milestone ([milestone 17](https://github.com/NodeJSmith/hassette/milestone/17), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/133-log-identity-axes/design.md)). Every app instance now has one name you choose, and that name drives its logger names and owner identity. Every log line records who wrote it, which app it is about, and which handler or job run produced it, as separate facts. Log views default to your apps' lines plus Hassette's errors. The rest are one opt-in away, and framework lines are marked. The milestone's breaking changes are listed first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps. Instance Identity, which re-keys stored history and routes on the instance name, comes next.
+
+### Breaking Changes
+
+- **`instance_name` is required and unique** — a configured app instance without `instance_name` now fails at config load, and so does a duplicate name anywhere in the config. A valid name starts with a lowercase letter, contains only lowercase letters, digits and `_`, doesn't end in `_`, and is at most 128 characters. Old generated defaults like `MyApp.0` are gone, so cache keys, event `source` comparisons and logger names built from them change. `AppTestHarness` now requires a `config` that sets `instance_name`. Add `instance_name` to every `[hassette.apps.<key>]` entry (and every multi-instance entry) and update anything that matched the old names. (#3146)
+- **App loggers are now `hassette.apps.<instance_name>`** — lifecycle lines about an app (starting, stopping, hook failures, readiness) come from `hassette.apps.<instance_name>.Lifecycle`, follow `logging.app_handler` instead of the app's `log_level`, and are marked `framework` rather than `app`. Set `logging.app_handler = "DEBUG"` to see an app's lifecycle detail at DEBUG. Update any logging config or filters that target the old logger names. (#3173, #3146)
+- **`source_tier` on log records is now `author`** — `LogEntry.source_tier` (wire, `GET /api/logs/recent`, `GET /api/executions/{execution_id}`) is now `LogEntry.author`, `"app"` or `"framework"`. The `source_tier` query parameter on the log routes is replaced by `author` (`all`, `app` or `framework`); a stray `source_tier` is ignored and the default view applies. `HassetteClient.get_recent_logs(source_tier=...)` is now `author=...`, `get_execution_logs` accepts `author`, and the client requires API schema 3. `hassette log --source-tier` is now `--author`, and `hassette execution` accepts `--author`. Existing log history keeps its meaning through an automatic one-way migration. (#3197)
+- **Log views hide Hassette's routine lines by default** — with no `author`, log queries, `hassette log`, and every web UI log view return app-authored lines plus framework lines at ERROR and above, where they previously returned everything. Pass `author=all` (API and client), `--author all` (CLI), or tick "all framework lines" in a log view's footer (web UI) to see the rest. (#3197)
+- **App autodetection is removed** — `apps.autodetect` and `apps.exclude_dirs` are gone, so `HASSETTE__APPS__AUTODETECT` and `HASSETTE__APPS__EXCLUDE_DIRS` now fail startup as unknown keys; delete them. Every app needs a `[hassette.apps.<key>]` entry, including apps built on a shared base class, or it won't run. An autodetected app's history stays under its old key (`<apps dir name>.<module path>.<ClassName>`, e.g. `apps.lights.LightsApp`, the key the Apps page shows) and is listed as not in the current config until retention clears it. To keep that history, reuse the old key as a quoted table name, e.g. `[hassette.apps."apps.lights.LightsApp"]`. The `auto_loaded` field in app API responses is deprecated and always `false`; it will be removed in a future release (#3161). (#3158)
+
+### For App Authors: You Can Now Delete
+
+- **Raising `logging.bus_service`, `logging.scheduler_service` and similar globally to debug one app** — set `framework_log_level` on that app's config to see Hassette's lines about just that app. (#3178)
+- **Workarounds for `get_state_value()` and `get_attribute()` under `AppTestHarness`** — code that was rewritten to call `get_state()`, or tests that hand-mocked those two calls, can go back to the natural calls, async or via `self.api.sync`. (#3132)
+- **Hand-mocked `get_state_raw()` and `get_states_raw()` in tests** — seed the entities and read them through `RecordingApi`. (#3130)
+
+### Logging
+
+- Each log line now records its **author** (your app's code, or Hassette), its **subject** (the app instance it is about) and its **execution** (the handler or job run) independently. Author comes from the logger that wrote the line, never from the subject, so Hassette's lines about your app (lifecycle, hook failures, executor errors) are no longer shown as the app's own output. Warnings raised by Hassette packages are framework-authored; your own warnings stay yours. (#3173)
+- Console log lines drop the `key=value` tail and print one identity column before the message: the instance name, `hassette:<instance_name>` when the framework wrote a line about that app, or the logger name for lines with no app. During a handler or job run it ends in `@` plus the last 8 characters of the execution ID, the same short ID the web UI shows. Everything the column drops is still in JSON output and the telemetry database. (#3203)
+- New `log_format = "compact"` prints the console layout with an `HH:MM:SS` timestamp and no level padding. The Home Assistant add-on uses it so the Supervisor Log tab reads on a phone. `auto` never picks it. (#3203)
+- New `framework_log_level` on `AppConfig` sets the level for every Hassette logger one app instance owns: its lifecycle logger and its Bus, Scheduler, Api, StateManager and TaskBucket loggers. `log_level` still governs only the app's own logger. Unset, nothing changes. Shared services such as `CommandExecutor` have no owning app and keep their `logging.*` levels. (#3178)
+- Web UI: the All / Apps / Framework toggle and its `?tier=` URL parameter are replaced by one persisted "all framework lines" checkbox shared by every log view. Framework-authored lines carry a "Framework" badge, and the CLI log tables gain an Author column. (#3197)
+- Docs: the log-levels page explains which logger and level field governs each kind of line about an app, how to read the console identity column, restarts, and the API port. (#3182)
+
+### Apps & Configuration
+
+- At startup, Hassette scans the apps directory without importing anything and warns about each `App` subclass no entry configures, with a paste-ready `[hassette.apps.<key>]` section. Suggested keys avoid configured keys and each other, so pasting every snippet gives a config that loads. Set `apps.warn_unconfigured = false` to turn it off. (#3158)
+- A live config reload that moves an instance name between apps now stops everything it replaces before creating anything, and a reload into a config with duplicate names is rejected while the running config stays in place. (#3146)
+
+### Test Utilities
+
+- `RecordingApi` supports `get_state_value()` and `get_attribute()` (with dot paths, returning `MISSING_VALUE` for absent attributes), and `get_state_raw()` and `get_states_raw()`, which return deep copies of the seeded state. All raise `EntityNotFoundError` for unseeded entities. (#3132, #3130)
+
+### State Models
+
+- `self.states.schedule` and `self.states.group` resolve to typed models (`ScheduleState` with `next_event`, and `GroupState` for legacy `group.*` entities) instead of `BaseState`. (#3131)
+
+### CLI
+
+- Status and health values in the `hassette status`, `app`, `app activity` and `dashboard` tables are colored on a terminal and plain when piped; `--json` is unaffected. (#3126, #3150)
+- `hassette log` tables keep their When, Level, App, Instance and Function columns readable when a message spans several lines, such as a traceback. The Message column now wraps instead of squeezing the others to nothing. (#3147)
+
+### Documentation
+
+- Clarified CLI global flag placement, log persistence, `--dev-mode`, reload settings, per-app developer overrides, heartbeat timing, and where the web UI token lives. (#3171, #3179, #3159)
+- Corrected which `call_service` failures `wait_for_ack` surfaces (a nonexistent entity ID is only logged by Home Assistant), described `get_state()` `.value` as a converted, domain-typed value, fixed the `get_attribute` dot-path example, and showed the full `AppSync` cover example. (#3165, #3180, #3202)
+- Fixed the First Automation test steps and expected log output, split the cross-app bus example into real modules, and corrected the scheduler migration page's examples. (#3181)
+- Added zsh `fpath` setup so shell completion loads. (#3183)
+
 ## [0.59.0](https://github.com/NodeJSmith/hassette/compare/v0.58.0...v0.59.0) (2026-10-19)
 
 ### Breaking Changes
