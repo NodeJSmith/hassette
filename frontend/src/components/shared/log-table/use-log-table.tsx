@@ -168,7 +168,8 @@ export function useLogTable({
 
     // An app-scoped or execution-scoped view already shows one app's lines, so only the global
     // view offers an app filter.
-    if (!appKey && context !== "execution" && appKeys && appKeys.length > 0) {
+    const isGlobalView = !appKey && context !== "execution";
+    if (isGlobalView && appKeys !== undefined && appKeys.length > 0) {
       filters.app = {
         active: filterState.app !== "",
         label: "App",

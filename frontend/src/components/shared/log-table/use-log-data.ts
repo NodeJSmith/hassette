@@ -63,8 +63,8 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
   const logHintVersion = useAppStore((s) => s.logHintVersion);
   // "all" is every line, app lines included: the default view already has app lines and framework
   // errors, so the opt-in only adds framework lines below ERROR. Undefined lets the server apply its
-  // default view; the author is part of the query key, so
-  // toggling it fetches that view instead of serving the other one from cache.
+  // default view. The author is part of the query key, so toggling it fetches that view instead of
+  // serving the other one from cache.
   const author: LogAuthorQuery | undefined = useAppStore((s) => (s.showAllFrameworkLogs ? "all" : undefined));
 
   const baseKey = useMemo(() => queryKeys.recentLogs(appKey, executionId, author), [appKey, executionId, author]);

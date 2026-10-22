@@ -148,8 +148,8 @@ class TestCmdExecution:
     def test_marks_framework_lines_only(self, cli_client_factory: CLIClientFactory) -> None:
         """The Author column reads ``framework`` on framework lines and stays blank on app lines."""
         records = [
-            make_log_entry(message="app line", author="app"),
-            make_log_entry(id=2, seq=2, message="framework line", author="framework"),
+            make_log_entry(message="first line", author="app"),
+            make_log_entry(id=2, seq=2, message="second line", author="framework"),
         ]
         response_obj = make_logs_by_execution_response(records=records)
         client = cli_client_factory.build_with_routes(
@@ -157,10 +157,10 @@ class TestCmdExecution:
         )
         output = runner.stdout(client, cmd_execution, uuid="exec-1")
 
-        app_row = next(line for line in output.splitlines() if "app line" in line)
-        framework_row = next(line for line in output.splitlines() if "framework line" in line)
+        app_row = next(line for line in output.splitlines() if "first line" in line)
+        framework_row = next(line for line in output.splitlines() if "second line" in line)
         assert "framework" not in app_row
-        assert "framework" in framework_row.replace("framework line", "")
+        assert "framework" in framework_row
 
     def test_extracts_records_from_wrapper(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution renders the records list from the LogsByExecutionResponse wrapper."""

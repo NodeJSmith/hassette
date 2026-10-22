@@ -116,7 +116,7 @@ def test_app_manifests_cover_all_listener_and_job_app_keys(scenario: str, tmp_pa
 
 
 @pytest.mark.parametrize("table", ["listeners", "scheduled_jobs", "executions", "log_records"])
-def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path):
+def test_adversarial_scenario_has_framework_rows(table: str, tmp_path: Path):
     """``adversarial`` seeds framework rows in every tier- or author-filtered table, so ``source_tier=all``
     and ``author=all`` responses (the client-compat fixtures) carry framework rows too.
     """
@@ -132,7 +132,7 @@ def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path
     finally:
         conn.close()
 
-    assert count > 0, f"adversarial has no framework-tier rows in {table}"
+    assert count > 0, f"adversarial has no framework rows in {table}"
 
 
 def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: Path):

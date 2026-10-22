@@ -28,11 +28,11 @@
 ALTER TABLE log_records ADD COLUMN author TEXT NOT NULL DEFAULT 'framework'
     CHECK (author IN ('app', 'framework'));
 
+-- 'app' when outside the namespace, or ending in '.<instance_name>'. A NULL instance_name makes the
+-- suffix test NULL, so such in-namespace rows keep the 'framework' default.
 UPDATE log_records
 SET author = 'app'
--- Outside the namespace, or ending in '.<instance_name>'. A NULL instance_name makes the suffix test
--- NULL, so such in-namespace rows keep the 'framework' default.
-WHERE NOT (logger_name = 'hassette' OR substr(logger_name, 1, 9) = 'hassette.')
+WHERE NOT (logger_name = 'hassette' OR substr(logger_name, 1, length('hassette.')) = 'hassette.')
    OR substr(logger_name, -(length(instance_name) + 1)) = '.' || instance_name;
 
 ALTER TABLE log_records DROP COLUMN source_tier;

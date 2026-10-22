@@ -303,7 +303,7 @@ class TestCorrelationFilterAppliesToChildLoggers:
 
     def test_child_logger_records_have_author_stamped(self, logging_pipeline: LoggingPipelineFixture) -> None:
         """An unidentified hassette child logger's record is stamped framework by LogIdentityFilter."""
-        child = logging.getLogger("hassette.core.test_child_tier")
+        child = logging.getLogger("hassette.core.test_child_author")
         child.info("framework record")
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()

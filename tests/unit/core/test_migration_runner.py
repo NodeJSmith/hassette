@@ -24,6 +24,11 @@ from hassette.core.migration_runner import (
 from hassette.testing.config import LATEST_MIGRATION_VERSION
 from tests.support.sql import insert_execution_row, sqlite_conn
 
+THREAD_SYNC_TIMEOUT_SECONDS = 5
+THREAD_JOIN_TIMEOUT_SECONDS = 10
+# How long an unserialized second run gets to reach its own first migration.
+OVERLAP_WINDOW_SECONDS = 0.3
+
 
 def _user_version(db_path: Path) -> int:
     with sqlite_conn(db_path) as conn:
@@ -154,7 +159,7 @@ def test_overlapping_runs_apply_each_migration_once(tmp_path: Path) -> None:
         applied.append(version)
         if version == 1:
             first_started.set()
-            release_first.wait(timeout=5)
+            release_first.wait(timeout=THREAD_SYNC_TIMEOUT_SECONDS)
         _apply_migration(path, version, sql_path)
 
     def run() -> None:
@@ -166,13 +171,13 @@ def test_overlapping_runs_apply_each_migration_once(tmp_path: Path) -> None:
     with patch("hassette.core.migration_runner._apply_migration", side_effect=slow_apply):
         abandoned = threading.Thread(target=run)
         abandoned.start()
-        assert first_started.wait(timeout=5)
+        assert first_started.wait(timeout=THREAD_SYNC_TIMEOUT_SECONDS)
         second = threading.Thread(target=run)
         second.start()
-        second.join(timeout=0.3)  # time for an unserialized second run to reach its own first migration
+        second.join(timeout=OVERLAP_WINDOW_SECONDS)
         release_first.set()
-        abandoned.join(timeout=10)
-        second.join(timeout=10)
+        abandoned.join(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
+        second.join(timeout=THREAD_JOIN_TIMEOUT_SECONDS)
 
     assert errors == []
     assert applied == list(range(1, LATEST_MIGRATION_VERSION + 1))

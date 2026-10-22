@@ -208,7 +208,7 @@ class TestPipelineBehavior:
         """A record built with extra={"author": ...} still gets its subject resolved."""
         structlog.contextvars.bind_contextvars(app_key="ctx_app")
 
-        record = stamp_identity("hassette.identity_test.extra_tier", author="app")
+        record = stamp_identity("hassette.identity_test.extra_author", author="app")
 
         assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert identity_subject(record) == ("ctx_app", None, None)

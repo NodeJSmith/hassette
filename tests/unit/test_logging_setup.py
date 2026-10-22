@@ -96,7 +96,7 @@ class TestLoggingPipelineJSONRenderer:
         enable_basic_logging("INFO", log_format="json", stream=stream)
         logger = logging.getLogger("hassette.test_author_json")
         set_logger_identity(logger, LogIdentity(author="app"))
-        logger.info("tier test")
+        logger.info("author test")
         assert last_json_record(stream).get("author") == "app"
 
 

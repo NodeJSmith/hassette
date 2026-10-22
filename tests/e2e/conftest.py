@@ -266,7 +266,7 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
             result = [r for r in result if r.get("level") == level]
         if execution_id is not None:
             result = [r for r in result if r.get("execution_id") == execution_id]
-        if author is None:
+        if author is None:  # the default view, as log_author_clause builds it in SQL
             result = [r for r in result if r["author"] == "app" or r["level"] in ERROR_AND_ABOVE_LEVEL_NAMES]
         elif author != "all":
             result = [r for r in result if r["author"] == author]

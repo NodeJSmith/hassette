@@ -8,6 +8,8 @@ import pytest
 from hassette.core.migration_runner import run_migrations
 from tests.support.sql import sqlite_conn
 
+PRE_015_VERSION = 14
+
 # (logger_name, instance_name, expected author). The stored source_tier is deliberately the same
 # for every row: the migration derives author from the logger name, never from the old value.
 LEGACY_ROWS = [
@@ -38,7 +40,7 @@ LEGACY_ROWS = [
 def migrated(tmp_path: Path) -> Path:
     """A DB with LEGACY_ROWS written at 014, then migrated to head."""
     db_path = tmp_path / "test.db"
-    run_migrations(db_path, target=14)
+    run_migrations(db_path, target=PRE_015_VERSION)
     with sqlite_conn(db_path) as conn:
         conn.executemany(
             "INSERT INTO log_records (seq, timestamp, level, logger_name, message, instance_name, source_tier) "
