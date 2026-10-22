@@ -318,7 +318,7 @@ $ hassette job trigger 1
 
 ## `hassette log`
 
-Recent log entries from the telemetry database. Log persistence is always on. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Only records at or above `log_persistence_level` are stored.
+Recent log entries from the telemetry database. Log persistence is always enabled and has no setting to turn it off, but it can fail to start. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Only records at or above `log_persistence_level` are stored.
 
 ```console
 $ hassette log --limit 5
