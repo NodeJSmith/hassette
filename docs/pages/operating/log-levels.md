@@ -147,7 +147,7 @@ Shared services, such as the command executor that runs handlers and jobs, also 
 --8<-- "pages/operating/snippets/set_log_level.sh"
 ```
 
-`8126` is the default `port` under `[hassette.web_api]`. For a container, use the host port the container publishes. For a remote instance, use that server's address. Every request needs the web API token. If you set `web_api.auth_token`, send that value. Otherwise Hassette generates the token and writes it to `web_api.token_file`, which defaults to `<data_dir>/.web_api_token` (see [Web UI](../web-ui/index.md)).
+`8126` is the default `port` under `[hassette.web_api]`. For a container, use the host port the container publishes. For a remote instance, use that server's address. The snippet reads the web API token from a `HASSETTE_TOKEN` shell variable you set first. [Enabling and Accessing](../web-ui/index.md#enabling-and-accessing) on the Web UI page covers where that token comes from and which requests don't need one.
 
 The response reports the logger's new effective level: `{"logger": "hassette.SchedulerService", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422` with code `validation_failed` (see [API Error Responses](../web-ui/api-errors.md)).
 
@@ -176,7 +176,7 @@ Some services also own a `Bus` or `Scheduler`, and `Bus`, `Scheduler`, and `Api`
 
 To match what a field does at runtime, send one `PUT` for each logger in its row. Most of the time you only need the first one, which writes the service's main activity.
 
-An app's own logger is `hassette.apps.<instance_name>`, using the app's [instance name](../core-concepts/apps/configuration.md#instance-names). Its lifecycle lines come from `hassette.apps.<instance_name>.Lifecycle`. The app's `Bus`, `Scheduler`, `Api`, and `StateManager` children add their class name the same way, as in `hassette.apps.<instance_name>.Scheduler`.
+An app's own logger is `hassette.apps.<instance_name>`, using the app's [instance name](../core-concepts/apps/configuration.md#instance-names). [Per-App Log Levels](#per-app-log-levels) lists the loggers for Hassette's lines about an app.
 
 Every one of these loggers carries its own level, so a change reaches only the logger it names. Setting `hassette` leaves `hassette.SchedulerService` at its configured level. An app restart also reapplies the configured levels to that app's loggers.
 
