@@ -235,14 +235,31 @@ class TestCmdExecution:
 @pytest.mark.parametrize("columns", [LOG_COLUMNS, EXECUTION_LOG_COLUMNS], ids=["log", "execution"])
 def test_multiline_message_does_not_collapse_columns(columns: list[Column]) -> None:
     """A long multi-line message wraps in the Message column instead of starving the other columns."""
-    entry = make_log_entry(level="ERROR", message=TRACEBACK_MESSAGE, func_name="tick")
+    entry = make_log_entry(
+        level="ERROR",
+        message=TRACEBACK_MESSAGE,
+        func_name="tick",
+        app_key="garage",
+        instance_name="garage_door",
+        lineno=4242,
+    )
     buf = StringIO()
     console = Console(file=buf, highlight=False, no_color=True, width=NARROW_CONSOLE_WIDTH)
 
     with patch.object(output_module, "stdout_console", console):
         render_table([entry], columns, json_mode=False)
 
-    header_line = buf.getvalue().splitlines()[1]
+    output = buf.getvalue()
+    header_line = output.splitlines()[1]
     for col in columns:
         assert col.header in header_line
-    assert "ERROR" in buf.getvalue()
+    identity_values = {
+        "level": "ERROR",
+        "app_key": "garage",
+        "instance_name": "garage_door",
+        "func_name": "tick",
+        "lineno": "4242",
+    }
+    for col in columns:
+        if col.field in identity_values:
+            assert identity_values[col.field] in output, f"{col.header} value clipped"
