@@ -139,21 +139,26 @@ The change lives in process memory only — a restart reverts to the configured 
 
 ### Logger Names
 
-Each `[hassette.logging]` field sets the level of one service logger, named `hassette.<ClassName>`:
+A `[hassette.logging]` field can set the level of several loggers. Each Hassette service logger is named `hassette.<ClassName>`, and a service's own helpers add their class name under it:
 
-| Field | Logger |
-|-------|--------|
-| `database_service` | `hassette.DatabaseService` |
-| `bus_service` | `hassette.BusService` |
-| `scheduler_service` | `hassette.SchedulerService` |
-| `app_handler` | `hassette.AppHandler` |
-| `web_api` | `hassette.WebApiService` |
+| Field | Loggers |
+|-------|---------|
+| `database_service` | `hassette.DatabaseService`, `hassette.SessionManager` |
+| `bus_service` | `hassette.BusService`, `hassette.EventStreamService`, `hassette.Bus` |
+| `scheduler_service` | `hassette.SchedulerService`, `hassette.SchedulerService._ScheduledJobQueue`, `hassette.Scheduler` |
+| `app_handler` | `hassette.AppHandler`, `hassette.AppHandler.AppLifecycleService`, `hassette.AppBootstrapCoordinator` |
+| `web_api` | `hassette.WebApiService`, `hassette.RuntimeQueryService`, `hassette.TelemetryQueryService` |
 | `websocket` | `hassette.WebsocketService` |
 | `service_watcher` | `hassette.ServiceWatcher` |
-| `file_watcher` | `hassette.FileWatcherService` |
+| `file_watcher` | `hassette.FileWatcherService`, `hassette.WebUiWatcherService` |
 | `command_executor` | `hassette.CommandExecutor` |
-| `state_proxy` | `hassette.StateProxy` |
-| `api` | `hassette.ApiResource` |
+| `state_proxy` | `hassette.StateProxy`, `hassette.StateManager` |
+| `api` | `hassette.ApiResource`, `hassette.Api`, `hassette.Api.HelperClient` |
+| `task_bucket` | `<owner>.TaskBucket` for every logger above, as in `hassette.SchedulerService.TaskBucket` |
+
+Some services also own a `Bus` or `Scheduler`, and `Bus`, `Scheduler`, and `Api` each own a sync facade. These loggers add their class name under their owner, as in `hassette.StateProxy.Bus` or `hassette.Bus.BusSyncFacade`. They follow the field for their own class (`bus_service`, `scheduler_service`, or `api`), not the field for their owner.
+
+To match what a field does at runtime, send one `PUT` for each logger in its row. Most of the time you only need the first one, which writes the service's main activity.
 
 An app's own logger is `hassette.apps.<instance_name>`, using the app's [instance name](../core-concepts/apps/configuration.md#instance-names). Its lifecycle lines come from `hassette.apps.<instance_name>.Lifecycle`. The app's `Bus`, `Scheduler`, `Api`, and `StateManager` children add their class name the same way, as in `hassette.apps.<instance_name>.Scheduler`.
 
