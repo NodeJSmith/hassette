@@ -295,8 +295,11 @@ Usage: hassette execution [OPTIONS] UUID [ARGS]
 Show logs for a specific execution.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
-│ *  UUID --uuid    [required]                                                                     │
-│    LIMIT --limit  Maximum number of results to return.                                           │
+│ *  UUID --uuid      [required]                                                                   │
+│    LIMIT --limit    Maximum number of results to return.                                         │
+│    AUTHOR --author  Filter log lines by who wrote them: 'app', 'framework', or 'all'. Omit for   │
+│                     app lines plus framework lines at ERROR and above. [choices: app, framework, │
+│                     all]                                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │
@@ -401,13 +404,12 @@ Usage: hassette log [OPTIONS] [ARGS]
 Show recent log entries.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
-│ APP --app                  Filter by app key.                                                    │
-│ SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute   │
-│                            (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use    │
-│                            local time.                                                           │
-│ LIMIT --limit              Maximum number of results to return.                                  │
-│ SOURCE-TIER --source-tier  Filter by telemetry source tier: 'app', 'framework', or 'all'.        │
-│                            [choices: app, framework, all]                                        │
+│ APP --app        Filter by app key.                                                              │
+│ SINCE --since    Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute             │
+│                  (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use local time.  │
+│ LIMIT --limit    Maximum number of results to return.                                            │
+│ AUTHOR --author  Filter log lines by who wrote them: 'app', 'framework', or 'all'. Omit for app  │
+│                  lines plus framework lines at ERROR and above. [choices: app, framework, all]   │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │

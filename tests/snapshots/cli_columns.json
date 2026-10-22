@@ -511,6 +511,13 @@
         "overflow": "ellipsis"
       },
       {
+        "field": "author",
+        "formatter": "fmt_log_author",
+        "header": "Author",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
         "field": "func_name",
         "formatter": null,
         "header": "Function",
@@ -544,6 +551,13 @@
         "field": "level",
         "formatter": null,
         "header": "Level",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "author",
+        "formatter": "fmt_log_author",
+        "header": "Author",
         "max_width": null,
         "overflow": "ellipsis"
       },
