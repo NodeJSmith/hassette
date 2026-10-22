@@ -72,12 +72,6 @@ def console_identity(
     Every other key is dropped; JSON output and the DB keep them.
     """
     out = {key: event_dict[key] for key in CONSOLE_KEYS if key in event_dict}
-    # ProcessorFormatter passes a stdlib caller's formatted stack as a ``stack_info`` string, but
-    # ConsoleRenderer only renders ``stack``. StackInfoRenderer can't do this: it rebuilds the stack from
-    # the current frame, which by format time is the formatter's, not the caller's.
-    stack_info = event_dict.get("stack_info")
-    if isinstance(stack_info, str) and "stack" not in out:
-        out["stack"] = stack_info
     label = identity_label(event_dict)
     if label:
         out[IDENTITY_KEY] = label
@@ -142,3 +136,25 @@ def extract_record_fields(
             if val is not None:
                 event_dict[key] = val
     return event_dict
+
+
+# dup-ignore-start: structlog fixes the processor signature
+def stdlib_stack_to_stack(
+    _logger: object,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    # dup-ignore-end
+    """Move a stdlib caller's formatted stack from ``stack_info`` to ``stack``.
+
+    ``stack`` is where StackInfoRenderer puts a structlog-native caller's stack and the key ConsoleRenderer
+    renders, so every format carries both callers' stacks under one key. ProcessorFormatter hands a stdlib
+    record's stack over as a ``stack_info`` string. StackInfoRenderer can't build it here: it rebuilds the
+    stack from the current frame, which by format time is the formatter's, not the caller's.
+    """
+    stack_info = event_dict.get("stack_info")
+    if not isinstance(stack_info, str):
+        return event_dict
+    out = {key: value for key, value in event_dict.items() if key != "stack_info"}
+    out.setdefault("stack", stack_info)
+    return out
