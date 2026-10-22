@@ -95,7 +95,7 @@ def run(version: str, root: Path, lock: LockRunner = run_uv_lock) -> tuple[list[
     return edited, skipped
 
 
-def main(argv: list[str]) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Set the hassette version in a release-branch checkout.")
     parser.add_argument("version", help="Target version, e.g. 0.58.1")
     parser.add_argument("--root", required=True, type=Path, help="Root of the checkout to edit")
@@ -110,13 +110,11 @@ def main(argv: list[str]) -> int:
         print(f"error: `uv lock` failed with exit code {exc.returncode}", file=sys.stderr)
         return 1
 
-    for rel_path in edited:
-        print(f"set {args.version} in {rel_path}")
-    for rel_path in skipped:
-        print(f"skipped {rel_path} (not present on this line)")
-    print("ran uv lock")
+    lines = [f"set {args.version} in {rel_path}" for rel_path in edited]
+    lines += [f"skipped {rel_path} (not present on this line)" for rel_path in skipped]
+    print("\n".join([*lines, "ran uv lock"]))
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
