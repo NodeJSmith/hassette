@@ -25,6 +25,8 @@ All log level settings live under `[hassette.logging]` in `hassette.toml`. Each 
 
 Fields you leave unset inherit the global `log_level`. The global `log_level` defaults to `INFO` when not set.
 
+Hassette applies `[hassette.logging]` once, at startup, so an edit there takes effect on the next restart. After the restart, the service's `DEBUG` lines appear under its logger name, such as `hassette.SchedulerService`. [Runtime Log Level Changes](#runtime-log-level-changes) changes a level without a restart.
+
 ```toml
 --8<-- "pages/operating/snippets/basic_example.toml"
 ```
@@ -142,14 +144,41 @@ Shared services, such as the command executor that runs handlers and jobs, also 
 `PUT /api/logs/level` changes a logger's effective level on a running instance — no restart, no `hassette.toml` edit. The change applies immediately to both structlog and stdlib callers on that logger:
 
 ```bash
-curl -X PUT http://127.0.0.1:8126/api/logs/level \
-  -H "Content-Type: application/json" \
-  -d '{"logger": "hassette.scheduler", "level": "DEBUG"}'
+--8<-- "pages/operating/snippets/set_log_level.sh"
 ```
 
-The response reports the logger's new effective level: `{"logger": "hassette.scheduler", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422` with code `validation_failed` (see [API Error Responses](../web-ui/api-errors.md)).
+`8126` is the default `port` under `[hassette.web_api]`. For a container, use the host port the container publishes. For a remote instance, use that server's address. The snippet reads the web API token from a `HASSETTE_TOKEN` shell variable you set first. [Enabling and Accessing](../web-ui/index.md#enabling-and-accessing) on the Web UI page covers where that token comes from and which requests don't need one.
+
+The response reports the logger's new effective level: `{"logger": "hassette.SchedulerService", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422` with code `validation_failed` (see [API Error Responses](../web-ui/api-errors.md)).
 
 The change lives in process memory only — a restart reverts to the configured levels. Use it to capture debug output from a live issue, then turn the level back down the same way.
+
+### Logger Names
+
+A `[hassette.logging]` field can set the level of several loggers. Each Hassette service logger is named `hassette.<ClassName>`, and a service's own helpers add their class name under it:
+
+| Field | Loggers |
+|-------|---------|
+| `database_service` | `hassette.DatabaseService`, `hassette.SessionManager` |
+| `bus_service` | `hassette.BusService`, `hassette.EventStreamService`, `hassette.Bus` |
+| `scheduler_service` | `hassette.SchedulerService`, `hassette.SchedulerService._ScheduledJobQueue`, `hassette.Scheduler` |
+| `app_handler` | `hassette.AppHandler`, `hassette.AppHandler.AppLifecycleService`, `hassette.AppBootstrapCoordinator` |
+| `web_api` | `hassette.WebApiService`, `hassette.RuntimeQueryService`, `hassette.TelemetryQueryService` |
+| `websocket` | `hassette.WebsocketService` |
+| `service_watcher` | `hassette.ServiceWatcher` |
+| `file_watcher` | `hassette.FileWatcherService`, `hassette.WebUiWatcherService` |
+| `command_executor` | `hassette.CommandExecutor` |
+| `state_proxy` | `hassette.StateProxy`, `hassette.StateManager` |
+| `api` | `hassette.ApiResource`, `hassette.Api`, `hassette.Api.HelperClient` |
+| `task_bucket` | `<owner>.TaskBucket` for every logger above, as in `hassette.SchedulerService.TaskBucket` |
+
+Some services also own a `Bus` or `Scheduler`, and `Bus`, `Scheduler`, and `Api` each own a sync facade. These loggers add their class name under their owner, as in `hassette.StateProxy.Bus` or `hassette.Bus.BusSyncFacade`. They follow the field for their own class (`bus_service`, `scheduler_service`, or `api`), not the field for their owner.
+
+To match what a field does at runtime, send one `PUT` for each logger in its row. Most of the time you only need the first one, which writes the service's main activity. The `web_api` access log is the exception: Hassette turns it on or off from `logging.web_api` when the web server starts, so a `PUT` doesn't change it. Edit `logging.web_api` and restart instead.
+
+An app's own logger is `hassette.apps.<instance_name>`, using the app's [instance name](../core-concepts/apps/configuration.md#instance-names). [Per-App Log Levels](#per-app-log-levels) lists the loggers for Hassette's lines about an app.
+
+Every one of these loggers carries its own level, so a change reaches only the logger it names. Setting `hassette` leaves `hassette.SchedulerService` at its configured level. An app restart also reapplies the configured levels to that app's loggers.
 
 ## Examples
 
