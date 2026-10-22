@@ -24,25 +24,17 @@ vi.mock("wouter", () =>
 // dup-ignore-end
 
 function entry(overrides: Partial<LogEntry> = {}) {
-  return createLogEntry({ app_key: "my_app", source_tier: "app", message: "hello world", ...overrides });
+  return createLogEntry({ app_key: "my_app", message: "hello world", ...overrides });
 }
 
-/** One app-tier entry and one framework-tier entry — the fixture the "tier filtering" tests
- * reuse to exercise app/framework visibility across tier settings. */
-function appAndFrameworkEntries(): LogEntry[] {
-  return [
-    entry({ source_tier: "app", message: "from app" }),
-    entry({ source_tier: "framework", message: "from framework" }),
-  ];
-}
-
-interface RenderLocalProps {
-  entries: LogEntry[];
-  appKey?: string;
-  executionId?: string | null;
+interface RenderOptions {
   loading?: boolean;
   fetching?: boolean;
   scopeKey?: readonly unknown[];
+}
+
+interface RenderLocalProps extends RenderOptions {
+  entries: LogEntry[];
 }
 
 /** Render useLogFilters with local state (no URL). Uses initialProps for rerender support.
@@ -51,31 +43,22 @@ interface RenderLocalProps {
  * query key — `useLogFilters` only ever compares it by value, so tests exercising scope-change
  * behavior pass whatever distinct values are convenient (e.g. `["a"]` vs `["b"]"`) rather than
  * replicating the real key shape. Tests that don't pass one get the hook's own stable default,
- * so appKey/executionId varying across rerenders does NOT by itself trigger a scope change here
- * — the caller must vary `scopeKey` too, matching how the real `useLogData`/`useScopedQuery`
- * pipeline is the only source of a scope-change signal in production. */
-function renderLocal(
-  entries: LogEntry[] = [],
-  appKey?: string,
-  executionId?: string | null,
-  loading?: boolean,
-  fetching?: boolean,
-  scopeKey?: readonly unknown[],
-) {
+ * matching how the real `useLogData`/`useScopedQuery` pipeline is the only source of a
+ * scope-change signal in production. */
+function renderLocal(entries: LogEntry[] = [], { loading, fetching, scopeKey }: RenderOptions = {}) {
   const hook = renderHook<ReturnType<typeof useLogFilters>, RenderLocalProps>(
-    ({ entries: allEntries, appKey, executionId, loading, fetching, scopeKey }) =>
-      useLogFilters({ allEntries, useLocalState: true, appKey, executionId, loading, fetching, scopeKey }),
-    { initialProps: { entries, appKey, executionId, loading, fetching, scopeKey } },
+    ({ entries: allEntries, loading, fetching, scopeKey }) =>
+      useLogFilters({ allEntries, useLocalState: true, loading, fetching, scopeKey }),
+    { initialProps: { entries, loading, fetching, scopeKey } },
   );
   return { hook };
 }
 
 /** Render useLogFilters in URL mode (reads/writes mockSearch). */
-function renderUrl(entries: LogEntry[] = [], appKey?: string, executionId?: string | null) {
+function renderUrl(entries: LogEntry[] = []) {
   const hook = renderHook(
-    ({ entries: allEntries, appKey, executionId }: RenderLocalProps) =>
-      useLogFilters({ allEntries, useLocalState: false, appKey, executionId }),
-    { initialProps: { entries, appKey, executionId } },
+    ({ entries: allEntries }: RenderLocalProps) => useLogFilters({ allEntries, useLocalState: false }),
+    { initialProps: { entries } },
   );
   return { hook };
 }
@@ -88,7 +71,6 @@ function messagesOf(hook: ReturnType<typeof renderLocal>["hook"] | ReturnType<ty
 function filterState(overrides: Partial<FilterState> = {}): FilterState {
   return {
     level: "INFO",
-    tier: "app",
     app: "",
     search: "",
     func: "",
@@ -145,23 +127,6 @@ describe("filterLogEntries", () => {
   });
 });
 
-describe("defaultTier", () => {
-  it('is "app" when no appKey is provided', () => {
-    const { hook } = renderLocal();
-    expect(hook.result.current.defaultTier).toBe("app");
-  });
-
-  it('is "all" when appKey is provided', () => {
-    const { hook } = renderLocal([], "my_app");
-    expect(hook.result.current.defaultTier).toBe("all");
-  });
-
-  it('is "all" when executionId is provided (no appKey)', () => {
-    const { hook } = renderLocal([], undefined, "exec-1");
-    expect(hook.result.current.defaultTier).toBe("all");
-  });
-});
-
 describe("level filtering", () => {
   it("defaults to INFO level and filters out DEBUG entries", () => {
     const entries = [
@@ -212,116 +177,14 @@ describe("level filtering", () => {
   });
 });
 
-describe("tier filtering", () => {
-  // dup-ignore-start: each test below documents a distinct tier-filtering scenario (default tier,
-  // explicit tier switch, execution-scope override) via its own comment; the renderLocal/entries
-  // setup and paired toContain assertions read as duplicates once CPD normalizes literals, but
-  // collapsing them further would replace that per-scenario explanatory context with an opaque
-  // helper — see appAndFrameworkEntries()/messagesOf() above for the setup that was extractable
-  it('defaults to "app" tier (no appKey) and excludes framework entries', () => {
-    const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries);
-    const messages = messagesOf(hook);
-    expect(messages).toContain("from app");
-    expect(messages).not.toContain("from framework");
-  });
-
-  it('"all" tier shows both app and framework entries', () => {
-    const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries);
-    act(() => hook.result.current.setTier("all"));
-    const messages = messagesOf(hook);
-    expect(messages).toContain("from app");
-    expect(messages).toContain("from framework");
-  });
-
-  it('"framework" tier shows only framework entries', () => {
-    const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries);
-    act(() => hook.result.current.setTier("framework"));
-    const messages = messagesOf(hook);
-    expect(messages).not.toContain("from app");
-    expect(messages).toContain("from framework");
-  });
-
-  it("defaults to showing framework entries when executionId is provided", () => {
-    // An execution_id scopes rows to one execution; its logs can be framework-tier
-    // (e.g. CommandExecutor timeout warnings) even when the execution itself is app-tier.
-    const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries, undefined, "exec-1");
-    const messages = messagesOf(hook);
-    expect(messages).toContain("from app");
-    expect(messages).toContain("from framework");
-  });
-
-  it('defaults to "all" when appKey is provided', () => {
-    const entries = [entry({ source_tier: "framework", message: "from framework" })];
-    const { hook } = renderLocal(entries, "my_app");
-    // "all" tier means framework entries pass through
-    const messages = messagesOf(hook);
-    expect(messages).toContain("from framework");
-  });
-
-  it("re-syncs tier to default when executionId appears after mount (local state)", () => {
-    // Regression: on the global /logs page, useLocalState flips true once execution_id
-    // is added to the URL in-place (same mounted hook). defaultTier recomputes "app"->"all",
-    // but a stale localTier="app" would keep hiding framework rows — the exact bug this PR fixes.
-    const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries, undefined, null);
-    // No execution scope yet: tier defaults to "app", framework hidden.
-    expect(messagesOf(hook)).not.toContain("from framework");
-
-    // Execution scope applied to the same mounted hook.
-    act(() => hook.rerender({ entries, appKey: undefined, executionId: "exec-1" }));
-
-    const messages = messagesOf(hook);
-    expect(messages).toContain("from app");
-    expect(messages).toContain("from framework");
-  });
-
-  it("preserves a manual tier selection across same-scope rerenders (exec -> exec)", () => {
-    // The re-sync must fire only when defaultTier actually flips (scope gained/lost), not on
-    // every prop change. Navigating between two executions keeps defaultTier "all", so a user's
-    // explicit "framework" choice must survive.
-    const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries, undefined, "exec-1");
-    act(() => hook.result.current.setTier("framework"));
-    expect(messagesOf(hook)).toEqual(["from framework"]);
-
-    // Same scope kind (still execution-scoped), different id — defaultTier stays "all".
-    act(() => hook.rerender({ entries, appKey: undefined, executionId: "exec-2" }));
-
-    expect(messagesOf(hook)).toEqual(["from framework"]);
-  });
-
-  it("clears app filter when tier is changed away from app", () => {
-    const entries = [
-      entry({ app_key: "alpha", source_tier: "app", message: "alpha" }),
-      entry({ app_key: "beta", source_tier: "app", message: "beta" }),
-    ];
-    const { hook } = renderLocal(entries);
-    act(() => hook.result.current.setApp("alpha"));
-    expect(messagesOf(hook)).toEqual(["alpha"]);
-    // Changing to "all" should reset app filter
-    act(() => hook.result.current.setTier("all"));
-    const messages = messagesOf(hook);
-    expect(messages).toContain("alpha");
-    expect(messages).toContain("beta");
-  });
-  // dup-ignore-end
-});
-
 describe("app filtering", () => {
   it("filters entries to only matching app_key", () => {
     const entries = [
-      entry({ app_key: "alpha", message: "alpha msg", source_tier: "app" }),
-      entry({ app_key: "beta", message: "beta msg", source_tier: "app" }),
+      entry({ app_key: "alpha", message: "alpha msg" }),
+      entry({ app_key: "beta", message: "beta msg" }),
     ];
     const { hook } = renderLocal(entries);
-    act(() => {
-      hook.result.current.setTier("all");
-      hook.result.current.setApp("alpha");
-    });
+    act(() => hook.result.current.setApp("alpha"));
     const messages = messagesOf(hook);
     expect(messages).toEqual(["alpha msg"]);
   });
@@ -440,7 +303,7 @@ describe("livePaused", () => {
     // A live update arrives while paused — its own live source changed, but the frozen
     // snapshot captured at the moment pausing began must not reflect it.
     const afterPause = [...beforePause, entry({ message: "after-pause" })];
-    hook.rerender({ entries: afterPause, appKey: undefined, executionId: undefined });
+    hook.rerender({ entries: afterPause });
     const messages = messagesOf(hook);
     expect(messages).toContain("before-pause");
     expect(messages).not.toContain("after-pause");
@@ -461,7 +324,7 @@ describe("livePaused", () => {
     // Pause by sorting by level, then a live update arrives that the frozen view must miss.
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     const afterPause = [...beforePause, entry({ message: "after-pause" })];
-    hook.rerender({ entries: afterPause, appKey: undefined, executionId: undefined });
+    hook.rerender({ entries: afterPause });
     expect(messagesOf(hook)).not.toContain("after-pause");
 
     // Unpause by resetting sort — the live update missed while paused must now be visible.
@@ -469,27 +332,25 @@ describe("livePaused", () => {
     expect(messagesOf(hook)).toContain("after-pause");
   });
 
-  it("re-captures the paused snapshot when appKey/executionId changes while still paused", () => {
+  it("re-captures the paused snapshot when the scope changes while still paused", () => {
     const execAEntries = [entry({ message: "exec-a-row" })];
-    const { hook } = renderLocal(execAEntries, "my_app", "exec-a", undefined, undefined, ["exec-a-scope"]);
+    const { hook } = renderLocal(execAEntries, { scopeKey: ["exec-a-scope"] });
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual(["exec-a-row"]);
 
     // Scope changes to a different execution without unmounting (e.g. LogsPage updating
     // executionId from a query param) while still paused — the frozen snapshot must not keep
-    // showing the previous execution's rows. scopeKey must change alongside appKey/executionId
-    // here — in production this always happens together, since useLogData derives scopeKey from
-    // the same appKey/executionId this hook receives.
+    // showing the previous execution's rows.
     const execBEntries = [entry({ message: "exec-b-row" })];
-    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", scopeKey: ["exec-b-scope"] });
+    hook.rerender({ entries: execBEntries, scopeKey: ["exec-b-scope"] });
 
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
   });
 
   it("keeps tracking a scope change's data until it loads, instead of freezing on the transient empty result", () => {
     const execAEntries = [entry({ message: "exec-a-row" })];
-    const { hook } = renderLocal(execAEntries, "my_app", "exec-a", undefined, undefined, ["exec-a-scope"]);
+    const { hook } = renderLocal(execAEntries, { scopeKey: ["exec-a-scope"] });
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual(["exec-a-row"]);
@@ -500,7 +361,7 @@ describe("livePaused", () => {
     // A scope-change freeze tracks `fetching` (isFetching), not `loading` (isPending) — see
     // use-log-filters.ts: a scope change to an already-cached scope can leave `loading` false
     // immediately while a background refetch is still settling.
-    hook.rerender({ entries: [], appKey: "my_app", executionId: "exec-b", fetching: true, scopeKey: ["exec-b-scope"] });
+    hook.rerender({ entries: [], fetching: true, scopeKey: ["exec-b-scope"] });
     expect(messagesOf(hook)).toEqual([]);
 
     // Data for the new scope lands, but fetching is still true one more render (e.g. react-query
@@ -509,8 +370,6 @@ describe("livePaused", () => {
     const execBEntries = [entry({ message: "exec-b-row" })];
     hook.rerender({
       entries: execBEntries,
-      appKey: "my_app",
-      executionId: "exec-b",
       fetching: true,
       scopeKey: ["exec-b-scope"],
     });
@@ -519,8 +378,6 @@ describe("livePaused", () => {
     // fetching finally clears — now frozen on the loaded data.
     hook.rerender({
       entries: execBEntries,
-      appKey: "my_app",
-      executionId: "exec-b",
       fetching: false,
       scopeKey: ["exec-b-scope"],
     });
@@ -529,15 +386,13 @@ describe("livePaused", () => {
     // Now frozen: a further live update to the same scope must not appear until resumed.
     hook.rerender({
       entries: [...execBEntries, entry({ message: "exec-b-later-row" })],
-      appKey: "my_app",
-      executionId: "exec-b",
       fetching: false,
       scopeKey: ["exec-b-scope"],
     });
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
   });
 
-  it("re-captures the paused snapshot when scopeKey changes for a reason other than appKey/executionId (e.g. since-restart uptime)", () => {
+  it("re-captures the paused snapshot when scopeKey changes for a reason other than app/execution (e.g. since-restart uptime)", () => {
     // Regression test for the exact gap Codex flagged: scopeChanged used to be computed from
     // appKey/executionId/preset alone, so a scope-identity change driven purely by restart uptime
     // (useScopedQuery folds uptime into its query key for the since-restart preset, but nothing
@@ -546,13 +401,9 @@ describe("livePaused", () => {
     // executionId throughout, only the key's uptime component differs — closes that gap by
     // construction rather than requiring a fourth hand-copied field.
     const beforeEntries = [entry({ message: "pre-reconnect-row" })];
-    const { hook } = renderLocal(beforeEntries, "my_app", "exec-a", undefined, undefined, [
-      "recent-logs",
-      "my_app",
-      "exec-a",
-      "since-restart",
-      100,
-    ]);
+    const { hook } = renderLocal(beforeEntries, {
+      scopeKey: ["recent-logs", "my_app", "exec-a", "since-restart", 100],
+    });
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual(["pre-reconnect-row"]);
@@ -561,8 +412,6 @@ describe("livePaused", () => {
     const afterEntries = [entry({ message: "post-reconnect-row" })];
     hook.rerender({
       entries: afterEntries,
-      appKey: "my_app",
-      executionId: "exec-a",
       scopeKey: ["recent-logs", "my_app", "exec-a", "since-restart", 200],
     });
 
@@ -572,22 +421,20 @@ describe("livePaused", () => {
   it("keeps tracking an ordinary pause transition's data until it loads (loading, not fetching)", () => {
     // Mirrors the scope-change test above, but for the false->true pause transition with no
     // scope change — that branch tracks `loading` (isPending), not `fetching`.
-    const { hook } = renderLocal([], "my_app", "exec-a", true);
+    const { hook } = renderLocal([], { loading: true });
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual([]);
 
     const settledEntries = [entry({ message: "settled-row" })];
-    hook.rerender({ entries: settledEntries, appKey: "my_app", executionId: "exec-a", loading: true });
+    hook.rerender({ entries: settledEntries, loading: true });
     expect(messagesOf(hook)).toEqual(["settled-row"]);
 
-    hook.rerender({ entries: settledEntries, appKey: "my_app", executionId: "exec-a", loading: false });
+    hook.rerender({ entries: settledEntries, loading: false });
     expect(messagesOf(hook)).toEqual(["settled-row"]);
 
     hook.rerender({
       entries: [...settledEntries, entry({ message: "later-row" })],
-      appKey: "my_app",
-      executionId: "exec-a",
       loading: false,
     });
     expect(messagesOf(hook)).toEqual(["settled-row"]);
@@ -595,12 +442,7 @@ describe("livePaused", () => {
 
   it("re-captures the paused snapshot when the time-window preset changes while still paused", () => {
     const beforeEntries = [entry({ message: "1h-row" })];
-    const { hook } = renderLocal(beforeEntries, "my_app", undefined, undefined, undefined, [
-      "recent-logs",
-      "my_app",
-      null,
-      "1h",
-    ]);
+    const { hook } = renderLocal(beforeEntries, { scopeKey: ["recent-logs", "my_app", null, "1h"] });
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual(["1h-row"]);
@@ -614,8 +456,6 @@ describe("livePaused", () => {
     const afterEntries = [entry({ message: "24h-row" })];
     hook.rerender({
       entries: afterEntries,
-      appKey: "my_app",
-      executionId: undefined,
       scopeKey: ["recent-logs", "my_app", null, "24h"],
     });
 
@@ -624,18 +464,17 @@ describe("livePaused", () => {
 });
 
 describe("resetFilters", () => {
-  it("resets level, tier, app, func back to defaults", () => {
-    const { hook } = renderLocal([], undefined);
+  it("resets level, app, func back to defaults", () => {
+    const { hook } = renderLocal([]);
     act(() => {
       hook.result.current.setLevel("ERROR");
-      hook.result.current.setTier("framework");
+      hook.result.current.setApp("alpha");
       hook.result.current.setFunc("some_func");
     });
     act(() => hook.result.current.resetFilters());
 
-    const { level, tier, app, func } = hook.result.current.filterState;
+    const { level, app, func } = hook.result.current.filterState;
     expect(level).toBe("INFO");
-    expect(tier).toBe("app");
     expect(app).toBe("");
     expect(func).toBe("");
   });

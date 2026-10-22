@@ -49,9 +49,9 @@ On first start, the log includes these lines. Your timestamps differ, and you ca
 ```text
 The config folder is empty; adding a starter hassette.toml and an example app
 Port mappings: none (ingress only)
-2026-10-17T08:19:58.690526 [info     ] Generated new web API auth_token, written to /config/.web_api_token. Open Hassette from the Home Assistant sidebar or the add-on's "Open Web UI" button; the token is only needed for the hassette CLI or a published port. [hassette.web.auth.tokens] execution_id=None
-2026-10-17T08:19:58.690609 [info     ] Hassette is running.           [hassette] execution_id=None
-2026-10-17T08:19:58.690670 [info     ] Hello from Hassette! Edit example_app.py in the apps folder of the add-on's config folder. [hassette.apps.example_app] execution_id=None
+08:19:58 [info] [web.auth.tokens] Generated new web API auth_token, written to /config/.web_api_token. Open Hassette from the Home Assistant sidebar or the add-on's "Open Web UI" button; the token is only needed for the hassette CLI or a published port.
+08:19:58 [info] [hassette] Hassette is running.
+08:19:58 [info] [example_app] Hello from Hassette! Edit example_app.py in the apps folder of the add-on's config folder.
 Announced hassette to Home Assistant; the hassette integration can now be set up from its Discovered card
 ```
 
@@ -82,7 +82,7 @@ Replace the `greeting` default with your own text, such as `"Hello from my first
 The starter `hassette.toml` already has the example app's section, so the edit needs no config change. Restart the add-on from its **Info** tab, then open the **Log** tab again. You see a line like this with your new greeting:
 
 ```text
-2026-10-17T08:24:11.102394 [info     ] Hello from my first Hassette app! [hassette.apps.example_app] execution_id=None
+08:24:11 [info] [example_app] Hello from my first Hassette app!
 ```
 
 To give the app settings of its own, set them in its section's `config` in `hassette.toml`. The starter file shows the format in a comment, and [Add-on Configuration](configuration.md#hassettetoml) explains it.

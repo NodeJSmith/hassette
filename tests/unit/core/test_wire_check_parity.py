@@ -14,6 +14,7 @@ from hassette_wire import (
     BlockingTier,
     ExecutionMode,
     ExecutionStatus,
+    LogAuthor,
     ScheduleStatus,
     ScheduleStatusReason,
     SourceTier,
@@ -39,6 +40,7 @@ WIRE_VOCABULARY_COLUMNS: dict[tuple[str, str], Any] = {
     ("executions", "source_tier"): SourceTier,
     ("blocking_events", "tier"): BlockingTier,
     ("blocking_events", "source_tier"): SourceTier,
+    ("log_records", "author"): LogAuthor,
 }
 
 # Constrained columns with no wire vocabulary of the same values, and why.

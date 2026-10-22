@@ -26,6 +26,7 @@ from hassette_wire import (
     LogLevelRequest,
     LogLevelResponse,
     LogsByExecutionResponse,
+    QueryAuthor,
     QuerySourceTier,
     ReadinessResponse,
     SystemStatusResponse,
@@ -119,7 +120,7 @@ class HassetteClient:
             AppNotFoundError: No app with this key is configured.
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        return await self._transport.request("GET", f"/api/apps/{path_segment(app_key)}", AppSummary)
+        return await self._transport.request("GET", app_path(app_key), AppSummary)
 
     async def action(self, app_key: str, action: AppAction, *, instance: int | None = None) -> ActionResponse:
         """Start, stop or reload an app, or one of its instances.
@@ -150,7 +151,7 @@ class HassetteClient:
             ActionFailedError: The action ran but failed, or left a targeted instance failed.
             HassetteTimeoutError: No answer in time. The action may still have run, or still be running.
         """
-        path = f"/api/apps/{path_segment(app_key)}"
+        path = app_path(app_key)
         if instance is not None:
             path += f"/instances/{path_segment(instance)}"
         return await self._transport.request("POST", f"{path}/{path_segment(action)}", ActionResponse)
@@ -162,7 +163,7 @@ class HassetteClient:
             InvalidAppKeyError: ``app_key`` isn't a valid app key.
             AppNotFoundError: No app with this key is configured.
         """
-        return await self._transport.request("GET", f"/api/apps/{path_segment(app_key)}/config", AppConfigResponse)
+        return await self._transport.request("GET", f"{app_path(app_key)}/config", AppConfigResponse)
 
     async def get_app_source(self, app_key: str) -> AppSource:
         """Get the source code of an app's module.
@@ -174,7 +175,7 @@ class HassetteClient:
             PathTraversalError: The source path resolves outside the app directory.
             SourceUnavailableError: The source file exists but couldn't be read.
         """
-        return await self._transport.request("GET", f"/api/apps/{path_segment(app_key)}/source", AppSource)
+        return await self._transport.request("GET", f"{app_path(app_key)}/source", AppSource)
 
     async def get_recent_logs(
         self,
@@ -185,7 +186,7 @@ class HassetteClient:
         level: LogLevel | None = None,
         since: float | None = None,
         execution_id: str | None = None,
-        source_tier: QuerySourceTier | None = None,
+        author: QueryAuthor | None = None,
     ) -> list[LogEntry]:
         """Get recent log records.
 
@@ -193,10 +194,12 @@ class HassetteClient:
             limit: The most records to return.
             app_key: Only records emitted by this app.
             instance_index: Only records emitted by this app instance. ``None`` covers every instance.
-            level: Only records at this level.
+            level: Only records at this level. Without ``author``, framework lines below ERROR stay excluded
+                whatever level this asks for; pass ``author="all"`` to see them.
             since: Only records at or after this Unix timestamp.
             execution_id: Only records emitted during this handler or job execution.
-            source_tier: ``"app"`` or ``"framework"`` records only, or ``"all"``.
+            author: ``"app"`` or ``"framework"`` lines only, or ``"all"``. ``None`` returns the server's default
+                view: app-authored lines plus framework lines at ERROR and above.
 
         Raises:
             TelemetryUnavailableError: The log store couldn't be read.
@@ -208,7 +211,7 @@ class HassetteClient:
             "level": level,
             "since": since,
             "execution_id": execution_id,
-            "source_tier": source_tier,
+            "author": author,
         }
         return await self._transport.request("GET", "/api/logs/recent", list[LogEntry], params=params)
 
@@ -217,14 +220,23 @@ class HassetteClient:
         body = LogLevelRequest(logger=logger, level=level)
         return await self._transport.request("PUT", "/api/logs/level", LogLevelResponse, body=body)
 
-    async def get_execution_logs(self, execution_id: str, *, limit: int | None = None) -> LogsByExecutionResponse:
+    async def get_execution_logs(
+        self, execution_id: str, *, limit: int | None = None, author: QueryAuthor | None = None
+    ) -> LogsByExecutionResponse:
         """Get the log records one handler or job execution emitted.
+
+        Args:
+            execution_id: The handler or job execution.
+            limit: The most records to return.
+            author: ``"app"`` or ``"framework"`` lines only, or ``"all"``. ``None`` returns the server's default
+                view: app-authored lines plus framework lines at ERROR and above.
 
         Raises:
             TelemetryUnavailableError: The log store couldn't be read.
         """
         path = f"/api/executions/{path_segment(execution_id)}"
-        return await self._transport.request("GET", path, LogsByExecutionResponse, params={"limit": limit})
+        params = {"limit": limit, "author": author}
+        return await self._transport.request("GET", path, LogsByExecutionResponse, params=params)
 
     async def get_listeners(
         self,
@@ -239,7 +251,7 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        params = {"app_key": app_key, "instance_index": instance_index, "since": since, "source_tier": source_tier}
+        params = {"app_key": app_key, **telemetry_filters(instance_index, since, source_tier)}
         return await self._transport.request("GET", "/api/bus/listeners", list[ListenerSummary], params=params)
 
     async def get_config(self) -> ConfigSchemaResponse:
@@ -269,8 +281,8 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        path = f"/api/telemetry/app/{path_segment(app_key)}/health"
-        params = {"instance_index": instance_index, "since": since, "source_tier": source_tier}
+        path = telemetry_app_path(app_key, "health")
+        params = telemetry_filters(instance_index, since, source_tier)
         return await self._transport.request("GET", path, AppHealth, params=params)
 
     async def get_app_listeners(
@@ -286,8 +298,8 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        path = f"/api/telemetry/app/{path_segment(app_key)}/listeners"
-        params = {"instance_index": instance_index, "since": since, "source_tier": source_tier}
+        path = telemetry_app_path(app_key, "listeners")
+        params = telemetry_filters(instance_index, since, source_tier)
         return await self._transport.request("GET", path, list[ListenerSummary], params=params)
 
     async def get_app_activity(
@@ -311,8 +323,8 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        path = f"/api/telemetry/app/{path_segment(app_key)}/activity"
-        params = {"instance_index": instance_index, "limit": limit, "since": since, "source_tier": source_tier}
+        path = telemetry_app_path(app_key, "activity")
+        params = {"limit": limit, **telemetry_filters(instance_index, since, source_tier)}
         return await self._transport.request("GET", path, list[ActivityFeedEntry], params=params)
 
     async def get_app_jobs(
@@ -328,8 +340,8 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        path = f"/api/telemetry/app/{path_segment(app_key)}/jobs"
-        params = {"instance_index": instance_index, "since": since, "source_tier": source_tier}
+        path = telemetry_app_path(app_key, "jobs")
+        params = telemetry_filters(instance_index, since, source_tier)
         return await self._transport.request("GET", path, list[JobSummary], params=params)
 
     async def get_app_blocking_findings(
@@ -340,8 +352,8 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        path = f"/api/telemetry/app/{path_segment(app_key)}/blocking"
-        params = {"instance_index": instance_index, "since": since}
+        path = telemetry_app_path(app_key, "blocking")
+        params = telemetry_filters(instance_index, since)
         return await self._transport.request("GET", path, BlockingFindingsResponse, params=params)
 
     async def get_blocking_findings(self, *, since: float | None = None) -> BlockingFindingsResponse:
@@ -439,3 +451,20 @@ class HassetteClient:
         """
         path = f"/api/scheduler/jobs/{path_segment(job_id)}/trigger"
         return await self._transport.request("POST", path, JobTriggerResponse)
+
+
+def app_path(app_key: str) -> str:
+    """Return the path of one app's routes, ``/api/apps/{app_key}``."""
+    return f"/api/apps/{path_segment(app_key)}"
+
+
+def telemetry_app_path(app_key: str, resource: str) -> str:
+    """Return the path of one app's telemetry ``resource``, such as ``"health"`` or ``"jobs"``."""
+    return f"/api/telemetry/app/{path_segment(app_key)}/{resource}"
+
+
+def telemetry_filters(
+    instance_index: int | None, since: float | None, source_tier: QuerySourceTier | None = None
+) -> dict[str, str | int | float | None]:
+    """Return the instance, time and source-tier query filters shared by the telemetry routes."""
+    return {"instance_index": instance_index, "since": since, "source_tier": source_tier}

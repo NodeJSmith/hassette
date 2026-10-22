@@ -2,6 +2,7 @@ import { type ColumnDef, flexRender, getCoreRowModel, type SortingState, useReac
 import { type ReactNode, useMemo } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRelativeTime } from "@/hooks/use-relative-time";
@@ -113,6 +114,11 @@ function renderCell(id: ColumnId, entry: LogEntry, isMobile: boolean, visibleCol
             </div>
           )}
           <div className="max-h-[1.5em] overflow-clip text-ellipsis whitespace-nowrap font-mono text-[length:var(--text-mono-md)] leading-[var(--text-small-leading)]">
+            {entry.author === "framework" && (
+              <Badge variant="muted" size="xs" className="mr-1.5 align-middle" data-testid="log-framework-badge">
+                Framework
+              </Badge>
+            )}
             {entry.message}
           </div>
         </>

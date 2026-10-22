@@ -4,6 +4,7 @@ import re
 from typing import Annotated, Literal
 
 from cyclopts import Parameter
+from hassette_wire import QueryAuthor
 from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.cli.formatters import now_epoch
@@ -99,6 +100,15 @@ LimitArg = Annotated[int | None, Parameter(name=["--limit"], help="Maximum numbe
 SourceTierArg = Annotated[
     Literal["app", "framework", "all"] | None,
     Parameter(name=["--source-tier"], help="Filter by telemetry source tier: 'app', 'framework', or 'all'."),
+]
+
+AuthorArg = Annotated[
+    QueryAuthor | None,
+    Parameter(
+        name=["--author"],
+        help="Filter log lines by who wrote them: 'app', 'framework', or 'all'. "
+        "Omit for app lines plus framework lines at ERROR and above.",
+    ),
 ]
 
 AppKeyArg = Annotated[str | None, Parameter(name=["--app"], help="Filter by app key.")]

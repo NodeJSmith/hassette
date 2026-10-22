@@ -1,3 +1,5 @@
+import type { LogAuthorQuery } from "@/api/endpoints";
+
 export const queryKeys = {
   config: () => ["config"] as const,
   systemStatus: () => ["system-status"] as const,
@@ -8,8 +10,8 @@ export const queryKeys = {
     prefix: () => ["manifest"] as const,
   },
   allListenersPalette: () => ["all-listeners-palette"] as const,
-  recentLogs: (appKey?: string, executionId?: string | null) =>
-    ["recent-logs", appKey ?? null, executionId ?? null] as const,
+  recentLogs: (appKey?: string, executionId?: string | null, author?: LogAuthorQuery) =>
+    ["recent-logs", appKey ?? null, executionId ?? null, author ?? null] as const,
   allListeners: () => ["all-listeners"] as const,
   allJobs: () => ["all-jobs"] as const,
   appGrid: () => ["app-grid"] as const,

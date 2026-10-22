@@ -11,10 +11,11 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
-from hassette_wire import QuerySourceTier
+from hassette_wire import QueryAuthor
 from playwright.sync_api import Locator, Page, expect
 from spa_build import FRONTEND_DIR, SPA_INDEX, build_spa_if_stale, spa_build_steps
 
+from hassette.types.types import ERROR_AND_ABOVE_LEVEL_NAMES
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
     MANUAL_JOB_ID,
@@ -202,9 +203,9 @@ def log_handler():
         prefix = "hassette.apps."
         if logger_name.startswith(prefix):
             record.app_key = logger_name[len(prefix) :].split(".")[0]
-            record.source_tier = "app"
+            record.author = "app"
         else:
-            record.source_tier = "framework"
+            record.author = "framework"
         handler.emit(record)
     return handler
 
@@ -248,7 +249,7 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
         app_key: str | None = None,
         level: str | None = None,
         execution_id: str | None = None,
-        source_tier: QuerySourceTier = "all",
+        author: QueryAuthor | None = None,
         instance_index: int | None = None,
     ) -> list[dict]:
         # dup-ignore-end
@@ -265,8 +266,10 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
             result = [r for r in result if r.get("level") == level]
         if execution_id is not None:
             result = [r for r in result if r.get("execution_id") == execution_id]
-        if source_tier != "all":
-            result = [r for r in result if r.get("source_tier") == source_tier]
+        if author is None:  # the default view, as log_author_clause builds it in SQL
+            result = [r for r in result if r["author"] == "app" or r["level"] in ERROR_AND_ABOVE_LEVEL_NAMES]
+        elif author != "all":
+            result = [r for r in result if r["author"] == author]
         if instance_index is not None:
             result = [r for r in result if r.get("instance_index") == instance_index]
         result.sort(key=lambda r: r["timestamp"], reverse=True)

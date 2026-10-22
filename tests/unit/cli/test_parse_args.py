@@ -147,6 +147,12 @@ class TestFlagCombinations:
         assert bound.arguments["uuid"] == "abc-123-def"
         assert bound.arguments["limit"] == 100
 
+    @pytest.mark.parametrize("command", [["log"], ["execution", "abc-123-def"]])
+    def test_author(self, command: list[str]) -> None:
+        _cmd, bound, _ = app.parse_args([*command, "--author", "all"])
+
+        assert bound.arguments["author"] == "all"
+
     @pytest.mark.parametrize(
         ("argv", "expected"),
         [
@@ -179,7 +185,8 @@ class TestInvalidInputRejection:
         "argv",
         [
             pytest.param(["log", "--since", "banana"], id="invalid-since"),
-            pytest.param(["log", "--source-tier", "bogus"], id="invalid-source-tier"),
+            pytest.param(["log", "--author", "bogus"], id="invalid-author"),
+            pytest.param(["log", "--source-tier", "app"], id="log-rejects-source-tier"),
             pytest.param(["execution"], id="missing-required-arg"),
             pytest.param(["run", "--base-url", "http://ha:8123"], id="rejects-base-url"),
             pytest.param(["run", "--url", "http://ha:8123"], id="rejects-url"),
@@ -274,7 +281,7 @@ class TestHiddenFlags:
         app.help_print(["log"], console=Console(file=buf, width=200))
 
         help_text = buf.getvalue()
-        assert "--source-tier" in help_text
+        assert "--author" in help_text
         assert "--instance" not in help_text
 
     def test_log_instance_still_parses(self) -> None:

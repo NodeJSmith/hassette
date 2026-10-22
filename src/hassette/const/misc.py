@@ -1,6 +1,9 @@
 import enum
 from typing import Literal
 
+# Root of every logger Hassette names; framework loggers and app loggers both live under it.
+HASSETTE_LOGGER_NAME = "hassette"
+
 SECONDS_PER_DAY = 86400
 SECONDS_PER_HOUR = 3600
 SECONDS_PER_MINUTE = 60

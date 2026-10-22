@@ -61,8 +61,8 @@ export HASSETTE__WEB_API__AUTH_ENABLED=true
 export HASSETTE__WEB_API__TOKEN_FILE=/config/.web_api_token
 export HASSETTE__DATABASE__PATH=/data/hassette.db
 export HASSETTE__DATABASE__SHUTDOWN_SNAPSHOT_PATH=/data/backup/hassette-snapshot.db
-# Supervisor gives the container no TTY, so "auto" would pick JSON; the Log tab is read by people.
-export HASSETTE__LOGGING__LOG_FORMAT=console
+# Supervisor gives the container no TTY, so "auto" would pick JSON; the Log tab is read by people, often on a phone.
+export HASSETTE__LOGGING__LOG_FORMAT=compact
 
 # Backups exclude the live database files and carry the snapshot backup_pre.sh (or the last clean stop) wrote.
 # A restore empties /data first, so a missing database beside a snapshot means one just happened; the

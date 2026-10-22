@@ -59,12 +59,13 @@ def wait_for_log_entries(page: Page) -> None:
 def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
     """Seeded log entries appear in the table body.
 
-    The global logs page defaults to the 'app' tier filter, which hides
-    framework-level logs (entries with no app_key). Switch to 'all' tier
-    to verify both app and framework entries are present.
+    By default the logs page hides framework-authored lines below ERROR.
+    Turn on the framework-lines toggle to verify both app and framework
+    entries are present.
     """
-    page.goto(base_url + "/logs?tier=all")
+    page.goto(base_url + "/logs")
     wait_for_log_entries(page)
+    page.locator("[data-testid='framework-lines-toggle']").check()
     body = page.locator("tbody")
     expect(body).to_contain_text("Hassette started successfully")
     expect(body).to_contain_text("MyApp initialized")

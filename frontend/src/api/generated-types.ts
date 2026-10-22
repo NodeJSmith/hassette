@@ -340,7 +340,7 @@ export interface paths {
         };
         /**
          * Get Execution Logs
-         * @description Return all log records for a single execution, with retention-expired detection.
+         * @description Return a single execution's log records, with retention-expired detection.
          *
          *     For UUIDv7 execution IDs, the embedded timestamp is extracted directly without a
          *     database lookup. For historical UUIDv4 IDs, the database is queried to determine
@@ -1816,7 +1816,8 @@ export interface components {
          *     ``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``
          *     and ``instance_*`` are set for records an app emitted and ``None`` for framework records.
          *     ``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or
-         *     job was running.
+         *     job was running. ``author`` says who wrote the line: ``"app"`` for an app's own code, ``"framework"`` for
+         *     Hassette's, including its lines about an app.
          */
         LogEntry: {
             /** Id */
@@ -1848,8 +1849,8 @@ export interface components {
             instance_name?: string | null;
             /** Instance Index */
             instance_index?: number | null;
-            /** Source Tier */
-            source_tier?: ("app" | "framework") | null;
+            /** Author */
+            author?: ("app" | "framework") | null;
             /** Execution Kind */
             execution_kind?: ("handler" | "job") | null;
             /** Listener Id */
@@ -2932,11 +2933,12 @@ export interface operations {
             query?: {
                 limit?: number;
                 app_key?: string | null;
+                /** @description Only records at this level. Without 'author', framework lines below ERROR stay excluded whatever level this asks for; pass author=all to see them. */
                 level?: string | null;
                 since?: number | null;
                 execution_id?: string | null;
-                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: "app" | "framework" | "all";
+                /** @description Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines. */
+                author?: ("app" | "framework" | "all") | null;
                 /** @description App instance index. Omit for every instance of the app. */
                 instance_index?: number | null;
             };
@@ -3012,6 +3014,8 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines. */
+                author?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path: {

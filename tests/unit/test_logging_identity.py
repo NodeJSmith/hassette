@@ -70,7 +70,7 @@ class TestOwnedLoggers:
 
         record = stamp_identity("hassette.identity_test.owned")
 
-        assert record.source_tier == "framework"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert identity_subject(record) == ("owner_app", "owner_inst", 1)
 
     def test_owner_wins_over_bound_context(self) -> None:
@@ -90,7 +90,7 @@ class TestOwnedLoggers:
 
         record = stamp_identity("hassette.identity_test.parent.mid.leaf")
 
-        assert record.source_tier == "app"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "app"  # pyright: ignore[reportAttributeAccessIssue]
         assert identity_subject(record) == ("near_app", "near", 0)
 
 
@@ -101,7 +101,7 @@ class TestOwnerlessLoggers:
 
         record = stamp_identity("hassette.identity_test.service")
 
-        assert record.source_tier == "framework"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert identity_subject(record) == ("ctx_app", "ctx", 2)
 
     @pytest.mark.parametrize(
@@ -118,7 +118,7 @@ class TestOwnerlessLoggers:
 
         record = stamp_identity(name)
 
-        assert record.source_tier == author  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == author  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_bound_app_key_does_not_make_a_line_app_authored(self) -> None:
         structlog.contextvars.bind_contextvars(app_key="ctx_app")
@@ -126,7 +126,7 @@ class TestOwnerlessLoggers:
 
         record = stamp_identity("hassette.identity_test.lifecycle_service")
 
-        assert record.source_tier == "framework"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert identity_subject(record) == ("ctx_app", None, None)
 
     def test_no_context_means_no_subject(self) -> None:
@@ -137,7 +137,7 @@ class TestOwnerlessLoggers:
     def test_unregistered_logger_name_falls_back_to_namespace(self) -> None:
         record = stamp_identity("identity_test.never_created.by_getlogger")
 
-        assert record.source_tier == "app"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "app"  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class TestCapturedWarnings:
@@ -168,8 +168,8 @@ class TestCapturedWarnings:
             warning_filename=USER_APP_FILE,
         )
 
-        assert record.source_tier == "app"  # pyright: ignore[reportAttributeAccessIssue]
-        assert framework.source_tier == "framework"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "app"  # pyright: ignore[reportAttributeAccessIssue]
+        assert framework.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_showwarning_puts_category_and_filename_on_the_record(self) -> None:
         """Calls the hook directly: pytest replaces warnings.showwarning around each test body."""
@@ -204,13 +204,13 @@ class TestPipelineBehavior:
 
         assert record.app_key == "from_caller_thread"  # pyright: ignore[reportAttributeAccessIssue]
 
-    def test_caller_supplied_source_tier_does_not_skip_subject(self) -> None:
-        """A record built with extra={"source_tier": ...} still gets its subject resolved."""
+    def test_caller_supplied_author_does_not_skip_subject(self) -> None:
+        """A record built with extra={"author": ...} still gets its subject resolved."""
         structlog.contextvars.bind_contextvars(app_key="ctx_app")
 
-        record = stamp_identity("hassette.identity_test.extra_tier", source_tier="app")
+        record = stamp_identity("hassette.identity_test.extra_author", author="app")
 
-        assert record.source_tier == "framework"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert identity_subject(record) == ("ctx_app", None, None)
 
     def test_phase1_stream_handler_resolves_identity(self) -> None:
@@ -221,5 +221,5 @@ class TestPipelineBehavior:
         logging.getLogger("hassette.identity_test.phase1").info("phase one line")
 
         parsed = first_json_record_containing(stream, "phase one line")
-        assert parsed["source_tier"] == "framework"
+        assert parsed["author"] == "framework"
         assert (parsed["app_key"], parsed["instance_name"], parsed["instance_index"]) == ("owner_app", "owner_inst", 1)

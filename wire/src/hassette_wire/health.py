@@ -6,7 +6,7 @@ from hassette_wire.cli_format import CliFormat
 from hassette_wire.enums import OpenResourceStatus
 from hassette_wire.literals import OpenBootIssueSeverity, OpenLivenessStatus, OpenSystemHealthStatus
 
-API_SCHEMA_VERSION = 2
+API_SCHEMA_VERSION = 3
 """The API schema this server serves, reported as ``SystemStatusResponse.api_schema_version``.
 
 An integer, not a release version, so a build from main reports the API it actually serves. hassette-client

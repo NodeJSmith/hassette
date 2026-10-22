@@ -4,10 +4,10 @@ import uuid
 from logging import Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
-from hassette_wire import LogLevel, ResourceStatus, SourceTier
+from hassette_wire import LogAuthor, LogLevel, ResourceStatus, SourceTier
 
 from hassette.exceptions import CannotOverrideFinalError
-from hassette.logging_ import LogAuthor, LogIdentity, apply_log_level, set_logger_identity
+from hassette.logging_ import LogIdentity, apply_log_level, set_logger_identity
 from hassette.resources.lifecycle import (
     cancel,
     coordinate_initialize,

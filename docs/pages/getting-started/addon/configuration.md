@@ -62,7 +62,7 @@ Nothing in this table needs setting: the add-on handles it. It sets these as env
 | `web_api.token_file` | `/config/.web_api_token` | Samba and the editors can see the config folder, so you can read the token. |
 | `database.path` | `/data/hassette.db` | The backup snapshot, backup exclusions and restore all name this file. |
 | `database.shutdown_snapshot_path` | `/data/backup/hassette-snapshot.db` | Backups carry this snapshot instead of the live database. See [Backups](operating.md#backups). |
-| `logging.log_format` | `console` | The **Log** tab shows readable lines. Supervisor gives the add-on no terminal, so `auto` would pick JSON. |
+| `logging.log_format` | `compact` | The **Log** tab shows readable lines, trimmed for phone screens. Supervisor gives the add-on no terminal, so `auto` would pick JSON. |
 
 !!! warning "Don't set `web_api.auth_token` in the add-on"
     A configured `web_api.auth_token` wins over the token file. Discovery still sends the file's token, so a paired integration gets a token that fails. Hassette logs a warning when this happens. Remove the setting to go back to the token file.

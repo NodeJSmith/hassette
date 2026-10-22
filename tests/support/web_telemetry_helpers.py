@@ -9,6 +9,7 @@ from hassette_wire import (
     ExecutionMode,
     ExecutionStatus,
     ListenerSummary,
+    LogAuthor,
     LogEntry,
     LogsByExecutionResponse,
     SourceTier,
@@ -199,7 +200,7 @@ def make_log_entry(
     execution_id: str | None = None,
     instance_name: str | None = None,
     instance_index: int | None = 0,
-    source_tier: str | None = "app",
+    author: LogAuthor | None = "app",
 ) -> LogEntry:
     """Build a LogEntry with sensible defaults."""
     return LogEntry(
@@ -216,7 +217,7 @@ def make_log_entry(
         execution_id=execution_id,
         instance_name=instance_name,
         instance_index=instance_index,
-        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
+        author=author,
     )
 
 

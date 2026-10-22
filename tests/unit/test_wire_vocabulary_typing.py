@@ -28,7 +28,7 @@ import hassette.scheduler.classes
 import hassette.types
 import hassette.types.enums
 from hassette.cli.commands import app as cli_app
-from hassette.web import dependencies
+from hassette.types.types import LOG_LEVELS
 from hassette.web.routes import apps as apps_route
 from tests.support.web_job_helpers import make_job_summary
 
@@ -146,7 +146,7 @@ def test_resource_role_is_a_hassette_enum_not_a_wire_name() -> None:
 
 
 def test_server_log_level_names_equal_the_wire_vocabulary() -> None:
-    assert set(dependencies.LOG_LEVELS) == set(get_args(LogLevel))
+    assert set(LOG_LEVELS) == set(get_args(LogLevel))
 
 
 @pytest.mark.parametrize("past_tense", [cli_app.ACTION_PAST_TENSE, apps_route.ACTION_PAST_TENSE], ids=["cli", "route"])

@@ -14,12 +14,18 @@ from pathlib import PurePath
 from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
 
 import structlog
-import structlog.dev
 import structlog.processors
 import structlog.stdlib
-import structlog.types
+from hassette_wire import LogAuthor
 
+from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
+from hassette.logging_processors import (
+    add_execution_id,
+    console_identity,
+    console_renderer,
+    extract_record_fields,
+)
 from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
 
 if TYPE_CHECKING:
@@ -27,7 +33,6 @@ if TYPE_CHECKING:
 
 DEQUEUE_TIMEOUT_SECONDS = 0.2
 
-HASSETTE_LOGGER_NAME = "hassette"
 # logging.captureWarnings(True) routes warnings.warn(...) calls (e.g.
 # HassetteForgottenAwaitWarning) to this logger. It must stay wired to the same handlers
 # as HASSETTE_LOGGER_NAME — see enable_basic_logging() below and LoggingService in
@@ -59,18 +64,7 @@ _IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
 WARNING_CATEGORY_ATTR = "warning_category"
 WARNING_FILENAME_ATTR = "warning_filename"
 
-LogAuthor = Literal["app", "framework"]
-
-_RECORD_FIELDS = (
-    "source_tier",
-    "app_key",
-    "execution_id",
-    "instance_name",
-    "instance_index",
-    "execution_kind",
-    "listener_id",
-    "job_id",
-)
+LogFormat = Literal["auto", "console", "compact", "json"]
 
 
 @dataclass
@@ -84,9 +78,9 @@ class LogRecordEntry:
     func_name: str
     lineno: int
     message: str
+    author: LogAuthor
     exc_info: str | None = None
     app_key: str | None = None
-    source_tier: str | None = None
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
@@ -99,7 +93,10 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
     """Extract the identity and correlation attributes the handler filters stamped on a LogRecord."""
     return {
         "app_key": getattr(record, "app_key", None),
-        "source_tier": getattr(record, "source_tier", None),
+        # Read directly: LogIdentityFilter stamps every record, and log_records.author is NOT NULL. A record
+        # that skipped the filter raises AttributeError here, which LogPersistenceHandler.emit routes to
+        # handleError, so it fails alone instead of failing the whole batch insert.
+        "author": record.author,  # pyright: ignore[reportAttributeAccessIssue]
         "execution_id": getattr(record, "execution_id", None),
         "instance_name": getattr(record, "instance_name", None),
         "instance_index": getattr(record, "instance_index", None),
@@ -239,8 +236,7 @@ class LogIdentityFilter(logging.Filter):
     (Phase 1, before the resource tree exists) and the queue handler ``LoggingService`` swaps in
     (Phase 2), so both phases see the same identity. The writing logger's owner wins over bound
     context; context supplies the subject only for ownerless loggers (shared services, user module
-    loggers, libraries). The author is stamped as
-    ``source_tier`` until #3096 adds the ``author`` field.
+    loggers, libraries).
 
     Idempotent: Phase 2 moves the stream handler under the queue listener, whose thread has no
     bound context, so a record this filter already resolved on the caller's thread is left alone.
@@ -262,7 +258,7 @@ class LogIdentityFilter(logging.Filter):
             )
         else:
             author = namespace_author(record.name)
-        record.source_tier = author  # pyright: ignore[reportAttributeAccessIssue]
+        record.author = author  # pyright: ignore[reportAttributeAccessIssue]
 
         if identity is not None and identity.app_key is not None:
             record.app_key = identity.app_key  # pyright: ignore[reportAttributeAccessIssue]
@@ -431,7 +427,12 @@ class LogPersistenceHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         if record.levelno < self._persistence_level:
             return
-        self._batch.append(self.record_to_dict(record))
+        try:
+            row = self.record_to_dict(record)
+        except Exception:
+            self.handleError(record)
+            return
+        self._batch.append(row)
         if len(self._batch) >= self.BATCH_SIZE:
             self._flush()
 
@@ -480,40 +481,6 @@ class LogPersistenceHandler(logging.Handler):
         # LoggingService.on_shutdown() flushes pending records before stopping.
         self.flush_if_pending()
         super().close()
-
-
-def add_execution_id(
-    _logger: object,
-    _method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Structlog processor: stamp execution_id from CURRENT_EXECUTION_ID context var.
-
-    Inserted in the shared processor chain after TimeStamper so structlog-native callers
-    carry the execution correlation identifier. Stdlib callers rely on CorrelationFilter
-    instead (the processor chain does not run for them until ProcessorFormatter picks them
-    up, which is after the calling context).
-    """
-    event_dict["execution_id"] = CURRENT_EXECUTION_ID.get(None)
-    return event_dict
-
-
-def _extract_record_fields(
-    _logger: object,
-    _method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Copy the attributes LogIdentityFilter and CorrelationFilter stamped on the LogRecord into the event dict.
-
-    Runs in ProcessorFormatter's processors list (before remove_processors_meta) where _record is available.
-    """
-    record = event_dict.get("_record")
-    if record:
-        for key in _RECORD_FIELDS:
-            val = getattr(record, key, None)
-            if val is not None:
-                event_dict[key] = val
-    return event_dict
 
 
 @dataclass(frozen=True)
@@ -628,7 +595,7 @@ def _reset_logger(name: str, level: int | str) -> logging.Logger:
 def enable_basic_logging(
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     *,
-    log_format: Literal["auto", "console", "json"] = "auto",
+    log_format: LogFormat = "auto",
     stream: IO[str] | None = None,
     extra_loggers: tuple[str, ...] | None = None,
 ) -> logging.StreamHandler:
@@ -644,9 +611,10 @@ def enable_basic_logging(
     Args:
         log_level: Minimum log level for the hassette logger.
         log_format: Output format selection.
-            ``"console"`` always uses ConsoleRenderer (colored human-readable).
+            ``"console"`` always uses ConsoleRenderer (colored human-readable, one identity column).
+            ``"compact"`` is ``"console"`` with a time-only timestamp and no level padding.
             ``"json"`` always uses JSONRenderer (one JSON object per line).
-            ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``).
+            ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``); it never picks ``"compact"``.
         stream: Output stream. Defaults to ``sys.stdout``.
         extra_loggers: Additional logger names (outside the ``hassette.`` tree) to attach to
             this same pipeline — see ``LoggingConfig.extra_loggers``. Each is reset and wired
@@ -658,18 +626,14 @@ def enable_basic_logging(
     """
     out: IO[str] = stream if stream is not None else sys.stdout
 
-    if log_format == "json":
-        use_json = True
-    elif log_format == "console":
-        use_json = False
-    else:
-        use_json = not out.isatty()
+    use_json = not out.isatty() if log_format == "auto" else log_format == "json"
 
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso", utc=False),
+        # The compact format is read live on narrow screens, where the date is noise.
+        structlog.processors.TimeStamper(fmt="%H:%M:%S" if log_format == "compact" else "iso", utc=False),
         add_execution_id,
     ]
 
@@ -683,14 +647,19 @@ def enable_basic_logging(
         cache_logger_on_first_use=True,
     )
 
-    renderer = structlog.processors.JSONRenderer() if use_json else structlog.dev.ConsoleRenderer()
+    if use_json:
+        output_processors: list = [structlog.processors.JSONRenderer()]
+    elif log_format == "compact":
+        output_processors = [console_identity, console_renderer(compact=True)]
+    else:
+        output_processors = [console_identity, console_renderer(compact=False)]
 
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
         processors=[
-            _extract_record_fields,
+            extract_record_fields,
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            renderer,
+            *output_processors,
         ],
     )
 

@@ -26,8 +26,8 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     thread-leaked execution, both blocking-event tiers, and a framework component's
     listener, job, executions, and logs.
 
-    The framework rows make ``source_tier=all`` responses (the client-compat fixtures) carry
-    framework-tier rows. No screenshot or demo seeds this scenario, so they change no visuals.
+    The framework rows make ``source_tier=all`` and ``author=all`` responses (the client-compat
+    fixtures) carry framework rows. No screenshot or demo seeds this scenario, so they change no visuals.
     """
     seq = 1
 
@@ -235,7 +235,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         base_offset=base,
         source_tier="framework",
     )
-    # Framework log lines carry no app context (logging_.py stamps source_tier='framework' when app_key is unset).
+    # Framework-authored log lines with no app context, the shape of a shared service's own logger.
     for i in range(2):
         ctx.add_log_record(
             seq=seq + i,
@@ -243,5 +243,5 @@ def scenario_adversarial(ctx: SeedContext) -> None:
             level="INFO",
             logger_name="hassette.core.service_watcher",
             message=f"service status sweep #{i + 1}",
-            source_tier="framework",
+            author="framework",
         )

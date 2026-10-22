@@ -71,6 +71,8 @@ export function formatTriggerDetail(detail: string): string {
  * Truncate a UUID or ID string to its last 8 chars with a leading ellipsis, or "—" for
  * null/undefined. Execution IDs are UUID7 (time-prefixed), so the leading chars are
  * identical across rows in a session — the suffix is what varies and is worth showing.
+ * The console log's short execution id is the same tail (SHORT_EXECUTION_ID_LENGTH in
+ * src/hassette/logging_.py), so ids grep across both.
  */
 export function truncateId(id: string | null | undefined): string {
   if (!id) return EMPTY_PLACEHOLDER;

@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 
-import { getRecentLogs, type LogEntry } from "@/api/endpoints";
+import { getRecentLogs, type LogAuthorQuery, type LogEntry } from "@/api/endpoints";
 import { useScopedQuery } from "@/hooks/use-scoped-query";
 import { queryKeys } from "@/lib/query-keys";
 import { useAppStore } from "@/state/store";
@@ -61,12 +61,17 @@ export const PERIODIC_RESYNC_MS = 5000;
 export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
   const queryClient = useQueryClient();
   const logHintVersion = useAppStore((s) => s.logHintVersion);
+  // "all" is every line, app lines included: the default view already has app lines and framework
+  // errors, so the opt-in only adds framework lines below ERROR. Undefined lets the server apply its
+  // default view. The author is part of the query key, so toggling it fetches that view instead of
+  // serving the other one from cache.
+  const author: LogAuthorQuery | undefined = useAppStore((s) => (s.showAllFrameworkLogs ? "all" : undefined));
 
-  const baseKey = useMemo(() => queryKeys.recentLogs(appKey, executionId), [appKey, executionId]);
+  const baseKey = useMemo(() => queryKeys.recentLogs(appKey, executionId, author), [appKey, executionId, author]);
 
   const { data, isPending, isFetching, isError, error, queryKey } = useScopedQuery<LogEntry[]>(
     baseKey,
-    (since, signal) => getRecentLogs({ appKey, executionId, since, limit: REST_FETCH_LIMIT }, signal),
+    (since, signal) => getRecentLogs({ appKey, executionId, author, since, limit: REST_FETCH_LIMIT }, signal),
     {
       refetchInterval: PERIODIC_RESYNC_MS,
       // A remount within staleTime (30s, see query-client.ts) would otherwise serve cached data

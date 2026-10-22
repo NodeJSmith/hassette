@@ -25,7 +25,6 @@ function makeEntry(seq: number) {
     timestamp: BASE_TIMESTAMP_MS + seq,
     message: `msg-${seq}`,
     app_key: "app",
-    source_tier: "app",
   });
 }
 

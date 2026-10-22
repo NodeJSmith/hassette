@@ -369,7 +369,7 @@ def seed_failed_execution(ctx: SeedContext, conn: sqlite3.Connection, base: Base
         **linked,
         "logger_name": f"hassette.apps.{base.app_key}",
         "func_name": "on_change",
-        "source_tier": "app",
+        "author": "app",
     }
     ctx.add_log_record(
         seq=seq,
