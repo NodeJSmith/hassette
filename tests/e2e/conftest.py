@@ -396,8 +396,13 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
     Tests that use live_server_ws explicitly exercise the WS path and must NOT
     have the preset forced — they receive uptimeSeconds from the real WS
     connected message and test the "since-restart" gate.
+
+    Tests marked ``own_server`` serve their own app on another origin, so seeding the shared
+    live_server would only leave its page polling while the test attaches request listeners.
     """
     if any(name.startswith("live_server_ws") for name in request.fixturenames):
+        return
+    if request.node.get_closest_marker("own_server"):
         return
     seed_time_preset_1h(page, base_url)
 
