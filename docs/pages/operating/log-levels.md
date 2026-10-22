@@ -131,7 +131,7 @@ Shared services, such as the command executor that runs handlers and jobs, also 
 --8<-- "pages/operating/snippets/set_log_level.sh"
 ```
 
-`8126` is the default `port` under `[hassette.web_api]`. For a container, use the host port the container publishes. For a remote instance, use that server's address. Every request needs the web API token from `web_api.token_file`, which defaults to `<data_dir>/.web_api_token` (see [Web UI](../web-ui/index.md)).
+`8126` is the default `port` under `[hassette.web_api]`. For a container, use the host port the container publishes. For a remote instance, use that server's address. Every request needs the web API token. If you set `web_api.auth_token`, send that value. Otherwise Hassette generates the token and writes it to `web_api.token_file`, which defaults to `<data_dir>/.web_api_token` (see [Web UI](../web-ui/index.md)).
 
 The response reports the logger's new effective level: `{"logger": "hassette.SchedulerService", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422` with code `validation_failed` (see [API Error Responses](../web-ui/api-errors.md)).
 
