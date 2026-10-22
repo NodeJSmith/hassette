@@ -25,6 +25,8 @@ All log level settings live under `[hassette.logging]` in `hassette.toml`. Each 
 
 Fields you leave unset inherit the global `log_level`. The global `log_level` defaults to `INFO` when not set.
 
+Hassette applies `[hassette.logging]` once, at startup, so an edit there takes effect on the next restart. After the restart, the service's `DEBUG` lines appear under its logger name, such as `hassette.SchedulerService`. [Runtime Log Level Changes](#runtime-log-level-changes) changes a level without a restart.
+
 ```toml
 --8<-- "pages/operating/snippets/basic_example.toml"
 ```
@@ -126,14 +128,36 @@ Shared services, such as the command executor that runs handlers and jobs, also 
 `PUT /api/logs/level` changes a logger's effective level on a running instance — no restart, no `hassette.toml` edit. The change applies immediately to both structlog and stdlib callers on that logger:
 
 ```bash
-curl -X PUT http://127.0.0.1:8126/api/logs/level \
-  -H "Content-Type: application/json" \
-  -d '{"logger": "hassette.scheduler", "level": "DEBUG"}'
+--8<-- "pages/operating/snippets/set_log_level.sh"
 ```
 
-The response reports the logger's new effective level: `{"logger": "hassette.scheduler", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422` with code `validation_failed` (see [API Error Responses](../web-ui/api-errors.md)).
+`8126` is the default `port` under `[hassette.web_api]`. For a container, use the host port the container publishes. For a remote instance, use that server's address. Every request needs the web API token from `web_api.token_file`, which defaults to `<data_dir>/.web_api_token` (see [Web UI](../web-ui/index.md)).
+
+The response reports the logger's new effective level: `{"logger": "hassette.SchedulerService", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422` with code `validation_failed` (see [API Error Responses](../web-ui/api-errors.md)).
 
 The change lives in process memory only — a restart reverts to the configured levels. Use it to capture debug output from a live issue, then turn the level back down the same way.
+
+### Logger Names
+
+Each `[hassette.logging]` field sets the level of one service logger, named `hassette.<ClassName>`:
+
+| Field | Logger |
+|-------|--------|
+| `database_service` | `hassette.DatabaseService` |
+| `bus_service` | `hassette.BusService` |
+| `scheduler_service` | `hassette.SchedulerService` |
+| `app_handler` | `hassette.AppHandler` |
+| `web_api` | `hassette.WebApiService` |
+| `websocket` | `hassette.WebsocketService` |
+| `service_watcher` | `hassette.ServiceWatcher` |
+| `file_watcher` | `hassette.FileWatcherService` |
+| `command_executor` | `hassette.CommandExecutor` |
+| `state_proxy` | `hassette.StateProxy` |
+| `api` | `hassette.ApiResource` |
+
+An app's own logger is `hassette.apps.<instance_name>`, using the app's [instance name](../core-concepts/apps/configuration.md#instance-names). Its lifecycle lines come from `hassette.apps.<instance_name>.Lifecycle`. The app's `Bus`, `Scheduler`, `Api`, and `StateManager` children add their class name the same way, as in `hassette.apps.<instance_name>.Scheduler`.
+
+Every one of these loggers carries its own level, so a change reaches only the logger it names. Setting `hassette` leaves `hassette.SchedulerService` at its configured level. An app restart also reapplies the configured levels to that app's loggers.
 
 ## Examples
 
