@@ -9,7 +9,7 @@ import os
 from functools import partial
 from logging import getLevelNamesMapping, getLogger
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from hassette_wire import LogLevel
 from pydantic import (
@@ -26,7 +26,7 @@ from pydantic import (
 from hassette.config.build import default_apps_dir
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
-from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES
+from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES, LogFormat
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import RawAppDict
 
@@ -185,9 +185,11 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_level: LogLevelAnnotation = Field(default="INFO")
     """Logging level for Hassette."""
 
-    log_format: Literal["auto", "console", "json"] = Field(default="auto")
+    log_format: LogFormat = Field(default="auto")
     """Console output format. ``"auto"`` detects TTY vs pipe automatically. ``"console"`` forces
-    colored human-readable output. ``"json"`` forces one-JSON-object-per-line output."""
+    colored human-readable output. ``"compact"`` is the console format with a time-only timestamp and
+    no level padding, for narrow viewers such as the add-on's Log tab; ``"auto"`` never picks it.
+    ``"json"`` forces one-JSON-object-per-line output."""
 
     log_queue_max: int = Field(default=2000, ge=1)
     """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""

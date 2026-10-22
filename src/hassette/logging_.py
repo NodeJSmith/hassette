@@ -8,7 +8,7 @@ import sys
 import threading
 import traceback
 import warnings
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import PurePath
 from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
@@ -59,6 +59,20 @@ _IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
 # Record attributes _showwarning sets on captured warnings for LogIdentityFilter to read.
 WARNING_CATEGORY_ATTR = "warning_category"
 WARNING_FILENAME_ATTR = "warning_filename"
+
+LogFormat = Literal["auto", "console", "compact", "json"]
+
+# Event-dict key the console identity column travels under, from console_identity to the renderer.
+IDENTITY_KEY = "identity"
+# Prefix on the identity column of a framework-authored line about an app.
+FRAMEWORK_MARKER = "hassette:"
+# Execution ids are UUIDv7, whose leading characters are a timestamp shared by executions close in
+# time, so the short id is the random tail. The web UI's truncateId (frontend/src/utils/format.ts)
+# shows the same tail, so a console id greps against the Log tab.
+SHORT_EXECUTION_ID_LENGTH = 8
+# Event-dict keys a console line keeps besides IDENTITY_KEY. ConsoleRenderer renders each one
+# itself; the identity column takes the place of its ``logger`` column (see console_renderer).
+CONSOLE_KEYS = ("timestamp", "level", "event", "exc_info", "exception", "stack")
 
 _RECORD_FIELDS = (
     "author",
@@ -522,6 +536,83 @@ def _extract_record_fields(
     return event_dict
 
 
+def identity_label(event_dict: Mapping[str, Any]) -> str:
+    """The console identity column's text for one event.
+
+    The subject's instance name when one is bound, prefixed with ``hassette:`` when the framework
+    wrote the line; otherwise the logger name without its ``hassette.`` prefix. A line inside an
+    execution ends with ``@`` and the execution id's last characters.
+
+    ``author``, ``instance_name`` and ``execution_id`` are the fields ``LogIdentityFilter`` and
+    ``CorrelationFilter`` stamp on each record.
+    """
+    subject = event_dict.get("instance_name")
+    if not subject:
+        label = (event_dict.get("logger") or "").removeprefix(f"{HASSETTE_LOGGER_NAME}.")
+    elif event_dict.get("author") == "framework":
+        label = f"{FRAMEWORK_MARKER}{subject}"
+    else:
+        label = str(subject)
+
+    execution_id = event_dict.get("execution_id")
+    short_id = f"@{execution_id[-SHORT_EXECUTION_ID_LENGTH:]}" if execution_id else ""
+    return " ".join(part for part in (label, short_id) if part)
+
+
+def console_identity(
+    _logger: object,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Structlog processor: reduce a console line to its timestamp, level, identity column and event.
+
+    Every other key is dropped; JSON output and the DB keep them.
+    """
+    out = {key: event_dict[key] for key in CONSOLE_KEYS if key in event_dict}
+    label = identity_label(event_dict)
+    if label:
+        out[IDENTITY_KEY] = label
+    return out
+
+
+def compact_timestamp(
+    _logger: object,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Structlog processor: cut the ISO timestamp to ``HH:MM:SS`` for the compact format.
+
+    The shared ``TimeStamper`` renders local ISO time (``YYYY-MM-DDTHH:MM:SS.ffffff``), whose
+    characters 11-19 are the time of day. A missing timestamp, or one too short to hold a time, is left alone.
+    """
+    timestamp = event_dict.get("timestamp")
+    if not isinstance(timestamp, str) or len(timestamp) < len("YYYY-MM-DDTHH:MM:SS"):
+        return event_dict
+    return {**event_dict, "timestamp": timestamp[11:19]}
+
+
+def console_renderer(*, compact: bool) -> structlog.dev.ConsoleRenderer:
+    """A ConsoleRenderer that prints the identity column between the level and the event.
+
+    ``compact`` drops the level padding for narrow viewers such as the add-on's Log tab. The event is
+    never padded: nothing follows it on the line.
+    """
+    renderer = structlog.dev.ConsoleRenderer(pad_level=not compact, pad_event_to=0)
+    # Reorder the renderer's own default columns so they keep its colors and padding settings.
+    # Columns render in list order. The identity column reuses the logger column's formatter, which
+    # brackets and colors it. The "" column is the renderer's required key=value fallback; it
+    # renders nothing here because console_identity drops every key without a column.
+    columns = {column.key: column for column in renderer.columns}
+    renderer.columns = [
+        columns[""],
+        columns["timestamp"],
+        columns["level"],
+        structlog.dev.Column(IDENTITY_KEY, columns["logger"].formatter),
+        columns["event"],
+    ]
+    return renderer
+
+
 @dataclass(frozen=True)
 class _ExtraLoggerSnapshot:
     """The pre-Hassette state of a ``LoggingConfig.extra_loggers`` name.
@@ -634,7 +725,7 @@ def _reset_logger(name: str, level: int | str) -> logging.Logger:
 def enable_basic_logging(
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     *,
-    log_format: Literal["auto", "console", "json"] = "auto",
+    log_format: LogFormat = "auto",
     stream: IO[str] | None = None,
     extra_loggers: tuple[str, ...] | None = None,
 ) -> logging.StreamHandler:
@@ -650,9 +741,10 @@ def enable_basic_logging(
     Args:
         log_level: Minimum log level for the hassette logger.
         log_format: Output format selection.
-            ``"console"`` always uses ConsoleRenderer (colored human-readable).
+            ``"console"`` always uses ConsoleRenderer (colored human-readable, one identity column).
+            ``"compact"`` is ``"console"`` with a time-only timestamp and no level padding.
             ``"json"`` always uses JSONRenderer (one JSON object per line).
-            ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``).
+            ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``); it never picks ``"compact"``.
         stream: Output stream. Defaults to ``sys.stdout``.
         extra_loggers: Additional logger names (outside the ``hassette.`` tree) to attach to
             this same pipeline — see ``LoggingConfig.extra_loggers``. Each is reset and wired
@@ -664,12 +756,7 @@ def enable_basic_logging(
     """
     out: IO[str] = stream if stream is not None else sys.stdout
 
-    if log_format == "json":
-        use_json = True
-    elif log_format == "console":
-        use_json = False
-    else:
-        use_json = not out.isatty()
+    use_json = not out.isatty() if log_format == "auto" else log_format == "json"
 
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
@@ -689,14 +776,19 @@ def enable_basic_logging(
         cache_logger_on_first_use=True,
     )
 
-    renderer = structlog.processors.JSONRenderer() if use_json else structlog.dev.ConsoleRenderer()
+    if use_json:
+        output_processors: list = [structlog.processors.JSONRenderer()]
+    elif log_format == "compact":
+        output_processors = [console_identity, compact_timestamp, console_renderer(compact=True)]
+    else:
+        output_processors = [console_identity, console_renderer(compact=False)]
 
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
         processors=[
             _extract_record_fields,
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            renderer,
+            *output_processors,
         ],
     )
 
