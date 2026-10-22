@@ -69,3 +69,29 @@ def test_graceful_on_no_source() -> None:
     assert source_location is not None
     assert "stdin" in source_location or "<" in source_location
     assert registration_source is None
+
+
+def test_repeat_lookup_skips_ast_walk(tmp_path: Path) -> None:
+    """A repeat lookup of an unchanged file/line is served from cache — no AST walk or segment work."""
+    f = tmp_path / "runtime_app.py"
+    f.write_text("x = run_in(job, 5)\n")
+    assert find_call_source(str(f), 1) == "run_in(job, 5)"
+
+    with (
+        patch("ast.walk", wraps=ast.walk) as mock_walk,
+        patch("ast.get_source_segment", wraps=ast.get_source_segment) as mock_segment,
+    ):
+        assert find_call_source(str(f), 1) == "run_in(job, 5)"
+
+    assert mock_walk.call_count == 0
+    assert mock_segment.call_count == 0
+
+
+def test_repeat_lookup_does_not_open_file(tmp_path: Path) -> None:
+    """A repeat lookup never calls open, so the blocking-IO guard (which patches open) cannot flag it."""
+    f = tmp_path / "runtime_app2.py"
+    f.write_text("y = schedule(job)\n")
+    assert find_call_source(str(f), 1) == "schedule(job)"
+
+    with patch("hassette.utils.source_capture._builtin_open", side_effect=AssertionError("file reopened")):
+        assert find_call_source(str(f), 1) == "schedule(job)"
