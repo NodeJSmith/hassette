@@ -8,5 +8,5 @@ class BrightnessApp(App):
             self.logger.info("Brightness: %s", brightness)
 
         # Dot-path: index into a list attribute
-        first_mode = await self.api.get_attribute("light.kitchen", "supported_color_modes.0")
-        self.logger.info("First supported color mode: %s", first_mode)
+        first_effect = await self.api.get_attribute("light.kitchen", "effect_list.0")
+        self.logger.info("First available effect: %s", first_effect)

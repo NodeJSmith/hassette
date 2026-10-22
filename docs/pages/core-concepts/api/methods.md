@@ -85,7 +85,7 @@ It suits code that needs the original strings, and debugging the raw HA payload.
 ### `get_attribute(entity_id, attribute)`
 
 Returns a single attribute value. `attribute` supports dot-path notation for nested fields
-(`"supported_color_modes.0"`). Returns [`MISSING_VALUE`](../bus/dependency-injection.md#identity-extractors) — a falsy sentinel from `hassette.const` — when the attribute is absent, rather than raising.
+(`"effect_list.0"`). Returns [`MISSING_VALUE`](../bus/dependency-injection.md#identity-extractors) — a falsy sentinel from `hassette.const` — when the attribute is absent, rather than raising.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
