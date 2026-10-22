@@ -23,7 +23,7 @@ Find open autofix PRs by label (autofix PR creation attaches `source:autofix`):
 gh pr list --label "source:autofix" --state open --json number,title,headRefName,labels --jq '.[] | "\(.number) | \(.title) | \(.headRefName) | \([.labels[].name] | join(","))"'
 ```
 
-Unattended, drop PRs whose labels include `autofix:needs-human`: they're parked until a human looks at them, and reprocessing them would repeat the same park on every run. A human returns one to the loop by swapping `autofix:needs-human` for `autofix:human-cleared`. Removing `needs-human` alone isn't enough, because the convergence is still in the PR's history and the next run would park it again. Interactively, keep parked PRs, since the user is likely the human pass they're waiting for.
+Unattended, drop PRs whose labels include `autofix:needs-human`: they're parked until a human looks at them, and reprocessing them would repeat the same park on every run. A human returns one to the loop by swapping `autofix:needs-human` for `autofix:human-cleared`. Removing `needs-human` alone isn't enough, because the convergence that needed a human is still in the PR's history and the next run would park it again. Interactively, keep parked PRs, since the user is likely the human pass they're waiting for.
 
 Present the list (to the user, or in the run's output when unattended). If no open PRs, report that and stop.
 
@@ -59,18 +59,28 @@ If the ledger can't be completed (the check still fails after two fix rounds, or
 
 **No convergences:** continue to 2b. The ledger is only a gate; 2b triages as usual.
 
-**Convergences:** stop before fixing anything on this PR.
+**Convergences:** stop before fixing anything on this PR. The one exception is an unattended run where no convergence needs a human (see Unattended below).
 
 - **Interactive:** ask as mine-address-pr-issues's "Convergence gate" does. "Stop and discuss" ends work on this PR only. Move on to the next PR and record it as "stopped to discuss" in the summary. If the user picks "Patch individually", continue to 2b and note in the summary that the convergence was patched individually by choice.
-- **Unattended:** never patch individually. Park the PR for a human, reading its state first with `gh pr view {PR} --json labels,isDraft,autoMergeRequest` so nothing is repeated. Do the steps in this order. The label goes on last because it takes the PR out of later unattended runs (Phase 1): if a run dies partway, the next run must still see the PR so it can finish making it safe.
+- **Unattended:** first decide which convergences need a human. A convergence does if either is true:
+  - at least one member is `open`, or
+  - a fix didn't hold: some member was first raised after another member was fixed. The fix time is the committer date of the commit the fix reply names (`git show -s --format=%cI {sha}`), not the reply's own timestamp. A reply often lands after the fixed head is already under review. Use the reply time only when it names no commit. For a history row, use its `round` date. Where either side of a comparison is only a date, count a same-day tie as raised after. If a fixed member's fix time can't be found, as with a review-body finding that got a shared PR comment instead of a reply, treat the convergence as needing a human. The later member counts whatever its own outcome. A finding declined after a fix still parks, because an unattended run can't tell a wrong finding from a fix that didn't hold.
+
+  Findings raised in one review always come before any fix, so a batch fixed together never meets the second test. Check that test rather than reading "every member resolved" as settled: a mechanism patched once per round also ends up all resolved.
+
+  A convergence that meets neither is settled, for example several first-round findings that one commit fixed together. The interactive path still surfaces these. Unattended, a settled convergence doesn't park, since a human has nothing left to decide on findings that are already fixed. If no convergence needs a human, continue to 2b, and add "convergence noted, already resolved: {mechanism}" to the PR's summary row.
+
+  If any convergence needs a human, never patch individually. Park the PR. Read its state first with `gh pr view {PR} --json labels,isDraft,autoMergeRequest` so nothing is repeated, then do the steps in this order. The label goes on last because it takes the PR out of later unattended runs (Phase 1): if a run dies partway, the next run must still see the PR so it can finish making it safe.
   1. Turn off any auto-merge an earlier run queued: `gh pr merge --disable-auto {PR}`.
   2. If the PR isn't a draft, convert it: `gh pr ready {PR} --undo`.
   3. Remove any `codex-rounds:N` label, so the Codex round counter doesn't keep driving automated re-review while the PR waits.
-  4. Post one comment, written to a temp file and posted with `gh pr comment {PR} --body-file`. For each convergence, include:
+  4. Post one comment, written to a temp file and posted with `gh pr comment {PR} --body-file`. For each convergence that needs a human, include:
      - its `mechanism`
      - its members, one line each: the finding, its round, and its outcome or open status
      - its `summary`
      - its `open_questions`, unanswered. Don't propose a redesign; these are for the human to decide.
+
+     After those, name any settled convergence in one line: its `mechanism` and "already resolved".
   5. Add `autofix:needs-human` if it's missing.
 
   Then skip the rest of Phase 2 for this PR and record it in the summary as parked.
@@ -154,6 +164,8 @@ After all PRs are processed, present a summary table:
 | PR | Review threads | Fixes | Outcome |
 |---|---|---|---|
 | #{n} | {X threads: Y fixed, Z skipped} | {description} | {auto-merge queued / needs rebase / parked: converging on {mechanism} / stopped to discuss / ledger failed} |
+
+When a PR continued past a settled convergence, append `(convergence noted, already resolved: {mechanism})` to its outcome, e.g. `auto-merge queued (convergence noted, already resolved: status-to-color map)`.
 
 ## Diagnostic Questions
 
