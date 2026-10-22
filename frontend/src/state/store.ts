@@ -118,9 +118,13 @@ export interface AppStore extends TelemetryHealth {
   /** Bumped on every `log_hint` WS message — the signal `use-log-data.ts` debounces on to
    * refetch the log view. No log content lives in the store; the WS message carries none. */
   logHintVersion: number;
+  /** Whether log views show every framework line, not just the default view's framework errors.
+   * One per-viewer preference shared by every log view, persisted like the other preferences. */
+  showAllFrameworkLogs: boolean;
   sendLogLevel: (level: string) => void;
   setSendLogLevel: (fn: (level: string) => void) => void;
   incrementLogHint: () => void;
+  setShowAllFrameworkLogs: (v: boolean) => void;
 
   // --- composite actions ---
   handleWsConnected: (data: ConnectedData, isReconnect: boolean) => void;
@@ -146,6 +150,7 @@ export function initialState(): Omit<
   | "incrementTick"
   | "setSendLogLevel"
   | "incrementLogHint"
+  | "setShowAllFrameworkLogs"
   | "handleWsConnected"
 > {
   return {
@@ -173,6 +178,7 @@ export function initialState(): Omit<
 
     // --- logs ---
     logHintVersion: 0,
+    showAllFrameworkLogs: getStoredValue<boolean>("showAllFrameworkLogs", false, isBoolean),
     sendLogLevel: () => {},
   };
 }
@@ -215,6 +221,11 @@ export const useAppStore = create<AppStore>()((set) => ({
   // --- logs ---
   setSendLogLevel: (fn) => set({ sendLogLevel: fn }),
   incrementLogHint: () => set((state) => ({ logHintVersion: state.logHintVersion + 1 })),
+  // See the preferences note above — persists alongside the state write.
+  setShowAllFrameworkLogs: (v) => {
+    setStoredValue("showAllFrameworkLogs", v);
+    set({ showAllFrameworkLogs: v });
+  },
 
   // --- composite actions ---
   handleWsConnected: (data, isReconnect) =>

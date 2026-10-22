@@ -4,7 +4,7 @@
 import { DETAIL_FETCH_LIMIT } from "../utils/constants";
 import { apiFetch, apiPost, BASE_URL } from "./client";
 import type { ConfigRecord, SchemaNode } from "./config-view-types";
-import type { components } from "./generated-types";
+import type { components, operations } from "./generated-types";
 
 export type AppStatus = components["schemas"]["AppStatus"];
 export type ResourceStatus = components["schemas"]["ResourceStatus"];
@@ -149,13 +149,18 @@ export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetrySt
 
 export const getConfig = () => apiFetch<SystemConfig>("/config");
 
+export type LogAuthorQuery = NonNullable<
+  NonNullable<operations["get_logs_api_logs_recent_get"]["parameters"]["query"]>["author"]
+>;
+
 interface LogFilterParams {
   level?: string;
   appKey?: string;
   limit?: number;
   since?: number | null;
   executionId?: string | null;
-  sourceTier?: string | null;
+  /** Omit for the server's default view (app lines plus framework lines at ERROR and above). */
+  author?: LogAuthorQuery;
 }
 
 const buildLogFilterParams = (params?: LogFilterParams) => ({
@@ -164,7 +169,7 @@ const buildLogFilterParams = (params?: LogFilterParams) => ({
   limit: params?.limit,
   since: params?.since,
   execution_id: params?.executionId,
-  source_tier: params?.sourceTier,
+  author: params?.author,
 });
 
 export const getRecentLogs = (params?: LogFilterParams, signal?: AbortSignal) =>

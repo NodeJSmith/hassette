@@ -6,15 +6,16 @@ from hassette_wire import LogEntry, LogsByExecutionResponse
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.formatters import fmt_relative_time
+from hassette.cli.formatters import fmt_log_author, fmt_relative_time
 from hassette.cli.output import Column, render_table
-from hassette.cli.types import AppKeyArg, LimitArg, LogInstanceArg, SinceArg, SourceTierArg
+from hassette.cli.types import AppKeyArg, AuthorArg, LimitArg, LogInstanceArg, SinceArg
 
 # Shared log entry column definitions (used by both log and execution)
 
 LOG_COLUMNS: list[Column] = [
     Column("timestamp", "When", formatter=fmt_relative_time),
     Column("level", "Level"),
+    Column("author", "Author", formatter=fmt_log_author),
     Column("app_key", "App"),
     Column("instance_name", "Instance"),
     Column("func_name", "Function"),
@@ -24,6 +25,7 @@ LOG_COLUMNS: list[Column] = [
 EXECUTION_LOG_COLUMNS: list[Column] = [
     Column("timestamp", "When", formatter=fmt_relative_time),
     Column("level", "Level"),
+    Column("author", "Author", formatter=fmt_log_author),
     Column("func_name", "Function"),
     Column("lineno", "Line"),
     Column("message", "Message"),
@@ -35,7 +37,7 @@ def cmd_log(
     instance: LogInstanceArg = None,
     since: SinceArg = None,
     limit: LimitArg = None,
-    source_tier: SourceTierArg = None,
+    author: AuthorArg = None,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
@@ -48,7 +50,7 @@ def cmd_log(
     raw: list[Any] = client.get(
         "/api/logs/recent",
         list,
-        params=query_params(app_key=app, since=since, limit=limit, source_tier=source_tier),
+        params=query_params(app_key=app, since=since, limit=limit, author=author),
     )
     entries = parse_wire_list(LogEntry, raw)
     render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)
@@ -59,6 +61,7 @@ def cmd_log(
 def cmd_execution(
     uuid: str,
     limit: LimitArg = None,
+    author: AuthorArg = None,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
@@ -69,6 +72,6 @@ def cmd_execution(
     response = client.get(
         f"/api/executions/{uuid}",
         LogsByExecutionResponse,
-        params=query_params(limit=limit),
+        params=query_params(limit=limit, author=author),
     )
     render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=ctx.json_mode)

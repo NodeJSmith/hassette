@@ -26,6 +26,7 @@ from hassette_wire import (
     LogLevelRequest,
     LogLevelResponse,
     LogsByExecutionResponse,
+    QueryAuthor,
     QuerySourceTier,
     ReadinessResponse,
     SystemStatusResponse,
@@ -185,7 +186,7 @@ class HassetteClient:
         level: LogLevel | None = None,
         since: float | None = None,
         execution_id: str | None = None,
-        source_tier: QuerySourceTier | None = None,
+        author: QueryAuthor | None = None,
     ) -> list[LogEntry]:
         """Get recent log records.
 
@@ -196,7 +197,8 @@ class HassetteClient:
             level: Only records at this level.
             since: Only records at or after this Unix timestamp.
             execution_id: Only records emitted during this handler or job execution.
-            source_tier: ``"app"`` or ``"framework"`` records only, or ``"all"``.
+            author: ``"app"`` or ``"framework"`` lines only, or ``"all"``. ``None`` returns the server's default
+                view: app-authored lines plus framework lines at ERROR and above.
 
         Raises:
             TelemetryUnavailableError: The log store couldn't be read.
@@ -208,7 +210,7 @@ class HassetteClient:
             "level": level,
             "since": since,
             "execution_id": execution_id,
-            "source_tier": source_tier,
+            "author": author,
         }
         return await self._transport.request("GET", "/api/logs/recent", list[LogEntry], params=params)
 
@@ -217,14 +219,23 @@ class HassetteClient:
         body = LogLevelRequest(logger=logger, level=level)
         return await self._transport.request("PUT", "/api/logs/level", LogLevelResponse, body=body)
 
-    async def get_execution_logs(self, execution_id: str, *, limit: int | None = None) -> LogsByExecutionResponse:
+    async def get_execution_logs(
+        self, execution_id: str, *, limit: int | None = None, author: QueryAuthor | None = None
+    ) -> LogsByExecutionResponse:
         """Get the log records one handler or job execution emitted.
+
+        Args:
+            execution_id: The handler or job execution.
+            limit: The most records to return.
+            author: ``"app"`` or ``"framework"`` lines only, or ``"all"``. ``None`` returns the server's default
+                view: app-authored lines plus framework lines at ERROR and above.
 
         Raises:
             TelemetryUnavailableError: The log store couldn't be read.
         """
         path = f"/api/executions/{path_segment(execution_id)}"
-        return await self._transport.request("GET", path, LogsByExecutionResponse, params={"limit": limit})
+        params = {"limit": limit, "author": author}
+        return await self._transport.request("GET", path, LogsByExecutionResponse, params=params)
 
     async def get_listeners(
         self,

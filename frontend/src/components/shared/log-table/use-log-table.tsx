@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "@/hooks/use-media-query";
-import { cn } from "@/lib/utils";
 import { useAppStore } from "@/state/store";
 import { pluralize } from "@/utils/format";
 
 import type { ColumnFilters } from "../table-types";
 import type { ColumnPickerProps } from "./column-picker";
-import { DEFAULT_LEVEL, LEVEL_OPTIONS, RENDER_CAP, TIER_OPTIONS } from "./constants";
+import { DEFAULT_LEVEL, LEVEL_OPTIONS, RENDER_CAP } from "./constants";
 import type { ColumnId, LevelFilter, LogSortState, RowKey, ViewContext } from "./types";
 import { rowKey } from "./types";
 import { useColumnVisibility } from "./use-column-visibility";
@@ -80,9 +79,7 @@ export function useLogTable({
     totalFilteredCount,
     filterState,
     livePaused,
-    defaultTier,
     setLevel,
-    setTier,
     setApp,
     setSearch,
     setFunc,
@@ -93,8 +90,6 @@ export function useLogTable({
     allEntries,
     // Execution-scoped views always use local state — URL params are owned by the parent page.
     useLocalState: useLocalState || !!executionId,
-    appKey,
-    executionId,
     loading,
     fetching,
     scopeKey,
@@ -128,7 +123,6 @@ export function useLogTable({
 
   const hasActiveFilter =
     filterState.level !== DEFAULT_LEVEL ||
-    filterState.tier !== defaultTier ||
     filterState.app !== "" ||
     filterState.func !== "" ||
     filterState.search !== "";
@@ -172,62 +166,27 @@ export function useLogTable({
       },
     };
 
-    // Execution-scoped panels show every log for one execution; a tier toggle there would
-    // only hide some of that execution's own lines, so the tier/app filter is omitted.
-    // Note the asymmetry with defaultTier (keyed on executionId): the global /logs page
-    // filtered by execution_id still defaults to "all" but keeps this toggle, so a user can
-    // narrow further by tier/app. Only the dedicated execution panel removes the toggle.
-    if (!appKey && context !== "execution") {
+    // An app-scoped or execution-scoped view already shows one app's lines, so only the global
+    // view offers an app filter.
+    if (!appKey && context !== "execution" && appKeys && appKeys.length > 0) {
       filters.app = {
-        active: filterState.tier !== defaultTier || filterState.app !== "",
+        active: filterState.app !== "",
         label: "App",
         content: (
-          <div>
-            <div className="mb-2 flex gap-1">
-              {TIER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={cn(
-                    "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                    filterState.tier === opt.value && "bg-accent font-medium text-foreground",
-                  )}
-                  onClick={() => setTier(opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {filterState.tier !== "framework" && appKeys && appKeys.length > 0 && (
-              <select value={filterState.app} onChange={(e) => setApp(e.currentTarget.value)} data-testid="filter-app">
-                <option value="">All apps</option>
-                {appKeys.map((key) => (
-                  <option key={key} value={key}>
-                    {key}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+          <select value={filterState.app} onChange={(e) => setApp(e.currentTarget.value)} data-testid="filter-app">
+            <option value="">All apps</option>
+            {appKeys.map((key) => (
+              <option key={key} value={key}>
+                {key}
+              </option>
+            ))}
+          </select>
         ),
       };
     }
 
     return filters;
-  }, [
-    filterState.level,
-    filterState.tier,
-    filterState.app,
-    filterState.func,
-    defaultTier,
-    appKey,
-    appKeys,
-    context,
-    setLevel,
-    setTier,
-    setApp,
-    setFunc,
-  ]);
+  }, [filterState.level, filterState.app, filterState.func, appKey, appKeys, context, setLevel, setApp, setFunc]);
 
   return {
     tableProps: {

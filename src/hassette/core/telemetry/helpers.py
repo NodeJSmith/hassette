@@ -10,10 +10,10 @@ from contextlib import AbstractAsyncContextManager
 from typing import Any, assert_never
 
 import aiosqlite
-from hassette_wire import QuerySourceTier
+from hassette_wire import QueryAuthor, QuerySourceTier
 
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
-from hassette.types.types import APP_SOURCE_TIER, is_framework_key
+from hassette.types.types import APP_SOURCE_TIER, ERROR_AND_ABOVE_LEVEL_NAMES, is_framework_key
 
 # Storage-layer exceptions translated to TelemetryUnavailableError at the read boundary.
 # Named once here so both the execute() chokepoint and the get_all_app_summaries bypass
@@ -69,6 +69,7 @@ __all__ = [
     "build_app_summaries",
     "fetch_all_as_dicts",
     "handler_job_union_arms",
+    "log_author_clause",
     "log_record_filter_clauses",
     "row_to_dict",
     "since_clause",
@@ -99,7 +100,7 @@ def log_record_filter_clauses(
     app_key: str | None,
     level: str | None,
     execution_id: str | None,
-    source_tier: QuerySourceTier,
+    author: QueryAuthor | None,
     instance_index: int | None,
 ) -> tuple[list[str], dict[str, Any]]:
     """Return a (clauses, params) tuple for the log_records filter set.
@@ -112,8 +113,7 @@ def log_record_filter_clauses(
         app_key: When provided, adds ``lr.app_key = :app_key``.
         level: When provided, adds ``lr.level = :level``.
         execution_id: When provided, adds ``lr.execution_id = :execution_id``.
-        source_tier: When ``'app'`` or ``'framework'``, adds ``lr.source_tier = :source_tier``.
-            ``'all'`` applies no filter.
+        author: The author filter; see ``log_author_clause``.
         instance_index: When provided, adds ``lr.instance_index = :instance_index``. ``None`` matches
             every instance.
     """
@@ -131,13 +131,38 @@ def log_record_filter_clauses(
     if execution_id is not None:
         clauses.append("lr.execution_id = :execution_id")
         params["execution_id"] = execution_id
-    if source_tier != "all":
-        clauses.append("lr.source_tier = :source_tier")
-        params["source_tier"] = source_tier
+    author_sql, author_params = log_author_clause(author)
+    if author_sql is not None:
+        clauses.append(author_sql)
+        params.update(author_params)
     if instance_index is not None:
         clauses.append("lr.instance_index = :instance_index")
         params["instance_index"] = instance_index
     return clauses, params
+
+
+def log_author_clause(author: QueryAuthor | None) -> tuple[str | None, dict[str, Any]]:
+    """Return a ``(clause, params)`` tuple filtering ``log_records`` (alias ``lr``) by author.
+
+    Every log query applies this one default, so the web UI, the CLI and the client agree on what a
+    log view shows unless the caller opts in to more.
+
+    Args:
+        author: ``None`` keeps app-authored lines plus framework lines at ERROR and above (the default
+            view). ``'app'`` or ``'framework'`` keeps only that author's lines. ``'all'`` applies no
+            filter, and the clause is ``None``.
+    """
+    match author:
+        case None:
+            names = {f"author_level_{i}": name for i, name in enumerate(ERROR_AND_ABOVE_LEVEL_NAMES)}
+            levels = ", ".join(f":{key}" for key in names)
+            return f"(lr.author = 'app' OR lr.level IN ({levels}))", names
+        case "app" | "framework":
+            return "lr.author = :author", {"author": author}
+        case "all":
+            return None, {}
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 def source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, dict[str, str]]:

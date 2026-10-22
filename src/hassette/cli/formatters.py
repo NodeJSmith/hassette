@@ -113,6 +113,11 @@ def fmt_duration_s(num: float) -> str:
     return f"{num:.1f}s"
 
 
+def fmt_log_author(value: Any) -> str:
+    """Mark framework-authored log lines and leave app lines blank, so the framework ones stand out."""
+    return "framework" if value == "framework" else ""
+
+
 def fmt_handler_short(value: Any) -> str:
     """Extract just the method name from a fully qualified handler path."""
     if value is None:

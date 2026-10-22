@@ -90,14 +90,14 @@ class TestLoggingPipelineJSONRenderer:
         logger.warning("level test")
         assert last_json_record(stream)["level"] == "warning"
 
-    def test_source_tier_appears_in_json_output_from_logger_identity(self) -> None:
-        """The author fixed on the writing logger appears as source_tier in JSON output."""
+    def test_author_appears_in_json_output_from_logger_identity(self) -> None:
+        """The author fixed on the writing logger appears as author in JSON output."""
         stream = StringIO()
         enable_basic_logging("INFO", log_format="json", stream=stream)
-        logger = logging.getLogger("hassette.test_source_tier_json")
+        logger = logging.getLogger("hassette.test_author_json")
         set_logger_identity(logger, LogIdentity(author="app"))
         logger.info("tier test")
-        assert last_json_record(stream).get("source_tier") == "app"
+        assert last_json_record(stream).get("author") == "app"
 
 
 class TestEnableBasicLoggingAutoFormat:

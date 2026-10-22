@@ -2,7 +2,7 @@ import typing
 from logging import Logger, getLogger
 from typing import ClassVar, Generic, TypeVar, cast, final
 
-from hassette_wire import LogLevel, SourceTier
+from hassette_wire import LogAuthor, LogLevel, SourceTier
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -11,7 +11,7 @@ from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
 from hassette.config.classes import AppManifest
 from hassette.conversion import StateRegistry, TypeRegistry
-from hassette.logging_ import LogAuthor, LogIdentity, set_logger_identity
+from hassette.logging_ import LogIdentity, set_logger_identity
 from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager

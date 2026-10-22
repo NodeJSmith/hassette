@@ -538,12 +538,12 @@ ROUTE_CASES = {
         "validation_failed",
         "Validation failed: query.limit: Input should be greater than or equal to 1",
     ),
-    "fastapi-logs-bad-source-tier": ProblemCase(
+    "fastapi-logs-bad-author": ProblemCase(
         "GET",
-        "/api/logs/recent?source_tier=nope",
+        "/api/logs/recent?author=nope",
         422,
         "validation_failed",
-        "Validation failed: query.source_tier: Input should be 'app', 'framework' or 'all'",
+        "Validation failed: query.author: Input should be 'app', 'framework' or 'all'",
     ),
     # The body must stay under MAX_REQUEST_BODY_BYTES (web/body_limit.py), or the body-limit
     # middleware answers 413 before field validation runs.

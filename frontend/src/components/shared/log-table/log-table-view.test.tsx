@@ -23,7 +23,7 @@ vi.mock("@/hooks/use-relative-time", () => ({
 vi.mock("wouter", () => createWouterMock());
 
 function makeEntry(seq: number) {
-  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, app_key: "app", source_tier: "app" });
+  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, app_key: "app" });
 }
 
 const DEFAULT_COLUMNS: ColumnId[] = ["level", "timestamp", "app", "message"];
@@ -69,6 +69,19 @@ describe("LogTableView", () => {
       const { getByTestId } = renderView({ visibleColumns: ["level", "message"] });
       const cols = getByTestId("log-table").querySelectorAll("colgroup col");
       expect(cols.length).toBe(3);
+    });
+  });
+
+  describe("framework badge", () => {
+    it("marks framework-authored lines and leaves app lines unmarked", () => {
+      const appLine = createLogEntry({ seq: 1, message: "app line", author: "app" });
+      const frameworkLine = createLogEntry({ seq: 2, message: "framework line", author: "framework" });
+      const { getAllByTestId, getByText } = renderView({ entries: [appLine, frameworkLine] });
+
+      const badges = getAllByTestId("log-framework-badge");
+      expect(badges).toHaveLength(1);
+      expect(badges[0].textContent).toBe("Framework");
+      expect(getByText("framework line").contains(badges[0])).toBe(true);
     });
   });
 

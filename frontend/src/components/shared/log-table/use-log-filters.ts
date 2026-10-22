@@ -14,7 +14,7 @@ import {
   resolveSortKey,
   SEARCH_DEBOUNCE_MS,
 } from "./constants";
-import type { FilterState, LevelFilter, LogSortState, TierFilter } from "./types";
+import type { FilterState, LevelFilter, LogSortState } from "./types";
 
 interface UseLogFiltersParams {
   allEntries: LogEntry[];
@@ -45,9 +45,7 @@ interface UseLogFiltersResult {
   totalFilteredCount: number;
   filterState: FilterState;
   livePaused: boolean;
-  defaultTier: TierFilter;
   setLevel: (level: LevelFilter) => void;
-  setTier: (tier: TierFilter) => void;
   setApp: (app: string) => void;
   setSearch: (search: string) => void;
   setFunc: (func: string) => void;
@@ -87,7 +85,7 @@ export interface FilteredLogEntriesResult {
 
 export function filterLogEntries(
   source: readonly LogEntry[],
-  { level, tier, app, search, func, sort }: FilterState,
+  { level, app, search, func, sort }: FilterState,
   visibleLimit = RENDER_CAP,
 ): FilteredLogEntriesResult {
   const lowerSearch = search.toLowerCase();
@@ -100,7 +98,6 @@ export function filterLogEntries(
       const idx = LEVELS.indexOf(e.level as (typeof LEVELS)[number]);
       if (idx < minLevelIndex) return false;
     }
-    if (tier !== "all" && e.source_tier !== tier) return false;
     if (app && e.app_key !== app) return false;
     if (
       lowerSearch &&
@@ -147,8 +144,6 @@ export function filterLogEntries(
 export function useLogFilters({
   allEntries,
   useLocalState = false,
-  appKey,
-  executionId,
   loading = false,
   fetching = false,
   scopeKey = EMPTY_SCOPE_KEY,
@@ -157,27 +152,11 @@ export function useLogFilters({
   const qpRef = useRef(qp);
   qpRef.current = qp;
 
-  // An execution_id already scopes rows to a single execution, whose logs can span
-  // both tiers (its app logs plus framework diagnostics about it). Tier-filtering there
-  // would only hide some of the execution's own logs, so default to "all" — same as appKey.
-  const defaultTier: TierFilter = appKey || executionId ? "all" : "app";
-
   const [localLevel, setLocalLevel] = useState<LevelFilter>(DEFAULT_LEVEL);
-  const [localTier, setLocalTier] = useState<TierFilter>(defaultTier);
   const [localApp, setLocalApp] = useState("");
   const [localSearch, setLocalSearch] = useState("");
   const [localFunc, setLocalFunc] = useState("");
   const [localSort, setLocalSort] = useState<LogSortState>(DEFAULT_SORT);
-
-  // localTier is seeded from defaultTier once at mount, but defaultTier is reactive: on the
-  // global /logs page, adding execution_id to the URL flips useLocalState true and recomputes
-  // defaultTier "app"->"all" without remounting. Re-sync so a stale "app" doesn't keep hiding
-  // framework rows. Clears the app filter too when leaving the "app" tier.
-  useEffect(() => {
-    if (!useLocalState) return;
-    setLocalTier(defaultTier);
-    if (defaultTier !== "app") setLocalApp("");
-  }, [useLocalState, defaultTier]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -194,7 +173,6 @@ export function useLogFilters({
   const filterState: FilterState = useLocalState
     ? {
         level: localLevel,
-        tier: localTier,
         app: localApp,
         search: localSearch,
         func: localFunc,
@@ -204,9 +182,6 @@ export function useLogFilters({
         const current = qpRef.current;
         const levelParam = current.get("level");
         const level: LevelFilter = levelParam === "all" ? ALL_LEVELS : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
-        const tierRaw = current.get("tier");
-        const tier: TierFilter =
-          tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
         const app = current.get("app") ?? "";
         const search = current.get("search") ?? "";
         const func = current.get("func") ?? current.get("fn") ?? "";
@@ -214,7 +189,7 @@ export function useLogFilters({
         const key = resolveSortKey(rawSort);
         const dir = current.get("dir") === "asc" ? "asc" : "desc";
 
-        return { level, tier, app, search, func, sort: { key, dir } };
+        return { level, app, search, func, sort: { key, dir } };
       })();
 
   const livePaused = filterState.sort.key !== "timestamp";
@@ -278,13 +253,13 @@ export function useLogFilters({
   }
   wasLivePausedRef.current = livePaused;
 
-  const { level, tier, app, search, func, sort } = filterState;
+  const { level, app, search, func, sort } = filterState;
   const source = livePaused ? pausedSnapshotRef.current : allEntries;
 
   const filtered = useMemo(
-    () => filterLogEntries(source, { level, tier, app, search, func, sort }),
+    () => filterLogEntries(source, { level, app, search, func, sort }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sort is destructured; .key/.dir are the actual deps
-    [source, level, tier, app, search, func, sort.key, sort.dir],
+    [source, level, app, search, func, sort.key, sort.dir],
   );
 
   function setLevel(level: LevelFilter) {
@@ -299,15 +274,6 @@ export function useLogFilters({
     } else {
       qpRef.current.set({ level });
     }
-  }
-
-  function setTier(tier: TierFilter) {
-    if (tier !== "app") setApp("");
-    if (useLocalState) {
-      setLocalTier(tier);
-      return;
-    }
-    qpRef.current.set({ tier: tier === defaultTier ? null : tier });
   }
 
   function setApp(app: string) {
@@ -356,7 +322,6 @@ export function useLogFilters({
 
   function resetFilters() {
     setLevel(DEFAULT_LEVEL);
-    setTier(defaultTier);
     setApp("");
     setFunc("");
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -372,9 +337,7 @@ export function useLogFilters({
     totalFilteredCount: filtered.count,
     filterState,
     livePaused,
-    defaultTier,
     setLevel,
-    setTier,
     setApp,
     setSearch,
     setFunc,

@@ -26,8 +26,8 @@ opposite direction: an older client parsing a newer server's response needs to t
 it doesn't recognize. Response fields typed with an enum or open-set Literal accept such a value as
 an ``UnknownValue`` when validated with ``context=LENIENT_CONTEXT`` and reject it otherwise, so a
 client opts in by passing it. The published JSON schemas describe what the server emits, so they
-list these fields as closed sets even though a lenient client accepts more. ``SourceTier`` and
-``LogLevel`` are closed: adding a value to either is a breaking change.
+list these fields as closed sets even though a lenient client accepts more. ``SourceTier``,
+``LogLevel`` and ``LogAuthor`` are closed: adding a value to any of them is a breaking change.
 
 The automated wire-compatibility check enforces these rules for the HTTP contract only. WS
 payloads follow the same rules by convention, but nothing currently verifies a WS change against
@@ -82,7 +82,9 @@ from hassette_wire.literals import (
     ExecutionKind,
     HealthStatus,
     ListenerKind,
+    LogAuthor,
     LogLevel,
+    QueryAuthor,
     QuerySourceTier,
     SourceTier,
     SystemHealthStatus,
@@ -178,6 +180,7 @@ __all__ = [
     "ListenerKind",
     "ListenerSummary",
     "LivenessResponse",
+    "LogAuthor",
     "LogEntry",
     "LogHintWsMessage",
     "LogLevel",
@@ -186,6 +189,7 @@ __all__ = [
     "LogsByExecutionResponse",
     "ProblemCode",
     "ProblemDetail",
+    "QueryAuthor",
     "QuerySourceTier",
     "ReadinessResponse",
     "ResourceStatus",

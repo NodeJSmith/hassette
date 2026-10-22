@@ -117,9 +117,10 @@ def test_app_manifests_cover_all_listener_and_job_app_keys(scenario: str, tmp_pa
 
 @pytest.mark.parametrize("table", ["listeners", "scheduled_jobs", "executions", "log_records"])
 def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path):
-    """``adversarial`` seeds framework-tier rows in every tier-filtered table, so ``source_tier=all``
-    responses (the client-compat fixtures) carry framework rows too.
+    """``adversarial`` seeds framework rows in every tier- or author-filtered table, so ``source_tier=all``
+    and ``author=all`` responses (the client-compat fixtures) carry framework rows too.
     """
+    column = "author" if table == "log_records" else "source_tier"
     output = tmp_path / "test.db"
 
     result = _run_seed_script("adversarial", output)
@@ -127,7 +128,7 @@ def test_adversarial_scenario_has_framework_tier_rows(table: str, tmp_path: Path
 
     conn = sqlite3.connect(output)
     try:
-        count = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE source_tier = 'framework'").fetchone()[0]
+        count = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {column} = 'framework'").fetchone()[0]
     finally:
         conn.close()
 
@@ -300,6 +301,7 @@ def _bad_log_record_scenario(ctx: seed_scenarios.SeedContext) -> None:
         logger_name="hassette.test",
         message="dangling execution_id",
         execution_id="test_dangling_exec_0001",  # no executions row has this execution_id
+        author="app",
     )
 
 

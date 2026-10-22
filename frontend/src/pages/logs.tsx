@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 import { EmptyState } from "../components/shared/empty-state";
-import { LogTableView, LogTableWithDrawer, useLogTable } from "../components/shared/log-table";
+import { FrameworkLinesToggle, LogTableView, LogTableWithDrawer, useLogTable } from "../components/shared/log-table";
 import { ColumnPicker } from "../components/shared/log-table/column-picker";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
@@ -51,6 +51,7 @@ export function LogsPage() {
 
   const footerExtras = (
     <>
+      <FrameworkLinesToggle />
       {log.livePaused && (
         <Button variant="warning-ghost" size="xs" onClick={log.resetSort} aria-label="Resume live log streaming">
           paused — click to resume

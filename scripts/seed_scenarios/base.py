@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from hassette_wire import ExecutionStatus, LogLevel, SourceTier
+from hassette_wire import ExecutionStatus, LogAuthor, LogLevel, SourceTier
 from whenever import Instant
 
 from hassette.core.database_service import LOG_RECORD_COLUMNS
@@ -291,7 +291,7 @@ class SeedContext:
         instance_name: str | None = None,
         instance_index: int | None = None,
         execution_id: str | None = None,
-        source_tier: str | None = None,
+        author: LogAuthor,
     ) -> None:
         """Insert a log_records row. ``execution_id`` may be None (framework logs)."""
         params = {
@@ -307,7 +307,7 @@ class SeedContext:
             "instance_name": instance_name,
             "instance_index": instance_index,
             "execution_id": execution_id,
-            "source_tier": source_tier,
+            "author": author,
         }
         insert_row(self.cursor, _LOG_INSERT_SQL, params)
 
@@ -459,7 +459,7 @@ def seed_log_records(
             app_key=app_key,
             instance_name=instance_name,
             instance_index=instance_index,
-            source_tier="app",
+            author="app",
         )
     return start_seq + count
 

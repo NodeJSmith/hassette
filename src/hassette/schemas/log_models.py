@@ -9,7 +9,7 @@ system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
-from hassette_wire import BlockingTier, LogLevel, SourceTier, StackFrame
+from hassette_wire import BlockingTier, LogAuthor, LogLevel, SourceTier, StackFrame
 from pydantic import BaseModel
 
 from hassette.types.types import BlockingAttributionReason
@@ -34,8 +34,9 @@ class LogRecord(BaseModel):
     """UUID string identifying the execution that produced this log record. None for framework logs.
 
     UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions."""
-    source_tier: SourceTier | None = None
-    """``'app'`` for user automation logs, ``'framework'`` for internal service logs."""
+    author: LogAuthor
+    """``'app'`` for lines an app's own code wrote, ``'framework'`` for Hassette's lines, including its lines
+    about an app."""
 
 
 class BlockingEvent(BaseModel):

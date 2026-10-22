@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 
 import type { AppStatus, JobData, ListenerData, ResourceStatus } from "@/api/endpoints";
 import { EmptyState } from "@/components/shared/empty-state";
-import { LogTableView, LogTableWithDrawer, useLogTable } from "@/components/shared/log-table";
+import { FrameworkLinesToggle, LogTableView, LogTableWithDrawer, useLogTable } from "@/components/shared/log-table";
 import { TableCard } from "@/components/shared/table-card";
 import { TableFooter } from "@/components/shared/table-footer";
 import { cn } from "@/lib/utils";
@@ -68,6 +68,7 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
       count={log.countLabel}
       columnFilters={log.columnFilters}
       onResetFilters={log.hasActiveFilter ? log.resetFilters : undefined}
+      extras={<FrameworkLinesToggle />}
     />
   );
 

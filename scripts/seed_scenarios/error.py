@@ -131,7 +131,7 @@ def scenario_error(ctx: SeedContext) -> None:
             app_key=app_key,
             instance_name=make_instance_name(class_name, 0),
             instance_index=0,
-            source_tier="app",
+            author="app",
         )
         seq += 1
 

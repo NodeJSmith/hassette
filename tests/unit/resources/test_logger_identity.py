@@ -160,7 +160,7 @@ class TestAppLifecycleLogger:
         ready = [r for r in handler.buffer if r.getMessage() == "ready: unit test"]
         assert [r.name for r in ready] == [app.lifecycle_logger.name]
         record = ready[0]
-        assert record.source_tier == "framework"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert record.app_key == "identity_app"  # pyright: ignore[reportAttributeAccessIssue]
         assert record.instance_name == "identity_ready"  # pyright: ignore[reportAttributeAccessIssue]
         assert record.instance_index == 3  # pyright: ignore[reportAttributeAccessIssue]
