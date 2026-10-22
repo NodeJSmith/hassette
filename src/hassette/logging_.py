@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import copy
 import itertools
 import logging
 import logging.handlers
@@ -103,6 +104,14 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
         "instance_index": getattr(record, "instance_index", None),
         "seq": getattr(record, "seq", 0),
     }
+
+
+def _message_with_stack(record: logging.LogRecord) -> str:
+    """The record's message with its ``stack_info`` appended, which ``HassetteQueueHandler`` leaves unmerged."""
+    message = record.getMessage()
+    if record.stack_info:
+        return f"{message}\n{record.stack_info}"
+    return message
 
 
 def _format_exc_info(record: logging.LogRecord) -> str | None:
@@ -348,6 +357,23 @@ class HassetteQueueHandler(logging.handlers.QueueHandler):
         with self._dropped_lock:
             return self._dropped
 
+    def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
+        """Hand the listener's formatters what they need to render the record's stack under ``stack``.
+
+        The stdlib ``prepare()`` formats the record before it is queued, which folds a stack into the
+        message and stringifies a structlog-native event dict. This queue never leaves the process, so
+        a native record keeps its event dict (its stack is already under ``stack``) and a stdlib record
+        keeps ``stack_info`` for ``stdlib_stack_to_stack``. Message args and exception text are still
+        merged into the message here, as the stdlib does.
+        """
+        record = copy.copy(record)
+        if isinstance(record.msg, dict):
+            return record
+        stack_info, record.stack_info = record.stack_info, None
+        prepared = super().prepare(record)
+        prepared.stack_info = stack_info
+        return prepared
+
     def enqueue(self, record: logging.LogRecord) -> None:
         try:
             self.queue.put_nowait(record)
@@ -471,7 +497,7 @@ class LogPersistenceHandler(logging.Handler):
             "logger_name": record.name,
             "func_name": record.funcName or "",
             "lineno": record.lineno,
-            "message": record.getMessage(),
+            "message": _message_with_stack(record),
             "exc_info": _format_exc_info(record),
             **_extract_correlation_attrs(record),
         }
