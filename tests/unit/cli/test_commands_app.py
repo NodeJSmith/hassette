@@ -12,7 +12,6 @@ from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatu
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
     APP_ACTIVITY_COLUMNS,
-    APP_HEALTH_COLUMNS,
     APP_LIST_COLUMNS,
     cmd_app,
     cmd_app_activity,
@@ -248,13 +247,6 @@ class TestCmdAppHealth:
         parsed = runner.json_output(client, cmd_app_health, "my-app")
         assert parsed["error_rate"] == pytest.approx(0.1)
         assert "health_status" in parsed
-
-    def test_health_columns_defined(self) -> None:
-        """APP_HEALTH_COLUMNS includes key health fields."""
-        field_names = [c.field for c in APP_HEALTH_COLUMNS]
-        assert "health_status" in field_names
-        assert "error_rate" in field_names
-        assert "last_activity_ts" in field_names
 
 
 # cmd_app_activity

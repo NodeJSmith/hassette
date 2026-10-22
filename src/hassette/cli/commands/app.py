@@ -15,7 +15,6 @@ from hassette_wire import (
 import hassette.cli.formatters as cli_formatters
 import hassette.cli.output as cli_output
 from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
-from hassette.cli.columns import health_activity_columns
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
 from hassette.const.misc import SECONDS_PER_HOUR
@@ -46,13 +45,6 @@ APP_LIST_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("app.enabled", "Enabled", max_width=7),
     cli_output.Column("app.autostart", "Autostart", max_width=9),
     cli_output.Column("app.filename", "File", max_width=20),
-]
-
-APP_HEALTH_COLUMNS: list[cli_output.Column] = [
-    cli_output.Column("health_status", "Health", max_width=10),
-    cli_output.Column("error_rate", "Error Rate", max_width=10),
-    cli_output.Column("error_rate_class", "Rate Class", max_width=10),
-    *health_activity_columns(),
 ]
 
 APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
