@@ -2,6 +2,7 @@
 
 import json
 import types
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -14,14 +15,18 @@ WORKER_ID = "gw-resource-tracker-test"
 
 
 @pytest.fixture
-def stub_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+def stub_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
     """A stub session rooted at tmp_path, with this test's own tracker swapped in for the session's."""
     monkeypatch.delenv("HASSETTE_DISABLE_RESOURCE_TRACKER", raising=False)
     # A non-main worker id keeps pytest_sessionfinish from merging (and deleting) the saved results.
     monkeypatch.setenv("PYTEST_XDIST_WORKER", WORKER_ID)
     # Restores the real session's tracker at teardown.
     monkeypatch.setattr(resource_tracker, "_tracker", None)
-    return types.SimpleNamespace(config=types.SimpleNamespace(rootpath=tmp_path))
+    yield types.SimpleNamespace(config=types.SimpleNamespace(rootpath=tmp_path))
+    # A test that failed before pytest_sessionfinish leaves its tracker's patches layered over the real
+    # session's; remove them before monkeypatch restores the real tracker.
+    if resource_tracker._tracker is not None:  # pyright: ignore[reportPrivateUsage]
+        resource_tracker._tracker.remove_patches()  # pyright: ignore[reportPrivateUsage]
 
 
 def read_results(tmp_path: Path) -> dict[str, Any]:
