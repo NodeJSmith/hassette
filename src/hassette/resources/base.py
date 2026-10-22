@@ -187,11 +187,32 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     def _setup_logger(self) -> None:
         self.logger = getLogger(self._get_logger_name())
-        apply_log_level(self.logger, self.config_log_level, self.unique_name)
         # Only an app's own logger is app-authored; its children and every framework resource write
         # framework lines.
         author: LogAuthor = "app" if self.role is ResourceRole.APP else "framework"
+        apply_log_level(self.logger, self.resolve_log_level(author, self.config_log_level), self.unique_name)
         set_logger_identity(self.logger, self.owner_log_identity(author))
+
+    def resolve_log_level(self, author: LogAuthor, default_level: LogLevel) -> LogLevel:
+        """Level for a logger this resource builds: the owning app's override, else ``default_level``.
+
+        A framework-authored logger takes the owning app's ``framework_log_level`` when it is set. An
+        app-authored logger always keeps ``default_level``, since the app's own ``log_level`` already feeds
+        `App.config_log_level`.
+        """
+        if author == "app":
+            return default_level
+        return self.owner_framework_log_level() or default_level
+
+    def owner_framework_log_level(self) -> LogLevel | None:
+        """The owning app's ``framework_log_level``, or None when no app owns this resource or it is unset.
+
+        Found the same way as `owner_log_identity`: App answers for itself, every other resource asks its
+        parent.
+        """
+        if self.parent is None or self.parent is self:
+            return None
+        return self.parent.owner_framework_log_level()
 
     @property
     def lifecycle_logger(self) -> Logger:

@@ -21,7 +21,13 @@ the marker and gets pydantic-settings' own meaning (``None`` reads no ``.env`` f
 default is already ``None``, which is why ``None`` can't be the marker.
 """
 
-FRAMEWORK_FIELDS = ("instance_name", "log_level", "forgotten_await_behavior", "blocking_io_behavior")
+FRAMEWORK_FIELDS = (
+    "instance_name",
+    "log_level",
+    "framework_log_level",
+    "forgotten_await_behavior",
+    "blocking_io_behavior",
+)
 """`AppConfig`'s own fields, which config loading and the docs always spell by field name."""
 
 
@@ -74,6 +80,14 @@ class AppConfig(BaseSettings):
     """Log level for the app instance.
 
     When ``None`` (default), the global ``logging.apps`` level from ``hassette.toml`` is used."""
+
+    framework_log_level: LogLevel | None = None
+    """Log level for the lines Hassette writes about this app instance.
+
+    Covers every framework logger this instance owns (its lifecycle logger and the loggers of its Bus,
+    Scheduler, Api, StateManager and other children) but not the app's own logger. When ``None``
+    (default), those loggers keep their ``logging.*`` levels from ``hassette.toml`` (``logging.bus_service``,
+    ``logging.app_handler`` and so on)."""
 
     forgotten_await_behavior: ForgottenAwaitBehavior | None = None
     """Per-app control for forgotten-await detection behavior.

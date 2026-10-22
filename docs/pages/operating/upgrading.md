@@ -141,7 +141,7 @@ The old default `ClassName.<index>` isn't a valid name, so a few other things ch
 
 ## App Lifecycle Log Lines
 
-This applies when upgrading from 0.59 or earlier. Hassette's lines about an app starting, stopping, and failing used to be written on the app's own logger. They now come from `hassette.apps.<instance_name>.Lifecycle`. That logger follows `logging.app_handler`, not the app's `log_level`, and its lines are marked `framework`. To keep seeing an app's lifecycle detail at `DEBUG`, set `logging.app_handler = "DEBUG"`. [Per-App Log Levels](log-levels.md#per-app-log-levels) has the full breakdown.
+This applies when upgrading from 0.59 or earlier. Hassette's lines about an app starting, stopping, and failing used to be written on the app's own logger. They now come from `hassette.apps.<instance_name>.Lifecycle`. That logger follows the app's `framework_log_level`, else `logging.app_handler`, never the app's `log_level`, and its lines are marked `framework`. To keep seeing an app's lifecycle detail at `DEBUG`, set `framework_log_level = "DEBUG"` in that app's `config`, or `logging.app_handler = "DEBUG"` for every app. [Per-App Log Levels](log-levels.md#per-app-log-levels) has the full breakdown.
 
 ## Config Paths and Unknown Keys
 
