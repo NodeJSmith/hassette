@@ -239,6 +239,14 @@ class TestConsoleLineFormat:
         line = self.render("compact", lambda: logging.getLogger("hassette.core.test_ws").info("Connected"))
         assert line.endswith("[info] [core.test_ws] Connected"), line
 
+    @pytest.mark.parametrize("log_format", ["console", "compact"])
+    def test_stdlib_stack_info_is_rendered(
+        self, app_logger: logging.Logger, log_format: Literal["console", "compact"]
+    ) -> None:
+        output = self.render(log_format, lambda: app_logger.info("where am I", stack_info=True))
+        assert "Stack (most recent call last):" in output, output
+        assert "test_stdlib_stack_info_is_rendered" in output, output
+
 
 @contextmanager
 def execution_scope(execution_id: str, *, instance_name: str) -> Iterator[None]:
