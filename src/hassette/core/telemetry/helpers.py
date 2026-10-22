@@ -105,15 +105,17 @@ def log_record_filter_clauses(
 ) -> tuple[list[str], dict[str, Any]]:
     """Return a (clauses, params) tuple for the log_records filter set.
 
-    Used by ``get_log_records`` (the recency-first ``/logs/recent`` fetch) to build the
-    ``WHERE`` clause and bind params for the shared ``log_records`` filter columns.
+    Used by ``get_log_records`` (the recency-first ``/logs/recent`` fetch) and
+    ``get_log_records_by_execution`` to build the ``WHERE`` clause and bind params for the shared
+    ``log_records`` filter columns.
 
     Args:
         since: When provided, adds ``lr.timestamp >= :since``.
         app_key: When provided, adds ``lr.app_key = :app_key``.
         level: When provided, adds ``lr.level = :level``.
         execution_id: When provided, adds ``lr.execution_id = :execution_id``.
-        author: The author filter; see ``log_author_clause``.
+        author: The author filter; see ``log_author_clause``. ``None`` is the default view, not "no filter":
+            only ``'all'`` returns every line.
         instance_index: When provided, adds ``lr.instance_index = :instance_index``. ``None`` matches
             every instance.
     """
@@ -154,9 +156,9 @@ def log_author_clause(author: QueryAuthor | None) -> tuple[str | None, dict[str,
     """
     match author:
         case None:
-            names = {f"author_level_{i}": name for i, name in enumerate(ERROR_AND_ABOVE_LEVEL_NAMES)}
-            levels = ", ".join(f":{key}" for key in names)
-            return f"(lr.author = 'app' OR lr.level IN ({levels}))", names
+            level_params = {f"author_level_{i}": name for i, name in enumerate(ERROR_AND_ABOVE_LEVEL_NAMES)}
+            placeholders = ", ".join(f":{key}" for key in level_params)
+            return f"(lr.author = 'app' OR lr.level IN ({placeholders}))", level_params
         case "app" | "framework":
             return "lr.author = :author", {"author": author}
         case "all":

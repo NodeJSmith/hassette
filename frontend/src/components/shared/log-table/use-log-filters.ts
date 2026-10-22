@@ -19,8 +19,6 @@ import type { FilterState, LevelFilter, LogSortState } from "./types";
 interface UseLogFiltersParams {
   allEntries: LogEntry[];
   useLocalState?: boolean;
-  appKey?: string;
-  executionId?: string | null;
   /** Whether `allEntries`' own scoped query is still loading — see the paused-snapshot block
    * below. Defaults to `false` (never wait) for callers that don't track loading state. */
   loading?: boolean;

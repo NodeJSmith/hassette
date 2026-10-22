@@ -1249,7 +1249,7 @@ class TestRuntimeQueryServiceWiring:
         record.instance_name = None  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_index = None  # pyright: ignore[reportAttributeAccessIssue]
         record.execution_id = None  # pyright: ignore[reportAttributeAccessIssue]
-        record.source_tier = None  # pyright: ignore[reportAttributeAccessIssue]
+        record.author = None  # pyright: ignore[reportAttributeAccessIssue]
 
         handler.emit(record)
         handler.flush_if_pending()

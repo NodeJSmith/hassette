@@ -50,6 +50,15 @@ SourceTierQuery = Annotated[
 
 Log routes filter by ``AuthorQuery`` instead.
 """
+AuthorQuery = Annotated[
+    QueryAuthor | None,
+    Query(
+        description="Filter log lines by who wrote them. Omit for the default view: app-authored lines plus "
+        "framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only "
+        "that author's lines."
+    ),
+]
+"""Author filter shared by the log routes; ``None`` applies the default view (see ``log_author_clause``)."""
 LimitQuery = Annotated[int, Query(ge=1, le=MAX_QUERY_LIMIT)]
 """Row limit, capped at ``MAX_QUERY_LIMIT``."""
 
@@ -89,15 +98,6 @@ def get_resolved_auth_token(request: Request) -> str | None:
 
 
 # Shared dependency type aliases — import these instead of re-defining locally.
-AuthorQuery = Annotated[
-    QueryAuthor | None,
-    Query(
-        description="Filter log lines by who wrote them. Omit for the default view: app-authored lines plus "
-        "framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only "
-        "that author's lines."
-    ),
-]
-"""Author filter shared by the log routes; ``None`` applies the default view (see ``log_author_clause``)."""
 HassetteDep = Annotated["Hassette", Depends(get_hassette)]
 RuntimeDep = Annotated["RuntimeQueryService", Depends(get_runtime)]
 TelemetryDep = Annotated["TelemetryQueryService", Depends(get_telemetry)]

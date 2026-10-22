@@ -12,7 +12,6 @@ from hassette.core.telemetry.helpers import (
     STORAGE_ERRORS,
     build_app_summaries,
     fetch_all_as_dicts,
-    log_author_clause,
     log_record_filter_clauses,
     row_to_dict,
     since_clause,
@@ -235,16 +234,21 @@ class SummaryQueriesMixin:
 
         ``author`` filters as in ``get_log_records``; ``None`` applies the default view.
         """
-        author_sql, params = log_author_clause(author)
-        author_filter = f"AND {author_sql}" if author_sql is not None else ""
+        clauses, params = log_record_filter_clauses(
+            since=None,
+            app_key=None,
+            level=None,
+            execution_id=execution_id,
+            author=author,
+            instance_index=None,
+        )
+        params["limit"] = limit + 1
         query = f"""
             {LOG_RECORD_SELECT}
-            WHERE lr.execution_id = :execution_id
-            {author_filter}
+            WHERE {" AND ".join(clauses)}
             ORDER BY lr.seq ASC
             LIMIT :limit
         """
-        params |= {"execution_id": execution_id, "limit": limit + 1}
         async with self.execute(query, params) as cursor:
             rows = list(await cursor.fetchall())
         truncated = len(rows) > limit

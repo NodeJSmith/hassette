@@ -149,8 +149,18 @@ The ERROR floor needs the names at or above ERROR in core telemetry. `LOG_LEVELS
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- The D2 opt-in is `showAllFrameworkLogs` in the zustand store (`frontend/src/state/store.ts`), persisted through `utils/local-storage.ts` like the theme and sidebar state: one value every mounted log view shares, so toggling on one view changes them all.
+- The control is `FrameworkLinesToggle`, a checkbox labelled "all framework lines" (tooltip: Hassette's errors always show), placed in each log view's table footer: the Logs page, the execution panel, the app logs panel and the app overview tab. The footer is the one slot every log view already renders.
+- The Logs page's app filter now renders only when there are app keys; it used to host the tier toggle, so it rendered even with no apps.
+- `tools/client_compat_requests.py`: the `execution-logs` fixture also sends `author=all`, not only `logs-recent`, so it keeps the framework rows the adversarial scenario seeds.
+- `API_SCHEMA_VERSION` 2→3 (`wire/src/hassette_wire/health.py`) and `MIN_API_SCHEMA_VERSION` 3 (`client/src/hassette_client/version.py`): v0.59.0 reports 2, so this is the one bump for the next release.
+- `get_log_records_by_execution` builds its `WHERE` through `log_record_filter_clauses`, the same path as `get_log_records`, so the author clause precedes its `LIMIT limit+1` and `truncated` counts only lines the view shows.
+- `hassette.schemas.log_models.LogRecord.author` is required (`LogAuthor`), since the column is NOT NULL; the wire `LogEntry.author` stays optional per D5.
+- The CLI marker formatter is `fmt_log_author` in `src/hassette/cli/formatters.py`; `AuthorArg` is typed with `hassette_wire.QueryAuthor`.
+- `LogAuthor` is imported from `hassette_wire` in `logging_.py`, `app/app.py` and `resources/base.py`; `logging_` doesn't re-export it.
+- A request carrying the old `source_tier` on the log routes gets the default view (FastAPI ignores unknown query parameters); `test_get_logs_recent_ignores_source_tier` pins that, since it is what a released client sees.

@@ -60,7 +60,7 @@ LOG_LEVELS: dict[LogLevel, int] = {
 """The standard level names, mapped to their numeric ``logging`` values."""
 
 ERROR_AND_ABOVE_LEVEL_NAMES: tuple[LogLevel, ...] = tuple(name for name, value in LOG_LEVELS.items() if value >= ERROR)
-"""Level names at or above ERROR: the framework lines the default log view keeps."""
+"""The level names whose numeric value is at or above ``ERROR``, in ``LOG_LEVELS`` order."""
 
 
 IfExistsPolicy = Literal["error", "skip", "replace"]

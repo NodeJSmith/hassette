@@ -3,13 +3,19 @@ from typing import Annotated, Literal
 from hassette_wire.lenient import LenientValue, UnknownValue
 
 SourceTier = Literal["app", "framework"]
-"""Identifies whether a telemetry record originates from a user app or the framework itself."""
+"""Identifies whether a telemetry record originates from a user app or the framework itself.
+
+Log lines use ``LogAuthor`` instead: same values, but it names who wrote the line, not who owns the record.
+"""
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 """Log levels for configuring logging."""
 
 LogAuthor = Literal["app", "framework"]
-"""Who wrote a log line: a user app's own code, or Hassette (including framework code acting for an app)."""
+"""Who wrote a log line: a user app's own code, or Hassette (including framework code acting for an app).
+
+Not ``SourceTier``: an app's Bus or Api logs as ``'framework'`` even though its records' ``SourceTier`` is ``'app'``.
+"""
 
 CLOSED_VOCABULARIES = (SourceTier, LogLevel, LogAuthor)
 """Vocabularies that stay strict in response models: adding a value to one is a breaking wire change, not

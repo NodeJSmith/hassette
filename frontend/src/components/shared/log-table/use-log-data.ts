@@ -61,7 +61,9 @@ export const PERIODIC_RESYNC_MS = 5000;
 export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
   const queryClient = useQueryClient();
   const logHintVersion = useAppStore((s) => s.logHintVersion);
-  // Undefined lets the server apply its default view; the author is part of the query key, so
+  // "all" is every line, app lines included: the default view already has app lines and framework
+  // errors, so the opt-in only adds framework lines below ERROR. Undefined lets the server apply its
+  // default view; the author is part of the query key, so
   // toggling it fetches that view instead of serving the other one from cache.
   const author: LogAuthorQuery | undefined = useAppStore((s) => (s.showAllFrameworkLogs ? "all" : undefined));
 
