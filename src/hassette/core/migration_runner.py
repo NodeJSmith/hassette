@@ -6,6 +6,7 @@ runs inside BEGIN IMMEDIATE / COMMIT — crash-safe atomic application.
 """
 
 import sqlite3
+import threading
 import warnings
 from pathlib import Path
 
@@ -16,6 +17,11 @@ _MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations_sql"
 # SQLite PRAGMA auto_vacuum mode value for INCREMENTAL.
 _AUTO_VACUUM_INCREMENTAL = 2
 
+# One migration run at a time per process. A run abandoned by a startup timeout keeps going in its
+# thread; the next run waits for it here, then reads the version it left instead of applying the same
+# migrations again.
+_RUN_LOCK = threading.Lock()
+
 
 def run_migrations(db_path: Path, *, target: int | None = None) -> None:
     """Apply pending migrations to the database at db_path (synchronous).
@@ -25,24 +31,25 @@ def run_migrations(db_path: Path, *, target: int | None = None) -> None:
         target: Apply migrations up to this version. Defaults to the highest
             numbered .sql file found in migrations_sql/.
     """
-    sql_files = _collect_migrations(target)
-    if not sql_files:
-        return
+    with _RUN_LOCK:
+        sql_files = _collect_migrations(target)
+        if not sql_files:
+            return
 
-    max_target = max(sql_files)
+        max_target = max(sql_files)
 
-    if target is None:
-        target = max_target
+        if target is None:
+            target = max_target
 
-    current = _read_user_version(db_path)
+        current = _read_user_version(db_path)
 
-    if current == 0:
-        _set_auto_vacuum(db_path)
+        if current == 0:
+            _set_auto_vacuum(db_path)
 
-    for version, sql_path in sorted(sql_files.items()):
-        if version <= current or version > target:
-            continue
-        _apply_migration(db_path, version, sql_path)
+        for version, sql_path in sorted(sql_files.items()):
+            if version <= current or version > target:
+                continue
+            _apply_migration(db_path, version, sql_path)
 
 
 def _collect_migrations(target: int | None) -> dict[int, Path]:

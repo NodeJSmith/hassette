@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from unittest.mock import AsyncMock, MagicMock, Mock
 
-from hassette_wire import ExecutionMode, ExecutionStatus, ScheduleStatus, SourceTier
+from hassette_wire import ExecutionMode, ExecutionStatus, LogAuthor, ScheduleStatus, SourceTier
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -29,6 +29,7 @@ from hassette.events.base import AnyEvent, Event, HassContext, HassettePayload, 
 from hassette.logging_ import (
     LogCaptureHandler,
     LogIdentity,
+    LogIdentityFilter,
     LogRecordEntry,
     _extract_correlation_attrs,  # pyright: ignore[reportPrivateUsage]
     _format_exc_info,  # pyright: ignore[reportPrivateUsage]
@@ -394,15 +395,15 @@ def make_log_record_entry(
     message: str = "msg",
     exc_info: str | None = None,
     app_key: str | None = None,
-    source_tier: str | None = None,
+    author: LogAuthor = "app",
     execution_id: str | None = None,
     instance_name: str | None = None,
     instance_index: int | None = None,
 ) -> LogRecordEntry:
     """Build a `LogRecordEntry`, defaulting every required field to a neutral placeholder.
 
-    `LogRecordEntry` has seven required constructor fields, most of which are irrelevant to any
-    given assertion, plus six optional fields (`exc_info`, plus five correlation fields).
+    `LogRecordEntry` has eight required constructor fields, most of which are irrelevant to any
+    given assertion, plus five optional fields (`exc_info`, plus four correlation fields).
     Every field is an explicit keyword so callers spell out only what they assert on and
     pyright still checks the rest.
     """
@@ -416,7 +417,7 @@ def make_log_record_entry(
         message=message,
         exc_info=exc_info,
         app_key=app_key,
-        source_tier=source_tier,
+        author=author,
         execution_id=execution_id,
         instance_name=instance_name,
         instance_index=instance_index,
@@ -437,7 +438,7 @@ def make_log_record_dict(
     instance_name: str | None = None,
     instance_index: int | None = None,
     execution_id: str | None = None,
-    source_tier: str = "app",
+    author: LogAuthor = "app",
 ) -> dict[str, Any]:
     """Build the 13-key record dict shape ``_insert_log_records()`` expects.
 
@@ -457,7 +458,7 @@ def make_log_record_dict(
         "instance_name": instance_name,
         "instance_index": instance_index,
         "execution_id": execution_id,
-        "source_tier": source_tier,
+        "author": author,
     }
 
 
@@ -470,13 +471,20 @@ def make_log_record(
     msg: str = "msg",
     args: tuple[Any, ...] = (),
     exc_info: Any = None,
+    author: LogAuthor | None = "app",
 ) -> logging.LogRecord:
     """Build a ``logging.LogRecord`` with sensible defaults.
 
     Replaces the 7-positional-arg ``logging.LogRecord(...)`` calls scattered across logging
     test files. Every field is an explicit keyword so callers spell out only what matters.
+
+    ``author`` is stamped as ``LogIdentityFilter`` would stamp it, since every record a Hassette handler
+    sees has passed that filter. Pass ``None`` for a record that skipped it.
     """
-    return logging.LogRecord(name, level, pathname, lineno, msg, args, exc_info)
+    record = logging.LogRecord(name, level, pathname, lineno, msg, args, exc_info)
+    if author is not None:
+        record.author = author  # pyright: ignore[reportAttributeAccessIssue]
+    return record
 
 
 def build_log_entry(record: logging.LogRecord) -> LogRecordEntry:
@@ -506,11 +514,16 @@ class RecordingLogCaptureHandler(LogCaptureHandler):
     it only broadcasts a hint. Tests that need to inspect the constructed `LogRecordEntry` objects
     (correlation attrs, message content, shutdown-guard behavior) use this subclass as their
     observation seam instead.
+
+    In production, records reach the capture handler through the queue handler's `LogIdentityFilter`.
+    This handler carries the filter itself, so records logged straight to it get an author the same way.
+    Calling `emit()` directly skips handler filters, so those callers stamp `author` themselves.
     """
 
     def __init__(self) -> None:
         super().__init__()
         self.captured: list[LogRecordEntry] = []
+        self.addFilter(LogIdentityFilter())
 
     def emit(self, record: logging.LogRecord) -> None:
         self.captured.append(build_log_entry(record))

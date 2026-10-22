@@ -1,4 +1,4 @@
-import type { ColumnId, LevelFilter, LogColumnMeta, LogSortKey, LogSortState, TierFilter } from "./types";
+import type { ColumnId, LevelFilter, LogColumnMeta, LogSortKey, LogSortState } from "./types";
 
 export const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -10,12 +10,6 @@ export const DEFAULT_SORT: LogSortState = { key: "timestamp", dir: "desc" };
 
 // Enforced in: use-column-visibility.ts readStored() (persistence) and column-picker.tsx (UI disabled state)
 export const REQUIRED_COLUMNS: ReadonlySet<ColumnId> = new Set(["level", "message"]);
-
-export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "app", label: "Apps" },
-  { value: "framework", label: "Framework" },
-];
 
 type Level = (typeof LEVELS)[number];
 

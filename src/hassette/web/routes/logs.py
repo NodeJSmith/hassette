@@ -10,9 +10,9 @@ from hassette_wire import LogEntry, LogLevelRequest, LogLevelResponse, ProblemCo
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import (
     VALID_LOG_LEVEL_NAMES,
+    AuthorQuery,
     OptionalInstanceIndexQuery,
     SinceQuery,
-    SourceTierQuery,
     TelemetryDep,
     is_log_level,
 )
@@ -58,12 +58,16 @@ async def get_logs(
     telemetry: TelemetryDep,
     limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
-    level: Annotated[str | None, Query()] = None,
+    level: Annotated[
+        str | None,
+        Query(
+            description="Only records at this level. Without 'author', framework lines below ERROR stay excluded "
+            "whatever level this asks for; pass author=all to see them."
+        ),
+    ] = None,
     since: SinceQuery = None,
     execution_id: Annotated[str | None, Query()] = None,
-    # Unlike the telemetry-metrics endpoints, which default to "app", this default deliberately
-    # includes everything: the log viewer is a raw feed, not an app-author-facing metric.
-    source_tier: SourceTierQuery = "all",
+    author: AuthorQuery = None,
     instance_index: OptionalInstanceIndexQuery = None,
 ) -> list[LogEntry]:
     """Return recent log records from the database with optional filtering."""
@@ -74,7 +78,7 @@ async def get_logs(
         app_key=app_key,
         level=level,
         execution_id=execution_id,
-        source_tier=source_tier,
+        author=author,
         instance_index=instance_index,
     )
     return [LogEntry.model_validate(r) for r in raw]

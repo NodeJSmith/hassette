@@ -39,22 +39,16 @@ $ hassette app
 
 ```console
 $ hassette log --limit 5
-┏━━━━━━━━━┳━━━━━━━┳━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ When    ┃ Level ┃ App ┃ Instance ┃ Function            ┃ Message                    ┃
-┡━━━━━━━━━╇━━━━━━━╇━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ 31s ago │ INFO  │     │          │ run_forever         │ Hassette is running.       │
-│ 31s ago │ INFO  │     │          │ run_forever         │ All services started       │
-│         │       │     │          │                     │ successfully.              │
-│ 32s ago │ INFO  │     │          │ serve               │ Web API server starting    │
-│         │       │     │          │                     │ on 0.0.0.0:8126            │
-│ 32s ago │ INFO  │     │          │ _auto_wait_depend…  │ Waiting for dependencies:  │
-│         │       │     │          │                     │ [RuntimeQueryService, …]   │
-│ 32s ago │ INFO  │     │          │ _auto_wait_depend…  │ Waiting for dependencies:  │
-│         │       │     │          │                     │ [BusService, StateProxy, …]│
-└─────────┴───────┴─────┴──────────┴─────────────────────┴────────────────────────────┘
+┏━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ When    ┃ Level   ┃ Author    ┃ App    ┃ Instance ┃ Function        ┃ Message                              ┃
+┡━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ 30s ago │ INFO    │           │ my_app │ my_app   │ on_initialize   │ Hello from Hassette!                 │
+│ 45s ago │ WARNING │           │ my_app │ my_app   │ on_light_change │ Kitchen light reported no brightness │
+│ 50s ago │ ERROR   │ framework │ my_app │ my_app   │ call_service    │ Failed to call service light.turn_on │
+└─────────┴─────────┴───────────┴────────┴──────────┴─────────────────┴──────────────────────────────────────┘
 ```
 
-`hassette log` shows the most recent log entries. Rows with blank `App` and `Instance` columns are framework-level logs; app entries fill both. Narrow to a specific app with `--app <key>` (the `App` column from the table above), or go back further with `--since 1h`.
+`hassette log` shows the most recent log entries: every line your apps wrote, plus Hassette's own lines at ERROR and above. The `Author` column marks Hassette's lines `framework`, including ones it writes about your app, like the failed service call above. Add `--author all` to see the rest of Hassette's lines. Narrow to a specific app with `--app <key>` (the `App` column from the table above), or go back further with `--since 1h`.
 
 If Hassette isn't running, every command gives the same error:
 

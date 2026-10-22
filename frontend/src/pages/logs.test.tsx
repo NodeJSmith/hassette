@@ -43,6 +43,7 @@ vi.mock("../components/shared/log-table", () => ({
     isEmpty: true,
     isLoading: false,
   }),
+  FrameworkLinesToggle: () => null,
   LogTableView: () => <div data-testid="log-table-view" />,
   LogTableWithDrawer: ({ children }: { children: ReactNode }) => (
     <div data-testid="log-table-with-drawer">{children}</div>

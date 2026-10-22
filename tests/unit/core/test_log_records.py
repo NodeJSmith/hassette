@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
 import pytest
+from hassette_wire import QueryAuthor
 
 from hassette.config.config import HassetteConfig
 from hassette.config.models import LoggingConfig
@@ -108,7 +109,7 @@ class TestMigration001LogRecords:
             "instance_name",
             "instance_index",
             "execution_id",
-            "source_tier",
+            "author",
         }
         # dup-ignore-end
         assert expected == cols
@@ -293,7 +294,7 @@ class TestInsertLogRecords:
         assert row["instance_name"] == "test_app_0"
         assert row["instance_index"] == 0
         assert row["execution_id"] == "exec-xyz"
-        assert row["source_tier"] == "app"
+        assert row["author"] == "app"
 
     async def test_insert_framework_record_null_app_key(
         self, db: aiosqlite.Connection, db_service: DatabaseService
@@ -307,16 +308,16 @@ class TestInsertLogRecords:
                 func_name="startup",
                 lineno=5,
                 message="framework log",
-                source_tier="framework",
+                author="framework",
             )
         ]
         await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
-        cursor = await db.execute("SELECT app_key, execution_id, source_tier FROM log_records")
+        cursor = await db.execute("SELECT app_key, execution_id, author FROM log_records")
         row = await cursor.fetchone()
         assert row["app_key"] is None
         assert row["execution_id"] is None
-        assert row["source_tier"] == "framework"
+        assert row["author"] == "framework"
 
     async def test_insert_rolls_back_and_reraises_on_executemany_failure(
         self, db: aiosqlite.Connection, db_service: DatabaseService
@@ -414,7 +415,7 @@ async def seed_log_records(db_service: DatabaseService) -> None:
             func_name="h",
             lineno=4,
             message="framework warn",
-            source_tier="framework",
+            author="framework",
         ),
     ]
     await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
@@ -426,7 +427,7 @@ class TestGetLogRecords:
     ) -> None:
         """get_log_records() with no filters returns all records."""
         await seed_log_records(db_service)
-        results = await service.get_log_records(limit=100)
+        results = await service.get_log_records(limit=100, author="all")
         assert len(results) == 4
 
     async def test_ordered_by_timestamp_desc_then_seq_desc(
@@ -456,7 +457,7 @@ class TestGetLogRecords:
         ]
         await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
-        results = await service.get_log_records(limit=100)
+        results = await service.get_log_records(limit=100, author="all")
 
         assert [r["message"] for r in results] == [
             "newest",
@@ -491,14 +492,14 @@ class TestGetLogRecords:
         await seed_log_records(db_service)
         now = time.time()
         # Only records newer than now-30 (seq 3 and 4)
-        results = await service.get_log_records(limit=100, since=now - 30)
+        results = await service.get_log_records(limit=100, since=now - 30, author="all")
         assert len(results) == 2
 
-    async def test_filter_by_source_tier(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
-        """get_log_records() filters by source_tier."""
+    async def test_filter_by_author(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
+        """get_log_records() filters by author."""
         await seed_log_records(db_service)
-        results = await service.get_log_records(limit=100, source_tier="framework")
-        assert all(r["source_tier"] == "framework" for r in results)
+        results = await service.get_log_records(limit=100, author="framework")
+        assert all(r["author"] == "framework" for r in results)
         assert len(results) == 1
 
     async def test_limit_applied(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
@@ -598,6 +599,54 @@ class TestGetLogRecordsByExecution:
         records, _ = await service.get_log_records_by_execution("exec-exec", limit=100)
         assert all(r["execution_id"] == "exec-exec" for r in records)
 
+    async def seed_mixed_authors(self, db_service: DatabaseService) -> None:
+        records = [
+            make_log_record_dict(seq=1, level="DEBUG", execution_id="exec-mixed", author="app", message="app debug"),
+            make_log_record_dict(
+                seq=2, level="INFO", execution_id="exec-mixed", author="framework", message="framework info"
+            ),
+            make_log_record_dict(
+                seq=3, level="ERROR", execution_id="exec-mixed", author="framework", message="framework error"
+            ),
+        ]
+        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+
+    async def test_default_hides_framework_lines_below_error(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """No author: the execution's app lines plus its framework lines at ERROR and above."""
+        await self.seed_mixed_authors(db_service)
+        records, _ = await service.get_log_records_by_execution("exec-mixed", limit=100)
+        assert [r["message"] for r in records] == ["app debug", "framework error"]
+
+    @pytest.mark.parametrize(
+        ("author", "expected"),
+        [
+            ("all", ["app debug", "framework info", "framework error"]),
+            ("app", ["app debug"]),
+            ("framework", ["framework info", "framework error"]),
+        ],
+    )
+    async def test_author_filter(
+        self,
+        db_service: DatabaseService,
+        service: TelemetryQueryService,
+        author: QueryAuthor,
+        expected: list[str],
+    ) -> None:
+        await self.seed_mixed_authors(db_service)
+        records, _ = await service.get_log_records_by_execution("exec-mixed", limit=100, author=author)
+        assert [r["message"] for r in records] == expected
+
+    async def test_truncation_counts_only_shown_lines(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """Hidden framework lines don't make a default view report truncation."""
+        await self.seed_mixed_authors(db_service)
+        records, truncated = await service.get_log_records_by_execution("exec-mixed", limit=2)
+        assert len(records) == 2
+        assert not truncated
+
 
 class TestLogRecordModel:
     def test_log_record_has_all_fields(self) -> None:
@@ -612,13 +661,14 @@ class TestLogRecordModel:
             func_name="run",
             lineno=10,
             message="hello",
+            author="framework",
         )
         assert record.id == 1
         assert record.level == "INFO"
         assert record.message == "hello"
         assert record.app_key is None
         assert record.execution_id is None
-        assert record.source_tier is None
+        assert record.author == "framework"
         assert record.exc_info is None
         assert record.instance_name is None
         assert record.instance_index is None
@@ -640,10 +690,10 @@ class TestLogRecordModel:
             instance_name="my_app_0",
             instance_index=0,
             execution_id="exec-abc",
-            source_tier="app",
+            author="app",
         )
         assert record.execution_id == "exec-abc"
-        assert record.source_tier == "app"
+        assert record.author == "app"
         assert record.exc_info == "Traceback..."
 
 

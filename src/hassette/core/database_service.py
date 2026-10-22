@@ -75,7 +75,7 @@ LOG_RECORD_COLUMNS = (
     "instance_name",
     "instance_index",
     "execution_id",
-    "source_tier",
+    "author",
 )
 # dup-ignore-end
 """log_records table columns (excluding the autoincrement id). Public so `scripts/seed_db.py`

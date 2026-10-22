@@ -1,5 +1,5 @@
 ...
-2026-01-14T09:12:04.998186 [info     ] Hello from Hassette!           [hassette.apps.my_app] app_key=my_app execution_id=None instance_index=0 instance_name=my_app source_tier=app
+2026-01-14T09:12:04.998186 [info     ] Hello from Hassette!           [hassette.apps.my_app] app_key=my_app author=app execution_id=None instance_index=0 instance_name=my_app
 ...
-2026-01-14T09:13:05.002417 [info     ] Heartbeat                      [hassette.apps.my_app] app_key=my_app execution_id=019bbbc7-b0ea-7d21-9a4c-3f6e8b1d2c05 execution_kind=job instance_index=0 instance_name=my_app job_id=1 listener_id=None source_tier=app
-2026-01-14T09:14:05.004891 [info     ] Heartbeat                      [hassette.apps.my_app] app_key=my_app execution_id=019bbbc8-9b4b-7e02-8c3d-6a1f4e9b7d18 execution_kind=job instance_index=0 instance_name=my_app job_id=1 listener_id=None source_tier=app
+2026-01-14T09:13:05.002417 [info     ] Heartbeat                      [hassette.apps.my_app] app_key=my_app author=app execution_id=019bbbc7-b0ea-7d21-9a4c-3f6e8b1d2c05 execution_kind=job instance_index=0 instance_name=my_app job_id=1 listener_id=None
+2026-01-14T09:14:05.004891 [info     ] Heartbeat                      [hassette.apps.my_app] app_key=my_app author=app execution_id=019bbbc8-9b4b-7e02-8c3d-6a1f4e9b7d18 execution_kind=job instance_index=0 instance_name=my_app job_id=1 listener_id=None

@@ -118,7 +118,7 @@ class TestLogRecordEntryToDictIncludesSeq:
             message="hello",
             exc_info="Traceback: boom",
             app_key="my_app",
-            source_tier="app",
+            author="app",
             execution_id="exec-1",
             instance_name="inst",
             instance_index=2,
@@ -131,9 +131,9 @@ class TestLogRecordEntryToDictIncludesSeq:
             "func_name": "do_work",
             "lineno": 99,
             "message": "hello",
+            "author": "app",
             "exc_info": "Traceback: boom",
             "app_key": "my_app",
-            "source_tier": "app",
             "execution_id": "exec-1",
             "instance_name": "inst",
             "instance_index": 2,
@@ -209,7 +209,14 @@ class TestLogRecordEntryCorrelationFields:
         # dataclass's own default for each optional field, and the factory passes every optional
         # field explicitly, which would assert the factory's default instead.
         entry = LogRecordEntry(
-            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
+            seq=1,
+            timestamp=0.0,
+            level="INFO",
+            logger_name="test",
+            func_name="fn",
+            lineno=1,
+            message="msg",
+            author="app",
         )
         assert hasattr(entry, field)
         assert getattr(entry, field) is None
@@ -294,15 +301,15 @@ class TestCorrelationFilterAppliesToChildLoggers:
         assert len(child_entries) == 1
         assert child_entries[0].seq > 0, "seq not stamped on child logger record — filter not running"
 
-    def test_child_logger_records_have_source_tier_stamped(self, logging_pipeline: LoggingPipelineFixture) -> None:
+    def test_child_logger_records_have_author_stamped(self, logging_pipeline: LoggingPipelineFixture) -> None:
         """An unidentified hassette child logger's record is stamped framework by LogIdentityFilter."""
-        child = logging.getLogger("hassette.core.test_child_tier")
+        child = logging.getLogger("hassette.core.test_child_author")
         child.info("framework record")
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
         parsed = first_json_record_containing(logging_pipeline.stream, "framework record")
-        assert parsed.get("source_tier") == "framework"
+        assert parsed.get("author") == "framework"
 
     def test_bound_app_key_sets_subject_not_author(self, logging_pipeline: LoggingPipelineFixture) -> None:
         """An ownerless hassette logger takes its subject from context but stays framework-authored."""
@@ -314,4 +321,4 @@ class TestCorrelationFilterAppliesToChildLoggers:
         logging_pipeline.listener.start()
 
         entries = [e for e in logging_pipeline.capture.captured if e.message == "framework record about an app"]
-        assert [(e.app_key, e.source_tier) for e in entries] == [("my_app", "framework")]
+        assert [(e.app_key, e.author) for e in entries] == [("my_app", "framework")]

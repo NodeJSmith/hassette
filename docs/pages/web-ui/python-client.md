@@ -61,7 +61,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_ready()` | `GET /api/health/ready` |
 | `get_apps()` | `GET /api/apps` |
 | `get_app(app_key)` | `GET /api/apps/{app_key}` |
-| `action(app_key, action, instance=None)` | `POST /api/apps/{app_key}/{action}` or `POST /api/apps/{app_key}/instances/{instance}/{action}` |
+| `action(app_key, action, *, instance=None)` | `POST /api/apps/{app_key}/{action}` or `POST /api/apps/{app_key}/instances/{instance}/{action}` |
 | `get_app_config(app_key)` | `GET /api/apps/{app_key}/config` |
 | `get_app_source(app_key)` | `GET /api/apps/{app_key}/source` |
 | `get_app_grid()` | `GET /api/telemetry/app-grid` |
@@ -89,7 +89,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 
 `POST /api/auth/session` has no method. It trades a token for a browser session cookie, which a client sending its token on every request doesn't need.
 
-Filters such as `since`, `limit`, `instance_index` and `source_tier` are keyword-only and use the server's own parameter names. `since` is a Unix timestamp in seconds. A filter you leave as `None` isn't sent, so the server applies its own default.
+Filters such as `since`, `limit`, `instance_index` and `source_tier` are keyword-only and use the server's own parameter names. `since` is a Unix timestamp in seconds. A filter you leave as `None` isn't sent, so the server applies its own default. For `get_recent_logs()` and `get_execution_logs()`, an unsent `author` leaves out Hassette's own lines below ERROR. On `get_recent_logs()` that holds even when `level` asks for `WARNING` or `INFO`. Pass `author="all"` to include them.
 
 A method returning a list fails as a whole when any one item doesn't match its model, so a schema change shows up as an error rather than as missing rows.
 
@@ -186,7 +186,7 @@ Inside Home Assistant, don't retry in the integration at all. Raise `ConfigEntry
 
 ### A newer server
 
-Some fields hold one of a fixed set of values, such as an app's `status` (`running`, `stopped`, and so on). Most are *open*: a newer server may add a value this client has never heard of. The client parses that value as a `hassette_wire.UnknownValue` instead of failing. `UnknownValue` is a `str` subclass holding exactly what the server sent, so printing or comparing it still works. A few fields are *closed*, such as `source_tier` and log levels. Their values are fixed, and an unknown one raises `ResponseValidationError`.
+Some fields hold one of a fixed set of values, such as an app's `status` (`running`, `stopped`, and so on). Most are *open*: a newer server may add a value this client has never heard of. The client parses that value as a `hassette_wire.UnknownValue` instead of failing. `UnknownValue` is a `str` subclass holding exactly what the server sent, so printing or comparing it still works. A few fields are *closed*, such as `source_tier`, a log line's `author`, and log levels. Their values are fixed, and an unknown one raises `ResponseValidationError`.
 
 `app.status` from [First request](#first-request) is an open field. This loop, inside `main()`, handles a status the client doesn't know:
 
@@ -215,7 +215,7 @@ pages/web-ui/snippets/python_client_skew.py:check
 Against a server that's too old, it prints a message like:
 
 ```text
-hassette server 0.55.0 reports no API schema, older than 1, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
+hassette server 0.55.0 reports no API schema, older than 3, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
 ```
 
 The message names the two fixes: upgrade Hassette, or pin `hassette-client` to the release matching the server.

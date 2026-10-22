@@ -18,6 +18,7 @@ import structlog.dev
 import structlog.processors
 import structlog.stdlib
 import structlog.types
+from hassette_wire import LogAuthor
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
@@ -59,10 +60,8 @@ _IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
 WARNING_CATEGORY_ATTR = "warning_category"
 WARNING_FILENAME_ATTR = "warning_filename"
 
-LogAuthor = Literal["app", "framework"]
-
 _RECORD_FIELDS = (
-    "source_tier",
+    "author",
     "app_key",
     "execution_id",
     "instance_name",
@@ -84,9 +83,9 @@ class LogRecordEntry:
     func_name: str
     lineno: int
     message: str
+    author: LogAuthor
     exc_info: str | None = None
     app_key: str | None = None
-    source_tier: str | None = None
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
@@ -99,7 +98,10 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
     """Extract the identity and correlation attributes the handler filters stamped on a LogRecord."""
     return {
         "app_key": getattr(record, "app_key", None),
-        "source_tier": getattr(record, "source_tier", None),
+        # Read directly: LogIdentityFilter stamps every record, and log_records.author is NOT NULL. A record
+        # that skipped the filter raises AttributeError here, which LogPersistenceHandler.emit routes to
+        # handleError, so it fails alone instead of failing the whole batch insert.
+        "author": record.author,  # pyright: ignore[reportAttributeAccessIssue]
         "execution_id": getattr(record, "execution_id", None),
         "instance_name": getattr(record, "instance_name", None),
         "instance_index": getattr(record, "instance_index", None),
@@ -239,8 +241,7 @@ class LogIdentityFilter(logging.Filter):
     (Phase 1, before the resource tree exists) and the queue handler ``LoggingService`` swaps in
     (Phase 2), so both phases see the same identity. The writing logger's owner wins over bound
     context; context supplies the subject only for ownerless loggers (shared services, user module
-    loggers, libraries). The author is stamped as
-    ``source_tier`` until #3096 adds the ``author`` field.
+    loggers, libraries).
 
     Idempotent: Phase 2 moves the stream handler under the queue listener, whose thread has no
     bound context, so a record this filter already resolved on the caller's thread is left alone.
@@ -262,7 +263,7 @@ class LogIdentityFilter(logging.Filter):
             )
         else:
             author = namespace_author(record.name)
-        record.source_tier = author  # pyright: ignore[reportAttributeAccessIssue]
+        record.author = author  # pyright: ignore[reportAttributeAccessIssue]
 
         if identity is not None and identity.app_key is not None:
             record.app_key = identity.app_key  # pyright: ignore[reportAttributeAccessIssue]
@@ -431,7 +432,12 @@ class LogPersistenceHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         if record.levelno < self._persistence_level:
             return
-        self._batch.append(self.record_to_dict(record))
+        try:
+            row = self.record_to_dict(record)
+        except Exception:
+            self.handleError(record)
+            return
+        self._batch.append(row)
         if len(self._batch) >= self.BATCH_SIZE:
             self._flush()
 

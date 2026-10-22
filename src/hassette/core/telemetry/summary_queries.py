@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Any, assert_never
 
-from hassette_wire import QuerySourceTier
+from hassette_wire import QueryAuthor, QuerySourceTier
 
 from hassette.core.telemetry.helpers import (
     DEFAULT_EXECUTION_LOG_LIMIT,
@@ -192,13 +192,15 @@ class SummaryQueriesMixin:
         app_key: str | None = None,
         level: str | None = None,
         execution_id: str | None = None,
-        source_tier: QuerySourceTier = "all",
+        author: QueryAuthor | None = None,
         instance_index: int | None = None,
     ) -> list[dict[str, Any]]:
         """Fetch log records with optional filters, ordered by timestamp DESC.
 
-        ``session_id`` is intentionally not included in the SELECT — session identity is
-        not exposed in the API. All other log_records columns are returned as-is.
+        ``author=None`` applies the default view (see ``log_author_clause``) before the ``LIMIT``, so
+        hidden framework lines never use up the row cap. ``session_id`` is intentionally not included
+        in the SELECT — session identity is not exposed in the API. All other log_records columns are
+        returned as-is.
         """
         # dup-ignore-end
         clauses, params = log_record_filter_clauses(
@@ -206,7 +208,7 @@ class SummaryQueriesMixin:
             app_key=app_key,
             level=level,
             execution_id=execution_id,
-            source_tier=source_tier,
+            author=author,
             instance_index=instance_index,
         )
 
@@ -226,15 +228,28 @@ class SummaryQueriesMixin:
         execution_id: str,
         *,
         limit: int = DEFAULT_EXECUTION_LOG_LIMIT,
+        author: QueryAuthor | None = None,
     ) -> tuple[list[dict[str, Any]], bool]:
-        """Fetch all log records for a single execution, ordered by seq ASC."""
+        """Fetch a single execution's log records, ordered by seq ASC.
+
+        ``author`` filters as in ``get_log_records``; ``None`` applies the default view.
+        """
+        clauses, params = log_record_filter_clauses(
+            since=None,
+            app_key=None,
+            level=None,
+            execution_id=execution_id,
+            author=author,
+            instance_index=None,
+        )
+        params["limit"] = limit + 1
         query = f"""
             {LOG_RECORD_SELECT}
-            WHERE lr.execution_id = :execution_id
+            WHERE {" AND ".join(clauses)}
             ORDER BY lr.seq ASC
             LIMIT :limit
         """
-        async with self.execute(query, {"execution_id": execution_id, "limit": limit + 1}) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = list(await cursor.fetchall())
         truncated = len(rows) > limit
         return [row_to_dict(row) for row in rows[:limit]], truncated

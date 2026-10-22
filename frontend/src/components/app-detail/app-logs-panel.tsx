@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { EmptyState } from "../shared/empty-state";
-import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
+import { FrameworkLinesToggle, LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
 import { TableCard } from "../shared/table-card";
 import { TableFooter } from "../shared/table-footer";
 
@@ -31,6 +31,7 @@ export function AppLogsPanel({ appKey }: { appKey: string }) {
       count={log.countLabel}
       columnFilters={log.columnFilters}
       onResetFilters={log.hasActiveFilter ? log.resetFilters : undefined}
+      extras={<FrameworkLinesToggle />}
     />
   );
 

@@ -37,12 +37,8 @@ vi.mock("./use-log-filters", () => ({
       return mockFilterState.value;
     },
     livePaused: false,
-    defaultTier: "all",
     get setLevel() {
       return mockSetLevel;
-    },
-    get setTier() {
-      return mockSetTier;
     },
     get setApp() {
       return mockSetApp;
@@ -95,7 +91,6 @@ vi.mock("wouter", () =>
 const mockFilterState = {
   value: {
     level: "INFO",
-    tier: "all",
     app: "",
     func: "",
     search: "",
@@ -110,7 +105,6 @@ const mockFilteredCount = { value: 0 };
 const mockLoading = { value: false };
 
 const mockSetLevel = vi.fn();
-const mockSetTier = vi.fn();
 const mockSetApp = vi.fn();
 const mockSetSearch = vi.fn();
 const mockSetFunc = vi.fn();
@@ -123,7 +117,7 @@ function renderUseLogTable(params: Parameters<typeof useLogTable>[0] = {}) {
 }
 
 function makeEntry(seq: number) {
-  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, source_tier: "app" });
+  return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}` });
 }
 
 function setFiltered(entries: LogEntry[], total = entries.length): void {
@@ -134,7 +128,6 @@ function setFiltered(entries: LogEntry[], total = entries.length): void {
 beforeEach(() => {
   mockFilterState.value = {
     level: "INFO",
-    tier: "all",
     app: "",
     func: "",
     search: "",
@@ -157,9 +150,14 @@ describe("useLogTable — columnFilters", () => {
     expect(result.current.columnFilters).toHaveProperty("function");
   });
 
-  it("includes 'app' filter when appKey is not provided", () => {
-    const { result } = renderUseLogTable({ appKey: undefined });
+  it("includes 'app' filter when appKey is not provided and app keys are known", () => {
+    const { result } = renderUseLogTable({ appKey: undefined, appKeys: ["app_a"] });
     expect(result.current.columnFilters).toHaveProperty("app");
+  });
+
+  it("does NOT include 'app' filter when there are no app keys to pick from", () => {
+    const { result } = renderUseLogTable({ appKey: undefined });
+    expect(result.current.columnFilters).not.toHaveProperty("app");
   });
 
   it("does NOT include 'app' filter when appKey is provided", () => {
@@ -193,23 +191,15 @@ describe("useLogTable — columnFilters", () => {
     expect(result.current.columnFilters.function?.active).toBe(false);
   });
 
-  it("app filter is active when tier differs from defaultTier", () => {
-    act(() => {
-      mockFilterState.value = { ...mockFilterState.value, tier: "app" };
-    });
-    const { result } = renderUseLogTable({ appKey: undefined });
-    expect(result.current.columnFilters.app?.active).toBe(true);
-  });
-
   it("app filter is active when app is non-empty", () => {
     act(() => {
       mockFilterState.value = { ...mockFilterState.value, app: "my_app" };
     });
-    const { result } = renderUseLogTable({ appKey: undefined });
+    const { result } = renderUseLogTable({ appKey: undefined, appKeys: ["my_app"] });
     expect(result.current.columnFilters.app?.active).toBe(true);
   });
 
-  it("app filter content is present when tier is not 'framework' and appKeys are provided", () => {
+  it("app filter content is present when appKeys are provided", () => {
     const { result } = renderUseLogTable({ appKey: undefined, appKeys: ["app_a", "app_b"] });
     expect(result.current.columnFilters.app?.content).toBeTruthy();
   });

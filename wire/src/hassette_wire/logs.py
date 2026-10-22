@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from hassette_wire.literals import LogLevel, OpenExecutionKind, SourceTier
+from hassette_wire.literals import LogAuthor, LogLevel, OpenExecutionKind
 
 
 class LogEntry(BaseModel):
@@ -9,7 +9,8 @@ class LogEntry(BaseModel):
     ``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``
     and ``instance_*`` are set for records an app emitted and ``None`` for framework records.
     ``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or
-    job was running.
+    job was running. ``author`` says who wrote the line: ``"app"`` for an app's own code, ``"framework"`` for
+    Hassette's, including its lines about an app.
     """
 
     id: int
@@ -25,7 +26,7 @@ class LogEntry(BaseModel):
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
-    source_tier: SourceTier | None = None
+    author: LogAuthor | None = None
     execution_kind: OpenExecutionKind | None = None
     listener_id: int | None = None
     job_id: int | None = None
