@@ -311,7 +311,5 @@ def invoke_cmd_with_payload_event(
     listener: MagicMock, *, listener_id: int | None = 1, topic: str = "test", source_tier: SourceTier = "app"
 ) -> InvokeHandler:
     """Build an ``InvokeHandler`` whose mock event carries no ``event_id`` or ``origin`` in its payload."""
-    event = MagicMock()
-    event.payload.event_id = None
-    event.payload.origin = None
+    event = MagicMock(payload=MagicMock(event_id=None, origin=None))
     return invoke_cmd(listener, listener_id=listener_id, topic=topic, source_tier=source_tier, event=event)
