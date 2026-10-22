@@ -8,6 +8,7 @@ test_logging_persistence.py (LogPersistenceHandler batching/flush).
 
 import inspect
 import logging
+import queue
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -21,7 +22,13 @@ import structlog
 import hassette.logging_ as logging_module
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import LogIdentity, enable_basic_logging, set_logger_identity
+from hassette.logging_ import (
+    HassetteQueueHandler,
+    HassetteQueueListener,
+    LogIdentity,
+    enable_basic_logging,
+    set_logger_identity,
+)
 from hassette.logging_processors import console_identity, identity_label
 from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
@@ -255,25 +262,52 @@ class TestConsoleLineFormat:
         assert "test_structlog_stack_info_is_rendered" in output, output
 
 
-class TestJsonStack:
-    """JSON output carries a stdlib and a structlog-native caller's stack under the same ``stack`` key."""
+@contextmanager
+def queued_pipeline(stream_handler: logging.StreamHandler) -> Iterator[None]:
+    """Route the hassette logger through a queue to ``stream_handler``, as ``LoggingService`` does in Phase 2."""
+    logger = logging.getLogger(HASSETTE_LOGGER_NAME)
+    log_queue: queue.Queue[logging.LogRecord] = queue.Queue()
+    queue_handler = HassetteQueueHandler(log_queue)
+    listener = HassetteQueueListener(log_queue, stream_handler)
+    logger.addHandler(queue_handler)
+    logger.removeHandler(stream_handler)
+    listener.start()
+    try:
+        yield
+    finally:
+        listener.stop()
+        logger.removeHandler(queue_handler)
+        logger.addHandler(stream_handler)
 
-    def render_json(self, emit: Callable[[], None]) -> dict:
+
+@pytest.mark.parametrize("queued", [False, True], ids=["sync", "queued"])
+class TestJsonStack:
+    """JSON output carries a stdlib and a structlog-native caller's stack under the same ``stack`` key,
+    both before and after ``LoggingService`` swaps in the queued pipeline.
+    """
+
+    def render_json(self, emit: Callable[[], None], *, queued: bool) -> dict:
         stream = StringIO()
-        enable_basic_logging("INFO", log_format="json", stream=stream)
-        emit()
+        stream_handler = enable_basic_logging("INFO", log_format="json", stream=stream)
+        if queued:
+            with queued_pipeline(stream_handler):
+                emit()
+        else:
+            emit()
         return last_json_record(stream)
 
-    def test_stdlib_stack_info_is_rendered(self) -> None:
+    def test_stdlib_stack_info_is_rendered(self, queued: bool) -> None:
         stdlib_logger = logging.getLogger("hassette.apps.example_stdlib")
-        record = self.render_json(lambda: stdlib_logger.info("where am I", stack_info=True))
+        record = self.render_json(lambda: stdlib_logger.info("where am I", stack_info=True), queued=queued)
+        assert record["event"] == "where am I", record
         assert "stack_info" not in record, record
         assert "Stack (most recent call last):" in record["stack"], record
         assert "test_stdlib_stack_info_is_rendered" in record["stack"], record
 
-    def test_structlog_stack_info_is_rendered(self) -> None:
+    def test_structlog_stack_info_is_rendered(self, queued: bool) -> None:
         native = structlog.get_logger("hassette.apps.example_native")
-        record = self.render_json(lambda: native.info("where am I", stack_info=True))
+        record = self.render_json(lambda: native.info("where am I", stack_info=True), queued=queued)
+        assert record["event"] == "where am I", record
         assert "stack_info" not in record, record
         assert "Stack (most recent call last):" in record["stack"], record
         assert "test_structlog_stack_info_is_rendered" in record["stack"], record
