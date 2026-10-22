@@ -502,11 +502,13 @@ class LogPersistenceHandler(logging.Handler):
         super().close()
 
 
+# dup-ignore-start: structlog fixes the processor signature
 def add_execution_id(
     _logger: object,
     _method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
+    # dup-ignore-end
     """Structlog processor: stamp execution_id from CURRENT_EXECUTION_ID context var.
 
     Inserted in the shared processor chain after TimeStamper so structlog-native callers
@@ -518,11 +520,13 @@ def add_execution_id(
     return event_dict
 
 
+# dup-ignore-start: structlog fixes the processor signature
 def _extract_record_fields(
     _logger: object,
     _method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
+    # dup-ignore-end
     """Copy the attributes LogIdentityFilter and CorrelationFilter stamped on the LogRecord into the event dict.
 
     Runs in ProcessorFormatter's processors list (before remove_processors_meta) where _record is available.
@@ -559,11 +563,13 @@ def identity_label(event_dict: Mapping[str, Any]) -> str:
     return " ".join(part for part in (label, short_id) if part)
 
 
+# dup-ignore-start: structlog fixes the processor signature
 def console_identity(
     _logger: object,
     _method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
+    # dup-ignore-end
     """Structlog processor: reduce a console line to its timestamp, level, identity column and event.
 
     Every other key is dropped; JSON output and the DB keep them.
@@ -575,11 +581,13 @@ def console_identity(
     return out
 
 
+# dup-ignore-start: structlog fixes the processor signature
 def compact_timestamp(
     _logger: object,
     _method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
+    # dup-ignore-end
     """Structlog processor: cut the ISO timestamp to ``HH:MM:SS`` for the compact format.
 
     The shared ``TimeStamper`` renders local ISO time (``YYYY-MM-DDTHH:MM:SS.ffffff``), whose
