@@ -1,7 +1,7 @@
 # Design: Log author field and one default log filter
 
 **Date:** 2026-10-22
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3096
 
@@ -151,7 +151,7 @@ The ERROR floor needs the names at or above ERROR in core telemetry. `LOG_LEVELS
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - The D2 opt-in is `showAllFrameworkLogs` in the zustand store (`frontend/src/state/store.ts`), persisted through `utils/local-storage.ts` like the theme and sidebar state: one value every mounted log view shares, so toggling on one view changes them all.
