@@ -7,22 +7,15 @@ autocomplete, independent of whether the framework-internal methods have been
 extracted to module-level functions yet.
 """
 
-from hassette.app.app import _APP_PUBLIC_API, App, AppSync
+from hassette.app.app import _APP_PUBLIC_API, AppSync
 from hassette.app.app import _APPSYNC_HOOKS as _APPSYNC_HOOKS
-from hassette.app.app_config import AppConfig
-from tests.support.mock_hassette import make_mock_hassette
+from tests.support.factories import make_app
 
 
 class TestAppDir:
     def test_dir_matches_public_api_allowlist(self) -> None:
         """`dir(app)` returns exactly the app-author API allowlist — no framework plumbing."""
-        hassette = make_mock_hassette(sealed=False)
-        app = App(
-            hassette,
-            app_config=AppConfig(instance_name="kitchen"),
-            index=0,
-            app_key="kitchen_lights",
-        )
+        app = make_app()
 
         assert set(dir(app)) == _APP_PUBLIC_API
 
@@ -30,13 +23,7 @@ class TestAppDir:
         """`add_child` stays a method on Resource (App.__init__ calls it directly) but is
         hidden from `dir()` — it is framework plumbing, not app-author API.
         """
-        hassette = make_mock_hassette(sealed=False)
-        app = App(
-            hassette,
-            app_config=AppConfig(instance_name="kitchen"),
-            index=0,
-            app_key="kitchen_lights",
-        )
+        app = make_app()
 
         assert "add_child" not in dir(app)
         # still callable — extraction hasn't happened yet, __dir__ just hides it
@@ -54,13 +41,7 @@ class TestAppDir:
         by `__dir__`. `handle_failed` now only exists as a module-level function in
         `hassette.resources.lifecycle`.
         """
-        hassette = make_mock_hassette(sealed=False)
-        app = App(
-            hassette,
-            app_config=AppConfig(instance_name="kitchen"),
-            index=0,
-            app_key="kitchen_lights",
-        )
+        app = make_app()
 
         assert not hasattr(app, "handle_failed")
 
@@ -68,13 +49,7 @@ class TestAppDir:
 class TestAppSyncDir:
     def test_dir_matches_public_api_allowlist_plus_sync_hooks(self) -> None:
         """`dir(app_sync)` returns the base allowlist plus AppSync's 6 sync hooks."""
-        hassette = make_mock_hassette(sealed=False)
-        app = AppSync(
-            hassette,
-            app_config=AppConfig(instance_name="kitchen"),
-            index=0,
-            app_key="kitchen_lights",
-        )
+        app = make_app(cls=AppSync)
 
         assert set(dir(app)) == _APP_PUBLIC_API | _APPSYNC_HOOKS
 

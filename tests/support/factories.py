@@ -14,7 +14,8 @@ from hassette_wire import ExecutionMode, ExecutionStatus, ScheduleStatus, Source
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.app.app import APP_LOGGER_PREFIX
+from hassette.app.app import APP_LOGGER_PREFIX, App, AppSync
+from hassette.app.app_config import AppConfig
 from hassette.commands import InvokeHandler
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.app_change_detector import ChangeSet
@@ -772,3 +773,21 @@ def make_bypassed_service(cls: type[ResourceT], hassette: Any) -> ResourceT:
     svc.ready_event = asyncio.Event()
     svc._ready_reason = None
     return svc
+
+
+def make_app(
+    *,
+    cls: type[App] | type[AppSync] = App,
+    instance_name: str = "kitchen",
+    app_key: str = "kitchen_lights",
+    index: int = 0,
+    hassette: Any | None = None,
+    **kwargs: Any,
+) -> App | AppSync:
+    """Build a bare ``App``/``AppSync`` on an unsealed mock hassette (or the one passed in).
+
+    Extra kwargs (e.g. ``app_manifest=``, ``cache=``) pass straight through to ``cls``.
+    """
+    if hassette is None:
+        hassette = make_mock_hassette(sealed=False)
+    return cls(hassette, app_config=AppConfig(instance_name=instance_name), index=index, app_key=app_key, **kwargs)
