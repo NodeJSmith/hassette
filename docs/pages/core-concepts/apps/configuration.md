@@ -135,7 +135,7 @@ The values supplied under `config` are validated at startup against an [`AppConf
     --8<-- "pages/core-concepts/apps/snippets/app_config_blocking_io.py"
     ```
 
-    `BlockingIOBehavior` is imported from `hassette`. Under `"warn"`, each detection logs a warning and records the call. Recorded calls appear on the app's overview, the apps list, and `hassette blocking`. `"ignore"` turns off both the warning and the record for this app. It suits legacy code that still uses synchronous I/O. `"error"` lets a warning filter turn detections into exceptions that stop the blocking call. See [Blocking-Call Detection](../blocking-io-detection.md) for where detections show up and how to set up that filter. [Global Settings](../configuration/index.md#blocking-io-detection) covers the global defaults.
+    `BlockingIOBehavior` is imported from `hassette`. Under `"warn"`, each detection logs a warning and records the call. Recorded calls appear on the app's overview, the apps list, and `hassette blocking`. `"ignore"` turns off both the warning and the record for this app. It suits legacy code that still uses synchronous I/O. `"error"` lets a warning filter turn call-site (Tier 2) detections into exceptions that stop the blocking call. Loop-watchdog (Tier 1) stalls are reported after the call finishes and never raise. See [Blocking-Call Detection](../blocking-io-detection.md) for where detections show up and how to set up that filter. [Global Settings](../configuration/index.md#blocking-io-detection) covers the global defaults.
 
 ## Next Steps
 
