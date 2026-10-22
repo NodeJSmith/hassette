@@ -105,7 +105,9 @@ The values supplied under `config` are validated at startup against an [`AppConf
 
 ## Developer Settings {#developer-settings}
 
-`AppConfig` includes two developer-facing fields:
+`AppConfig` includes three developer-facing fields:
+
+- **`framework_log_level`** (a log level name such as `"DEBUG"`, or `None`): Level for the lines Hassette writes about this instance: its lifecycle, bus, scheduler, API, state and task lines. The app's own `log_level` is unaffected. `None` (the default) leaves those lines at their `logging.*` levels. See [Per-App Log Levels](../../operating/log-levels.md#hassettes-lines-about-one-app).
 
 - **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
 

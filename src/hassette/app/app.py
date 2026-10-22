@@ -147,8 +147,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         parent: Resource | None = None,
         cache: CacheProtocol | None = None,
     ) -> None:
-        # app_config and index must be set before super().__init__ because
-        # unique_name (used by the logger) depends on app_config
+        # app_config and index must be set before super().__init__ because unique_name (used by the
+        # logger) and owner_framework_log_level (used by the lifecycle logger's level) read app_config
         self.app_config = app_config
         self.index = index
         self._app_key = app_key
@@ -187,10 +187,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     def _setup_logger(self) -> None:
         super()._setup_logger()
         # Framework-authored and owned by this app: generic lifecycle code writes about the app
-        # here instead of on the app's own logger. Its level is LoggingConfig.app_handler, not the
-        # app's log_level.
+        # here instead of on the app's own logger. Its level is the app's framework_log_level, else
+        # LoggingConfig.app_handler, never the app's log_level.
         self._lifecycle_logger = getLogger(f"{self.logger.name}.Lifecycle")
-        self._lifecycle_logger.setLevel(self.hassette.config.logging.app_handler)
+        self._lifecycle_logger.setLevel(self.resolve_log_level("framework", self.hassette.config.logging.app_handler))
         set_logger_identity(self._lifecycle_logger, self.owner_log_identity("framework"))
 
     @property
@@ -203,6 +203,13 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         return LogIdentity(
             author=author, app_key=self.app_key, instance_name=self.instance_name, instance_index=self.index
         )
+
+    def owner_framework_log_level(self) -> LogLevel | None:
+        """Return this app's ``framework_log_level``, or None when unset.
+
+        The level for the framework loggers this app owns, not its own logger's level (`config_log_level`).
+        """
+        return self.app_config.framework_log_level
 
     @property
     def config_log_level(self) -> LogLevel:

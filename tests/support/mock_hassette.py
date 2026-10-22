@@ -168,6 +168,8 @@ def make_mock_hassette(
     hassette._get_logger_name = Mock(return_value="hassette")
     # ...and their log identity from the parent's (Resource.owner_log_identity); Hassette owns no app.
     hassette.owner_log_identity = Mock(side_effect=lambda author: LogIdentity(author=author))
+    # ...and their framework_log_level override from the parent's (Resource.owner_framework_log_level).
+    hassette.owner_framework_log_level = Mock(return_value=None)
 
     # SyncExecutorService — set both the backing field and the public accessor (same
     # pattern as fatal_shutdown_reason above) so tests that reference

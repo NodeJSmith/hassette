@@ -23,13 +23,29 @@ from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource
 
+FRAMEWORK_CHILD_LEVEL_FIELDS = ("bus_service", "scheduler_service", "api", "state_proxy", "task_bucket")
+"""The ``LoggingConfig`` fields of an app's framework children; the tests set them all to ERROR."""
+
+
+def framework_loggers(app: App) -> list[logging.Logger]:
+    """The loggers an app owns that are framework-authored, a grandchild (``api.sync``) included."""
+    resources = (app.bus, app.scheduler, app.api, app.states, app.task_bucket, app.api.sync)
+    return [app.lifecycle_logger, *(resource.logger for resource in resources)]
+
 
 def build_identity_app(
-    instance_name: str, *, index: int = 0, app_key: str = "identity_app", log_level: str | None = None
+    instance_name: str,
+    *,
+    index: int = 0,
+    app_key: str = "identity_app",
+    log_level: str | None = None,
+    framework_log_level: str | None = None,
 ) -> App:
     hassette = make_mock_hassette(sealed=False)
     hassette.config.logging.app_handler = "WARNING"
-    config = AppConfig(instance_name=instance_name, log_level=log_level)
+    for field in FRAMEWORK_CHILD_LEVEL_FIELDS:
+        setattr(hassette.config.logging, field, "ERROR")
+    config = AppConfig(instance_name=instance_name, log_level=log_level, framework_log_level=framework_log_level)
     return App(hassette, app_config=config, index=index, app_key=app_key)
 
 
@@ -69,6 +85,40 @@ class TestAppLoggerIdentity:
         assert get_logger_identity(sub) == get_logger_identity(app.logger)
 
 
+class TestFrameworkLogLevel:
+    def test_framework_loggers_follow_framework_log_level_when_set(self) -> None:
+        app = build_identity_app("fw_children", framework_log_level="DEBUG")
+
+        for logger in framework_loggers(app):
+            assert logger.level == logging.DEBUG, logger.name
+
+    def test_children_keep_service_levels_when_unset(self) -> None:
+        app = build_identity_app("fw_unset")
+
+        for child in (app.bus, app.scheduler, app.api, app.states, app.task_bucket):
+            assert child.logger.level == logging.ERROR, child.class_name
+
+    def test_app_log_level_alone_does_not_raise_framework_loggers(self) -> None:
+        app = build_identity_app("fw_app_debug", log_level="DEBUG")
+
+        assert app.logger.level == logging.DEBUG
+        for logger in framework_loggers(app):
+            assert logger.level > logging.DEBUG, logger.name
+
+    def test_framework_log_level_does_not_change_the_app_logger(self) -> None:
+        app = build_identity_app("fw_own", log_level="WARNING", framework_log_level="DEBUG")
+
+        assert app.logger.level == logging.WARNING
+
+    def test_framework_log_level_is_scoped_to_its_own_app(self) -> None:
+        raised = build_identity_app("fw_raised", framework_log_level="DEBUG")
+        sibling = App(raised.hassette, app_config=AppConfig(instance_name="fw_sibling"), index=0, app_key="other")
+
+        assert raised.bus.logger.level == logging.DEBUG
+        assert sibling.bus.logger.level == logging.ERROR
+        assert sibling.lifecycle_logger.level == logging.WARNING
+
+
 class TestAppLifecycleLogger:
     def test_lifecycle_logger_is_framework_authored_and_owned_by_the_app(self) -> None:
         app = build_identity_app("identity_lifecycle", index=4)
@@ -83,6 +133,11 @@ class TestAppLifecycleLogger:
 
         assert app.logger.level == logging.DEBUG
         assert app.lifecycle_logger.level == logging.WARNING
+
+    def test_lifecycle_logger_level_follows_framework_log_level_when_set(self) -> None:
+        app = build_identity_app("identity_fw_lifecycle", framework_log_level="DEBUG")
+
+        assert app.lifecycle_logger.level == logging.DEBUG
 
     def test_lifecycle_code_writes_through_the_lifecycle_logger(
         self, buffered_records: tuple[BufferingHandler, list[logging.Logger]]
