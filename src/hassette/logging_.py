@@ -25,6 +25,7 @@ from hassette.logging_processors import (
     console_identity,
     console_renderer,
     extract_record_fields,
+    stdlib_stack_to_stack,
 )
 from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
 
@@ -640,6 +641,9 @@ def enable_basic_logging(
     structlog.configure(
         processors=[
             *shared_processors,
+            # Native chain only: it runs in the caller's frame. Stdlib records arrive with their stack
+            # already formatted, which stdlib_stack_to_stack moves to the same ``stack`` key.
+            structlog.processors.StackInfoRenderer(),
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -658,6 +662,7 @@ def enable_basic_logging(
         foreign_pre_chain=shared_processors,
         processors=[
             extract_record_fields,
+            stdlib_stack_to_stack,
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             *output_processors,
         ],

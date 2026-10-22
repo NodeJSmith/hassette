@@ -247,6 +247,37 @@ class TestConsoleLineFormat:
         assert "Stack (most recent call last):" in output, output
         assert "test_stdlib_stack_info_is_rendered" in output, output
 
+    @pytest.mark.parametrize("log_format", ["console", "compact"])
+    def test_structlog_stack_info_is_rendered(self, log_format: Literal["console", "compact"]) -> None:
+        native = structlog.get_logger("hassette.apps.example_native")
+        output = self.render(log_format, lambda: native.info("where am I", stack_info=True))
+        assert "Stack (most recent call last):" in output, output
+        assert "test_structlog_stack_info_is_rendered" in output, output
+
+
+class TestJsonStack:
+    """JSON output carries a stdlib and a structlog-native caller's stack under the same ``stack`` key."""
+
+    def render_json(self, emit: Callable[[], None]) -> dict:
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="json", stream=stream)
+        emit()
+        return last_json_record(stream)
+
+    def test_stdlib_stack_info_is_rendered(self) -> None:
+        stdlib_logger = logging.getLogger("hassette.apps.example_stdlib")
+        record = self.render_json(lambda: stdlib_logger.info("where am I", stack_info=True))
+        assert "stack_info" not in record, record
+        assert "Stack (most recent call last):" in record["stack"], record
+        assert "test_stdlib_stack_info_is_rendered" in record["stack"], record
+
+    def test_structlog_stack_info_is_rendered(self) -> None:
+        native = structlog.get_logger("hassette.apps.example_native")
+        record = self.render_json(lambda: native.info("where am I", stack_info=True))
+        assert "stack_info" not in record, record
+        assert "Stack (most recent call last):" in record["stack"], record
+        assert "test_structlog_stack_info_is_rendered" in record["stack"], record
+
 
 @contextmanager
 def execution_scope(execution_id: str, *, instance_name: str) -> Iterator[None]:
