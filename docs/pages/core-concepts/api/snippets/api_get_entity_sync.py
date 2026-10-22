@@ -1,16 +1,16 @@
+# --8<-- [start:cover_app]
 from hassette import AppSync
 from hassette.models import entities
 
 
 class CoverApp(AppSync):
     def on_initialize_sync(self) -> None:
-        # --8<-- [start:entity_sync_domain_action]
         cover = self.api.sync.get_entity(
             "cover.living_room", entities.CoverEntity
         )
         cover.sync.open_cover()
         cover.sync.set_cover_position(position=60)
-        # --8<-- [end:entity_sync_domain_action]
+# --8<-- [end:cover_app]
 
 
 class ClimateApp(AppSync):

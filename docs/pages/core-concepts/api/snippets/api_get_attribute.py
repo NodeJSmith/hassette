@@ -7,6 +7,6 @@ class BrightnessApp(App):
         if brightness is not MISSING_VALUE:
             self.logger.info("Brightness: %s", brightness)
 
-        # Dot-path for nested attributes
-        color_mode = await self.api.get_attribute("light.kitchen", "color_mode")
-        self.logger.info("Color mode: %s", color_mode)
+        # Dot-path: index into a list attribute
+        first_mode = await self.api.get_attribute("light.kitchen", "supported_color_modes.0")
+        self.logger.info("First supported color mode: %s", first_mode)
