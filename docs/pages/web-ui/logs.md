@@ -10,11 +10,19 @@ The filter controls narrow the table to specific entries.
 
 **Level** sets the minimum severity shown. It defaults to INFO. Options are: All levels, DEBUG+, INFO+, WARNING+, ERROR+, and CRITICAL only.
 
-**App** limits entries by source. Toggle between All, Apps, and Framework. The default is Apps. When All or Apps is selected, a dropdown narrows to a specific app key.
+**App** narrows the table to one app key.
 
 **Function** filters the function name column by substring. Any part of a function name matches.
 
 **Search** matches against both message content and logger name.
+
+## Hassette's Own Lines
+
+By default, every log view shows the lines your apps wrote, plus Hassette's own lines at ERROR and above. Hassette's lines carry a **Framework** badge at the start of the message, including lines it writes about one of your apps, such as its listener and API activity.
+
+The **all framework lines** checkbox in the table footer adds the rest of Hassette's lines: its DEBUG, INFO and WARNING output. The checkbox is one setting for every log view, the Logs page, an app's logs and an execution's logs alike, and the browser remembers it.
+
+## Entry Count
 
 The footer shows how many entries match. When the result exceeds 500, the footer reads "showing 500 of N". Narrowing the filters surfaces specific entries.
 
@@ -32,12 +40,12 @@ The table is sorted by timestamp descending by default. Sortable columns toggle 
 |---|---|---|---|
 | Level | Yes | Yes (dropdown) | Severity badge: DEBUG, INFO, WARNING, ERROR, CRITICAL |
 | Timestamp | Yes (default desc) | No | Time the entry was recorded |
-| App | Yes | Yes (dropdown) | App key, or blank for framework logs |
+| App | Yes | Yes (dropdown) | App key, or blank for Hassette's own lines that aren't about an app |
 | Instance | No | No | Instance name for multi-instance apps |
 | Execution | No | No | Execution ID linking to a handler invocation |
 | Function | Yes | Yes (text input) | Python function that emitted the log |
 | Module | No | No | Python module name |
-| Message | Yes | No | Log message text |
+| Message | Yes | No | Log message text, with a **Framework** badge on lines Hassette wrote |
 
 ## Column Picker
 

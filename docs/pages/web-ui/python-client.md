@@ -186,7 +186,7 @@ Inside Home Assistant, don't retry in the integration at all. Raise `ConfigEntry
 
 ### A newer server
 
-Some fields hold one of a fixed set of values, such as an app's `status` (`running`, `stopped`, and so on). Most are *open*: a newer server may add a value this client has never heard of. The client parses that value as a `hassette_wire.UnknownValue` instead of failing. `UnknownValue` is a `str` subclass holding exactly what the server sent, so printing or comparing it still works. A few fields are *closed*, such as `source_tier` and log levels. Their values are fixed, and an unknown one raises `ResponseValidationError`.
+Some fields hold one of a fixed set of values, such as an app's `status` (`running`, `stopped`, and so on). Most are *open*: a newer server may add a value this client has never heard of. The client parses that value as a `hassette_wire.UnknownValue` instead of failing. `UnknownValue` is a `str` subclass holding exactly what the server sent, so printing or comparing it still works. A few fields are *closed*, such as `source_tier`, a log line's `author`, and log levels. Their values are fixed, and an unknown one raises `ResponseValidationError`.
 
 `app.status` from [First request](#first-request) is an open field. This loop, inside `main()`, handles a status the client doesn't know:
 
