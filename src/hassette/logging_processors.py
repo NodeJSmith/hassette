@@ -72,6 +72,12 @@ def console_identity(
     Every other key is dropped; JSON output and the DB keep them.
     """
     out = {key: event_dict[key] for key in CONSOLE_KEYS if key in event_dict}
+    # ProcessorFormatter passes a stdlib caller's formatted stack as a ``stack_info`` string, but
+    # ConsoleRenderer only renders ``stack``. StackInfoRenderer can't do this: it rebuilds the stack from
+    # the current frame, which by format time is the formatter's, not the caller's.
+    stack_info = event_dict.get("stack_info")
+    if isinstance(stack_info, str) and "stack" not in out:
+        out["stack"] = stack_info
     label = identity_label(event_dict)
     if label:
         out[IDENTITY_KEY] = label
