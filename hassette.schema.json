@@ -890,7 +890,7 @@
         },
         "log_format": {
           "default": "auto",
-          "description": "Console output format. ``\"auto\"`` detects TTY vs pipe automatically. ``\"console\"`` forces\ncolored human-readable output. ``\"compact\"`` is the console format with a time-only timestamp and\nno level padding, for narrow viewers such as the add-on's Log tab. ``\"json\"`` forces\none-JSON-object-per-line output.",
+          "description": "Console output format. ``\"auto\"`` detects TTY vs pipe automatically. ``\"console\"`` forces\ncolored human-readable output. ``\"compact\"`` is the console format with a time-only timestamp and\nno level padding, for narrow viewers such as the add-on's Log tab; ``\"auto\"`` never picks it.\n``\"json\"`` forces one-JSON-object-per-line output.",
           "enum": [
             "auto",
             "console",

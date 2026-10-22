@@ -19,15 +19,10 @@ import pytest
 import structlog
 
 import hassette.logging_ as logging_module
+from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import (
-    LogIdentity,
-    compact_timestamp,
-    console_identity,
-    enable_basic_logging,
-    identity_label,
-    set_logger_identity,
-)
+from hassette.logging_ import LogIdentity, enable_basic_logging, set_logger_identity
+from hassette.logging_processors import compact_timestamp, console_identity, identity_label
 from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
 
@@ -613,7 +608,7 @@ class TestNoModuleGlobals:
 
 def _installed_renderer() -> object:
     """Return the final processor of the formatter on the stream handler enable_basic_logging installed."""
-    handlers = logging.getLogger(logging_module.HASSETTE_LOGGER_NAME).handlers
+    handlers = logging.getLogger(HASSETTE_LOGGER_NAME).handlers
     stream_handlers = [h for h in handlers if isinstance(h, logging.StreamHandler)]
     assert len(stream_handlers) == 1, f"expected one stream handler on the hassette logger, got {handlers}"
     formatter = stream_handlers[0].formatter
