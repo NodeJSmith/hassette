@@ -75,7 +75,7 @@ Each block sets its own `instance_name`, which distinguishes the instance in log
 
 Single-instance apps are the default. Most apps never need `[[...]]` blocks. Multiple instances let the same logic run across different rooms, devices, or entity sets without duplicating app code.
 
-A live config reload (on when `dev_mode` or `allow_reload_in_prod` is set) restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. A restart stops every instance the change replaces, across all affected apps, before starting any replacement, so a name can move from one instance or app to another in a single edit. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the per-instance controls in the web UI and the equivalent REST API endpoints.
+Live config reload runs when the `hassette.toml` setting [`dev_mode`](../configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../configuration/index.md#development-and-debugging) is on. With both off, a config edit takes effect only after Hassette restarts. A live config reload restarts only the instances whose `config` block actually changed. If instance `1`'s config changes but instance `0`'s stays the same, instance `1` restarts and instance `0` keeps running with its existing state — its scheduled jobs and event subscriptions never drop. Adding or removing an instance (changing the number of `[[...]]` blocks) falls back to a full restart of every instance for that app key, since the instance list itself changed. A restart stops every instance the change replaces, across all affected apps, before starting any replacement, so a name can move from one instance or app to another in a single edit. See [Start, Stop, and Reload](../../web-ui/manage-apps.md#start-stop-and-reload) for the per-instance controls in the web UI and the equivalent REST API endpoints.
 
 ## Instance Names {#instance-names}
 
@@ -105,11 +105,17 @@ The values supplied under `config` are validated at startup against an [`AppConf
 
 ## Developer Settings {#developer-settings}
 
-`AppConfig` includes three developer-facing fields:
+`AppConfig` includes three developer-facing fields. Each one is a key in the app's `config` table in `hassette.toml`, set per instance like any other config value.
 
 - **`framework_log_level`** (a log level name such as `"DEBUG"`, or `None`): Level for the lines Hassette writes about this instance: its lifecycle, bus, scheduler, API, state and task lines. The app's own `log_level` is unaffected. `None` (the default) leaves those lines at their `logging.*` levels. See [Per-App Log Levels](../../operating/log-levels.md#hassettes-lines-about-one-app).
 
-- **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when a protected method is called without `await`. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+- **`forgotten_await_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for what happens when an async Hassette method runs without `await`. Examples include `self.bus.on_state_change(...)`, `self.scheduler.run_in(...)`, and `self.api.call_service(...)`. Without `await`, the call never takes effect. [Forgotten `await`](../../troubleshooting.md#forgotten-await) lists every covered method. `None` (the default) falls back to the global `forgotten_await_behavior` setting in `hassette.toml`.
+
+    ```toml
+    --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.toml"
+    ```
+
+    An `AppConfig` subclass can also change the field's default in Python. This step is optional; the TOML key works without it.
 
     ```python
     --8<-- "pages/core-concepts/apps/snippets/app_config_forgotten_await.py"
@@ -119,11 +125,17 @@ The values supplied under `config` are validated at startup against an [`AppConf
 
 - **`blocking_io_behavior`** (`"ignore"` / `"warn"` / `"error"` or `None`): Per-app override for blocking-call detection behavior. `None` (the default) falls back to the global `blocking_io.behavior` setting in `hassette.toml`, which itself defaults to `"warn"`.
 
+    ```toml
+    --8<-- "pages/core-concepts/apps/snippets/app_config_blocking_io.toml"
+    ```
+
+    The same optional Python default applies here:
+
     ```python
     --8<-- "pages/core-concepts/apps/snippets/app_config_blocking_io.py"
     ```
 
-    `BlockingIOBehavior` is imported from `hassette`. Set to `"ignore"` to suppress both the warning and the `blocking_events` DB row for this app — useful when migrating legacy code that uses synchronous I/O. Set to `"error"` to escalate detections to raised exceptions (via `filterwarnings("error")`). See [Blocking-Call Detection](../blocking-io-detection.md) for context and [Global Settings](../configuration/index.md#blocking-io-detection) for the global defaults.
+    `BlockingIOBehavior` is imported from `hassette`. Under `"warn"`, each detection logs a warning and records the call. Recorded calls appear on the app's overview, the apps list, and `hassette blocking`. `"ignore"` turns off both the warning and the record for this app. It suits legacy code that still uses synchronous I/O. `"error"` lets a warning filter turn detections into exceptions that stop the blocking call. See [Blocking-Call Detection](../blocking-io-detection.md) for where detections show up and how to set up that filter. [Global Settings](../configuration/index.md#blocking-io-detection) covers the global defaults.
 
 ## Next Steps
 

@@ -1,0 +1,7 @@
+[hassette.apps.my_app]
+filename = "my_app.py"
+class_name = "MyApp"
+
+[hassette.apps.my_app.config]
+instance_name = "my_app"
+blocking_io_behavior = "ignore"
