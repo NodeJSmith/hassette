@@ -124,6 +124,8 @@ An app's `log_level` covers the lines its own code writes: `self.logger` and any
 
 These lines still carry the app's name and instance, so the app's own log view and `hassette log --app <key>` show them. They are marked `framework`, not `app`. Below ERROR, the web UI hides them until **all framework lines** is on, and `hassette log` hides them until `--author all` is passed. `--author app` leaves them out entirely.
 
+[Where an App's Logs Go](log-identity.md) explains how each line's author, subject and execution are set, and how to tell Hassette's problems from an app's.
+
 ### Hassette's Lines About One App
 
 `framework_log_level` in an app's `config` sets the level of every logger in the table above, for that instance only. The app's own `log_level` is unaffected, so an app can stay at `INFO` while Hassette's detail about it runs at `DEBUG`:
