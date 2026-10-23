@@ -229,7 +229,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Default TTL for cache entries in seconds. None means entries persist indefinitely."""
 
     strict_lifecycle: bool = Field(default=False)
-    """Enable strict validation for lifecycle transitions, connection state, and registries.
+    """Enable strict validation for lifecycle transitions and registries.
 
     Controls two subsystems uniformly:
     - Resource lifecycle: invalid ResourceStatus transitions raise InvalidLifecycleTransitionError
