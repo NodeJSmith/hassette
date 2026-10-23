@@ -30,6 +30,11 @@ class DummySyncCache:
     @overload
     def get(self, key: str, default: T) -> T: ...
     def get(self, key: str, default: T | None = None) -> T | None:
+        """Return the stored value for *key*, or *default* if missing or expired.
+
+        An expired entry is evicted from the shared dict on read. Raises if called from a
+        running event loop.
+        """
         guard_not_in_event_loop("DummySyncCache.get")
         validate_key(key)
         entry = self._store.get(key)
@@ -44,6 +49,11 @@ class DummySyncCache:
         return cast("T", value)
 
     def set(self, key: str, value: object, ttl: int | None = None) -> None:
+        """Store *value* under *key* in the shared dict.
+
+        ``ttl=None`` falls back to ``self.default_ttl``. ``ttl=0`` deletes any existing
+        entry and does not store the new value.
+        """
         guard_not_in_event_loop("DummySyncCache.set")
         validate_key(key)
         resolved_ttl = resolve_ttl(ttl, self.default_ttl)
@@ -54,11 +64,13 @@ class DummySyncCache:
         self._store[key] = (value, expires_at)
 
     def delete(self, key: str) -> None:
+        """Remove the entry at *key* from the shared dict, if any."""
         guard_not_in_event_loop("DummySyncCache.delete")
         validate_key(key)
         self._store.pop(key, None)
 
     def get_or_set(self, key: str, creator: Callable[[], T], ttl: int | None = None) -> T:
+        """Return the cached value for *key*, calling *creator* and storing its result on miss."""
         guard_not_in_event_loop("DummySyncCache.get_or_set")
         validate_key(key)
         cached = self.get(key, default=cast("T", MISSING))
@@ -69,10 +81,12 @@ class DummySyncCache:
         return value
 
     def clear(self) -> None:
+        """Empty the shared dict, which also clears the async ``DummyCache`` view."""
         guard_not_in_event_loop("DummySyncCache.clear")
         self._store.clear()
 
     def invalidate(self, *keys: str) -> None:
+        """Remove every listed key from the shared dict; missing keys are ignored."""
         guard_not_in_event_loop("DummySyncCache.invalidate")
         for key in keys:
             validate_key(key)

@@ -176,6 +176,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the ``logging.websocket`` level from the config."""
         return self.hassette.config.logging.websocket
 
     @property
@@ -242,26 +243,32 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
     @property
     def connection_timeout_seconds(self) -> int:
+        """Seconds aiohttp allows to open the WebSocket connection, from the websocket config."""
         return self.hassette.config.websocket.connection_timeout_seconds
 
     @property
     def total_timeout_seconds(self) -> int:
+        """Total seconds aiohttp allows for WebSocket operations, from the websocket config."""
         return self.hassette.config.websocket.total_timeout_seconds
 
     @property
     def heartbeat_interval_seconds(self) -> int:
+        """Seconds between aiohttp keep-alive pings on the WebSocket, from the websocket config."""
         return self.hassette.config.websocket.heartbeat_interval_seconds
 
     @property
     def authentication_timeout_seconds(self) -> int:
+        """Seconds to wait for Home Assistant to answer the auth handshake, from the websocket config."""
         return self.hassette.config.websocket.authentication_timeout_seconds
 
     @property
     def cleanup_timeout_seconds(self) -> float:
+        """Seconds to wait for the receive task to finish cancelling during partial cleanup."""
         return self.hassette.config.websocket.cleanup_timeout_seconds
 
     @property
     def is_connected(self) -> bool:
+        """True while the connection state is CONNECTED, i.e. externally ready for HA traffic."""
         return self._connection_state == ConnectionState.CONNECTED
 
     async def wait_connected(self, *, timeout: float | None = None) -> bool:
@@ -294,6 +301,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         return self._connected_generation
 
     async def before_shutdown(self) -> None:
+        """Notify disconnect observers and send the connection-lost event before teardown begins."""
         await self._notify_disconnected_observers()
         await self.send_connection_lost_event()
 
