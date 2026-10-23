@@ -178,10 +178,12 @@ class Scheduler(Resource):
                     del self._jobs_by_group[job.group]
 
     async def on_initialize(self) -> None:
+        """Clear any app-level error handler left from a previous run and mark the scheduler ready."""
         self._error_handler = None
         mark_ready(self, reason="Scheduler initialized")
 
     async def on_shutdown(self) -> None:
+        """Remove every job this scheduler owns and stop receiving job-removal callbacks from the service."""
         await self.remove_all_jobs()
         self.scheduler_service.deregister_removal_callback(self.owner_id)
 

@@ -339,10 +339,12 @@ class SchedulerSyncFacade(SchedulerSyncConvenience):
         self._scheduler = scheduler
 
     async def on_initialize(self) -> None:
+        """Mark the facade ready; it wraps ``Scheduler`` and needs no setup of its own."""
         mark_ready(self, reason="Synchronous Scheduler facade initialized")
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured scheduler service log level, shared with the async ``Scheduler``."""
         return self.hassette.config.logging.scheduler_service
 
 '''
