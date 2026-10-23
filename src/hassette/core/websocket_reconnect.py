@@ -342,6 +342,7 @@ class OutageLog:
         return self.episode_started_at is not None and not is_stable_connection(connected_for)
 
     def start_episode(self, now: float) -> None:
+        """Open a new outage episode at *now*, resetting its attempt, flap and error counters."""
         self.episode_started_at = now
         self.last_summary_at = now
         self.attempts = 0
@@ -349,9 +350,16 @@ class OutageLog:
         self.repeated_unexpected = 0
 
     def summary_due(self, now: float) -> bool:
+        """True if an episode is open and a summary interval has passed since the last summary."""
         return self.episode_started_at is not None and now - self.last_summary_at >= OUTAGE_SUMMARY_INTERVAL_SECONDS
 
     def maybe_summarize(self, now: float, *, has_ever_connected: bool, core_state: str | None = None) -> None:
+        """Log a WARNING summary of the open episode if one is due, then restart the summary interval.
+
+        With *core_state* set, the summary reports that Home Assistant is reachable but not yet
+        RUNNING; otherwise it counts attempts, flaps and repeated errors, adding a first-connect
+        hint when the service has never connected.
+        """
         if not self.summary_due(now) or self.episode_started_at is None:
             return
         self.last_summary_at = now

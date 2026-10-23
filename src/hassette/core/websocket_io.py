@@ -59,7 +59,9 @@ class WebsocketMessageIOMixin:
 
     if typing.TYPE_CHECKING:
 
-        def get_connected_generation(self) -> int | None: ...
+        def get_connected_generation(self) -> int | None:
+            """Return the active connection generation; provided by the host ``WebsocketService``."""
+            ...
 
     def get_next_message_id(self) -> int:
         """Get the next message ID."""
@@ -67,9 +69,15 @@ class WebsocketMessageIOMixin:
 
     @property
     def resp_timeout_seconds(self) -> int:
+        """Seconds to wait for a Home Assistant reply to a sent message, from the websocket config."""
         return self.hassette.config.websocket.response_timeout_seconds
 
     async def recv_loop(self) -> None:
+        """Receive and dispatch frames until the socket closes.
+
+        A connection close during shutdown ends the loop quietly; any other close is re-raised
+        so the reconnect loop can handle it.
+        """
         try:
             while True:
                 await self.raw_recv()
@@ -314,6 +322,11 @@ class WebsocketMessageIOMixin:
         self.logger.warning("Received unexpected message type: %r", msg_type)
 
     async def dispatch(self, data: dict[str, Any]) -> None:
+        """Route a decoded message by ``type``: events go to the bus, results resolve pending requests.
+
+        Unknown types are logged at DEBUG and ignored. Exceptions are logged rather than raised,
+        so one bad message cannot end the receive loop.
+        """
         try:
             match data.get("type"):
                 case "event":

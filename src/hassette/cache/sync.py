@@ -89,6 +89,11 @@ class SyncCache:
         return cast("T", result)
 
     def set(self, key: str, value: object, ttl: int | None = None) -> None:
+        """Serialize *value* and upsert it under *key* with a blocking SQLite write.
+
+        ``ttl=None`` falls back to ``self.default_ttl``. ``ttl=0`` deletes any existing
+        entry and does not store the new value.
+        """
         guard_not_in_event_loop("SyncCache.set")
         validate_key(key)
         resolved_ttl = resolve_ttl(ttl, self.default_ttl)
@@ -121,6 +126,7 @@ class SyncCache:
             conn.close()
 
     def delete(self, key: str) -> None:
+        """Delete the row at *key*, if any, with a blocking SQLite write."""
         guard_not_in_event_loop("SyncCache.delete")
         validate_key(key)
         conn = self._connect()
@@ -130,6 +136,7 @@ class SyncCache:
             conn.close()
 
     def get_or_set(self, key: str, creator: Callable[[], T], ttl: int | None = None) -> T:
+        """Return the cached value for *key*, calling *creator* and storing its result on miss."""
         guard_not_in_event_loop("SyncCache.get_or_set")
         validate_key(key)
         cached = self.get(key, default=cast("T", MISSING))
@@ -156,6 +163,7 @@ class SyncCache:
             conn.close()
 
     def invalidate(self, *keys: str) -> None:
+        """Delete every listed key in a single ``DELETE ... IN`` statement; no keys is a no-op."""
         guard_not_in_event_loop("SyncCache.invalidate")
         if not keys:
             return
