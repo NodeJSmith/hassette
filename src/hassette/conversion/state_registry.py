@@ -75,6 +75,18 @@ class StateRegistry:
         return _STATE_CATALOG
 
     def get_entity_id(self, data: "HassStateDict", entity_id: str | None = None) -> str:
+        """Resolve and validate the entity id for a raw state dict.
+
+        Args:
+            data: Raw HA state dict, read for its ``entity_id`` field when ``entity_id`` is empty.
+            entity_id: Explicit entity id that takes precedence over the one in ``data``.
+
+        Returns:
+            The entity id, guaranteed to be a string containing a domain separator.
+
+        Raises:
+            InvalidEntityIdError: If the resolved id is not a string or has no ``domain.`` prefix.
+        """
         if not entity_id:
             entity_id = data.get("entity_id") or "<unknown>"
 
@@ -239,12 +251,15 @@ class StateRegistry:
         return iter(_STATE_CATALOG.items())
 
     def items(self) -> "Iterator[tuple[StateKey, type[BaseState]]]":
+        """Return an iterator over ``(key, state class)`` pairs in the catalog."""
         return iter(_STATE_CATALOG.items())
 
     def values(self) -> "Iterator[type[BaseState]]":
+        """Return an iterator over the registered state classes."""
         return (state_class for state_class in _STATE_CATALOG.values())
 
     def keys(self) -> "Iterator[StateKey]":
+        """Return an iterator over the registered state keys."""
         return (key for key in _STATE_CATALOG)
 
 

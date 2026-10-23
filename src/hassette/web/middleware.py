@@ -237,6 +237,15 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
         self._failed_auth = _FailedAuthTracker()
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        """Authenticate a gated request before passing it on, or reject it with a 401.
+
+        Paths outside :data:`GATED_PREFIX`, and every path when auth is disabled, pass straight
+        through. Exempt routes skip the credential checks but still count failed auth. A request
+        authenticated by session cookie may get a renewed cookie on its response.
+
+        Returns:
+            The downstream response, or a 401 problem response when authentication fails.
+        """
         if not request.url.path.startswith(GATED_PREFIX):
             return await call_next(request)
 
