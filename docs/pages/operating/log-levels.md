@@ -14,7 +14,7 @@ Find your symptom and set the field it maps to. Leave everything else at `INFO`.
 | Unexpected state values or stale cached state | `logging.state_proxy` or `logging.api` |
 | WebSocket errors, HA connection drops, reconnection loops | `logging.websocket` |
 | High API call latency or HTTP errors from Home Assistant | `logging.api` |
-| Noisy file-change messages during development | `logging.file_watcher` |
+| Saved edits not triggering an app reload | `logging.file_watcher` |
 | Web UI not responding or showing errors | `logging.web_api` |
 
 At `DEBUG`, `logging.web_api` also logs one line per HTTP request (uvicorn's access log). At any other level, those lines are off.
@@ -198,7 +198,7 @@ With `scheduler_service = "DEBUG"`, Hassette logs trigger evaluation, next-run c
 --8<-- "pages/operating/snippets/quiet_file_watcher.toml"
 ```
 
-The file watcher logs every detected change at `INFO`. In active development this creates noise. `WARNING` suppresses routine detection messages and only surfaces errors.
+The file watcher logs each detected change at `DEBUG`. A global `log_level = "DEBUG"` adds a line per saved file. Setting `file_watcher = "INFO"` drops those lines while every other service stays at `DEBUG`. At the default `INFO`, the watcher writes nothing per change. The reload lines after an edit come from `logging.app_handler`.
 
 ### Debugging HA Communication
 

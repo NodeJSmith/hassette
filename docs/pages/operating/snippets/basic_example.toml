@@ -5,5 +5,5 @@ log_level = "INFO"  # global default
 # Turn up verbosity for the scheduler only
 scheduler_service = "DEBUG"
 
-# Silence noisy file watcher logs
+# Show only warnings and errors from the file watcher
 file_watcher = "WARNING"
