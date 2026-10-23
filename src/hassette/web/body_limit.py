@@ -83,8 +83,11 @@ class RequestBodySizeLimitMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Answer an oversized HTTP request with a 413, else forward it with its body replayed.
 
-        A declared ``Content-Length`` over the limit is rejected before any body bytes are read.
-        Otherwise the body is buffered up to the limit and handed to the wrapped app as a replay.
+        Non-HTTP scopes are forwarded untouched, with the original ``receive``. For HTTP, a
+        declared ``Content-Length`` over the limit is rejected before any body bytes are read.
+        Otherwise the body is buffered message by message until it ends or the running total
+        passes the limit (so the last message buffered may overshoot it); an accepted body is
+        handed to the wrapped app as a replay.
         """
         if scope["type"] != "http":
             await self.app(scope, receive, send)

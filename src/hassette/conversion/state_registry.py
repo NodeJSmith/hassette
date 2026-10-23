@@ -85,7 +85,7 @@ class StateRegistry:
             The entity id, guaranteed to be a string containing a domain separator.
 
         Raises:
-            InvalidEntityIdError: If the resolved id is not a string or has no ``domain.`` prefix.
+            InvalidEntityIdError: If the resolved id is not a string or contains no ``.``.
         """
         if not entity_id:
             entity_id = data.get("entity_id") or "<unknown>"
