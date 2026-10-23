@@ -19,19 +19,16 @@ config entries).
 This ledger is milestone-level (Posture: Altitude). It ends in a GitHub milestone plus the issues in
 `## Breakdown`, which name components and behavior, never files or line numbers. A re-challenge found
 that much of the existing lifecycle machinery restarts or arbitrates what peers simply don't, so the
-milestone also deletes it (D17, D18).
+milestone also deletes it (D17, D18, D19).
 
 Areas and where each new piece lives:
 
 - **Service start handoff** — `Service`'s initialization body and serve wrapper. A service is RUNNING only after `initialize()` (hooks and
   children) has completed.
-- **Service supervision** — `ServiceWatcher`; `ServiceEscalationMixin` goes. Nothing restarts services in-process
-  (D17): the watcher receives each failure report (D8) and routes it by whether the service is
-  required: fatal exit, or dead in place (D2). The restart machinery goes (D8, D17, D18).
-- **Fatal escalation** — one fatal-exit function on `Hassette` (D14), called by the watcher and by the
-  no-supervisor path for required services (D8). The fatal reason lives in memory on `Hassette`
-  (it sets the exit code and the CRITICAL exit line); teardown's existing session finalize writes it to the session
-  record best-effort.
+- **Service supervision** — `ServiceWatcher`, which receives failure reports (D8) and routes them
+  (D2, D17); `ServiceEscalationMixin` goes (D14) and the restart machinery with it (D18).
+- **Fatal escalation** — one fatal-exit function on `Hassette`, beside its in-memory fatal-reason
+  latch (D14).
 - **Required/optional declaration** — a class-level declaration on each `Service`, replacing
   `restart_spec` (D17); `ServiceWatcher` reads it when routing a report.
 - **Dead bus** — `BusService` closes the event streams whenever it fails, in its init body or its
@@ -40,8 +37,16 @@ Areas and where each new piece lives:
   death, no producer blocks (D9).
 - **Supervisor hook** — on `Hassette`, registered by `ServiceWatcher` at construction. Lifecycle code
   reports post-handoff serve failures to it (D8).
-- **Sync worker evidence** — each resource's `TaskBucket` keeps the sync worker handles it submitted;
-  the `TeardownReport` records those still active (D18).
+- **Shutdown deadlines** (D19) — the stop and foundation stages, and the names of the foundation
+  services, on `Hassette`'s root shutdown; the entry deadline on `AppLifecycleService`'s instance
+  operations, which on expiry also has the instance's `Bus` and `Scheduler` registrations removed by
+  owner; the operation deadline a hook's bound is clamped to, as attempt state on the resource
+  coordinator; registry app stop in `AppHandler`'s child stage; the hard exit on the `hassette run`
+  path, which reads a force-terminated-work record kept on `Hassette` beside its fatal-reason latch
+  (written by the root's stages, by `AppLifecycleService` on entry-deadline expiry and by the
+  foundation stage when executor threads survive the join) and `DatabaseService`'s in-flight snapshot;
+  `shutdown_timeout_seconds` (per hook) and `total_shutdown_timeout_seconds` (the whole exit) in
+  the lifecycle config.
 - **App instance state** — the per-instance needs-restart flag
   (home per D11), set by `AppLifecycleService`'s lifecycle mixins (instances, start/stop, changes)
   and held in `AppRegistry`.
@@ -52,6 +57,11 @@ Areas and where each new piece lives:
   each behavior):
   - the app lifecycle docs explain hook timeouts, the needs-restart flag, reload refusal,
     and "restart hassette to recover";
+  - the operating docs explain `shutdown_timeout_seconds` (per hook), `total_shutdown_timeout_seconds`
+    (the whole exit) and the supervisor grace period it needs, the hard exit after force-terminated
+    work, and the removed settings, which hassette rejects at load;
+  - the app lifecycle docs also say shutdown hooks must let cancellation through, clean up promptly
+    and never block the event loop, or they can hold shutdown to its stage deadline or past it;
   - the service supervision docs explain required vs optional services, fatal exit, dead-in-place, boot fail-fast, that
     hassette must run under a restart policy (add-on, Docker, systemd), and where that supervisor
     keeps the previous run's fatal reason;
@@ -174,11 +184,13 @@ since the operation didn't finish: `AppRegistry` records a failure entry, as it 
 failed init, while the resource object itself ends STOPPED (its status only says orchestration
 finished). One ERROR names the pending tasks and says to restart
 hassette, and the flag stays until the process restarts. Otherwise the instance is ordinary failed
-and reloadable. D12 decides what the flag blocks.
+and reloadable. The `TeardownReport` records a timed-out hook as its own cause, distinct from a
+raised one, so the outcome can say "timed out" (D15); like other hook causes it is diagnostic only
+for D18's predicate. D12 decides what the flag blocks.
 **Pick observed auto-clear instead if** a cancellation-swallowing hook that eventually finishes must
 recover without a restart. No peer has found that worth the machinery.
 **Reversibility:** easy
-**Ratified:** Chose HA's needs-restart flag, set from the existing `TeardownReport`'s pending-work evidence, over a stuck state that clears when abandoned work is observed ending, to match the peer norm and drop quiescence observation, accepting that an app whose hook swallows cancellation needs a hassette restart even if its work would have finished. Re-evaluated at the sketch re-challenge (Finding 2), replacing stuck-until-the-work-ends. At the narrow re-challenge (Finding 1), chose carrying FAILED in the `AppRegistry` failure entry over keeping it on the resource's status through shutdown.
+**Ratified:** Chose HA's needs-restart flag, set from the existing `TeardownReport`'s pending-work evidence, over a stuck state that clears when abandoned work is observed ending, to match the peer norm and drop quiescence observation, accepting that an app whose hook swallows cancellation needs a hassette restart even if its work would have finished. Re-evaluated at the sketch re-challenge (Finding 2), replacing stuck-until-the-work-ends. At the narrow re-challenge (Finding 1), chose carrying FAILED in the `AppRegistry` failure entry over keeping it on the resource's status through shutdown. At the D19 re-challenge (Finding 14), chose FAILED for any timed-out stop, with a timed-out cause distinct from a raised hook, over FAILED only with pending work.
 
 ### D6: Which lock guards app reload decisions?
 
@@ -206,7 +218,7 @@ handoff. The handoff is the initialization body completing.
 |---|---|---|---|
 | Change | Spawn the serve task after `after_initialize()` and child init; `_serve_wrapper()` still sets RUNNING when serve starts | Spawn serve where it is; `_initialize_body()` sets RUNNING after children; `_serve_wrapper()` no longer does | Spawn serve where it is; a serve failure before init returns is handed to the init attempt to raise, not to `handle_failed()` |
 | Can serve fail mid-attempt? | No. Spawning the serve task is the body's last step, with no await after it, so serve's first step runs after the body has completed: every serve failure is post-handoff and reported (D8), and every body failure is the attempt's | Yes: serve runs, but status stays STARTING. Its failure still goes through `handle_failed()` unless also rerouted | Yes, but it is owned by the attempt |
-| Services affected | Any service whose children or `after_initialize()` need serve already running. Scan: no `Service` overrides `after_initialize()`; the only Services with children are `WebApiService` (`Scheduler`) and `SchedulerService` (`_ScheduledJobQueue`), neither of which waits on the parent's serve | None by timing | None by timing |
+| Services affected | Any service whose children or `after_initialize()` need serve already running. Per Assumed, no `Service` overrides `after_initialize()`, and neither Service with children waits on the parent's serve | None by timing | None by timing |
 | Code | Reorder plus doc update; the docstring's deadlock warning becomes a rule: a Service's children and `after_initialize()` must not wait on the parent's `serve()` or readiness. It goes into the resource-lifecycle rule file, and a Service whose child or `after_initialize()` waits on the parent's serve fails visibly instead of deadlocking | Two transition sites to keep in sync | New cross-task failure handoff |
 | Matches prior art | trio/OTP: init completes, then the loop runs | systemd `notify`: running ≠ started | trio's pre-`started()` exception routing |
 
@@ -294,6 +306,7 @@ original open. Behavior to pin:
   the streams are closed, so every resource still reaches STOPPED during the fatal teardown, and only
   the event send is dropped.
 **Pick B instead if** a wedged-but-alive bus (not dead, just not draining) also needs to be survivable.
+**Pick C instead if** never: it leaves already-blocked senders blocked, which A and B both release.
 That is out of scope under the posture.
 **Reversibility:** easy
 **Ratified:** Chose closing the event streams on bus death over per-send timeouts or a bus-dead flag, to release every blocked producer through the existing closed-stream drop, accepting that a wedged-but-alive bus stays out of scope. At the sketch challenge (Finding 10), chose letting `handle_stop()` run with closed streams over accepting skipped STOPPED transitions. At the re-challenge comb, chose `BusService` closing its own streams before reporting over D14 closing them for every fatal exit, keeping shutdown telemetry for other fatal exits at the cost of one bus-owned cleanup step.
@@ -303,21 +316,21 @@ That is out of scope under the posture.
 **Deciding factor:** a timed-out init is being discarded, so its work has no future. Today the
 coordinator shields init, so the outer timeout abandons it while it keeps running. Shutdown is
 already bounded and cancelled by the coordinator, with the evidence recorded in the `TeardownReport`;
-how its timeouts are divided is D18's.
+where its timeouts sit is D19's.
 
 | | A: Cancel init on timeout; shutdown unchanged | B: Leave init shielded (today) |
 |---|---|---|
 | Init timeout | Cancel the init attempt by shutting the instance down (D18): framework teardown removes its listeners and jobs and returns the `TeardownReport`; user shutdown hooks are skipped; D5 applies to whatever is still pending | Init keeps running after the instance is marked failed; late registrations (#1797) happen |
-| Shutdown timeout | Hooks and body are cancelled at their deadlines, as today; the timeouts themselves follow D18 | Same |
+| Shutdown timeout | Each shutdown hook is cancelled at its own deadline, clamped to its operation's deadline (D19) | Same |
 | Late registrations (#1797) | Usually prevented: cancellation lands at the next await | Happen |
 | Matches | `anyio`: cancel, then bound and observe; #1797's fix direction | — |
 
-**Recommendation:** A, because it shortens a discarded init. Shutdown keeps being cancelled at its
-deadlines; D18 simplifies how those deadlines are set.
+**Recommendation:** A, because it shortens a discarded init. Shutdown hooks keep being cancelled at
+their deadlines; D19 decides where those deadlines sit.
 **Pick B instead if** apps commonly do work in `on_initialize` that must not be interrupted mid-way
 (for example, creating HA helpers).
 **Reversibility:** easy
-**Ratified:** Chose cancelling a timed-out init over leaving it shielded, to cut short discarded work, accepting that a cancellation-ignoring init still ends flagged needs-restart (D5). At the sketch re-challenge (Finding 6), "never cancel shutdown" was corrected: shutdown hooks and body are already cancelled at their deadlines, and they stay cancelled; D18 changes only how the deadlines are set.
+**Ratified:** Chose cancelling a timed-out init over leaving it shielded, to cut short discarded work, accepting that a cancellation-ignoring init still ends flagged needs-restart (D5). At the sketch re-challenge (Finding 6), "never cancel shutdown" was corrected: shutdown hooks are cancelled at their deadlines and stay cancelled. Re-ratified with D19, which moves those deadlines to the hooks alone, clamped to the operation's deadline; the shutdown body has no deadline of its own beyond its stage or entry deadline. At D19's second re-challenge (Finding 12), hooks stay inline with cancel-and-wait, so a hook that ignores cancellation is bounded by the stage or entry deadline above it, not abandoned on its own.
 
 ### D11: Where does an app instance's needs-restart flag live?
 
@@ -341,6 +354,10 @@ abandoned work is still running: the record keeps counting toward `AppStatus`, a
 renders a flagged row whose app or index has left config, using the instance name stored in the
 record.
 
+The flag is exposed in the API, CLI and UI only, not in the liveness payload, matching HA's
+`require_restart`. **Pick a liveness-payload count instead if** an unattended install must be alerted
+externally.
+
 The flag is deliberately separate from service statuses. Services and apps live on
 separate UI surfaces (diagnostics vs the apps page), and each is mapped once, in its own place.
 
@@ -348,7 +365,7 @@ The registry record is the instance's persistent state for later readers. D15's 
 request did. Both are set in the same step under the app-key lock.
 
 **Reversibility:** hard (wire shape the UI and client consume)
-**Ratified:** Chose a keyed needs-restart record in `AppRegistry`, outside the instance map, over a new `ResourceStatus` value or a tombstone entry, to keep app-only state off the type services share without making registry readers exclude it, accepting an `AppInstanceInfo` wire change. Separate service/app vocabularies were chosen at the first sketch challenge (Finding 20); the tombstone model chosen there was replaced at the re-challenge (Findings 2, 7), and concurrent app shutdown (first-challenge Finding 16) moved to D18. At re-challenge 2 (Finding 9), chose keeping the record counting until restart, with the snapshot rendering orphaned rows, over pruning it with config, accepting a DEGRADED app after a config edit until hassette restarts.
+**Ratified:** Chose a keyed needs-restart record in `AppRegistry`, outside the instance map, over a new `ResourceStatus` value or a tombstone entry, to keep app-only state off the type services share without making registry readers exclude it, accepting an `AppInstanceInfo` wire change. Separate service/app vocabularies were chosen at the first sketch challenge (Finding 20); the tombstone model chosen there was replaced at the re-challenge (Findings 2, 7), and concurrent app shutdown (first-challenge Finding 16) moved to D18. At re-challenge 2 (Finding 9), chose keeping the record counting until restart, with the snapshot rendering orphaned rows, over pruning it with config, accepting a DEGRADED app after a config edit until hassette restarts. At D19's second re-challenge (Finding 18), accepted that a needs-restart record outlives the config that produced it, so its row stays orphaned until restart. At the final challenge (Finding 8), chose keeping the flag in the API, CLI and UI only over adding a count to the liveness payload, matching HA's config-entry `require_restart`, accepting that an unattended install gets no external alert for a needs-restart instance.
 
 ### D12: What old-instance evidence allows a replacement?
 
@@ -360,8 +377,8 @@ Evidence is the instance's `TeardownReport`, which the coordinator already produ
 D18's "work may still be running" predicate. That predicate separates causes that only record
 something raised or timed out and has since ended from evidence that work may still be alive.
 Threads, subprocesses and external side effects the user starts outside hassette's context are
-invisible under every option. Framework-started sync worker threads are covered (D18); parallel-mode
-handlers and scheduler jobs are not (#1715).
+invisible under every option, and so is the work D18's predicate lists as not covered (sync worker
+threads, parallel-mode handlers and scheduler jobs).
 
 | | H: Refuse while flagged needs-restart (pending work only) | A′: Refuse until abandoned work is observed ending | B: Refuse after any failed teardown (HA's rule) | P: Never refuse (Python norm) |
 |---|---|---|---|---|
@@ -378,10 +395,11 @@ start, restart or reload, config-change reconcile, autostart), refusing a flagge
 with D15's "refused (needs restart)" outcome. A refused path with no response channel (a file-watcher
 reload, reconcile, autostart) logs one ERROR naming the instance and saying to restart hassette; it is
 not replayed.
-**Pick P instead if** overlapping incarnations from cancellation-swallowing code are acceptable in
+**Pick B instead if** a raised `on_shutdown` should also force a restart, as in HA, accepting a
+restart per edit while developing a buggy hook. **Pick P instead if** overlapping incarnations from cancellation-swallowing code are acceptable in
 exchange for no new state. **Pick A′ instead if** such instances must recover without a restart.
 **Reversibility:** easy
-**Ratified:** Chose refusing replacement only while an instance is flagged needs-restart (work still pending after cancellation) over observed auto-clear, HA's any-failed-teardown rule, or never refusing, to prevent overlapping incarnations with existing evidence and keep hot reload usable, accepting a manual hassette restart for the rare cancellation-swallowing app. Re-evaluated at the sketch re-challenge (Finding 2), replacing no-terminal-state and dropping the quiescence primitive from PR #1782's branch. At re-challenge 2, the gate was widened from reload to every instance-creating path (Finding 8), and its evidence gained active sync workers with stated coverage (Finding 7).
+**Ratified:** Chose refusing replacement only while an instance is flagged needs-restart (work still pending after cancellation) over observed auto-clear, HA's any-failed-teardown rule, or never refusing, to prevent overlapping incarnations with existing evidence and keep hot reload usable, accepting a manual hassette restart for the rare cancellation-swallowing app. Re-evaluated at the sketch re-challenge (Finding 2), replacing no-terminal-state and dropping the quiescence primitive from PR #1782's branch. At re-challenge 2, the gate was widened from reload to every instance-creating path (Finding 8), and its evidence gained active sync workers with stated coverage (Finding 7). At D19's second re-challenge (Finding 9), per-bucket sync-worker tracking was dropped: sync workers join the uncovered list, and only executor threads surviving the exit join count (D19's hard exit).
 
 ### D13: Where does per-service supervision state live?
 
@@ -392,7 +410,7 @@ today a resource's status mixes its own lifecycle with its supervisor's decision
 | | N: No supervision state; `EXHAUSTED_*` leave `ResourceStatus` | R: Per-key record (episode task + COOLING/DEAD marker) |
 |---|---|---|
 | Needed under D17 | Yes: nothing restarts, so there are no episodes, budgets or cooldowns to track | Only with in-process restarts |
-| What FAILED means | Final until a process restart, for every service | "Failed, maybe retrying"; the marker says which |
+| What FAILED means | Final: nothing retries it, for every service (D2 gives its lifetime) | "Failed, maybe retrying"; the marker says which |
 | Wire and UI | Two values leave `ResourceStatus` (hassette-wire); `retry_at` leaves the service payload; the frontend drops their mapping (diagnostics service row, sidebar groups, status utils) | Same removal, plus a dead flag and reason |
 | Terminal guard | `handle_failed()`'s terminal guard stays; a shutdown still ends STOPPED, which means only that orchestration finished, and outcomes live in the `TeardownReport`, the `AppRegistry` failure entry (D5) or the un-shut-down service's own status (D2); `_force_terminal()` loses its terminal-status preservation (D18) | The guard and `_force_terminal()` consult the DEAD marker |
 
@@ -445,16 +463,17 @@ synchronous, refuses with a 4xx and returns `require_restart`.
 | Source of truth | The operation's own per-instance results (succeeded / failed / refused / needs restart), with reason | `get_failed_instance_infos()` after the lock is released |
 | Concurrent-request misattribution | Gone | Remains (documented accepted risk today) |
 | Stop failures | Visible | Invisible |
-| HTTP mapping | Worst outcome wins: any failed or newly flagged instance gives 500, otherwise any refused (needs restart, app key busy) gives 409, otherwise 200. The body always lists every instance's outcome and names each instance that needs a hassette restart. A stop whose hook times out with work still pending is failed | 200 instead of 202; refusal codes added |
+| HTTP mapping | Worst outcome wins: any failed or newly flagged instance gives 500, otherwise any refused (needs restart, app key busy) gives 409, otherwise 200. The body always lists every instance's outcome and names each instance that needs a hassette restart. A stop whose hook timed out is failed with the reason "timed out", whether or not work is still pending; pending work additionally flags it needs-restart (D5) | 200 instead of 202; refusal codes added |
 | Frontend | Minimal: accept 200, show the refusal or failure message and restart-required text | Same |
-| Wire | `ActionResponse` reshaped, OpenAPI and types regenerated, `client_compat` entry | Same |
+| Error bodies | A 409 or 500 from an app action is a `ProblemDetail` (RFC 9457) carrying an optional `outcomes` extension member with the per-instance list; the needs-restart refusal gets its own `ProblemCode` | Unchanged |
+| Wire | `ActionResponse` keeps `app_key`, `action` and `instance_index` and gains the outcomes alongside; `ProblemDetail` gains `outcomes`; OpenAPI and types regenerated, `client_compat` entry | Same |
 
 **Recommendation:** A, because it fixes misattribution and invisible stop failures at the source, and
 it is the outcome contract the needs-restart flag needs anyway.
 **Pick B instead if** the outcome type would need to thread through more layers than the lifecycle
 mixins already return values from.
 **Reversibility:** hard (published API contract)
-**Ratified:** Chose a typed per-instance outcome returned by `AppLifecycleService` over registry read-back with new status codes, to report each request's own result including stop failures, accepting an `ActionResponse` wire reshape and a minimal frontend update. At the re-challenge comb, chose worst-outcome-wins status codes over always returning 200 with the outcomes in the body, so a failure never hides behind a 200, accepting that a partly successful bulk request returns an error code.
+**Ratified:** Chose a typed per-instance outcome returned by `AppLifecycleService` over registry read-back with new status codes, to report each request's own result including stop failures, accepting an `ActionResponse` wire reshape and a minimal frontend update. At the re-challenge comb, chose worst-outcome-wins status codes over always returning 200 with the outcomes in the body, so a failure never hides behind a 200, accepting that a partly successful bulk request returns an error code. At the D19 re-challenge (Finding 14), chose reporting any timed-out stop as failed with a distinct "timed out" reason over failing it only when work is still pending, matching systemd's `Result=timeout` and D5, accepting a 500 for a hook that ended promptly once cancelled. At D19's second re-challenge (Finding 13), chose carrying the outcomes on error responses as an optional `outcomes` extension member of `ProblemDetail`, with a named needs-restart `ProblemCode` and `ActionResponse` keeping its identifying fields, over a separate error envelope, so 409/500 bodies stay RFC 9457 problem details.
 
 ### D16: Which nearby issues ride along?
 
@@ -528,24 +547,135 @@ prior-art brief's peers.
 |---|---|---|
 | The app layer's own stop timeout, `cleanup_failed_instance()` and its cleanup-timeout setting | When the app timeout fires before the coordinator's, no `TeardownReport` exists for D5 to read; the hand-rolled cleanup never seals the bucket or shuts down children | The app init deadline stays the one bound on an app's init; on expiry, or on any failed init, the instance is shut down (D10), which cancels the init, skips user shutdown hooks, and returns the `TeardownReport` D5 reads. App and resource shutdown timeouts become one setting |
 | `strict_lifecycle`, the `ResourceStatus` transition table, setter validation and its error type, and the setting's other readers (issue 2) | Production only warns, and the table has caused failures (#1071) | Nothing; #2697 is done by deletion |
-| Restart machinery: `RestartBudget`, `RestartSpec` and `RestartType` as a whole (D17), same-object service `restart()`, the watcher's admission checks, `log_service_event`, and the watcher's `Bus` child and bus dependency | D17 | One required/optional declaration per service |
+| Restart machinery: `RestartBudget`, `RestartSpec` and `RestartType` as a whole (D17), same-object service `restart()`, the watcher's admission checks, `fatal_error_names`, `log_service_event`, and the watcher's `Bus` child and bus dependency | D17 | One required/optional declaration per service |
 | `_force_terminal()`'s terminal-status preservation | Exists only for `EXHAUSTED_*` (D13) | — |
-| Restart safety meaning "any recorded cause" | A raised or timed-out hook, body or cleanup was cancelled and has ended | One predicate, "work may still be running", read by D5, D12 and the coordinator's re-init guard (kept as a cheap invariant, D17). It is true when the report's `pending_tasks` is non-empty, when it records `INITIALIZATION_TASK_PENDING` (which carries no task name), when the evidence is incomplete (`FORCED_TERMINAL`, `COORDINATOR_FAILED`), when a child's report satisfies the same predicate, or when the instance still has an active sync worker (an `AppSync` hook or sync handler running on a `SyncExecutorService` thread; cancelling its awaiting coroutine doesn't stop the thread). Tracking this is new: today the executor keeps only a global submission count and a per-submission handle with no owner. Each resource's `TaskBucket`, through which every per-resource thread submission already passes, keeps the handles it submitted until each worker thread finishes, not until its future completes (a cancelled future leaves the thread running), so the set stays bounded by running threads and a cancelled-but-running worker stays visible; the `TeardownReport` records the ones still active beside `pending_tasks`. Coverage: the instance's own tasks, its children's (including its `Bus`, so non-parallel handlers), and its sync workers. Parallel-mode handlers and scheduler jobs run in `BusService`'s and `SchedulerService`'s buckets and are not covered; which resource owns a handler's task is #1715's question, left out by D16. Every other cause is diagnostic only: raised or timed-out hooks, bodies and cleanups, and `SERVE_TASK_PENDING`/`TASKS_PENDING`, whose task names are already in `pending_tasks` |
-| The shutdown budget allocation (shared hooks pool, margins, floors, per-wave division) | No peer splits shutdown time this way; it has caused #1809 and #2248; it shortchanges `on_shutdown` against the documented timeout (Assumed) | Plain per-stage timeouts (each hook gets the configured timeout, task cancel and cleanup have fixed caps, children are bounded by their own coordinators) plus one outer bound per resource, the only thing that can stop waiting on a cancellation-swallowing body; the coordinator's wait on an active initializer is capped by the per-stage shutdown timeout. The root's outer bound stays the whole-process ceiling, set by the total shutdown timeout: every per-resource bound and the concurrent app-shutdown deadline run inside it, it stays below the grace period the Docker and add-on docs give, and the root's separate fallback deadline folds into it |
+| Restart safety meaning "any recorded cause" | A raised or timed-out hook, body or cleanup was cancelled and has ended | One predicate, "work may still be running", read by D5, D12 and the coordinator's re-init guard (kept as a cheap invariant, D17). It is true when the report's `pending_tasks` is non-empty, when it records `INITIALIZATION_TASK_PENDING` (which carries no task name), when the evidence is incomplete (`FORCED_TERMINAL`, `COORDINATOR_FAILED`), or when a child's report satisfies the same predicate. Coverage: the instance's own tasks and its children's (including its `Bus`, so non-parallel handlers). Not covered: sync worker threads (an `AppSync` hook or sync handler on a `SyncExecutorService` thread keeps running after its awaiting coroutine is cancelled, and the executor keeps no per-resource owner for it), and parallel-mode handlers and scheduler jobs, which run in `BusService`'s and `SchedulerService`'s buckets; which resource owns a handler's task is #1715's question, left out by D16. At process exit, executor threads that survive the foundation stage's join trigger D19's hard exit instead. Every other cause is diagnostic only: raised or timed-out hooks, bodies and cleanups, and `SERVE_TASK_PENDING`/`TASKS_PENDING`, whose task names are already in `pending_tasks` |
+| The shutdown budget allocation (shared hooks pool, margins, floors, per-wave division) | No peer splits shutdown time this way; it has caused #1809 and #2248; it shortchanges `on_shutdown` against the documented timeout (Assumed) | Operation-owned deadlines (D19) |
 
 **Separate issues, outside the milestone:** the `_pending_start_task` machinery and cross-thread
 `start()`/`cancel()` redispatch; the remaining duplicate guards (`cleanup()` re-waiting init, unused
 `initializing`/`task` properties); `TaskBucket` subclassing `Resource`.
 
-Process shutdown stops app instances concurrently under one shared deadline of its own, not a share of
-the app handler's hook time, so an app whose hooks run to their timeout costs no other app its
-`on_shutdown` (chosen at the first sketch challenge, Finding 16). Behavior to pin: every app gets its
-full shutdown timeout at process exit. An inferred bug, that later apps are cut off at process exit
+Process shutdown is to stop app instances concurrently, as D19 places it, not within a share of the
+app handler's hook time, so an app whose hooks run to their timeout costs no other app its `on_shutdown` (chosen at the first sketch challenge, Finding 16). Behavior to pin: no app's
+shutdown hooks are cut short by other apps' hooks at process exit. An inferred bug, that later apps are cut off at process exit
 because they shut down sequentially inside `AppHandler`'s own shutdown-hook pool (computed the same way as the per-app pool in Assumed), is reproduced first; the
 test that reproduces it pins the fix.
 
 **Reversibility:** easy (deletions; the shutdown-budget change touches shutdown timing everywhere but restores nothing callers rely on)
-**Ratified:** Chose removing the six items above in the milestone, including the shutdown budget, and filing three smaller cleanups separately, over keeping built machinery or deferring the budget, to leave the milestone's decisions true and the lifecycle code smaller, with sync-worker handles held until their thread finishes (narrow re-challenge, Finding 5), accepting a medium-risk shutdown-timing change and that a failed init skips the app's `on_shutdown` (HA's rule). Added at the sketch re-challenge from the machinery inventory.
+**Ratified:** Chose removing the six items above in the milestone, including the shutdown budget, and filing three smaller cleanups separately, over keeping built machinery or deferring the budget, to leave the milestone's decisions true and the lifecycle code smaller, accepting a medium-risk shutdown-timing change and that a failed init skips the app's `on_shutdown` (HA's rule). Added at the sketch re-challenge from the machinery inventory. Re-ratified with D19, which replaces the budget with operation-owned deadlines and moves removal of the app layer's stop timeout into issue 1. Per-bucket sync-worker tracking, added at the narrow re-challenge (Finding 5), was dropped at D19's second re-challenge (Finding 9): the predicate no longer covers sync workers, and executor threads surviving the exit join trigger D19's hard exit instead.
+
+### D19: Where do shutdown timeouts sit?
+
+**Deciding factor:** today an app's `on_shutdown` at process exit sits inside eight nested bounds:
+its hook timeout, the app coordinator's outer wait, the app layer's stop timeout, `AppHandler`'s own
+shutdown-hook bound, `AppHandler`'s coordinator outer wait, the root wave's batch timeout, the root
+body's deadline and the root coordinator's outer wait. Nested bounds on the same work only agree if
+they are divided downward (the shutdown budget, which gives hooks 2.5s; Assumed) or summed upward,
+and either drifts as the tree changes. The interior bounds exist because the hook runner bounds a hook
+with a cancel-and-wait timeout, which cannot stop waiting on a hook that swallows cancellation, so
+every level above adds a bound that can walk away. The peers put the deadline on whoever started the
+operation or on the stage, and let inner bounds only shorten it: trio/anyio pass one deadline down
+that nested scopes can only tighten; HA core gives each shutdown stage (stop, final write, close) its
+own timeout and none per integration; systemd bounds each unit with `TimeoutStopSec`; OTP recommends
+`infinity` as a supervisor child's shutdown time and bounds only workers.
+
+| | O: Operation-owned deadlines, hooks clamped to them | L: Leaves only, one root ceiling | B: Stage timeouts plus an outer bound per resource | N: Leaves only, not abandonable |
+|---|---|---|---|---|
+| Who owns a deadline | The operation's entry point. Process exit has a stop stage (everything but the foundation services) and then a foundation stage with a fixed budget that runs even when the stop stage timed out; `total_shutdown_timeout_seconds` bounds the whole exit, so the stop stage gets the total minus the foundation budget. A runtime instance stop, reload or init-timeout teardown has one entry deadline of the stop stage's length. The deadline is attempt state on the resource coordinator, set by the operation's owner when it starts; a caller that joins an attempt already running can only tighten it | The root alone, at process exit | Every resource coordinator, `AppHandler`'s hook and the app layer, plus the root | The root alone |
+| Leaves | Each user hook, the serve-task wait and the initializer observation (D10) run inline as today, under a cancel-and-wait bound of `min(shutdown_timeout_seconds, what is left of the operation)`; the task-cancel stage gets `task_cancellation_timeout_seconds` and `cleanup()` its fixed 0.5s cap, each under the same rule. The foundation stage's framework steps are not user hooks and are not bounded by the hook timeout: the session finalize is a database write bounded by SQLite's 5s busy timeout, the database drain has a fixed 5s cap, and the sync executor's join-or-interrupt a fixed 10s (HA's constant), so the foundation budget is their sum, 20s. The shutdown snapshot keeps its existing rule: it is not bounded, runs to completion in its own thread even if its stage ends, and only the supervisor's kill cuts it short | Each hook gets the hook timeout | As L, plus each outer bound | As L |
+| Interior nodes (coordinators, dependency-ordered shutdown waves, child batches, `AppHandler`) | Wait without a bound of their own and pass the deadline down: a child batch passes it to each child, and `AppHandler` passes it explicitly to the app instances it stops, which have no parent. Only the deadline owners walk away: the root, for each exit stage, and `AppLifecycleService`, for a runtime instance operation's entry deadline. Orchestration is never a hook: `AppHandler` stops registry apps concurrently in its child stage, not in `on_shutdown`, so every hook is a leaf | Wait without a bound, but `AppHandler`'s app stop runs inside its bounded `on_shutdown`, so an app whose hooks sum past one hook timeout is cut off | Bounded | As L |
+| Cancellation-swallowing hook | Cancelled at its bound; it holds its resource's shutdown until the stage or entry deadline walks away and force-terminates the resource. Shutdown hooks must let cancellation through, and the docs say so | Abandoned, with no owner afterwards | The resource's outer bound force-terminates it | Holds the stage until its deadline; later stages never run |
+| Foundation work when a hook hangs at exit (session finalize with D14's fatal reason, database drain, snapshot) | Always attempted in the foundation stage, the snapshot last | Lost when the ceiling force-terminates the foundation services | Depends on the sums | Lost |
+| Runtime stop or reload hang | Bounded by the entry deadline; expiry force-terminates the instance, fails it as timed out and flags it needs-restart | Unbounded as drafted, but the entry deadline is independent of the exit stages and could be added to L | Bounded by the app layer's timeout | Unbounded |
+| Values that must agree | One single-field floor: `total_shutdown_timeout_seconds` exceeds the fixed foundation budget. No cross-field check: a hook longer than what is left of its stage gets what is left, and the stage-expiry ERROR names it; the docs say so. The supervisor's grace period must cover `total_shutdown_timeout_seconds` plus an allowance for the snapshot | Unstated | Every outer bound must exceed its stages and children | As L |
+| Matches | HA core stages, trio/anyio scopes, systemd, OTP | — | — | AppDaemon, HA config-entry unload (both documented as hanging) |
+
+Under O:
+
+- **Deadline carrier.** The operation's deadline lives on the resource coordinator's attempt state
+  beside its init and shutdown tasks. The operation's owner sets it when the operation starts: the
+  root shutdown for each stage, `AppLifecycleService` for an entry deadline. A caller that joins an
+  attempt already in flight can only tighten it (`min`), never extend it. At process exit, app
+  instances stop through the same instance-stop path as runtime stops, so their deadline is the entry
+  deadline's length or what is left of the stop stage, whichever ends first.
+- **Hooks stay inline.** A hook runs in its coordinator's task, as today, bounded by cancel-and-wait.
+  There are no per-hook tasks, no post-cancel grace and no owner set for abandoned hooks. A hook that
+  swallows cancellation holds its resource's shutdown until the stage or entry deadline above it
+  walks away. This is a documented limitation: shutdown hooks must re-raise `CancelledError` and clean
+  up promptly once cancelled; otherwise they can stall shutdown to the stop stage's deadline, and at
+  runtime they leave the instance needs-restart. A hook that blocks the event loop (a synchronous
+  network call, `time.sleep`) is out of scope: no deadline and no hard exit can run while the loop is
+  blocked, so the supervisor's kill at its grace period is the backstop, and the docs say shutdown
+  hooks must not block the loop. Peers accept the same: AppDaemon's terminate, HA's
+  unload and trio's `Cancelled` all rely on the hook letting cancellation through.
+- **Stop stage.** At its deadline the stage stops waiting, without cancelling the work and waiting
+  for the cancellation to land, and the coordinator's separate outer wait goes. On expiry, every stop-stage
+  resource that has not finished is force-terminated, registry apps included, and one ERROR names
+  each of them with the stage it was in (CRITICAL stays reserved for D14's fatal reason; a stop-stage
+  expiry sets no exit code). The foundation stage then runs.
+- **Foundation stage.** `Hassette`'s root shutdown names its foundation services:
+  `DatabaseService`, `SyncExecutorService` and `SessionManager`, whose finalize carries D14's fatal
+  reason. It stops every other child in the stop stage first. Within the stage, the session finalize
+  writes, then the database drains and closes, then the executor joins, in that order, so the budget is their sum. The shutdown snapshot runs last, after the join and outside the budget (it opens its own
+  connection to the database file, so the closed service connections don't affect it), so a slow copy never holds up the budgeted steps or reads as a failed stage, and a copy the supervisor kills costs only itself. If the foundation budget runs out, an
+  ERROR says which of the drain, the session finalize and the executor join did not finish.
+- **Entry deadline.** It lives in `AppLifecycleService`'s instance operations, which every path
+  calls (app actions, file-watcher and config reconcile, autostart), and bounds the stop and teardown
+  legs: its clock starts when that leg begins (after the app-key lock is held, and after a timed-out
+  init, not counting the init), and a reload's create leg stays under the app init deadline (D18). On
+  expiry it walks away from the coordinator's join and force-terminates the instance, which also
+  removes the instance's bus listeners and scheduler jobs by owner (a registry operation that runs no
+  user hook; force-termination otherwise skips the `Bus` and `Scheduler` teardown that removes them,
+  and at runtime nothing else would), so it is FAILED
+  with a "timed out" reason (the typed outcome carrying the reason is D15's) and flagged
+  needs-restart, since force-termination leaves the evidence incomplete (`FORCED_TERMINAL`, D18's
+  predicate), with one ERROR naming the pending tasks it knows of, or, when force-termination left no
+  task names, the force-terminated resources and that the evidence is incomplete; the needs-restart
+  record carries the same. Until issue 6 adds the flag, expiry is
+  FAILED plus the ERROR only.
+- **Apps.** `AppHandler`'s child stage stops registry apps concurrently through the same
+  instance-stop path runtime stops use, so their lifecycle events and log binding stay, and merges
+  their `TeardownReport`s into its own. Its force-terminal reaches registry apps too. App stop is not
+  in `AppHandler.on_shutdown`.
+- **Process exit.** On the `hassette run` path only, when a stage or entry deadline force-terminated
+  something during the process's life, or when executor threads survived the foundation stage's join,
+  hassette waits for an in-flight shutdown snapshot to finish, logs one ERROR naming what was left,
+  flushes logs and hard-exits, after D14's CRITICAL fatal line, with the exit code `hassette run`
+  already maps, so the event loop's cancel-and-await and the interpreter's thread join cannot hold the
+  process until the supervisor kills it. An exit whose only problem is abandoned work exits 0, by
+  decision. Embedded and test-harness loops never hard-exit.
+- **Settings.** `shutdown_timeout_seconds` bounds each hook; it replaces the app and resource
+  shutdown timeouts (D18's merge) and keeps the old app timeout's default. `total_shutdown_timeout_seconds` keeps its name and now bounds the
+  whole exit, both stages; its default rises from 30s to 45s, leaving a 25s stop stage. Today's 30s covers the whole exit,
+  including an executor join of up to 10s (the removed setting's default), so the stop work's share
+  grows from about 20s to 25s; a longer total would only lengthen the wait before a hung process
+  gives up.
+  `task_cancellation_timeout_seconds` stays, `TaskBucket`-wide. `sync_executor_shutdown_timeout_seconds`
+  and its validator go: the executor join is a fixed constant inside the foundation budget, as in HA.
+  The fixed values in the table above are decided here and live as code constants; the docs point to
+  them. The supervisor grace period follows the total plus a 15s snapshot allowance: the Docker
+  compose `stop_grace_period` rises from 45s to 60s, along with the Docker integration test's stop-grace constant and the operating and
+  add-on docs' sentences tying shutdown to the total. The add-on's own stop timeout is a follow-up in
+  the add-on repository.
+- **Removed keys.** Four settings go across the milestone: `app_shutdown_timeout_seconds`,
+  `resource_shutdown_timeout_seconds` and `sync_executor_shutdown_timeout_seconds` here, and
+  `failed_instance_cleanup_timeout_seconds` in issue 6 (D18). A config that still sets one is rejected
+  at load as a config error (Assumed), so hassette does not start until the config is edited; each
+  changelog migration note leads with that.
+
+**Recommendation:** O, because it puts each deadline where a peer would, keeps an app's hooks out of
+any other node's bound, always attempts the snapshot, bounds runtime stops, and replaces a tree of
+nested sums with one deadline per operation, a fixed foundation budget and one single-field floor.
+**Pick L (with the entry deadline added) instead if** losing the session finalize, the database drain
+and the snapshot on an exit where a hook hung is acceptable, and two exit stages aren't worth
+carrying.
+**Pick N instead if** force-terminating at a stage deadline is judged worse than an exit that waits
+until the supervisor kills it.
+**Pick B instead if** each resource genuinely needs its own shutdown bound independent of its
+caller's; none was found, and B's nested sums are what caused #1809 and #2248.
+**Reversibility:** easy (the stage split, entry deadline and deadline carrier are local)
+**Ratified:** Chose operation-owned deadlines (a stop stage and a foundation stage at process exit, an entry deadline for runtime instance operations), with each hook's bound clamped to them, over one root ceiling (L), per-resource outer bounds (B) or unabandonable leaves (N), to put each deadline on its stage or caller as HA core and trio do and keep the snapshot and runtime stops bounded, accepting two exit stages and a hard exit when work was force-terminated. At the comb after the second re-challenge, kept the Settings bullet's total and grace over raising both by 5s once the foundation budget was found to include the session finalize, accepting a shorter stop stage. Revised at the re-challenge after building #3104 began (Findings 1 and 2, converging Findings 3-9 and 12), replacing leaves-only-under-one-ceiling. At the second re-challenge, chose a per-hook `shutdown_timeout_seconds` with `total_shutdown_timeout_seconds` bounding the whole exit and no cross-field check (Finding 2), the deadline as coordinator attempt state that joiners only tighten (Finding 3), an enforced entry deadline that walks away and force-terminates (Finding 4), registry app stop in `AppHandler`'s child stage with merged reports (Finding 8), named foundation services (Finding 11), a hard exit triggered by force-termination or surviving executor threads, with an exit whose only problem is abandoned work mapped to 0 (Finding 10), and removed keys rejected at load (Finding 14), and dropped O's earlier per-hook tasks with a post-cancel grace (Finding 12), accepting that a hook that swallows cancellation holds shutdown to its stage or entry deadline and leaves its instance needs-restart, that a reload during exit can create an instance whose `on_shutdown` never runs (Finding 16), and that slow app hooks can use up the stop stage so bus and scheduler teardown get force-terminated (Finding 17). At the final challenge, kept D19 whole over splitting the entry deadline from the exit topology or pairing L's single ceiling with the entry deadline, because the foundation stage protects the session finalize carrying D14's fatal reason and the database drain, not only the optional snapshot (Finding 2); and chose removing a force-terminated instance's listeners and jobs by owner at entry-deadline expiry over leaving them live until restart (Finding 4), accepting that a hook blocking the event loop defeats every deadline and the hard exit, leaving the supervisor's kill as the backstop (Finding 3). Chose running the snapshot last, after the executor join, over counting it against the foundation budget, so a slow disk can't fail the stage (Finding 5). Accepted that after a stop that runs its full total on slow storage, the supervisor can kill the snapshot mid-copy, leaving the previous snapshot in place and logging nothing (Finding 6). Accepted that after a runtime entry-deadline expiry, the process's next shutdown hard-exits even if the force-terminated work has since finished, and its stdout-only ERROR may name finished work (Finding 7).
 
 ## Assumed
 
@@ -559,12 +689,33 @@ test that reproduces it pins the fix.
   operating docs say `app_shutdown_timeout_seconds` (10s) caps a single app's `on_shutdown`. Evidence:
   `compute_shutdown_budget` evaluated with the default settings; the operating docs page's shutdown
   timeout section.
+- Today's shutdown nests the bounds D19's deciding factor lists around an app's `on_shutdown`, the hook
+  runner bounds a hook with a cancel-and-wait timeout that cannot walk away from a hook that swallows
+  cancellation, today's foundation wave is the database service and the sync executor, the database drain
+  has a fixed cap, the shutdown snapshot is deliberately unbounded, and the executor's join-or-interrupt
+  is a port of HA's. Evidence:
+  the shutdown coordinator, the hook runner, `AppHandler`'s and the app layer's stop paths, the root
+  shutdown body and waves, the database write queue's drain, and the interruptible executor module.
+- Unknown config keys raise a `ConfigError` at load, so a config that still sets a removed setting
+  stops hassette from starting (`hassette run` exits 78) rather than being silently ignored.
+  Evidence: the config package's unknown-key check.
 - hassette runs under an external process supervisor that restarts it after a fatal exit: the HA
   add-on with Watchdog enabled (limits in D17), a Docker restart policy, or a systemd unit. D1, D3 and D17 depend on it. Evidence:
   the add-on's health check; the Docker getting-started compose snippet's restart policy.
+- Only top-level services (children of `Hassette`) declare `depends_on`, no boot-wave initialization
+  body waits on Home Assistant, and neither Service with children waits on its parent's serve. D1's
+  wave join and D7's ordering depend on it. Evidence: the `depends_on` declarations across the core
+  package; the HA connection living in `WebsocketService.serve()`; the `Scheduler` and
+  `_ScheduledJobQueue` initializers.
+- Every required service's `serve()` returns only after shutdown is requested: most loop until their
+  own shutdown event is set (a disabled web API included), `WebsocketService` exits only by raising,
+  and `BusService` also ends when its event stream closes, which happens only at shutdown or in D9's
+  bus-death close. So D8's "unrequested return is a failure" rule fires on no normal path. Evidence:
+  the `serve()` loops of the required services (D17).
 - Readiness stays separate from status. Services that mark ready in `on_initialize()` (`WebApiService`,
-  `WebsocketService`, disabled watchers) keep doing so, as listed in the resource-lifecycle rule file.
-  D1 changes when RUNNING is set, not those rules.
+  `WebsocketService`, disabled watchers) keep doing so. D1 changes when RUNNING is set, not those
+  rules. Evidence: the resource-lifecycle rule file's readiness section; `WebApiService`'s and
+  `WebsocketService`'s `on_initialize()` ready marks.
 - The lifecycle coordinator owns exactly one init and one shutdown attempt per resource, holds the
   init, shutdown and shutdown-body tasks, and produces the `TeardownReport`. Evidence: the
   coordinator's initialize and shutdown functions; rule file section "One attempt per resource".
@@ -579,8 +730,8 @@ test that reproduces it pins the fix.
 - The CLI and the web UI reach a running instance only through `WebApiService`, which also serves the
   liveness probe the add-on's health check calls. Evidence: the CLI client; the add-on Dockerfile.
 - `SyncExecutor` tracks only a global outstanding-submission count (for saturation warnings) and a
-  per-submission `SyncWorkerHandle` with no owner; per-resource submissions all go through
-  `TaskBucket.run_in_thread()`. Evidence: `SyncExecutor.submit()` and `TaskBucket.run_in_thread()`.
+  per-submission `SyncWorkerHandle` with no owner, so no resource can tell whether its own sync
+  workers are still running. Evidence: `SyncExecutor.submit()` and `TaskBucket.run_in_thread()`.
 - `Hassette.send_event()` already drops events when the streams are closed. Evidence:
   `Hassette.send_event()` and `event_streams_closed`.
 - `ResourceStatus` and `AppStatus` are published in `hassette-wire`. `ServiceStatusPayload` is internal
@@ -601,24 +752,40 @@ test that reproduces it pins the fix.
   startup;
 - bus death, at boot or later, shuts the process down without hanging, and every resource still
   reaches STOPPED;
-- a timed-out app hook never leaves an instance marked STOPPED while its work runs: it is FAILED, and
-  flagged needs-restart in the API, CLI and UI when work D18's predicate covers was still running after
-  cancellation, until hassette restarts;
+- a timed-out app hook never leaves an app's reported state STOPPED while its work runs: it is FAILED, and
+  flagged needs-restart in the API, CLI and UI when D18's predicate holds, until hassette restarts;
 - no path creates an instance over a needs-restart instance, and every reload decides, stops and
   creates under the app-key lock;
 - app action endpoints return each request's own per-instance outcome;
-- every app gets its documented shutdown timeout at process exit;
+- each app's shutdown hooks are bounded by the hook timeout and never cut short by other apps' hooks,
+  and the database shutdown snapshot is always attempted at process exit;
+- a runtime stop or reload that hangs ends within its deadline as a failed, timed-out outcome;
+- a process that force-terminated work at any point in its life, or whose shutdown left executor
+  threads running, exits (unless a hook blocks the event loop, D19) with its
+  decided exit code instead of waiting for the supervisor to kill it;
+- `strict_lifecycle` and the status transition table no longer exist;
+- a config that sets a removed shutdown or cleanup setting stops hassette at load with a config error;
 - the docs describe all of the above; each issue ships its own docs (Summary, "Docs and UI").
 
-Applies to all: D4 (an app failure never takes down the process or its siblings) and the Posture's
-"no silent states" rule.
+Applies to all: D4 (an app failure never takes down the process or its siblings), the Posture's
+"no silent states" rule, and its compatibility rule: an issue that changes a `hassette-wire` enum or a
+published payload (4, 6, 8) adds its `client_compat` ignore entries, changelog and migration notes.
 
-1. **Simplify shutdown timing to per-stage timeouts**: replace the shutdown budget allocation with
-   per-stage timeouts plus one outer bound per resource (keeping the root's process-wide ceiling and
-   folding the root's fallback deadline into it), merge the app and resource shutdown timeouts into one
-   setting, and stop app instances concurrently under one
-   deadline at process exit. Reproduce the suspected cut-off of later apps first. Implements: D18
-   (shutdown budget, concurrent app shutdown). After: none. Issue: #3104
+1. **Put shutdown deadlines on operations and stages**: replace the shutdown budget allocation with
+   D19's operation-owned deadlines: the two exit stages, the enforced entry deadline on runtime
+   instance stop and reload (whose expiry also removes the instance's listeners and jobs by owner),
+   hooks kept inline and clamped to them, registry app stop in
+   `AppHandler`'s child stage, and the hard exit. Remove every interior bound D19 lists. Make D19's
+   setting changes, carried through the dev and prod configs, the generated config schema and the
+   frontend's config fixture. Report any timed-out stop as FAILED with an `AppRegistry` failure entry
+   (D5), and record a timed-out hook as its own teardown cause. Docs: the operating docs (per-hook and
+   total settings, the grace period, the hard exit), the app lifecycle docs' rule that shutdown hooks
+   let cancellation through and never block the loop, and the add-on docs' grace sentence; raise the Docker compose
+   `stop_grace_period` and the Docker stop-grace test to match; a changelog migration note for each
+   removed setting, leading with "hassette won't start until you remove it". Reproduce the suspected
+   cut-off of later apps first. Implements: D5 (timed-out stop outcome and cause), D10 (shutdown row),
+   D18 (shutdown budget, timeout merge, app-layer stop timeout, concurrent app shutdown), D19.
+   After: none. Issue: #3104
 2. **Remove `strict_lifecycle` and the status transition table**: delete transition validation, and
    decide the setting's other readers: `WebsocketService`'s connection-state check, strict registry
    validation (enabled only by this setting today, and forced on by the test harness), and the
@@ -626,13 +793,16 @@ Applies to all: D4 (an app failure never takes down the process or its siblings)
    D16 (#2697), D18. After: none. Issue: #3105
 3. **Mark a service RUNNING only after initialization completes**: start `serve()` last, add the
    no-waiting-on-parent-serve rule, make boot start failures fatal by joining each startup wave's
-   initialization attempts before its readiness wait. Implements: D1, D7. After: none.
+   initialization attempts (and the database service's phase before them) before its readiness wait. Implements: D1, D7. After: none.
    Issue: #3106
 4. **Report service failures directly and stop restarting services in-process**: the direct report and
    its contract, required/optional classification replacing restart specs (an undeclared Service fails at class definition), dead-in-place optional
-   services, one fatal escalation path, removal of restart budgets, backoff, cooldown, `EXHAUSTED_*`
+   services, one fatal escalation path, removal of restart budgets, backoff, cooldown, `fatal_error_names`, `EXHAUSTED_*`
    (wire and frontend mapping), the watcher's bus dependency, `ServiceEscalationMixin` and `SessionManager`'s
-   CRASHED listener; a failed optional service is left un-shut-down. Implements: D2, D8, D13, D14, D17, D18
+   CRASHED listener; a failed optional service is left un-shut-down. Docs: the service supervision
+   page, plus the fatal-exit sentences on the health endpoints and database telemetry pages, the
+   lifecycle internals and service details pages' restart-spec and `EXHAUSTED_*` material, replaced by
+   the required/optional declaration a custom `Service` author must make. Implements: D2, D8, D13, D14, D17, D18
    (restart machinery, terminal-status preservation), and D7's boot outcome for serve failures.
    After: 2, 3. Issue: #3107
 5. **Shut down cleanly when the bus dies**: route bus death through issue 4's fatal path, have the bus
@@ -641,20 +811,26 @@ Applies to all: D4 (an app failure never takes down the process or its siblings)
    run with closed streams.
    Implements: D3, D9. After: 4. Issue: #3108
 6. **Flag app instances that need a restart after a hook timeout**: route failed and timed-out init
-   through instance shutdown (user hooks skipped), remove the app-layer stop timeout (the init deadline stays and triggers instance shutdown) and hand-rolled
-   cleanup, adopt the "work may still be running" safety predicate, including per-bucket tracking of active sync workers as evidence
-   and in the coordinator's re-init guard, add the needs-restart record,
-   `AppInstanceInfo` fields, the minimal UI badge, and the flag and reason in the CLI's app listing.
-   Implements: D5, D10, D11, D12 (flag), D18 (app timeouts, restart safety). After: 1. Issue: #3109
+   through instance shutdown (user hooks skipped), remove the hand-rolled cleanup and its timeout
+   setting, with a changelog migration note (the init deadline stays and triggers instance shutdown; issue 1 removes the app-layer stop
+   timeout), put init-timeout teardown under D19's entry deadline, adopt the "work may still be
+   running" safety predicate in the coordinator's re-init guard, add the needs-restart record (counted
+   toward `AppStatus` and rendered as an orphaned row after a config edit, D11), flag it
+   when the predicate holds and on every entry-deadline expiry, `AppInstanceInfo` fields, the minimal
+   UI badge, the flag and reason in the CLI's app listing, and the app lifecycle docs on hook timeouts,
+   the needs-restart flag and "restart hassette to recover".
+   Implements: D5, D10, D11, D12 (flag), D18 (`cleanup_failed_instance()` and its setting, restart safety), D19 (init-timeout entry deadline, needs-restart on expiry). After: 1. Issue: #3109
 7. **Decide reloads under the app-key lock and refuse unsafe replacements**: decide, stop, gate and
    create under one lock; refuse every instance-creating path over a
-   needs-restart instance; log refusals that have no response channel. Implements: D6, D12 (gate). After: 6. Issue: #3110
+   needs-restart instance; log refusals that have no response channel; document reload refusal in the
+   app lifecycle docs. Implements: D6, D12 (gate). After: 6. Issue: #3110
 8. **Return typed outcomes from app actions**: per-instance outcomes from `AppLifecycleService`, the
-   worst-outcome-wins 200/409/500 mapping, `ActionResponse` reshape, the minimal frontend change, and
+   worst-outcome-wins 200/409/500 mapping, `ActionResponse` reshape, the `outcomes` extension member on
+   `ProblemDetail` and the needs-restart `ProblemCode`, the minimal frontend change, and
    the CLI's app action output reporting refusals and failures instead of success. Implements: D15.
    After: 6, 7. Issue: #3111
 
 Housekeeping outside the issues (D16, D18), done: #1222 closed as obsolete; #1721 trimmed to the
 coordinator and shutdown-body splits; separate issues outside the milestone: #3112 (`_pending_start_task`
 machinery), #3113 (remaining duplicate guards), #3114 (`TaskBucket` subclassing `Resource`). Milestone:
-*Resource Lifecycle*; the overlapping originals closed as superseded.
+*Resource Lifecycle*; the overlapping originals closed as superseded. Follow-up filed into the milestone so it isn't lost (removable later): #3395, replacing `TeardownReport`'s evidence tree with a small outcome (result, what is still running, reason).
