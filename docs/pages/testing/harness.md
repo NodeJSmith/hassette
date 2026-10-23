@@ -188,7 +188,7 @@ build. Another app's status change is the common case, since
 --8<-- "pages/testing/snippets/testing_simulate_event.py"
 ```
 
-`app_key` is the key under `[apps.<key>]` in `hassette.toml`. `index` is the
+`app_key` is the key under `[hassette.apps.<key>]` in `hassette.toml`. `index` is the
 instance index, `0` for the first instance of that app.
 
 `topic` takes a [`Topic`][hassette.types.enums.Topic] value from
