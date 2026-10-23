@@ -139,6 +139,7 @@ class HelperClient(Resource):
         self._api = api
 
     async def on_initialize(self) -> None:
+        """Mark the helper client ready; it delegates every call to its parent ``Api`` and needs no setup."""
         mark_ready(self, reason="Helper client initialized")
 
     @property

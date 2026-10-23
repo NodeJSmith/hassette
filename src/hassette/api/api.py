@@ -277,6 +277,7 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         self.sync = self.add_child(ApiSyncFacade, api=self)
 
     async def on_initialize(self) -> None:
+        """Mark the API ready; transport is delegated to ``hassette.api_service``, so there is nothing to set up."""
         mark_ready(self, reason="API initialized")
 
     @property

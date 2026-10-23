@@ -46,15 +46,21 @@ class ApiEntityDataMixin:
             data: dict[str, Any] | None = None,
             suppress_error_message: bool = False,
             **kwargs: Any,
-        ) -> aiohttp.ClientResponse: ...
+        ) -> aiohttp.ClientResponse:
+            """Type-checking stub for :meth:`Api.rest_request`, which sends a REST request to Home Assistant."""
+            ...
 
         async def get_rest_request(
             self, url: str, params: dict[str, Any] | None = None, **kwargs: Any
-        ) -> aiohttp.ClientResponse: ...
+        ) -> aiohttp.ClientResponse:
+            """Type-checking stub for :meth:`Api.get_rest_request`, which sends a GET request."""
+            ...
 
         async def post_rest_request(
             self, url: str, data: dict[str, Any] | None = None, **kwargs: Any
-        ) -> aiohttp.ClientResponse: ...
+        ) -> aiohttp.ClientResponse:
+            """Type-checking stub for :meth:`Api.post_rest_request`, which sends a POST request."""
+            ...
 
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":
         """Get the state of a specific entity.

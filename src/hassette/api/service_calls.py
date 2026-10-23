@@ -58,11 +58,17 @@ class ApiServiceCallsMixin:
 
     if typing.TYPE_CHECKING:
 
-        async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any: ...
+        async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
+            """Type-checking stub for :meth:`Api.ws_send_and_wait`, which sends a command and returns its result."""
+            ...
 
-        async def ws_send_json(self, **data: Any) -> None: ...
+        async def ws_send_json(self, **data: Any) -> None:
+            """Type-checking stub for :meth:`Api.ws_send_json`, which sends a message without awaiting a reply."""
+            ...
 
-        async def get_services(self) -> dict[str, Any]: ...
+        async def get_services(self) -> dict[str, Any]:
+            """Type-checking stub for :meth:`Api.get_services`, which returns every registered service by domain."""
+            ...
 
     def fire_event(
         self,

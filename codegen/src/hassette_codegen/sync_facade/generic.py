@@ -65,10 +65,12 @@ class ApiSyncFacade(Resource):
         self.helpers = self.add_child(HelperClientSyncFacade, helpers=self._api.helpers)
 
     async def on_initialize(self) -> None:
+        """Mark the facade ready; it wraps ``Api`` and needs no setup of its own."""
         mark_ready(self, reason="Synchronous API facade initialized")
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured API log level, shared with the async ``Api``."""
         return self.hassette.config.logging.api
 
 '''
@@ -413,10 +415,12 @@ class HelperClientSyncFacade(Resource):
         self._helpers = helpers
 
     async def on_initialize(self) -> None:
+        """Mark the facade ready; it wraps ``HelperClient`` and needs no setup of its own."""
         mark_ready(self, reason="Synchronous HelperClient facade initialized")
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured API log level, shared with the async ``HelperClient``."""
         return self.hassette.config.logging.api
 
 '''
