@@ -19,13 +19,9 @@ from hassette.app.app import App, AppSync
 from hassette.app.app_config import AppConfig
 from hassette.cache import AsyncCache, DummyCache
 from hassette.config.classes import AppManifest
-from tests.support.factories import make_sync_executor
+from tests.support.factories import make_app, make_sync_executor
 from tests.support.fixtures import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
-
-
-def _make_app_config(name: str = "kitchen") -> AppConfig:
-    return AppConfig(instance_name=name)
 
 
 def _make_manifest(tmp_path: Path, *, app_key: str = "kitchen_lights", cache_key: str = "") -> AppManifest:
@@ -43,33 +39,21 @@ def _make_manifest(tmp_path: Path, *, app_key: str = "kitchen_lights", cache_key
 class TestCacheKey:
     def test_default_cache_key_uses_app_key_and_index(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        app = App(hassette, app_config=_make_app_config(), index=3, app_key="kitchen_lights")
+        app = make_app(hassette=hassette, index=3)
 
         assert app.cache_key == "kitchen_lights/3"
 
     def test_manifest_cache_key_overrides_default(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         manifest = _make_manifest(tmp_path, cache_key="custom")
-        app = App(
-            hassette,
-            app_config=_make_app_config(),
-            index=0,
-            app_key="kitchen_lights",
-            app_manifest=manifest,
-        )
+        app = make_app(hassette=hassette, index=0, app_manifest=manifest)
 
         assert app.cache_key == "custom"
 
     def test_manifest_without_cache_key_falls_back_to_default(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         manifest = _make_manifest(tmp_path, cache_key="")
-        app = App(
-            hassette,
-            app_config=_make_app_config(),
-            index=2,
-            app_key="kitchen_lights",
-            app_manifest=manifest,
-        )
+        app = make_app(hassette=hassette, index=2, app_manifest=manifest)
 
         assert app.cache_key == "kitchen_lights/2"
 
@@ -77,8 +61,8 @@ class TestCacheKey:
 class TestInstanceScopedCacheDirectories:
     def test_different_indices_get_different_cache_directories(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        app0 = App(hassette, app_config=_make_app_config(), index=0, app_key="kitchen_lights")
-        app1 = App(hassette, app_config=_make_app_config(), index=1, app_key="kitchen_lights")
+        app0 = make_app(hassette=hassette, index=0)
+        app1 = make_app(hassette=hassette, index=1)
 
         assert isinstance(app0.cache, AsyncCache)
         assert isinstance(app1.cache, AsyncCache)
@@ -91,13 +75,7 @@ class TestDummyCacheInjection:
     def test_injected_dummy_cache_used_directly(self, tmp_path: Path, dummy_cache: DummyCache) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
 
-        app = App(
-            hassette,
-            app_config=_make_app_config(),
-            index=0,
-            app_key="kitchen_lights",
-            cache=dummy_cache,
-        )
+        app = make_app(hassette=hassette, index=0, cache=dummy_cache)
 
         assert app.cache is dummy_cache
         assert not isinstance(app.cache, AsyncCache)
@@ -107,13 +85,7 @@ class TestDummyCacheInjection:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         dummy_cache.initialize = AsyncMock(wraps=dummy_cache.initialize)  # pyright: ignore[reportAttributeAccessIssue]
 
-        app = App(
-            hassette,
-            app_config=_make_app_config(),
-            index=0,
-            app_key="kitchen_lights",
-            cache=dummy_cache,
-        )
+        app = make_app(hassette=hassette, index=0, cache=dummy_cache)
 
         await app._framework_before_hooks()
 
@@ -125,13 +97,7 @@ class TestCleanupClosesCache:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         dummy_cache.close = AsyncMock(wraps=dummy_cache.close)  # pyright: ignore[reportAttributeAccessIssue]
 
-        app = App(
-            hassette,
-            app_config=_make_app_config(),
-            index=0,
-            app_key="kitchen_lights",
-            cache=dummy_cache,
-        )
+        app = make_app(hassette=hassette, index=0, cache=dummy_cache)
 
         await app.cleanup()
 
@@ -145,13 +111,7 @@ class TestCleanupClosesCache:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         dummy_cache.close = AsyncMock(side_effect=RuntimeError("cache close boom"))  # pyright: ignore[reportAttributeAccessIssue]
 
-        app = App(
-            hassette,
-            app_config=_make_app_config(),
-            index=0,
-            app_key="kitchen_lights",
-            cache=dummy_cache,
-        )
+        app = make_app(hassette=hassette, index=0, cache=dummy_cache)
 
         with pytest.raises(RuntimeError, match="cache close boom"):
             await app.cleanup()
@@ -164,7 +124,7 @@ class TestAppSyncCacheInitialization:
         svc = make_sync_executor()
         hassette._sync_executor = svc
         hassette.sync_executor = svc
-        app = AppSync(hassette, app_config=_make_app_config(), index=0, app_key="kitchen_lights")
+        app = make_app(cls=AppSync, hassette=hassette)
         assert isinstance(app.cache, AsyncCache)
         app.cache.initialize = AsyncMock(wraps=app.cache.initialize)  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -182,21 +142,21 @@ class TestDefaultCacheTtlResolution:
             default_cache_ttl = 60
 
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        app = TtlApp(hassette, app_config=_make_app_config(), index=0, app_key="ttl_app")
+        app = make_app(cls=TtlApp, app_key="ttl_app", hassette=hassette)
 
         assert isinstance(app.cache, AsyncCache)
         assert app.cache.default_ttl == 60
 
     def test_global_config_ttl_is_fallback(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False, default_cache_ttl=120)
-        app = App(hassette, app_config=_make_app_config(), index=0, app_key="kitchen_lights")
+        app = make_app(hassette=hassette, index=0)
 
         assert isinstance(app.cache, AsyncCache)
         assert app.cache.default_ttl == 120
 
     def test_no_ttl_set_anywhere_is_none(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        app = App(hassette, app_config=_make_app_config(), index=0, app_key="kitchen_lights")
+        app = make_app(hassette=hassette, index=0)
 
         assert isinstance(app.cache, AsyncCache)
         assert app.cache.default_ttl is None
