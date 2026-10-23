@@ -51,6 +51,7 @@ class SnapshotEnvSettingsSource(EnvSettingsSource):
         return parse_env_vars(environ, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
 
     def __call__(self) -> dict[str, Any]:
+        """Return the env values, with relative ``Path`` values anchored at the build's working directory."""
         return anchor_paths(self.settings_cls, super().__call__(), self.build.cwd)
 
 
@@ -76,6 +77,7 @@ class FileDotEnvSettingsSource(DotEnvSettingsSource):
         return parse_env_vars(raw, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
 
     def __call__(self) -> dict[str, Any]:
+        """Return the file's values, with relative ``Path`` values anchored at the ``.env`` file's directory."""
         return anchor_paths(self.settings_cls, super().__call__(), self.path.parent)
 
 
@@ -112,6 +114,14 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         InitSettingsSource.__init__(self, settings_cls, self.toml_data)
 
     def read_table(self, settings_cls: type[BaseSettings], path: Path, build: ConfigBuild) -> dict[str, Any]:
+        """Read and normalize one TOML file, record its table on `build`, and anchor its relative paths.
+
+        Returns:
+            The normalized table, with relative ``Path`` values made absolute against the file's directory.
+
+        Raises:
+            ConfigError: If the file can't be read or isn't valid TOML.
+        """
         try:
             raw = self._read_file(path)
         except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:

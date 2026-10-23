@@ -139,6 +139,7 @@ class ExcludeExtrasMixin:
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     def get_extra_keys(self) -> set[str]:
+        """Return the names of the fields collected in ``model_extra``, or an empty set if there are none."""
         extras = getattr(self, "model_extra", None)
         return set(extras) if extras else set()
 
@@ -269,6 +270,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     @field_validator("cache_key")
     @classmethod
     def validate_cache_key(cls, v: str) -> str:
+        """Reject a cache key that uses a framework-reserved prefix or is unsafe as a path; empty passes."""
         if not v:
             return v
         if is_framework_key(v):
@@ -278,6 +280,11 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         return v
 
     def validate_model_extra(self) -> None:
+        """Move stray top-level extra fields into ``app_config`` and warn that they belong under ``config``.
+
+        The extras are merged only when ``app_config`` is empty, or is a dict whose keys don't overlap them;
+        otherwise the warning says they will be ignored.
+        """
         if not self.model_extra:
             return
 

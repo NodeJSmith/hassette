@@ -142,6 +142,11 @@ class EnvNames:
 
     @classmethod
     def for_settings(cls, settings_cls: type[BaseSettings]) -> "EnvNames":
+        """Build the env-name index for `settings_cls`, using pydantic-settings' own env-name computation.
+
+        Returns:
+            The known names, open-ended prefixes, nested-group models, and app-namespace details.
+        """
         # pydantic-settings' own per-field env-name computation, so aliases and the prefix match it exactly
         source = EnvSettingsSource(settings_cls)
         known: set[str] = set()
@@ -155,6 +160,14 @@ class EnvNames:
         return cls(known, open_prefixes, apps_prefix, {n.lower() for n in field_names(AppsConfig)}, models)
 
     def is_known(self, name: str, value: str | None) -> bool:
+        """Report whether env var `name` (any case) maps to a setting or an app definition.
+
+        Under the ``HASSETTE__APPS__`` namespace, a name that isn't an `AppsConfig` field counts only when
+        it has a sub-key or its `value` is a JSON object.
+
+        Returns:
+            True if the name is recognized, False if it looks like a typo.
+        """
         lowered = name.lower()
         if lowered in self.known or any(lowered.startswith(prefix) for prefix in self.open_prefixes):
             return True
@@ -169,6 +182,7 @@ class EnvNames:
         return len(segments) > 1 or is_json_object(value)
 
     def suggest(self, name: str) -> str | None:
+        """Return the closest known env name to `name`, upper-cased, or None if nothing is close."""
         matches = difflib.get_close_matches(name.lower(), sorted(self.known), n=1)
         return matches[0].upper() if matches else None
 
