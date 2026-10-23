@@ -55,6 +55,8 @@ The `Sun changed` and `Porch light turned on` lines appear at the next sunset. T
 
 The handler fires within milliseconds. You see `Sun changed: below_horizon` and `Porch light turned on` in the logs.
 
+Next, confirm the light itself turned on. The log line only means the command was sent. In the same **States** tab, find your light and check that its state is `on`. The **Logbook** also shows the change. If the log line appears but the light stays off, the entity ID in your app is usually wrong. Make sure the ID you passed to `turn_on()` matches a light in your Home Assistant instance.
+
 ## Next Steps
 
 - [`Bus` & Handlers](../core-concepts/bus/index.md): attribute changes, service calls, glob patterns, predicates, and conditions
