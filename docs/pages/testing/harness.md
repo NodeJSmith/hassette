@@ -188,6 +188,13 @@ build. Another app's status change is the common case, since
 --8<-- "pages/testing/snippets/testing_simulate_event.py"
 ```
 
+`app_key` is the key under `[hassette.apps.<key>]` in `hassette.toml`. `index` is the
+instance index, `0` for the first instance of that app.
+
+`topic` takes a [`Topic`][hassette.types.enums.Topic] value from
+`hassette.types`. The event and payload classes come from
+[`hassette.events`][hassette.events].
+
 Listeners match the event on its `topic` and payload, just as they match
 events Hassette emits. The method returns the same event object and accepts
 the same `timeout=` as the other `simulate_*` methods.
@@ -203,10 +210,19 @@ that owns every background task the app spawns.
 `drain_task_bucket(timeout=2.0)` waits for the bus dispatch queue and the
 app's task bucket to go quiescent without firing an event. Call it after
 [`trigger_due_jobs()`](time-control.md) when dispatched jobs emit bus events —
-the job trigger does not drain the downstream handler tasks itself. Raises the
-same `DrainTimeout`/`DrainError` exceptions as the `simulate_*` methods; when
-debounced handlers are involved, pass a `timeout=` larger than the debounce
-window.
+the job trigger does not drain the downstream handler tasks itself.
+
+```python
+--8<-- "pages/testing/snippets/testing_drain_task_bucket.py"
+```
+
+Without the drain, the handler task may still be pending at the assertion.
+
+`drain_task_bucket()` raises `DrainTimeout` or `DrainError`, both subclasses
+of `DrainFailure` (`from hassette.testing import DrainTimeout, DrainError,
+DrainFailure`). The `simulate_*` methods raise the same exceptions; see
+[Timeouts](#timeouts). When debounced handlers are involved, pass a
+`timeout=` larger than the debounce window.
 
 ### Timeouts
 
@@ -239,6 +255,23 @@ methods for Home Assistant helper entities (`input_boolean`, `counter`, and so
 on — see [Managing Helpers](../core-concepts/api/managing-helpers.md)).
 `self.api.helpers.list()` reads the recorder's helper store without recording
 a call, so it cannot be asserted with `assert_called`.
+
+Helper writes record under names built from the helper domain:
+
+| Call | Recorded method name |
+|---|---|
+| `helpers.create(params)` | `create_<domain>`, for example `create_input_boolean` |
+| `helpers.update(helper_id, params)` | `update_<domain>`, for example `update_counter` |
+| `helpers.delete(domain, helper_id)` | `delete_<domain>`, for example `delete_timer` |
+
+`<domain>` is one of `input_boolean`, `input_number`, `input_text`,
+`input_select`, `input_datetime`, `input_button`, `counter`, or `timer`.
+`helpers.increment`, `helpers.decrement`, and `helpers.reset` record as
+`call_service` with `domain="counter"`.
+
+`self.api.set_state()` records a `set_state` call on `api_recorder`.
+`harness.set_state()` is a different method: it seeds the state proxy and
+records nothing.
 
 ### assert_called
 
@@ -350,8 +383,14 @@ raises `AppConfigurationError` the same way:
 
 When `on_initialize()` raises, the harness startup times out with a plain
 `TimeoutError`. This is distinct from `DrainTimeout`, which only surfaces from
-`simulate_*` methods. The exception from `on_initialize()` appears in the log
-output.
+`simulate_*` methods.
+
+The original exception is not attached to the `TimeoutError`. It appears in
+the log output, where pytest's `caplog` fixture captures it:
+
+```python
+--8<-- "pages/testing/snippets/testing_startup_failure.py"
+```
 
 ## Harness Constructor and Properties
 
