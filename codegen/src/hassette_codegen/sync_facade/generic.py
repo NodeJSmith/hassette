@@ -130,10 +130,12 @@ class BusSyncFacade(BusSyncEventShortcuts):
         self._bus = bus
 
     async def on_initialize(self) -> None:
+        """Mark the facade ready; it wraps ``Bus`` and needs no setup of its own."""
         mark_ready(self, reason="Synchronous Bus facade initialized")
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured bus service log level, shared with the async ``Bus``."""
         return self.hassette.config.logging.bus_service
 
 '''
