@@ -9,7 +9,7 @@ That spawn runs in a different task, so the direct task check would miss it.
 
 ## Force-Terminal Report Storage
 `_force_terminal()` in `src/hassette/resources/base.py` stores a teardown report
-(lines 379-385) before cancelling `_shutdown_task`. The coordinator cannot store
+before cancelling `_shutdown_task`. The coordinator cannot store
 a report before the shutdown work that produces it. Does `_force_terminal()`
 always store its report before issuing the cancellation, and does the
 coordinator merge against that report rather than assuming it owns all storage?
