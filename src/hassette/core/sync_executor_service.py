@@ -25,6 +25,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
+from hassette.resources.shutdown_deadline import clamp_to_shutdown_deadline
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -101,7 +102,7 @@ class SyncExecutorService(Service):
                 self.sync_executor.log_saturation_rate_limited()
 
     async def on_shutdown(self) -> None:
-        """Shut down the thread pool within ``SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS``.
+        """Shut down the thread pool within ``SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS``, clamped to the shutdown deadline.
 
         Called by Service.shutdown() after the serve task has been cancelled, so no new
         work can be submitted by the time this runs. ``shutdown_pool`` is a blocking
@@ -110,8 +111,7 @@ class SyncExecutorService(Service):
         the foundation stage's budget (``FOUNDATION_SHUTDOWN_BUDGET_SECONDS``); threads that survive
         it are reported by ``SyncExecutor.surviving_threads()``, which the root reads after this stage.
         """
-        self.logger.debug(
-            "Shutting down SyncExecutorService executor (budget=%.1fs)", SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
-        )
-        await asyncio.to_thread(self.sync_executor.shutdown_pool, SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS)
+        budget = clamp_to_shutdown_deadline(self, SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS)
+        self.logger.debug("Shutting down SyncExecutorService executor (budget=%.1fs)", budget)
+        await asyncio.to_thread(self.sync_executor.shutdown_pool, budget)
         self.logger.debug("SyncExecutorService executor shut down")

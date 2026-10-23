@@ -744,18 +744,11 @@
           "type": "integer"
         },
         "shutdown_timeout_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
           "default": 10,
           "description": "Length of time each shutdown hook (an app's or a framework resource's ``on_shutdown`` and the hooks\naround it) may run before it is cancelled. A hook gets less when its stage has less time left.",
-          "gt": 0,
-          "title": "Shutdown Timeout Seconds"
+          "exclusiveMinimum": 0,
+          "title": "Shutdown Timeout Seconds",
+          "type": "number"
         },
         "failed_instance_cleanup_timeout_seconds": {
           "default": 5,
@@ -764,18 +757,11 @@
           "type": "integer"
         },
         "total_shutdown_timeout_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
           "default": 45,
           "description": "Maximum wall-clock seconds for the whole Hassette shutdown. The foundation stage (database and\nworker threads) keeps a fixed budget; everything else stops within the rest, and so does each runtime\napp stop or reload. Your supervisor's stop grace period must exceed this.",
-          "gt": 20.0,
-          "title": "Total Shutdown Timeout Seconds"
+          "exclusiveMinimum": 20.0,
+          "title": "Total Shutdown Timeout Seconds",
+          "type": "number"
         },
         "sync_executor_max_workers": {
           "description": "Pool ceiling for the dedicated sync-handler thread pool executor.\nSized to match the prior implicit default-pool ceiling (min(32, cpu+4)). This is a\nreasonable starting ceiling, NOT a literal behavior-equivalence guarantee: the old\nshared pool also served logging and DB work, so a same-size dedicated pool gives sync\nhandlers more effective headroom in practice.",

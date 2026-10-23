@@ -13,6 +13,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, Mock, call, patch
 import pytest
 
 from hassette.bus import Bus
+from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS
 from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.testing import EventCapture, wait_for
@@ -172,11 +173,13 @@ class TestAppLifecycleServiceProperties:
         """Returns hassette.config.lifecycle.app_startup_timeout_seconds."""
         assert lifecycle_service.startup_timeout == mock_hassette.config.lifecycle.app_startup_timeout_seconds
 
-    def test_shutdown_timeout_from_config(
+    def test_entry_deadline_is_the_stop_stage_length(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
     ) -> None:
-        """Returns hassette.config.lifecycle.app_shutdown_timeout_seconds."""
-        assert lifecycle_service.shutdown_timeout == mock_hassette.config.lifecycle.app_shutdown_timeout_seconds
+        """An instance stop's entry deadline is as long as process exit's stop stage."""
+        lifecycle = mock_hassette.config.lifecycle
+        expected = lifecycle.total_shutdown_timeout_seconds - FOUNDATION_SHUTDOWN_BUDGET_SECONDS
+        assert lifecycle_service.entry_deadline_seconds == expected
 
 
 class TestBootstrapApps:

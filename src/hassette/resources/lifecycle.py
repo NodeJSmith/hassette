@@ -23,7 +23,7 @@ from hassette_wire import ResourceStatus
 from hassette.events import HassetteServiceEvent
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources.mixins import LifecycleMixin, _LifecycleHostP
-from hassette.resources.shutdown_deadline import elapsed_since, shutdown_hook_bound
+from hassette.resources.shutdown_deadline import elapsed_since, format_bound, shutdown_hook_bound
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
@@ -572,10 +572,10 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
     observe_start = asyncio.get_running_loop().time()
     _done, pending = await asyncio.wait([init_task], timeout=timeout)
     resource.lifecycle_logger.debug(
-        "%s: initializer observation completed in %.2fs (bound %ss)",
+        "%s: initializer observation completed in %.2fs (%s bound)",
         resource.unique_name,
         elapsed_since(observe_start),
-        timeout,
+        format_bound(timeout),
     )
     if pending:
         return True

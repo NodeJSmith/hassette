@@ -35,7 +35,7 @@ FLOW_START_TIMEOUT_SECONDS = 90.0
 FLOW_SUBMIT_TIMEOUT_SECONDS = 30.0
 # Covers one 30 s coordinator poll with margin: entities register, and the switch reflects state.
 POLL_TIMEOUT_SECONDS = 60.0
-# A stop answers once the app's shutdown finishes; hassette's own shutdown budget is well under this.
+# A stop answers once the app's shutdown finishes; an instance stop's entry deadline is well under this.
 ACTION_TIMEOUT_SECONDS = 60.0
 HA_POLL_INTERVAL_SECONDS = 1.0
 APP_POLL_INTERVAL_SECONDS = 0.5

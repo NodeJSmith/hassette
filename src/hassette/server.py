@@ -35,13 +35,13 @@ def exit_code_for(exc: BaseException | None) -> int:
     return 1
 
 
-async def exit_now_if_work_abandoned(core: Hassette, exc: BaseException | None) -> None:
+async def exit_now_if_work_force_terminated(core: Hassette, exc: BaseException | None) -> None:
     """Hard-exit when a shutdown deadline walked away from work during this process's life.
 
     The event loop's cancel-and-await at ``asyncio.run()``'s end and the interpreter's thread join would
     otherwise wait on that work until the supervisor kills the process. An in-flight shutdown snapshot is
     waited for first, so it isn't cut short. The exit code is the one ``hassette run`` maps the outcome
-    to, so an exit whose only problem is abandoned work exits 0.
+    to, so an exit whose only problem is force-terminated work exits 0.
     """
     left = core.force_terminated_work
     if not left:
@@ -130,6 +130,6 @@ async def main(config: HassetteConfig) -> None:
     try:
         await core.run_forever()
     except BaseException as exc:
-        await exit_now_if_work_abandoned(core, exc)
+        await exit_now_if_work_force_terminated(core, exc)
         raise
-    await exit_now_if_work_abandoned(core, None)
+    await exit_now_if_work_force_terminated(core, None)

@@ -100,7 +100,7 @@ def stub_resource(cls: type[Resource]) -> Resource:
     hassette = make_mock_hassette(
         sealed=False,
         logging=LOG_LEVEL_OVERRIDES,
-        lifecycle={"resource_shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
+        lifecycle={"shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
     )
     obj = cls.__new__(cls)
     Resource.__init__(obj, hassette, parent=hassette)

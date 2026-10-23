@@ -61,7 +61,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
 async def test_app_shutdown_propagates_to_bus_and_scheduler():
     """App shutdown propagates to Bus.on_shutdown and Scheduler.on_shutdown via children."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.app_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.shutdown_timeout_seconds = 5
     hassette.config.logging.apps = "DEBUG"
 
     app = make_app(hassette=hassette, instance_name="test_app", app_key="test_app")
@@ -353,7 +353,7 @@ async def test_on_children_stopped_called_on_clean_shutdown():
 async def test_on_children_stopped_skipped_on_timeout():
     """_on_children_stopped() is NOT called when child shutdown times out."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = HookTrackingParent(hassette)
     parent.add_child(HangingChild)
@@ -368,7 +368,7 @@ async def test_on_children_stopped_skipped_on_timeout():
 async def test_cleanup_timeout_fires_on_hung_cleanup():
     """When cleanup() hangs, asyncio.timeout catches it and logs a warning."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     class HungCleanupResource(Resource):
         async def cleanup(self) -> None:

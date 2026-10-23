@@ -23,7 +23,7 @@ from hassette.testing import make_sensor_state_dict
 from tests.support.harness import send_and_wait
 from tests.support.helpers import (
     DB_HASSETTE_DATABASE_MAX_SIZE_MB,
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
     cleanup_hassette_streams,
 )
@@ -137,7 +137,7 @@ def db_hassette(premigrated_db_path: Path, sync_executor: SyncExecutor) -> Async
             "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
             "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
         },
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
+        lifecycle={"shutdown_timeout_seconds": DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS},
     )
     # _create_task_bucket reads hassette.sync_executor when wiring every Resource built
     # from this mock (CommandExecutor, BusService, SchedulerService) — wire the real

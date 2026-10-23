@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 import aiosqlite
 from hassette_wire import LogLevel
 
-from hassette.config.models import DatabaseConfig
+from hassette.config.models import SHUTDOWN_DRAIN_TIMEOUT_SECONDS, DatabaseConfig
 from hassette.core.database_failsafe import DatabaseSizeFailsafeMixin
 from hassette.core.database_retention import DatabaseRetentionMixin
 from hassette.core.database_snapshot import write_snapshot
@@ -28,6 +28,7 @@ from hassette.exceptions import SchemaVersionError, WriteQueueUnavailableError
 from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.resources.shutdown_deadline import clamp_to_shutdown_deadline
 from hassette.types.enums import RestartType
 from hassette.utils.aiosqlite_utils import (
     SQLITE_BUSY_TIMEOUT_MS,
@@ -246,7 +247,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         # bucket's cancel_all() runs before wave-based child shutdown begins, killing the worker before
         # on_shutdown() can drain the queue — producing two 10s stalls per test (one in each downstream wave
         # that tries to submit() a write to the dead worker). The worker's lifecycle is managed by
-        # on_shutdown() (drain-and-close) and _force_terminal() (hard cancel on the total-shutdown-timeout path).
+        # on_shutdown() (drain-and-close) and _force_terminal() (hard cancel when a deadline owner walks away).
         self._db_worker_task = create_lifecycle_task(
             run_write_queue_worker(self), name=f"db_write_worker:{self.unique_name}"
         )
@@ -258,7 +259,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 
         ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
         ``Service._force_terminal()``'s ``TaskBucket.cancel_all_sync()`` never reaches it.
-        Without cancelling it here, a total-shutdown-timeout force-terminal call (which skips
+        Without cancelling it here, a force-terminal call from a deadline owner walking away (which skips
         ``on_shutdown()``, the only other place this task is cancelled) leaves the worker
         and its queue/connections running after the process has declared shutdown complete.
 
@@ -342,7 +343,9 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             if self._db_worker_task is not None:
                 queue = detach_write_queue(self)
                 if queue is not None:
-                    await self.drain_write_queue(queue)
+                    await self.drain_write_queue(
+                        queue, clamp_to_shutdown_deadline(self, SHUTDOWN_DRAIN_TIMEOUT_SECONDS)
+                    )
                 await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
         except Exception:

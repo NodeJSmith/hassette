@@ -35,6 +35,9 @@ LOGGER = getLogger(__name__)
 SHUTDOWN_TIMEOUT_SECONDS = 10
 """Default for ``LifecycleConfig.shutdown_timeout_seconds``: the bound on each shutdown hook."""
 
+SESSION_FINALIZE_TIMEOUT_SECONDS = SQLITE_BUSY_TIMEOUT_MS / 1000
+"""Fixed cap on writing the session's final record in the foundation shutdown stage."""
+
 SHUTDOWN_DRAIN_TIMEOUT_SECONDS = 5
 """Fixed cap on draining the database write queue in the foundation shutdown stage."""
 
@@ -43,11 +46,11 @@ SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS = 10.0
 ``EXECUTOR_SHUTDOWN_TIMEOUT``)."""
 
 FOUNDATION_SHUTDOWN_BUDGET_SECONDS = (
-    SQLITE_BUSY_TIMEOUT_MS / 1000 + SHUTDOWN_DRAIN_TIMEOUT_SECONDS + SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
+    SESSION_FINALIZE_TIMEOUT_SECONDS + SHUTDOWN_DRAIN_TIMEOUT_SECONDS + SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
 )
-"""Fixed budget of the foundation shutdown stage, the sum of its sequential framework steps: the session
-finalize (bounded by SQLite's busy timeout), the write-queue drain, and the executor join. The stop stage
-gets ``total_shutdown_timeout_seconds`` minus this."""
+"""Fixed budget of the foundation shutdown stage, the sum of its sequential steps' caps: the session
+finalize, the write-queue drain, and the executor join. The stop stage gets
+``total_shutdown_timeout_seconds`` minus this."""
 
 
 LogLevelAnnotation = Annotated[LogLevel, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
@@ -340,14 +343,14 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
-    shutdown_timeout_seconds: int | float = Field(default=SHUTDOWN_TIMEOUT_SECONDS, gt=0)
+    shutdown_timeout_seconds: float = Field(default=SHUTDOWN_TIMEOUT_SECONDS, gt=0)
     """Length of time each shutdown hook (an app's or a framework resource's ``on_shutdown`` and the hooks
     around it) may run before it is cancelled. A hook gets less when its stage has less time left."""
 
     failed_instance_cleanup_timeout_seconds: int = Field(default=5)
     """Length of time to wait for listener/job cleanup after an app instance fails to initialize."""
 
-    total_shutdown_timeout_seconds: int | float = Field(default=45, gt=FOUNDATION_SHUTDOWN_BUDGET_SECONDS)
+    total_shutdown_timeout_seconds: float = Field(default=45, gt=FOUNDATION_SHUTDOWN_BUDGET_SECONDS)
     """Maximum wall-clock seconds for the whole Hassette shutdown. The foundation stage (database and
     worker threads) keeps a fixed budget; everything else stops within the rest, and so does each runtime
     app stop or reload. Your supervisor's stop grace period must exceed this."""

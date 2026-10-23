@@ -19,7 +19,7 @@ from hassette.resources.lifecycle import (
 )
 from hassette.resources.operations import run_hooks, shutdown_hook_report
 from hassette.resources.restart import RestartSpec
-from hassette.resources.shutdown_deadline import shutdown_hook_bound
+from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 from hassette.types.enums import ResourceRole
 
@@ -135,11 +135,13 @@ class Service(Resource):
             self.lifecycle_logger.debug("Cancelled serve() task")
             # Bounded like a hook: its own cancel-and-wait, clamped to the operation's deadline.
             timeout = shutdown_hook_bound(self)
-            self.lifecycle_logger.debug("%s: entering serve-task wait with a %s bound", self.unique_name, timeout)
+            self.lifecycle_logger.debug(
+                "%s: entering serve-task wait with %s bound", self.unique_name, format_bound(timeout)
+            )
             _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
             if pending:
                 self.lifecycle_logger.warning(
-                    "Serve task for %s did not complete within its %ss bound", self.unique_name, timeout
+                    "Serve task for %s did not complete within its %s bound", self.unique_name, format_bound(timeout)
                 )
                 reports.append(
                     TeardownReport(

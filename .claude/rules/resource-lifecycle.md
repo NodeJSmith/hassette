@@ -52,3 +52,12 @@ Both tasks are created directly via `asyncio.Task(...)` (bypassing the loop's Ta
 `_shutdown_body_task` is a third, non-admission field — it never gates whether a lifecycle operation may start, but keeps a cancellation-resistant shutdown body reachable and exception-observed until it actually completes, even after the coordinator has already returned a report to its callers.
 
 Every public lifecycle front door (`initialize()`, `start()`, `restart()`, `shutdown()`) rejects a call made from its own active `_init_task`, `_shutdown_task`, or `_shutdown_body_task` with `LifecycleReentryError` before joining, cancelling, or creating anything — a hook cannot recursively drive its own owner's lifecycle.
+
+## Shutdown deadlines
+
+A shutdown attempt carries one absolute deadline, `_shutdown_deadline`, set by the operation that owns it: the root for each exit stage (`Hassette._run_stop_stage()`/`_run_foundation_stage()`) and `AppLifecycleService` for a runtime instance stop (its entry deadline). A parent passes its deadline to its children, and a caller joining an attempt in flight can only tighten it. The helpers live in `resources/shutdown_deadline.py`.
+
+- **Leaves bound themselves.** Each shutdown hook, the serve-task wait, task-cancel, `cleanup()`, the database drain and the executor join get their own cap clamped to what is left of the deadline. A hook cut off by its bound records `SHUTDOWN_HOOK_TIMED_OUT`, distinct from a hook that raised.
+- **Interior nodes don't.** The shutdown coordinator and `shutdown_batch()` wait without a bound of their own. Don't add one: a second bound on the same work is what the deadline model replaced.
+- **Only owners walk away.** When its deadline passes, an owner force-terminates what hasn't finished and records it with `Hassette.record_force_terminated()`, which makes `hassette run` hard-exit instead of waiting on that work.
+- **Foundation services** (`SessionManager`, `DatabaseService`, `SyncExecutorService`) set `shutdown_hook_timeout_applies = False` and are listed in `Hassette._foundation_services()`; a new one needs both. Their steps carry fixed caps that sum to `FOUNDATION_SHUTDOWN_BUDGET_SECONDS`.

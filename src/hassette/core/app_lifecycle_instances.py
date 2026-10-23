@@ -204,12 +204,12 @@ class AppInstanceLifecycleMixin:
             task = create_lifecycle_task(inst.shutdown(), name=f"app:shutdown:{inst.unique_name}")
             timeout = max(0.0, stop_deadline - asyncio.get_running_loop().time())
             done, _pending = await asyncio.wait([task], timeout=timeout)
-            walked_away = task not in done
-            if walked_away:
+            force_terminated = task not in done
+            if force_terminated:
                 report = await self.walk_away_from_instance(inst, task)
             else:
                 report = task.result()
-            timed_out = walked_away or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+            timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
 
             friendly_time = precisedelta(timer() - start_time, minimum_unit="milliseconds")
             if not timed_out:
@@ -222,7 +222,7 @@ class AppInstanceLifecycleMixin:
             exc = TimeoutError(f"stop of app '{inst.app_config.instance_name}' timed out after {friendly_time}")
             if report.pending_tasks:
                 left = f"still pending: {', '.join(report.pending_tasks)}"
-            elif walked_away:
+            elif force_terminated:
                 left = f"force-terminated {inst.unique_name}; its evidence is incomplete, so work may still be running"
             else:
                 left = "nothing still pending"

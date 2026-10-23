@@ -132,8 +132,8 @@ def test_sigint_exits_promptly_on_healthy_instance(ha_container: str, tmp_path: 
     """A single Ctrl+C on a healthy, idle instance exits in a few seconds, not a 30s hang.
 
     Regression test for audit finding F1: SIGINT used to fall through to asyncio's default
-    disorderly-cancellation path and burn the full ``total_shutdown_timeout_seconds`` (30s)
-    with zero hassette output before exiting.
+    disorderly-cancellation path and burn the full ``total_shutdown_timeout_seconds`` with zero
+    hassette output before exiting.
     """
     proc, base_url = _spawn_hassette(tmp_path, ha_container)
     marker_seen = threading.Event()

@@ -34,7 +34,7 @@ STUB_CONFIG_DIR = "/srv/hassette/config"
 STUB_HOST = "0.0.0.0"
 STUB_STARTUP_TIMEOUT = 30
 STUB_APP_STARTUP_TIMEOUT = 20
-STUB_APP_SHUTDOWN_TIMEOUT = 10
+STUB_SHUTDOWN_TIMEOUT = 10
 STUB_APPS_DIR = "/srv/hassette/apps"
 STUB_BEHIND_SCHEDULE_THRESHOLD = 5
 STUB_DEBOUNCE_MS = 3000
@@ -134,7 +134,7 @@ def wire_config(
     # lifecycle group
     config.lifecycle.startup_timeout_seconds = STUB_STARTUP_TIMEOUT
     config.lifecycle.app_startup_timeout_seconds = STUB_APP_STARTUP_TIMEOUT
-    config.lifecycle.app_shutdown_timeout_seconds = STUB_APP_SHUTDOWN_TIMEOUT
+    config.lifecycle.shutdown_timeout_seconds = STUB_SHUTDOWN_TIMEOUT
     # app group
     config.apps.warn_unconfigured = True
     config.apps.directory = STUB_APPS_DIR
@@ -170,7 +170,7 @@ def wire_config(
         "lifecycle": {
             "startup_timeout_seconds": STUB_STARTUP_TIMEOUT,
             "app_startup_timeout_seconds": STUB_APP_STARTUP_TIMEOUT,
-            "app_shutdown_timeout_seconds": STUB_APP_SHUTDOWN_TIMEOUT,
+            "shutdown_timeout_seconds": STUB_SHUTDOWN_TIMEOUT,
         },
         "apps": {"warn_unconfigured": True, "directory": STUB_APPS_DIR},
         "scheduler": {"behind_schedule_threshold_seconds": STUB_BEHIND_SCHEDULE_THRESHOLD},

@@ -5,8 +5,10 @@ with default lifecycle settings), and drives `AppHandler.shutdown()` through the
 """
 
 import asyncio
+from unittest.mock import Mock
 
 from hassette.core.app_handler import AppHandler
+from hassette.resources.teardown import TeardownReport
 
 from .conftest import make_mock_app_instance
 
@@ -23,9 +25,10 @@ async def test_later_apps_are_not_cut_off_at_process_exit(app_handler: AppHandle
         inst = make_mock_app_instance(instance_name=app_key)
         inst.app_key = app_key
 
-        async def slow_shutdown(name: str = app_key) -> None:
+        async def slow_shutdown(name: str = app_key) -> TeardownReport:
             await asyncio.sleep(APP_HOOK_SECONDS)
             finished.append(name)
+            return TeardownReport()
 
         inst.shutdown.side_effect = slow_shutdown
         app_handler.registry.register_app(app_key, 0, inst)
@@ -33,3 +36,15 @@ async def test_later_apps_are_not_cut_off_at_process_exit(app_handler: AppHandle
     await app_handler.shutdown()
 
     assert sorted(finished) == ["first_app", "second_app"]
+
+
+async def test_force_terminal_reaches_registry_apps(app_handler: AppHandler) -> None:
+    """Registry apps aren't children of the handler, so force-terminating it reaches them explicitly."""
+    inst = make_mock_app_instance(instance_name="stuck_app")
+    inst.app_key = "stuck_app"
+    inst._force_terminal = Mock()
+    app_handler.registry.register_app("stuck_app", 0, inst)
+
+    app_handler._force_terminal()
+
+    inst._force_terminal.assert_called_once()

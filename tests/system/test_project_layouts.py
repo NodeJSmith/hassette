@@ -26,7 +26,7 @@ from .conftest import free_port, hassette_run_env, spawn_hassette_run
 pytestmark = [pytest.mark.system]
 
 APP_RUNNING_TIMEOUT = 90.0  # cold subprocess import, HA connection, then app startup
-EXIT_TIMEOUT = 30.0  # Hassette's own total shutdown timeout
+EXIT_TIMEOUT = 45.0  # Hassette's own total_shutdown_timeout_seconds
 
 GREETER_APP = textwrap.dedent(
     """

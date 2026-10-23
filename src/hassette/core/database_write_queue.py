@@ -13,7 +13,6 @@ import typing
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-from hassette.config.models import SHUTDOWN_DRAIN_TIMEOUT_SECONDS
 from hassette.exceptions import WriteQueueUnavailableError
 
 if typing.TYPE_CHECKING:
@@ -130,19 +129,19 @@ class DatabaseWriteQueueMixin:
     _executing_future: "asyncio.Future[Any] | None"
     _write_queue_detached: bool
 
-    async def drain_write_queue(self, queue: asyncio.Queue[_WriteQueueItem]) -> None:
-        """Wait for already-queued writes to finish, bounded by ``SHUTDOWN_DRAIN_TIMEOUT_SECONDS``.
+    async def drain_write_queue(self, queue: asyncio.Queue[_WriteQueueItem], timeout: float) -> None:
+        """Wait for already-queued writes to finish, bounded by ``timeout``.
 
         A dead worker (nobody left to call task_done()) or a wedged one (stuck mid-write) never
         lets ``queue.join()`` complete on its own. Left unbounded it would use up the foundation
-        stage's budget and leave the connections unclosed. The cap is one of the foundation budget's
-        fixed parts (``FOUNDATION_SHUTDOWN_BUDGET_SECONDS``).
+        stage's budget and leave the connections unclosed.
 
         Args:
             queue: The write queue to drain. Already detached from ``_db_write_queue``, so no new
                 items can arrive while this waits.
+            timeout: The drain's bound: ``SHUTDOWN_DRAIN_TIMEOUT_SECONDS``, one of the foundation budget's
+                fixed parts, clamped to what is left of the shutdown deadline.
         """
-        timeout = SHUTDOWN_DRAIN_TIMEOUT_SECONDS
         try:
             async with asyncio.timeout(timeout):
                 await queue.join()

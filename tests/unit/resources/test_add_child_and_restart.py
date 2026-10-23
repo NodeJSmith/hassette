@@ -63,30 +63,20 @@ class TestRestart:
 
 
 class TestRestartRefusedAfterChildTimeout:
-    """A child timeout that leaves the parent's stored report with ``is_restart_safe`` ``False`` must
+    """A child hook timeout that leaves the parent's stored report with ``is_restart_safe`` ``False`` must
     refuse every same-instance initialization path -- ``restart()``, ``start()``, and a direct
     ``initialize()`` call -- without running a second ``on_initialize()`` hook.
     """
 
     @staticmethod
     async def _make_unsafe_parent() -> SimpleParent:
-        """Build a parent whose only child hangs forever during shutdown, then shut it down.
+        """Build a parent whose only child hangs during shutdown, then shut it down.
 
-        The resulting report's exact cause depends on a race between ``_shutdown_children()``'s
-        own bounded wait and the shutdown coordinator's whole-body deadline -- both read the same
-        ``resource_shutdown_timeout_seconds`` config value, but the coordinator's clock starts
-        earlier (as soon as the body task is created, before hooks/TaskBucket/cleanup even run),
-        so it usually times out first and force-terminates the still-hanging child from the
-        outside (``SHUTDOWN_BODY_TIMED_OUT``/``FORCED_TERMINAL``) rather than
-        ``_shutdown_children()`` reaching its own ``CHILD_SHUTDOWN_TIMED_OUT`` first. Either path
-        proves the same thing this test needs: a hanging child makes the parent's report
-        restart-unsafe. See ``test_shutdown.py``'s dedicated
-        ``test_shutdown_children_timeout_preserves_finished_safe_child_report`` for the specific
-        ``CHILD_SHUTDOWN_TIMED_OUT`` cause, tested by calling ``_shutdown_children()`` directly to
-        avoid this same race.
+        The child's hook is cut off at its bound (``SHUTDOWN_HOOK_TIMED_OUT``), which makes the
+        parent's merged report restart-unsafe.
         """
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+        hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
         parent = SimpleParent(hassette)
         hanging = parent.add_child(HangingChild)

@@ -3,13 +3,13 @@
 Targets branches not already exercised by test_hassette_lifecycle.py (unit) and
 tests/integration/test_core.py (integration): startup_tasks() precheck/env-file
 branches, on_initialize() timeout warnings, send_event()'s guard branches,
-_shutdown_children()'s exception/timeout branches, shutdown()'s total-timeout
-wrapper, _on_children_stopped(), and several one-line accessors/helpers.
+_shutdown_children()'s exception branches and exit stages, _on_children_stopped(), and several
+one-line accessors/helpers.
 """
 
 import asyncio
 import queue
-from contextlib import contextmanager, suppress
+from contextlib import suppress
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -23,8 +23,7 @@ from hassette.config.config import HassetteConfig
 from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
-from hassette.resources.base import Resource
-from hassette.resources.shutdown_budget import COORDINATOR_MARGIN_FRACTION, compute_shutdown_budget
+from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import wait_for
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -332,9 +331,10 @@ class TestShutdownChildren:
         assert "_run_shutdown_coordinator" in result.failed_operations
         assert hassette._file_watcher.unique_name in result.affected_resources
 
-    async def test_force_terminates_wave_on_timeout_and_records_timed_out_cause(self, wired_hassette: Hassette) -> None:
-        """_shutdown_children() force-terminates the timed-out wave's children and records
-        CHILD_SHUTDOWN_TIMED_OUT on the aggregated report.
+    async def test_stop_stage_expiry_force_terminates_unfinished_children(self, wired_hassette: Hassette) -> None:
+        """When the stop stage's deadline passes, the root walks away: each unfinished stop-stage child is
+        force-terminated, recorded as force-terminated work, and the aggregated report
+        carries CHILD_SHUTDOWN_TIMED_OUT.
         """
         hassette = wired_hassette
 
@@ -345,27 +345,17 @@ class TestShutdownChildren:
             child.shutdown = AsyncMock()
             child._force_terminal = Mock()
         hassette._file_watcher.shutdown = hang
+        hassette._shutdown_deadline = deadline_in(0.3)
 
-        with preserve_config(hassette.config):
-            # 0.5s still triggers force-termination with 10x+ margin over the hanging
-            # child's 1000s sleep, while giving CI scheduling jitter enough headroom.
-            hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
-            result = await hassette._shutdown_children()
+        result = await hassette._shutdown_children()
 
         assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
         hassette._file_watcher._force_terminal.assert_called_once()
+        assert hassette._file_watcher.unique_name in hassette.force_terminated_work
 
-    async def test_wave_timeout_does_not_abandon_later_waves(self, wired_hassette: Hassette) -> None:
-        """A wave that times out force-terminates its own children and records evidence, but
-        the loop must still proceed to every remaining (lower-dependency) wave.
-
-        Regression test: ``_shutdown_children()`` used to ``return`` immediately on the first
-        wave timeout, silently abandoning every wave below it -- including the last wave, which
-        owns real OS resources (the sync-executor thread pool, DB connections, the HTTP
-        session). AppHandler depends (transitively) on everything else, so it shuts down in the
-        first wave; SyncExecutorService and DatabaseService have no dependencies, so they shut
-        down in the very last wave. Hanging AppHandler must not prevent those from ever being
-        asked to shut down.
+    async def test_foundation_stage_runs_after_stop_stage_expiry(self, wired_hassette: Hassette) -> None:
+        """A stop stage that times out still leaves the foundation stage to run: the session is finalized,
+        the database and the executor shut down, and the shutdown snapshot is attempted.
         """
         hassette = wired_hassette
 
@@ -376,104 +366,119 @@ class TestShutdownChildren:
             child.shutdown = AsyncMock()
             child._force_terminal = Mock()
         hassette._app_handler.shutdown = hang
+        hassette._session_manager.finalize_session = AsyncMock()
+        hassette._database_service.write_shutdown_snapshot = AsyncMock()
+        hassette._shutdown_deadline = deadline_in(0.3)
 
-        with preserve_config(hassette.config):
-            hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
-            result = await hassette._shutdown_children()
+        result = await hassette._shutdown_children()
 
         assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
         hassette._app_handler._force_terminal.assert_called_once()
-        hassette._sync_executor_service.shutdown.assert_awaited_once()
+        hassette._session_manager.finalize_session.assert_awaited_once()
         hassette._database_service.shutdown.assert_awaited_once()
+        hassette._sync_executor_service.shutdown.assert_awaited_once()
+        hassette._database_service.write_shutdown_snapshot.assert_awaited_once()
 
-    async def test_multi_wave_hang_finishes_within_coordinator_margin(self, wired_hassette: Hassette) -> None:
-        """When every wave hangs, _shutdown_children() must still finish within the coordinator
-        margin — i.e. the sum of per-wave floors must not exceed the margin.
-
-        Before the fix (#1809), each wave independently claimed CHILDREN_FLOOR_SECONDS (1.0s).
-        With ~7 waves, that's 7.0s of overrun against a 3.0s margin at the 30s default, so the
-        coordinator's outer SHUTDOWN_BODY_TIMED_OUT would fire first — defeating the graceful
-        wave-by-wave force-terminate path. After the fix, waves 2..N use
-        CHILDREN_WAVE_FLOOR_SECONDS (0.1s) via the waves_left parameter, while the final wave
-        (waves_left=1) falls back to the larger CHILDREN_FLOOR_SECONDS (1.0s) for the
-        most-foundational resources. Worst case: (N-1)*0.1 + 1.0 = 1.6s at ~7 waves, well
-        within the 3.0s margin.
-        """
+    async def test_foundation_services_are_not_stopped_in_the_stop_stage(self, wired_hassette: Hassette) -> None:
+        """The session, database and executor stop only after every stop-stage child has finished."""
         hassette = wired_hassette
-        total_timeout = 30.0
+        order: list[str] = []
+
+        def recorder(name: str) -> AsyncMock:
+            def record(*_args, **_kwargs) -> TeardownReport:
+                order.append(name)
+                return TeardownReport()
+
+            return AsyncMock(side_effect=record)
+
+        for child in hassette.children:
+            child.shutdown = recorder(child.class_name)
+        hassette._session_manager.finalize_session = AsyncMock(side_effect=lambda **_k: order.append("finalize"))
+        hassette._database_service.write_shutdown_snapshot = AsyncMock(side_effect=lambda: order.append("snapshot"))
+
+        await hassette._shutdown_children()
+
+        tail = ["finalize", "SessionManager", "DatabaseService", "SyncExecutorService", "snapshot"]
+        assert order[-len(tail) :] == tail
+
+    async def test_foundation_stage_expiry_still_snapshots(
+        self, wired_hassette: Hassette, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A foundation step that outlives the foundation budget is walked away from, and the snapshot still runs."""
+        hassette = wired_hassette
+        monkeypatch.setattr(core_module, "FOUNDATION_SHUTDOWN_BUDGET_SECONDS", 0.3)
 
         async def hang(*_args, **_kwargs):
             await asyncio.sleep(1000)
 
         for child in hassette.children:
-            child.shutdown = hang
+            child.shutdown = AsyncMock()
             child._force_terminal = Mock()
+        hassette._database_service.shutdown = hang
+        hassette._database_service.write_shutdown_snapshot = AsyncMock()
 
-        loop = asyncio.get_running_loop()
+        result = await hassette._shutdown_children()
 
-        with preserve_config(hassette.config):
-            hassette.config.lifecycle.resource_shutdown_timeout_seconds = total_timeout
-            hassette._shutdown_budget = compute_shutdown_budget(total_timeout, loop.time())
-
-            start_time = loop.time()
-            result = await hassette._shutdown_children()
-            elapsed = loop.time() - start_time
-
-        margin = total_timeout * COORDINATOR_MARGIN_FRACTION
-        body_budget = total_timeout - margin
-
-        # Every wave should have been force-terminated.
         assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
+        hassette._database_service._force_terminal.assert_called_once()
+        hassette._sync_executor_service._force_terminal.assert_called_once()
+        hassette._database_service.write_shutdown_snapshot.assert_awaited_once()
 
-        # The total elapsed time for _shutdown_children() must stay within the body budget
-        # plus at most the margin — if it exceeds body_budget + margin, the coordinator's
-        # outer wait would have fired first.
-        assert elapsed < body_budget + margin, (
-            f"_shutdown_children() took {elapsed:.2f}s; body_budget={body_budget:.1f}s, "
-            f"margin={margin:.1f}s — the coordinator would have fired first"
-        )
-
-
-@contextmanager
-def hanging_shutdown_body(hassette: Hassette, total_shutdown_timeout_seconds: float):
-    """Patch ``Resource._shutdown_body()`` to hang forever and set a short total-shutdown
-    timeout, so tests can exercise the coordinator's force-terminal path deterministically.
-
-    Patches ``_shutdown_body()``, not ``shutdown()``: ``shutdown()`` is the ``@final``
-    coordinator front door (``coordinate_shutdown()``) that itself enforces the timeout being
-    tested here. Hassette doesn't override ``shutdown()``, only ``_shutdown_body()`` — patching
-    ``Resource.shutdown`` would replace ``hassette.shutdown()``'s own entry point (and every child's)
-    with the hang, bypassing the total-timeout enforcement entirely instead of exercising it.
-    """
-
-    async def hang_forever(_self):
-        await asyncio.sleep(1000)
-
-    with (
-        patch.object(Resource, "_shutdown_body", new=hang_forever),
-        preserve_config(hassette.config),
-    ):
-        hassette.config.lifecycle.total_shutdown_timeout_seconds = total_shutdown_timeout_seconds
-        yield
-
-
-class TestShutdownTotalTimeout:
-    async def test_forces_all_children_terminal_when_super_shutdown_times_out(self, wired_hassette: Hassette) -> None:
-        """shutdown() force-terminates every child if the wrapped super().shutdown() exceeds the total timeout."""
+    async def test_surviving_executor_threads_are_recorded(
+        self, wired_hassette: Hassette, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Executor threads still alive after the join are recorded as force-terminated work."""
         hassette = wired_hassette
         for child in hassette.children:
-            child._force_terminal = Mock()
+            child.shutdown = AsyncMock()
+        hassette._database_service.write_shutdown_snapshot = AsyncMock()
+        monkeypatch.setattr(hassette._sync_executor, "surviving_threads", lambda: ["hassette-sync_0"])
 
-        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
-        # headroom to win its race against the coordinator's outer wait.
-        with hanging_shutdown_body(hassette, total_shutdown_timeout_seconds=0.5):
-            await hassette.shutdown()
+        await hassette._shutdown_children()
 
-        assert hassette.shutdown_completed is True
-        assert hassette.status == ResourceStatus.STOPPED
+        assert "thread hassette-sync_0" in hassette.force_terminated_work
+
+    async def test_foundation_stage_survives_a_raising_session_finalize(self, wired_hassette: Hassette) -> None:
+        """A finalize that raises (a full or detached write queue) still leaves the drain, the close, the join
+        and the snapshot to run.
+        """
+        hassette = wired_hassette
         for child in hassette.children:
-            child._force_terminal.assert_called_once()
+            child.shutdown = AsyncMock()
+        hassette._session_manager.finalize_session = AsyncMock(side_effect=TimeoutError("queue full"))
+        hassette._database_service.write_shutdown_snapshot = AsyncMock()
 
+        await hassette._shutdown_children()
+
+        hassette._database_service.shutdown.assert_awaited_once()
+        hassette._sync_executor_service.shutdown.assert_awaited_once()
+        hassette._database_service.write_shutdown_snapshot.assert_awaited_once()
+
+    async def test_session_finalize_is_capped_at_its_share_of_the_foundation_budget(
+        self, wired_hassette: Hassette, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A finalize that hangs is cut off at its own cap, leaving the rest of the foundation stage its time."""
+        hassette = wired_hassette
+        monkeypatch.setattr(core_module, "SESSION_FINALIZE_TIMEOUT_SECONDS", 0.1)
+
+        async def hang(**_kwargs) -> None:
+            await asyncio.sleep(1000)
+
+        for child in hassette.children:
+            child.shutdown = AsyncMock()
+            child._force_terminal = Mock()
+        hassette._session_manager.finalize_session = hang
+        hassette._database_service.write_shutdown_snapshot = AsyncMock()
+
+        result = await asyncio.wait_for(hassette._shutdown_children(), timeout=5)
+
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT not in result.causes
+        hassette._database_service._force_terminal.assert_not_called()
+        hassette._database_service.shutdown.assert_awaited_once()
+        hassette._sync_executor_service.shutdown.assert_awaited_once()
+
+
+class TestRootShutdown:
     async def test_normal_shutdown_sets_stopped_and_completed(self, wired_hassette: Hassette) -> None:
         """shutdown() sets shutdown_completed and STOPPED status on the ordinary (non-timeout) path."""
         hassette = wired_hassette
@@ -484,65 +489,48 @@ class TestShutdownTotalTimeout:
 
         assert hassette.shutdown_completed is True
         assert hassette.status == ResourceStatus.STOPPED
+        assert hassette.force_terminated_work == ()
 
-    async def test_total_timeout_report_has_total_timeout_and_forced_terminal_causes(
-        self, wired_hassette: Hassette
+    async def test_stop_stage_deadline_is_total_minus_foundation_budget(
+        self, wired_hassette: Hassette, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """shutdown() returns/stores a report with ``is_restart_safe`` ``False`` with TOTAL_TIMEOUT
-        and FORCED_TERMINAL causes when the total shutdown timeout fires, while still closing
-        event streams via the existing fallback.
+        """The root's stop-stage deadline is total_shutdown_timeout_seconds minus the foundation budget, and a
+        hanging stop-stage child holds shutdown only that long.
         """
         hassette = wired_hassette
+        monkeypatch.setattr(core_module, "FOUNDATION_SHUTDOWN_BUDGET_SECONDS", 0.2)
+
+        async def hang(*_args, **_kwargs):
+            await asyncio.sleep(1000)
+
         for child in hassette.children:
+            child.shutdown = AsyncMock()
             child._force_terminal = Mock()
+        hassette._file_watcher.shutdown = hang
+        hassette._database_service.write_shutdown_snapshot = AsyncMock()
 
-        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
-        # headroom to win its race against the coordinator's outer wait.
-        with hanging_shutdown_body(hassette, total_shutdown_timeout_seconds=0.5):
+        loop = asyncio.get_running_loop()
+        with preserve_config(hassette.config):
+            object.__setattr__(hassette.config.lifecycle, "total_shutdown_timeout_seconds", 0.5)
+            start = loop.time()
             report = await hassette.shutdown()
+            elapsed = loop.time() - start
 
+        assert 0.25 <= elapsed < 3.0, f"shutdown took {elapsed:.2f}s; the stop stage is 0.3s"
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in report.causes
         assert report.is_restart_safe is False
-        assert TeardownCause.TOTAL_TIMEOUT in report.causes
-        assert TeardownCause.FORCED_TERMINAL in report.causes
-        assert hassette.teardown_report == report
+        assert hassette.status == ResourceStatus.STOPPED
         assert hassette.event_streams_closed is True
 
-    async def test_total_timeout_stores_report_before_force_terminating_children(
-        self, wired_hassette: Hassette
-    ) -> None:
-        """Root timeout evidence is stored on the resource's own teardown report before
-        descendants are force-finalized, so a caller observing mid-force-terminal already
-        sees ``is_restart_safe`` ``False`` rather than an absent report.
-        """
-        hassette = wired_hassette
-        observed_unsafe_before_force: list[bool] = []
 
-        def record_and_force() -> None:
-            report = hassette._teardown_report
-            observed_unsafe_before_force.append(report is not None and not report.is_restart_safe)
-
-        for child in hassette.children:
-            child._force_terminal = Mock(side_effect=record_and_force)
-
-        # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
-        # headroom to win its race against the coordinator's outer wait.
-        with hanging_shutdown_body(hassette, total_shutdown_timeout_seconds=0.5):
-            await hassette.shutdown()
-
-        assert observed_unsafe_before_force, "no children were force-terminated"
-        assert all(observed_unsafe_before_force), (
-            "root's own teardown report must be stored (UNSAFE) before force-finalizing descendants"
-        )
-
-
-class TestBeforeShutdownCounterFallback:
+class TestFinalizeSessionCounterFallback:
     async def test_falls_back_to_zero_counters_when_get_drop_counters_raises(self, wired_hassette: Hassette) -> None:
-        """before_shutdown() finalizes the session with (0, 0, 0) if get_drop_counters() raises."""
+        """_finalize_session() finalizes the session with (0, 0, 0) if get_drop_counters() raises."""
         hassette = wired_hassette
         hassette._command_executor.get_drop_counters = Mock(side_effect=RuntimeError("counters unavailable"))
         hassette._session_manager.finalize_session = AsyncMock()
 
-        await hassette.before_shutdown()
+        await hassette._finalize_session()
 
         hassette._session_manager.finalize_session.assert_awaited_once_with(drop_counters=(0, 0, 0))
 

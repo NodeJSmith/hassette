@@ -6,8 +6,9 @@ for each exit stage, ``AppLifecycleService`` for a runtime instance operation. I
 leaves bound themselves, each by its own cap clamped to what is left of the deadline. Only the
 owner walks away when the deadline passes.
 
-Pure arithmetic over the attempt's deadline and the running loop's clock. Nothing here transitions
-status, creates tasks, or emits events — that lives in ``hassette.resources.lifecycle``.
+Arithmetic over the attempt's deadline and the running loop's clock, plus the one mutator that sets the
+deadline (``tighten_shutdown_deadline()``). Nothing here transitions status, creates tasks, or emits
+events — that lives in ``hassette.resources.lifecycle``.
 """
 
 import asyncio
@@ -45,7 +46,7 @@ def clamp_to_shutdown_deadline(resource: _LifecycleHostP, cap: None) -> float | 
 def clamp_to_shutdown_deadline(resource: _LifecycleHostP, cap: float | None) -> float | None:
     """A leaf's bound: ``cap`` shortened to what is left of the deadline.
 
-    ``None`` means unbounded: there is no cap and no deadline.
+    With both, the smaller; with only one, that one; with neither, ``None`` (unbounded).
     """
     remaining = shutdown_deadline_remaining(resource)
     if cap is None:
@@ -86,8 +87,10 @@ def deadline_in(seconds: float) -> float:
 
 
 def elapsed_since(start: float) -> float:
-    """Seconds elapsed since ``start``, an ``asyncio.get_running_loop().time()`` snapshot.
-
-    Shared by every shutdown-stage timing log so each stage measures its own span with one line.
-    """
+    """Seconds elapsed since ``start``, an ``asyncio.get_running_loop().time()`` snapshot."""
     return asyncio.get_running_loop().time() - start
+
+
+def format_bound(bound: float | None) -> str:
+    """A bound for a log line: ``"2.50s"``, or ``"no"`` when unbounded."""
+    return "no" if bound is None else f"{bound:.2f}s"

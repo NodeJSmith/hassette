@@ -27,7 +27,7 @@ from hassette.resources.lifecycle import start
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.resources.shutdown_budget import compute_shutdown_budget
+from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.teardown import TeardownCause
 from hassette.testing import wait_for
 from tests.support.factories import wire_dependent_resource
@@ -46,10 +46,17 @@ BOUNDED_SHUTDOWN_WAIT_SECONDS = 5
 """Outer ``wait_for`` budget proving a shutdown with 0.1s config bounds stays bounded (not tight)."""
 
 SLOW_BEFORE_SHUTDOWN_SECONDS = 0.6
-"""Real time ``UnresponsiveService.before_shutdown()`` spends, consuming part of the shutdown budget."""
+"""Real time ``UnresponsiveService.before_shutdown()`` spends, consuming part of the shutdown deadline."""
 
 SLOW_SERVE_CANCEL_SECONDS = 1.5
-"""Real time ``SlowServeService.serve()`` takes to honor cancellation, consuming most of the hooks pool."""
+"""Real time ``SlowServeService.serve()`` takes to honor cancellation, consuming most of the shutdown deadline."""
+
+UNRESPONSIVE_DEADLINE_SECONDS = 1.5
+"""Shutdown deadline for the unresponsive-serve test: room for its slow ``before_shutdown()`` and part of the
+serve-task wait, short of the per-hook timeout so the deadline, not the timeout, is what ends the wait."""
+
+SLOW_SERVE_DEADLINE_SECONDS = 2.0
+"""Shutdown deadline for the slow-serve test: past ``SLOW_SERVE_CANCEL_SECONDS``, leaving the later hooks little."""
 
 
 class _DepType(Resource):
@@ -259,18 +266,15 @@ class TestIsRunning:
 class TestServiceShutdownBodyServeTaskPending:
     """``Service._shutdown_body()`` observes a cancellation-resistant ``serve()`` task with a
     bounded ``asyncio.wait()`` rather than treating ``cancel()`` as termination proof. Called
-    directly (bypassing the shutdown coordinator's own whole-body deadline, which shares the
-    same config value and would otherwise race this inner bound and obscure which stage
-    produced the evidence — see ``test_add_child_and_restart.py``'s ``_make_unsafe_parent`` for
-    the same race explained for children).
+    directly so the serve-task wait's own evidence is what the report carries.
     """
 
     async def test_resistant_serve_task_adds_serve_task_pending_within_budget(self) -> None:
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+        hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
         # The resistant serve() task is TaskBucket-owned too, so the post-hook shutdown stage's
         # own TaskBucket.cancel_all() bounds its wait by task_cancellation_timeout_seconds, not
-        # resource_shutdown_timeout_seconds. Keep both short so the outer asyncio.wait_for below
+        # shutdown_timeout_seconds. Keep both short so the outer asyncio.wait_for below
         # proves the whole body stays within a bounded budget rather than racing the 5s default.
         hassette.config.lifecycle.task_cancellation_timeout_seconds = SHORT_TASK_CANCEL_TIMEOUT_SECONDS
 
@@ -298,7 +302,7 @@ class TestServiceShutdownBodyServeTaskPending:
 
 
 class UnresponsiveService(Service):
-    """Service that spends a real, self-completing chunk of the shutdown budget in
+    """Service that spends a real, self-completing chunk of the shutdown deadline in
     ``before_shutdown()``, then whose ``serve()`` never honors cancellation at all -- every
     cancellation it receives is caught and re-blocked on, forever. Distinct from
     ``ResistantService`` above: that one loops on a fresh ``Event`` per iteration and exposes a
@@ -320,18 +324,17 @@ class UnresponsiveService(Service):
 
 
 class TestShutdownBodySurvivesUnresponsiveServeTask:
-    """Regression: a slow ``before_shutdown()`` plus an unresponsive ``serve()`` must still
-    finish within the body budget. The hooks pool bounds both stages, and the mandatory tail
-    (task-cancel, cleanup, children) runs regardless of how much of the pool hooks consumed.
+    """A slow ``before_shutdown()`` plus an unresponsive ``serve()`` still finish by the shutdown deadline:
+    each stage is clamped to what is left of it, and the tail (task-cancel, cleanup, children) runs
+    regardless of how much the hooks consumed.
 
-    Called directly against ``_shutdown_body()`` with ``_shutdown_budget`` set manually to
-    simulate what the shutdown coordinator does — the coordinator's own outer wait is not
-    present here, so we verify the body self-limits.
+    Called directly against ``_shutdown_body()`` with ``_shutdown_deadline`` set the way an operation's
+    owner sets it, so the body's own bounds are what is under test.
     """
 
-    async def test_body_completes_within_shared_budget_not_a_fresh_one(self) -> None:
+    async def test_body_finishes_by_the_shutdown_deadline(self) -> None:
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
+        hassette.config.lifecycle.shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
 
         svc = UnresponsiveService(hassette)
         child = svc.add_child(ShutdownCounter)
@@ -339,7 +342,7 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
         await wait_for_running(svc)
 
         loop = asyncio.get_running_loop()
-        svc._shutdown_budget = compute_shutdown_budget(GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, loop.time())
+        svc._shutdown_deadline = deadline_in(UNRESPONSIVE_DEADLINE_SECONDS)
         start_time = loop.time()
 
         report = await asyncio.wait_for(svc._shutdown_body(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
@@ -348,8 +351,8 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
         assert TeardownCause.SERVE_TASK_PENDING in report.causes, (
             "the serve task never honoring cancellation must still be recorded as evidence"
         )
-        assert elapsed < GENEROUS_SHUTDOWN_TIMEOUT_SECONDS + 0.5, (
-            f"the body must finish within the budget — took {elapsed:.2f}s"
+        assert elapsed < UNRESPONSIVE_DEADLINE_SECONDS + 0.5, (
+            f"the body must finish by the shutdown deadline — took {elapsed:.2f}s"
         )
 
         assert child.shutdown_completed is True, "child shutdown must still be attempted, not skipped entirely"
@@ -369,7 +372,7 @@ class TestServiceResistantServeNeverReplaced:
 
     async def test_shutdown_refuses_restart_and_never_spawns_replacement(self) -> None:
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+        hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
         hassette.config.lifecycle.task_cancellation_timeout_seconds = SHORT_TASK_CANCEL_TIMEOUT_SECONDS
 
         svc = ResistantService(hassette)
@@ -403,7 +406,7 @@ class TestServiceResistantServeNeverReplaced:
 
 class SlowServeService(Service):
     """Service whose serve() takes real wall-clock time to observe cancellation,
-    consuming most of the hooks pool before on_shutdown/after_shutdown run.
+    consuming most of the shutdown deadline before on_shutdown/after_shutdown run.
     """
 
     restart_spec = RestartSpec()
@@ -416,17 +419,13 @@ class SlowServeService(Service):
             raise
 
 
-async def test_slow_serve_wait_records_late_hooks_as_failed():
-    """The serve-wait shares the hooks pool with on_shutdown/after_shutdown.
-    A slow serve() that consumes most of the pool leaves on_shutdown/after_shutdown
-    with near-zero budget — they time out and are recorded as SHUTDOWN_HOOK_FAILED,
-    but the mandatory tail (task-cancel, cleanup, children) still runs.
-
-    This is the intended tradeoff: the hooks pool is a shared budget, and the
-    mandatory tail is guaranteed regardless of how the pool is divided.
+async def test_slow_serve_wait_leaves_later_hooks_only_what_is_left_of_the_deadline():
+    """A slow serve() that uses most of the shutdown deadline leaves a hanging on_shutdown only the
+    remainder: it is cut off there and recorded as timed out, and shutdown ends near the deadline
+    rather than a full ``shutdown_timeout_seconds`` later.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
 
     svc = SlowServeService(hassette)
 
@@ -438,14 +437,13 @@ async def test_slow_serve_wait_records_late_hooks_as_failed():
     await wait_for_running(svc)
 
     loop = asyncio.get_running_loop()
+    svc._shutdown_deadline = deadline_in(SLOW_SERVE_DEADLINE_SECONDS)
     start_time = loop.time()
 
     report = await asyncio.wait_for(svc.shutdown(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
     elapsed = loop.time() - start_time
 
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, (
-        "on_shutdown must be recorded as failed when the serve-wait consumed the hooks pool"
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes, (
+        "on_shutdown must be recorded as timed out when the serve-wait used most of the deadline"
     )
-    assert elapsed < GENEROUS_SHUTDOWN_TIMEOUT_SECONDS + 0.5, (
-        f"shutdown must stay within the coordinator budget — took {elapsed:.2f}s"
-    )
+    assert elapsed < SLOW_SERVE_DEADLINE_SECONDS + 0.5, f"shutdown ran past its deadline — took {elapsed:.2f}s"

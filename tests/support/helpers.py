@@ -69,13 +69,7 @@ and bootstrap of the new one — so it needs headroom for a loaded CI runner. Sh
 """
 
 SHORT_SHUTDOWN_TIMEOUT_SECONDS = 0.1
-"""Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch.
-
-Only for tests that *want* the coordinator's outer bound to fire. It leaves under 100ms of real
-wall-clock margin between the hooks pool and the total deadline, so a test asserting that an
-inner bound (a hook's own ``asyncio.timeout``) wins that race will flake on a loaded CI runner.
-Use ``GENEROUS_SHUTDOWN_TIMEOUT_SECONDS`` for those.
-"""
+"""Short ``shutdown_timeout_seconds`` for tests that want a hanging hook cut off at its bound quickly."""
 
 DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX = 500
 """``make_mock_hassette`` database queue-max override — smaller than the production default (1000) for test speed."""
@@ -86,12 +80,12 @@ DB_HASSETTE_DATABASE_MAX_SIZE_MB = 0
 SIZE_FAILSAFE_TRIGGER_MB = 0.0001
 """Tiny max_size_mb guaranteed to trigger the size failsafe on any non-empty DB."""
 
-DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 5
+DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS = 5
 """``make_mock_hassette`` lifecycle override — shorter than the production default (10s) for test speed."""
 
 GENEROUS_SHUTDOWN_TIMEOUT_SECONDS = 5.0
-"""``resource_shutdown_timeout_seconds`` for shutdown-body tests that need enough budget
-to run without racing the coordinator's own outer deadline."""
+"""``shutdown_timeout_seconds`` for tests where a shutdown deadline, not the per-hook timeout, must be what
+ends a hook."""
 
 HANG_GUARD_TIMEOUT_SECONDS = 10.0
 """Real-clock ``wait_for`` budget that only turns a genuine hang into a failure (no assertion weight);

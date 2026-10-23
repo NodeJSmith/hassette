@@ -23,11 +23,11 @@ from hassette.resources import lifecycle
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
-from hassette.resources.shutdown_budget import compute_shutdown_budget
+from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
 from hassette.testing import wait_for
-from tests.support.helpers import GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
@@ -294,10 +294,10 @@ async def test_shutdown_propagation_with_no_children():
     assert leaf.shutdown_completed is True
 
 
-async def test_shutdown_propagation_timeout_forces_terminal_state():
-    """When child shutdown times out, timed-out children are forced to consistent terminal state."""
+async def test_hanging_child_hook_times_out_and_parent_completes():
+    """A child whose hook hangs is cut off at its own bound; the parent and its other children still finish."""
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = SimpleParent(hassette)
     hanging = parent.add_child(HangingChild)
@@ -309,45 +309,81 @@ async def test_shutdown_propagation_timeout_forces_terminal_state():
 
     await parent.shutdown()
 
-    # Parent should complete despite the hanging child
     assert parent.shutdown_completed is True
-    # Hanging child should be forced to terminal state
     assert hanging.shutdown_completed is True
     assert hanging.shutting_down is False
-    # Normal child should also be shut down (gather runs concurrently)
+    hanging_report = hanging.teardown_report
+    assert hanging_report is not None
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in hanging_report.causes
     assert normal.shutdown_completed is True
 
 
-async def test_resource_own_hanging_hook_wins_race_against_coordinator_timeout():
-    """A resource's own hanging hook must resolve via ``run_hooks()``'s
-    ``asyncio.timeout(hooks_pool_remaining(...))`` bound — recording ``SHUTDOWN_HOOK_FAILED``
-    and letting ``_shutdown_body()`` proceed through its later stages — rather than losing the
-    race to the coordinator's own outer ``asyncio.wait([body_task], timeout=timeout)`` bound.
-
-    The up-front budget's ``COORDINATOR_MARGIN_FRACTION`` fixes the *ordering* by construction
-    (hooks pool < body deadline < total deadline), but ordering alone is not what makes this
-    test pass: the body task still has to be scheduled and reach ``run_hooks()`` before the
-    coordinator's outer bound expires. The real invariant is therefore the absolute wall-clock
-    gap between the hooks pool and the total deadline, which must stay generous enough to
-    absorb CI scheduling jitter — hence ``GENEROUS_SHUTDOWN_TIMEOUT_SECONDS`` rather than the
-    short timeout the force-terminal tests use. That short value leaves under 100ms of margin,
-    which a loaded ``-n 4`` runner reaches; the coordinator's outer wait then fires first and
-    the report carries ``FORCED_TERMINAL`` + ``SHUTDOWN_BODY_TIMED_OUT`` with no hook evidence
-    at all.
+async def test_hanging_hook_is_cut_off_by_its_own_bound_and_recorded_as_timed_out():
+    """A hook that outlives ``shutdown_timeout_seconds`` is cancelled and recorded as timed out, not
+    raised, and the body carries on through its later stages without being force-terminated.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     resource = HangingChild(hassette)
     await resource.initialize()
 
     report = await resource.shutdown()
 
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes
-    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT not in report.causes, (
-        "the hook's own inner timeout must resolve before the coordinator's outer bound fires"
-    )
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED not in report.causes
     assert TeardownCause.FORCED_TERMINAL not in report.causes
+    assert resource.status == ResourceStatus.STOPPED
+
+
+class TimeoutRaisingChild(Resource):
+    """Resource whose ``on_shutdown()`` raises ``TimeoutError`` itself, well inside its bound."""
+
+    async def on_shutdown(self) -> None:
+        raise TimeoutError("the hook's own operation timed out")
+
+
+async def test_hook_raising_timeout_error_is_recorded_as_failed_not_timed_out():
+    """A hook that raises ``TimeoutError`` on its own raised; only a hook its bound cut off timed out."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = TimeoutRaisingChild(hassette)
+    await resource.initialize()
+
+    report = await resource.shutdown()
+
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT not in report.causes
+
+
+async def test_hook_bound_is_clamped_to_the_shutdown_deadline():
+    """A hanging hook gets ``shutdown_timeout_seconds`` shortened to what is left of the deadline."""
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.shutdown_timeout_seconds = 30.0
+
+    resource = HangingChild(hassette)
+    await resource.initialize()
+    resource._shutdown_deadline = deadline_in(0.2)
+
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
+    report = await asyncio.wait_for(resource.shutdown(), timeout=10)
+    elapsed = loop.time() - start_time
+
+    assert elapsed < 3.0, f"the hook ran past the 0.2s deadline toward its 30s cap ({elapsed:.2f}s)"
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+
+
+async def test_accepted_initialization_clears_the_previous_shutdown_deadline():
+    """A deadline belongs to one shutdown attempt; re-initializing after a clean stop clears it."""
+    resource = await make_initialized_shutdown_counter()
+    resource._shutdown_deadline = deadline_in(5.0)
+
+    report = await resource.shutdown()
+    assert report.is_restart_safe is True
+
+    await resource.initialize()
+
+    assert resource._shutdown_deadline is None
 
 
 async def test_cancelling_one_shutdown_awaiter_does_not_cancel_shared_attempt():
@@ -431,48 +467,49 @@ async def test_shutdown_rejects_reentrant_call_from_shutdown_hook():
 class TrulyResistantChild(Resource):
     """Resource whose ``on_shutdown()`` catches its own cancellation and re-blocks forever.
 
-    Distinct from ``HangingChild``: a plain ``Event().wait()`` with no ``except CancelledError``
-    is caught by ``run_hooks()``'s own ``asyncio.timeout(hooks_pool_remaining(...))`` bound
-    (``bound_to_shutdown_budget=True`` in ``base.py``'s ``_shutdown_body()``) and resolves with
-    a ``TimeoutError`` inside the shutdown body itself -- it no longer needs the outer coordinator
-    to force-cancel it. Swallowing the injected ``CancelledError`` and re-awaiting a fresh
-    ``Event().wait()`` genuinely resists that inner bound too (the timeout context manager only
-    injects cancellation once), so this is what still exercises the coordinator's own external
-    force-cancel fallback this test targets.
+    Distinct from ``HangingChild``: a plain ``Event().wait()`` is cut off by its hook bound and
+    resolves inside the shutdown body. Swallowing the injected ``CancelledError`` and re-awaiting
+    resists that bound too (the timeout context manager only injects cancellation once), so only the
+    operation's owner walking away -- ``_force_terminal()`` -- can end its shutdown.
     """
+
+    swallowed: asyncio.Event
+
+    async def on_initialize(self) -> None:
+        self.swallowed = asyncio.Event()
 
     async def on_shutdown(self) -> None:
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:  # noqa: ASYNC103 -- deliberately swallowed, this is the point of the test
+            self.swallowed.set()
             await asyncio.Event().wait()  # ignore cancellation and hang forever
 
 
-async def test_resistant_shutdown_body_is_cancelled_after_coordinator_times_out():
-    """A shutdown body that outlives the coordinator's bounded observation window is cancelled
-    by the coordinator itself in the timeout branch -- it is not left running as an orphaned,
-    unobserved task once every external joiner (the ``shutdown()`` caller) has returned.
+async def test_resistant_hook_holds_shutdown_until_the_owner_force_terminates():
+    """Nothing inside the shutdown walks away from a hook that swallows its cancellation: the attempt
+    waits until the owner force-terminates the resource, then every caller gets the forced report and
+    the body is cancelled rather than left running unobserved.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     resource = TrulyResistantChild(hassette)
     await resource.initialize()
 
-    report = await resource.shutdown()
+    shutdown = asyncio.create_task(resource.shutdown())
+    await asyncio.wait_for(resource.swallowed.wait(), timeout=5)
+    assert not shutdown.done(), "an interior node must not walk away from a body that outlives its hooks' bound"
 
-    # The coordinator's timeout branch calls body_task.cancel() itself before returning --
-    # the body (blocked forever on TrulyResistantChild.on_shutdown()'s re-blocking Event().wait())
-    # does not outlive the coordinator as an orphaned task.
+    resource._force_terminal()
+    report = await asyncio.wait_for(shutdown, timeout=5)
+
+    assert TeardownCause.FORCED_TERMINAL in report.causes
+    assert report.is_restart_safe is False
     body_task = resource._shutdown_body_task
     assert body_task is not None
-    assert report.is_restart_safe is False  # timed-out/pending body is never restart-safe evidence
-
-    # Let the requested cancellation actually land, then confirm the exception observer already
-    # consumed the CancelledError -- i.e. task.cancelled() can be read afterward without raising
-    # because the done callback already retrieved it.
     with contextlib.suppress(asyncio.CancelledError):
-        await body_task
+        await asyncio.wait_for(body_task, timeout=5)
     assert body_task.cancelled()
 
 
@@ -543,59 +580,6 @@ async def test_shutdown_children_merges_child_report_when_shutdown_raises():
     assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
 
 
-async def test_shutdown_children_timeout_preserves_finished_safe_child_report():
-    """A wave that times out force-terminates only the children still unfinished at that
-    point -- a child that already completed cleanly keeps its own restart-safe report unchanged,
-    while the unfinished (hanging) child is force-terminated and the parent is
-    restart-unsafe overall.
-
-    Uses ``TrulyResistantChild``, not ``HangingChild``: with ``bound_to_shutdown_budget=True``
-    on ``run_hooks()``, ``HangingChild.on_shutdown()`` now resolves on its own (as
-    ``SHUTDOWN_HOOK_FAILED``) well within ``resource_shutdown_timeout_seconds``.
-    ``TrulyResistantChild`` never lets its shutdown hook resolve on its own, so only an
-    external force-terminate call can stop it.
-
-    The child's own coordinator now self-resolves at ``resource_shutdown_timeout_seconds *
-    (1 - COORDINATOR_MARGIN_FRACTION)`` (its own ``body_deadline``, honored by the
-    coordinator's outer wait) -- reliably *before* an ancestor whose wave-level timeout used
-    that same full duration, which would make the child's own internal timeout win the race
-    every time instead of the parent's. The parent below is therefore given its own explicit,
-    much tighter budget so its wave-level timeout is what force-terminates the still-hanging
-    child, which is what this test targets.
-    """
-    hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
-
-    parent = SimpleParent(hassette)
-    hanging = parent.add_child(TrulyResistantChild)
-    normal = parent.add_child(ShutdownCounter)
-
-    await parent.initialize()
-    await hanging.initialize()
-    await normal.initialize()
-
-    # Call _shutdown_children() directly rather than the full shutdown() coordinator, with an
-    # explicit budget much tighter than the child's own resource_shutdown_timeout_seconds --
-    # see the docstring above for why this must now be deliberately shorter than the child's
-    # own margin-adjusted self-resolution time, not merely different from it.
-    parent._shutdown_budget = compute_shutdown_budget(0.05, asyncio.get_running_loop().time())
-    report = await parent._shutdown_children()
-
-    assert report.is_restart_safe is False
-    assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in report.causes
-
-    hanging_report = hanging.teardown_report
-    assert hanging_report is not None
-    assert hanging_report.is_restart_safe is False
-    assert TeardownCause.FORCED_TERMINAL in hanging_report.causes
-
-    normal_report = normal.teardown_report
-    assert normal_report is not None
-    assert normal_report.is_restart_safe is True, (
-        "a child that already completed cleanly before the wave timed out must keep its restart-safe report"
-    )
-
-
 async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pending_tasks():
     """The TaskBucket shutdown stage seals the bucket and records ``TASKS_PENDING`` with the
     straggling task's name -- before ``cleanup()`` runs, so a task spawned before shutdown but
@@ -656,26 +640,18 @@ async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pendi
 
 
 class SlowCleanupParent(SimpleParent):
-    """Parent whose ``cleanup()`` consumes a large, real fraction of the shared shutdown
-    deadline before completing on its own (not by hitting any timeout).
-    """
+    """Parent whose ``cleanup()`` would run past its fixed ``CLEANUP_SECONDS`` cap."""
 
     async def cleanup(self) -> None:
-        await asyncio.sleep(0.6)
+        await asyncio.sleep(5)
 
 
-async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
-    """Regression: children must be bounded by the body deadline even when cleanup is slow.
-
-    ``SlowCleanupParent.cleanup()`` takes 0.6s of real wall-clock time. With a 5.0s total
-    budget, the up-front allocation gives task-cancel 1.0s, cleanup 0.5s, and children the
-    remaining body budget (body_deadline - now). The cleanup's real 0.6s exceeds its 0.5s
-    allocation (it times out), so children start with the body_deadline already partly spent.
-    The key property: the whole post-hook stage still finishes within the body_deadline, not
-    an independent fresh timeout window after cleanup.
+async def test_slow_cleanup_is_cut_at_its_cap_and_children_still_shut_down():
+    """``cleanup()`` gets ``CLEANUP_SECONDS``; one that runs longer is cut off, and the children's
+    shutdown and the STOPPED event still follow.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = SlowCleanupParent(hassette)
     hanging = parent.add_child(HangingChild)
@@ -683,16 +659,13 @@ async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
     await hanging.initialize()
 
     loop = asyncio.get_running_loop()
-    parent._shutdown_budget = compute_shutdown_budget(GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, loop.time())
     start_time = loop.time()
-
     report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
     elapsed = loop.time() - start_time
 
-    assert report.is_restart_safe is False, "the hanging child must produce an unsafe report"
-    assert elapsed < GENEROUS_SHUTDOWN_TIMEOUT_SECONDS + 0.5, (
-        f"the post-hook stage must finish within the body budget — took {elapsed:.2f}s"
-    )
+    assert report.is_restart_safe is False, "the cut-off cleanup and the hanging child must produce an unsafe report"
+    assert elapsed < 3.0, f"cleanup ran past its cap ({elapsed:.2f}s)"
+    assert hanging.shutdown_completed is True
 
     stopped_events = [
         call.args[0]
@@ -702,118 +675,27 @@ async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
     assert stopped_events, "the STOPPED event must still be emitted after a slow cleanup()"
 
 
-class _ObserveTimer:
-    """Fake ``_observe_active_initializer``: sleeps for ``seconds``, then records the actually
-    measured duration in ``actual_elapsed`` -- read after the sleep so callers self-calibrate
-    against real scheduling variance instead of assuming the sleep took exactly ``seconds``.
+class SlowBodyResource(Resource):
+    """Resource whose shutdown body itself (not a hook) takes longer than ``shutdown_timeout_seconds``."""
+
+    async def _shutdown_body(self) -> TeardownReport:
+        await asyncio.sleep(0.3)
+        return await super()._shutdown_body()
+
+
+async def test_coordinator_waits_for_the_body_without_a_bound_of_its_own():
+    """Only leaves bound themselves: a body that outlasts ``shutdown_timeout_seconds`` without any hook
+    hanging is waited for and completes restart-safe.
     """
-
-    def __init__(self, seconds: float) -> None:
-        self.seconds = seconds
-        self.actual_elapsed = 0.0
-
-    async def __call__(self, _resource: object) -> bool:
-        loop = asyncio.get_running_loop()
-        before = loop.time()
-        await asyncio.sleep(self.seconds)
-        self.actual_elapsed = loop.time() - before
-        return True
-
-
-class _WaitCapture:
-    """Fake ``asyncio.wait``: records the ``timeout`` it's called with in ``timeout``, then
-    reports the task as still pending without actually waiting.
-
-    Patches ``asyncio.wait`` process-wide, not just ``lifecycle.py``'s reference to it, so the
-    exercised path must call it exactly once for this capture to be unambiguous:
-    ``_ObserveTimer`` above replaces the initializer-observation phase's own inner
-    ``asyncio.wait`` call entirely (see ``lifecycle.py:741``) rather than letting it run for
-    real, leaving only the coordinator's outer wait (``lifecycle.py:811``) to hit this patch.
-    """
-
-    def __init__(self) -> None:
-        self.timeout: float | None = None
-
-    async def __call__(self, tasks: object, *, timeout: float | None = None) -> tuple[set, set]:
-        self.timeout = timeout
-        return set(), set(tasks)  # (done, pending) -- "still pending" drives the coordinator's timeout branch
-
-
-async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeypatch):
-    """Regression: the coordinator's outer wait on the shutdown body must be bounded by the
-    remaining time to the shared, un-margin-reduced ``total_deadline`` (``now0 + timeout``),
-    not a fresh copy of the full configured timeout measured from whenever the outer wait
-    itself happens to start -- otherwise a shutdown attempt whose initializer-observation
-    phase already spent real time from the same budget gets that spent time PLUS a full
-    timeout again, roughly doubling worst-case shutdown time.
-
-    Asserts directly on the ``timeout`` value the coordinator computes and passes to its outer
-    ``asyncio.wait(timeout=...)`` bound (via ``_WaitCapture``, which also short-circuits the
-    wait itself) rather than on the real end-to-end elapsed time of a live wait. The two correct
-    and buggy outcomes differ by exactly ``observe_seconds``, so measuring wall-clock duration end
-    to end needs a real timeout on the order of that difference and a margin on the assertion
-    tight enough to still distinguish the two -- vulnerable to ordinary event-loop scheduling
-    jitter on a shared, contended CI runner. Capturing the computed argument instead needs no
-    live wait at all, and ``_ObserveTimer`` self-calibrates the expected value against its own
-    actually measured sleep duration rather than assuming it took exactly ``observe_seconds``.
-
-    Uses ``HangingChild`` as the resource: its ``on_shutdown()`` never completes on its own, so
-    ``body_task`` is still pending when the mocked wait returns "not done", and the coordinator's
-    own ``if not body_task.done(): body_task.cancel()`` branch is what actually ends it (awaited
-    to completion in the ``finally`` block below). ``TrulyResistantChild``'s cancellation-resistant
-    behavior is irrelevant here: the mocked wait never actually suspends, so ``body_task`` never
-    gets a scheduling turn to run any of its own code before that cancel fires -- a plain hang
-    that never completes exercises the coordinator's branch identically, with less fixture
-    machinery.
-    """
-    observe_seconds = 0.3
-    total_timeout_seconds = 1.0
-    # Generous headroom over the scheduling jitter of the one real `asyncio.sleep()` in
-    # `_ObserveTimer` (typically sub-millisecond to a few ms even under load), while staying far
-    # below `observe_seconds` -- the gap a buggy fresh-timeout value would actually produce --
-    # so it cannot mask a real regression.
-    wait_timeout_epsilon_seconds = 0.05
-    # Safety net only: bounds the cleanup wait below so a coordinator regression that stops
-    # cancelling body_task fails this test outright instead of hanging the suite.
-    cleanup_wait_timeout_seconds = 2.0
-
-    observe_timer = _ObserveTimer(observe_seconds)
-    monkeypatch.setattr(lifecycle, "_observe_active_initializer", observe_timer)
-
-    wait_capture = _WaitCapture()
-    monkeypatch.setattr(asyncio, "wait", wait_capture)
-
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = total_timeout_seconds
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
-    resource = HangingChild(hassette)
+    resource = SlowBodyResource(hassette)
     await resource.initialize()
 
     report = await resource.shutdown()
 
-    try:
-        assert report.is_restart_safe is False
-        # Correct behavior passes total_deadline_remaining() -- the shared deadline minus
-        # whatever the observe phase actually consumed, clamped to zero the same way production
-        # clamps it (shutdown_budget.py's total_deadline_remaining()). With this test's fixed
-        # `observe_seconds`/`total_timeout_seconds` the clamp never actually engages -- it exists
-        # so this expectation stays correct (rather than going negative) if scheduling delays ever
-        # push the real observe-phase sleep past the total budget. The bug this guards against
-        # passes a fresh `total_timeout_seconds` instead, ignoring that consumption entirely; the
-        # two differ by `observe_timer.actual_elapsed`, comfortably above the epsilon below.
-        expected_wait_timeout = max(0.0, total_timeout_seconds - observe_timer.actual_elapsed)
-        assert wait_capture.timeout == pytest.approx(expected_wait_timeout, abs=wait_timeout_epsilon_seconds), (
-            "outer body wait must be bounded by the remaining shared deadline, not a fresh "
-            f"timeout -- captured {wait_capture.timeout}, expected ~{expected_wait_timeout:.3f}"
-        )
-    finally:
-        # The coordinator's own else-branch above already cancelled body_task once; a plain
-        # hang only needs that single cancel to finish, unlike TrulyResistantChild elsewhere in
-        # this file, which needs a second one to defeat its own re-blocking.
-        body_task = resource._shutdown_body_task
-        if body_task is not None:
-            with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.wait_for(body_task, timeout=cleanup_wait_timeout_seconds)
+    assert report.is_restart_safe is True, f"expected a clean report, got causes={report.causes}"
 
 
 def raise_boom(_resource, _reason=None):
@@ -929,13 +811,7 @@ async def test_shutdown_children_survives_root_bucket_sealed_as_global_factory_b
 
 
 class ThreeHangingHooksParent(Resource):
-    """Resource with three hook stages that all hang: ``before_shutdown``,
-    ``on_shutdown``, and ``after_shutdown`` each do ``asyncio.Event().wait()``.
-
-    The hooks pool is shared across all three. With the up-front budget
-    allocation, the pool is bounded and all three together cannot starve the
-    mandatory tail stages (task-cancel, cleanup, children).
-    """
+    """Resource whose ``before_shutdown``, ``on_shutdown`` and ``after_shutdown`` all hang."""
 
     async def before_shutdown(self) -> None:
         await asyncio.Event().wait()
@@ -947,22 +823,12 @@ class ThreeHangingHooksParent(Resource):
         await asyncio.Event().wait()
 
 
-async def test_multiple_hanging_hooks_cannot_starve_mandatory_tail():
-    """Worst-case budget test: three hooks all hang, verifying the mandatory tail is guaranteed.
-
-    1. All hooks time out (SHUTDOWN_HOOK_FAILED) — the hooks pool is exhausted.
-    2. The mandatory tail still runs: task-cancel completes, cleanup completes, and
-       children get their guaranteed floor (CHILD_SHUTDOWN_TIMED_OUT, not
-       SHUTDOWN_BODY_TIMED_OUT — the body finishes before the coordinator abandons it).
-    3. Total elapsed time stays within the coordinator's outer budget.
-
-    This is the test that would have caught the old waterfall compounding bug: with
-    fraction-of-remainder budgets, three hooks each taking 0.9 of the shrinking
-    remainder leave negligible time for everything after them. With up-front allocation,
-    the hooks pool is bounded and the tail reservation is guaranteed.
+async def test_each_hanging_hook_gets_its_own_bound_and_the_tail_still_runs():
+    """Every hook is bounded on its own, so three hanging hooks cost three bounds, not the whole
+    shutdown; task-cancel, cleanup and children still run, and nothing is force-terminated.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = ThreeHangingHooksParent(hassette)
     hanging_child = parent.add_child(HangingChild)
@@ -971,26 +837,32 @@ async def test_multiple_hanging_hooks_cannot_starve_mandatory_tail():
 
     loop = asyncio.get_running_loop()
     start = loop.time()
-
     report = await asyncio.wait_for(parent.shutdown(), timeout=10)
-
     elapsed = loop.time() - start
 
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, (
-        "hanging hooks must be caught by the hooks pool deadline"
-    )
-    assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT not in report.causes, (
-        "the body must finish before the coordinator's outer bound — "
-        "if SHUTDOWN_BODY_TIMED_OUT appears, the mandatory tail was starved"
-    )
-    assert TeardownCause.FORCED_TERMINAL not in report.causes, (
-        "force-terminal means the coordinator gave up — the body should self-complete"
-    )
-
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert TeardownCause.FORCED_TERMINAL not in report.causes
     child_report = hanging_child.teardown_report
-    assert child_report is not None, "hanging child must have a teardown report"
-    assert child_report.is_restart_safe is False
+    assert child_report is not None
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in child_report.causes
+    assert elapsed < 3.0, f"four 0.1s hook bounds took {elapsed:.2f}s"
 
-    assert elapsed < 5.5, (
-        f"total shutdown must stay within the 5.0s coordinator budget (with margin) — took {elapsed:.2f}s"
-    )
+
+async def test_hooks_share_the_deadline_once_it_is_closer_than_their_bounds():
+    """Once the shutdown deadline is closer than ``shutdown_timeout_seconds``, every later hook gets only
+    what is left of it, so the whole shutdown ends near the deadline.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.shutdown_timeout_seconds = 30.0
+
+    parent = ThreeHangingHooksParent(hassette)
+    await parent.initialize()
+    parent._shutdown_deadline = deadline_in(0.3)
+
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+    report = await asyncio.wait_for(parent.shutdown(), timeout=10)
+    elapsed = loop.time() - start
+
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert elapsed < 3.0, f"hooks ran past the 0.3s deadline ({elapsed:.2f}s)"

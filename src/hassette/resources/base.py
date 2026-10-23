@@ -377,18 +377,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         gap because force-terminal is nearly always followed by process exit.
 
         Seals the TaskBucket and takes its synchronous pending-name snapshot before recording
-        the report, so a whole-body-deadline force-terminal call (triggered by the shutdown
-        coordinator in ``lifecycle.py`` when ``_shutdown_body()`` itself never reaches its own
-        TaskBucket stage -- see ``_run_task_bucket_shutdown_stage()``) still records TaskBucket's
+        the report, so a force-terminal call from a deadline owner walking away (the root's exit
+        stages, ``AppLifecycleService``'s entry deadline) while ``_shutdown_body()`` never reached its
+        own TaskBucket stage -- see ``_run_task_bucket_shutdown_stage()`` -- still records TaskBucket's
         final pending names even though the interrupted body's own stage never returned.
 
         The "leave an already-completed report unchanged" guard below only skips re-recording
         that report -- it does NOT skip the recursion into children. A resource whose own report
         was already stored (e.g. a clean teardown, or an earlier force-terminal call) can still
-        have unresponsive descendants of its own; ``Hassette._shutdown_body()`` calls
-        ``child._force_terminal()`` unconditionally on the total-timeout path specifically to
-        reach those descendants, so returning early here would leave a hung grandchild's tasks
-        alive after shutdown has already declared the tree terminal.
+        have unresponsive descendants of its own; a deadline owner force-terminates every
+        unfinished child of its stage specifically to reach those descendants, so returning early
+        here would leave a hung grandchild's tasks alive after shutdown has already declared the
+        tree terminal.
         """
         if self._teardown_report is None:
             self.task_bucket.seal()

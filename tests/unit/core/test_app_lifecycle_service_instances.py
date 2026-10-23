@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 from hassette_wire import ResourceStatus
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.resources.shutdown_deadline import deadline_in
+from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing import EventCapture
@@ -340,7 +342,7 @@ class TestCleanupFailedInstance:
 class TestShutdownInstance:
     async def test_calls_shutdown(self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock) -> None:
         """Calls inst.shutdown()."""
-        await lifecycle_service.shutdown_instance(mock_app_instance)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
 
         mock_app_instance.shutdown.assert_awaited_once()
 
@@ -355,7 +357,7 @@ class TestShutdownInstance:
         event_capture.install(mock_hassette)
         mock_app_instance.shutdown.side_effect = RuntimeError("Shutdown failed")
 
-        await lifecycle_service.shutdown_instance(mock_app_instance)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
 
         failed_calls = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_calls) == 1
@@ -369,10 +371,115 @@ class TestShutdownInstance:
     ) -> None:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with STOPPED status."""
         event_capture.install(mock_hassette)
-        await lifecycle_service.shutdown_instance(mock_app_instance)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
 
         stopped_calls = app_state_payloads(event_capture, ResourceStatus.STOPPED)
         assert len(stopped_calls) == 1
+
+
+class TestShutdownInstanceEntryDeadline:
+    async def test_sets_the_entry_deadline_on_the_instance(
+        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock
+    ) -> None:
+        """The stop leg runs under one deadline the length of the stop stage, set before shutdown starts."""
+        loop = asyncio.get_running_loop()
+        before = loop.time()
+
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+
+        deadline = mock_app_instance._shutdown_deadline
+        assert deadline is not None
+        assert before < deadline <= loop.time() + lifecycle_service.entry_deadline_seconds
+
+    async def test_a_caller_deadline_only_shortens_the_entry_deadline(
+        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock
+    ) -> None:
+        """Process exit passes what is left of its stop stage; the instance gets the closer of the two."""
+        outer = deadline_in(1.0)
+
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, deadline=outer)
+
+        assert mock_app_instance._shutdown_deadline == outer
+
+    async def test_walks_away_from_a_stop_that_outlives_its_deadline(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """On expiry the instance is force-terminated, its listeners and jobs are removed by owner, it is
+        recorded as force-terminated work, and it is reported FAILED with a registry failure entry.
+        """
+        event_capture.install(mock_hassette)
+        mock_hassette.record_force_terminated = Mock()
+
+        async def hang() -> TeardownReport:
+            await asyncio.Event().wait()
+            return TeardownReport()
+
+        mock_app_instance.shutdown = AsyncMock(side_effect=hang)
+        mock_app_instance._force_terminal = Mock()
+        mock_app_instance.teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+
+        report = await asyncio.wait_for(
+            lifecycle_service.shutdown_instance(mock_app_instance, 3, deadline=deadline_in(0.1)), timeout=5
+        )
+
+        assert report is not None
+        assert TeardownCause.FORCED_TERMINAL in report.causes
+        mock_app_instance._force_terminal.assert_called_once()
+        mock_app_instance.bus.remove_all_listeners.assert_called_once()
+        mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
+        mock_hassette.record_force_terminated.assert_called_once_with([mock_app_instance.unique_name])
+        mock_registry.record_failure.assert_called_once()
+        app_key, index, exc = mock_registry.record_failure.call_args.args
+        assert (app_key, index) == (mock_app_instance.app_key, 3)
+        assert isinstance(exc, TimeoutError)
+        assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
+        assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
+
+    async def test_a_timed_out_hook_reports_failed_without_walking_away(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """A stop that finished but whose hook was cut off at its bound is FAILED with a registry entry."""
+        event_capture.install(mock_hassette)
+        mock_app_instance.shutdown = AsyncMock(
+            return_value=TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_TIMED_OUT,))
+        )
+        mock_app_instance._force_terminal = Mock()
+
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+
+        mock_app_instance._force_terminal.assert_not_called()
+        mock_registry.record_failure.assert_called_once()
+        assert isinstance(mock_registry.record_failure.call_args.args[2], TimeoutError)
+        assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
+
+    async def test_a_raised_hook_still_reports_stopped(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+        event_capture: EventCapture,
+    ) -> None:
+        """Only a timed-out stop is FAILED here; a hook that raised is evidence on the report, not a timeout."""
+        event_capture.install(mock_hassette)
+        mock_app_instance.shutdown = AsyncMock(
+            return_value=TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,))
+        )
+
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+
+        mock_registry.record_failure.assert_not_called()
+        assert len(app_state_payloads(event_capture, ResourceStatus.STOPPED)) == 1
 
 
 class TestShutdownInstances:
@@ -380,11 +487,32 @@ class TestShutdownInstances:
         """Returns early for empty instances dict."""
         await lifecycle_service.shutdown_instances({})
 
+    async def test_stops_instances_concurrently(self, lifecycle_service: AppLifecycleService) -> None:
+        """No instance's hooks wait on another's: two slow stops take about as long as one."""
+        stop_seconds = 0.3
+
+        async def slow_stop() -> TeardownReport:
+            await asyncio.sleep(stop_seconds)
+            return TeardownReport()
+
+        instances = {}
+        for idx in range(2):
+            inst = make_mock_app_instance(instance_name=f"inst_{idx}")
+            inst.shutdown = AsyncMock(side_effect=slow_stop)
+            instances[idx] = inst
+
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        await lifecycle_service.shutdown_instances(instances)
+        elapsed = loop.time() - start
+
+        assert elapsed < stop_seconds * 2, f"instances stopped one after another ({elapsed:.2f}s)"
+
     async def test_calls_shutdown_for_each(self, lifecycle_service: AppLifecycleService) -> None:
         """Calls shutdown for each app instance."""
-        app1 = AsyncMock()
+        app1 = make_mock_app_instance(instance_name="app1")
         app1.status = ResourceStatus.RUNNING
-        app2 = AsyncMock()
+        app2 = make_mock_app_instance(instance_name="app2")
         app2.status = ResourceStatus.RUNNING
 
         instances = {0: app1, 1: app2}
@@ -418,9 +546,9 @@ class TestShutdownAll:
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
         """Calls shutdown for each app in registry."""
-        app1 = AsyncMock()
+        app1 = make_mock_app_instance(instance_name="app1")
         app1.status = ResourceStatus.RUNNING
-        app2 = AsyncMock()
+        app2 = make_mock_app_instance(instance_name="app2")
         app2.status = ResourceStatus.RUNNING
 
         set_registry_apps(mock_registry, {"app1": {0: app1}, "app2": {0: app2}})

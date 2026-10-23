@@ -14,6 +14,7 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
+from hassette.resources.teardown import TeardownReport
 from hassette.testing import EventCapture
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
@@ -387,7 +388,7 @@ class TestStopApp:
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
         """Unregisters app and shuts down its instances."""
-        app1 = AsyncMock()
+        app1 = make_mock_app_instance()
         app1.status = ResourceStatus.RUNNING
         instances = {0: app1}
         mock_registry.unregister_app = Mock(return_value=instances)
@@ -497,12 +498,13 @@ class TestShutdownInstanceLogContext:
         inst.app_key = "my_app"
         bound: dict[str, object] = {}
 
-        async def capture_context() -> None:
+        async def capture_context() -> TeardownReport:
             bound.update(structlog.contextvars.get_contextvars())
+            return TeardownReport()
 
         inst.shutdown = AsyncMock(side_effect=capture_context)
 
-        await lifecycle_service.shutdown_instance(inst, instance_index=0)
+        await lifecycle_service.shutdown_instance(inst, 0)
 
         assert bound["app_key"] == "my_app"
         assert bound["instance_name"] == "inst_0"

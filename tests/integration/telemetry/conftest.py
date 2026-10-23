@@ -10,7 +10,7 @@ import pytest
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from tests.support.helpers import (
     DB_HASSETTE_DATABASE_MAX_SIZE_MB,
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
 )
 from tests.support.mock_hassette import make_mock_hassette
@@ -28,7 +28,7 @@ def db_hassette(premigrated_db_path: Path) -> MagicMock:
             "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
             "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
         },
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
+        lifecycle={"shutdown_timeout_seconds": DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS},
         web_api={"run": True},
     )
 

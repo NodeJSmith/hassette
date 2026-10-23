@@ -55,7 +55,7 @@ if not _HASS_HASSETTE_VERSION:
     raise RuntimeError(f"HASS_HASSETTE_VERSION not found in {_DEMO_ENV_PATH}")
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
-SHUTDOWN_TIMEOUT = 30  # seconds — matches Hassette's total_shutdown_timeout_seconds
+SHUTDOWN_TIMEOUT = 45  # seconds — matches Hassette's total_shutdown_timeout_seconds
 
 EventT = TypeVar("EventT", bound=Event[Any])
 

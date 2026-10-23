@@ -44,7 +44,7 @@ def make_watcher_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
     hassette = make_mock_hassette(
         sealed=False,
         strict_lifecycle=strict_lifecycle,
-        lifecycle={"resource_shutdown_timeout_seconds": 1, "task_cancellation_timeout_seconds": 1},
+        lifecycle={"shutdown_timeout_seconds": 1, "task_cancellation_timeout_seconds": 1},
     )
     hassette.send_event = AsyncMock()
     hassette.shutdown = AsyncMock()

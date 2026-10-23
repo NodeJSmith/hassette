@@ -17,7 +17,7 @@ from hassette.exceptions import TelemetryUnavailableError
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.helpers import (
     DB_HASSETTE_DATABASE_MAX_SIZE_MB,
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
 )
 from tests.support.mock_hassette import make_mock_hassette
@@ -59,7 +59,7 @@ class TestReadTimeout:
                 "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
                 "read_timeout_seconds": SHORT_READ_TIMEOUT_SECONDS,
             },
-            lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
+            lifecycle={"shutdown_timeout_seconds": DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS},
             web_api={"run": True},
         )
 

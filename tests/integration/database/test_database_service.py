@@ -11,7 +11,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.core.database_write_queue import detach_write_queue
-from hassette.resources.shutdown_budget import compute_shutdown_budget
+from hassette.resources.shutdown_deadline import deadline_in
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.integration.database.conftest import seed_app_executions
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, async_noop, seed_listener_for_fk
@@ -379,19 +379,18 @@ async def test_shutdown_drain_is_bounded_when_worker_is_dead(service: DatabaseSe
     await asyncio.gather(service._db_worker_task, return_exceptions=True)
     assert service.enqueue(async_noop()) is True
 
-    with patch("hassette.core.database_write_queue._SHUTDOWN_DRAIN_TIMEOUT_SECONDS", 0.05):
+    with patch("hassette.core.database_service.SHUTDOWN_DRAIN_TIMEOUT_SECONDS", 0.05):
         await asyncio.wait_for(service.on_shutdown(), timeout=5.0)
 
     assert service._db is None, "Database connection should be closed after a bounded drain"
     assert service._db_write_queue is None
 
 
-async def test_shutdown_drain_is_bounded_by_the_remaining_hooks_pool(service: DatabaseService) -> None:
-    """A hooks pool smaller than _SHUTDOWN_DRAIN_TIMEOUT_SECONDS is what bounds the drain.
+async def test_shutdown_drain_is_clamped_to_the_shutdown_deadline(service: DatabaseService) -> None:
+    """A shutdown deadline closer than SHUTDOWN_DRAIN_TIMEOUT_SECONDS is what bounds the drain.
 
-    run_hooks() already cancels on_shutdown() at the hooks-pool deadline, so a drain that
-    outlasts the pool loses close_connections() entirely. Note this test deliberately does not
-    patch _SHUTDOWN_DRAIN_TIMEOUT_SECONDS — the 5s constant must lose to the pool share.
+    Deliberately does not patch SHUTDOWN_DRAIN_TIMEOUT_SECONDS: the 5s cap must lose to the deadline,
+    so the connections still close before the foundation stage walks away.
     """
     await service.on_initialize()
 
@@ -400,15 +399,14 @@ async def test_shutdown_drain_is_bounded_by_the_remaining_hooks_pool(service: Da
     await asyncio.gather(service._db_worker_task, return_exceptions=True)
     assert service.enqueue(async_noop()) is True
 
-    # A tiny total scales every stage down proportionally, leaving a hooks pool far under 5s.
     loop = asyncio.get_running_loop()
-    service._shutdown_budget = compute_shutdown_budget(0.2, loop.time())
+    service._shutdown_deadline = deadline_in(0.2)
 
     started = loop.time()
     await asyncio.wait_for(service.on_shutdown(), timeout=5.0)
     elapsed = loop.time() - started
 
-    assert elapsed < 1.0, f"drain ignored the hooks pool and used the 5s constant instead ({elapsed:.2f}s)"
+    assert elapsed < 1.0, f"drain ignored the shutdown deadline and used the 5s cap instead ({elapsed:.2f}s)"
     assert service._db is None, "Database connection should be closed after a bounded drain"
 
 

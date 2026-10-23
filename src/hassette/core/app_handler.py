@@ -139,7 +139,11 @@ class AppHandler(Resource):
         return merge_teardown_reports(apps_report, children_report)
 
     def _force_terminal(self) -> None:
-        """Also force-terminate the registry apps, which are not children of this handler."""
+        """Also force-terminate the registry apps, which are not children of this handler.
+
+        A runtime stop or reload already in flight has unregistered its instances, so this doesn't reach
+        them; their own entry deadline bounds them instead.
+        """
         for app_key in self.registry.app_keys():
             for inst in self.registry.get_running_apps(app_key).values():
                 inst._force_terminal()

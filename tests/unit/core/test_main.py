@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.exceptions import ConfigError
+from hassette.exceptions import ConfigError, FatalError
 from hassette.resources.lifecycle import request_shutdown
-from hassette.server import _handle_sigint_signal, _sigint_wait_loop, main
+from hassette.server import EX_CONFIG, _handle_sigint_signal, _sigint_wait_loop, exit_now_if_work_force_terminated, main
 
 
 def make_mock_core_and_config(
@@ -22,6 +22,8 @@ def make_mock_core_and_config(
     """Build a mock Hassette core (run_forever mocked) and a mock config with the given token."""
     mock_core = MagicMock()
     mock_core.run_forever = AsyncMock()
+    mock_core.force_terminated_work = ()
+    mock_core.shutdown_snapshot_task = None
 
     mock_config = MagicMock()
     mock_config.token = token
@@ -262,3 +264,67 @@ async def test_main_passes_config_to_hassette() -> None:
         await main(mock_config)
 
     mock_hassette_cls.assert_called_once_with(config=mock_config)
+
+
+@contextmanager
+def patch_hard_exit() -> Iterator[MagicMock]:
+    """Patch the hard exit's ``os._exit`` and ``logging.shutdown`` so the test worker survives; yields the exit."""
+    with patch("hassette.server.os._exit") as mock_exit, patch("hassette.server.logging.shutdown"):
+        yield mock_exit
+
+
+async def test_main_does_not_hard_exit_without_abandoned_work() -> None:
+    """main() returns normally when no shutdown deadline walked away from work."""
+    mock_core, mock_config = make_mock_core_and_config()
+    with patch_hassette_and_signal_registration(mock_core), patch_hard_exit() as mock_exit:
+        await main(mock_config)
+
+    mock_exit.assert_not_called()
+
+
+async def test_main_hard_exits_zero_when_abandoned_work_is_the_only_problem() -> None:
+    """A clean run_forever() that left force-terminated work behind hard-exits with code 0."""
+    mock_core, mock_config = make_mock_core_and_config()
+    mock_core.force_terminated_work = ("AppHandler",)
+    with patch_hassette_and_signal_registration(mock_core), patch_hard_exit() as mock_exit:
+        await main(mock_config)
+
+    mock_exit.assert_called_once_with(0)
+
+
+@pytest.mark.parametrize(
+    ("exc", "code"),
+    [(FatalError("boom"), 1), (ConfigError("bad"), EX_CONFIG), (KeyboardInterrupt(), 0)],
+)
+async def test_main_hard_exits_with_the_code_run_maps_the_failure_to(exc: BaseException, code: int) -> None:
+    """When run_forever() raises and work was abandoned, the hard exit uses ``hassette run``'s exit code."""
+    mock_core, mock_config = make_mock_core_and_config()
+    mock_core.run_forever = AsyncMock(side_effect=exc)
+    mock_core.force_terminated_work = ("thread hassette-sync_0",)
+    with (
+        patch_hassette_and_signal_registration(mock_core),
+        patch_hard_exit() as mock_exit,
+        pytest.raises(type(exc)),
+    ):
+        await main(mock_config)
+
+    mock_exit.assert_called_once_with(code)
+
+
+async def test_hard_exit_waits_for_an_in_flight_shutdown_snapshot() -> None:
+    """The hard exit lets a running shutdown snapshot finish before exiting."""
+    finished = asyncio.Event()
+
+    async def snapshot() -> bool:
+        await asyncio.sleep(0.05)
+        finished.set()
+        return True
+
+    mock_core = MagicMock()
+    mock_core.force_terminated_work = ("AppHandler",)
+    mock_core.shutdown_snapshot_task = asyncio.create_task(snapshot())
+    with patch_hard_exit() as mock_exit:
+        await exit_now_if_work_force_terminated(mock_core, None)
+
+    assert finished.is_set()
+    mock_exit.assert_called_once_with(0)

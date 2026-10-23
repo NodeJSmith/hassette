@@ -12,7 +12,7 @@ from contextlib import suppress
 
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, reject_lifecycle_reentry, start
-from hassette.resources.shutdown_deadline import shutdown_hook_bound, tighten_shutdown_deadline
+from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound, tighten_shutdown_deadline
 from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
 from hassette.types.enums import ResourceRole
 from hassette.utils.service_utils import wait_for_ready
@@ -179,10 +179,10 @@ async def run_bounded_hook(resource: "Resource", method: typing.Callable[[], typ
     bound = shutdown_hook_bound(resource)
     name = getattr(method, "__name__", repr(method))
     resource.lifecycle_logger.debug(
-        "%s: entering hook %s with a %s bound",
+        "%s: entering hook %s with %s bound",
         resource.unique_name,
         name,
-        "no" if bound is None else f"{bound:.2f}s",
+        format_bound(bound),
     )
     scope = asyncio.timeout(bound)
     try:

@@ -279,8 +279,8 @@ async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_inst
         block_io_guard.uninstall()
 
 
-async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance: Hassette) -> None:
-    """before_shutdown removes bus listeners and finalizes the session.
+async def test_before_shutdown_removes_listeners_and_leaves_the_session_open(hassette_instance: Hassette) -> None:
+    """before_shutdown removes bus listeners; the session finalize waits for the foundation stage.
 
     Logging cleanup (shutdown_logging) is NOT performed here — it is handled
     by LoggingService.on_shutdown() via the Resource lifecycle dependency graph.
@@ -291,22 +291,16 @@ async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance
     await hassette_instance.before_shutdown()
 
     hassette_instance.bus.remove_all_listeners.assert_called_once()
-    hassette_instance.session_manager.finalize_session.assert_awaited_once()
+    hassette_instance.session_manager.finalize_session.assert_not_awaited()
 
 
-async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hassette_instance: Hassette) -> None:
-    """before_shutdown still finalizes session when remove_all_listeners raises.
-
-    Logging cleanup (shutdown_logging) is NOT performed here — it is handled
-    by LoggingService.on_shutdown() via the Resource lifecycle dependency graph.
-    """
+async def test_before_shutdown_survives_listener_removal_failure(hassette_instance: Hassette) -> None:
+    """before_shutdown logs and carries on when remove_all_listeners raises."""
     hassette_instance.bus.remove_all_listeners = Mock(side_effect=RuntimeError("bus error"))
-    hassette_instance.session_manager.finalize_session = AsyncMock()
 
     await hassette_instance.before_shutdown()
 
     hassette_instance.bus.remove_all_listeners.assert_called_once()
-    hassette_instance.session_manager.finalize_session.assert_awaited_once()
 
 
 def test_before_shutdown_contains_no_logging_cleanup() -> None:

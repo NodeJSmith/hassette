@@ -218,7 +218,7 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
     hassette = make_mock_hassette(
         sealed=False,
         logging={"log_level": "DEBUG", "websocket": "DEBUG", "task_bucket": "DEBUG"},
-        lifecycle={"resource_shutdown_timeout_seconds": 1, "task_cancellation_timeout_seconds": 1},
+        lifecycle={"shutdown_timeout_seconds": 1, "task_cancellation_timeout_seconds": 1},
         verify_ssl=False,
         websocket={
             "response_timeout_seconds": 1,

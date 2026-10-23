@@ -19,7 +19,7 @@ PROJECT_CONTAINER_TIMEOUT = 120
 UV_LOCK_TIMEOUT = 60
 DOCKER_CLEANUP_TIMEOUT = 30
 # `docker stop` grace period, and how fast a halted container must stop within it
-DOCKER_STOP_GRACE_SECS = 30
+DOCKER_STOP_GRACE_SECS = 60
 MAX_HALT_STOP_SECS = 10
 
 BASE_CONTAINER_ENV = {

@@ -107,8 +107,16 @@ concurrent app shutdown) and D19, listed in Assumed.
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- Foundation services opt out of the per-hook timeout via `shutdown_hook_timeout_applies = False`: D19 gives their framework steps fixed caps of their own, which `shutdown_timeout_seconds` would otherwise cut short.
+- The DB drain and the executor join clamp their fixed caps (`SHUTDOWN_DRAIN_TIMEOUT_SECONDS`, `SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS`) to the foundation stage's deadline: they are leaves, and a session finalize that ran long must not push them past the stage's walk-away.
+- `shutdown_batch()` takes an explicit `deadline` keyword so the foundation stage passes its own deadline rather than the root's stop-stage deadline.
+- Runtime instance stops in `shutdown_instances()` run concurrently, the same path exit uses.
+- A raised (not timed-out) `on_shutdown` still reports STOPPED: D5 covers timed-out stops only, and outcomes for raised hooks belong to #3111.
+- `EX_CONFIG` moved to `hassette.server` so the hard exit maps exit codes the same way `hassette run` does.
+- Session finalize moved from `Hassette.before_shutdown()` into the foundation stage, so it runs even when the stop stage timed out.
