@@ -75,6 +75,45 @@ async def test_register_job_persists_null_group(
     assert group is None, f"Expected group=None, got {group!r}"
 
 
+async def fetch_job_timing(db: aiosqlite.Connection, job_id: int) -> tuple[object, object, object]:
+    """Return the (next_run, fire_at, jitter) columns of a scheduled_jobs row."""
+    return (
+        await fetch_job_field(db, job_id, "next_run"),
+        await fetch_job_field(db, job_id, "fire_at"),
+        await fetch_job_field(db, job_id, "jitter"),
+    )
+
+
+async def test_register_job_persists_timing(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """register_job() writes next_run, fire_at, and jitter to the row."""
+    reg = make_job_registration(job_name="timed_job", next_run=1_000.0, fire_at=1_004.5, jitter=10.0)
+    job_id = await telemetry_repo.register_job(reg)
+
+    assert await fetch_job_timing(telemetry_db, job_id) == (1_000.0, 1_004.5, 10.0)
+
+
+async def test_register_job_reregistration_overwrites_timing(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """Re-registering a job overwrites its timing columns, including back to NULL."""
+    job_id = await telemetry_repo.register_job(
+        make_job_registration(job_name="timed_job", next_run=1_000.0, fire_at=1_004.5, jitter=10.0)
+    )
+
+    same_id = await telemetry_repo.register_job(
+        make_job_registration(job_name="timed_job", next_run=2_000.0, fire_at=2_000.0, jitter=None)
+    )
+    assert same_id == job_id
+    assert await fetch_job_timing(telemetry_db, job_id) == (2_000.0, 2_000.0, None)
+
+    await telemetry_repo.register_job(make_job_registration(job_name="timed_job"))
+    assert await fetch_job_timing(telemetry_db, job_id) == (None, None, None)
+
+
 async def test_mark_job_removed_sets_removed_at(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

@@ -231,6 +231,9 @@ class SchedulerService(SchedulerDispatchMixin, Service):
             human_description=human_description,
             schedule_status=job.schedule_status,
             schedule_status_reason=job.schedule_status_reason,
+            next_run=job.next_run.timestamp() if job.next_run is not None else None,
+            fire_at=job.fire_at.timestamp() if job.fire_at is not None else None,
+            jitter=job.jitter,
         )
         job.mark_registered(await self._executor.register_job(reg))
         # db_id can stay None here — a degraded registration write (or a test double)

@@ -106,6 +106,9 @@ def make_job_registration(
     mode: ExecutionMode = DEFAULT_OVERLAP_MODE,
     predicate_description: str | None = None,
     human_description: str | None = None,
+    next_run: float | None = None,
+    fire_at: float | None = None,
+    jitter: float | None = None,
 ) -> ScheduledJobRegistration:
     return ScheduledJobRegistration(
         schedule_status=ScheduleStatus.SCHEDULED,
@@ -125,6 +128,9 @@ def make_job_registration(
         mode=mode,
         predicate_description=predicate_description,
         human_description=human_description,
+        next_run=next_run,
+        fire_at=fire_at,
+        jitter=jitter,
     )
 
 

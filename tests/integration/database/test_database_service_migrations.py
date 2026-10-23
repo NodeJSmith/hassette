@@ -70,6 +70,9 @@ EXPECTED_TABLES = {
         "human_description",
         "schedule_status",
         "schedule_status_reason",
+        "next_run",
+        "fire_at",
+        "jitter",
     },
     "executions": {
         "id",
