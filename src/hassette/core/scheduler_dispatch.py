@@ -35,6 +35,7 @@ class SchedulerDispatchMixin:
     _wakeup_event: asyncio.Event
 
     def kick(self) -> None:
+        """Wake the scheduler loop so it re-checks the heap for due jobs immediately."""
         self._wakeup_event.set()
 
     async def enqueue_job(self, job: "Job") -> None:

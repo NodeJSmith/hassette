@@ -150,9 +150,20 @@ class HassetteAccessorsMixin:
         return self._command_executor
 
     def get_drop_counters(self) -> tuple[int, int, int]:
+        """Return the command executor's telemetry drop counters.
+
+        Returns:
+            ``(dropped_overflow, dropped_exhausted, dropped_shutdown)``, as reported by
+            ``CommandExecutor.get_drop_counters()``.
+        """
         return self.command_executor.get_drop_counters()
 
     def get_error_handler_failures(self) -> int:
+        """Return how many user error handler invocations raised or timed out this session.
+
+        Returns:
+            The count reported by ``CommandExecutor.get_error_handler_failures()``.
+        """
         return self.command_executor.get_error_handler_failures()
 
     def get_log_queue_drops(self) -> int:

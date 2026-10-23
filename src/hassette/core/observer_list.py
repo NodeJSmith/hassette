@@ -28,16 +28,19 @@ class ObserverList(Generic[T]):
         self._label = label
 
     def add(self, observer: T) -> None:
+        """Append an observer to the end of the list; adding one already present is a no-op."""
         if observer in self._observers:
             return
         self._observers = (*self._observers, observer)
 
     def remove(self, observer: T) -> None:
+        """Remove an observer from the list; removing one that is not registered is a no-op."""
         if observer not in self._observers:
             return
         self._observers = tuple(item for item in self._observers if item != observer)
 
     async def notify(self, *args: typing.Any) -> None:
+        """Await each observer in registration order with ``args``, logging and skipping any that raise."""
         for observer in self._observers:
             try:
                 await observer(*args)
