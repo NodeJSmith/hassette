@@ -42,6 +42,22 @@ After the shutdown hooks complete, Hassette cancels all bus subscriptions create
 !!! warning
     `initialize`, `shutdown`, and `cleanup` are marked `@final` — attempting to override any of them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time. The `before_*`, `on_*`, and `after_*` hooks are the extension points.
 
+## If `on_initialize` Fails
+
+When `on_initialize` raises or times out, Hassette marks the app instance as failed. It removes the bus subscriptions and scheduled jobs the instance registered before the failure.
+
+`on_shutdown` does not run after a failed initialization. Resources the app created itself stay open until Hassette restarts, such as an `aiohttp.ClientSession`, a third-party client, or an open file. The app closes them itself: a `try`/`except` around the steps after the resource is created closes it and re-raises.
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/lifecycle_failed_init_cleanup.py"
+```
+
+If the subscription or `refresh` raises, the `except` block closes the session. The re-raised error still marks the app as failed. On a normal stop, `on_shutdown` closes the session instead.
+
+The same applies to `after_initialize`: if it raises, the app is marked failed and `on_shutdown` is skipped. An app that overrides `after_initialize` needs the same `try`/`except` there.
+
+A timeout works differently. When `on_initialize` runs past `app_startup_timeout_seconds` (see [Startup and Shutdown Timeouts](../../operating/index.md#startup-and-shutdown-timeouts)), Hassette stops waiting and marks the app failed, but `on_initialize` is not cancelled and nothing is raised inside it. It keeps running in the background, so the `except` block never runs, and a resource it creates after the timeout is never closed. An `asyncio.timeout()` shorter than the startup timeout keeps a slow step inside the cleanup path. The `TimeoutError` it raises reaches the `except` block like any other error.
+
 ## Synchronous Lifecycle
 
 ??? note "`AppSync` lifecycle hooks"
