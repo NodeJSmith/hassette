@@ -39,9 +39,18 @@ class TelemetryQueryService(
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Log level for this service, shared with the web API via ``logging.web_api`` in the config."""
         return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:
+        """Verify the read connection uses WAL journal mode, then mark the service ready.
+
+        Marks ready immediately without touching the database when the web API is disabled.
+
+        Raises:
+            RuntimeError: If the read connection is not in WAL mode, since multi-query
+                snapshot reads depend on it.
+        """
         if not self.hassette.config.web_api.run:
             mark_ready(self, reason="Web API disabled")
             return

@@ -36,6 +36,7 @@ class EventStreamService(Resource):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Log level for this service, shared with the bus via ``logging.bus_service`` in the config."""
         return self.hassette.config.logging.bus_service
 
     @property

@@ -73,6 +73,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
     @property
     def unique_name(self) -> str:
+        """Fixed name ``"Hassette"``, since only one live coordinator runs per process at a time."""
         return "Hassette"
 
     def _get_logger_name(self) -> str:

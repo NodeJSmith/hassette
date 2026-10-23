@@ -51,6 +51,7 @@ class AppStatusSnapshot:
 
     @property
     def total_count(self) -> int:
+        """Number of tracked app instances, whether running or failed."""
         return len(self.instances)
 
     # "running" here means "has no recorded error", not "status == RUNNING" — a live instance's

@@ -193,6 +193,7 @@ class CommandExecutor(Service):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Log level for this service, read from ``logging.command_executor`` in the config."""
         return self.hassette.config.logging.command_executor
 
     async def serve(self) -> None:
