@@ -41,13 +41,20 @@ class WebUiWatcherService(Service):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the ``logging.file_watcher`` level, which this service shares with the app file watcher."""
         return self.hassette.config.logging.file_watcher
 
     async def on_initialize(self) -> None:
+        """Mark the service ready immediately when UI hot reload is disabled; otherwise ``serve`` marks it."""
         if not self.hassette.config.web_api.ui_hot_reload:
             mark_ready(self, reason="Web UI hot reload disabled")
 
     async def serve(self) -> None:
+        """Watch the web UI static and template directories and broadcast a ``dev_reload`` message per change.
+
+        Waits for shutdown without watching when hot reload is disabled, and returns early when
+        none of the directories exist.
+        """
         if not self.hassette.config.web_api.ui_hot_reload:
             await self.shutdown_event.wait()
             return

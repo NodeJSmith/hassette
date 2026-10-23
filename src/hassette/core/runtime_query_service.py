@@ -94,9 +94,14 @@ class RuntimeQueryService(Resource):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the ``logging.web_api`` level, which this service shares with the web API."""
         return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:
+        """Subscribe to the bus events the web UI streams and wire the log capture broadcast.
+
+        Marks the service ready without subscribing when the web API is disabled.
+        """
         if not self.hassette.config.web_api.run:
             mark_ready(self, reason="Web API disabled")
             return
@@ -159,6 +164,7 @@ class RuntimeQueryService(Resource):
         mark_ready(self, reason="RuntimeQueryService initialized")
 
     async def on_shutdown(self) -> None:
+        """Cancel bus subscriptions, send a close sentinel to every WS client queue, and reset drop counters."""
         # Remove bus listeners
         for sub in self._subscriptions:
             sub.cancel()
@@ -184,9 +190,11 @@ class RuntimeQueryService(Resource):
         await self.broadcast(entry)
 
     async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
+        """Dump a single wire model and broadcast it as the ``data`` of an ``event_type`` envelope."""
         await self.broadcast_envelope(event_type, payload.model_dump())
 
     async def on_app_state_changed(self, event: AnyEvent) -> None:
+        """Convert an app status change event to ``AppStatusChangedData`` and broadcast it to WS clients."""
         data = event.payload.data
         payload = AppStatusChangedData(
             app_key=data.app_key,
@@ -202,6 +210,7 @@ class RuntimeQueryService(Resource):
         await self.build_and_broadcast("app_status_changed", payload)
 
     async def on_service_status(self, event: AnyEvent) -> None:
+        """Convert a non-app service status event to ``ServiceStatusData`` and broadcast it to WS clients."""
         data = event.payload.data
         payload = ServiceStatusData(
             resource_name=data.resource_name,
@@ -226,9 +235,11 @@ class RuntimeQueryService(Resource):
         await self.build_and_broadcast("apps_changed", AppsChangedData())
 
     async def on_ws_connected(self) -> None:
+        """Broadcast a ``connectivity`` message reporting the Home Assistant connection as up."""
         await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=True))
 
     async def on_ws_disconnected(self) -> None:
+        """Broadcast a ``connectivity`` message reporting the Home Assistant connection as down."""
         await self.build_and_broadcast(WS_EVENT_CONNECTIVITY, ConnectivityData(connected=False))
 
     async def on_execution_completed(self, event: AnyEvent) -> None:
@@ -320,6 +331,15 @@ class RuntimeQueryService(Resource):
             return False
 
     def get_system_status(self) -> SystemStatusResponse:
+        """Build the system status snapshot from in-memory state.
+
+        Unreachable components (not yet wired, or torn down) report zero counts instead of raising.
+
+        Returns:
+            The status response, with ``status`` set to ``ok`` when Home Assistant is connected and
+            app bootstrap is released, ``starting`` when it has never connected, and ``degraded``
+            otherwise.
+        """
         websocket_service = self.hassette.websocket_service
         is_connected = websocket_service.is_connected
         uptime = time.time() - self._start_time
@@ -427,6 +447,12 @@ class RuntimeQueryService(Resource):
         return issues
 
     async def register_ws_client(self) -> asyncio.Queue[dict[str, Any] | None]:
+        """Register a new WS client to receive broadcasts.
+
+        Returns:
+            A bounded queue that receives each broadcast message, and ``None`` when the service
+            shuts down. Messages are dropped for this client while the queue is full.
+        """
         queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=_WS_CLIENT_QUEUE_MAX)
         async with self._lock:
             self._ws_clients.add(queue)
@@ -434,6 +460,7 @@ class RuntimeQueryService(Resource):
         return queue
 
     async def unregister_ws_client(self, queue: asyncio.Queue[dict[str, Any] | None]) -> None:
+        """Stop broadcasting to a client queue returned by ``register_ws_client``; unknown queues are ignored."""
         async with self._lock:
             self._ws_clients.discard(queue)
             count = len(self._ws_clients)

@@ -70,9 +70,19 @@ class WebApiService(Service):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the ``logging.web_api`` level, also passed to uvicorn as its log level."""
         return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:
+        """Validate the bind/auth combination and prepare auth state before serving.
+
+        When auth is enabled, resolves the auth token and trusted proxies and schedules the
+        periodic trusted-proxy refresh. Marks the service ready without doing either when the web
+        API is disabled.
+
+        Raises:
+            FatalError: If auth is disabled while binding to a non-loopback host.
+        """
         if not self.hassette.config.web_api.run:
             self.logger.warning("Web API service disabled by configuration")
             mark_ready(self, reason="Web API disabled")
@@ -148,6 +158,14 @@ class WebApiService(Service):
             self._app.state.trusted_proxies = refreshed
 
     async def serve(self) -> None:
+        """Build the FastAPI app and run uvicorn on the configured host and port until shutdown.
+
+        When the web API is disabled, waits for shutdown without starting a server. On
+        cancellation, asks a started server to shut down before re-raising.
+
+        Raises:
+            FatalError: If uvicorn cannot bind to the configured host and port.
+        """
         if not self.hassette.config.web_api.run:
             await self.shutdown_event.wait()  # stay alive so handle_stop() doesn't undo mark_ready
             return
@@ -203,11 +221,13 @@ class WebApiService(Service):
             raise
 
     async def before_shutdown(self) -> None:
+        """Set uvicorn's ``should_exit`` flag so the running server begins a graceful stop."""
         if self._server is not None:
             self.logger.debug("Signalling Web API server to shut down")
             self._server.should_exit = True
 
     async def on_shutdown(self) -> None:
+        """Drop the references to the uvicorn server and FastAPI app."""
         if self._server is not None:
             self.logger.debug("Cleaning up Web API server reference")
             self._server = None
