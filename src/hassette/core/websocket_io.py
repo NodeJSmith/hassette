@@ -258,7 +258,8 @@ class WebsocketMessageIOMixin:
             raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
 
         # The send gate is only opened after authentication assigns the socket.
-        assert self._ws is not None, "WebSocket must be initialized before sending messages"
+        if self._ws is None:
+            raise RuntimeError("WebSocket must be initialized before sending messages")
 
         if "id" not in data:
             data["id"] = self.get_next_message_id()
