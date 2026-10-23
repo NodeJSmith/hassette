@@ -12,6 +12,7 @@ file covers instance initialization, failed-instance cleanup, and instance/all-a
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
+import pytest
 from hassette_wire import ResourceStatus
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
@@ -440,6 +441,34 @@ class TestShutdownInstanceEntryDeadline:
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
         assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
 
+    async def test_a_walk_away_whose_cleanup_hangs_still_ends_and_records_the_instance(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+    ) -> None:
+        """Removing a walked-away instance's registrations is bounded by ``cleanup_timeout``, so a wedged
+        scheduler can't hold the stop past its deadline.
+        """
+        mock_hassette.record_force_terminated = Mock()
+        mock_hassette.config.lifecycle.failed_instance_cleanup_timeout_seconds = 0.1
+
+        async def hang(*_args, **_kwargs) -> TeardownReport:
+            await asyncio.Event().wait()
+            return TeardownReport()
+
+        mock_app_instance.shutdown = AsyncMock(side_effect=hang)
+        mock_app_instance._force_terminal = Mock()
+        mock_app_instance.scheduler.remove_all_jobs = AsyncMock(side_effect=hang)
+
+        await asyncio.wait_for(
+            lifecycle_service.shutdown_instance(mock_app_instance, 0, deadline=deadline_in(0.1)), timeout=5
+        )
+
+        mock_hassette.record_force_terminated.assert_called_once_with([mock_app_instance.unique_name])
+        mock_registry.record_failure.assert_called_once()
+
     async def test_a_timed_out_hook_reports_failed_without_walking_away(
         self,
         lifecycle_service: AppLifecycleService,
@@ -507,6 +536,26 @@ class TestShutdownInstances:
         elapsed = loop.time() - start
 
         assert elapsed < stop_seconds * 2, f"instances stopped one after another ({elapsed:.2f}s)"
+
+    async def test_a_raising_stop_waits_for_its_siblings_before_raising(
+        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
+    ) -> None:
+        """A stop that raises doesn't leave its sibling stops running detached."""
+        finished: list[int] = []
+
+        async def slow_stop() -> TeardownReport:
+            await asyncio.sleep(0.1)
+            finished.append(1)
+            return TeardownReport()
+
+        instances = {idx: make_mock_app_instance(instance_name=f"inst_{idx}") for idx in range(2)}
+        instances[1].shutdown = AsyncMock(side_effect=slow_stop)
+        mock_hassette.send_event = AsyncMock(side_effect=[RuntimeError("event bus down"), None, None, None])
+
+        with pytest.raises(RuntimeError, match="event bus down"):
+            await lifecycle_service.shutdown_instances(instances)
+
+        assert finished == [1]
 
     async def test_calls_shutdown_for_each(self, lifecycle_service: AppLifecycleService) -> None:
         """Calls shutdown for each app instance."""

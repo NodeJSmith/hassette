@@ -173,8 +173,9 @@ async def run_hooks(
 async def run_bounded_hook(resource: "Resource", method: typing.Callable[[], typing.Awaitable[None]]) -> None:
     """Run one shutdown hook inline under ``shutdown_hook_bound(resource)``.
 
-    Raises ``ShutdownHookTimedOutError`` when the bound expires. A hook that swallows the
-    cancellation holds this await until it returns; only the operation's owner can walk away from it.
+    Raises ``ShutdownHookTimedOutError`` when the bound expires, including when the hook catches the
+    cancellation and returns. A hook that swallows the cancellation holds this await until it returns;
+    only the operation's owner can walk away from it.
     """
     bound = shutdown_hook_bound(resource)
     name = getattr(method, "__name__", repr(method))
@@ -185,13 +186,17 @@ async def run_bounded_hook(resource: "Resource", method: typing.Callable[[], typ
         format_bound(bound),
     )
     scope = asyncio.timeout(bound)
+    timed_out = f"shutdown hook {name} timed out after {format_bound(bound)}"
     try:
         async with scope:
             await method()
     except TimeoutError as exc:
         if scope.expired():
-            raise ShutdownHookTimedOutError(f"shutdown hook {name} timed out after {bound:.2f}s") from exc
+            raise ShutdownHookTimedOutError(timed_out) from exc
         raise
+    # a hook that caught its cancellation and returned leaves the block without a TimeoutError
+    if scope.expired():
+        raise ShutdownHookTimedOutError(timed_out)
 
 
 def shutdown_hook_report(hook_errors: "tuple[Exception, ...]", operation: str) -> TeardownReport:

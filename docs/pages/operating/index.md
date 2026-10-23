@@ -184,7 +184,7 @@ Shutdown runs in two stages:
 
 Last, Hassette writes the [shutdown snapshot](../getting-started/addon/operating.md#backups), if one is configured. Nothing bounds the snapshot copy.
 
-Each hook gets `shutdown_timeout_seconds`, or less when its stage has less time left. A hook that outlives its bound is cancelled. When a stage runs out of time, Hassette stops waiting: it force-terminates whatever hasn't finished and logs one ERROR naming each component.
+Each hook gets `shutdown_timeout_seconds`, or less when its stage has less time left. A hook that outlives its bound is cancelled. `AppSync`'s shutdown hooks (`before_shutdown_sync`, `on_shutdown_sync`, `after_shutdown_sync`) share the worker-thread pool, so when more of them run at once than there are workers, the wait for a thread counts against each hook's bound. When a stage runs out of time, Hassette stops waiting: it force-terminates whatever hasn't finished and logs one ERROR naming each component.
 
 Stopping or reloading a single app at runtime gets the same limit as the stop stage. A stop that runs past it ends as a failed, timed-out stop, and the app's listeners and jobs are removed.
 
@@ -193,8 +193,10 @@ When Hassette force-terminated work at any point, or worker threads survived the
 !!! warning "Give your supervisor more time than Hassette needs"
     Set your supervisor's stop grace period above `total_shutdown_timeout_seconds` plus time for the snapshot. The Docker compose example uses 60 seconds for the 45-second default. A shorter grace period kills Hassette mid-shutdown, which can skip the session record and leave the previous snapshot in place.
 
-!!! warning "Removed settings stop Hassette from starting"
+!!! warning "Upgrading from the old shutdown settings"
     `app_shutdown_timeout_seconds`, `resource_shutdown_timeout_seconds` and `sync_executor_shutdown_timeout_seconds` no longer exist. A config that still sets one fails to load, and Hassette won't start until you remove it. Use `shutdown_timeout_seconds` for the per-hook bound.
+
+    `total_shutdown_timeout_seconds` now includes the foundation stage's fixed 20 seconds, so an explicit value leaves 20 seconds less for stopping apps than it used to. A config that set it to 30 gets a 10-second stop stage. A supervisor grace period of 45 seconds, which older versions of the compose example used, can kill Hassette before the shutdown snapshot is written; use 60.
 
 ## Scheduler Cadence
 

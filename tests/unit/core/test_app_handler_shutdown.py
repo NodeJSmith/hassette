@@ -39,12 +39,23 @@ async def test_later_apps_are_not_cut_off_at_process_exit(app_handler: AppHandle
 
 
 async def test_force_terminal_reaches_registry_apps(app_handler: AppHandler) -> None:
-    """Registry apps aren't children of the handler, so force-terminating it reaches them explicitly."""
-    inst = make_mock_app_instance(instance_name="stuck_app")
-    inst.app_key = "stuck_app"
-    inst._force_terminal = Mock()
-    app_handler.registry.register_app("stuck_app", 0, inst)
+    """Registry apps aren't children of the handler, so force-terminating it reaches them explicitly,
+    and the ones whose stop hadn't finished are named and recorded as force-terminated work.
+    """
+    app_handler.hassette.record_force_terminated = Mock()
+    instances = {}
+    for app_key, finished in (("stuck_app", False), ("done_app", True)):
+        inst = make_mock_app_instance(instance_name=app_key)
+        inst.app_key = app_key
+        inst.unique_name = f"MockApp.{app_key}"
+        inst.shutdown_completed = finished
+        inst._force_terminal = Mock()
+        app_handler.registry.register_app(app_key, 0, inst)
+        instances[app_key] = inst
 
     app_handler._force_terminal()
 
-    inst._force_terminal.assert_called_once()
+    for inst in instances.values():
+        inst._force_terminal.assert_called_once()
+    (recorded,) = app_handler.hassette.record_force_terminated.call_args.args
+    assert list(recorded) == ["MockApp.stuck_app"]

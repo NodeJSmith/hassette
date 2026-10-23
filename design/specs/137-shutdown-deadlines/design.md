@@ -1,7 +1,7 @@
 # Design: Shutdown Deadlines on Operations and Stages
 
 **Date:** 2026-10-23
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3104
 
@@ -109,7 +109,7 @@ concurrent app shutdown) and D19, listed in Assumed.
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
@@ -120,3 +120,7 @@ concurrent app shutdown) and D19, listed in Assumed.
 - A raised (not timed-out) `on_shutdown` still reports STOPPED: D5 covers timed-out stops only, and outcomes for raised hooks belong to #3111.
 - `EX_CONFIG` moved to `hassette.server` so the hard exit maps exit codes the same way `hassette run` does.
 - Session finalize moved from `Hassette.before_shutdown()` into the foundation stage, so it runs even when the stop stage timed out.
+- `AppHandler._force_terminal()` names and records the registry apps whose stop hadn't finished: at exit the root's stage timer and an app's own stop deadline are the same instant, and the root's path is the one that reliably runs, so D19's "registry apps included" lives there.
+- `SessionManager` keeps `shutdown_hook_timeout_applies = False` though it has no hooks: a test pins "foundation service ⇔ opt-out flag", and the rule stays symmetric for any hook added later.
+- Concurrent instance stops await every sibling before re-raising (`gather_all()`), so a stop that raises never leaves another running detached.
+- The entry-deadline walk-away bounds its registration cleanup with `failed_instance_cleanup_timeout_seconds`, the same bound failed-init cleanup uses.

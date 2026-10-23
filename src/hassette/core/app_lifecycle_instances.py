@@ -2,7 +2,7 @@
 
 import asyncio
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from logging import Logger
 from timeit import default_timer as timer
 
@@ -30,6 +30,8 @@ if typing.TYPE_CHECKING:
     from hassette.app.app import App
     from hassette.config.classes import AppManifest
     from hassette.core.app_registry import AppRegistry
+
+T = typing.TypeVar("T")
 
 
 class AppInstanceLifecycleMixin:
@@ -249,12 +251,20 @@ class AppInstanceLifecycleMixin:
         """Stop waiting on an instance whose stop outlived its entry deadline.
 
         Force-terminates it (which cancels its shutdown coordinator), removes its listeners and jobs by
-        owner, and records it as force-terminated work for the process's hard exit. Returns the evidence
-        force-termination left, which is incomplete (``FORCED_TERMINAL``).
+        owner (bounded by ``cleanup_timeout``, as failed-init cleanup is), and records it as force-terminated
+        work for the process's hard exit. Returns the evidence force-termination left, which is incomplete
+        (``FORCED_TERMINAL``).
         """
         inst._force_terminal()
         task.cancel()
-        await self.remove_instance_registrations(inst)
+        try:
+            with anyio.fail_after(self.cleanup_timeout):
+                await self.remove_instance_registrations(inst)
+        except TimeoutError:
+            self.logger.warning(
+                "Cleanup timed out for walked-away instance '%s' — some listeners or jobs may leak until restart",
+                inst.app_config.instance_name,
+            )
         self.hassette.record_force_terminated([inst.unique_name])
         return inst.teardown_report or TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
 
@@ -280,14 +290,15 @@ class AppInstanceLifecycleMixin:
             await self.hassette.send_event(event)
             return await self.shutdown_instance(inst, idx, deadline=deadline)
 
-        reports = await asyncio.gather(*(stop_one(idx, inst) for idx, inst in instances.items()))
+        reports = await gather_all(stop_one(idx, inst) for idx, inst in instances.items())
         return merge_teardown_reports(*(report for report in reports if report is not None))
 
     async def shutdown_all(self, *, deadline: float | None = None) -> TeardownReport:
         """Stop every registered app instance concurrently, then clear the registry.
 
         Called from ``AppHandler``'s child stage at process exit, with what is left of its stop stage as
-        ``deadline``, so no app's hooks are cut short by other apps' hooks.
+        ``deadline``, so no app's hooks are cut short by other apps' hooks. ``AppSync`` hooks share the
+        sync executor's threads, so past its worker count the wait for a thread counts against their bound.
         """
         self.logger.debug("Shutting down all apps")
         instances = [
@@ -295,9 +306,7 @@ class AppInstanceLifecycleMixin:
             for app_key in self.registry.app_keys()
             for idx, inst in self.registry.get_running_apps(app_key).items()
         ]
-        reports = await asyncio.gather(
-            *(self.shutdown_instances({idx: inst}, deadline=deadline) for idx, inst in instances)
-        )
+        reports = await gather_all(self.shutdown_instances({idx: inst}, deadline=deadline) for idx, inst in instances)
         self.registry.clear_all()
         return merge_teardown_reports(*reports) if reports else TeardownReport()
 
@@ -313,3 +322,15 @@ class AppInstanceLifecycleMixin:
             app=app, status=status, previous_status=previous_status, exception=exception
         )
         await self.hassette.send_event(event)
+
+
+async def gather_all(aws: Iterable[Awaitable[T]]) -> list[T]:
+    """Await every awaitable to the end, then re-raise the first exception any of them raised.
+
+    Unlike a plain ``asyncio.gather``, no awaitable is left running detached after another one raised.
+    """
+    results = await asyncio.gather(*aws, return_exceptions=True)
+    for result in results:
+        if isinstance(result, BaseException):
+            raise result
+    return typing.cast("list[T]", results)

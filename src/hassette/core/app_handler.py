@@ -141,12 +141,23 @@ class AppHandler(Resource):
     def _force_terminal(self) -> None:
         """Also force-terminate the registry apps, which are not children of this handler.
 
-        A runtime stop or reload already in flight has unregistered its instances, so this doesn't reach
-        them; their own entry deadline bounds them instead.
+        The root's stop-stage ERROR names only this handler, so the apps whose stop hadn't finished get
+        their own ERROR here and are recorded as force-terminated work. A runtime stop or reload already in
+        flight has unregistered its instances, so this doesn't reach them; their own entry deadline bounds
+        them instead.
         """
-        for app_key in self.registry.app_keys():
-            for inst in self.registry.get_running_apps(app_key).values():
-                inst._force_terminal()
+        instances = [
+            inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()
+        ]
+        unfinished = [inst for inst in instances if not inst.shutdown_completed]
+        if unfinished:
+            self.logger.error(
+                "Force-terminating apps whose stop hadn't finished: %s",
+                ", ".join(f"{inst.app_config.instance_name} ({inst.class_name})" for inst in unfinished),
+            )
+            self.hassette.record_force_terminated(inst.unique_name for inst in unfinished)
+        for inst in instances:
+            inst._force_terminal()
         super()._force_terminal()
 
     def is_action_in_progress(self, app_key: str) -> bool:

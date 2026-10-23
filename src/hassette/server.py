@@ -51,6 +51,9 @@ async def exit_now_if_work_force_terminated(core: Hassette, exc: BaseException |
         # the snapshot's own done-callback logs its outcome
         with suppress(BaseException):
             await asyncio.shield(snapshot)
+    if exc is not None and not isinstance(exc, KeyboardInterrupt):
+        # the hard exit never returns to `hassette run`, whose handlers would otherwise report the failure
+        LOGGER.error("Hassette is exiting after an error: %s", exc, exc_info=exc)
     LOGGER.error("Exiting without waiting for work shutdown left running: %s", ", ".join(left))
     logging.shutdown()
     os._exit(exit_code_for(exc))

@@ -294,7 +294,7 @@ async def test_main_hard_exits_zero_when_abandoned_work_is_the_only_problem() ->
 
 @pytest.mark.parametrize(
     ("exc", "code"),
-    [(FatalError("boom"), 1), (ConfigError("bad"), EX_CONFIG), (KeyboardInterrupt(), 0)],
+    [(FatalError("boom"), 1), (ConfigError("bad"), EX_CONFIG), (KeyboardInterrupt(), 0), (RuntimeError("bug"), 1)],
 )
 async def test_main_hard_exits_with_the_code_run_maps_the_failure_to(exc: BaseException, code: int) -> None:
     """When run_forever() raises and work was abandoned, the hard exit uses ``hassette run``'s exit code."""

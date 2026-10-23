@@ -379,6 +379,36 @@ class TestShutdownChildren:
         hassette._sync_executor_service.shutdown.assert_awaited_once()
         hassette._database_service.write_shutdown_snapshot.assert_awaited_once()
 
+    async def test_foundation_services_are_exactly_the_children_that_opt_out_of_the_hook_timeout(
+        self, wired_hassette: Hassette
+    ) -> None:
+        """Foundation membership is declared twice: in ``_foundation_services()`` and by each class's
+        ``shutdown_hook_timeout_applies = False``. The two must name the same children.
+        """
+        hassette = wired_hassette
+        foundation = {id(service) for service in hassette._foundation_services()}
+
+        for child in hassette.children:
+            assert (id(child) in foundation) == (not child.shutdown_hook_timeout_applies), child.class_name
+
+    async def test_foundation_stage_runs_when_the_stop_stage_raises(
+        self, wired_hassette: Hassette, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stop stage that raises still leaves the foundation stage and the snapshot to run."""
+        hassette = wired_hassette
+        for child in hassette.children:
+            child.shutdown = AsyncMock()
+        monkeypatch.setattr(hassette, "_run_stop_stage", AsyncMock(side_effect=RuntimeError("stage bookkeeping")))
+        hassette._session_manager.finalize_session = AsyncMock()
+        hassette._database_service.write_shutdown_snapshot = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="stage bookkeeping"):
+            await hassette._shutdown_children()
+
+        hassette._database_service.shutdown.assert_awaited_once()
+        hassette._sync_executor_service.shutdown.assert_awaited_once()
+        hassette._database_service.write_shutdown_snapshot.assert_awaited_once()
+
     async def test_foundation_services_are_not_stopped_in_the_stop_stage(self, wired_hassette: Hassette) -> None:
         """The session, database and executor stop only after every stop-stage child has finished."""
         hassette = wired_hassette

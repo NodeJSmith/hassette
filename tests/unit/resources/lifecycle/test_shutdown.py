@@ -336,6 +336,28 @@ async def test_hanging_hook_is_cut_off_by_its_own_bound_and_recorded_as_timed_ou
     assert resource.status == ResourceStatus.STOPPED
 
 
+class CancelSwallowingChild(Resource):
+    """Resource whose ``on_shutdown()`` catches its cancellation and returns normally."""
+
+    async def on_shutdown(self) -> None:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.sleep(1000)
+
+
+async def test_hook_that_swallows_its_cancellation_and_returns_is_recorded_as_timed_out():
+    """A hook cut off by its bound times out even when it catches the cancellation and returns."""
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+
+    resource = CancelSwallowingChild(hassette)
+    await resource.initialize()
+
+    report = await resource.shutdown()
+
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert TeardownCause.SHUTDOWN_HOOK_FAILED not in report.causes
+
+
 class TimeoutRaisingChild(Resource):
     """Resource whose ``on_shutdown()`` raises ``TimeoutError`` itself, well inside its bound."""
 

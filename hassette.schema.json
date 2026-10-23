@@ -752,7 +752,7 @@
         },
         "failed_instance_cleanup_timeout_seconds": {
           "default": 5,
-          "description": "Length of time to wait for listener/job cleanup after an app instance fails to initialize.",
+          "description": "Seconds to wait for listener/job cleanup after an app instance fails to initialize or its stop times out.",
           "title": "Failed Instance Cleanup Timeout Seconds",
           "type": "integer"
         },

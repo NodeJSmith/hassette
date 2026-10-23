@@ -534,10 +534,16 @@ class Hassette(HassetteAccessorsMixin, Resource):
         the session finalize, then the database drain and close, then the executor join. The shutdown
         snapshot runs after it, outside the budget.
         """
-        stop_report = await self._run_stop_stage()
-        foundation_report = await self._run_foundation_stage()
-        if self._database_service is not None:
-            await self._database_service.write_shutdown_snapshot()
+        # a raising stop stage must not cost the foundation stage its drain and finalize, nor either the snapshot;
+        # the first exception still propagates
+        try:
+            stop_report = await self._run_stop_stage()
+        finally:
+            try:
+                foundation_report = await self._run_foundation_stage()
+            finally:
+                if self._database_service is not None:
+                    await self._database_service.write_shutdown_snapshot()
         return merge_teardown_reports(stop_report, foundation_report)
 
     def _foundation_services(self) -> list[Resource]:
