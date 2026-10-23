@@ -42,6 +42,20 @@ After the shutdown hooks complete, Hassette cancels all bus subscriptions create
 !!! warning
     `initialize`, `shutdown`, and `cleanup` are marked `@final` — attempting to override any of them raises [`CannotOverrideFinalError`][hassette.exceptions.CannotOverrideFinalError] at class load time. The `before_*`, `on_*`, and `after_*` hooks are the extension points.
 
+## If `on_initialize` Fails
+
+When `on_initialize` raises or times out, Hassette marks the app instance as failed. It removes the bus subscriptions and scheduled jobs the instance registered before the failure.
+
+`on_shutdown` does not run after a failed initialization. Resources the app created itself stay open until Hassette restarts, such as an `aiohttp.ClientSession`, a third-party client, or an open file. The app closes them itself: a `try`/`except` around the steps after the resource is created closes it and re-raises.
+
+```python
+--8<-- "pages/core-concepts/apps/snippets/lifecycle_failed_init_cleanup.py"
+```
+
+If the subscription or `refresh` raises, the `except` block closes the session. The re-raised error still marks the app as failed. On a normal stop, `on_shutdown` closes the session instead.
+
+`except Exception` does not catch a timeout, because a timeout cancels `on_initialize` instead of raising. Creating the resource as the last step of `on_initialize` covers both cases. Nothing runs after it, so no `try`/`except` is needed.
+
 ## Synchronous Lifecycle
 
 ??? note "`AppSync` lifecycle hooks"
