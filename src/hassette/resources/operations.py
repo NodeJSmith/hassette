@@ -12,7 +12,7 @@ from contextlib import suppress
 
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, reject_lifecycle_reentry, start
-from hassette.resources.shutdown_budget import hooks_pool_remaining
+from hassette.resources.shutdown_deadline import shutdown_hook_bound, tighten_shutdown_deadline
 from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
 from hassette.types.enums import ResourceRole
 from hassette.utils.service_utils import wait_for_ready
@@ -96,12 +96,20 @@ def register_task_bucket_factory(factory: "Callable[[Hassette, Resource], TaskBu
     Resource._default_task_bucket_factory = factory
 
 
+class ShutdownHookTimedOutError(TimeoutError):
+    """A shutdown hook outlived its bound and was cancelled.
+
+    Raised by ``run_hooks()`` in place of the bare ``TimeoutError`` from its own bound, so a hook that
+    timed out is told apart from one that raised ``TimeoutError`` itself.
+    """
+
+
 async def run_hooks(
     resource: "Resource",
     hooks: list[typing.Callable[[], typing.Awaitable[None]]],
     *,
     continue_on_error: bool = False,
-    bound_to_shutdown_budget: bool = False,
+    shutdown_bound: bool = False,
 ) -> "tuple[Exception, ...]":
     """Execute lifecycle hooks with error handling.
 
@@ -110,13 +118,12 @@ async def run_hooks(
         hooks: List of async callables to execute in order.
         continue_on_error: If False (initialize), re-raise on Exception.
             If True (shutdown), log and continue to next hook.
-        bound_to_shutdown_budget: If True, wrap each hook call in
-            ``asyncio.timeout(hooks_pool_remaining(resource))`` so a hook — framework or
-            user-authored (e.g. ``App.on_shutdown()``) — cannot hang past the hooks pool
-            deadline. Only meaningful for shutdown hooks; initialize hooks pass False
-            (they run under a separate startup timeout, not this shutdown budget). A hook that
-            times out surfaces as a plain ``TimeoutError``, handled the same as any other
-            exception below.
+        shutdown_bound: If True, run each hook inline under a cancel-and-wait bound of
+            ``shutdown_hook_bound(resource)``: the per-hook ``shutdown_timeout_seconds`` clamped to
+            what is left of the operation's deadline. A hook that outlives it is cancelled and
+            surfaces as ``ShutdownHookTimedOutError``, handled like any other exception below. Only
+            meaningful for shutdown hooks; initialize hooks pass False (they run under a separate
+            startup timeout).
 
     Returns:
         An immutable tuple of the exceptions handled while continuing past failed
@@ -132,16 +139,8 @@ async def run_hooks(
     handled: list[Exception] = []
     for method in hooks:
         try:
-            if bound_to_shutdown_budget:
-                budget = hooks_pool_remaining(resource)
-                resource.lifecycle_logger.debug(
-                    "%s: entering hook %s with %.2fs of hooks pool remaining",
-                    resource.unique_name,
-                    getattr(method, "__name__", repr(method)),
-                    budget,
-                )
-                async with asyncio.timeout(budget):
-                    await method()
+            if shutdown_bound:
+                await run_bounded_hook(resource, method)
             else:
                 await method()
         except asyncio.CancelledError as exc:
@@ -171,6 +170,46 @@ async def run_hooks(
     return tuple(handled)
 
 
+async def run_bounded_hook(resource: "Resource", method: typing.Callable[[], typing.Awaitable[None]]) -> None:
+    """Run one shutdown hook inline under ``shutdown_hook_bound(resource)``.
+
+    Raises ``ShutdownHookTimedOutError`` when the bound expires. A hook that swallows the
+    cancellation holds this await until it returns; only the operation's owner can walk away from it.
+    """
+    bound = shutdown_hook_bound(resource)
+    name = getattr(method, "__name__", repr(method))
+    resource.lifecycle_logger.debug(
+        "%s: entering hook %s with a %s bound",
+        resource.unique_name,
+        name,
+        "no" if bound is None else f"{bound:.2f}s",
+    )
+    scope = asyncio.timeout(bound)
+    try:
+        async with scope:
+            await method()
+    except TimeoutError as exc:
+        if scope.expired():
+            raise ShutdownHookTimedOutError(f"shutdown hook {name} timed out after {bound:.2f}s") from exc
+        raise
+
+
+def shutdown_hook_report(hook_errors: "tuple[Exception, ...]", operation: str) -> TeardownReport:
+    """Teardown evidence for the shutdown hooks ``run_hooks()`` handled.
+
+    A hook cut off by its bound records ``SHUTDOWN_HOOK_TIMED_OUT``; one that raised records
+    ``SHUTDOWN_HOOK_FAILED``. Both can appear when several hooks ran.
+    """
+    if not hook_errors:
+        return TeardownReport()
+    causes: list[TeardownCause] = []
+    if any(isinstance(exc, ShutdownHookTimedOutError) for exc in hook_errors):
+        causes.append(TeardownCause.SHUTDOWN_HOOK_TIMED_OUT)
+    if any(not isinstance(exc, ShutdownHookTimedOutError) for exc in hook_errors):
+        causes.append(TeardownCause.SHUTDOWN_HOOK_FAILED)
+    return TeardownReport(causes=tuple(causes), failed_operations=(operation,))
+
+
 def ordered_children_for_shutdown(resource: "Resource") -> "list[Resource]":
     """Return children in shutdown order (reverse insertion)."""
     return list(reversed(resource.children))
@@ -189,13 +228,18 @@ class ShutdownBatchResult(typing.NamedTuple):
     affected: list[str]
 
 
-async def shutdown_batch(resource: "Resource", batch: "list[Resource]", timeout: float) -> ShutdownBatchResult:
+async def shutdown_batch(
+    resource: "Resource", batch: "list[Resource]", *, deadline: float | None
+) -> ShutdownBatchResult:
     """Shut down one batch of children concurrently and classify the results.
 
-    Shared by ``Resource._shutdown_children()`` (one batch: all children) and
-    ``Hassette._shutdown_children()`` (one batch per dependency wave, called once per wave).
-    Each caller owns its own aggregation across batches -- this function only classifies a
-    single batch and returns the pieces:
+    Shared by ``Resource._shutdown_children()`` (one batch: all children) and the root's exit stages
+    (one batch per dependency wave). Each caller owns its own aggregation across batches -- this
+    function only classifies a single batch and returns the pieces.
+
+    The batch has no bound of its own: each child gets ``deadline`` (tightening any it already has;
+    normally the caller's own shutdown deadline), and only the operation's owner walks away when that
+    deadline passes.
 
     - A child whose ``shutdown()`` call itself raises unexpectedly adds ``CHILD_SHUTDOWN_FAILED``
       and the child's identity to the affected list. The coordinator stores evidence (e.g.
@@ -205,39 +249,20 @@ async def shutdown_batch(resource: "Resource", batch: "list[Resource]", timeout:
     - A child that returns without raising, but whose own report has ``is_restart_safe`` ``False``,
       adds ``CHILD_RESTART_UNSAFE`` and the child's identity -- the child's own causes and
       details are merged in first.
-    - A batch that exceeds ``timeout`` adds ``CHILD_SHUTDOWN_TIMED_OUT`` and force-terminates only
-      the children still unfinished at that point; a child that already completed keeps its own
-      (possibly restart-safe) report unchanged.
     """
     child_reports: list[TeardownReport] = []
     causes: list[TeardownCause] = []
     affected: list[str] = []
 
-    try:
-        async with asyncio.timeout(timeout):
-            # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation --
-            # resource's own TaskBucket is already sealed here; see create_lifecycle_task()'s
-            # docstring for why that matters.
-            child_tasks = [
-                create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
-                for child in batch
-            ]
-            results = await asyncio.gather(*child_tasks, return_exceptions=True)
-    except TimeoutError:
-        resource.lifecycle_logger.error(
-            "Timed out waiting for children to shut down after %ss: [%s]",
-            timeout,
-            ", ".join(child.class_name for child in batch),
-        )
-        causes.append(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT)
-        for child in batch:
-            if not child.shutdown_completed:
-                child._force_terminal()
-                affected.append(child.unique_name)
-            child_report = child.teardown_report
-            if child_report is not None:
-                child_reports.append(child_report)
-        return ShutdownBatchResult(child_reports, causes, affected)
+    for child in batch:
+        tighten_shutdown_deadline(child, deadline)
+    # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation -- resource's own
+    # TaskBucket is already sealed here; see create_lifecycle_task()'s docstring for why that matters.
+    child_tasks = [
+        create_lifecycle_task(child.shutdown(), name=f"resource:shutdown_propagate:{child.unique_name}")
+        for child in batch
+    ]
+    results = await asyncio.gather(*child_tasks, return_exceptions=True)
 
     for child, result in zip(batch, results, strict=True):
         if isinstance(result, BaseException):

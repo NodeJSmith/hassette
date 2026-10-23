@@ -3,6 +3,7 @@
 import asyncio
 import time
 import typing
+from typing import ClassVar
 
 from hassette_wire import LogLevel, ResourceStatus
 
@@ -34,6 +35,9 @@ class SessionManager(Resource):
     """
 
     bus: Bus
+
+    shutdown_hook_timeout_applies: ClassVar[bool] = False
+    """A foundation service: the root's foundation stage bounds its shutdown."""
 
     def __init__(
         self,

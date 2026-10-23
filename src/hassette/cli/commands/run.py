@@ -15,17 +15,11 @@ from hassette.config.config import HassetteConfig
 from hassette.config.helpers import get_log_level
 from hassette.exceptions import AppPrecheckFailedError, ConfigError, FatalError
 from hassette.logging_ import enable_basic_logging
+from hassette.server import EX_CONFIG
 from hassette.server import main as run_server
 from hassette.utils.app_utils import missing_apps_dir_warning
 
 LOGGER = getLogger("hassette.cli")
-
-EX_CONFIG = 78
-"""sysexits.h ``EX_CONFIG``: the configuration must be edited before a restart can succeed.
-
-Raised for a `ConfigError` and for a failed app precheck (an app file must be edited). Supervisors
-key on it (systemd ``RestartPreventExitStatus=78``, the add-on's s6 ``finish`` script).
-"""
 
 
 def split_app_keys(values: list[str]) -> tuple[str, ...]:

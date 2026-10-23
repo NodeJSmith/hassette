@@ -40,7 +40,7 @@ class AppStartStopMixin:
     _resolve_manifest: Callable[[str], "AppManifest | None"]
     initialize_instances: Callable[..., Awaitable[None]]
     cleanup_failed_instance: Callable[..., Awaitable[None]]
-    shutdown_instances: Callable[..., Awaitable[None]]
+    shutdown_instances: Callable[..., Awaitable[object]]
 
     async def start_app(
         self,

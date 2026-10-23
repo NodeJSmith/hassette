@@ -12,6 +12,7 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.resources.teardown import TeardownReport
 from hassette.testing import EventCapture
 from hassette.types import Topic
 from tests.support.mock_hassette import make_mock_hassette
@@ -199,7 +200,8 @@ def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: 
     app.status = ResourceStatus.NOT_STARTED
     app.class_name = class_name
     app.initialize = AsyncMock()
-    app.shutdown = AsyncMock()
+    app.shutdown = AsyncMock(return_value=TeardownReport())
+    app._shutdown_deadline = None
     app.ready_event = asyncio.Event()
     app.logger = Mock()
     app.lifecycle_logger = Mock()

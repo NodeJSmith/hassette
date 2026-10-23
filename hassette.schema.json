@@ -743,11 +743,19 @@
           "title": "App Startup Timeout Seconds",
           "type": "integer"
         },
-        "app_shutdown_timeout_seconds": {
+        "shutdown_timeout_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
           "default": 10,
-          "description": "Length of time to wait for an app to shut down before giving up.",
-          "title": "App Shutdown Timeout Seconds",
-          "type": "integer"
+          "description": "Length of time each shutdown hook (an app's or a framework resource's ``on_shutdown`` and the hooks\naround it) may run before it is cancelled. A hook gets less when its stage has less time left.",
+          "gt": 0,
+          "title": "Shutdown Timeout Seconds"
         },
         "failed_instance_cleanup_timeout_seconds": {
           "default": 5,
@@ -755,29 +763,25 @@
           "title": "Failed Instance Cleanup Timeout Seconds",
           "type": "integer"
         },
-        "resource_shutdown_timeout_seconds": {
-          "description": "Per-phase timeout for resource shutdown. Defaults to app_shutdown_timeout_seconds.",
-          "title": "Resource Shutdown Timeout Seconds",
-          "type": "integer"
-        },
         "total_shutdown_timeout_seconds": {
-          "default": 30,
-          "description": "Maximum wall-clock seconds for the entire Hassette shutdown (hooks + propagation).",
-          "title": "Total Shutdown Timeout Seconds",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 45,
+          "description": "Maximum wall-clock seconds for the whole Hassette shutdown. The foundation stage (database and\nworker threads) keeps a fixed budget; everything else stops within the rest, and so does each runtime\napp stop or reload. Your supervisor's stop grace period must exceed this.",
+          "gt": 20.0,
+          "title": "Total Shutdown Timeout Seconds"
         },
         "sync_executor_max_workers": {
           "description": "Pool ceiling for the dedicated sync-handler thread pool executor.\nSized to match the prior implicit default-pool ceiling (min(32, cpu+4)). This is a\nreasonable starting ceiling, NOT a literal behavior-equivalence guarantee: the old\nshared pool also served logging and DB work, so a same-size dedicated pool gives sync\nhandlers more effective headroom in practice.",
           "minimum": 1,
           "title": "Sync Executor Max Workers",
           "type": "integer"
-        },
-        "sync_executor_shutdown_timeout_seconds": {
-          "default": 10.0,
-          "description": "Join-or-interrupt budget for sync-handler worker threads at shutdown (ported from HA).\nMust be less than total_shutdown_timeout_seconds so the outer shutdown budget is not\nexceeded by the executor interrupt phase.",
-          "exclusiveMinimum": 0,
-          "title": "Sync Executor Shutdown Timeout Seconds",
-          "type": "number"
         },
         "sync_executor_saturation_warn_threshold": {
           "default": 0.75,

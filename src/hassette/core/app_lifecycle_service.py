@@ -6,6 +6,7 @@ from pathlib import Path
 
 from hassette_wire import LogLevel
 
+from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS
 from hassette.core.app_change_detector import AppChangeDetector
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_key_lock import AppKeyLock
@@ -107,9 +108,9 @@ class AppLifecycleService(
         return self.hassette.config.lifecycle.app_startup_timeout_seconds
 
     @property
-    def shutdown_timeout(self) -> int:
-        """Timeout in seconds for app instance shutdown."""
-        return self.hassette.config.lifecycle.app_shutdown_timeout_seconds
+    def entry_deadline_seconds(self) -> float:
+        """Length of an instance stop's entry deadline: the stop stage's length at process exit."""
+        return self.hassette.config.lifecycle.total_shutdown_timeout_seconds - FOUNDATION_SHUTDOWN_BUDGET_SECONDS
 
     @property
     def cleanup_timeout(self) -> int:

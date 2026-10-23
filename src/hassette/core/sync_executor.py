@@ -166,6 +166,17 @@ class SyncExecutor:
         if self.executor is not None:
             self.executor.shutdown(timeout=timeout)
 
+    def surviving_threads(self) -> list[str]:
+        """Names of pool worker threads still alive, read after ``shutdown_pool()``.
+
+        A thread blocked in C code can survive the join-or-interrupt budget; the root reports any
+        that did, since they would otherwise hold the process at interpreter exit.
+        """
+        if self.executor is None:
+            return []
+        threads = self.executor._threads  # pyright: ignore[reportAttributeAccessIssue]
+        return sorted(thread.name for thread in threads if thread.is_alive())
+
     def submit(self, fn: "Callable[P, R]", *args: "P.args", **kwargs: "P.kwargs") -> "asyncio.Future[R]":
         """Submit a sync function to the dedicated executor with context propagation.
 

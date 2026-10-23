@@ -29,9 +29,25 @@ from hassette.config.helpers import coerce_log_level, log_level_default_factory
 from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES, LogFormat
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import RawAppDict
+from hassette.utils.aiosqlite_utils import SQLITE_BUSY_TIMEOUT_MS
 
 LOGGER = getLogger(__name__)
-APP_SHUTDOWN_TIMEOUT_SECONDS = 10
+SHUTDOWN_TIMEOUT_SECONDS = 10
+"""Default for ``LifecycleConfig.shutdown_timeout_seconds``: the bound on each shutdown hook."""
+
+SHUTDOWN_DRAIN_TIMEOUT_SECONDS = 5
+"""Fixed cap on draining the database write queue in the foundation shutdown stage."""
+
+SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS = 10.0
+"""Fixed join-or-interrupt budget for sync-handler worker threads at shutdown (HA's
+``EXECUTOR_SHUTDOWN_TIMEOUT``)."""
+
+FOUNDATION_SHUTDOWN_BUDGET_SECONDS = (
+    SQLITE_BUSY_TIMEOUT_MS / 1000 + SHUTDOWN_DRAIN_TIMEOUT_SECONDS + SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
+)
+"""Fixed budget of the foundation shutdown stage, the sum of its sequential framework steps: the session
+finalize (bounded by SQLite's busy timeout), the write-queue drain, and the executor join. The stop stage
+gets ``total_shutdown_timeout_seconds`` minus this."""
 
 
 LogLevelAnnotation = Annotated[LogLevel, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
@@ -324,19 +340,17 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
-    app_shutdown_timeout_seconds: int = Field(default=APP_SHUTDOWN_TIMEOUT_SECONDS)
-    """Length of time to wait for an app to shut down before giving up."""
+    shutdown_timeout_seconds: int | float = Field(default=SHUTDOWN_TIMEOUT_SECONDS, gt=0)
+    """Length of time each shutdown hook (an app's or a framework resource's ``on_shutdown`` and the hooks
+    around it) may run before it is cancelled. A hook gets less when its stage has less time left."""
 
     failed_instance_cleanup_timeout_seconds: int = Field(default=5)
     """Length of time to wait for listener/job cleanup after an app instance fails to initialize."""
 
-    resource_shutdown_timeout_seconds: int = Field(
-        default_factory=lambda data: data.get("app_shutdown_timeout_seconds", APP_SHUTDOWN_TIMEOUT_SECONDS)
-    )
-    """Per-phase timeout for resource shutdown. Defaults to app_shutdown_timeout_seconds."""
-
-    total_shutdown_timeout_seconds: int = Field(default=30)
-    """Maximum wall-clock seconds for the entire Hassette shutdown (hooks + propagation)."""
+    total_shutdown_timeout_seconds: int | float = Field(default=45, gt=FOUNDATION_SHUTDOWN_BUDGET_SECONDS)
+    """Maximum wall-clock seconds for the whole Hassette shutdown. The foundation stage (database and
+    worker threads) keeps a fixed budget; everything else stops within the rest, and so does each runtime
+    app stop or reload. Your supervisor's stop grace period must exceed this."""
 
     sync_executor_max_workers: int = Field(default_factory=lambda: min(32, (os.cpu_count() or 1) + 4), ge=1)
     """Pool ceiling for the dedicated sync-handler thread pool executor.
@@ -344,11 +358,6 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     reasonable starting ceiling, NOT a literal behavior-equivalence guarantee: the old
     shared pool also served logging and DB work, so a same-size dedicated pool gives sync
     handlers more effective headroom in practice."""
-
-    sync_executor_shutdown_timeout_seconds: float = Field(default=10.0, gt=0)
-    """Join-or-interrupt budget for sync-handler worker threads at shutdown (ported from HA).
-    Must be less than total_shutdown_timeout_seconds so the outer shutdown budget is not
-    exceeded by the executor interrupt phase."""
 
     sync_executor_saturation_warn_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     """Fraction of the sync-handler thread pool that must be occupied before Hassette logs a
@@ -400,17 +409,6 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     def validate_timeouts(cls, value: Any) -> float | None:
         """Coerce the timeout to a float, rejecting values that are not None or positive."""
         return validate_positive_or_none(value)
-
-    @model_validator(mode="after")
-    def validate_sync_executor_shutdown_budget(self) -> "LifecycleConfig":
-        """Ensure the sync executor shutdown budget stays within the total shutdown window."""
-        if self.sync_executor_shutdown_timeout_seconds >= self.total_shutdown_timeout_seconds:
-            raise ValueError(
-                f"sync_executor_shutdown_timeout_seconds "
-                f"({self.sync_executor_shutdown_timeout_seconds}) must be less than "
-                f"total_shutdown_timeout_seconds ({self.total_shutdown_timeout_seconds})"
-            )
-        return self
 
 
 class WebApiConfig(ExcludeExtrasMixin, BaseModel):

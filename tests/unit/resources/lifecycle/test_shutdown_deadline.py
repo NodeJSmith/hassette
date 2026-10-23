@@ -3,9 +3,9 @@
 import asyncio
 
 import pytest
+from hassette.resources.shutdown_budget import compute_shutdown_budget
 
 from hassette.resources import shutdown_budget
-from hassette.resources.shutdown_budget import compute_shutdown_budget
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import SimpleParent

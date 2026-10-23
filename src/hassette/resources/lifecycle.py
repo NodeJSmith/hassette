@@ -23,12 +23,7 @@ from hassette_wire import ResourceStatus
 from hassette.events import HassetteServiceEvent
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources.mixins import LifecycleMixin, _LifecycleHostP
-from hassette.resources.shutdown_budget import (
-    compute_shutdown_budget,
-    elapsed_since,
-    hooks_pool_remaining,
-    total_deadline_remaining,
-)
+from hassette.resources.shutdown_deadline import elapsed_since, shutdown_hook_bound
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,
@@ -511,6 +506,7 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
             # and reopen the resources that a completed shutdown attempt sealed/cleared.
             resource._teardown_report = None
             resource._shutdown_task = None
+            resource._shutdown_deadline = None
             resource.task_bucket.reopen()
             resource.shutdown_event.clear()
         init_task = create_lifecycle_task(
@@ -572,11 +568,11 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
         return False
 
     init_task.cancel()
-    timeout = hooks_pool_remaining(resource)
+    timeout = shutdown_hook_bound(resource)
     observe_start = asyncio.get_running_loop().time()
     _done, pending = await asyncio.wait([init_task], timeout=timeout)
     resource.lifecycle_logger.debug(
-        "%s: initializer observation completed in %.2fs (budget %.2fs)",
+        "%s: initializer observation completed in %.2fs (bound %ss)",
         resource.unique_name,
         elapsed_since(observe_start),
         timeout,
@@ -595,27 +591,21 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
 async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownReport:
     """Body of the shutdown coordinator task (``_shutdown_task``).
 
-    Cancels and observes an active initializer, transitions status and requests shutdown,
-    then bounds observation of the class-specific ``_shutdown_body()`` for
-    ``resource_shutdown_timeout_seconds``. Stores and returns the merged report.
+    Cancels and observes an active initializer, transitions status and requests shutdown, then waits
+    for the class-specific ``_shutdown_body()`` without a bound of its own: the leaves inside the body
+    bound themselves against the attempt's deadline, and only the operation's owner walks away from a
+    body that outlives it (by force-terminating the resource). Stores and returns the merged report.
 
-    If something external cancels this coordinator task directly (``_force_terminal()`` may do
-    this for an unresponsive child from an ancestor's own shutdown body -- see
-    ``Resource._force_terminal()``), the cancellation is converted to a normal
+    If something external cancels this coordinator task directly (``_force_terminal()`` does this
+    from the operation's owner, or for an unresponsive child from an ancestor's own shutdown body --
+    see ``Resource._force_terminal()``), the cancellation is converted to a normal
     restart-unsafe (``is_restart_safe`` ``False``) return *only* when force-terminal evidence was already stored
     before the cancellation was requested. Every joined caller then receives that report rather
     than ``CancelledError``. A cancellation with no pre-recorded evidence is a genuine error and
     propagates normally.
     """
     try:
-        if typing.cast("object", resource) is resource.hassette:
-            timeout = resource.hassette.config.lifecycle.total_shutdown_timeout_seconds
-        else:
-            timeout = resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
-
         coordinator_start = asyncio.get_running_loop().time()
-        task_cancel_ceiling = resource.hassette.config.lifecycle.task_cancellation_timeout_seconds
-        resource._shutdown_budget = compute_shutdown_budget(timeout, coordinator_start, task_cancel_ceiling)
 
         initialization_pending = await _observe_active_initializer(resource)
         if initialization_pending:
@@ -635,52 +625,17 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
         _install_exception_observer(resource, body_task, "shutdown body")
         resource._shutdown_body_task = body_task
 
-        # Uses the remaining time to the un-margin-reduced total deadline (now0 + timeout),
-        # not a fresh `timeout` measured from whenever this wait happens to start -- that would
-        # let a single shutdown attempt run up to (time _observe_active_initializer() already
-        # spent above, part of the same hooks pool) + a full timeout again. Deliberately not
-        # `body_deadline` either: that deadline is margin-reduced and is what the body's own
-        # internal logic (e.g. Hassette._shutdown_body()'s TOTAL_TIMEOUT fallback) bounds itself
-        # with, so it gets a chance to finish gracefully before this cruder outer backstop fires.
-        wait_timeout = total_deadline_remaining(resource)
-        body_wait_start = asyncio.get_running_loop().time()
-        done, _pending = await asyncio.wait([body_task], timeout=wait_timeout)
-        body_wait_elapsed = elapsed_since(body_wait_start)
-
-        if body_task in done:
-            try:
-                report = body_task.result()
-            except asyncio.CancelledError:  # noqa: ASYNC103 — body cancellation is bounded evidence for this
-                # coordinator, not a fatal event for it: convert to SHUTDOWN_BODY_FAILED instead of propagating.
-                report = TeardownReport(
-                    causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",)
-                )
-            except Exception:
-                resource.lifecycle_logger.exception("Shutdown body for %s raised", resource.unique_name)
-                report = TeardownReport(
-                    causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",)
-                )
-            resource.lifecycle_logger.debug(
-                "%s: shutdown body completed in %.2fs", resource.unique_name, body_wait_elapsed
-            )
-        else:
-            resource.lifecycle_logger.warning(
-                "%s shutdown body did not complete within its %.2fs deadline (%.2fs configured timeout, %.2fs elapsed)",
-                resource.unique_name,
-                wait_timeout,
-                timeout,
-                body_wait_elapsed,
-            )
-            report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_TIMED_OUT,))
-            resource._force_terminal()
-            if not body_task.done():
-                body_task.cancel()
-                # No separate SHUTDOWN_BODY_PENDING cause -- this branch is reached only when the
-                # body already timed out (SHUTDOWN_BODY_TIMED_OUT, above), and no suspension point
-                # separates the two checks, so a second cause here would record the same fact
-                # twice under two names. pending_tasks alone carries the "still alive right now"
-                # detail.
-                report = add_teardown_evidence(report, pending_tasks=(body_task.get_name(),))
+        # asyncio.wait, not a bare await: cancelling this coordinator must not cancel the body
+        # through the await -- the CancelledError branch below decides that.
+        await asyncio.wait([body_task])
+        try:
+            report = body_task.result()
+        except asyncio.CancelledError:  # noqa: ASYNC103 — body cancellation is evidence for this
+            # coordinator, not a fatal event for it: convert to SHUTDOWN_BODY_FAILED instead of propagating.
+            report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",))
+        except Exception:
+            resource.lifecycle_logger.exception("Shutdown body for %s raised", resource.unique_name)
+            report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",))
 
         if initialization_pending:
             report = add_teardown_evidence(report, causes=(TeardownCause.INITIALIZATION_TASK_PENDING,))

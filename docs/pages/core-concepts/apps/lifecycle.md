@@ -35,6 +35,11 @@ Three hooks fire in order:
 
 `on_shutdown` is for releasing external resources the app allocated directly: open files, raw sockets, or third-party connections. `Bus` subscriptions, scheduled jobs, and [`task_bucket`](task-bucket.md) tasks are cleaned up automatically.
 
+Each hook gets `lifecycle.shutdown_timeout_seconds` (10 seconds by default) before Hassette cancels it. At process exit, apps stop concurrently, so one slow app never shortens another's hooks. A stop whose hook timed out is reported `FAILED` with a "timed out" reason, even when the hook ended as soon as it was cancelled. See [How shutdown is bounded](../../operating/index.md#how-shutdown-is-bounded) for the stage limits above each hook.
+
+!!! warning "Shutdown hooks must let cancellation through"
+    Hassette stops a timed-out hook by cancelling it, so a shutdown hook must let `asyncio.CancelledError` propagate and clean up promptly once cancelled. A hook that catches and swallows the cancellation keeps its app stopping until its stage's deadline, then Hassette force-terminates the app. A hook that blocks the event loop, such as a synchronous network call or `time.sleep()`, stops every deadline from firing until it returns. Use `await` for I/O in async hooks, and put blocking calls in an `AppSync` `_sync` hook, which runs in a worker thread.
+
 ## Automatic Cleanup
 
 After the shutdown hooks complete, Hassette cancels all bus subscriptions created via `self.bus`, all scheduled jobs created via `self.scheduler`, and all background tasks tracked by `self.task_bucket`. Manual unsubscription or job cancellation in `on_shutdown` is unnecessary.

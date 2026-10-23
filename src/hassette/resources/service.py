@@ -17,9 +17,9 @@ from hassette.resources.lifecycle import (
     handle_stop,
     mark_not_ready,
 )
-from hassette.resources.operations import run_hooks
+from hassette.resources.operations import run_hooks, shutdown_hook_report
 from hassette.resources.restart import RestartSpec
-from hassette.resources.shutdown_budget import hooks_pool_remaining
+from hassette.resources.shutdown_deadline import shutdown_hook_bound
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 from hassette.types.enums import ResourceRole
 
@@ -127,31 +127,19 @@ class Service(Resource):
         """NOTE: keep hook ordering in sync with Resource._shutdown_body()."""
         reports: list[TeardownReport] = []
 
-        hook_errors = await run_hooks(
-            self, [self.before_shutdown], continue_on_error=True, bound_to_shutdown_budget=True
-        )
-        if hook_errors:
-            reports.append(
-                TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("before_shutdown",))
-            )
+        hook_errors = await run_hooks(self, [self.before_shutdown], continue_on_error=True, shutdown_bound=True)
+        reports.append(shutdown_hook_report(hook_errors, "before_shutdown"))
 
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
             self.lifecycle_logger.debug("Cancelled serve() task")
-            # Shares the hooks pool with before_shutdown (already ran) and on_shutdown/after_shutdown
-            # (run next). A slow serve-wait squeezes later hooks, but can't starve the mandatory tail.
-            timeout = hooks_pool_remaining(self)
-            self.lifecycle_logger.debug(
-                "%s: entering serve-task wait with %.2fs of hooks pool remaining",
-                self.unique_name,
-                timeout,
-            )
+            # Bounded like a hook: its own cancel-and-wait, clamped to the operation's deadline.
+            timeout = shutdown_hook_bound(self)
+            self.lifecycle_logger.debug("%s: entering serve-task wait with a %s bound", self.unique_name, timeout)
             _done, pending = await asyncio.wait([self._serve_task], timeout=timeout)
             if pending:
                 self.lifecycle_logger.warning(
-                    "Serve task for %s did not complete within its %.2fs hooks-pool budget",
-                    self.unique_name,
-                    timeout,
+                    "Serve task for %s did not complete within its %ss bound", self.unique_name, timeout
                 )
                 reports.append(
                     TeardownReport(
@@ -164,12 +152,9 @@ class Service(Resource):
                     self._serve_task.exception()
 
         hook_errors = await run_hooks(
-            self, [self.on_shutdown, self.after_shutdown], continue_on_error=True, bound_to_shutdown_budget=True
+            self, [self.on_shutdown, self.after_shutdown], continue_on_error=True, shutdown_bound=True
         )
-        if hook_errors:
-            reports.append(
-                TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
-            )
+        reports.append(shutdown_hook_report(hook_errors, "shutdown_hooks"))
 
         reports.append(await self._run_post_hook_shutdown_stage())
 

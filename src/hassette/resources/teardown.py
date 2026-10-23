@@ -33,12 +33,9 @@ class TeardownCause(StrEnum):
     SHUTDOWN_HOOK_FAILED = auto()
     """A registered shutdown hook raised during the teardown attempt."""
 
-    SHUTDOWN_BODY_TIMED_OUT = auto()
-    """The resource's shutdown body did not complete within its allotted timeout. When the body
-    also remains alive past that timeout, its task name is recorded in the report's
-    ``pending_tasks`` rather than as a separate cause -- the two checks share the same
-    ``SHUTDOWN_BODY_TIMED_OUT`` branch with no suspension point between them, so a distinct
-    "pending" cause would record the same fact twice."""
+    SHUTDOWN_HOOK_TIMED_OUT = auto()
+    """A registered shutdown hook outlived its bound and was cancelled. Distinct from
+    ``SHUTDOWN_HOOK_FAILED`` so an outcome can say "timed out" rather than "raised"."""
 
     SHUTDOWN_BODY_FAILED = auto()
     """The resource's shutdown body raised during the teardown attempt."""
@@ -69,9 +66,6 @@ class TeardownCause(StrEnum):
 
     FORCED_TERMINAL = auto()
     """The resource was forced into a terminal state without a normal teardown attempt completing."""
-
-    TOTAL_TIMEOUT = auto()
-    """The overall teardown attempt exceeded its total allotted timeout."""
 
     COORDINATOR_FAILED = auto()
     """The shutdown coordinator itself raised outside the shutdown body (e.g. while observing the

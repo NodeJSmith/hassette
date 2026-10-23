@@ -13,8 +13,8 @@ import typing
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from hassette.config.models import SHUTDOWN_DRAIN_TIMEOUT_SECONDS
 from hassette.exceptions import WriteQueueUnavailableError
-from hassette.resources.shutdown_budget import hooks_pool_remaining
 
 if typing.TYPE_CHECKING:
     import logging
@@ -26,22 +26,6 @@ if typing.TYPE_CHECKING:
 
 _WriteQueueItem = tuple[Coroutine[Any, Any, Any], "asyncio.Future[Any] | None"]
 """Type alias for items placed on the DB write queue."""
-
-# Ceiling on the seconds on_shutdown() waits for the write queue to drain. A worker that is
-# dead (nobody left to call task_done()) or wedged (stuck mid-write) never lets the join
-# complete on its own, so it must not outlast the shutdown hooks pool that run_hooks()
-# already bounds on_shutdown() with — the effective budget is the smaller of this and
-# _DRAIN_TIMEOUT_POOL_FRACTION of the pool remaining, never this constant on its own.
-# The pool share is what binds at stock settings: the default resource_shutdown_timeout_seconds
-# of 10s yields a 2.5s hooks pool, so the drain gets at most ~1.25s. This ceiling only takes
-# effect on installs that raise that timeout past roughly 18s, where half the pool exceeds 5s.
-_SHUTDOWN_DRAIN_TIMEOUT_SECONDS = 5
-
-# Share of the remaining hooks pool the drain may claim, leaving the rest for cancelling the
-# worker and closing both connections in the same hook. An even split because neither half is
-# the clear loser: the drain is best-effort telemetry, while the close it funds is what keeps
-# the aiosqlite threads from falling through to the daemon-thread safety net.
-_DRAIN_TIMEOUT_POOL_FRACTION = 0.5
 
 
 async def run_write_queue_worker(service: "DatabaseService") -> None:
@@ -147,21 +131,18 @@ class DatabaseWriteQueueMixin:
     _write_queue_detached: bool
 
     async def drain_write_queue(self, queue: asyncio.Queue[_WriteQueueItem]) -> None:
-        """Wait for already-queued writes to finish, bounded by the remaining hooks pool.
+        """Wait for already-queued writes to finish, bounded by ``SHUTDOWN_DRAIN_TIMEOUT_SECONDS``.
 
         A dead worker (nobody left to call task_done()) or a wedged one (stuck mid-write) never
-        lets ``queue.join()`` complete on its own. Left unbounded it outlasts the hooks pool that
-        ``run_hooks()`` bounds ``on_shutdown()`` with, which force-terminates the hook and skips
-        the connection close entirely.
+        lets ``queue.join()`` complete on its own. Left unbounded it would use up the foundation
+        stage's budget and leave the connections unclosed. The cap is one of the foundation budget's
+        fixed parts (``FOUNDATION_SHUTDOWN_BUDGET_SECONDS``).
 
         Args:
             queue: The write queue to drain. Already detached from ``_db_write_queue``, so no new
                 items can arrive while this waits.
         """
-        timeout = min(
-            _SHUTDOWN_DRAIN_TIMEOUT_SECONDS,
-            hooks_pool_remaining(typing.cast("DatabaseService", self)) * _DRAIN_TIMEOUT_POOL_FRACTION,
-        )
+        timeout = SHUTDOWN_DRAIN_TIMEOUT_SECONDS
         try:
             async with asyncio.timeout(timeout):
                 await queue.join()

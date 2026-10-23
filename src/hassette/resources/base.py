@@ -24,11 +24,11 @@ from hassette.resources.operations import (
     ordered_children_for_shutdown,
     run_hooks,
     shutdown_batch,
+    shutdown_hook_report,
 )
-from hassette.resources.shutdown_budget import (
+from hassette.resources.shutdown_deadline import (
     CLEANUP_SECONDS,
-    TASK_CANCEL_SECONDS,
-    children_budget_remaining,
+    clamp_to_shutdown_deadline,
     elapsed_since,
 )
 from hassette.resources.teardown import (
@@ -433,23 +433,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         Children shut down concurrently, in reverse insertion order
         (``ordered_children_for_shutdown()``), as a single ``shutdown_batch()`` call — see that
-        function for the per-child classification rules (failed/restart-unsafe/timed-out).
-
-        Children benefit from any slack the hooks pool didn't use — their budget is
-        ``max(children_floor_seconds, body_deadline - now)``, so early-finishing hooks pass
-        their slack to children naturally.
+        function for the per-child classification rules (failed/restart-unsafe). The batch has no
+        bound of its own: each child inherits this resource's shutdown deadline.
         """
-        timeout = children_budget_remaining(self)
-        self.lifecycle_logger.debug(
-            "%s: entering _shutdown_children() with %.2fs budgeted",
-            self.unique_name,
-            timeout,
-        )
         children = ordered_children_for_shutdown(self)
         if not children:
             return TeardownReport()
 
-        result = await shutdown_batch(self, children, timeout)
+        result = await shutdown_batch(self, children, deadline=self._shutdown_deadline)
         return finalize_shutdown_report(result.reports, result.causes, result.affected)
 
     async def _run_task_bucket_shutdown_stage(self) -> TeardownReport:
@@ -462,14 +453,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         force-terminal call can still inspect the sealed bucket directly (see
         ``_force_terminal()``) even if this stage itself is interrupted before returning.
 
-        Uses the pre-computed ``task_cancel_seconds`` from the ``ShutdownBudget`` — a fixed
-        allocation from the total, not a fraction of whatever happens to remain.
+        Bounded by ``task_cancellation_timeout_seconds`` clamped to the attempt's shutdown deadline.
         """
         self.task_bucket.seal()
-        budget = self._shutdown_budget
-        cancel_budget = budget.task_cancel_seconds if budget is not None else TASK_CANCEL_SECONDS
+        cancel_budget = clamp_to_shutdown_deadline(
+            self, self.hassette.config.lifecycle.task_cancellation_timeout_seconds
+        )
         self.lifecycle_logger.debug(
-            "%s: entering task-bucket cancel with %.2fs budgeted",
+            "%s: entering task-bucket cancel with %.2fs bound",
             self.unique_name,
             cancel_budget,
         )
@@ -496,10 +487,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         reports: list[TeardownReport] = [await self._run_task_bucket_shutdown_stage()]
 
-        budget = self._shutdown_budget
-        cleanup_timeout = budget.cleanup_seconds if budget is not None else CLEANUP_SECONDS
+        cleanup_timeout = clamp_to_shutdown_deadline(self, CLEANUP_SECONDS)
         self.lifecycle_logger.debug(
-            "%s: entering cleanup() with %.2fs budgeted",
+            "%s: entering cleanup() with %.2fs bound",
             self.unique_name,
             cleanup_timeout,
         )
@@ -639,13 +629,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self,
             [self.before_shutdown, self.on_shutdown, self.after_shutdown],
             continue_on_error=True,
-            bound_to_shutdown_budget=True,
+            shutdown_bound=True,
         )
-        hook_report = (
-            TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
-            if hook_errors
-            else TeardownReport()
-        )
+        hook_report = shutdown_hook_report(hook_errors, "shutdown_hooks")
         tail_report = await self._run_post_hook_shutdown_stage()
         return merge_teardown_reports(hook_report, tail_report)
 
