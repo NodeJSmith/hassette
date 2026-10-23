@@ -126,6 +126,11 @@ class ExecutionModeGuard:
             return self.run_queued(run_and_track)
 
     def run_single(self, run_and_track: RunAndTrack) -> Outcome:
+        """Start the handler unless the previous invocation is still running.
+
+        Returns:
+            ``Outcome.RAN`` when started, ``Outcome.SUPPRESSED`` when the listener is busy.
+        """
         if self.is_running():
             self.suppressed += 1
             LOGGER.debug("single-mode listener busy; suppressing re-fire (suppressed=%d)", self.suppressed)
@@ -134,6 +139,11 @@ class ExecutionModeGuard:
         return Outcome.RAN
 
     async def run_restart(self, run_and_track: RunAndTrack) -> Outcome:
+        """Cancel any running invocation, wait for it to settle, then start a fresh one.
+
+        Returns:
+            ``Outcome.RAN``; restart mode always runs the newest trigger.
+        """
         task = self.current_task
         if task is not None and not task.done():
             task.cancel()
@@ -145,6 +155,12 @@ class ExecutionModeGuard:
         return Outcome.RAN
 
     def run_queued(self, run_and_track: RunAndTrack) -> Outcome:
+        """Start the handler if idle, otherwise queue it behind the running invocation up to the cap.
+
+        Returns:
+            ``Outcome.RAN`` when started, ``Outcome.QUEUED_ACCEPTED`` when queued, or
+            ``Outcome.DROPPED`` when the queue is full and the newest trigger is discarded.
+        """
         if self.is_running():
             if len(self.pending) >= self._cap:
                 self.dropped += 1
@@ -188,6 +204,7 @@ class ExecutionModeGuard:
             return
 
     def is_running(self) -> bool:
+        """Return True while the tracked invocation task exists and has not finished."""
         return self.current_task is not None and not self.current_task.done()
 
     async def release(self, *, detach_self: bool = False) -> "asyncio.Task[None] | None":
