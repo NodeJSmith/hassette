@@ -176,8 +176,7 @@ class Bus(Resource):
         self.bus_service.register_removal_callback(self._removal_callback_owner_id, self._on_listener_removed)
 
     async def on_initialize(self) -> None:
-        """Reset per-run listener bookkeeping and the bus error handler, then mark the bus ready."""
-        # Clear before any on() calls so partial-init failures don't leave stale keys.
+        """Clear listener keys and the error handler first so a partial init leaves none stale, then mark ready."""
         self._registered_listeners.clear()
         self._error_handler = None
         mark_ready(self, reason="Bus initialized")
