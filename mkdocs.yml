@@ -122,6 +122,7 @@ nav:
   - Operating Hassette:
       - Overview: pages/operating/index.md
       - Log Level Tuning: pages/operating/log-levels.md
+      - Where an App's Logs Go: pages/operating/log-identity.md
       - Upgrading: pages/operating/upgrading.md
   - AppDaemon Migration:
       - Overview: pages/migration/index.md
