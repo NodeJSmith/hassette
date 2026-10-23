@@ -284,7 +284,7 @@ class SchedulerServiceProtocol(Protocol):
         ...
 
     def submit_job(self, job: "Job") -> None:
-        """Start one manual run of the job without waiting for it or touching its automatic schedule."""
+        """Submit one manual run, subject to the job's overlap guard, without waiting or changing its schedule."""
         ...
 
 
