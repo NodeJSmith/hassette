@@ -32,4 +32,5 @@ class BusErrorContext(ErrorContext):
 
     @property
     def domain_label(self) -> str:
+        """Identify the failing listener by its topic and name, formatted for log messages."""
         return f"topic={self.topic}, listener={self.listener_name}"

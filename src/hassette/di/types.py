@@ -73,4 +73,13 @@ class ParameterMatcher(Protocol):
     of matchers in order and takes the first match.
     """
 
-    def match(self, param: inspect.Parameter) -> InjectionParam | None: ...
+    def match(self, param: inspect.Parameter) -> InjectionParam | None:
+        """Inspect a parameter's annotation and describe how to inject it.
+
+        Args:
+            param: The parameter to inspect.
+
+        Returns:
+            An `InjectionParam` when this matcher recognizes the annotation, otherwise `None`.
+        """
+        ...

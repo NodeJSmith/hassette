@@ -29,6 +29,15 @@ class TypeMatcher:
     match_type: type
 
     def match(self, param: inspect.Parameter) -> InjectionParam | None:
+        """Match `param` when its annotation, or any union member, is `match_type` or a subclass.
+
+        Args:
+            param: The parameter to inspect.
+
+        Returns:
+            An `InjectionParam` that passes the source object through unchanged, or `None` when the
+            parameter is unannotated or its annotation does not match.
+        """
         annotation = param.annotation
         if annotation is inspect.Parameter.empty:
             return None
@@ -67,6 +76,16 @@ class AnnotatedMatcher:
     source_type: type
 
     def match(self, param: inspect.Parameter) -> InjectionParam | None:
+        """Match `param` when it is annotated `Annotated[T, metadata]` with usable metadata.
+
+        Args:
+            param: The parameter to inspect.
+
+        Returns:
+            An `InjectionParam` that reads from `source_type` using the metadata's extractor and
+            converter, or `None` when the parameter is unannotated, not `Annotated`, or carries
+            metadata that is neither `AnnotationDetails` nor callable (the last case also warns).
+        """
         annotation = param.annotation
         if annotation is inspect.Parameter.empty:
             return None

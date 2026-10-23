@@ -69,6 +69,20 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
         ready: bool = False,
         ready_phase: str | None = None,
     ) -> "HassetteServiceEvent":
+        """Build a service status event on the service-status topic.
+
+        Args:
+            resource_name: Name of the resource whose status changed.
+            role: The resource's role.
+            status: The new status.
+            previous_status: The status before this change, if known.
+            exception: The exception behind a failure, flattened into string, type, and traceback fields.
+            ready: Whether the resource has signalled readiness.
+            ready_phase: Description of the current readiness phase, if any.
+
+        Returns:
+            The event, ready to send on the bus.
+        """
         exc_str, exc_type, exc_tb = extract_exception_fields(exception)
         payload = ServiceStatusPayload(
             resource_name=resource_name,
@@ -92,6 +106,14 @@ class HassetteSimpleEvent(Event[HassettePayload[HassetteEmptyPayload]]):
 
     @classmethod
     def from_topic(cls, topic: Topic) -> "HassetteSimpleEvent":
+        """Build an event on `topic` that carries an empty payload.
+
+        Args:
+            topic: The topic to publish on.
+
+        Returns:
+            The event, ready to send on the bus.
+        """
         payload = HassetteEmptyPayload()
         return cls(
             topic=topic,
@@ -104,6 +126,14 @@ class HassetteFileWatcherEvent(Event[HassettePayload[FileWatcherEventPayload]]):
 
     @classmethod
     def from_paths(cls, *, changed_file_paths: set[Path]) -> "HassetteFileWatcherEvent":
+        """Build a file watcher event on the file-watcher topic.
+
+        Args:
+            changed_file_paths: Paths that changed; stored as a frozenset in the payload.
+
+        Returns:
+            The event, ready to send on the bus.
+        """
         payload = FileWatcherEventPayload(changed_file_paths=frozenset(changed_file_paths))
         return cls(
             topic=Topic.HASSETTE_EVENT_FILE_WATCHER,
@@ -137,6 +167,19 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         previous_status: ResourceStatus | None = None,
         exception: Exception | BaseException | None = None,
     ) -> "HassetteAppStateEvent":
+        """Build an app state-change event from a live ``App`` instance.
+
+        The app's key, index, instance name, and class name fill the payload's identity fields.
+
+        Args:
+            app: The app instance whose status changed.
+            status: The new status.
+            previous_status: The status before this change, if known.
+            exception: The exception behind a failure, flattened into string, type, and traceback fields.
+
+        Returns:
+            The event, ready to send on the bus.
+        """
         exc_str, exc_type, exc_tb = extract_exception_fields(exception)
         payload = AppStateChangePayload(
             app_key=app.app_key,
@@ -233,6 +276,13 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
         error_type: str | None = None,
         thread_leaked: bool = False,
     ) -> "HassetteExecutionCompletedEvent":
+        """Build an execution-completed event from a persisted execution record's fields.
+
+        Each argument maps one-to-one onto the matching ``ExecutionCompletedPayload`` field.
+
+        Returns:
+            The event, ready to send on the bus.
+        """
         payload = ExecutionCompletedPayload(
             kind=kind,
             status=status,
