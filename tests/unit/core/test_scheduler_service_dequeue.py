@@ -86,6 +86,19 @@ class TestRemoveItemSync:
         assert "async with" not in src, "remove_item_sync must not use async with"
 
 
+class TestScheduledJobQueueAddRejectsMissingFireAt:
+    async def test_add_rejects_scheduled_job_without_fire_at(self) -> None:
+        """add() refuses a SCHEDULED job whose fire_at is None, so the heap never holds one."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job()
+        job.fire_at = None
+
+        with pytest.raises(ValueError, match="fire_at"):
+            await svc._job_queue.add(job)
+
+        assert svc._job_queue._queue.is_empty()
+
+
 class TestDequeueJobRemovesFromHeap:
     async def test_dequeue_job_removes_from_heap(self) -> None:
         """dequeue_job removes the job from the queue."""
