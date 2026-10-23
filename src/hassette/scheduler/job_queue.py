@@ -46,8 +46,8 @@ class _ScheduledJobQueue(Resource):
         """Add a job to the queue.
 
         The due-time heap must contain only jobs with a concrete automatic occurrence —
-        rejects any job that is not ``SCHEDULED`` or lacks a concrete ``next_run`` before
-        ever touching the heap, so a waiting/completed/manual job can never corrupt heap
+        rejects any job that is not ``SCHEDULED`` or lacks a concrete ``next_run`` or
+        ``fire_at`` before ever touching the heap, so a waiting/completed/manual job can never corrupt heap
         comparisons with a missing timestamp.
 
         The ``_dequeued`` flag is re-checked inside the lock, atomic with the heap
@@ -58,13 +58,13 @@ class _ScheduledJobQueue(Resource):
 
         Raises:
             ValueError: If ``job.schedule_status`` is not ``SCHEDULED``, or ``job.next_run``
-                is ``None``.
+                or ``job.fire_at`` is ``None``.
         """
-        if job.schedule_status is not ScheduleStatus.SCHEDULED or job.next_run is None:
+        if job.schedule_status is not ScheduleStatus.SCHEDULED or job.next_run is None or job.fire_at is None:
             raise ValueError(
                 f"Cannot enqueue job {job.name!r}: only SCHEDULED jobs with a concrete "
-                f"next_run may enter the heap (schedule_status={job.schedule_status!r}, "
-                f"next_run={job.next_run!r})"
+                f"next_run and fire_at may enter the heap (schedule_status={job.schedule_status!r}, "
+                f"next_run={job.next_run!r}, fire_at={job.fire_at!r})"
             )
 
         async with self._lock:
