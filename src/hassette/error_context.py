@@ -34,4 +34,9 @@ class ErrorContext:
 
     @property
     def domain_label(self) -> str:
+        """Label naming the error's source, without the execution ID; subclasses must override it.
+
+        Raises:
+            NotImplementedError: Always, on the base class.
+        """
         raise NotImplementedError

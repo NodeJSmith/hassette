@@ -86,6 +86,7 @@ class LogRecordEntry:
     instance_index: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the entry's fields as a plain dict."""
         return asdict(self)
 
 
@@ -147,6 +148,11 @@ class LogCaptureHandler(logging.Handler):
         self._min_notify_level = level
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Schedule a ``log_hint`` broadcast on the event loop for a record at or above the notify floor.
+
+        Does nothing while shutting down, before ``set_broadcast`` has wired a running loop, or for
+        records below the floor.
+        """
         if self.shutting_down:
             return
         if record.levelno < self._min_notify_level:
@@ -243,6 +249,11 @@ class LogIdentityFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Stamp the record's author and subject (``app_key``, ``instance_name``, ``instance_index``) once.
+
+        Returns:
+            Always True; this filter annotates records and never drops them.
+        """
         if getattr(record, _IDENTITY_RESOLVED_ATTR, False):
             return True
         setattr(record, _IDENTITY_RESOLVED_ATTR, True)
@@ -319,6 +330,11 @@ class CorrelationFilter(logging.Filter):
         self._seq = itertools.count(1)
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Stamp the execution ID, execution kind, listener and job IDs, and the next ``seq`` on the record.
+
+        Returns:
+            Always True; this filter annotates records and never drops them.
+        """
         ctx = structlog.contextvars.get_contextvars()
         record.execution_id = CURRENT_EXECUTION_ID.get(None)  # pyright: ignore[reportAttributeAccessIssue]
         record.execution_kind = ctx.get("execution_kind")  # pyright: ignore[reportAttributeAccessIssue]
@@ -348,6 +364,7 @@ class HassetteQueueHandler(logging.handlers.QueueHandler):
             return self._dropped
 
     def enqueue(self, record: logging.LogRecord) -> None:
+        """Put the record on the queue without blocking, counting it as dropped when the queue is full."""
         try:
             self.queue.put_nowait(record)
         except queue.Full:
@@ -364,9 +381,15 @@ class HassetteQueueListener(logging.handlers.QueueListener):
     """
 
     def dequeue(self, block: bool) -> logging.LogRecord:
+        """Return the next record, waiting at most ``DEQUEUE_TIMEOUT_SECONDS`` when ``block`` is set.
+
+        Raises:
+            queue.Empty: When no record arrives in time, which makes ``_monitor`` flush partial batches.
+        """
         return self.queue.get(block=block, timeout=DEQUEUE_TIMEOUT_SECONDS)  # pyright: ignore[reportCallIssue]
 
     def enqueue_sentinel(self) -> None:
+        """Put the stop sentinel with a blocking put, so it is delivered even when the bounded queue is full."""
         # Blocking put — put_nowait raises queue.Full on a bounded queue during burst logging,
         # preventing sentinel delivery and hanging thread.join() in stop().
         self.queue.put(self._sentinel)  # pyright: ignore[reportAttributeAccessIssue]
@@ -425,6 +448,10 @@ class LogPersistenceHandler(logging.Handler):
             return self._dropped
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Add a record at or above the persistence level to the batch, flushing once it reaches ``BATCH_SIZE``.
+
+        A record that fails to convert is routed to ``handleError`` and left out of the batch.
+        """
         if record.levelno < self._persistence_level:
             return
         try:
@@ -437,6 +464,7 @@ class LogPersistenceHandler(logging.Handler):
             self._flush()
 
     def flush_if_pending(self) -> None:
+        """Flush the current batch to the DB write queue if it holds any records."""
         if self._batch:
             self._flush()
 
@@ -464,6 +492,11 @@ class LogPersistenceHandler(logging.Handler):
                 self._dropped += batch_len
 
     def record_to_dict(self, record: logging.LogRecord) -> dict[str, Any]:
+        """Convert a record into a ``log_records`` row, including its identity and correlation attributes.
+
+        Raises:
+            AttributeError: If the record has no ``author``, meaning ``LogIdentityFilter`` never ran on it.
+        """
         return {
             "timestamp": record.created,
             "level": record.levelname,
@@ -476,6 +509,10 @@ class LogPersistenceHandler(logging.Handler):
         }
 
     def close(self) -> None:
+        """Flush any batched records, then close the handler.
+
+        The flush only schedules the DB write; it may not run if the event loop is already stopping.
+        """
         # Flushes remaining records via call_soon_threadsafe — the enqueued
         # coroutine may not execute if the event loop is already stopping.
         # LoggingService.on_shutdown() flushes pending records before stopping.

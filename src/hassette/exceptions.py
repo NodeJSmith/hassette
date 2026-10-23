@@ -152,6 +152,11 @@ class FailedMessageError(HassetteError):
         code: str | None = None,
         original_data: dict | None = None,
     ) -> "FailedMessageError":
+        """Build the error from an HA error response, folding the error text and payload into the message.
+
+        Returns:
+            A new instance carrying ``code`` and ``original_data``.
+        """
         msg = f"WebSocket message failed with response '{error}' (data={original_data})"
         return cls(msg, code=code, original_data=original_data)
 
