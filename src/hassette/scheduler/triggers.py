@@ -171,15 +171,19 @@ class After:
         return
 
     def trigger_label(self) -> str:
+        """Return ``"after"``, the UI label for a one-shot delay trigger."""
         return "after"
 
     def trigger_detail(self) -> str | None:
+        """Return the delay in whole seconds, e.g. ``"30s"``."""
         return f"{int(self._delay.total('seconds'))}s"
 
     def trigger_db_type(self) -> Literal["after"]:
+        """Return ``"after"``; delay triggers are stored as their own type."""
         return "after"
 
     def trigger_id(self) -> str:
+        """Return ``after:<seconds>``, so jobs with the same delay share an identifier."""
         return f"after:{int(self._delay.total('seconds'))}"
 
 
@@ -250,17 +254,21 @@ class Once:
         return
 
     def trigger_label(self) -> str:
+        """Return ``"once"``, the UI label for a one-shot wall-clock trigger."""
         return "once"
 
     def trigger_detail(self) -> str | None:
+        """Return the ``"HH:MM"`` input string, or the ISO fire time for a ``ZonedDateTime`` input."""
         if self._at_str is not None:
             return self._at_str
         return self._fire_at.format_iso()
 
     def trigger_db_type(self) -> Literal["once"]:
+        """Return ``"once"``; wall-clock one-shot triggers are stored as their own type."""
         return "once"
 
     def trigger_id(self) -> str:
+        """Return ``once:<ISO fire time>``, unique to the exact instant this trigger fires."""
         # Always include the full ISO timestamp so two Once jobs constructed on different days
         # (both at "07:00") do not share a trigger_id and do not shadow each other in the heap.
         return f"once:{self._fire_at.format_iso()}"
@@ -312,6 +320,7 @@ class Every:
 
     @property
     def interval_seconds(self) -> float:
+        """The repeat interval in seconds."""
         return self._interval.total("seconds")
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
@@ -340,15 +349,19 @@ class Every:
         return result.round("second")
 
     def trigger_label(self) -> str:
+        """Return ``"every"``, the UI label for a fixed-interval trigger."""
         return "every"
 
     def trigger_detail(self) -> str | None:
+        """Return the interval in whole seconds, e.g. ``"3600s"``."""
         return f"{int(self.interval_seconds)}s"
 
     def trigger_db_type(self) -> Literal["interval"]:
+        """Return ``"interval"``, the stored type for fixed-interval triggers."""
         return "interval"
 
     def trigger_id(self) -> str:
+        """Return ``every:<seconds>``, so jobs with the same interval share an identifier."""
         return f"every:{int(self.interval_seconds)}"
 
 
@@ -384,15 +397,19 @@ class Daily:
         return self._cron.next_run_time(previous_run, current_time)
 
     def trigger_label(self) -> str:
+        """Return ``"daily"``, the UI label for a once-a-day trigger."""
         return "daily"
 
     def trigger_detail(self) -> str | None:
+        """Return the ``"HH:MM"`` string the trigger was built from."""
         return self._at_str
 
     def trigger_db_type(self) -> Literal["cron"]:
+        """Return ``"cron"``; a daily trigger is stored as the cron expression it delegates to."""
         return "cron"
 
     def trigger_id(self) -> str:
+        """Return ``cron:<expression>``, matching a ``Cron`` trigger with the same schedule."""
         return f"cron:{self._expr}"
 
 
@@ -430,15 +447,19 @@ class Cron:
         return self._cron.next_run_time(previous_run, current_time)
 
     def trigger_label(self) -> str:
+        """Return ``"cron"``, the UI label for a cron-expression trigger."""
         return "cron"
 
     def trigger_detail(self) -> str | None:
+        """Return the cron expression as written."""
         return self._expression
 
     def trigger_db_type(self) -> Literal["cron"]:
+        """Return ``"cron"``, the stored type for cron-based triggers."""
         return "cron"
 
     def trigger_id(self) -> str:
+        """Return ``cron:<expression>``, so jobs with the same expression share an identifier."""
         return f"cron:{self._expression}"
 
 
@@ -565,9 +586,14 @@ class EntityTime:
         return self.resolve(current_time)
 
     def trigger_label(self) -> str:
+        """Return ``"entity_time"``, the UI label for an entity-driven trigger."""
         return "entity_time"
 
     def trigger_detail(self) -> str | None:
+        """Return the entity ID plus any attribute, signed offset in seconds, and ``daily`` flag.
+
+        Example: ``"sensor.phone_next_alarm -1800s daily"``.
+        """
         detail = self.entity_id
         if self.attribute is not None:
             detail += f".{self.attribute}"
@@ -579,8 +605,10 @@ class EntityTime:
         return detail
 
     def trigger_db_type(self) -> Literal["custom"]:
+        """Return ``"custom"``; entity-time triggers have no built-in stored type."""
         return "custom"
 
     def trigger_id(self) -> str:
+        """Return an identifier built from the entity ID, attribute, offset, and ``daily`` flag."""
         offset_seconds = int(self.offset.total("seconds"))
         return f"entity_time:{self.entity_id}:{self.attribute or ''}:{offset_seconds}:{int(self.daily)}"

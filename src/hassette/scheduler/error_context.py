@@ -26,4 +26,5 @@ class SchedulerErrorContext(ErrorContext):
 
     @property
     def domain_label(self) -> str:
+        """Return a ``job=<name>`` label identifying the failed job in error log lines."""
         return f"job={self.job_name}"
