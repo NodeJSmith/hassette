@@ -59,7 +59,10 @@ class ExecutionResult:
 
     @property
     def is_error(self) -> bool:
-        """True when the execution raised an exception (``status`` is ``ERROR``)."""
+        """True when ``status`` is ``ERROR``: the body raised an exception other than the tracked deadline expiring.
+
+        An expired ``track_execution()`` deadline records ``TIMED_OUT`` instead; see ``is_timed_out``.
+        """
         return self.status == ExecutionStatus.ERROR
 
     @property
