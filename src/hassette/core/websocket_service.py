@@ -568,7 +568,8 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
     async def authenticate(self) -> None:
         """Authenticate with the Home Assistant WebSocket API."""
-        assert self._ws, "WebSocket must be initialized before authenticating"
+        if not self._ws:
+            raise RuntimeError("WebSocket must be initialized before authenticating")
         secret = self.hassette.config.token
         token = secret.get_secret_value() if secret is not None else None
         truncated_token = self.hassette.config.truncated_token
@@ -576,7 +577,8 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
         with anyio.fail_after(self.authentication_timeout_seconds):
             msg = await self._ws.receive_json()
-            assert msg["type"] == "auth_required"
+            if msg["type"] != "auth_required":
+                raise RuntimeError(f"Unexpected authentication response: {msg}")
             await self._ws.send_json({"type": "auth", "access_token": token})
             msg = await self._ws.receive_json()
 

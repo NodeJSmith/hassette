@@ -109,9 +109,10 @@ class SchedulerDispatchMixin:
         if job.jitter is None:
             return
         # Only a SCHEDULED job is ever passed here (enqueue_job() is only reachable for
-        # jobs with a concrete occurrence) — asserted rather than silently no-op'd so a
+        # jobs with a concrete occurrence) — checked rather than silently no-op'd so a
         # future caller violating that invariant fails loudly instead of corrupting the heap.
-        assert job.next_run is not None, "apply_jitter_to_heap requires a job with a concrete next_run"
+        if job.next_run is None:
+            raise RuntimeError("apply_jitter_to_heap requires a job with a concrete next_run")
 
         offset = random.uniform(0, job.jitter)
         try:
@@ -176,9 +177,10 @@ class SchedulerDispatchMixin:
         # persist the new (non-heap) status. The current fire ALWAYS runs regardless of outcome.
         if job.trigger is not None:
             # Only a SCHEDULED job (concrete next_run) is ever popped for dispatch — the
-            # due-time heap enforces this. Asserted rather than silently skipped so a future
+            # due-time heap enforces this. Checked rather than silently skipped so a future
             # caller violating that invariant fails loudly instead of dispatching bad state.
-            assert job.next_run is not None, "dispatch_and_log requires a job with a concrete next_run"
+            if job.next_run is None:
+                raise RuntimeError("dispatch_and_log requires a job with a concrete next_run")
             try:
                 if job._pending_entity_time_transition is not None:
                     next_run = job._pending_entity_time_transition
@@ -206,7 +208,6 @@ class SchedulerDispatchMixin:
                 elif next_run is not None:
                     curr_next_run = job.next_run
                     job.transition_to(ScheduleStatus.SCHEDULED, next_run=next_run)
-                    assert job.next_run is not None
                     delta_to_now = (job.next_run - date_utils.now()).total("seconds")
                     if delta_to_now <= 0:
                         self.logger.warning(
