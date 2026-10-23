@@ -141,9 +141,8 @@ class Scheduler(Resource):
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
-        assert self.parent is not None, (
-            "Scheduler requires a parent Resource for telemetry identity (app_key/source_tier)"
-        )
+        if self.parent is None:
+            raise RuntimeError("Scheduler requires a parent Resource for telemetry identity (app_key/source_tier)")
         self.scheduler_service = self.hassette.scheduler_service
         self._jobs_by_name = {}
         self._jobs_by_group: dict[str, set[Job]] = {}
@@ -445,12 +444,13 @@ class Scheduler(Resource):
         Returns:
             A ``(app_key, instance_index, source_tier, instance_name, resolved_mode)`` tuple.
         """
-        parent = self.parent
-        assert parent is not None
+        if (parent := self.parent) is None:
+            raise RuntimeError("Scheduler requires a parent Resource for telemetry identity (app_key/source_tier)")
         app_key = parent.app_key
         instance_index = parent.index
         source_tier = parent.source_tier
-        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
+        if source_tier not in ("app", "framework"):
+            raise ValueError(f"Invalid source_tier={source_tier!r} on {parent.class_name}")
 
         resolved_mode = resolve_execution_mode(mode, source_tier)
 

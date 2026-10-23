@@ -632,18 +632,18 @@ class TestIdentityPassThrough:
         assert job.app_key == "__hassette__.TestComponent"
 
     async def test_source_tier_assertion_rejects_invalid_value(self) -> None:
-        """schedule() raises AssertionError for invalid source_tier values."""
+        """schedule() raises ValueError for invalid source_tier values."""
         scheduler = make_scheduler()
         scheduler.parent.source_tier = "invalid"
-        with pytest.raises(AssertionError, match="Invalid source_tier"):
+        with pytest.raises(ValueError, match="Invalid source_tier"):
             await scheduler.schedule(noop, Every(hours=1), name="source_tier_assertion_rejects_invalid_va_schedule")
 
     def test_scheduler_requires_parent(self) -> None:
-        """Scheduler.__init__ raises AssertionError when parent is None."""
+        """Scheduler.__init__ raises RuntimeError when parent is None."""
         mock_hassette = Mock()
         mock_hassette.scheduler_service = Mock()
         mock_hassette.scheduler_service.register_removal_callback = Mock()
-        with pytest.raises(AssertionError, match="Scheduler requires a parent"):
+        with pytest.raises(RuntimeError, match="Scheduler requires a parent"):
             Scheduler(mock_hassette, parent=None)
 
 

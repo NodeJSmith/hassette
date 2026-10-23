@@ -95,7 +95,8 @@ class _ScheduledJobQueue(Resource):
                 if candidate is None:
                     break
                 # Heap invariant, enforced by add(): every enqueued job has a concrete fire_at.
-                assert candidate.fire_at is not None
+                if candidate.fire_at is None:
+                    raise RuntimeError(f"Enqueued job {candidate!r} has no fire_at; add() must reject such jobs")
                 if candidate.fire_at > current_time:
                     break
 
