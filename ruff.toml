@@ -79,6 +79,7 @@ select = [
     "PERF",   # Perflint (PERF)
     "TID252", # relative imports
     "D",      # pydocstyle (google convention)
+    "PLC0415", # import-outside-top-level
 ]
 
 ignore = [
@@ -136,6 +137,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "S102",   # exec usage (API surface test)
     "ASYNC221", # blocking subprocess in async test functions (docker management)
     "PT031",  # GC-triggered warning tests require del + gc.collect() (two statements)
+    "PLC0415", # inline imports: pytest-collection workarounds and import-raises assertions
 ]
 "wire/tests/**/*.py" = ["S101", "S603"]
 "client/tests/**/*.py" = ["S101"]
