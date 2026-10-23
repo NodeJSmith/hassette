@@ -52,7 +52,9 @@ The dispatch semaphore is **global** — shared by all listeners across all
 apps. `drop_newest` does not drop when *this listener alone* is busy. It drops
 when the *whole bus* has no free slots.
 
-The slot count is set by `lifecycle.max_concurrent_dispatches` (default 50).
+The slot count is set by
+[`lifecycle.max_concurrent_dispatches`](../configuration/index.md#event-filtering),
+under `[hassette.lifecycle]` in `hassette.toml` (default 50).
 The bus is saturated when that many handlers are in flight at once.
 
 This is different from `throttle` and `debounce`, which are per-listener rate
@@ -84,8 +86,9 @@ order for equal priorities.
 
 ### Signal type: latency vs. silent loss
 
-`block` converts bus saturation into **latency** — the operator sees the
-dispatch queue grow and can react. `drop_newest` converts it into **silent
+`block` converts bus saturation into **latency**: handlers start later, and
+Hassette logs a rate-limited `Event dispatch saturated` warning the operator
+can react to. `drop_newest` converts it into **silent
 loss** visible only as a rising drop count.
 
 A non-zero drop count in the [monitoring UI](../../web-ui/index.md) means the bus was saturated when
