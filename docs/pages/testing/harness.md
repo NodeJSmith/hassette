@@ -250,6 +250,8 @@ allowed (partial match).
 --8<-- "pages/testing/snippets/testing_assert_called.py"
 ```
 
+The same kwargs matching works for `call_service` and `fire_event`, for
+example `assert_called("call_service", domain="light", service="turn_on")`.
 `turn_on`, `turn_off`, and `toggle` record under their own names, not
 under `call_service`:
 

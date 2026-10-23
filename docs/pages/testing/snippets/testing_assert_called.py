@@ -22,16 +22,3 @@ async def test_assert_called_examples():
             entity_id="light.kitchen",
             domain="light",
         )
-
-        # Assert fire_event was called with a specific event type
-        harness.api_recorder.assert_called(
-            "fire_event", event_type="my_custom_event"
-        )
-
-        # Assert call_service was called directly (for services without a named wrapper)
-        harness.api_recorder.assert_called(
-            "call_service",
-            domain="light",
-            service="set_color_temp",
-            target={"entity_id": "light.kitchen"},
-        )
