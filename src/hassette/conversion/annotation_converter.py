@@ -27,10 +27,12 @@ class ContainerConverterRegistry:
 
     @classmethod
     def register(cls, entry: ContainerConverterEntry) -> None:
+        """Register ``entry`` under its origin, replacing any converter already registered for it."""
         cls.map[entry.origin] = entry
 
     @classmethod
     def get(cls, origin: Any) -> ContainerConverterEntry | None:
+        """Return the converter registered for ``origin``, or None if there is none."""
         return cls.map.get(origin)
 
 

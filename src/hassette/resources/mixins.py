@@ -258,6 +258,12 @@ class LifecycleMixin(_LifecycleHostP):
 
     @property
     def status(self) -> ResourceStatus:
+        """Current lifecycle status.
+
+        Assigning a new value checks it against ``VALID_TRANSITIONS``: an invalid transition raises
+        ``InvalidLifecycleTransitionError`` under ``strict_lifecycle``, and is logged as a warning
+        but still applied otherwise.
+        """
         return self._status
 
     @status.setter

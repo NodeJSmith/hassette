@@ -265,6 +265,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @property
     def owner_id(self) -> str:
+        """Unique name of the owning resource: the parent's ``unique_name``, else this resource's own."""
         # nearest App's unique_name, else Hassette's unique_name
         if self.parent:
             return self.parent.unique_name

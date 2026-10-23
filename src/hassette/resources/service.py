@@ -205,4 +205,5 @@ class Service(Resource):
             await handle_failed(self, exc)
 
     def is_running(self) -> bool:
+        """Return True while the ``serve()`` task exists and has not finished."""
         return self._serve_task is not None and not self._serve_task.done()

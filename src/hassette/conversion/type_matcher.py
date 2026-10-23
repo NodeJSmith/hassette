@@ -29,10 +29,12 @@ class TypeMatcherRegistry:
 
     @classmethod
     def register(cls, entry: TypeMatcherEntry) -> None:
+        """Register ``entry`` under its origin, replacing any matcher already registered for it."""
         cls.map[entry.origin] = entry
 
     @classmethod
     def get(cls, origin: Any) -> TypeMatcherEntry | None:
+        """Return the deep matcher registered for ``origin``, or None if there is none."""
         return cls.map.get(origin)
 
 
@@ -53,6 +55,15 @@ class TypeMatcher:
     """Runtime matcher for checking if values already satisfy nested type annotations."""
 
     def matches(self, value: Any, tp: Any) -> bool:
+        """Check whether ``value`` already satisfies annotation ``tp`` without any conversion.
+
+        Containers registered in ``TypeMatcherRegistry`` are checked element by element. A plain
+        union matches only its first member type, so a value that fits a later member still
+        reports False and gets converted. An unregistered generic is checked on its outer type only.
+
+        Returns:
+            True if ``value`` matches ``tp``, False if it would need conversion.
+        """
         tp = normalize_annotation(tp)
 
         # Any matches everything

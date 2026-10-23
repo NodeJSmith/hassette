@@ -74,9 +74,11 @@ class SpaPathConvertor(Convertor[str]):
     regex = rf"(?!{re.escape(API_PREFIX.removeprefix('/'))}(?:/|$)).*"
 
     def convert(self, value: str) -> str:
+        """Return the matched path segment unchanged."""
         return value
 
     def to_string(self, value: str) -> str:
+        """Return ``value`` unchanged for URL building."""
         return value
 
 
