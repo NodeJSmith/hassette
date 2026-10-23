@@ -46,10 +46,12 @@ class ApiSyncFacade(Resource):
         self.helpers = self.add_child(HelperClientSyncFacade, helpers=self._api.helpers)
 
     async def on_initialize(self) -> None:
+        """Mark the facade ready; it wraps ``Api`` and needs no setup of its own."""
         mark_ready(self, reason="Synchronous API facade initialized")
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured API log level, shared with the async ``Api``."""
         return self.hassette.config.logging.api
 
     def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:

@@ -117,6 +117,7 @@ class FrameClassifier:
 
     @classmethod
     def for_current_interpreter(cls, app_dirs: Iterable[PurePath]) -> "FrameClassifier":
+        """Build a classifier for ``app_dirs`` that excludes this interpreter's install prefixes and hassette itself."""
         excluded = {PurePath(p) for p in (sys.prefix, sys.base_prefix, sys.exec_prefix, HASSETTE_PACKAGE_DIR)}
         return cls(app_dirs=tuple(app_dirs), excluded_dirs=tuple(excluded))
 
@@ -143,6 +144,7 @@ class FrameClassifier:
         return result
 
     def is_user_code(self, filename: str) -> bool:
+        """True when ``filename`` lies under an app directory or passes the fallback user-code check."""
         return self.app_dir_for(filename) is not None or self.is_fallback_user_code(filename)
 
     def find_call_site(self, frames: Sequence[StackFrame]) -> int | None:
@@ -176,6 +178,7 @@ class FrameClassifier:
         return filename
 
     def ref(self, frame: StackFrame) -> BlockingFrameRef:
+        """Return ``frame`` as a ``BlockingFrameRef`` carrying its short display path."""
         return BlockingFrameRef(**frame.model_dump(), display_path=self.display_path(frame.filename))
 
     def top_level_package(self, frame: StackFrame) -> str:

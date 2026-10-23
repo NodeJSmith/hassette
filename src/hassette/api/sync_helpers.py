@@ -38,10 +38,12 @@ class HelperClientSyncFacade(Resource):
         self._helpers = helpers
 
     async def on_initialize(self) -> None:
+        """Mark the facade ready; it wraps ``HelperClient`` and needs no setup of its own."""
         mark_ready(self, reason="Synchronous HelperClient facade initialized")
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured API log level, shared with the async ``HelperClient``."""
         return self.hassette.config.logging.api
 
     def list(self, domain: HelperDomain) -> builtins.list[Any]:

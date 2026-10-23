@@ -54,18 +54,25 @@ class ExecutionResult:
 
     @property
     def is_success(self) -> bool:
+        """True when the execution completed without raising (``status`` is ``SUCCESS``)."""
         return self.status == ExecutionStatus.SUCCESS
 
     @property
     def is_error(self) -> bool:
+        """True when ``status`` is ``ERROR``: the body raised an exception other than the tracked deadline expiring.
+
+        An expired ``track_execution()`` deadline records ``TIMED_OUT`` instead; see ``is_timed_out``.
+        """
         return self.status == ExecutionStatus.ERROR
 
     @property
     def is_cancelled(self) -> bool:
+        """True when the execution was cancelled (``status`` is ``CANCELLED``)."""
         return self.status == ExecutionStatus.CANCELLED
 
     @property
     def is_timed_out(self) -> bool:
+        """True when the execution exceeded its timeout (``status`` is ``TIMED_OUT``)."""
         return self.status == ExecutionStatus.TIMED_OUT
 
 
