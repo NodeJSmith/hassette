@@ -106,6 +106,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         # dup-ignore-end
+        """Replace pydantic-settings' default sources with the active build's resolved locations.
+
+        Highest priority first: the resolved ``config_dir``, init kwargs with paths anchored at the build's
+        cwd, the environment snapshot, each ``.env`` file (later files first), file secrets, then TOML.
+
+        Raises:
+            RuntimeError: If called outside ``HassetteConfig.__init__``, where no build is active.
+        """
         build = ACTIVE_BUILD.get()
         if build is None:
             # sources resolve only inside BaseSettings.__init__, which HassetteConfig.__init__ wraps in a build
@@ -345,6 +353,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @field_validator("timezone", mode="before")
     @classmethod
     def validate_timezone(cls, value: str | None) -> str | None:
+        """Reject a timezone that isn't a valid IANA name; None passes through."""
         if value is None:
             return None
         try:

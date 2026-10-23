@@ -398,6 +398,7 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     @field_validator("event_handler_timeout_seconds", "error_handler_timeout_seconds", mode="before")
     @classmethod
     def validate_timeouts(cls, value: Any) -> float | None:
+        """Coerce the timeout to a float, rejecting values that are not None or positive."""
         return validate_positive_or_none(value)
 
     @model_validator(mode="after")
@@ -618,6 +619,7 @@ class SchedulerConfig(ExcludeExtrasMixin, BaseModel):
     @field_validator("job_timeout_seconds", mode="before")
     @classmethod
     def validate_timeouts(cls, value: Any) -> float | None:
+        """Coerce the timeout to a float, rejecting values that are not None or positive."""
         return validate_positive_or_none(value)
 
 
