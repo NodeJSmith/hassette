@@ -91,11 +91,13 @@ class ApiResource(Resource):
         mark_ready(self, reason="API session initialized")
 
     async def on_shutdown(self) -> None:
+        """Close the HTTP session, pausing briefly when SSL verification is on so TLS transports can finish closing."""
         await self._stack.aclose()
         await asyncio.sleep(_SSL_SHUTDOWN_DELAY if self.hassette.config.verify_ssl else 0)
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured log level for the API resource (``logging.api``)."""
         return self.hassette.config.logging.api
 
     @property

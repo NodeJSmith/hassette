@@ -34,12 +34,25 @@ class AppBootstrapCoordinator(Resource):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the app handler's configured log level (``logging.app_handler``)."""
         return self.hassette.config.logging.app_handler
 
     def is_released(self) -> bool:
+        """Return whether initial app bootstrap has been released to run."""
         return self._released_event.is_set()
 
     async def wait_released(self, *, timeout: float | None = None) -> bool:
+        """Wait until initial app bootstrap is released.
+
+        Args:
+            timeout: Seconds to wait before giving up, or ``None`` to wait indefinitely.
+
+        Returns:
+            ``True`` once released, ``False`` if ``timeout`` elapses first.
+
+        Raises:
+            asyncio.CancelledError: If the coordinator is shutting down or shuts down before release.
+        """
         if self._released_event.is_set():
             return True
         if self.shutdown_event.is_set():
@@ -65,6 +78,10 @@ class AppBootstrapCoordinator(Resource):
             await asyncio.gather(release_wait, shutdown_wait, return_exceptions=True)
 
     async def on_initialize(self) -> None:
+        """Mark the coordinator ready and spawn the background wait that releases bootstrap.
+
+        Release happens once the state proxy reports its initial-state capability.
+        """
         self.logger.debug("Dependencies ready, wiring bootstrap coordinator")
         mark_ready(self, reason="bootstrap coordinator wired")
         self._bootstrap_task = self.task_bucket.spawn(
@@ -84,6 +101,7 @@ class AppBootstrapCoordinator(Resource):
             self._released_event.set()
 
     async def on_shutdown(self) -> None:
+        """Mark the coordinator not ready and cancel the pending release wait."""
         mark_not_ready(self, reason="shutting-down")
         await cancel_and_drain(self._bootstrap_task)
         self._bootstrap_task = None

@@ -19,9 +19,17 @@ class AppKeyLock(asyncio.Lock):
 
     @property
     def busy(self) -> bool:
+        """Whether any task holds the lock or is waiting to acquire it."""
         return self.claims > 0
 
     async def acquire(self) -> bool:
+        """Acquire the lock, counting this task as a claim from the moment it starts waiting.
+
+        The claim is withdrawn if acquisition is cancelled or fails.
+
+        Returns:
+            ``True`` once the lock is held.
+        """
         self.claims += 1
         try:
             return await super().acquire()
@@ -30,5 +38,6 @@ class AppKeyLock(asyncio.Lock):
             raise
 
     def release(self) -> None:
+        """Release the lock and withdraw the holder's claim."""
         super().release()
         self.claims -= 1
