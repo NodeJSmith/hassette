@@ -28,7 +28,7 @@ class FileWatcherService(Service):
         return self.hassette.config.logging.file_watcher
 
     async def before_initialize(self) -> None:
-        """Wait for Hassette to finish startup before the watcher initializes."""
+        """Wait until the database and session are ready before the watcher initializes."""
         await self.hassette.ready_event.wait()
 
     async def on_initialize(self) -> None:

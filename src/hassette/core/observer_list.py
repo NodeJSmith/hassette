@@ -40,7 +40,7 @@ class ObserverList(Generic[T]):
         self._observers = tuple(item for item in self._observers if item != observer)
 
     async def notify(self, *args: typing.Any) -> None:
-        """Await each observer in registration order with ``args``, logging and skipping any that raise."""
+        """Await each observer in registration order with ``args``, logging and skipping those raising ``Exception``."""
         for observer in self._observers:
             try:
                 await observer(*args)

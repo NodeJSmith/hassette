@@ -77,7 +77,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         self._jobs_by_id = {}
 
     async def before_initialize(self) -> None:
-        """Wait for Hassette to finish startup before the scheduler initializes."""
+        """Wait until the database and session are ready before the scheduler initializes."""
         await self.hassette.ready_event.wait()
 
     async def serve(self) -> None:
