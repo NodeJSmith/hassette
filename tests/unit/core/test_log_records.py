@@ -14,7 +14,9 @@ from hassette.config.config import HassetteConfig
 from hassette.config.models import LoggingConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
+from hassette.core.telemetry.helpers import log_record_filter_clauses
 from hassette.core.telemetry.query_service import TelemetryQueryService
+from hassette.core.telemetry.summary_queries import LOG_RECORD_SELECT
 from hassette.exceptions import ConfigError
 from hassette.schemas.log_models import LogRecord
 from hassette.testing.config import LATEST_MIGRATION_VERSION
@@ -131,6 +133,25 @@ class TestMigration001LogRecords:
         cursor = migrated_db.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='log_records'")
         indexes = {row[0] for row in cursor.fetchall()}
         assert "idx_lr_app_time" in indexes
+
+    def test_default_log_view_uses_partial_index(self, migrated_db: sqlite3.Connection) -> None:
+        """The default log query (no author) reads idx_lr_default_view instead of filtering idx_lr_time.
+
+        SQLite only picks a partial index whose WHERE the query's WHERE matches, so this fails if
+        SQL_DEFAULT_LOG_VIEW and migration 016's index predicate drift apart.
+        """
+        clauses, params = log_record_filter_clauses(
+            since=None, app_key=None, level=None, execution_id=None, author=None, instance_index=None
+        )
+        query = f"""
+            EXPLAIN QUERY PLAN {LOG_RECORD_SELECT}
+            WHERE {" AND ".join(clauses)}
+            ORDER BY lr.timestamp DESC, lr.seq DESC
+            LIMIT 100
+        """
+        plan = [row[3] for row in migrated_db.execute(query, params).fetchall()]
+        assert "SCAN lr USING INDEX idx_lr_default_view" in plan
+        assert not any("TEMP B-TREE" in step for step in plan)
 
     def test_migration_version_is_at_head(self, tmp_path: Path) -> None:
         """After full migration, PRAGMA user_version is at head."""

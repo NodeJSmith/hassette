@@ -40,8 +40,9 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
         indexes = sorted(row[0] for row in cursor.fetchall())
         # 001.sql defines 13 idx_* indexes (2 listeners, 2 scheduled_jobs, 6 executions, 3 log_records);
-        # 004.sql adds 3 more (idx_be_ts, idx_be_app_ts, idx_be_session) → 16 total.
-        assert len(indexes) == 16
+        # 004.sql adds 3 more (idx_be_ts, idx_be_app_ts, idx_be_session); 016.sql adds idx_lr_default_view
+        # → 17 total.
+        assert len(indexes) == 17
         assert "idx_listeners_app" in indexes
         assert "idx_listeners_natural" in indexes
         assert "idx_scheduled_jobs_app" in indexes
@@ -55,6 +56,7 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
         assert "idx_lr_time" in indexes
         assert "idx_lr_exec" in indexes
         assert "idx_lr_app_time" in indexes
+        assert "idx_lr_default_view" in indexes
         assert "idx_be_ts" in indexes
         assert "idx_be_app_ts" in indexes
         assert "idx_be_session" in indexes
