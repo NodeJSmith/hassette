@@ -95,13 +95,13 @@ class TestDurationConfigAttachTimer:
 
     def test_timer_property_raises_before_attach(self) -> None:
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
-        with pytest.raises(AssertionError):
+        with pytest.raises(RuntimeError, match="timer not yet attached"):
             _ = cfg.timer
 
     def test_attach_timer_raises_if_already_attached(self) -> None:
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
         self.attach(cfg)
-        with pytest.raises(AssertionError):
+        with pytest.raises(RuntimeError, match="timer already attached"):
             self.attach(cfg)
 
     def test_attach_timer_passes_fields_to_duration_timer(self) -> None:

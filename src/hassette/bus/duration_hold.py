@@ -271,7 +271,8 @@ class DurationHoldManager:
         Returns:
             A ``Subscription`` whose ``cancel()`` removes the listener from Router.
         """
-        assert main_listener.duration_config is not None, "duration listener must have duration_config"
+        if main_listener.duration_config is None:
+            raise RuntimeError("duration listener must have duration_config")
         duration_timer = main_listener.duration_config.timer
         entity_id = main_listener.duration_config.entity_id
 

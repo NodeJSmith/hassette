@@ -149,7 +149,8 @@ class Bus(Resource):
 
     def __init__(self, hassette: "Hassette", *, priority: int = 0, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
-        assert self.parent is not None, "Bus requires a parent Resource for telemetry identity (app_key/source_tier)"
+        if self.parent is None:
+            raise RuntimeError("Bus requires a parent Resource for telemetry identity (app_key/source_tier)")
         self.bus_service = self.hassette.bus_service
         self.priority = priority
         self._registered_listeners: dict[tuple[str, int, str, str], Listener] = {}
@@ -580,11 +581,13 @@ class Bus(Resource):
         listener is routable before this method returns.
         """
         parent = self.parent
-        assert parent is not None
+        if parent is None:
+            raise RuntimeError("Bus requires a parent Resource for telemetry identity (app_key/source_tier)")
         app_key = parent.app_key
         instance_index = parent.index
         source_tier = parent.source_tier
-        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
+        if source_tier not in ("app", "framework"):
+            raise ValueError(f"Invalid source_tier={source_tier!r} on {parent.class_name}")
 
         # Tier-aware default (see resolve_execution_mode): framework listeners default to
         # ``parallel`` to preserve supervisor/state-cache concurrency; app listeners default to
