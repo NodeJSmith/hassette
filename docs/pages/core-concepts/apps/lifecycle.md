@@ -54,7 +54,9 @@ When `on_initialize` raises or times out, Hassette marks the app instance as fai
 
 If the subscription or `refresh` raises, the `except` block closes the session. The re-raised error still marks the app as failed. On a normal stop, `on_shutdown` closes the session instead.
 
-`except Exception` does not catch a timeout, because a timeout cancels `on_initialize` instead of raising. Creating the resource as the last step of `on_initialize` covers both cases. Nothing runs after it, so no `try`/`except` is needed.
+The same applies to `after_initialize`: if it raises, the app is marked failed and `on_shutdown` is skipped. An app that overrides `after_initialize` needs the same `try`/`except` there.
+
+A timeout works differently. When `on_initialize` runs past `app_startup_timeout_seconds` (see [Startup and Shutdown Timeouts](../../operating/index.md#startup-and-shutdown-timeouts)), Hassette stops waiting and marks the app failed, but `on_initialize` is not cancelled and nothing is raised inside it. It keeps running in the background, so the `except` block never runs, and a resource it creates after the timeout is never closed. An `asyncio.timeout()` shorter than the startup timeout keeps a slow step inside the cleanup path. The `TimeoutError` it raises reaches the `except` block like any other error.
 
 ## Synchronous Lifecycle
 
