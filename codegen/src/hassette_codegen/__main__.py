@@ -54,6 +54,10 @@ def _run_sync_facade(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    """Run the codegen subcommand named on the command line and return its exit code.
+
+    With no subcommand, prints the help text and returns 0.
+    """
     parser = _build_parser()
     args = parser.parse_args()
 

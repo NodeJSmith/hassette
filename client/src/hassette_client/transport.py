@@ -258,6 +258,11 @@ def interpret_response(response: RawResponse, response_type: Any, endpoint: str,
 
 
 def parse_success_body(response_type: Any, response: RawResponse, endpoint: str) -> Any:
+    """Validate a success response's body as ``response_type`` and return the parsed value.
+
+    Raises:
+        ResponseValidationError: The body doesn't match ``response_type``; logged at DEBUG before raising.
+    """
     try:
         return parse_payload(
             response_type,
@@ -285,6 +290,7 @@ def try_parse_probe_status(response_type: Any, response: RawResponse, endpoint: 
 
 
 def try_parse_problem(response: RawResponse, endpoint: str) -> ProblemDetail | None:
+    """The error response's problem detail, or ``None`` when the body doesn't validate as one."""
     try:
         return parse_payload(ProblemDetail, response.payload, endpoint=endpoint)
     except ResponseValidationError:
@@ -295,6 +301,7 @@ def try_parse_problem(response: RawResponse, endpoint: str) -> ProblemDetail | N
 def http_error(
     error_class: type[HassetteHTTPError], response: RawResponse, endpoint: str, *, problem: ProblemDetail | None
 ) -> HassetteHTTPError:
+    """Build an ``error_class`` instance describing ``response``, with a body excerpt when there's no problem detail."""
     return error_class(
         status=response.status,
         endpoint=endpoint,
@@ -368,6 +375,7 @@ def parse_media_type(header: str | None) -> str | None:
 
 
 def media_kind(media_type: str | None) -> MediaKind:
+    """Classify a parsed media type as a problem body, JSON, something else, or missing."""
     if media_type is None:
         return MediaKind.MISSING
     if media_type == PROBLEM_MEDIA_TYPE:

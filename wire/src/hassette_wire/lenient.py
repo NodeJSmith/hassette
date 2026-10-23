@@ -120,6 +120,12 @@ def vocabulary_of(arm: Any) -> frozenset[str]:
 
 
 def make_validator(type_name: str, vocabulary: frozenset[str]) -> Callable[..., Any]:
+    """Build a wrap validator that parses an unrecognized string as ``UnknownValue`` in lenient mode.
+
+    Values in ``vocabulary`` and non-strings keep the wrapped schema's result or error, and outside a
+    lenient validation context every failure is re-raised. ``type_name`` only labels the debug log line.
+    """
+
     def validate(
         value: Any, handler: core_schema.ValidatorFunctionWrapHandler, info: core_schema.ValidationInfo
     ) -> Any:
@@ -148,9 +154,11 @@ def make_validator(type_name: str, vocabulary: frozenset[str]) -> Callable[..., 
 
 
 def is_lenient(context: Any) -> bool:
+    """Whether a validation ``context`` asks for lenient parsing, as ``LENIENT_CONTEXT`` does."""
     return isinstance(context, Mapping) and context.get(_LENIENT_KEY) is True
 
 
 def serialize_open_value(value: Any, handler: core_schema.SerializerFunctionWrapHandler) -> Any:
+    """Serialize a value, passing an ``UnknownValue`` through untouched instead of to the wrapped serializer."""
     # An UnknownValue is returned as-is: python mode keeps the object, JSON mode infers a plain string.
     return value if isinstance(value, UnknownValue) else handler(value)
