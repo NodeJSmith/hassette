@@ -49,14 +49,12 @@ This pulls whatever tag is configured in your `docker-compose.yml`. To pin a spe
 
 The changelog lives in two places: `CHANGELOG.md` at the root of the repository, and the [GitHub Releases page](https://github.com/NodeJSmith/hassette/releases). Both contain the same content. GitHub Releases is easier to browse by version; `CHANGELOG.md` is useful if you have the repo checked out.
 
-Release notes are generated from [Conventional Commits](https://www.conventionalcommits.org/) messages. Each message starts with a type: `feat` for a new feature, `fix` for a bug fix. A `!` after the type, as in `feat!:`, marks a breaking change.
+Each release's notes are curated by hand and grouped by topic, so they don't show raw commit messages or `feat!:`-style prefixes. Before upgrading, read the notes for every version between your current version and the target version. Two sections matter most:
 
-Before upgrading, scan the entries between your current version and the target version. Pay attention to two signals:
+- **Breaking Changes** comes first when a release has any. Each entry names what changed and what to do about it. Treat every entry there as something your app code or config may need to change for.
+- **For App Authors: You Can Now Delete** lists workarounds the release makes unnecessary. Nothing breaks if you keep them; removing them is optional cleanup.
 
-- A `BREAKING CHANGE:` footer in a release note means something in your app code may need to change. The footer describes what changed and what you need to do.
-- A `!` after the commit type (for example, `feat!:` or `fix!:`) marks a breaking change. If the entry has a `BREAKING CHANGE:` footer, that footer has the details. If it does not, the summary line is all you have. Read it carefully.
-
-Entries without either signal are safe to take without changes to your app code.
+A release with no Breaking Changes section needs no changes to your app code.
 
 ## Major Version Upgrades
 
@@ -305,4 +303,6 @@ Apps directory: /config/apps
 Found 2 active apps
 ```
 
-`Apps directory:` names the directory Hassette loads apps from. `Found <n> active apps` counts the enabled apps it found there. With `logging.app_handler = "DEBUG"`, each app that starts also logs `App '<instance_name>' (<ClassName>) initialized successfully`. Logs go to the terminal that runs `hassette run`; in Docker, read them with `docker compose logs hassette`.
+`Apps directory:` names the directory Hassette loads apps from. `Found <n> active apps` counts the enabled entries in your config. Hassette logs it before importing or starting any app, so it appears even when an app fails to load. Logs go to the terminal that runs `hassette run`; in Docker, read them with `docker compose logs hassette`.
+
+To confirm each app actually started, run [`hassette app`](../cli/commands.md#hassette-app) once Hassette is up. Every enabled app should show status `running`. An app that failed to import or initialize shows `failed`, or `degraded` when only some of its instances started. With `logging.app_handler = "DEBUG"`, each app that starts also logs `App '<instance_name>' (<ClassName>) initialized successfully`.
