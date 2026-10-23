@@ -354,11 +354,12 @@ class OutageLog:
         return self.episode_started_at is not None and now - self.last_summary_at >= OUTAGE_SUMMARY_INTERVAL_SECONDS
 
     def maybe_summarize(self, now: float, *, has_ever_connected: bool, core_state: str | None = None) -> None:
-        """Log a WARNING summary of the open episode if one is due, then restart the summary interval.
+        """Log a summary of the open episode if one is due, then restart the summary interval.
 
-        With *core_state* set, the summary reports that Home Assistant is reachable but not yet
-        RUNNING; otherwise it counts attempts, flaps and repeated errors, adding a first-connect
-        hint when the service has never connected.
+        With *core_state* set, it logs a WARNING that Home Assistant is reachable but not yet
+        RUNNING. Otherwise it counts attempts, flaps and repeated errors, adding a first-connect
+        hint when the service has never connected; that summary logs at ERROR when the service
+        has never connected or errors keep repeating, and at WARNING otherwise.
         """
         if not self.summary_due(now) or self.episode_started_at is None:
             return
