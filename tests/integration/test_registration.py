@@ -14,11 +14,14 @@ from hassette_wire import ExecutionMode
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.scheduler_service import SchedulerService
+from hassette.scheduler.triggers import Every
 from tests.support.factories import (
     make_bus_service_with_mock_executor,
     make_job_registration,
     make_listener_registration,
     make_mock_listener,
+    make_scheduled_job,
     make_scheduler_service_with_mock_executor,
 )
 
@@ -363,3 +366,33 @@ async def test_listener_callable_predicate_registers_qualified_name(db_hassette:
 
     reg_arg = executor_mock.register_listener.call_args.args[0]
     assert reg_arg.predicate_description == "PredicateDemo.is_motion_detected"
+
+
+async def test_add_job_persists_jittered_timing(
+    db_hassette: AsyncMock,
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """A registered recurring job with jitter has its in-memory timing in its scheduled_jobs row."""
+    db_service, _ = initialized_db
+    scheduler_service = SchedulerService(db_hassette, executor=executor, parent=db_hassette)
+
+    jitter = 30.0
+    job = make_scheduled_job(name="jittered_job", trigger=Every(minutes=5), jitter=jitter)
+    job.app_key = "my_app"
+    await scheduler_service.add_job(job)
+
+    assert job.db_id is not None
+    assert job.next_run is not None
+    assert job.fire_at is not None
+    cursor = await db_service.db.execute(
+        "SELECT next_run, fire_at, jitter FROM scheduled_jobs WHERE id = ?",
+        (job.db_id,),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    next_run, fire_at, stored_jitter = row
+    assert next_run == job.next_run.timestamp()
+    assert fire_at == job.fire_at.timestamp()
+    assert next_run <= fire_at <= next_run + jitter
+    assert stored_jitter == jitter

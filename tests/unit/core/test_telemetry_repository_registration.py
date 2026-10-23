@@ -1,10 +1,12 @@
 """Unit tests for TelemetryRepository listener/job registration, status marking, and upsert."""
 
 import time
+from dataclasses import replace
 
 import aiosqlite
 from hassette_wire import ScheduleStatus, ScheduleStatusReason
 
+from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.telemetry.repository import (
     TelemetryRepository,
 )
@@ -73,6 +75,47 @@ async def test_register_job_persists_null_group(
 
     group = await fetch_job_field(telemetry_db, job_id, "group")
     assert group is None, f"Expected group=None, got {group!r}"
+
+
+def make_timed_job_registration(
+    next_run: float | None, fire_at: float | None, jitter: float | None
+) -> ScheduledJobRegistration:
+    """Return the "timed_job" registration carrying the given timing values."""
+    return replace(make_job_registration(job_name="timed_job"), next_run=next_run, fire_at=fire_at, jitter=jitter)
+
+
+async def fetch_job_timing(db: aiosqlite.Connection, job_id: int) -> tuple[object, object, object]:
+    """Return the (next_run, fire_at, jitter) columns of a scheduled_jobs row."""
+    return (
+        await fetch_job_field(db, job_id, "next_run"),
+        await fetch_job_field(db, job_id, "fire_at"),
+        await fetch_job_field(db, job_id, "jitter"),
+    )
+
+
+async def test_register_job_persists_timing(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """register_job() writes next_run, fire_at, and jitter to the row."""
+    job_id = await telemetry_repo.register_job(make_timed_job_registration(1_000.0, 1_004.5, 10.0))
+
+    assert await fetch_job_timing(telemetry_db, job_id) == (1_000.0, 1_004.5, 10.0)
+
+
+async def test_register_job_reregistration_overwrites_timing(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """Re-registering a job overwrites its timing columns, including back to NULL."""
+    job_id = await telemetry_repo.register_job(make_timed_job_registration(1_000.0, 1_004.5, 10.0))
+
+    same_id = await telemetry_repo.register_job(make_timed_job_registration(2_000.0, 2_000.0, None))
+    assert same_id == job_id
+    assert await fetch_job_timing(telemetry_db, job_id) == (2_000.0, 2_000.0, None)
+
+    await telemetry_repo.register_job(make_timed_job_registration(None, None, None))
+    assert await fetch_job_timing(telemetry_db, job_id) == (None, None, None)
 
 
 async def test_mark_job_removed_sets_removed_at(

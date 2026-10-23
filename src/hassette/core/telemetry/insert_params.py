@@ -139,6 +139,9 @@ def job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]:
         "human_description": registration.human_description,
         "schedule_status": registration.schedule_status,
         "schedule_status_reason": registration.schedule_status_reason,
+        "next_run": registration.next_run,
+        "fire_at": registration.fire_at,
+        "jitter": registration.jitter,
     }
 
 

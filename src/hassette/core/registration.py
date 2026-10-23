@@ -138,3 +138,15 @@ class ScheduledJobRegistration:
     """Optional reason qualifying
     ``schedule_status``. Persisted to the nullable ``scheduled_jobs.schedule_status_reason``
     column. None for a clean status with no further explanation needed."""
+
+    next_run: float | None = None
+    """Unjittered logical next fire time as epoch seconds, or None when the job has no next
+    occurrence. Persisted to the nullable ``scheduled_jobs.next_run`` column."""
+
+    fire_at: float | None = None
+    """Actual dispatch time (``next_run`` plus the rolled jitter offset) as epoch seconds, or None
+    when the job has no next occurrence. Persisted to the nullable ``scheduled_jobs.fire_at`` column."""
+
+    jitter: float | None = None
+    """Configured jitter upper bound in seconds, or None. Persisted to the nullable
+    ``scheduled_jobs.jitter`` column."""

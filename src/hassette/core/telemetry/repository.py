@@ -119,6 +119,11 @@ class TelemetryRepository:
         ``job_name`` (the natural key component) is left unchanged.
         ``retired_at`` is reset to NULL when a retired row is re-registered.
 
+        The timing columns are overwritten on every registration, including back to NULL:
+        ``next_run`` (unjittered next fire time, epoch seconds), ``fire_at`` (actual dispatch
+        time after jitter, epoch seconds), and ``jitter`` (configured upper bound, seconds).
+        Each is NULL when the job has no next occurrence or no jitter.
+
         Args:
             registration: The scheduled job registration data.
 
@@ -140,7 +145,8 @@ class TelemetryRepository:
                 source_location, registration_source, source_tier,
                 "group", mode,
                 predicate_description, human_description,
-                schedule_status, schedule_status_reason
+                schedule_status, schedule_status_reason,
+                next_run, fire_at, jitter
             ) VALUES (
                 :app_key, :instance_index, :job_name, :handler_method,
                 :trigger_type,
@@ -150,7 +156,8 @@ class TelemetryRepository:
                 :source_location, :registration_source, :source_tier,
                 :group, :mode,
                 :predicate_description, :human_description,
-                :schedule_status, :schedule_status_reason
+                :schedule_status, :schedule_status_reason,
+                :next_run, :fire_at, :jitter
             )
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
@@ -170,6 +177,9 @@ class TelemetryRepository:
                 human_description = excluded.human_description,
                 schedule_status = excluded.schedule_status,
                 schedule_status_reason = excluded.schedule_status_reason,
+                next_run = excluded.next_run,
+                fire_at = excluded.fire_at,
+                jitter = excluded.jitter,
                 retired_at = NULL,
                 removed_at = NULL  -- re-registration clears removal
             RETURNING id
