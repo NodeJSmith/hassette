@@ -186,8 +186,8 @@ class SchedulerSyncFacade(SchedulerSyncConvenience):
             name: Required stable name for the job. Used for uniqueness validation
                 within this scheduler instance and for logging/telemetry.
             group: Optional group name for bulk management (see ``remove_group``).
-            jitter: Optional seconds of random offset to apply at enqueue time.
-                Jitter is applied via ``SchedulerService.apply_jitter_to_heap`` on enqueue.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
+                A fresh offset is rolled whenever the job's next run is set.
                 See the ``fire_at`` field on ``Job``.
             timeout: Per-job timeout in seconds. ``None`` uses the global default.
                 A positive ``float`` overrides the default.

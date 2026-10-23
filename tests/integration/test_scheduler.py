@@ -338,13 +338,7 @@ async def test_after_job_exhausts_after_firing() -> None:
 
 
 async def test_jitter_offset_applied_to_sort_index() -> None:
-    """Every(hours=1) with jitter=60: jitter field is stored, sort_index currently equals next_run.
-
-    Note: jitter application to sort_index is not yet implemented (see TODO in
-    classes.py).  This test verifies the field is stored and sort_index is
-    within the jitter bound — today the offset is 0 because jitter is not yet
-    applied, but the assertion will still hold once it is.
-    """
+    """Every(hours=1) with jitter=60: jitter is stored and sort_index sits within the jitter bound."""
     async with AppTestHarness(_OnceExhaustionApp, config={"instance_name": "once_exhaustion_app"}) as harness:
         scheduler = harness.app.scheduler
 
@@ -354,8 +348,6 @@ async def test_jitter_offset_applied_to_sort_index() -> None:
         assert job.next_run.nanosecond == 0, "next_run should be rounded to whole seconds"
 
         # sort_index should differ from next_run by at most the jitter bound.
-        # Currently offset is 0 (jitter not yet applied to sort_index); this
-        # assertion will continue to hold once jitter IS applied.
         sort_nanos = job.sort_index[0]
         next_run_nanos = job.next_run.timestamp(unit="nanosecond")
         offset_seconds = abs(sort_nanos - next_run_nanos) / 1_000_000_000

@@ -64,7 +64,7 @@ class TestAppJobsEnrichmentWithLiveMatch:
 
     async def test_next_run_fire_at_jitter_from_live(self, client: AsyncClient, mock_hassette) -> None:
         live_job = make_live_job(42, "test_job", jitter=15.0)
-        # fire_at deliberately differs from next_run (jitter is applied at enqueue time by the service).
+        # fire_at deliberately differs from next_run (jitter is added by Job.set_next_run).
         live_job.fire_at = live_job.next_run.add(seconds=10.0)
 
         row = await get_enriched_job_row(

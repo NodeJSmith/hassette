@@ -621,8 +621,8 @@ class Scheduler(Resource):
             name: Required stable name for the job. Used for uniqueness validation
                 within this scheduler instance and for logging/telemetry.
             group: Optional group name for bulk management (see ``remove_group``).
-            jitter: Optional seconds of random offset to apply at enqueue time.
-                Jitter is applied via ``SchedulerService.apply_jitter_to_heap`` on enqueue.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
+                A fresh offset is rolled whenever the job's next run is set.
                 See the ``fire_at`` field on ``Job``.
             timeout: Per-job timeout in seconds. ``None`` uses the global default.
                 A positive ``float`` overrides the default.
@@ -817,7 +817,7 @@ class Scheduler(Resource):
             hours: Delay component in hours. A total under 1 second raises ``ValueError`` (whole-second resolution).
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time. See ``schedule()``.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time. See ``schedule()``.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             mode: Overlap mode. Accepted for API uniformity; no effect on one-shot jobs. See ``schedule()``.
@@ -879,7 +879,7 @@ class Scheduler(Resource):
                 or tomorrow if already past) or a ``ZonedDateTime``.
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
@@ -951,7 +951,7 @@ class Scheduler(Resource):
             seconds: Interval seconds component. The total must be a whole number of seconds, at least 1.
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
@@ -1015,7 +1015,7 @@ class Scheduler(Resource):
             minutes: The minute interval (must be >= 1).
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
@@ -1081,7 +1081,7 @@ class Scheduler(Resource):
             hours: The hour interval (must be >= 1).
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
@@ -1150,7 +1150,7 @@ class Scheduler(Resource):
             at: Target wall-clock time in ``"HH:MM"`` format (default ``"00:00"``).
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
@@ -1218,7 +1218,7 @@ class Scheduler(Resource):
             expression: A valid 5- or 6-field cron expression.
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time.
+            jitter: Optional seconds of random offset added to each occurrence's dispatch time.
                 See ``schedule()`` for details.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.

@@ -1,3 +1,4 @@
+import random
 import typing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -169,8 +170,9 @@ class Job:
     fire_at: ZonedDateTime | None = field(default=None, init=False, compare=False)
     """Actual dispatch time, including any jitter offset.
 
-    Equals ``next_run`` when no jitter is configured. Set by
-    ``SchedulerService.apply_jitter_to_heap()`` at enqueue time when jitter > 0.
+    Equals ``next_run`` when no jitter is configured. Set by ``set_next_run()``, which rolls
+    the jitter offset at the same moment it sets ``next_run``, so the value is final before
+    the job is enqueued or persisted.
     The pop loop in ``_ScheduledJobQueue.pop_due_and_peek_next`` compares against
     ``fire_at`` (not ``next_run``) to decide when to dispatch. ``None`` for every status
     other than ``SCHEDULED``.
@@ -209,10 +211,11 @@ class Job:
     """Optional group name for grouping related jobs. Included in deduplication comparison."""
 
     jitter: float | None = field(default=None, compare=False)
-    """Seconds of random offset applied at enqueue time by ``SchedulerService.apply_jitter_to_heap()``.
+    """Upper bound, in seconds, of the random offset ``set_next_run()`` adds to ``fire_at``.
 
-    Does not affect ``next_run`` (unjittered logical fire time). See the ``fire_at`` field on
-    ``Job`` for the actual dispatch time after jitter is applied.
+    Rolled once per occurrence, whenever ``next_run`` is set. Does not affect ``next_run``
+    (unjittered logical fire time). See the ``fire_at`` field on ``Job`` for the actual
+    dispatch time after jitter is applied.
     """
 
     timeout: float | None = field(default=None, compare=False)
@@ -484,9 +487,10 @@ class Job:
     def set_next_run(self, next_run: ZonedDateTime | None) -> None:
         """Update the next run timestamp, fire_at, and ordering metadata.
 
-        Both ``next_run`` and ``fire_at`` are set to the rounded value. Call
-        ``SchedulerService.apply_jitter_to_heap()`` after this to set a jittered
-        ``fire_at`` when the job has ``jitter`` configured.
+        ``next_run`` is set to the rounded value. When the job has a non-zero ``jitter``,
+        ``fire_at`` is the rounded value plus a fresh random offset in ``[0, jitter]``
+        seconds; otherwise it equals ``next_run``. ``sort_index`` is built from ``fire_at``,
+        so the heap orders by the actual dispatch time.
 
         When ``next_run`` is ``None`` (a job with no concrete automatic occurrence —
         waiting, completed, or manual), both ``next_run`` and ``fire_at`` are cleared to
@@ -502,8 +506,8 @@ class Job:
 
         rounded = next_run.round("second")
         self.next_run = rounded
-        self.fire_at = rounded
-        self.sort_index = (rounded.timestamp(unit="nanosecond"), id(self))
+        self.fire_at = apply_jitter(rounded, self.jitter)
+        self.sort_index = (self.fire_at.timestamp(unit="nanosecond"), id(self))
 
     def transition_to(
         self,
@@ -544,3 +548,17 @@ class Job:
 
         self.schedule_status = status
         self.schedule_status_reason = reason
+
+
+def apply_jitter(fire_time: ZonedDateTime, jitter: float | None) -> ZonedDateTime:
+    """Return ``fire_time`` plus a random offset in ``[0, jitter]`` seconds.
+
+    Returns ``fire_time`` unchanged when ``jitter`` is ``None`` or zero, or when the offset
+    would push it out of the representable range.
+    """
+    if not jitter:
+        return fire_time
+    try:
+        return fire_time.add(seconds=random.uniform(0, jitter))
+    except ValueError:
+        return fire_time

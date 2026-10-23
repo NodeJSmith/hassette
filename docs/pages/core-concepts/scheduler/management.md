@@ -158,7 +158,7 @@ Both levels accept sync or async callables.
 
 ## Tune dispatch with jitter
 
-The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter)` seconds and applied at enqueue time. Fractional values like `jitter=0.5` are valid: whole-second resolution applies to delays and intervals, not to jitter.
+The `jitter=` parameter adds a random offset to a job's dispatch time. The offset is drawn uniformly from `[0, jitter)` seconds and rolled once per run, when the run is scheduled. Fractional values like `jitter=0.5` are valid: whole-second resolution applies to delays and intervals, not to jitter.
 
 Jitter affects dispatch order within the heap. The logical `next_run` timestamp on the job remains unchanged — a job scheduled every 60 seconds targets T+60, T+120, T+180 regardless of jitter. The random offset shifts the actual dispatch within each window but does not compound across runs.
 
@@ -180,7 +180,7 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
 | `next_run` | `ZonedDateTime \| None` | Unjittered logical fire time. `None` for every status except `scheduled`. Subsequent trigger calculations use this as `previous_run`. |
 | `trigger` | `TriggerProtocol \| None` | The trigger that drives scheduling. `None` for a manual-only job. |
 | `group` | `str \| None` | Group name, set when the job was registered with `group=`. `remove_group()` uses this for bulk removal. |
-| `jitter` | `float \| None` | Seconds of random offset applied at enqueue time, if configured. |
+| `jitter` | `float \| None` | Seconds of random offset added to each run, if configured. |
 | `fire_at` | `ZonedDateTime \| None` | Actual dispatch time including the jitter offset. Equals `next_run` when `jitter` is not set. `None` for every status except `scheduled`. |
 | `db_id` | `int \| None` | Database row ID assigned after registration. Valid immediately when the scheduling call returns. |
 
