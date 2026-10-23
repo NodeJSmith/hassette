@@ -30,7 +30,7 @@ An app's log view and `hassette log --app <key>` select lines by subject, whiche
 
 ### Execution
 
-The execution ID marks one run of a handler or job. Every line written during that run carries it, whichever logger wrote it. Console output shows its last eight characters after an `@`. The [Debug Handler](../web-ui/debug-handler.md) page lists every line from one run. [`hassette execution <id>`](../cli/commands.md#hassette-execution) does the same on the command line. It takes the full ID, from the Execution ID column of `hassette listener <id>` or `hassette job <id>`.
+The execution ID marks one run of a handler or job. Every line written during that run carries it, whichever logger wrote it. Console output shows its last eight characters after an `@`. The [Debug Handler](../web-ui/debug-handler.md) page lists every line from one run. [`hassette execution <id>`](../cli/commands.md#hassette-execution) does the same on the command line. It takes the full ID. `hassette listener <id>` and `hassette job <id>` list it in their Execution ID column, but a terminal table shortens it. Add `--json` or pipe the output to get the full ID.
 
 ## What Log Views Show by Default
 
