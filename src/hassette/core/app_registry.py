@@ -363,10 +363,12 @@ class AppRegistry:
 
     @property
     def only_apps(self) -> frozenset[str]:
+        """App keys in the exclusive-app filter; empty when no filter is set."""
         return self._only_apps
 
     @property
     def manifests(self) -> dict[str, "AppManifest"]:
+        """All configured app manifests keyed by app key, including disabled ones."""
         return self._manifests
 
     @property

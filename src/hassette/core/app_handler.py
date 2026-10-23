@@ -62,6 +62,7 @@ class AppHandler(Resource):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured log level for the app handler (``logging.app_handler``)."""
         return self.hassette.config.logging.app_handler
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
@@ -116,6 +117,7 @@ class AppHandler(Resource):
         self._bootstrap_completed.set()
 
     def has_bootstrapped(self) -> bool:
+        """Return whether a :meth:`bootstrap_apps` run has completed."""
         return self._bootstrap_completed.is_set()
 
     async def on_shutdown(self) -> None:

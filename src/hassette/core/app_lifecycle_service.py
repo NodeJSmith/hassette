@@ -99,6 +99,7 @@ class AppLifecycleService(
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the app handler's configured log level (``logging.app_handler``)."""
         return self.hassette.config.logging.app_handler
 
     @property
@@ -118,6 +119,7 @@ class AppLifecycleService(
 
     @property
     def bootstrap_coordinator(self) -> "AppBootstrapCoordinator":
+        """The coordinator that gates app admission until initial bootstrap is released."""
         return self.hassette.app_bootstrap_coordinator
 
     def _get_app_key_lock(self, app_key: str) -> AppKeyLock:

@@ -125,6 +125,7 @@ class BusService(Service):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured log level for the bus service (``logging.bus_service``)."""
         return self.hassette.config.logging.bus_service
 
     def on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
@@ -481,6 +482,12 @@ class BusService(Service):
         task.add_done_callback(self.on_dispatch_done)
 
     def expand_topics(self, topic: str, event: AnyEvent) -> list[str]:
+        """Return the topics an event is routed under, most specific first.
+
+        A Home Assistant ``state_changed`` event with a valid entity ID expands to the
+        entity topic, the domain wildcard topic, and the base topic. Any other event
+        returns ``[topic]`` unchanged.
+        """
         payload = event.payload
         if not isinstance(payload, HassPayload):
             return [topic]
@@ -642,14 +649,17 @@ class BusService(Service):
                 self.remove_listener(listener)
 
     async def before_initialize(self) -> None:
+        """Wait for Hassette's ready event before the bus service initializes."""
         await self.hassette.ready_event.wait()
 
     @property
     def is_dispatch_idle(self) -> bool:
+        """Whether no dispatched handler tasks are currently pending."""
         return self._dispatch_idle_event.is_set()
 
     @property
     def dispatch_pending_count(self) -> int:
+        """Number of dispatched handler tasks that have not yet completed."""
         return self._dispatch_pending
 
     async def await_dispatch_idle(self, *, timeout: float = _DISPATCH_IDLE_DEFAULT_TIMEOUT) -> None:
