@@ -338,12 +338,7 @@ class TestShutdownChildren:
         """
         hassette = wired_hassette
 
-        async def hang(*_args, **_kwargs):
-            await asyncio.sleep(1000)
-
-        for child in hassette.children:
-            child.shutdown = AsyncMock()
-            child._force_terminal = Mock()
+        stub_child_shutdowns(hassette)
         hassette._file_watcher.shutdown = hang
         hassette._shutdown_deadline = deadline_in(0.3)
 
@@ -359,12 +354,7 @@ class TestShutdownChildren:
         """
         hassette = wired_hassette
 
-        async def hang(*_args, **_kwargs):
-            await asyncio.sleep(1000)
-
-        for child in hassette.children:
-            child.shutdown = AsyncMock()
-            child._force_terminal = Mock()
+        stub_child_shutdowns(hassette)
         hassette._app_handler.shutdown = hang
         hassette._session_manager.finalize_session = AsyncMock()
         hassette._database_service.write_shutdown_snapshot = AsyncMock()
@@ -438,12 +428,7 @@ class TestShutdownChildren:
         hassette = wired_hassette
         monkeypatch.setattr(core_module, "FOUNDATION_SHUTDOWN_BUDGET_SECONDS", 0.3)
 
-        async def hang(*_args, **_kwargs):
-            await asyncio.sleep(1000)
-
-        for child in hassette.children:
-            child.shutdown = AsyncMock()
-            child._force_terminal = Mock()
+        stub_child_shutdowns(hassette)
         hassette._database_service.shutdown = hang
         hassette._database_service.write_shutdown_snapshot = AsyncMock()
 
@@ -491,12 +476,7 @@ class TestShutdownChildren:
         hassette = wired_hassette
         monkeypatch.setattr(core_module, "SESSION_FINALIZE_TIMEOUT_SECONDS", 0.1)
 
-        async def hang(**_kwargs) -> None:
-            await asyncio.sleep(1000)
-
-        for child in hassette.children:
-            child.shutdown = AsyncMock()
-            child._force_terminal = Mock()
+        stub_child_shutdowns(hassette)
         hassette._session_manager.finalize_session = hang
         hassette._database_service.write_shutdown_snapshot = AsyncMock()
 
@@ -530,12 +510,7 @@ class TestRootShutdown:
         hassette = wired_hassette
         monkeypatch.setattr(core_module, "FOUNDATION_SHUTDOWN_BUDGET_SECONDS", 0.2)
 
-        async def hang(*_args, **_kwargs):
-            await asyncio.sleep(1000)
-
-        for child in hassette.children:
-            child.shutdown = AsyncMock()
-            child._force_terminal = Mock()
+        stub_child_shutdowns(hassette)
         hassette._file_watcher.shutdown = hang
         hassette._database_service.write_shutdown_snapshot = AsyncMock()
 
@@ -632,3 +607,15 @@ class TestTryStateProxy:
     def test_returns_real_proxy_once_wired(self, wired_hassette: Hassette) -> None:
         """try_state_proxy() returns the actual StateProxy instance once wire_services() has run."""
         assert wired_hassette.try_state_proxy() is wired_hassette._state_proxy
+
+
+async def hang(*_args, **_kwargs) -> None:
+    """Stand-in for a shutdown step that never finishes."""
+    await asyncio.sleep(1000)
+
+
+def stub_child_shutdowns(hassette: Hassette) -> None:
+    """Make every child's shutdown a no-op and its force-termination observable."""
+    for child in hassette.children:
+        child.shutdown = AsyncMock()
+        child._force_terminal = Mock()
