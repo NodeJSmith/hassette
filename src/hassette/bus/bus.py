@@ -580,11 +580,8 @@ class Bus(Resource):
         DB registration is awaited inline — the listener's db_id is set and the
         listener is routable before this method returns.
         """
-        parent = self.parent
-        if parent is None:
+        if (parent := self.parent) is None:
             raise RuntimeError("Bus requires a parent Resource for telemetry identity (app_key/source_tier)")
-        app_key = parent.app_key
-        instance_index = parent.index
         source_tier = parent.source_tier
         if source_tier not in ("app", "framework"):
             raise ValueError(f"Invalid source_tier={source_tier!r} on {parent.class_name}")
@@ -605,8 +602,8 @@ class Bus(Resource):
 
         identity = ListenerIdentity(
             owner_id=self.owner_id,
-            app_key=app_key,
-            instance_index=instance_index,
+            app_key=parent.app_key,
+            instance_index=parent.index,
             instance_name=instance_name,
             name=name,
             source_tier=source_tier,
