@@ -46,7 +46,7 @@ Replace your `apps/main.py` with the complete app from [Schedule a Recurring Job
 
 Each heartbeat line ends its `[my_app]` column with `@` and the end of an execution ID, which identifies that run of the job. Timestamps and IDs differ on every run.
 
-The `Sun changed` and `Porch light turned on` lines appear at the next sunset. To test the handler now without waiting, trigger a state change manually:
+The `Sun changed` and `Porch light turned on` lines appear at the next sunset. To test the handler now without waiting, first turn your light off so you can tell when the handler turns it on. Then trigger a state change manually:
 
 1. In Home Assistant, go to **Settings → Developer Tools**.
 2. Go to the **States** tab and find `sun.sun`.
@@ -54,6 +54,8 @@ The `Sun changed` and `Porch light turned on` lines appear at the next sunset. T
 4. Change the state value to `below_horizon` and click **Set State** again.
 
 The handler fires within milliseconds. You see `Sun changed: below_horizon` and `Porch light turned on` in the logs.
+
+Next, confirm the light itself turned on. The log line only means the command was sent. In the same **States** tab, find your light and check that its state changed to `on`. The **Logbook** also shows the change. If the log line appears but the light stays off, the entity ID in your app is usually wrong. Make sure the ID you passed to `turn_on()` matches a light in your Home Assistant instance.
 
 ## Next Steps
 
