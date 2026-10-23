@@ -137,9 +137,11 @@ class Glob:
     pattern: str
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is a string matching ``pattern``; non-strings never match."""
         return isinstance(value, str) and matches_globs(value, (self.pattern,))
 
     def summarize(self) -> str:
+        """Return ``"matches <pattern>"`` (e.g. ``"matches light.*"``)."""
         return f"matches {self.pattern}"
 
     def __repr__(self) -> str:
@@ -163,9 +165,11 @@ class StartsWith:
     prefix: str
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is a string beginning with ``prefix``; non-strings never match."""
         return isinstance(value, str) and value.startswith(self.prefix)
 
     def summarize(self) -> str:
+        """Return ``"starts with <prefix>"`` (e.g. ``"starts with light."``)."""
         return f"starts with {self.prefix}"
 
     def __repr__(self) -> str:
@@ -189,9 +193,11 @@ class EndsWith:
     suffix: str
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is a string ending with ``suffix``; non-strings never match."""
         return isinstance(value, str) and value.endswith(self.suffix)
 
     def summarize(self) -> str:
+        """Return ``"ends with <suffix>"`` (e.g. ``"ends with .kitchen"``)."""
         return f"ends with {self.suffix}"
 
     def __repr__(self) -> str:
@@ -215,9 +221,11 @@ class Contains:
     substring: str
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is a string containing ``substring``; non-strings never match."""
         return isinstance(value, str) and self.substring in value
 
     def summarize(self) -> str:
+        """Return ``"contains <substring>"`` (e.g. ``"contains kitchen"``)."""
         return f"contains {self.substring}"
 
     def __repr__(self) -> str:
@@ -245,9 +253,11 @@ class Regex:
         object.__setattr__(self, "_compiled", re.compile(self.pattern))
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is a string whose start matches ``pattern`` (``re.match`` semantics)."""
         return isinstance(value, str) and self._compiled.match(value) is not None
 
     def summarize(self) -> str:
+        """Return ``"matches /<pattern>/"``, with the pattern between slashes to mark it as a regex."""
         return f"matches /{self.pattern}/"
 
     def __repr__(self) -> str:
@@ -271,9 +281,11 @@ class Exact:
     value: Any
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` equals the stored value, comparing the raw value without type coercion."""
         return value == self.value
 
     def summarize(self) -> str:
+        """Return ``"exactly <value repr>"`` (e.g. ``"exactly 1"`` or ``"exactly 'on'"``)."""
         return f"exactly {self.value!r}"
 
 
@@ -282,9 +294,11 @@ class Present:
     """Condition that checks if a value extracted from an event is present (not MISSING_VALUE)."""
 
     def __call__(self, value: Any) -> bool:
+        """Return True unless ``value`` is the ``MISSING_VALUE`` sentinel."""
         return value is not MISSING_VALUE
 
     def summarize(self) -> str:
+        """Return ``"present"``."""
         return "present"
 
 
@@ -293,9 +307,11 @@ class Missing:
     """Condition that checks if a value extracted from an event is missing (MISSING_VALUE)."""
 
     def __call__(self, value: Any) -> bool:
+        """Return True only when ``value`` is the ``MISSING_VALUE`` sentinel."""
         return value is MISSING_VALUE
 
     def summarize(self) -> str:
+        """Return ``"missing"``."""
         return "missing"
 
 
@@ -316,9 +332,11 @@ class IsIn:
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is a member of ``collection``."""
         return value in self.collection
 
     def summarize(self) -> str:
+        """Return ``"in <collection>"``, listing the collection's items."""
         return f"in {_format_collection(self.collection)}"
 
 
@@ -339,9 +357,11 @@ class NotIn:
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is not a member of ``collection``."""
         return value not in self.collection
 
     def summarize(self) -> str:
+        """Return ``"not in <collection>"``, listing the collection's items."""
         return f"not in {_format_collection(self.collection)}"
 
 
@@ -362,12 +382,14 @@ class Intersects:
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
+        """Return True if any item of the sequence ``value`` is in ``collection``; a non-sequence never matches."""
         if not isinstance(value, Sequence):
             return False
         # not using actual set operations to allow unhashable items
         return any(item in self.collection for item in value)
 
     def summarize(self) -> str:
+        """Return ``"intersects <collection>"``, listing the collection's items."""
         return f"intersects {_format_collection(self.collection)}"
 
 
@@ -388,12 +410,14 @@ class NotIntersects:
         object.__setattr__(self, "collection", self.collection)
 
     def __call__(self, value: Any) -> bool:
+        """Return True if no item of the sequence ``value`` is in ``collection``; a non-sequence always matches."""
         if not isinstance(value, Sequence):
             return True
         # not using actual set operations to allow unhashable items
         return all(item not in self.collection for item in value)
 
     def summarize(self) -> str:
+        """Return ``"does not intersect <collection>"``, listing the collection's items."""
         return f"does not intersect {_format_collection(self.collection)}"
 
 
@@ -411,11 +435,13 @@ class IsOrContains:
     condition: str
 
     def __call__(self, value: Sequence[Any] | Any) -> bool:
+        """Return True if ``value`` equals ``condition`` or, for a non-string sequence, contains an item equal to it."""
         if isinstance(value, Sequence) and not isinstance(value, str):
             return any(item == self.condition for item in value)
         return value == self.condition
 
     def summarize(self) -> str:
+        """Return ``"is or contains <condition>"`` (e.g. ``"is or contains light.kitchen"``)."""
         return f"is or contains {self.condition}"
 
 
@@ -430,9 +456,11 @@ class IsNone:
     """
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is None."""
         return value is None
 
     def summarize(self) -> str:
+        """Return ``"is none"``."""
         return "is none"
 
 
@@ -447,9 +475,11 @@ class IsNotNone:
     """
 
     def __call__(self, value: Any) -> bool:
+        """Return True if ``value`` is not None."""
         return value is not None
 
     def summarize(self) -> str:
+        """Return ``"is not none"``."""
         return "is not none"
 
 
@@ -487,6 +517,7 @@ class Comparison:
         object.__setattr__(self, "op_fn", op_fn)
 
     def __call__(self, value: Any) -> bool:
+        """Return the result of applying ``op`` to ``value`` (coerced to ``compare_to``'s type) and ``compare_to``."""
         # A value that can't be coerced or compared fails closed for every operator, including "!=":
         # an "unavailable" state never satisfies a numeric or bool comparison.
         try:
@@ -495,6 +526,7 @@ class Comparison:
             return False
 
     def summarize(self) -> str:
+        """Return the operator's display symbol followed by ``compare_to`` (e.g. ``"> 20"``)."""
         return f"{_OP_DISPLAY.get(self.op, self.op)} {self.compare_to}"
 
 
@@ -512,12 +544,14 @@ class Increased:
     """
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
+        """Return True if ``new_value`` is numerically greater than ``old_value``, False if either isn't numeric."""
         try:
             return float(new_value) > float(old_value)
         except (TypeError, ValueError):
             return False
 
     def summarize(self) -> str:
+        """Return ``"increased"``."""
         return "increased"
 
 
@@ -535,12 +569,14 @@ class Decreased:
     """
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
+        """Return True if ``new_value`` is numerically less than ``old_value``, False if either isn't numeric."""
         try:
             return float(new_value) < float(old_value)
         except (TypeError, ValueError):
             return False
 
     def summarize(self) -> str:
+        """Return ``"decreased"``."""
         return "decreased"
 
 
@@ -566,6 +602,7 @@ class CrossedAbove:
     """Value the reading must rise above."""
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
+        """Return True if ``old_value`` is at or below ``threshold`` and ``new_value`` is above it."""
         if isinstance(old_value, bool) or isinstance(new_value, bool):
             return False
         try:
@@ -574,6 +611,7 @@ class CrossedAbove:
             return False
 
     def summarize(self) -> str:
+        """Return ``"crossed above <threshold>"`` (e.g. ``"crossed above 25"``)."""
         return f"crossed above {self.threshold}"
 
 
@@ -598,6 +636,7 @@ class CrossedBelow:
     """Value the reading must fall below."""
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
+        """Return True if ``old_value`` is at or above ``threshold`` and ``new_value`` is below it."""
         if isinstance(old_value, bool) or isinstance(new_value, bool):
             return False
         try:
@@ -606,4 +645,5 @@ class CrossedBelow:
             return False
 
     def summarize(self) -> str:
+        """Return ``"crossed below <threshold>"`` (e.g. ``"crossed below 20"``)."""
         return f"crossed below {self.threshold}"
