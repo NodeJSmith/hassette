@@ -89,7 +89,7 @@ def register_task_bucket_factory(factory: "Callable[[Hassette, Resource], TaskBu
     Called once by hassette.task_bucket at module import time so that Resource.__init__
     never needs to import TaskBucket directly.
     """
-    from hassette.resources.base import (
+    from hassette.resources.base import (  # noqa: PLC0415 - break circular import, base.py imports this module
         Resource,  # house-lint: ignore[HSL002] - break circular import, base.py imports this module
     )
 

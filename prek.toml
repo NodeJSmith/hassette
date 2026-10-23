@@ -272,6 +272,14 @@ types = ["python"]
 entry = "^from __future__ import annotations"
 
 [[repos.hooks]]
+id = "no-wp-references"
+name = "Ban work-package (WP01-style) references in src"
+language = "pygrep"
+types = ["python"]
+files = '^src/'
+entry = '\bWP\d{2,}\b'
+
+[[repos.hooks]]
 id = "check-codecov-yml"
 name = "Check codecov.yml validity"
 language = "system"

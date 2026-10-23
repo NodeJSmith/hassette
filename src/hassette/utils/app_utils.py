@@ -426,7 +426,7 @@ def load_app_class(
     Returns:
         The app class.
     """
-    from hassette.app import (  # house-lint: ignore[HSL002] - break circular import, hassette.app imports this module
+    from hassette.app import (  # house-lint: ignore[HSL002] - break circular import, hassette.app imports this module  # noqa: PLC0415
         App,
         AppSync,
     )

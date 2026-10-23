@@ -57,7 +57,7 @@ def __getattr__(name: str) -> object:
     if name == "dummy_cache":
         # house-lint: ignore-next[HSL002] - deliberately lazy: defers the `pytest` import this
         # module needs until `dummy_cache` is actually accessed, not on package import.
-        from .fixtures import dummy_cache
+        from .fixtures import dummy_cache  # noqa: PLC0415 - lazy: defers the pytest import until accessed
 
         return dummy_cache
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

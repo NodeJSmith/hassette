@@ -10,7 +10,7 @@ def entrypoint() -> None:
     # `hassette run` itself switches to stdout before building its config (cmd_run).
     enable_basic_logging(get_log_level(), log_format="auto", stream=sys.stderr)
 
-    from hassette.cli import app  # house-lint: ignore[HSL002] - break circular import, cli pulls the full app graph
+    from hassette.cli import app  # house-lint: ignore[HSL002] - break circular import, cli pulls the full app graph  # noqa: PLC0415
 
     app.meta()
 
