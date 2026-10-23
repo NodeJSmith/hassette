@@ -7,7 +7,8 @@ release-branch worktree:
 
     uv run python tools/release/bump_version.py 0.58.1 --root ../hassette-0.58
 
-It edits, under `--root`:
+The target must be a later patch on the checkout's own major.minor line (read from the root `pyproject.toml`);
+anything else means `--root` points at the wrong worktree and fails before any edit. It edits, under `--root`:
 
 - the `version = "..."` line in `pyproject.toml`, `wire/pyproject.toml` and `client/pyproject.toml`
 - the exact `hassette-wire==` / `hassette-client[...]==` pins, keeping each line's `# x-release-please-version`
@@ -30,7 +31,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 VERSION_ARG = re.compile(r"^\d+\.\d+\.\d+$")
-VERSION_LINE = re.compile(r'^(version\s*=\s*")[^"]*(")', re.MULTILINE)
+VERSION_LINE = re.compile(r'^(version\s*=\s*")([^"]*)(")', re.MULTILINE)
 EXACT_PIN = re.compile(r'("hassette-(?:wire|client)(?:\[[^\]]*\])?==)[^"]*(")')
 PYPROJECTS = ("pyproject.toml", "wire/pyproject.toml", "client/pyproject.toml")
 MANIFEST = ".release-please-manifest.json"
@@ -49,9 +50,25 @@ def validate_version(version: str) -> str:
     return version
 
 
+def check_same_line_upgrade(current: str, target: str) -> None:
+    """Raise BumpError unless `target` is a later patch on `current`'s major.minor line.
+
+    Guards against pointing `--root` at the wrong release-branch worktree, which nothing downstream catches:
+    release verification only checks that the tag matches whatever version this script wrote.
+    """
+    if not VERSION_ARG.match(current):
+        raise BumpError(f"pyproject.toml version {current!r} isn't a plain X.Y.Z release; is --root right?")
+    cur_major, cur_minor, cur_patch = (int(part) for part in current.split("."))
+    new_major, new_minor, new_patch = (int(part) for part in target.split("."))
+    if (new_major, new_minor) != (cur_major, cur_minor):
+        raise BumpError(f"{target} is not on this checkout's {cur_major}.{cur_minor} line (currently {current})")
+    if new_patch <= cur_patch:
+        raise BumpError(f"{target} is not later than this checkout's current version {current}")
+
+
 def bump_pyproject(text: str, version: str) -> str:
     """Rewrite the top-level `version` line and every exact hassette-wire/hassette-client pin."""
-    text = VERSION_LINE.sub(rf"\g<1>{version}\g<2>", text, count=1)
+    text = VERSION_LINE.sub(rf"\g<1>{version}\g<3>", text, count=1)
     return EXACT_PIN.sub(rf"\g<1>{version}\g<2>", text)
 
 
@@ -70,6 +87,10 @@ def run(version: str, root: Path, lock: LockRunner = run_uv_lock) -> tuple[list[
     validate_version(version)
     if not (root / "pyproject.toml").is_file():
         raise BumpError(f"{root} has no pyproject.toml; --root must point at a hassette checkout")
+    current = VERSION_LINE.search((root / "pyproject.toml").read_text(encoding="utf-8"))
+    if current is None:
+        raise BumpError('pyproject.toml has no top-level `version = "..."` line')
+    check_same_line_upgrade(current.group(2), version)
 
     edited: list[str] = []
     skipped: list[str] = []

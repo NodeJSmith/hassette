@@ -122,6 +122,35 @@ def test_malformed_version_is_rejected_before_any_edit(full_tree: Path, lock: Lo
     assert lock.roots == []
 
 
+@pytest.mark.parametrize(
+    ("version", "message"),
+    [
+        ("0.59.1", r"not on this checkout's 0\.58 line"),
+        ("1.58.1", r"not on this checkout's 0\.58 line"),
+        ("0.57.9", r"not on this checkout's 0\.58 line"),
+        ("0.58.0", r"not later than"),
+    ],
+)
+def test_target_off_the_checkouts_line_is_rejected_before_any_edit(
+    full_tree: Path, lock: LockRecorder, version: str, message: str
+) -> None:
+    with pytest.raises(bump_version.BumpError, match=message):
+        bump_version.run(version, full_tree, lock=lock)
+
+    assert (full_tree / "pyproject.toml").read_text() == ROOT_PYPROJECT
+    assert (full_tree / ".release-please-manifest.json").read_text() == MANIFEST
+    assert lock.roots == []
+
+
+def test_downgrade_within_the_line_is_rejected(tmp_path: Path, lock: LockRecorder) -> None:
+    write(tmp_path, "pyproject.toml", OLD_LINE_PYPROJECT)
+
+    with pytest.raises(bump_version.BumpError, match="not later than"):
+        bump_version.run("0.40.1", tmp_path, lock=lock)
+
+    assert lock.roots == []
+
+
 def test_root_without_pyproject_fails(tmp_path: Path, lock: LockRecorder) -> None:
     with pytest.raises(bump_version.BumpError, match=r"no pyproject\.toml"):
         bump_version.run("0.58.1", tmp_path, lock=lock)
