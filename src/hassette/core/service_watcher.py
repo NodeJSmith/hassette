@@ -64,9 +64,11 @@ class ServiceWatcher(ServiceEscalationMixin, Resource):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured ``logging.service_watcher`` log level."""
         return self.hassette.config.logging.service_watcher
 
     async def on_initialize(self) -> None:
+        """Reset restart-tracking state, register the service event listeners, and mark ready."""
         self._budgets = {}
         self._restarting = set()
         self._cooldown_tasks = {}
@@ -76,6 +78,7 @@ class ServiceWatcher(ServiceEscalationMixin, Resource):
 
     @staticmethod
     def service_key(name: str, role: ResourceRole) -> str:
+        """Return the ``"name:role"`` key used to index per-service restart state."""
         return f"{name}:{role}"
 
     def get_service(self, name: str, role: ResourceRole) -> Service | None:

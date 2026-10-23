@@ -24,12 +24,18 @@ class FileWatcherService(Service):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured ``logging.file_watcher`` log level."""
         return self.hassette.config.logging.file_watcher
 
     async def before_initialize(self) -> None:
+        """Wait until the database and session are ready before the watcher initializes."""
         await self.hassette.ready_event.wait()
 
     async def on_initialize(self) -> None:
+        """Mark the service ready right away when file watching is disabled in config.
+
+        When watching is enabled, readiness is deferred to ``serve()`` once the watch starts.
+        """
         if not self.hassette.config.file_watcher.watch_files:
             mark_ready(self, reason="File watching disabled")
 

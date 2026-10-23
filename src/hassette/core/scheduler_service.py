@@ -64,6 +64,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Return the configured ``logging.scheduler_service`` log level."""
         return self.hassette.config.logging.scheduler_service
 
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
@@ -76,6 +77,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         self._jobs_by_id = {}
 
     async def before_initialize(self) -> None:
+        """Wait until the database and session are ready before the scheduler initializes."""
         await self.hassette.ready_event.wait()
 
     async def serve(self) -> None:
