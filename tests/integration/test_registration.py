@@ -14,6 +14,7 @@ from hassette_wire import ExecutionMode
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.scheduler_service import SchedulerService
 from hassette.scheduler.triggers import Every
 from tests.support.factories import (
     make_bus_service_with_mock_executor,
@@ -374,8 +375,7 @@ async def test_add_job_persists_jittered_timing(
 ) -> None:
     """A registered recurring job with jitter has its in-memory timing in its scheduled_jobs row."""
     db_service, _ = initialized_db
-    scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette)
-    executor_mock.register_job = executor.register_job
+    scheduler_service = SchedulerService(db_hassette, executor=executor, parent=db_hassette)
 
     jitter = 30.0
     job = make_scheduled_job(name="jittered_job", trigger=Every(minutes=5), jitter=jitter)
