@@ -21,12 +21,14 @@ from typing import Any, NamedTuple
 import httpx2 as httpx
 import pytest
 
+from hassette.config.models import LifecycleConfig
+
 from .conftest import free_port, hassette_run_env, spawn_hassette_run
 
 pytestmark = [pytest.mark.system]
 
 APP_RUNNING_TIMEOUT = 90.0  # cold subprocess import, HA connection, then app startup
-EXIT_TIMEOUT = 45.0  # Hassette's own total_shutdown_timeout_seconds
+EXIT_TIMEOUT = LifecycleConfig.model_fields["total_shutdown_timeout_seconds"].default
 
 GREETER_APP = textwrap.dedent(
     """

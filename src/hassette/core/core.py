@@ -64,6 +64,9 @@ if typing.TYPE_CHECKING:
 
     from hassette.events import AnyEvent
 
+NO_DROP_COUNTERS = (0, 0, 0)
+"""The session's drop counters (overflow, exhausted, shutdown) when the command executor can't report them."""
+
 
 class Hassette(HassetteAccessorsMixin, Resource):
     """Main class for the Hassette application.
@@ -669,9 +672,12 @@ class Hassette(HassetteAccessorsMixin, Resource):
         if self._session_manager is None:
             return
         try:
-            counters = self._command_executor.get_drop_counters() if self._command_executor is not None else (0, 0, 0)
+            counters = (
+                self._command_executor.get_drop_counters() if self._command_executor is not None else NO_DROP_COUNTERS
+            )
         except Exception:
-            counters = (0, 0, 0)
+            self.logger.exception("Reading drop counters failed; finalizing the session with zeros")
+            counters = NO_DROP_COUNTERS
         # A raise or a hang here must not cost the drain, close, join and snapshot that follow it.
         try:
             async with asyncio.timeout(SESSION_FINALIZE_TIMEOUT_SECONDS):

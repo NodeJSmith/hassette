@@ -12,8 +12,8 @@ from hassette.resources.teardown import TeardownReport
 
 from .conftest import make_mock_app_instance
 
-# Each app's on_shutdown takes this long: well inside the documented per-app shutdown timeout,
-# but two of them back to back outlast any shared pool smaller than their sum.
+# Each app's on_shutdown takes this long: well inside `shutdown_timeout_seconds`, but two of them run
+# back to back would outlast a bound shared across apps that is smaller than their sum.
 APP_HOOK_SECONDS = 1.5
 
 

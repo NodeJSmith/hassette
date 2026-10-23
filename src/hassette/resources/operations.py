@@ -186,17 +186,17 @@ async def run_bounded_hook(resource: "Resource", method: typing.Callable[[], typ
         format_bound(bound),
     )
     scope = asyncio.timeout(bound)
-    timed_out = f"shutdown hook {name} timed out after {format_bound(bound)}"
+    timeout_message = f"shutdown hook {name} timed out after {format_bound(bound)}"
     try:
         async with scope:
             await method()
     except TimeoutError as exc:
         if scope.expired():
-            raise ShutdownHookTimedOutError(timed_out) from exc
+            raise ShutdownHookTimedOutError(timeout_message) from exc
         raise
     # a hook that caught its cancellation and returned leaves the block without a TimeoutError
     if scope.expired():
-        raise ShutdownHookTimedOutError(timed_out)
+        raise ShutdownHookTimedOutError(timeout_message)
 
 
 def shutdown_hook_report(hook_errors: "tuple[Exception, ...]", operation: str) -> TeardownReport:
