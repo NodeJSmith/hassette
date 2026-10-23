@@ -172,7 +172,7 @@ class TestRescheduleRecurring:
 
 class TestJitter:
     async def test_jitter_applied_to_sort_index_not_next_run(self) -> None:
-        """After jitter enqueue: job.next_run unchanged; sort_index timestamp > next_run timestamp."""
+        """After dispatch with jitter: job.next_run unchanged; sort_index timestamp > next_run timestamp."""
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
@@ -180,7 +180,7 @@ class TestJitter:
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # Patch random.uniform to always return the max jitter
-        with patch("hassette.core.scheduler_dispatch.random.uniform", return_value=10.0):
+        with patch("hassette.scheduler.classes.random.uniform", return_value=10.0):
             await svc.dispatch_and_log(job)
 
         # next_run should be the unjittered future_time
@@ -219,7 +219,7 @@ class TestJitter:
         job = make_scheduled_job(trigger=trig, jitter=60.0)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        with patch("hassette.core.scheduler_dispatch.random.uniform", return_value=30.0):
+        with patch("hassette.scheduler.classes.random.uniform", return_value=30.0):
             await svc.dispatch_and_log(job)
 
         expected_next_run = future_time.round("second")

@@ -183,7 +183,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 |---|---|---|---|
 | `name` | `str` | — | Required. Identifies the job in logs and the monitoring UI. Omitting it raises `TypeError` (no default value); an empty string raises `SchedulerNameRequiredError`. Must be unique within the app instance — see [Idempotent Registration](#idempotent-registration). |
 | `group` | `str \| None` | `None` | Group name for bulk management. See [Job Management](management.md) for grouping. |
-| `jitter` | `float \| None` | `None` | Random offset in seconds applied at enqueue time. See [Job Management](management.md) for jitter. |
+| `jitter` | `float \| None` | `None` | Random offset in seconds added to each run. See [Job Management](management.md) for jitter. |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler.job_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job, regardless of the global default. |
 | `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. Overrides the app-level handler set via `scheduler.on_error()`. Invoked on any exception except `CancelledError`. |

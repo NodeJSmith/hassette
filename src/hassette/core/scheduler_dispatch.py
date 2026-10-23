@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import random
 import time
 import traceback
 import typing
@@ -40,7 +39,6 @@ class SchedulerDispatchMixin:
 
     async def enqueue_job(self, job: "Job") -> None:
         """Push a job onto the queue and wake the scheduler."""
-        self.apply_jitter_to_heap(job)
         await self._job_queue.add(job)
         self.kick()
 
@@ -94,41 +92,6 @@ class SchedulerDispatchMixin:
         await self.persist_schedule_status(job)
         await self.enqueue_job(job)
         self.logger.debug("Rescheduled job %s to %s", job, job.next_run)
-
-    def apply_jitter_to_heap(self, job: "Job") -> None:
-        """Apply jitter to the heap sort_index and fire_at without mutating job.next_run.
-
-        If job.jitter is not None, a random offset in [0, jitter) seconds is added
-        to ``job.fire_at`` and ``job.sort_index``. ``job.next_run`` is never modified
-        — it is the unjittered logical fire time used as ``previous_run`` in subsequent
-        trigger calls. When jitter is None or 0, ``fire_at`` equals ``next_run`` exactly
-        (already set by ``set_next_run``).
-
-        Args:
-            job: The job whose sort_index and fire_at should be jittered.
-        """
-        if job.jitter is None:
-            return
-        # Only a SCHEDULED job is ever passed here (enqueue_job() is only reachable for
-        # jobs with a concrete occurrence) — checked rather than silently no-op'd so a
-        # future caller violating that invariant fails loudly instead of corrupting the heap.
-        if job.next_run is None:
-            raise RuntimeError("apply_jitter_to_heap requires a job with a concrete next_run")
-
-        offset = random.uniform(0, job.jitter)
-        try:
-            jittered_time = job.next_run.add(seconds=offset)
-        except ValueError:
-            jittered_time = job.next_run
-        job.fire_at = jittered_time
-        job.sort_index = (jittered_time.timestamp(unit="nanosecond"), id(job))
-        self.logger.debug(
-            "Applied jitter offset=%.3fs to job %s: next_run=%s → fire_at=%s",
-            offset,
-            job,
-            job.next_run,
-            job.fire_at,
-        )
 
     async def persist_schedule_status(self, job: "Job") -> None:
         """Persist ``job``'s current ``schedule_status``/``schedule_status_reason`` to the DB.
