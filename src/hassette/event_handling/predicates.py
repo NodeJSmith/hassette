@@ -84,15 +84,14 @@ CombinatorT = TypeVar("CombinatorT", bound="_PredicateCombinator")
 class _PredicateOps:
     """Adds ``&``, ``|``, and ``~`` composition to the predicate types in this module.
 
-    ``a & b`` builds an `AllOf`, ``a | b`` builds an `AnyOf`, and ``~a`` builds a `Not`.
-    The result is an ordinary predicate object, so it can be passed to ``where=`` or nested
-    inside the explicit combinators.
+    ``a & b`` builds an `AllOf`, ``a | b`` builds an `AnyOf`, and ``~a`` builds a `Not`. The result is an ordinary
+    predicate object, so it can be passed to ``where=`` or nested inside the explicit combinators.
 
-    Chains flatten rather than nest: ``a & b & c`` produces ``AllOf((a, b, c))``, which keeps
-    ``summarize()`` identical to the explicit form.
+    Chains flatten rather than nest: ``a & b & c`` produces ``AllOf((a, b, c))``, which keeps ``summarize()``
+    identical to the explicit form.
 
-    ``AllOf``, ``AnyOf``, and ``Not`` are defined further down this module; the operators resolve
-    them at call time, not at class-definition time.
+    ``AllOf``, ``AnyOf``, and ``Not`` are defined further down this module; the operators resolve them at call time,
+    not at class-definition time.
 
     Examples:
         ```python
@@ -103,9 +102,8 @@ class _PredicateOps:
     """
 
     if typing.TYPE_CHECKING:
-        # Type-checking only, with no runtime counterpart: every class mixing this in defines
-        # its own __call__, and declaring the signature here lets type checkers treat `self`
-        # as a Predicate when building the combinators below.
+        # Type-checking only, with no runtime counterpart: every class mixing this in defines its own __call__,
+        # and declaring the signature here lets type checkers treat `self` as a Predicate in the combinators below.
         def __call__(self, value: Any, /) -> bool: ...
 
     def __and__(self, other: "Predicate") -> "AllOf":
@@ -135,9 +133,9 @@ class _PredicateOps:
 def _combine(combinator: type[CombinatorT], left: "Predicate", right: "Predicate") -> CombinatorT:
     """Build ``combinator`` from two operands, absorbing operands of the same combinator type.
 
-    Absorption is what flattens chains, and it applies to explicitly constructed combinators too:
-    ``AllOf((a, b)) & c`` yields ``AllOf((a, b, c))``, not a nested pair. The two forms evaluate
-    identically, so the grouping carries no meaning worth preserving.
+    Absorption is what flattens chains, and it applies to explicitly constructed combinators too: ``AllOf((a, b)) & c``
+    yields ``AllOf((a, b, c))``, not a nested pair. The two forms evaluate identically, so the grouping carries no
+    meaning worth preserving.
     """
     predicates: list[Predicate] = []
     for operand in (left, right):
@@ -159,6 +157,7 @@ class Guard(_PredicateOps, typing.Generic[EventT]):
     fn: "Predicate[EventT]"
 
     def __call__(self, value: "EventT") -> bool:
+        """Return the wrapped function's result for ``value``."""
         return self.fn(value)
 
     def summarize(self) -> str:
@@ -169,8 +168,8 @@ class Guard(_PredicateOps, typing.Generic[EventT]):
 def _summarize(obj: Any, non_callable_fallback: Callable[[Any], str]) -> str:
     """Return a human-readable summary of a predicate or condition.
 
-    Delegates to the object's ``summarize()`` method when available, falls back to a
-    stable callable name for callables, or to ``non_callable_fallback`` otherwise.
+    Delegates to the object's ``summarize()`` method when available, falls back to a stable callable name for
+    callables, or to ``non_callable_fallback`` otherwise.
     """
     if hasattr(obj, "summarize"):
         return obj.summarize()  # pyright: ignore[reportAttributeAccessIssue]
@@ -182,9 +181,8 @@ def _summarize(obj: Any, non_callable_fallback: Callable[[Any], str]) -> str:
 def _summarize_predicate(predicate: "Predicate") -> str:
     """Return a human-readable summary of a predicate.
 
-    Delegates to the predicate's ``summarize()`` method when available,
-    otherwise falls back to a stable callable name, or ``repr()`` for
-    non-callable values.
+    Delegates to the predicate's ``summarize()`` method when available, otherwise falls back to a stable callable
+    name, or ``repr()`` for non-callable values.
     """
     return _summarize(predicate, repr)
 
@@ -192,9 +190,8 @@ def _summarize_predicate(predicate: "Predicate") -> str:
 def _summarize_condition(condition: Any) -> str:
     """Return a human-readable summary of a condition.
 
-    Delegates to the condition's ``summarize()`` method when available,
-    falls back to a stable callable name for callables, or ``str()``
-    for non-callable literals.
+    Delegates to the condition's ``summarize()`` method when available, falls back to a stable callable name for
+    callables, or ``str()`` for non-callable literals.
     """
     return _summarize(condition, str)
 
@@ -202,9 +199,8 @@ def _summarize_condition(condition: Any) -> str:
 def _strip_outer_parens(s: str) -> str:
     """Strip balanced outer parentheses from a summary string.
 
-    Only strips when the opening ``(`` at index 0 is matched by the
-    closing ``)`` at the final index — i.e. the parens wrap the entire
-    string.  Unbalanced or non-wrapping parens are left untouched.
+    Only strips when the opening ``(`` at index 0 is matched by the closing ``)`` at the final index — i.e. the
+    parens wrap the entire string.  Unbalanced or non-wrapping parens are left untouched.
     """
     if len(s) < 2 or s[0] != "(" or s[-1] != ")":
         return s
@@ -222,8 +218,8 @@ def _strip_outer_parens(s: str) -> str:
 def summarize_top_level(predicate: "Predicate") -> str:
     """Return a human-readable summary suitable for display as a top-level label.
 
-    Calls ``summarize()`` on the predicate, then strips balanced outer
-    parentheses so top-level combinators don't produce redundant wrapping.
+    Calls ``summarize()`` on the predicate, then strips balanced outer parentheses so top-level combinators don't
+    produce redundant wrapping.
     """
     return _strip_outer_parens(_summarize_predicate(predicate))
 
@@ -254,6 +250,7 @@ class AllOf(_PredicateCombinator):
     """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
 
     def __call__(self, value: "AnyEvent") -> bool:
+        """Return True if every contained predicate matches ``value``; an empty ``AllOf`` matches everything."""
         return all(p(value) for p in self.predicates)
 
     def summarize(self) -> str:
@@ -274,6 +271,7 @@ class AnyOf(_PredicateCombinator):
     """Predicate that evaluates to True if any of the contained predicates evaluate to True."""
 
     def __call__(self, event: "AnyEvent") -> bool:
+        """Return True if any contained predicate matches ``event``; an empty ``AnyOf`` matches nothing."""
         return any(p(event) for p in self.predicates)
 
     def summarize(self) -> str:
@@ -296,6 +294,7 @@ class Not(_PredicateOps):
     predicate: "Predicate"
 
     def __call__(self, value: "AnyEvent", /) -> bool:
+        """Return the inverse of the wrapped predicate's result for ``value``."""
         return not self.predicate(value)
 
     def summarize(self) -> str:
@@ -316,6 +315,7 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
     condition: "ChangeType" = ANY_VALUE
 
     def __call__(self, value: EventT, /) -> bool:
+        """Return True if the value ``source`` extracts satisfies ``condition``; ANY_VALUE always matches."""
         if self.condition is ANY_VALUE:
             return True
         extracted = self.source(value)
@@ -351,6 +351,7 @@ class DidChange(_PredicateOps, Generic[EventT]):
     source: Callable[[EventT], tuple[Any, Any]]
 
     def __call__(self, value: EventT, /) -> bool:
+        """Return True if the (old, new) pair that ``source`` extracts from ``value`` holds two unequal values."""
         old_v, new_v = self.source(value)
         return old_v != new_v
 
@@ -364,12 +365,12 @@ class IsPresent(_PredicateOps):
     """Checks if a value extracted from an event is present (not MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
-
     """
 
     source: Callable[[Any], Any]
 
     def __call__(self, value: Any, /) -> bool:
+        """Return True if ``source`` extracts something other than ``MISSING_VALUE`` from ``value``."""
         return self.source(value) is not MISSING_VALUE
 
     def summarize(self) -> str:
@@ -382,12 +383,12 @@ class IsMissing(_PredicateOps):
     """Checks if a value extracted from an event is missing (MISSING_VALUE).
 
     This will generally be used when comparing state changes, where either the old or new state may be missing.
-
     """
 
     source: Callable[[Any], Any]
 
     def __call__(self, value: Any, /) -> bool:
+        """Return True if ``source`` extracts ``MISSING_VALUE`` from ``value``."""
         return self.source(value) is MISSING_VALUE
 
     def summarize(self) -> str:
@@ -402,6 +403,7 @@ class StateFrom(_PredicateOps):
     condition: "ChangeType"
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return True if the event's old state value satisfies ``condition``."""
         return ValueIs(source=get_state_value_old, condition=self.condition)(value)
 
     def summarize(self) -> str:
@@ -416,6 +418,7 @@ class StateTo(_PredicateOps):
     condition: "ChangeType"
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return True if the event's new state value satisfies ``condition``."""
         return ValueIs(source=get_state_value_new, condition=self.condition)(value)
 
     def summarize(self) -> str:
@@ -435,6 +438,7 @@ class StateComparison(_PredicateOps):
             raise TypeError(f"StateComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return the result of calling ``condition`` with the event's old and new state values."""
         return self.condition(get_state_value_old(value), get_state_value_new(value))
 
     def summarize(self) -> str:
@@ -450,6 +454,7 @@ class AttrFrom(_PredicateOps):
     condition: "ChangeType"
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return True if attribute ``attr_name`` on the event's old state satisfies ``condition``."""
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
@@ -465,6 +470,7 @@ class AttrTo(_PredicateOps):
     condition: "ChangeType"
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return True if attribute ``attr_name`` on the event's new state satisfies ``condition``."""
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
@@ -485,6 +491,7 @@ class AttrComparison(_PredicateOps):
             raise TypeError(f"AttrComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return the result of calling ``condition`` with attribute ``attr_name``'s old and new values."""
         old_attr = get_attr_old(self.attr_name)(value)
         new_attr = get_attr_new(self.attr_name)(value)
         return self.condition(old_attr, new_attr)
@@ -499,6 +506,7 @@ class StateDidChange(_PredicateOps):
     """Checks if the state changed in a RawStateChangeEvent."""
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return True if the event's old and new state values differ."""
         return DidChange(get_state_value_old_new)(value)
 
     def summarize(self) -> str:
@@ -510,20 +518,15 @@ class StateDidChange(_PredicateOps):
 class AttrDidChange(_PredicateOps):
     """Checks if a specific attribute changed in a RawStateChangeEvent.
 
-    When ``old_state`` is None, the attribute is treated as having changed
-    if it is present on ``new_state``.  This applies to synthetic
-    immediate-fire/bootstrap events, the cancel handler's old_state stripping
-    in DurationTimer, and real state-change events where there is no prior
-    state yet (first observation / first-time state set).
+    When ``old_state`` is None, the attribute is treated as having changed if it is present on ``new_state``.  This
+    applies to synthetic immediate-fire/bootstrap events, the cancel handler's old_state stripping in DurationTimer,
+    and real state-change events where there is no prior state yet (first observation / first-time state set).
     """
 
     attr_name: str
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
-        # old_state=None arises in two paths: (1) synthetic immediate-fire events
-        # and (2) the cancel handler's old_state stripping in DurationTimer.
-        # Both need "attribute present = changed" semantics — but only if the
-        # attribute actually exists on new_state.
+        """Return True if ``attr_name`` differs between old and new state; with no old state, if it exists on new."""
         if value.payload.data.old_state is None:
             return get_attr_new(self.attr_name)(value) is not MISSING_VALUE
         return DidChange(get_attr_old_new(self.attr_name))(value)
@@ -543,17 +546,15 @@ class AttrDidChange(_PredicateOps):
 class EventEntityFresh(_PredicateOps):
     """Checks that an ``event.*`` entity's state timestamp is within ``max_age`` seconds of its ``last_changed``.
 
-    Home Assistant ``event`` entities (buttons, remotes) store the time of their last event as
-    their state value. When HA restarts it restores that state and broadcasts it as a new
-    ``state_changed`` event, so an unguarded button listener re-runs on every restart. A real
-    press writes its timestamp and ``last_changed`` together; a restart replay pairs the old
-    timestamp with a ``last_changed`` set at restart. Both values come from Home Assistant, so
-    clock skew with the Hassette host and dispatch latency don't affect the result, and a
-    ``duration=`` hold recheck of the cached state still passes.
+    Home Assistant ``event`` entities (buttons, remotes) store the time of their last event as their state value. When
+    HA restarts it restores that state and broadcasts it as a new ``state_changed`` event, so an unguarded button
+    listener re-runs on every restart. A real press writes its timestamp and ``last_changed`` together; a restart
+    replay pairs the old timestamp with a ``last_changed`` set at restart. Both values come from Home Assistant, so
+    clock skew with the Hassette host and dispatch latency don't affect the result, and a ``duration=`` hold recheck
+    of the cached state still passes.
 
-    Fails open: a missing ``new_state`` or a state value or ``last_changed`` that is not an
-    ISO 8601 timestamp (``unknown``, ``unavailable``) counts as fresh, so a real press is
-    never dropped.
+    Fails open: a missing ``new_state`` or a state value or ``last_changed`` that is not an ISO 8601 timestamp
+    (``unknown``, ``unavailable``) counts as fresh, so a real press is never dropped.
 
     Examples:
         ```python
@@ -574,6 +575,7 @@ class EventEntityFresh(_PredicateOps):
             raise ValueError(f"max_age must be positive, got {self.max_age!r}")
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        """Return True if the event fired within ``max_age`` seconds of ``last_changed``, or if either is unparsable."""
         new_state = get_state_object_new(value)
         if new_state is None:
             return True
@@ -595,6 +597,7 @@ class DomainMatches(_PredicateOps):
     domain: str
 
     def __call__(self, value: "HassEvent", /) -> bool:
+        """Return True if the event's domain matches ``domain``, as a glob when it contains glob syntax."""
         return ValueIs(source=get_domain, condition=_glob_or_literal(self.domain))(value)
 
     def summarize(self) -> str:
@@ -612,6 +615,7 @@ class EntityMatches(_PredicateOps):
     entity_id: str
 
     def __call__(self, value: "HassEvent", /) -> bool:
+        """Return True if the event's entity_id matches ``entity_id``, as a glob when it contains glob syntax."""
         return ValueIs(source=get_entity_id, condition=_glob_or_literal(self.entity_id))(value)
 
     def summarize(self) -> str:
@@ -629,6 +633,7 @@ class ServiceMatches(_PredicateOps):
     service: str
 
     def __call__(self, value: "HassEvent", /) -> bool:
+        """Return True if the event's service name matches ``service``, as a glob when it contains glob syntax."""
         return ValueIs(source=get_path("payload.data.service"), condition=_glob_or_literal(self.service))(value)
 
     def summarize(self) -> str:
@@ -644,7 +649,6 @@ class ServiceDataWhere(_PredicateOps):
     """Predicate that applies a mapping of service_data conditions to a CallServiceEvent.
 
     Examples:
-    --------
     Exact matches only
 
         ServiceDataWhere({"entity_id": "light.kitchen", "transition": 1})
@@ -688,6 +692,7 @@ class ServiceDataWhere(_PredicateOps):
         object.__setattr__(self, "_predicates", tuple(preds))
 
     def __call__(self, value: "CallServiceEvent", /) -> bool:
+        """Return True if every key in ``spec`` satisfies its condition in the event's service data."""
         return all(p(value) for p in self._predicates)
 
     def summarize(self) -> str:
@@ -710,7 +715,6 @@ class ServiceDataWhere(_PredicateOps):
         """Ergonomic constructor for literal kwargs.
 
         Example:
-        -------
         >>> ServiceDataWhere.from_kwargs(entity_id="light.*", brightness=200)
         """
         return cls(spec=spec, auto_glob=auto_glob)
