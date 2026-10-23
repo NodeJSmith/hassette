@@ -231,12 +231,12 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     strict_lifecycle: bool = Field(default=False)
     """Enable strict validation for lifecycle transitions, connection state, and registries.
 
-    Controls three subsystems uniformly:
+    Controls two subsystems uniformly:
     - Resource lifecycle: invalid ResourceStatus transitions raise InvalidLifecycleTransitionError
-    - WebSocket connection: invalid ConnectionState transitions raise InvalidLifecycleTransitionError
     - Registry validation: startup issues raise RegistryValidationError
 
-    When False (default), all three subsystems log WARNING instead of raising.
+    When False (default), both subsystems log WARNING instead of raising. Invalid WebSocket
+    ConnectionState transitions always log WARNING, regardless of this setting.
     The test harness sets this to True by default."""
 
     asyncio_debug_mode: bool = Field(default=False)

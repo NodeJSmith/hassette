@@ -148,7 +148,7 @@
         },
         "strict_lifecycle": {
           "default": false,
-          "description": "Enable strict validation for lifecycle transitions, connection state, and registries.\n\nControls three subsystems uniformly:\n- Resource lifecycle: invalid ResourceStatus transitions raise InvalidLifecycleTransitionError\n- WebSocket connection: invalid ConnectionState transitions raise InvalidLifecycleTransitionError\n- Registry validation: startup issues raise RegistryValidationError\n\nWhen False (default), all three subsystems log WARNING instead of raising.\nThe test harness sets this to True by default.",
+          "description": "Enable strict validation for lifecycle transitions, connection state, and registries.\n\nControls two subsystems uniformly:\n- Resource lifecycle: invalid ResourceStatus transitions raise InvalidLifecycleTransitionError\n- Registry validation: startup issues raise RegistryValidationError\n\nWhen False (default), both subsystems log WARNING instead of raising. Invalid WebSocket\nConnectionState transitions always log WARNING, regardless of this setting.\nThe test harness sets this to True by default.",
           "title": "Strict Lifecycle",
           "type": "boolean"
         },

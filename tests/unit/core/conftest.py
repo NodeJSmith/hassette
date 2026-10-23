@@ -58,7 +58,6 @@ from ._fixtures_websocket import (
     run_cleanup,
     stub_refused_attempts,
     websocket_service,
-    websocket_service_strict,
 )
 
 __all__ = [
@@ -108,5 +107,4 @@ __all__ = [
     "telemetry_repo",
     "telemetry_session_id",
     "websocket_service",
-    "websocket_service_strict",
 ]
