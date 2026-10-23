@@ -380,8 +380,9 @@ class DurationConfig:
 
     @property
     def timer(self) -> "DurationTimer":
-        """Return the attached DurationTimer. Asserts it has been attached."""
-        assert self._timer is not None, "timer not yet attached — call attach_timer() first"
+        """Return the attached DurationTimer. Raises RuntimeError if it has not been attached."""
+        if self._timer is None:
+            raise RuntimeError("timer not yet attached — call attach_timer() first")
         return self._timer
 
     def cancel_timer(self) -> None:
@@ -403,8 +404,10 @@ class DurationConfig:
         cancel-subscription factory and on_cancel callback. Counter
         ownership stays in BusService.
         """
-        assert self._timer is None, "timer already attached — call cancel() before re-attaching"
-        assert self.duration is not None, "attach_timer() requires a non-None duration"
+        if self._timer is not None:
+            raise RuntimeError("timer already attached — call cancel() before re-attaching")
+        if self.duration is None:
+            raise RuntimeError("attach_timer() requires a non-None duration")
         self._timer = DurationTimer(
             task_bucket=task_bucket,
             duration=self.duration,

@@ -129,17 +129,17 @@ async def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassett
 
 
 def test_bus_requires_parent() -> None:
-    """Bus.__init__ raises AssertionError when parent is None."""
+    """Bus.__init__ raises RuntimeError when parent is None."""
     mock_hassette = Mock()
     mock_hassette.bus_service = Mock()
-    with pytest.raises(AssertionError, match="Bus requires a parent"):
+    with pytest.raises(RuntimeError, match="Bus requires a parent"):
         Bus(mock_hassette, parent=None)
 
 
-async def test_source_tier_assertion_rejects_invalid_value(bus: "Bus") -> None:
-    """Bus.on() raises AssertionError for invalid source_tier values."""
+async def test_source_tier_check_rejects_invalid_value(bus: "Bus") -> None:
+    """Bus.on() raises ValueError for invalid source_tier values."""
     bus.parent.source_tier = "invalid"
-    with mock_add_listener(bus), pytest.raises(AssertionError, match="Invalid source_tier"):
+    with mock_add_listener(bus), pytest.raises(ValueError, match="Invalid source_tier"):
         await bus.on(topic="test.invalid", handler=handler_a, name="test_invalid")
     bus.parent.source_tier = "app"
 
