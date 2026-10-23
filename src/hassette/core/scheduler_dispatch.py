@@ -94,19 +94,34 @@ class SchedulerDispatchMixin:
         self.logger.debug("Rescheduled job %s to %s", job, job.next_run)
 
     async def persist_schedule_status(self, job: "Job") -> None:
-        """Persist ``job``'s current ``schedule_status``/``schedule_status_reason`` to the DB.
+        """Persist ``job``'s current schedule status, reason, and timing to the DB.
 
         Called after every ``Job.transition_to()`` call in ``dispatch_and_log`` and
         ``reschedule_job`` so a degraded (DB-only) response still reflects the job's true
-        status when live enrichment is unavailable. No-op for a job with no ``db_id`` yet —
-        an unregistered or degraded-registration job has no row to update.
+        status and next occurrence when live enrichment is unavailable. A ``SCHEDULED`` job
+        writes its ``next_run``, ``fire_at`` (already jittered by ``Job.set_next_run``), and
+        ``jitter``; every other status writes ``None`` for all three, clearing the row's
+        timing. No-op for a job with no ``db_id`` yet — an unregistered or
+        degraded-registration job has no row to update.
 
         Args:
             job: The job whose current schedule status should be persisted.
         """
         if job.db_id is None:
             return
-        await self._executor.mark_job_status(job.db_id, job.schedule_status, job.schedule_status_reason)
+        next_run = fire_at = jitter = None
+        if job.schedule_status is ScheduleStatus.SCHEDULED and job.next_run is not None and job.fire_at is not None:
+            next_run = job.next_run.timestamp()
+            fire_at = job.fire_at.timestamp()
+            jitter = job.jitter
+        await self._executor.mark_job_status(
+            job.db_id,
+            job.schedule_status,
+            job.schedule_status_reason,
+            next_run=next_run,
+            fire_at=fire_at,
+            jitter=jitter,
+        )
 
     async def dispatch_and_log(self, job: "Job") -> None:
         """Dispatch a job and log its execution.

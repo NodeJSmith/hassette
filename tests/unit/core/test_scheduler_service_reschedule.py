@@ -35,6 +35,8 @@ from tests.support.factories import make_scheduled_job
 
 from .conftest import make_scheduler_service
 
+CLEARED_TIMING = {"next_run": None, "fire_at": None, "jitter": None}
+
 
 def make_interval_trigger(*, next_returns=None, next_raises=None):
     """Create a mock trigger."""
@@ -579,47 +581,68 @@ class TestBehindScheduleWarning:
 
 class TestPersistScheduleStatus:
     """Scheduler-level assertions that persist_schedule_status()/mark_job_status() is
-    invoked with the right (db_id, status, reason) after every schedule-status transition
-    in dispatch_and_log() and reschedule_job().
+    invoked with the right (db_id, status, reason) and timing after every schedule-status
+    transition in dispatch_and_log() and reschedule_job(). A SCHEDULED transition writes the
+    job's next occurrence; every other transition clears the timing.
     """
 
-    async def test_dispatch_scheduled_branch_persists_status(self) -> None:
+    async def test_dispatch_scheduled_branch_persists_status_and_next_timing(self) -> None:
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
-        await dispatch_with_trigger(svc, next_returns=future_time, db_id=42)
+        _trig, job = await dispatch_with_trigger(svc, next_returns=future_time, db_id=42, jitter=30.0)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(42, "scheduled", None)
+        assert job.next_run == future_time.round("second")
+        assert job.next_run is not None
+        assert job.fire_at is not None
+        assert job.next_run <= job.fire_at <= job.next_run.add(seconds=30)
+        svc._executor.mark_job_status.assert_awaited_once_with(
+            42,
+            "scheduled",
+            None,
+            next_run=job.next_run.timestamp(),
+            fire_at=job.fire_at.timestamp(),
+            jitter=30.0,
+        )
 
-    async def test_dispatch_completed_branch_persists_status(self) -> None:
+    async def test_dispatch_completed_branch_clears_timing(self) -> None:
         svc = make_scheduler_service()
-        await dispatch_with_trigger(svc, next_returns=None, db_id=42)
+        await dispatch_with_trigger(svc, next_returns=None, db_id=42, jitter=30.0)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", None)
+        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", None, **CLEARED_TIMING)
 
-    async def test_dispatch_trigger_error_branch_persists_status(self) -> None:
+    async def test_dispatch_trigger_error_branch_clears_timing(self) -> None:
         svc = make_scheduler_service()
-        await dispatch_with_trigger(svc, next_raises=RuntimeError("bad trigger"), db_id=42)
+        await dispatch_with_trigger(svc, next_raises=RuntimeError("bad trigger"), db_id=42, jitter=30.0)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", "trigger_error")
+        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", "trigger_error", **CLEARED_TIMING)
 
-    async def test_dispatch_waiting_branch_persists_status(self) -> None:
+    async def test_dispatch_waiting_branch_clears_timing(self) -> None:
         svc = make_scheduler_service()
-        _trig, job = await dispatch_with_trigger(svc, next_returns=WAITING, db_id=42)
+        _trig, job = await dispatch_with_trigger(svc, next_returns=WAITING, db_id=42, jitter=30.0)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(42, "waiting", None)
+        svc._executor.mark_job_status.assert_awaited_once_with(42, "waiting", None, **CLEARED_TIMING)
         assert job.schedule_status is ScheduleStatus.WAITING
         svc._job_queue.remove_job.assert_called_once_with(job)
 
-    async def test_reschedule_job_waiting_transition_persists_status(self) -> None:
+    async def test_reschedule_job_scheduled_to_waiting_clears_timing(self) -> None:
+        svc = make_scheduler_service()
+        svc._job_queue.remove_job = AsyncMock(return_value=True)
+        job = make_scheduled_job(db_id=7, next_run=date_utils.now().add(seconds=60), jitter=5.0)
+
+        await svc.reschedule_job(job, WAITING)
+
+        svc._executor.mark_job_status.assert_awaited_once_with(7, "waiting", None, **CLEARED_TIMING)
+
+    async def test_reschedule_job_waiting_transition_clears_timing(self) -> None:
         svc = make_scheduler_service()
         # WAITING status is never on the heap, so reschedule_job skips heap removal entirely.
         job = make_scheduled_job(db_id=7, schedule_status=ScheduleStatus.WAITING)
 
         await svc.reschedule_job(job, WAITING)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(7, "waiting", None)
+        svc._executor.mark_job_status.assert_awaited_once_with(7, "waiting", None, **CLEARED_TIMING)
 
-    async def test_reschedule_job_scheduled_transition_persists_status(self) -> None:
+    async def test_reschedule_job_scheduled_transition_persists_timing(self) -> None:
         svc = make_scheduler_service()
         # WAITING status is never on the heap, so reschedule_job skips heap removal entirely.
         job = make_scheduled_job(db_id=7, schedule_status=ScheduleStatus.WAITING)
@@ -627,4 +650,14 @@ class TestPersistScheduleStatus:
         new_time = date_utils.now().add(seconds=120)
         await svc.reschedule_job(job, new_time)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(7, "scheduled", None)
+        assert job.next_run is not None
+        assert job.fire_at is not None
+        svc._executor.mark_job_status.assert_awaited_once_with(
+            7,
+            "scheduled",
+            None,
+            next_run=new_time.round("second").timestamp(),
+            fire_at=job.fire_at.timestamp(),
+            jitter=None,
+        )
+        assert job.fire_at == job.next_run

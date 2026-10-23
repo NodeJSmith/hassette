@@ -4,6 +4,7 @@ import time
 from dataclasses import replace
 
 import aiosqlite
+import pytest
 from hassette_wire import ScheduleStatus, ScheduleStatusReason
 
 from hassette.core.registration import ScheduledJobRegistration
@@ -146,14 +147,16 @@ async def test_mark_job_status_updates_status_and_reason(
     reg = make_job_registration(job_name="status_job")
     job_id = await telemetry_repo.register_job(reg)
 
-    await telemetry_repo.mark_job_status(job_id, ScheduleStatus.WAITING, None)
+    await telemetry_repo.mark_job_status(job_id, ScheduleStatus.WAITING, None, next_run=None, fire_at=None, jitter=None)
 
     schedule_status = await fetch_job_field(telemetry_db, job_id, "schedule_status")
     schedule_status_reason = await fetch_job_field(telemetry_db, job_id, "schedule_status_reason")
     assert schedule_status == "waiting"
     assert schedule_status_reason is None
 
-    await telemetry_repo.mark_job_status(job_id, ScheduleStatus.COMPLETED, ScheduleStatusReason.TRIGGER_ERROR)
+    await telemetry_repo.mark_job_status(
+        job_id, ScheduleStatus.COMPLETED, ScheduleStatusReason.TRIGGER_ERROR, next_run=None, fire_at=None, jitter=None
+    )
 
     schedule_status = await fetch_job_field(telemetry_db, job_id, "schedule_status")
     schedule_status_reason = await fetch_job_field(telemetry_db, job_id, "schedule_status_reason")
@@ -161,6 +164,36 @@ async def test_mark_job_status_updates_status_and_reason(
     assert schedule_status_reason == "trigger_error", (
         f"Expected schedule_status_reason='trigger_error', got {schedule_status_reason!r}"
     )
+
+
+async def test_mark_job_status_writes_next_occurrence_timing(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """A SCHEDULED mark_job_status() replaces the registration timing with the next occurrence's."""
+    job_id = await telemetry_repo.register_job(make_timed_job_registration(1_000.0, 1_004.5, 10.0))
+    assert await fetch_job_timing(telemetry_db, job_id) == (1_000.0, 1_004.5, 10.0)
+
+    await telemetry_repo.mark_job_status(
+        job_id, ScheduleStatus.SCHEDULED, None, next_run=2_000.0, fire_at=2_007.25, jitter=10.0
+    )
+
+    assert await fetch_job_timing(telemetry_db, job_id) == (2_000.0, 2_007.25, 10.0)
+
+
+@pytest.mark.parametrize("status", [ScheduleStatus.COMPLETED, ScheduleStatus.WAITING])
+async def test_mark_job_status_terminal_transition_clears_timing(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+    status: ScheduleStatus,
+) -> None:
+    """A non-SCHEDULED mark_job_status() writes NULL to all three timing columns."""
+    job_id = await telemetry_repo.register_job(make_timed_job_registration(1_000.0, 1_004.5, 10.0))
+
+    await telemetry_repo.mark_job_status(job_id, status, None, next_run=None, fire_at=None, jitter=None)
+
+    assert await fetch_job_timing(telemetry_db, job_id) == (None, None, None)
+    assert await fetch_job_field(telemetry_db, job_id, "schedule_status") == status
 
 
 async def test_mark_listener_cancelled_sets_removed_at(
