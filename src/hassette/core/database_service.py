@@ -162,6 +162,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Log level for this service, read from ``logging.database_service`` in the config."""
         return self.hassette.config.logging.database_service
 
     @property

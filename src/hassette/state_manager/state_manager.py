@@ -269,6 +269,7 @@ class StateManager(Resource):
         self._domain_states_cache = {}
 
     async def after_initialize(self) -> None:
+        """Mark the state manager ready; domain state views are created lazily on first access."""
         mark_ready(self, reason="StateManager initialized")
 
     @property

@@ -130,6 +130,7 @@ class HassetteCLIClient:
         )
 
     def close(self) -> None:
+        """Close the underlying HTTP client and release its pooled connections."""
         self._client.close()
 
     @overload

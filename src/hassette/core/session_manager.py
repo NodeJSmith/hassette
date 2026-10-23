@@ -61,6 +61,7 @@ class SessionManager(Resource):
 
     @property
     def config_log_level(self) -> LogLevel:
+        """Log level for this service, shared with the database via ``logging.database_service``."""
         return self.hassette.config.logging.database_service
 
     @property
