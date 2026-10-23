@@ -1,5 +1,4 @@
-from hassette_wire import ResourceStatus
-
+from hassette import ResourceStatus
 from hassette.events import (
     AppStateChangePayload,
     HassetteAppStateEvent,

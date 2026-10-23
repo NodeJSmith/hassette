@@ -15,4 +15,4 @@ async def test_assert_call_count():
         await harness.simulate_state_change(
             "binary_sensor.motion", old_value="off", new_value="on"
         )
-        harness.api_recorder.assert_call_count("call_service", 2)
+        harness.api_recorder.assert_call_count("turn_on", 1)
