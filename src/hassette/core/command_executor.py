@@ -634,8 +634,17 @@ class CommandExecutor(Service):
         """
         await self.hassette.database_service.submit(self.repository.mark_job_removed(db_id))
 
-    async def mark_job_status(self, db_id: int, status: ScheduleStatus, reason: ScheduleStatusReason | None) -> None:
-        """Persist a schedule-status transition for a scheduled_jobs row.
+    async def mark_job_status(
+        self,
+        db_id: int,
+        status: ScheduleStatus,
+        reason: ScheduleStatusReason | None,
+        *,
+        next_run: float | None,
+        fire_at: float | None,
+        jitter: float | None,
+    ) -> None:
+        """Persist a schedule-status transition and the job's timing for a scheduled_jobs row.
 
         Delegates to ``TelemetryRepository.mark_job_status`` via ``DatabaseService.submit``.
 
@@ -643,8 +652,13 @@ class CommandExecutor(Service):
             db_id: The ``id`` of the ``scheduled_jobs`` row to update.
             status: The new ``schedule_status`` value.
             reason: The new ``schedule_status_reason`` value, or ``None``.
+            next_run: Unjittered next fire time (epoch seconds), or ``None`` to clear it.
+            fire_at: Actual dispatch time after jitter (epoch seconds), or ``None`` to clear it.
+            jitter: Configured jitter upper bound (seconds), or ``None`` to clear it.
         """
-        await self.hassette.database_service.submit(self.repository.mark_job_status(db_id, status, reason))
+        await self.hassette.database_service.submit(
+            self.repository.mark_job_status(db_id, status, reason, next_run=next_run, fire_at=fire_at, jitter=jitter)
+        )
 
     async def mark_listener_cancelled(self, db_id: int) -> None:
         """Set ``removed_at`` on the listeners row to persist durable removal state.

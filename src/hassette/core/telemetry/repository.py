@@ -247,24 +247,46 @@ class TelemetryRepository:
         )
         await db.commit()
 
-    async def mark_job_status(self, db_id: int, status: ScheduleStatus, reason: ScheduleStatusReason | None) -> None:
-        """Persist a ``Job.transition_to()`` status change for the given job row.
+    async def mark_job_status(
+        self,
+        db_id: int,
+        status: ScheduleStatus,
+        reason: ScheduleStatusReason | None,
+        *,
+        next_run: float | None,
+        fire_at: float | None,
+        jitter: float | None,
+    ) -> None:
+        """Persist a ``Job.transition_to()`` status change and the job's timing for the given row.
 
         Called after every schedule-status transition (scheduled, waiting, completed) so a
-        degraded (DB-only) response still reflects the job's true status when live
-        enrichment is unavailable. Does not touch ``removed_at`` — that is a separate
-        lifecycle axis handled by ``mark_job_removed``.
+        degraded (DB-only) response still reflects the job's true status and next occurrence
+        when live enrichment is unavailable. The timing columns are written in the same
+        UPDATE as the status, so a non-``SCHEDULED`` transition clears them by passing
+        ``None``. Does not touch ``removed_at`` — that is a separate lifecycle axis handled
+        by ``mark_job_removed``.
 
         Args:
             db_id: The ``id`` of the ``scheduled_jobs`` row to update.
             status: The new ``schedule_status``.
             reason: The new ``schedule_status_reason`` value, or ``None`` to clear it.
+            next_run: Unjittered next fire time (epoch seconds), or ``None`` to clear it.
+            fire_at: Actual dispatch time after jitter (epoch seconds), or ``None`` to clear it.
+            jitter: Configured jitter upper bound (seconds), or ``None`` to clear it.
         """
         db = self._db_service.db
         await db.execute(
             "UPDATE scheduled_jobs SET schedule_status = :schedule_status, "
-            "schedule_status_reason = :schedule_status_reason WHERE id = :id",
-            {"schedule_status": status, "schedule_status_reason": reason, "id": db_id},
+            "schedule_status_reason = :schedule_status_reason, "
+            "next_run = :next_run, fire_at = :fire_at, jitter = :jitter WHERE id = :id",
+            {
+                "schedule_status": status,
+                "schedule_status_reason": reason,
+                "next_run": next_run,
+                "fire_at": fire_at,
+                "jitter": jitter,
+                "id": db_id,
+            },
         )
         await db.commit()
 
