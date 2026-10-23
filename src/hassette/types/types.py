@@ -132,7 +132,9 @@ V_contra = TypeVar("V_contra", contravariant=True)
 class Predicate(Protocol[EventT]):
     """Protocol for defining predicates that evaluate events."""
 
-    def __call__(self, value: EventT, /) -> bool: ...
+    def __call__(self, value: EventT, /) -> bool:
+        """Return True when the event satisfies this predicate."""
+        ...
 
 
 WhereClause: TypeAlias = "Predicate | Sequence[Predicate] | None"
@@ -151,13 +153,17 @@ predicates (including lambdas) are called with zero arguments. Async callables r
 class Condition(Protocol[V_contra]):
     """Alias for a condition callable that takes a value or FalseySentinel and returns a bool."""
 
-    def __call__(self, value: V_contra, /) -> bool: ...
+    def __call__(self, value: V_contra, /) -> bool:
+        """Return True when the value (or FalseySentinel for a missing value) satisfies this condition."""
+        ...
 
 
 class ComparisonCondition(Protocol[V_contra]):
     """Protocol for a comparison condition callable that takes two values and returns a bool."""
 
-    def __call__(self, old_value: V_contra, new_value: V_contra, /) -> bool: ...
+    def __call__(self, old_value: V_contra, new_value: V_contra, /) -> bool:
+        """Return True when the change from old_value to new_value satisfies this comparison."""
+        ...
 
 
 @runtime_checkable
@@ -225,25 +231,61 @@ class SchedulerServiceProtocol(Protocol):
 
     task_bucket: "TaskBucket"
 
-    async def add_job(self, job: "Job") -> None: ...
+    async def add_job(self, job: "Job") -> None:
+        """Persist the job, add it to the live registry, and enqueue it on the heap if it is scheduled."""
+        ...
 
-    def dequeue_job(self, job: "Job") -> bool: ...
+    def dequeue_job(self, job: "Job") -> bool:
+        """Remove the job from live state now and finish guard release and persistence in the background.
 
-    async def reschedule_job(self, job: "Job", result: "ZonedDateTime | _WaitingSentinel") -> None: ...
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
+        """
+        ...
 
-    def register_removal_callback(self, owner_id: str, callback: "Callable[[Job], None]") -> None: ...
+    async def reschedule_job(self, job: "Job", result: "ZonedDateTime | _WaitingSentinel") -> None:
+        """Move a registered job to a new run time, or into or out of the WAITING state, keeping its registration."""
+        ...
 
-    def deregister_removal_callback(self, owner_id: str) -> None: ...
+    def register_removal_callback(self, owner_id: str, callback: "Callable[[Job], None]") -> None:
+        """Set the callback invoked with each removed job owned by owner_id, replacing any existing one."""
+        ...
 
-    async def mark_job_removed(self, db_id: int) -> None: ...
+    def deregister_removal_callback(self, owner_id: str) -> None:
+        """Drop the removal callback for owner_id; a no-op when none is registered."""
+        ...
 
-    def deregister_job(self, job: "Job") -> None: ...
+    async def mark_job_removed(self, db_id: int) -> None:
+        """Persist the removal timestamp on the scheduled-job row identified by db_id."""
+        ...
 
-    async def remove_job(self, job: "Job", *, detach_self: bool = False) -> bool: ...
+    def deregister_job(self, job: "Job") -> None:
+        """Remove this exact job object from the live registry, leaving a different job with the same db_id alone."""
+        ...
 
-    def remove_jobs(self, jobs: "list[Job]") -> "asyncio.Future[None]": ...
+    async def remove_job(self, job: "Job", *, detach_self: bool = False) -> bool:
+        """Remove the job from live state and await its guard release and removal persistence.
 
-    def submit_job(self, job: "Job") -> None: ...
+        Args:
+            job: The job to remove.
+            detach_self: Let an invocation that removes its own job finish instead of cancelling it.
+
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
+        """
+        ...
+
+    def remove_jobs(self, jobs: "list[Job]") -> "asyncio.Future[None]":
+        """Start removing exactly the given jobs on the service's own task bucket.
+
+        Returns:
+            A future to await for the removals; already completed if the task bucket is sealed.
+        """
+        ...
+
+    def submit_job(self, job: "Job") -> None:
+        """Start one manual run of the job without waiting for it or touching its automatic schedule."""
+        ...
 
 
 class StateReader(Protocol):
@@ -254,21 +296,29 @@ class StateReader(Protocol):
     concrete class are required.
     """
 
-    def get_state(self, entity_id: str) -> "HassStateDict | None": ...
+    def get_state(self, entity_id: str) -> "HassStateDict | None":
+        """Return the cached raw state dict for entity_id, or None if it is not cached."""
+        ...
 
-    def yield_domain_states(self, domain: str) -> "Generator[tuple[str, HassStateDict], Any, None]": ...
+    def yield_domain_states(self, domain: str) -> "Generator[tuple[str, HassStateDict], Any, None]":
+        """Yield (entity_id, raw state dict) pairs for every cached entity in domain."""
+        ...
 
 
 class SyncHandler(Protocol):
     """Protocol for sync handlers."""
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Handle the call synchronously and return any result."""
+        ...
 
 
 class AsyncHandlerType(Protocol):
     """Protocol for async handlers."""
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[None]: ...
+    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[None]:
+        """Return an awaitable that runs the handler."""
+        ...
 
 
 # Type aliases for any valid handler
