@@ -48,6 +48,17 @@ SQL_JOB_ROW_ID_PREFIX = "'j-'"
 SQL_NO_FILTER = "1=1"
 """Always-true ``WHERE`` body used when a query has no optional filter clauses."""
 
+SQL_DEFAULT_LOG_VIEW = (
+    "(lr.author = 'app' OR lr.level IN (" + ", ".join(f"'{name}'" for name in ERROR_AND_ABOVE_LEVEL_NAMES) + "))"
+)
+"""``log_records`` filter for the default log view: app lines plus framework lines at ERROR and above.
+
+The levels are inlined as literals, not bound, because SQLite only uses a partial index when the
+query's ``WHERE`` provably implies the index's, and a bound parameter never does. The partial index
+``idx_lr_default_view`` (migration 016) repeats this predicate, so the two must change together;
+``test_default_log_view_uses_partial_index`` fails if they drift.
+"""
+
 # Exports the package's public constants plus the clause-builders and row converters shared
 # by the query mixins. These are package-internal (not for callers outside
 # hassette.core.telemetry); listing them here marks them as exported so the cross-module
@@ -55,6 +66,7 @@ SQL_NO_FILTER = "1=1"
 __all__ = [
     "DEFAULT_EXECUTION_LOG_LIMIT",
     "DEFAULT_LOG_RECORDS_LIMIT",
+    "SQL_DEFAULT_LOG_VIEW",
     "SQL_FAILED_STATUSES",
     "SQL_HANDLER_ROW_ID_PREFIX",
     "SQL_JOB_ROW_ID_PREFIX",
@@ -156,9 +168,7 @@ def log_author_clause(author: QueryAuthor | None) -> tuple[str | None, dict[str,
     """
     match author:
         case None:
-            level_params = {f"author_level_{i}": name for i, name in enumerate(ERROR_AND_ABOVE_LEVEL_NAMES)}
-            placeholders = ", ".join(f":{key}" for key in level_params)
-            return f"(lr.author = 'app' OR lr.level IN ({placeholders}))", level_params
+            return SQL_DEFAULT_LOG_VIEW, {}
         case "app" | "framework":
             return "lr.author = :author", {"author": author}
         case "all":
