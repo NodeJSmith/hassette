@@ -34,7 +34,7 @@ def build_hassette(
         hassette.shutdown_event.set()
 
     # harness bypass flag — not in shared factory
-    hassette._should_skip_dependency_check = Mock(return_value=skip_dependency_check)
+    hassette.should_skip_dependency_check = Mock(return_value=skip_dependency_check)
 
     return hassette
 
@@ -186,7 +186,7 @@ async def test_depends_on_timeout_calls_handle_failed() -> None:
 
 
 async def test_skip_dependency_check_bypasses() -> None:
-    """When hassette._should_skip_dependency_check() returns True, _auto_wait_dependencies returns immediately."""
+    """When hassette.should_skip_dependency_check() returns True, _auto_wait_dependencies returns immediately."""
     hassette = build_hassette(
         children=[],  # no children — would raise if not skipped
         skip_dependency_check=True,

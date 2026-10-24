@@ -308,7 +308,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         Early-returns when:
         - ``depends_on`` is empty (no declared deps)
-        - ``hassette._skip_dependency_check`` is True (test harness bypass)
+        - ``hassette.should_skip_dependency_check()`` returns True (test harness bypass)
 
         Raises:
             RuntimeError: If no matching child is found for a declared dep type, or if
@@ -318,7 +318,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if not self.depends_on:
             return
-        if self.hassette._should_skip_dependency_check():
+        if self.hassette.should_skip_dependency_check():
             return
 
         # App-level depends_on is not yet supported (#581).

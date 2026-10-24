@@ -84,7 +84,11 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # The root of the framework's logger tree; children are hassette.<ClassName>.
         return "hassette"
 
-    def _should_skip_dependency_check(self) -> bool:
+    def should_skip_dependency_check(self) -> bool:
+        """Whether resources skip waiting on their declared ``depends_on`` before initializing.
+
+        Always False in production; the test harness overrides it to return True.
+        """
         return False
 
     def __init__(self, config: HassetteConfig) -> None:

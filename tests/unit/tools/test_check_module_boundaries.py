@@ -33,6 +33,8 @@ rule is path-scoped by ``rel_path`` rather than by ``layer`` like the import ``R
 
 import textwrap
 
+import check_module_boundaries
+import pytest
 from check_module_boundaries import (
     MODEL_COPY_UPDATE_REASON,
     PRIVATE_ATTR_MSG_TEMPLATE,
@@ -44,6 +46,9 @@ from check_module_boundaries import (
     in_model_copy_scope,
     layer_of,
 )
+
+#: A stand-in allowlist entry; the real ``PRIVATE_ATTR_ALLOWLIST`` may be empty.
+ALLOWLIST_FIXTURE: frozenset[tuple[str, str]] = frozenset({("resources/base.py", "_internal_hook")})
 
 
 def reach_through_msg(attr: str) -> str:
@@ -272,17 +277,17 @@ def test_private_access_in_core_exempt() -> None:
     assert check_source("x = self.hassette._state_proxy\n", "core") == []
 
 
-def test_allowlisted_path_attr_suppressed() -> None:
-    src = "x = self.hassette._should_skip_dependency_check()\n"
+def test_allowlisted_path_attr_suppressed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(check_module_boundaries, "PRIVATE_ATTR_ALLOWLIST", ALLOWLIST_FIXTURE)
+    src = "x = self.hassette._internal_hook()\n"
     assert check_source(src, "resources", rel_path="resources/base.py") == []
 
 
-def test_allowlist_scoped_to_path() -> None:
+def test_allowlist_scoped_to_path(monkeypatch: pytest.MonkeyPatch) -> None:
     # The same attr in a different file is still flagged — the allowlist is (path, attr)-scoped.
-    src = "x = self.hassette._should_skip_dependency_check()\n"
-    assert check_source(src, "resources", rel_path="resources/other.py") == [
-        (1, reach_through_msg("_should_skip_dependency_check"))
-    ]
+    monkeypatch.setattr(check_module_boundaries, "PRIVATE_ATTR_ALLOWLIST", ALLOWLIST_FIXTURE)
+    src = "x = self.hassette._internal_hook()\n"
+    assert check_source(src, "resources", rel_path="resources/other.py") == [(1, reach_through_msg("_internal_hook"))]
 
 
 def test_allowlist_not_consulted_without_rel_path() -> None:
