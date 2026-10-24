@@ -24,8 +24,11 @@ from hassette_wire import (
     SystemStatusResponse,
     TelemetryStatusResponse,
 )
+from pydantic import SecretStr
 
 from hassette.cli.client import HassetteCLIClient
+from hassette.config.config import HassetteConfig
+from hassette.config.models import AppsConfig, LifecycleConfig, WebApiConfig
 
 from .conftest import (
     HA_TOKEN,
@@ -43,7 +46,7 @@ pytestmark = [pytest.mark.system]
 
 
 @contextlib.contextmanager
-def _cli_client(config: SystemTestConfig) -> Iterator[HassetteCLIClient]:
+def _cli_client(config: HassetteConfig) -> Iterator[HassetteCLIClient]:
     """Build a non-JSON-mode CLI client pointed at the running server."""
     client = HassetteCLIClient(config, json_mode=False)
     try:
@@ -62,11 +65,11 @@ def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestCon
 
     config = SystemTestConfig(
         base_url=ha_url,
-        token=HA_TOKEN,
+        token=SecretStr(HA_TOKEN),
         data_dir=tmp_path / "data",
-        apps={"directory": str(SYSTEM_APPS_DIR), "apps": app_entries(SYSTEM_APPS_DIR)},
-        web_api={"run": True, "port": port},
-        lifecycle={"startup_timeout_seconds": HASSETTE_STARTUP_TIMEOUT_SECONDS},
+        apps=AppsConfig(directory=SYSTEM_APPS_DIR, apps=app_entries(SYSTEM_APPS_DIR)),
+        web_api=WebApiConfig(run=True, port=port),
+        lifecycle=LifecycleConfig(startup_timeout_seconds=HASSETTE_STARTUP_TIMEOUT_SECONDS),
     )
     return config, f"http://127.0.0.1:{port}"
 
@@ -223,11 +226,11 @@ def test_wrong_port_exits_with_code_2(tmp_path: Path) -> None:
     """Querying a non-existent server exits with code 2."""
     config = SystemTestConfig(
         base_url="http://localhost:18123",
-        token="dummy",
+        token=SecretStr("dummy"),
         data_dir=tmp_path / "data",
-        apps={"directory": str(tmp_path / "apps")},
-        web_api={"run": False, "port": 19999},
-        lifecycle={"startup_timeout_seconds": HASSETTE_STARTUP_TIMEOUT_SECONDS},
+        apps=AppsConfig(directory=tmp_path / "apps"),
+        web_api=WebApiConfig(run=False, port=19999),
+        lifecycle=LifecycleConfig(startup_timeout_seconds=HASSETTE_STARTUP_TIMEOUT_SECONDS),
     )
     with _cli_client(config) as client, pytest.raises(SystemExit) as exc_info:
         client.get("/api/health", SystemStatusResponse)

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from hassette_wire import QueryAuthor
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Locator, Page, ViewportSize, expect
 from spa_build import FRONTEND_DIR, SPA_INDEX, build_spa_if_stale, spa_build_steps
 
 from hassette.types.types import ERROR_AND_ABOVE_LEVEL_NAMES
@@ -48,11 +48,11 @@ if TYPE_CHECKING:
 # Shared viewport constants for e2e tests.
 # Mobile height 812 = iPhone X (safe-area / notch testing).
 # Desktop 1024x768 = standard desktop above mobile breakpoint.
-MOBILE_VIEWPORT = {"width": 375, "height": 812}
-SMALL_MOBILE_VIEWPORT = {"width": 320, "height": 480}
-MOBILE_BOUNDARY_VIEWPORT = {"width": 768, "height": 1024}
-NARROW_DESKTOP_VIEWPORT = {"width": 800, "height": 600}
-DESKTOP_VIEWPORT = {"width": 1024, "height": 768}
+MOBILE_VIEWPORT: ViewportSize = {"width": 375, "height": 812}
+SMALL_MOBILE_VIEWPORT: ViewportSize = {"width": 320, "height": 480}
+MOBILE_BOUNDARY_VIEWPORT: ViewportSize = {"width": 768, "height": 1024}
+NARROW_DESKTOP_VIEWPORT: ViewportSize = {"width": 800, "height": 600}
+DESKTOP_VIEWPORT: ViewportSize = {"width": 1024, "height": 768}
 
 DRAWER_SETTLE_MS = 200
 ANIMATION_SETTLE_MS = 300

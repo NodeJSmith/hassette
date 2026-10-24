@@ -45,7 +45,7 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         websocket_service = hassette.websocket_service
-        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+        bus = hassette.bus
 
         assert websocket_service.is_connected
 
@@ -91,7 +91,7 @@ async def test_restart_after_stable_connection_recovers_in_the_same_serve_task(
     async with startup_context(config) as hassette:
         websocket_service = hassette.websocket_service
         service_watcher = hassette._service_watcher  # pyright: ignore[reportPrivateUsage]
-        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+        bus = hassette.bus
 
         assert websocket_service.is_connected
         assert service_watcher is not None
@@ -167,6 +167,7 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
         )
 
         recovered = state_proxy.get_state(ENTITY)
+        assert recovered is not None, f"Entity {ENTITY!r} not in state proxy after reconnect"
         assert isinstance(recovered["state"], str)
         assert recovered["state"] in ("on", "off", "unavailable"), (
             f"Unexpected state value for {ENTITY!r} after reconnect: {recovered['state']!r}"

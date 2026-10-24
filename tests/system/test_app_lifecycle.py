@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from hassette_wire import ResourceStatus
 
-from hassette import Hassette
+from hassette import App, AppConfig, Hassette
 from hassette.testing import wait_for
 
 from .conftest import make_system_config, startup_context, with_app_entries
@@ -19,12 +19,14 @@ ENTITY = "light.kitchen_lights"
 DOMAIN = "light"
 
 
-def find_app(hassette, class_name: str):
+def find_app(hassette: Hassette, class_name: str) -> tuple[str, App[AppConfig]]:
     """Find an app instance by class name, with a clear error if missing."""
     keys = hassette.app_handler.registry.app_keys()
     key = next((k for k in keys if class_name in k), None)
     assert key is not None, f"{class_name} not found in app_handler registry: {keys}"
-    return key, hassette.app_handler.get(key, 0)
+    app = hassette.app_handler.get(key, 0)
+    assert app is not None, f"{class_name} ({key}) has no running instance at index 0"
+    return key, app
 
 
 @asynccontextmanager

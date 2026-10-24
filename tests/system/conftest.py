@@ -18,6 +18,7 @@ from typing import IO, Any, TypeVar
 import httpx2 as httpx
 import pytest
 from dotenv import dotenv_values
+from pydantic import SecretStr
 from pydantic_settings import SettingsConfigDict
 from websockets.sync.client import connect
 
@@ -25,7 +26,7 @@ from hassette import Hassette
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.config.config import HassetteConfig
-from hassette.config.models import LifecycleConfig
+from hassette.config.models import AppsConfig, LifecycleConfig, WebApiConfig
 from hassette.events import Event, RawStateChangeEvent
 from hassette.scheduler import Scheduler
 from hassette.testing import wait_for
@@ -40,9 +41,10 @@ FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
 # Single source of truth: scripts/docker/.env (tests/system/.env symlinks to it).
 _DEMO_ENV_PATH = Path(__file__).parent / ".env"
 _DEMO_ENV = dotenv_values(_DEMO_ENV_PATH)
-HA_TOKEN = _DEMO_ENV.get("HA_ACCESS_TOKEN")
-if not HA_TOKEN:
+_HA_TOKEN = _DEMO_ENV.get("HA_ACCESS_TOKEN")
+if not _HA_TOKEN:
     raise RuntimeError(f"HA_ACCESS_TOKEN not found in {_DEMO_ENV_PATH}")
+HA_TOKEN: str = _HA_TOKEN
 
 # docker-compose.yml publishes the container's 8123 on this same host port, interpolating
 # it from the same .env file — so the URL the tests poll cannot drift from the mapping.
@@ -315,11 +317,11 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
 
     return SystemTestConfig(
         base_url=ha_url,
-        token=HA_TOKEN,
+        token=SecretStr(HA_TOKEN),
         data_dir=tmp_path / "data",
-        apps={"directory": app_dir},
-        web_api={"run": False},
-        lifecycle={"startup_timeout_seconds": 30},
+        apps=AppsConfig(directory=app_dir),
+        web_api=WebApiConfig(run=False),
+        lifecycle=LifecycleConfig(startup_timeout_seconds=30),
     )
 
 
@@ -462,17 +464,17 @@ def make_web_system_config(
 
     config = SystemTestConfig(
         base_url=ha_url,
-        token=HA_TOKEN,
+        token=SecretStr(HA_TOKEN),
         data_dir=tmp_path / "data",
-        apps={"directory": app_dir},
-        web_api={
-            "run": True,
-            "port": port,
-            "host": host,
-            "auth_enabled": auth_token is not None,
-            "auth_token": auth_token,
-        },
-        lifecycle={"startup_timeout_seconds": 30},
+        apps=AppsConfig(directory=app_dir),
+        web_api=WebApiConfig(
+            run=True,
+            port=port,
+            host=host,
+            auth_enabled=auth_token is not None,
+            auth_token=SecretStr(auth_token) if auth_token is not None else None,
+        ),
+        lifecycle=LifecycleConfig(startup_timeout_seconds=30),
     )
     return config, f"http://127.0.0.1:{port}"
 

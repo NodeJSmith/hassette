@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, ViewportSize, expect
 
 from tests.e2e.conftest import (
     DATA_LOAD_TIMEOUT_MS,
@@ -117,7 +117,7 @@ def test_hamburger_hidden_at_desktop(page: Page, base_url: str) -> None:
     ids=["mobile-375", "desktop-1024", "mobile-boundary-768"],
 )
 def test_apps_table_third_column_visibility(
-    page: Page, base_url: str, viewport: dict[str, int], third_column_visible: bool
+    page: Page, base_url: str, viewport: ViewportSize, third_column_visible: bool
 ) -> None:
     """Apps table columns 3+ (last error, runs, last fired) are hidden on mobile, visible on desktop.
 
@@ -189,7 +189,7 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     [SMALL_MOBILE_VIEWPORT, MOBILE_VIEWPORT],
     ids=["small-mobile-320", "mobile-375"],
 )
-def test_log_table_no_horizontal_scroll(page: Page, base_url: str, viewport: dict[str, int]) -> None:
+def test_log_table_no_horizontal_scroll(page: Page, base_url: str, viewport: ViewportSize) -> None:
     """Log table must not allow horizontal scrolling on mobile viewports."""
     page.set_viewport_size(viewport)
     page.goto(base_url + "/logs")
