@@ -140,7 +140,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
         warnings.simplefilter("ignore", UserWarning)
         with pytest.raises(CannotOverrideFinalError):
 
-            class _BadSubclass(Service):
+            class _BadSubclass(Service):  # pyright: ignore[reportUnusedClass]
                 async def serve(self) -> None:
                     pass
 
@@ -157,7 +157,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
         warnings.simplefilter("ignore", UserWarning)
         with pytest.raises(CannotOverrideFinalError):
 
-            class _BadSubclass2(Service):
+            class _BadSubclass2(Service):  # pyright: ignore[reportUnusedClass]
                 async def serve(self) -> None:
                     pass
 

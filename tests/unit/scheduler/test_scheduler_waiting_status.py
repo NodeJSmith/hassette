@@ -8,12 +8,15 @@ lands in a later task — this only covers the Job construction shape, using
 make_scheduler()'s mocked scheduler_service.add_job() which never touches the heap.
 """
 
+from typing import cast
 from unittest.mock import AsyncMock
 
 from hassette_wire import ScheduleStatus
 
+from hassette.events import HassStateDict
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import EntityTime
+from hassette.testing import make_state_dict
 from tests.support.helpers import noop
 
 
@@ -21,7 +24,7 @@ async def test_schedule_with_unresolvable_entity_time_builds_waiting_job(patched
     """An EntityTime trigger whose bound state reader has no usable time builds a WAITING job."""
     # schedule() rebinds EntityTime's state reader to hassette.bus_service.read_entity_state —
     # returning None here (entity absent from the cache) simulates the unresolvable case.
-    patched_scheduler.hassette.bus_service.read_entity_state = lambda _entity_id: None
+    patched_scheduler.hassette.bus_service.read_entity_state = lambda entity_id: None  # noqa: ARG005
     # _add_job_and_watch_entity awaits this to register the reconciliation listener.
     patched_scheduler.hassette.bus.on_state_change = AsyncMock(return_value=object())
 
@@ -39,11 +42,11 @@ async def test_schedule_with_unresolvable_entity_time_builds_waiting_job(patched
 
 async def test_schedule_with_resolvable_entity_time_builds_scheduled_job(patched_scheduler: Scheduler) -> None:
     """An EntityTime trigger with a usable time builds a normal SCHEDULED job, not WAITING."""
-    patched_scheduler.hassette.bus_service.read_entity_state = lambda entity_id: {
-        "entity_id": entity_id,
-        "state": "2030-01-01T07:00:00-05:00",
-        "attributes": {},
-    }
+
+    def read_entity_state(entity_id: str) -> HassStateDict:
+        return cast("HassStateDict", make_state_dict(entity_id, "2030-01-01T07:00:00-05:00"))
+
+    patched_scheduler.hassette.bus_service.read_entity_state = read_entity_state
     patched_scheduler.hassette.bus.on_state_change = AsyncMock(return_value=object())
 
     job = await patched_scheduler.schedule(

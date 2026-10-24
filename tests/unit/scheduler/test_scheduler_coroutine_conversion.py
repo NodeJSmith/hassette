@@ -191,7 +191,7 @@ def test_add_job_wrong_type_raises_typeerror_synchronously() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error", HassetteForgottenAwaitWarning)
         with pytest.raises(TypeError, match="Expected Job"):
-            scheduler.add_job("not-a-job")  # pyright: ignore[reportArgumentType]
+            scheduler.add_job("not-a-job")  # pyright: ignore[reportArgumentType, reportUnusedCoroutine]
 
 
 # Calling without awaiting does NOT mutate scheduler state (no job registered)

@@ -120,7 +120,7 @@ class TestBuildPredicateInvoker:
             return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            _build_predicate_invoker(pred)
+            _build_predicate_invoker(pred)  # pyright: ignore[reportArgumentType]
 
     def test_async_callable_instance_raises_type_error(self) -> None:
         class AsyncPred:
@@ -128,7 +128,7 @@ class TestBuildPredicateInvoker:
                 return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            _build_predicate_invoker(AsyncPred())
+            _build_predicate_invoker(AsyncPred())  # pyright: ignore[reportArgumentType]
 
     def test_no_introspectable_signature_defaults_to_empty_plan(self) -> None:
         def pred() -> bool:
@@ -239,7 +239,7 @@ class TestNormalizeWhere:
             return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            _normalize_where([lambda: True, async_pred])
+            _normalize_where([lambda: True, async_pred])  # pyright: ignore[reportArgumentType]
 
     def test_sequence_member_with_scheduled_job_annotation_receives_job(self) -> None:
         seen: list[str] = []
@@ -339,7 +339,10 @@ class TestScheduleAcceptsWhere:
 
         with pytest.raises(TypeError, match="synchronous"):
             await patched_scheduler.schedule(
-                noop, Every(hours=1), where=pred, name="schedule_raises_for_async_predicate_schedule"
+                noop,
+                Every(hours=1),
+                where=pred,  # pyright: ignore[reportArgumentType]
+                name="schedule_raises_for_async_predicate_schedule",
             )
 
 
