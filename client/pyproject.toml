@@ -31,10 +31,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-[project.optional-dependencies]
-# Populated with cyclopts and rich when the CLI moves here (#2387).
-cli = []
-
 [project.urls]
 Homepage = "https://github.com/nodejsmith/hassette"
 Repository = "https://github.com/nodejsmith/hassette"

@@ -23,8 +23,8 @@ Import boundaries enforced today (``RULES``):
 - ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
 - ``testing → tests.support`` — hassette.testing ships in the wheel and tests.support does not;
   the dependency is one-way (tests/support/ may import hassette.testing, never the reverse) (#1333).
-- no layer → ``hassette_client`` — the CLI plugin receives the client through the
-  ``hassette.cli`` entry point's ``register(app)`` argument, never through an import (#2387).
+- every layer except ``cli`` → ``hassette_client`` — only the CLI builds a client; the framework
+  and server never depend on it (#2387, #3302).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
@@ -249,12 +249,10 @@ RULES: list[Rule] = [
     ),
     Rule(
         name="no-hassette-client",
-        applies=lambda _: True,
+        applies=applies_outside("cli"),
         forbids=forbids_prefix("hassette_client"),
         reason=(
-            "no hassette module may import hassette_client; the CLI plugin receives the client "
-            "through the hassette.cli entry point's register(app) argument, never through an "
-            "import (#2387)"
+            "only hassette.cli may import hassette_client; the framework and server never depend on the client (#3302)"
         ),
     ),
 ]
