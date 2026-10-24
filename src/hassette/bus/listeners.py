@@ -40,6 +40,11 @@ _listener_id_seq = itertools.count(1)
 
 
 def next_id() -> int:
+    """Return the next in-memory listener routing ID from a process-wide counter.
+
+    Returns:
+        A unique, monotonically increasing integer starting at 1.
+    """
     return next(_listener_id_seq)
 
 

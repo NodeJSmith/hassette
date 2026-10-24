@@ -1777,6 +1777,12 @@ def build_state_preds(
     changed_from: Any,
     changed_to: Any,
 ) -> "tuple[list[Predicate], list[Predicate]]":
+    """Build the predicates for a state-change subscription on ``entity_id``.
+
+    Returns:
+        A ``(preds, hold_preds)`` pair: the predicates every matching event must pass, and the
+        subset re-checked while a duration hold is running (entity match plus ``changed_to``).
+    """
     return _build_preds(
         entity_id,
         changed=changed,
@@ -1797,6 +1803,12 @@ def build_attr_preds(
     changed_from: Any,
     changed_to: Any,
 ) -> "tuple[list[Predicate], list[Predicate]]":
+    """Build the predicates for an attribute-change subscription on ``attr`` of ``entity_id``.
+
+    Returns:
+        A ``(preds, hold_preds)`` pair: the predicates every matching event must pass, and the
+        subset re-checked while a duration hold is running (entity match plus ``changed_to``).
+    """
     return _build_preds(
         entity_id,
         changed=changed,
