@@ -20,6 +20,8 @@ nox.options.default_venv_backend = "uv|virtualenv"
 nox.options.reuse_existing_virtualenvs = True
 
 _SPA_INDEX = Path("src/hassette/web/static/spa/index.html")
+# pytest-benchmark's default --benchmark-storage, where the benchmarks session saves each run.
+_BENCHMARK_STORAGE = Path(".benchmarks")
 
 # Explicit xdist worker count for every parallel test session, rather than ``-n auto``.
 #
@@ -337,6 +339,34 @@ def system(session: "Session"):
 def screenshots(session: "Session"):
     """Capture all documentation screenshots via the YAML manifest."""
     session.run("uv", "run", "python", "scripts/capture_screenshots.py", external=True)
+
+
+@nox.session(python=False)
+def benchmarks(session: "Session"):
+    """Time the benchmark suite in ``tests/benchmarks`` and compare it with the last saved run.
+
+    Each run is saved under ``.benchmarks/`` (gitignored), named after the first positional
+    argument or, by default, the short commit SHA: ``nox -s benchmarks -- before-refactor``.
+    From the second run on, the printed table includes the previous saved run next to this one.
+
+    To compare two commits, run the session on each and read the second run's table. To compare
+    any two saved runs later, pass their ids (the number prefix of the saved file name) to
+    ``uv run pytest-benchmark compare 0001 0002``. Timings only compare meaningfully between runs on
+    the same machine and Python version.
+
+    The suite runs serially (no xdist) and outside the default test run: ``tests/benchmarks`` is
+    in ``norecursedirs``, so only this session collects it.
+    """
+    if session.posargs:
+        name = session.posargs[0]
+    else:
+        sha = session.run("git", "rev-parse", "--short", "HEAD", silent=True, external=True)
+        name = str(sha).strip()
+    args = ["tests/benchmarks", "--benchmark-only", f"--benchmark-save={name}"]
+    # --benchmark-compare with no saved runs is a hard error, so the first run only saves.
+    if any(_BENCHMARK_STORAGE.glob("**/*.json")):
+        args.append("--benchmark-compare")
+    session.run("uv", "run", "pytest", *args, external=True)
 
 
 @nox.session(python=SUPPORTED_PYTHONS)
