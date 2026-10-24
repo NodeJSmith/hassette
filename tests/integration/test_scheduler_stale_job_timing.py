@@ -4,8 +4,6 @@ import typing
 from dataclasses import replace
 from unittest.mock import AsyncMock
 
-import pytest
-
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.scheduler_service import SchedulerService
@@ -19,14 +17,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
     from hassette import HassetteConfig
-
-
-@pytest.fixture
-async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
-    """Create and prepare a CommandExecutor with real DB wired in."""
-    exc = CommandExecutor(db_hassette, parent=db_hassette)
-    await exc.on_initialize()
-    return exc
 
 
 async def fetch_timing(db_service: DatabaseService, job_id: int) -> tuple[object, ...]:
