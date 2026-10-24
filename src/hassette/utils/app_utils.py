@@ -56,6 +56,11 @@ class AppScan:
 
 
 def app_cache_key(module_path: Path, class_name: str) -> tuple[str, str]:
+    """Build the cache key identifying an app class by its module path and class name.
+
+    Returns:
+        A ``(module path string, class name)`` tuple.
+    """
     return (str(module_path), class_name)
 
 
@@ -168,6 +173,19 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
 
 def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
+    """Normalize a raw app config entry into an ``AppDict``.
+
+    Adds a ``.py`` extension when the filename has none, defaults ``app_dir`` to the given directory, resolves the
+    full module path, wraps a single config in a list, and fills defaults for optional fields.
+
+    Args:
+        app_key: Key of the app entry in the configuration.
+        app_dict: Raw app entry as read from the configuration; ``filename`` and ``app_dir`` are updated in place.
+        app_dir: Directory to use when the entry does not set ``app_dir``.
+
+    Returns:
+        The normalized app entry.
+    """
     filename = Path(app_dict["filename"])
 
     # handle missing file extensions

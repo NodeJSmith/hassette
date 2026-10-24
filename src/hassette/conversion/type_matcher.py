@@ -113,6 +113,11 @@ class TypeMatcher:
 
 @register_type_matcher(list, set, frozenset)
 def match_homogeneous_iterable(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
+    """Check that every element of a ``list``, ``set``, or ``frozenset`` matches the annotation's element type.
+
+    Returns:
+        True if the annotation has no element type or every element matches it.
+    """
     args = get_args(tp)
     if not args:
         return True
@@ -122,6 +127,11 @@ def match_homogeneous_iterable(matcher: TypeMatcher, value: Any, tp: Any) -> boo
 
 @register_type_matcher(dict)
 def match_dict(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
+    """Check that every key and value of a dict matches the annotation's key and value types.
+
+    Returns:
+        True if the annotation is not parameterized with two types or every entry matches them.
+    """
     args = get_args(tp)
     if len(args) != 2:
         return True
@@ -131,6 +141,11 @@ def match_dict(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
 
 @register_type_matcher(tuple)
 def match_tuple(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
+    """Check that a tuple's elements match the annotation's positional or variadic element types.
+
+    Returns:
+        True if the annotation has no arguments or every element matches; False on a length mismatch.
+    """
     args = get_args(tp)
     if not args:
         return True
