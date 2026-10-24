@@ -54,9 +54,10 @@ class ServerUrlHostRequiredError(ServerUrlError):
 class CredentialResolutionError(FatalError):
     """Custom exception to indicate that a CLI bearer credential could not be resolved.
 
-    Raised by :func:`hassette.cli.target.resolve_cli_auth_token`'s helpers for both of its
-    user-attributable failure modes: an unreadable ``--token-file`` and a credential value that
-    is not safe for use as an HTTP header (non-ASCII or containing control characters). Kept as
+    Raised by :func:`hassette.cli.target.resolve_cli_auth_token` (and its helpers) for each of its
+    user-attributable failure modes: an unreadable ``--token-file``, a credential value that
+    is not safe for use as an HTTP header (non-ASCII or containing control characters), and a
+    credential combined with a server URL carrying ``user:password@`` userinfo. Kept as
     its own typed exception — rather than a bare ``ValueError`` — so a caller can catch this
     specific failure and route it through ``error_usage()`` without also swallowing unrelated
     ``ValueError``s raised deeper in the call chain (e.g. from Pydantic validation), matching the

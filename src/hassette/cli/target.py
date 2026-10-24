@@ -56,6 +56,12 @@ SOURCE_CLI_AUTH_TOKEN = "cli.auth_token"  # noqa: S105
 SOURCE_WEB_API_AUTH_TOKEN = "web_api.auth_token"  # noqa: S105
 SOURCE_WEB_API_TOKEN_FILE = "web_api.token_file"  # noqa: S105
 
+AUTHORIZATION_CONFLICT_MESSAGE = (
+    "server_url carries user:password credentials and a hassette token is also configured; "
+    "a request can carry only one Authorization header. Remove one of them."
+)
+"""Raised when a server URL's userinfo (sent as Basic auth) would collide with a bearer token."""
+
 
 @dataclass(frozen=True)
 class ServerTarget:
@@ -387,7 +393,9 @@ def resolve_cli_auth_token(
     Raises:
         CredentialResolutionError: ``--token-file`` was supplied but could not be read, or a
             resolved credential value is not safe for use as an HTTP header (non-ASCII or
-            containing control characters).
+            containing control characters), or a credential resolved while ``target.base_url``
+            carries ``user:password@`` userinfo (both would claim the single ``Authorization``
+            header).
     """
     inputs = CredentialInputs(config=config, token_file_flag=token_file_flag)
     for source in CREDENTIAL_SOURCES:
@@ -395,5 +403,7 @@ def resolve_cli_auth_token(
             continue
         credential = source.resolve(inputs)
         if credential is not None:
+            if URL(target.base_url).user is not None:
+                raise CredentialResolutionError(AUTHORIZATION_CONFLICT_MESSAGE)
             return credential
     return None

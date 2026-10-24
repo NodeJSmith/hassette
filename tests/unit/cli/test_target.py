@@ -18,6 +18,7 @@ from hassette.cli.exceptions import (
     ServerUrlSchemeRequiredError,
 )
 from hassette.cli.target import (
+    AUTHORIZATION_CONFLICT_MESSAGE,
     CREDENTIAL_SOURCES,
     ResolvedCredential,
     resolve_cli_auth_token,
@@ -26,6 +27,8 @@ from hassette.cli.target import (
 from hassette.config.config import HassetteConfig
 from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, REMOTE_SERVER_URL_BARE, make_cli_config
+
+USERINFO_SERVER_URL = "https://alice:secret@example.com"
 
 # Target resolution precedence
 
@@ -381,6 +384,29 @@ class TestCredentialHeaderSafety:
         target = resolve_server_target(config)
         with pytest.raises(CredentialResolutionError, match=TOKEN_FILENAME.replace(".", r"\.")):
             resolve_cli_auth_token(config, target)
+
+
+# Server URL userinfo vs bearer token
+
+
+class TestUserinfoTokenConflict:
+    """Token-only behavior is pinned by ``TestCredentialScopeGate.test_cli_auth_token_sent_to_non_loopback_target``."""
+
+    def test_userinfo_with_resolved_token_raises(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token")
+        target = resolve_server_target(config, server_url_flag=USERINFO_SERVER_URL)
+        with pytest.raises(CredentialResolutionError) as exc_info:
+            resolve_cli_auth_token(config, target)
+        assert str(exc_info.value) == AUTHORIZATION_CONFLICT_MESSAGE
+        assert AUTHORIZATION_CONFLICT_MESSAGE == (
+            "server_url carries user:password credentials and a hassette token is also configured; "
+            "a request can carry only one Authorization header. Remove one of them."
+        )
+
+    def test_userinfo_without_token_returns_none(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path)
+        target = resolve_server_target(config, server_url_flag=USERINFO_SERVER_URL)
+        assert resolve_cli_auth_token(config, target) is None
 
 
 def resolve_attached_credential(config: HassetteConfig) -> ResolvedCredential:
