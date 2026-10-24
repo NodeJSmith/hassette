@@ -4,8 +4,9 @@ from hassette.exceptions import FatalError
 
 
 class ServerUrlError(FatalError):
-    """Base class for every way a caller-supplied CLI ``--server-url``/``cli.server_url`` target
-    fails to resolve to a connectable server, before the CLI opens any network connection to it.
+    """Base class for every way a CLI ``--server-url``/``cli.server_url`` target fails to resolve.
+
+    Raised before the CLI opens any network connection to the target.
 
     Kept as one base rather than folding every failure mode into a single exception, so a caller
     that only cares "did the server-url resolve" can catch one type, while a caller that wants to
