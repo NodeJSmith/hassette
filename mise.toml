@@ -1,5 +1,5 @@
 [tools]
-prek = "0.5.6"
+prek = "0.5.7"
 python = ["3.14.8"]
 uv = "latest"
 java = "temurin-25.0.5+8.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
