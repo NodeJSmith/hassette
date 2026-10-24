@@ -60,6 +60,8 @@ Precedence runs top to bottom: `--token-file` wins over `cli.token_file`, which 
 
 `web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `web_api.token_file` is the file that server reads its token from, and writes on first start if it's missing or empty (`<data_dir>/.web_api_token` unless configured). Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (`127.0.0.1`, `::1`, or `localhost`). For any other target it skips both and falls back to a `cli.*` source. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
 
+A `server_url` with `user:password@` userinfo conflicts with a resolved credential. The CLI sends userinfo as Basic authentication, and a request carries only one `Authorization` header. When both are present, the CLI exits with a usage error before sending anything (see [Common Errors](#common-errors)). Remove the userinfo from `server_url`, or remove the token setting.
+
 No CLI flag accepts a literal token value as a bare argument. `--token-file` takes a path, not a token — passing a secret directly on the command line would leave it visible in shell history and `ps` output for the life of the process. A direct value is available only through config or the environment: `cli.auth_token` or `HASSETTE__CLI__AUTH_TOKEN`.
 
 ## Letting CLI Traffic Through a Reverse Proxy
@@ -249,6 +251,15 @@ https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token
 ```
 
 The resolved target is non-loopback and no `cli.*` credential was found, so `web_api.auth_token` and `web_api.token_file` were withheld — see [Web API Token](#web-api-token). Fix it locally with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`. Fixing it remotely means adding the proxy's address or CIDR — the peer address Hassette actually observes, not the CLI's own host — to `trusted_proxies` on the target instance (see [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy)). Keep that entry narrow: a broad range can let unintended peers on the same network skip the bearer-token check too.
+
+**Userinfo and token both configured:**
+
+```text
+Usage error: server_url carries user:password credentials and a hassette token is also
+configured; a request can carry only one Authorization header. Remove one of them.
+```
+
+The resolved `server_url` contains `user:password@` (or just `user@` or `:password@`), and a credential also resolved from the chain in [Web API Token](#web-api-token). Drop the userinfo when Hassette's bearer token is the credential the target expects. Drop the token setting when a proxy in front of the target authenticates with Basic auth instead.
 
 **Redirect response (3xx):**
 
