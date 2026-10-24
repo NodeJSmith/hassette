@@ -520,6 +520,17 @@ async def _run_when_slot_free(slots: asyncio.Semaphore, coro: CoroLikeT[T]) -> T
 def make_task_factory(
     global_bucket: TaskBucket,
 ) -> Callable[[asyncio.AbstractEventLoop, CoroLikeT], asyncio.Future[Any]]:
+    """Build an event-loop task factory that tracks every new task in a task bucket.
+
+    Args:
+        global_bucket: Fallback bucket for tasks created outside any bucket context.
+
+    Returns:
+        A factory for ``loop.set_task_factory()`` that adds each task to the current
+        context's bucket, or to ``global_bucket`` when no bucket is active and the task
+        is not protected.
+    """
+
     def factory(loop: asyncio.AbstractEventLoop, coro: CoroLikeT, **kwargs: Any) -> asyncio.Task[Any]:
         """A task factory that assigns tasks to the current context's bucket, or a global bucket.
 

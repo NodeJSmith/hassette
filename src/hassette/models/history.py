@@ -18,6 +18,18 @@ class HistoryEntry(BaseModel):
 
 
 def normalize_history(entries: Any) -> list[list[dict[str, Any]]]:
+    """Expand Home Assistant history responses into complete per-entity entry lists.
+
+    Minimal responses only carry changed keys after the first entry, so each later entry is
+    merged over the entity's first entry. A single entity's list is wrapped as one group, and
+    empty groups are dropped.
+
+    Args:
+        entries: Raw history payload, either a list of per-entity lists or a single list.
+
+    Returns:
+        One list of fully populated entry dicts per entity.
+    """
     if not isinstance(entries, Sequence) or not all(isinstance(e, list) for e in entries):
         entries = [entries]  # Wrap in a list if not already a list of lists
 

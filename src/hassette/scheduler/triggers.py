@@ -105,6 +105,19 @@ def parse_entity_time(value: Any) -> ZonedDateTime | None:
 
 
 def parse_hh_mm(at: str, label: str) -> tuple[int, int]:
+    """Parse a colon-separated 24-hour time string into hour and minute.
+
+    Args:
+        at: Time string with numeric hour and minute fields separated by ``":"``, e.g. ``"07:30"``.
+            Zero-padding is not required (``"7:5"`` is accepted).
+        label: Trigger name used to prefix error messages (e.g. ``"Daily"``).
+
+    Returns:
+        The ``(hour, minute)`` pair.
+
+    Raises:
+        ValueError: If the string does not contain exactly two numeric fields or the time is out of range.
+    """
     parts = at.split(":")
     if len(parts) != 2:
         raise ValueError(f"{label} 'at' must be 'HH:MM', got {at!r}")
