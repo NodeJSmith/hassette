@@ -26,7 +26,10 @@ pythonpath = ["src"]
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "D103"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D103"]
 
 [tool.pyright]
 pythonVersion = "3.14"
