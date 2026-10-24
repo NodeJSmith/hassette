@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.61.0](https://github.com/NodeJSmith/hassette/compare/v0.60.0...v0.61.0) (2026-10-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* `app_shutdown_timeout_seconds`, `resource_shutdown_timeout_seconds` and `sync_executor_shutdown_timeout_seconds` are removed, and a config that still sets one fails to load; use `shutdown_timeout_seconds` for the per-hook bound. `total_shutdown_timeout_seconds` now includes a fixed 20-second foundation stage, so an explicit value leaves 20 seconds less for stopping apps (30 now gives a 10-second stop stage), and its default rises from 30 to 45. Give your supervisor a stop grace period of at least 60 seconds; 45 can kill Hassette before the shutdown snapshot is written.
+
+### Features
+
+* give every shutdown hook its full timeout with operation-owned deadlines ([#3403](https://github.com/NodeJSmith/hassette/issues/3403)) ([07494da](https://github.com/NodeJSmith/hassette/commit/07494da4d961777dd7878c51188dd5a2d663f50e))
+* keep scheduled job timing current in the DB after each dispatch and transition ([#3411](https://github.com/NodeJSmith/hassette/issues/3411)) ([69ea84f](https://github.com/NodeJSmith/hassette/commit/69ea84f30932b445a360aab0a8f100a938eeca7a))
+* persist scheduled job next_run, fire_at and jitter at registration ([#3407](https://github.com/NodeJSmith/hassette/issues/3407)) ([cb16d7f](https://github.com/NodeJSmith/hassette/commit/cb16d7fc3a7c4f9b40bbb16500347db5130eee6a))
+* **release:** add a version bump script for release-branch patch releases ([#3375](https://github.com/NodeJSmith/hassette/issues/3375)) ([3cbbce5](https://github.com/NodeJSmith/hassette/commit/3cbbce5bf294ec762ac73cb3e80599b6c8ccd227))
+
+
+### Bug Fixes
+
+* cache registration source snippets so runtime registrations skip the AST walk ([#3372](https://github.com/NodeJSmith/hassette/issues/3372)) ([ad655cd](https://github.com/NodeJSmith/hassette/commit/ad655cd48c7b4eea7cef05362ea8f479f4ec7981))
+* clear stale scheduled job timing for jobs not registered this session ([#3415](https://github.com/NodeJSmith/hassette/issues/3415)) ([7666e96](https://github.com/NodeJSmith/hassette/commit/7666e96fa2b6ab9c8ecb6c291c5d29108e8f7e4a))
+* keep bus invariant checks active under python -O ([#3382](https://github.com/NodeJSmith/hassette/issues/3382)) ([49b40c7](https://github.com/NodeJSmith/hassette/commit/49b40c7dff35cee00e9c5f51871deb584653ad9b))
+* keep core scheduler and websocket invariant checks under python -O ([#3380](https://github.com/NodeJSmith/hassette/issues/3380)) ([330fab4](https://github.com/NodeJSmith/hassette/commit/330fab4a302b73a101017505a81b5919df83c04f))
+* only move the Docker latest tag for the highest stable release ([#3423](https://github.com/NodeJSmith/hassette/issues/3423)) ([b247b83](https://github.com/NodeJSmith/hassette/commit/b247b838a808f92e78ce5f0d7b5af5938e8361e7))
+* raise explicit errors instead of asserts in the scheduler ([#3378](https://github.com/NodeJSmith/hassette/issues/3378)) ([9f2d4ed](https://github.com/NodeJSmith/hassette/commit/9f2d4ed3286a8f9c639ce054a55ef6eb2b5578ad))
+* roll scheduler job jitter when the next run is set, not at enqueue ([#3400](https://github.com/NodeJSmith/hassette/issues/3400)) ([cd5cf77](https://github.com/NodeJSmith/hassette/commit/cd5cf77ab6c2a7c96b75b17e3388d5b0f25e60a9))
+
+
+### Performance Improvements
+
+* index the default log view so sparse app lines don't force a table scan ([#3381](https://github.com/NodeJSmith/hassette/issues/3381)) ([3b5bf76](https://github.com/NodeJSmith/hassette/commit/3b5bf76098754032706d2375abe29c8741265f64))
+
+
+### Refactoring
+
+* make Hassette.should_skip_dependency_check public ([#3419](https://github.com/NodeJSmith/hassette/issues/3419)) ([5a9bd41](https://github.com/NodeJSmith/hassette/commit/5a9bd4109fcddc703d27f6e06e888c8fb835e522))
+
+
+### Documentation
+
+* add docstrings to public api and utils methods ([#3384](https://github.com/NodeJSmith/hassette/issues/3384)) ([7d137a1](https://github.com/NodeJSmith/hassette/commit/7d137a12e9c59213dd45ec05609e719f1b7d7c33))
+* add docstrings to public scheduler, trigger, and sync facade methods ([#3410](https://github.com/NodeJSmith/hassette/issues/3410)) ([b9c576d](https://github.com/NodeJSmith/hassette/commit/b9c576d92377474b386ec93f163e576372d309a8))
+* add docstrings to remaining public bus, scheduler, task bucket, history, and entrypoint functions ([#3416](https://github.com/NodeJSmith/hassette/issues/3416)) ([18855bb](https://github.com/NodeJSmith/hassette/commit/18855bbd75d1e96dc69c8b23cb3c58fd725d61d2))
+* correct file-watcher log-level guidance on the log-levels page ([#3379](https://github.com/NodeJSmith/hassette/issues/3379)) ([da1145d](https://github.com/NodeJSmith/hassette/commit/da1145dcd30ed91d98333410cf954908dc07654d))
+* document public methods in the config package ([#3387](https://github.com/NodeJSmith/hassette/issues/3387)) ([0365e5e](https://github.com/NodeJSmith/hassette/commit/0365e5ec0f393bac10613263fbb016742e0e3f3b))
+* explain cleaning up app-owned resources when on_initialize fails ([#3402](https://github.com/NodeJSmith/hassette/issues/3402)) ([fd60bc6](https://github.com/NodeJSmith/hassette/commit/fd60bc64ccc7429c40d5644131d648a908585da0))
+* explain harness identifiers, task-bucket draining, helper writes, and startup failures ([#3398](https://github.com/NodeJSmith/hassette/issues/3398)) ([659e4ed](https://github.com/NodeJSmith/hassette/commit/659e4edaa891471e5c1ac749ada26caeb7d627d8))
+* explain where an app's logs go and what log views show by default ([#3377](https://github.com/NodeJSmith/hassette/issues/3377)) ([9174937](https://github.com/NodeJSmith/hassette/commit/917493764a6688af8303915de3a9205313203ed4))
+* have first-automation readers confirm the light actually turned on ([#3383](https://github.com/NodeJSmith/hassette/issues/3383)) ([08c9030](https://github.com/NodeJSmith/hassette/commit/08c90304e23e403aecaaaf00987a71657598911f))
+* link backpressure slot setting to its config docs and correct the block-policy signal ([#3388](https://github.com/NodeJSmith/hassette/issues/3388)) ([edce8e3](https://github.com/NodeJSmith/hassette/commit/edce8e3920de7165cdd43a3eb6333e5a8a1153c6))
+* make test harness assertion examples match the MotionLights app ([#3393](https://github.com/NodeJSmith/hassette/issues/3393)) ([bbd3af3](https://github.com/NodeJSmith/hassette/commit/bbd3af305c4a6070f93953eea4f2229b2a99d6d9))
+* name the [hassette.blocking_io] table for Tier 2 deep-detection settings ([#3385](https://github.com/NodeJSmith/hassette/issues/3385)) ([184276a](https://github.com/NodeJSmith/hassette/commit/184276aa36d800843c6fd79607bf264a6eb33067))
+
 ## [0.60.0](https://github.com/NodeJSmith/hassette/compare/v0.59.0...v0.60.0) (2026-10-22)
 
 This release completes the **Log Identity** milestone ([milestone 17](https://github.com/NodeJSmith/hassette/milestone/17), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/133-log-identity-axes/design.md)). Every app instance now has one name you choose, and that name drives its logger names and owner identity. Every log line records who wrote it, which app it is about, and which handler or job run produced it, as separate facts. Log views default to your apps' lines plus Hassette's errors. The rest are one opt-in away, and framework lines are marked. The milestone's breaking changes are listed first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps. Instance Identity, which re-keys stored history and routes on the instance name, comes next.
