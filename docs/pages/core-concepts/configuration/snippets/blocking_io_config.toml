@@ -6,6 +6,7 @@
 # Tier 1: always-on responsiveness watchdog.
 watchdog_enabled = true          # default
 lag_threshold_seconds = 0.1      # report stalls ≥ 100ms (default)
+min_events = 2                   # list a call site once it stalls twice (default)
 watchdog_interval_seconds = 0.25 # check every 250ms (default)
 capture_stack_on_block = true    # snapshot stack on detection (default)
 

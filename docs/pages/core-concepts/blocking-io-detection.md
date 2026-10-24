@@ -49,9 +49,11 @@ Each entry shows:
 
 Two other labels can appear in place of a call site. "Detected inside `<package>`" means Tier 2 caught the call inside a library, so the library line isn't presented as the place to fix. The handler that called into the library is further up the stack. "Call site not captured" means no line of app code was found for those events: `capture_stack_on_block` is off, the recorded stack holds no frame from the app's directory, or the events were recorded by an older Hassette version that didn't store stacks in this form. Those events are grouped per handler instead.
 
+A Tier 1 entry appears only once its call site has stalled `blocking_io.min_events` times (default `2`) in the window. A lag finding is evidence, not proof: the stall may come from a busy host rather than the app line on the stack. A recurring stall at one line is much stronger evidence. One-off stalls stay in telemetry but are left off the list. Setting `min_events = 1` lists every Tier 1 stall. Tier 2 entries always appear, because interception catches the blocking call itself.
+
 With both tiers on (Tier 2 runs by default in `dev_mode`), one blocking call usually produces two entries: a Tier 1 stall at the app line and a Tier 2 entry naming the intercepted primitive. Both point at the same line to fix. The apps-list badge counts events from both tiers, so it also counts that call twice.
 
-**On the apps list.** An app that blocked the loop shows an amber **N blocking** badge next to its status. The badge links to the app's overview.
+**On the apps list.** An app that blocked the loop shows an amber **N blocking** badge next to its status. N is the sum of event counts over the entries on the app-wide overview, so one-off Tier 1 stalls below `min_events` don't count. The badge links to the app's overview.
 
 ![The blocking badge on an apps-list row](../../_static/web_ui_apps_blocking_badge.png)
 

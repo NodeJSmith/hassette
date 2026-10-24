@@ -299,3 +299,19 @@ class TestBlockingEventCounts:
 
         assert await query_service.get_blocking_event_counts(since=1000.0) == {"my_app": 2}
         assert await query_service.get_blocking_event_counts(since=None) == {"my_app": 3}
+
+    async def test_counts_only_events_in_findings_past_the_recurrence_gate(
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService, db_hassette: MagicMock
+    ) -> None:
+        """The badge sums event_count over the same gated findings the overview lists."""
+        db_hassette.config.blocking_io.min_events = BlockingIODetectionConfig().min_events
+        await insert_event(db_svc)  # one-off Tier 1 stall: below the gate
+        await insert_event(db_svc, app_key="tier2_app", tier="monkeypatch", primitive="time.sleep")
+
+        assert await query_service.get_blocking_event_counts(since=None) == {"tier2_app": 1}
+
+        await insert_event(db_svc, detected_ts=2000.0)  # the stall recurs at the same call site
+        await insert_event(db_svc, frames=[OTHER_SITE, HANDLER])  # a different one-off: still hidden
+        await insert_event(db_svc, tier="monkeypatch", primitive="time.sleep")  # Tier 2 always counts
+
+        assert await query_service.get_blocking_event_counts(since=None) == {"my_app": 3, "tier2_app": 1}

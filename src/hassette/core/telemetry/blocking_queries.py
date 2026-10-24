@@ -4,7 +4,7 @@ import asyncio
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Any
 
-from hassette_wire import BlockingFindingsResponse, UnattributedBlockingResponse
+from hassette_wire import BlockingFinding, BlockingFindingsResponse, UnattributedBlockingResponse
 
 from hassette.core.telemetry.blocking_findings import (
     all_apps_classifier,
@@ -73,12 +73,6 @@ _UNATTRIBUTED_RECENT_QUERY = """
     LIMIT :limit
 """
 
-_BLOCKING_COUNTS_QUERY = """
-    SELECT app_key, COUNT(*) AS n FROM blocking_events
-    WHERE source_tier = 'app' {since}
-    GROUP BY app_key
-"""
-
 
 class BlockingQueriesMixin:
     """Blocking-event findings and counts, mixed into TelemetryQueryService."""
@@ -99,6 +93,20 @@ class BlockingQueriesMixin:
                 call site, listing the instances it came from).
             since: Only events detected at or after this Unix epoch time; ``None`` for all time.
         """
+        findings = await self.get_reportable_findings(app_key=app_key, instance_index=instance_index, since=since)
+        # Findings are ordered by their newest stack and already exclude Tier 1 findings below the
+        # recurrence minimum, so the cap and truncated flag count only reportable findings.
+        return BlockingFindingsResponse(
+            findings=findings[:BLOCKING_FINDING_LIMIT], truncated=len(findings) > BLOCKING_FINDING_LIMIT
+        )
+
+    async def get_reportable_findings(
+        self, *, app_key: str | None, instance_index: int | None, since: float | None
+    ) -> list[BlockingFinding]:
+        """Every finding that passes the Tier 1 recurrence gate, most recently seen first, uncapped.
+
+        Shared by the findings list and the per-app badge counts so the two can't disagree.
+        """
         filters = ""
         params: dict[str, Any] = {}
         if app_key is not None:
@@ -116,16 +124,11 @@ class BlockingQueriesMixin:
         )
         # Classifying stacks is pure-Python CPU work that grows with the number of distinct stacks; a
         # worker thread keeps it off the event loop the watchdog is measuring.
-        findings = await asyncio.to_thread(
+        return await asyncio.to_thread(
             group_findings,
             groups,
             classifier_for_apps(self._app_dirs()),
             min_events=self.hassette.config.blocking_io.min_events,
-        )
-        # group_findings orders findings by their newest stack and has already dropped Tier 1 findings
-        # below the recurrence minimum, so the cap and truncated flag count only reportable findings.
-        return BlockingFindingsResponse(
-            findings=findings[:BLOCKING_FINDING_LIMIT], truncated=len(findings) > BLOCKING_FINDING_LIMIT
         )
 
     async def get_unattributed_blocking(self, *, since: float | None) -> UnattributedBlockingResponse:
@@ -142,10 +145,15 @@ class BlockingQueriesMixin:
         return summarize_unattributed(totals, recent, all_apps_classifier(self._app_dirs()))
 
     async def get_blocking_event_counts(self, *, since: float | None) -> dict[str, int]:
-        """Attributed blocking-event count per app key in the window. Apps with none are absent."""
-        since_sql, params = since_clause(since, "detected_ts")
-        rows = await fetch_all_as_dicts(self.execute(_BLOCKING_COUNTS_QUERY.format(since=since_sql), params))
-        return {row["app_key"]: row["n"] for row in rows}
+        """Blocking events per app key in the window, summed over the app's reportable findings.
+
+        Tier 1 events in findings below the recurrence minimum are left out, so a badge never counts
+        events the app's findings list hides. Apps with no reportable findings are absent.
+        """
+        counts: dict[str, int] = {}
+        for finding in await self.get_reportable_findings(app_key=None, instance_index=None, since=since):
+            counts[finding.app_key] = counts.get(finding.app_key, 0) + finding.event_count
+        return counts
 
     def _app_dirs(self) -> dict[str, PurePath]:
         """Each configured app's resolved directory, read fresh so config reloads apply."""
