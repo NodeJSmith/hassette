@@ -49,9 +49,8 @@ and the ``testing/`` test harness (#1091). Subsystems should read public
 properties, not private slots: the audit found the reach-throughs guarded null
 state divergently and that ``python -O`` strips their ``assert`` guards. Unlike
 the import rules, the private-attr rule has an escape hatch — ``PRIVATE_ATTR_ALLOWLIST``
-— because a few framework internals (a Resource/Hassette dependency-check bypass hook)
-legitimately read private state. Each allowlist entry is a conscious, auditable
-exception with a reason.
+— for a framework internal that legitimately reads private state. Each allowlist entry
+is a conscious, auditable exception with a reason.
 
 This guard also forbids **``.model_copy(update=...)`` on a served wire model** within
 ``MODEL_COPY_UPDATE_SCAN_PATHS`` — the layers that build ``hassette_wire`` response models
@@ -100,14 +99,9 @@ PRIVATE_ATTR_MSG_TEMPLATE = f"private-attr-reach-through: accesses hassette.{{at
 #: Each is a conscious exception for a genuine framework internal with no guarded public
 #: property to route through. The former service-slot entries (``_loop_thread_id``,
 #: ``_scheduler_service``, ``_bus_service``) were retired in #1092 once Hassette exposed
-#: public accessors for them.
-PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
-    {
-        # Dependency-check bypass — internal coordination hook between Resource and Hassette,
-        # not a service slot, so it has no guarded public property to route through.
-        ("resources/base.py", "_should_skip_dependency_check"),
-    }
-)
+#: public accessors for them, and the dependency-check bypass in #3252 once it became the
+#: public ``Hassette.should_skip_dependency_check()``.
+PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset()
 #: Top-level packages any ``Rule`` below might forbid. ``runtime_imports`` only collects
 #: imports rooted in one of these — everything else is noise no rule cares about.
 WATCHED_ROOTS: frozenset[str] = frozenset({"hassette", "tests", "hassette_client"})

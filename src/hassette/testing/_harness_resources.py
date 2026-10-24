@@ -10,12 +10,12 @@ class HarnessHassette(Hassette):
     """Thin Hassette subclass for use in the test harness.
 
     Overrides exactly two methods to make the harness lifecycle work:
-    - _should_skip_dependency_check: prevents startup from blocking on unmet deps.
+    - should_skip_dependency_check: prevents startup from blocking on unmet deps.
     - wait_for_ready: returns True immediately so services do not deadlock during
       harness-controlled startup.
     """
 
-    def _should_skip_dependency_check(self) -> bool:
+    def should_skip_dependency_check(self) -> bool:
         return True
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:

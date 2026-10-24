@@ -96,7 +96,7 @@ def make_sync_executor_hassette(
     mock_hassette.task_bucket = MagicMock()
     mock_hassette.shutdown_event = asyncio.Event()
     mock_hassette.children = []
-    mock_hassette._should_skip_dependency_check = MagicMock(return_value=True)
+    mock_hassette.should_skip_dependency_check = MagicMock(return_value=True)
     # SyncExecutorService.__init__ reads hassette.sync_executor — the pre-built capability
     # that in production is constructed in Hassette.__init__() before the lifecycle starts.
     # Tests call rebuild_pool() explicitly since the constructor no longer creates one.
