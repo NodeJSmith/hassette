@@ -87,6 +87,7 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
 
 
 def get_override(overrides: dict[str, DomainOverride], domain: str) -> DomainOverride | None:
+    """The override for ``domain``, or ``None`` when the domain has none."""
     return overrides.get(domain)
 
 

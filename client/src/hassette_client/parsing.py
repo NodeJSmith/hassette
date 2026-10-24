@@ -71,6 +71,7 @@ def adapter_for(response_type: Any) -> TypeAdapter[Any]:
 
 
 def type_name(response_type: Any) -> str:
+    """A readable name for ``response_type``: a class's ``__name__``, or the ``repr`` of a generic alias."""
     return response_type.__name__ if isinstance(response_type, type) else repr(response_type)
 
 
