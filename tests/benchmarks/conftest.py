@@ -6,11 +6,13 @@ sessions never collect it; the ``benchmarks`` nox session passes the directory e
 
 import asyncio
 import logging
+import statistics
 from collections.abc import Coroutine, Iterator
 from typing import Any, Protocol
 
 import pytest
 from fair_async_rlock import FairAsyncRLock
+from pytest_benchmark.fixture import BenchmarkFixture
 from whenever import TimeDelta
 
 from hassette.scheduler.classes import Job
@@ -26,6 +28,9 @@ FIRST_FIRE_OFFSET = TimeDelta(hours=1)
 
 QUIET_LOGGER = logging.getLogger("hassette.benchmarks.job_queue")
 QUIET_LOGGER.setLevel(logging.WARNING)
+
+THROUGHPUT_KEY = pytest.StashKey[list[tuple[str, float]]]()
+"""Records/sec results collected by ``record_throughput`` for the end-of-run summary."""
 
 
 class RunAsync(Protocol):
@@ -68,3 +73,27 @@ def make_job_queue(jobs: list[Job]) -> _ScheduledJobQueue:
     queue._queue = heap
     queue.logger = QUIET_LOGGER
     return queue
+
+
+def record_throughput(benchmark: BenchmarkFixture, request: pytest.FixtureRequest, *, records_per_round: int) -> None:
+    """Report a finished benchmark's mean round time as records per second.
+
+    pytest-benchmark's table only shows time per round; this saves the derived rate in the run's
+    JSON (``extra_info["records_per_second"]``) and in the summary ``pytest_terminal_summary``
+    prints after the table. Does nothing under ``--benchmark-disable``, which records no stats.
+    """
+    if benchmark.stats is None:
+        return
+    # The mean round time, as pytest-benchmark's Mean column (its ``mean`` property is untyped).
+    rate = records_per_round / statistics.fmean(benchmark.stats.stats.data)
+    benchmark.extra_info["records_per_second"] = round(rate)
+    request.config.stash.setdefault(THROUGHPUT_KEY, []).append((request.node.nodeid, rate))
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter, config: pytest.Config) -> None:
+    results = config.stash.get(THROUGHPUT_KEY, [])
+    if not results:
+        return
+    terminalreporter.section("throughput")
+    for nodeid, rate in results:
+        terminalreporter.write_line(f"{nodeid}: {rate:,.0f} records/sec")
