@@ -255,8 +255,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._db_worker_task.add_done_callback(lambda task: log_worker_exit(self, task))
 
     def _force_terminal(self) -> None:
-        """Override to also cancel the untracked database write worker, drain its queue, and
-        close connections.
+        """Also cancel the untracked database write worker, drain its queue, and close connections.
 
         ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
         ``Service._force_terminal()``'s ``TaskBucket.cancel_all_sync()`` never reaches it.

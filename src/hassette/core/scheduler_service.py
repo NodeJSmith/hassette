@@ -495,8 +495,10 @@ class SchedulerService(SchedulerDispatchMixin, Service):
             return done
 
     async def _remove_jobs(self, jobs: "list[Job]") -> None:
-        """Async body for ``remove_jobs()``: removes each job via the unified removal
-        operation (``remove_job()``) — see that method for the removal contract.
+        """Async body for ``remove_jobs()``.
+
+        Removes each job via the unified removal operation (``remove_job()``) — see that method
+        for the removal contract.
         """
         for job in jobs:
             await self.remove_job(job)

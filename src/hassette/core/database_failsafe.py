@@ -27,8 +27,9 @@ async def _execute_failsafe_delete(
     *,
     batch_limit: int,
 ) -> int:
-    """Delete the oldest ``batch_limit`` rows in ``target.table``, filtered by
-    ``target.source_tier`` when set, for the size failsafe.
+    """Delete the oldest ``batch_limit`` rows in ``target.table`` for the size failsafe.
+
+    Rows are filtered by ``target.source_tier`` when set.
 
     Each statement autocommits (the write connection is ``isolation_level=None``), so there is no
     transaction to commit.

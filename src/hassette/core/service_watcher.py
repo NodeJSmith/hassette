@@ -193,8 +193,10 @@ class ServiceWatcher(ServiceEscalationMixin, Resource):
     async def dispatch_status_event_best_effort(
         self, name: str, role: ResourceRole, event: HassetteServiceEvent
     ) -> None:
-        """Send a service-status event without letting delivery failure -- or a stalled channel --
-        block the caller's already-decided state transition or shutdown call.
+        """Send a service-status event without letting delivery failure block the caller.
+
+        Neither a delivery failure nor a stalled channel may block the caller's already-decided
+        state transition or shutdown call.
 
         Event dispatch is telemetry, not the control path: every caller here has already recorded
         the fatal reason, requested shutdown, or otherwise committed to its outcome before this is
