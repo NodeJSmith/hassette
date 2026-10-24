@@ -81,6 +81,11 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    """Stream runtime events to an authorized client until it disconnects.
+
+    Unauthorized connections are closed with a policy-violation code. Accepted clients receive a
+    ``connected`` message first, then queued events; clients can subscribe to log records.
+    """
     if not authorize_ws(websocket):
         await websocket.close(code=WS_POLICY_VIOLATION_CLOSE_CODE)
         return

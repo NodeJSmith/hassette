@@ -113,6 +113,7 @@ def connected_data_from(status: SystemStatusResponse) -> ConnectedData:
 
 
 def listener_kind_from_topic(topic: str) -> ListenerKind:
+    """Classify a listener by its topic's prefix in ``TOPIC_KIND_MAP``, falling back to ``"event"``."""
     for prefix, kind in TOPIC_KIND_MAP.items():
         if topic.startswith(prefix):
             return kind

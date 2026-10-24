@@ -94,6 +94,16 @@ def create_fastapi_app(
     auth_token: str | None = None,
     trusted_proxies: TrustedProxySet | None = None,
 ) -> FastAPI:
+    """Build the FastAPI app serving the web API and WebSocket, plus the SPA when the UI is enabled.
+
+    Args:
+        hassette: The running instance, stored on ``app.state`` for route dependencies.
+        auth_token: Credential required on API requests, or ``None`` when auth is not configured.
+        trusted_proxies: Proxies whose forwarded headers are honored; defaults to none.
+
+    Returns:
+        The configured application with problem handlers, middleware, and routers installed.
+    """
     app = FastAPI(
         title="Hassette Web API",
         docs_url=f"{API_PREFIX}/docs",

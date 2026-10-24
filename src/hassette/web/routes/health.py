@@ -17,6 +17,7 @@ async def get_health(runtime: RuntimeDep) -> SystemStatusResponse:
 
 @router.get("/health/live", response_model=LivenessResponse)
 async def get_live() -> LivenessResponse:
+    """Return liveness status. Always 200 while the event loop can serve requests."""
     # Liveness is the absence of a check: reaching this line means the loop can serve.
     return LivenessResponse(status="live")
 

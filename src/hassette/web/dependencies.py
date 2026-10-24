@@ -69,22 +69,27 @@ def is_log_level(name: str) -> TypeGuard[LogLevel]:
 
 
 def get_hassette(request: Request) -> "Hassette":
+    """Return the Hassette instance attached to the app at construction."""
     return request.app.state.hassette
 
 
 def get_runtime(request: Request) -> "RuntimeQueryService":
+    """Return the service that answers live runtime queries (status, apps, WebSocket clients)."""
     return request.app.state.hassette.runtime_query_service
 
 
 def get_telemetry(request: Request) -> "TelemetryQueryService":
+    """Return the service that queries the persisted telemetry database."""
     return request.app.state.hassette.telemetry_query_service
 
 
 def get_scheduler(request: Request) -> "SchedulerService":
+    """Return the framework scheduler service, which owns every app's scheduled jobs."""
     return request.app.state.hassette.scheduler_service
 
 
 def get_api(request: Request) -> "Api":
+    """Return the framework-level Home Assistant API client."""
     return request.app.state.hassette.api
 
 

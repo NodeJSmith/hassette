@@ -327,6 +327,10 @@ def rewrite_problem_openapi(document: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def rewrite_operation(operation: Any) -> Any:
+    """Return ``operation`` with every response passed through ``rewrite_response``.
+
+    Values that are not operation mappings, or carry no ``responses``, are returned unchanged.
+    """
     if not isinstance(operation, Mapping) or "responses" not in operation:
         return operation
     responses = {status: rewrite_response(response) for status, response in operation["responses"].items()}
@@ -334,6 +338,11 @@ def rewrite_operation(operation: Any) -> Any:
 
 
 def rewrite_response(response: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a copy of ``response`` whose error content is served as ``application/problem+json``.
+
+    FastAPI's validation-error schema is replaced by the problem-detail schema; a response that already
+    references the problem-detail schema keeps it under the problem media type. Others are copied as is.
+    """
     content: Mapping[str, Any] = response.get("content", {})
     refs = {schema_ref(media) for media in content.values()}
     if _VALIDATION_ERROR_REF in refs:
@@ -346,4 +355,5 @@ def rewrite_response(response: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def schema_ref(media: Mapping[str, Any]) -> str | None:
+    """Return the ``$ref`` target of a media entry's schema, or ``None`` when it has none."""
     return media.get("schema", {}).get("$ref")

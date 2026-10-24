@@ -23,6 +23,7 @@ async def get_listener_metrics(
     filters: TelemetryFiltersDep,
     app_key: Annotated[str | None, Query()] = None,
 ) -> list[ListenerSummary]:
+    """Return per-listener invocation metrics, optionally scoped to one app, merged with live execution counts."""
     # Guard: app_key="" (empty string) must NOT fall through to the all-apps path.
     # The unified get_listener_summary uses `if app_key is not None` internally,
     # so only a genuine None triggers the full-table scan.
