@@ -6,7 +6,7 @@ from hassette.task_bucket import TaskBucket
 from hassette.testing import wait_for
 from tests.support.helpers import create_listener, make_controlled_clock
 
-from .listener_helpers import MockEvent, dispatch_values, invoke_handler, make_recording_listener, mock_event
+from .listener_helpers import MockEvent, dispatch_values, invoke_handler, invoke_with, make_recording_listener
 
 
 class TestListenerInvoke:
@@ -65,13 +65,13 @@ class TestListenerIntegration:
 
         # Simulate dispatch: rate_limiter.call(invoke_fn) — like _dispatch does
         async def invoke_fn():
-            await listener.invoker.invoke(mock_event("1"))
+            await invoke_with(listener, "1")
 
         async def invoke_fn2():
-            await listener.invoker.invoke(mock_event("2"))
+            await invoke_with(listener, "2")
 
         async def invoke_fn3():
-            await listener.invoker.invoke(mock_event("3"))
+            await invoke_with(listener, "3")
 
         await rl.call(invoke_fn)
         await rl.call(invoke_fn2)
@@ -88,11 +88,11 @@ class TestListenerIntegration:
         assert listener.invoker.rate_limiter is not None
         rl = listener.invoker.rate_limiter
 
-        events = [mock_event("1"), mock_event("2"), mock_event("3"), mock_event("4")]
+        events = ["1", "2", "3", "4"]
 
-        def make_invoke(ev):
+        def make_invoke(data: str):
             async def invoke_fn():
-                await listener.invoker.invoke(ev)
+                await invoke_with(listener, data)
 
             return invoke_fn
 
@@ -111,9 +111,9 @@ class TestListenerIntegration:
         listener, calls = make_recording_listener(bucket)
 
         # All calls should execute immediately
-        await listener.invoker.invoke(mock_event("1"))
-        await listener.invoker.invoke(mock_event("2"))
-        await listener.invoker.invoke(mock_event("3"))
+        await invoke_with(listener, "1")
+        await invoke_with(listener, "2")
+        await invoke_with(listener, "3")
 
         assert calls == ["1", "2", "3"], "All calls should be executed immediately"
 
@@ -142,7 +142,7 @@ class TestListenerDispatchAndCancel:
         listener, calls = make_recording_listener(bucket)
 
         async def invoke_fn():
-            await listener.invoker.invoke(mock_event("direct"))
+            await invoke_with(listener, "direct")
 
         await listener.invoker.dispatch(invoke_fn)
         assert calls == ["direct"]

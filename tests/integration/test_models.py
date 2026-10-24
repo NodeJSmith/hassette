@@ -6,11 +6,11 @@ import typing
 from collections.abc import Iterator
 from importlib import import_module
 from pathlib import Path
-from typing import Any, cast
 
 import pytest
 
 from hassette import STATE_REGISTRY
+from hassette.events import HassStateDict
 from hassette.models import states
 from hassette.models.states import base
 from hassette.models.states import sensor_shapes as sensor_shapes_module
@@ -47,7 +47,6 @@ def _iter_included_models(all_models: dict[str, type[states.BaseState]]) -> Iter
     string check on ``"base.BaseState"`` catches what identity comparison misses.
     """
     for model_cls in all_models.values():
-        model_cls = cast("type[states.BaseState]", model_cls)
         if model_cls in EXCLUDE_CLASSES or "base.BaseState" in str(model_cls):
             continue
         yield model_cls
@@ -79,8 +78,8 @@ def test_all_domains_registered(
     hassette_with_state_proxy: "HassetteHarness", all_models: dict[str, type[states.BaseState]]
 ):
     """Test that all state models are registered in the state registry."""
-    registered_domains = [x.domain for x in STATE_REGISTRY.registry]
-    missing_domains = []
+    registered_domains = [str(x.domain) for x in STATE_REGISTRY.registry]
+    missing_domains: list[str] = []
 
     for model_cls in _iter_included_models(all_models):
         if "domain" not in model_cls.model_fields:
@@ -129,7 +128,7 @@ def test_registry_can_convert_all_domains(
         )
 
 
-def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[dict[str, Any]]):
+def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[HassStateDict]):
     """Every entity in the JSONL fixture must parse as its registered state class.
 
     Catches bad captured data (e.g. manually-set test values) before it cascades

@@ -17,6 +17,7 @@ def test_preserve_config_round_trips_secretstr_token(tmp_path) -> None:
 
     with preserve_config(config):
         config.token = "mutated-token"  # pyright: ignore[reportAttributeAccessIssue]
+        assert config.token is not None
         assert config.token.get_secret_value() == "mutated-token"
 
     assert config.token is not None

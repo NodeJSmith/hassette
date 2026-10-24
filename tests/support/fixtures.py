@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import random
-import typing
 from collections.abc import Iterator
 from logging import getLogger
 from pathlib import Path
@@ -12,7 +11,7 @@ import pytest
 
 from hassette.core.core import Hassette
 from hassette.core.sync_executor import SyncExecutor
-from hassette.events import AnyEvent, RawStateChangeEvent, create_event_from_hass
+from hassette.events import AnyEvent, HassStateDict, RawStateChangeEvent, create_event_from_hass
 from hassette.testing import HassetteHarness
 from hassette.testing.config import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.factories import make_sync_executor
@@ -258,9 +257,9 @@ def all_events(
 
 
 @pytest.fixture(scope="session")
-def hass_state_dicts(state_change_events: list[RawStateChangeEvent]) -> list[dict[str, typing.Any]]:
+def hass_state_dicts(state_change_events: list[RawStateChangeEvent]) -> list[HassStateDict]:
     """Extract raw state dictionaries from state change events."""
-    states = []
+    states: list[HassStateDict] = []
     for event in state_change_events:
         if event.payload.data.new_state:
             states.append(event.payload.data.new_state)
