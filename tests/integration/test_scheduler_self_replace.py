@@ -56,8 +56,10 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
     """
     async with AppTestHarness(_SelfReplaceApp, config={"instance_name": "self_replace_app", "mode": mode}) as harness:
         app = harness.app
-        scheduler_service = harness._harness.hassette._scheduler_service
+        scheduler_service = harness.require_harness().hassette._scheduler_service
+        assert scheduler_service is not None
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
+        assert original.next_run is not None
 
         harness.freeze_time(original.next_run.add(seconds=1))
         count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
@@ -71,6 +73,7 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
 
         # Enqueuing the replacement woke the harness's serve() loop, which can pop the second
         # firing before trigger_due_jobs does — so wait for the firing, not for this call's count.
+        assert replacement.next_run is not None
         harness.freeze_time(replacement.next_run.add(seconds=1))
         await asyncio.wait_for(harness.trigger_due_jobs(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         await asyncio.wait_for(app.refired.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
@@ -111,6 +114,7 @@ async def test_sync_job_replaces_itself_from_own_callback(mode: str) -> None:
     ) as harness:
         app = harness.app
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
+        assert original.next_run is not None
 
         harness.freeze_time(original.next_run.add(seconds=1))
         count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=HANG_GUARD_TIMEOUT_SECONDS)

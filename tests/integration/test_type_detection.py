@@ -9,6 +9,7 @@ import pytest
 from hassette.di import AnnotatedMatcher, TypeMatcher
 from hassette.events import AnyEvent, CallServiceEvent, Event, RawStateChangeEvent, is_event_type
 from hassette.utils.type_utils import get_typed_signature, is_annotated_type
+from tests.support.factories import make_mock_event
 
 
 class TestTypeDetection:
@@ -110,7 +111,7 @@ class TestExtractFromEventType:
         assert result.target_type is AnyEvent
 
         # Test that extractor is identity function
-        mock_event = Event(topic="test", payload={})
+        mock_event = make_mock_event()
         assert result.extractor(mock_event) is mock_event
 
     def test_extract_with_state_change_event(self):

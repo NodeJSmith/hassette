@@ -11,6 +11,7 @@ import pytest
 import websockets.exceptions
 from fastapi import FastAPI
 from hassette_wire import ResourceStatus
+from starlette.testclient import TestClient, WebSocketTestSession
 from starlette.websockets import WebSocket
 
 from hassette.core.runtime_query_service import RuntimeQueryService
@@ -26,15 +27,6 @@ from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 from .conftest import set_app_status_snapshot, set_websocket_state
-
-try:
-    from starlette.testclient import TestClient, WebSocketTestSession
-
-    HAS_STARLETTE_TC = True
-except ImportError:
-    HAS_STARLETTE_TC = False
-
-pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclient not available")
 
 LOOPBACK_PEER_IP = "127.0.0.1"
 """The peer address uvicorn reports for the live-server tests' own client, so a `trusted_proxies`

@@ -8,6 +8,7 @@ test_subscribe_events_retry.py.
 
 import asyncio
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -67,7 +68,10 @@ async def test_authenticate_happy_path(websocket_service: WebsocketService) -> N
 
     await websocket_service.authenticate()
 
-    sent_payload = fake_ws.send_json.await_args.args[0]
+    send_call = cast("AsyncMock", fake_ws.send_json).await_args
+    assert send_call is not None
+    assert websocket_service.hassette.config.token is not None
+    sent_payload = send_call.args[0]
     assert sent_payload == {
         "type": "auth",
         "access_token": websocket_service.hassette.config.token.get_secret_value(),
@@ -283,6 +287,7 @@ async def test_subscription_failure_before_external_readiness_leaves_history_fal
     assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED) == []
     for coro in spawned_coros:
         coro.close()
+    assert websocket_service._recv_task is not None
     websocket_service._recv_task.cancel()
 
 

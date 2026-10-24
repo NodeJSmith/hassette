@@ -137,7 +137,9 @@ async def get_recent_logs_forwarded_kwargs(
     client: "AsyncClient", mock_hassette: MagicMock, query: str = ""
 ) -> dict[str, Any]:
     """GET /logs/recent with ``query`` and return the kwargs the route forwarded to ``get_log_records``."""
-    mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
+    get_log_records = AsyncMock(return_value=[])
+    mock_hassette.telemetry_query_service.get_log_records = get_log_records
     response = await client.get(f"{LOGS_RECENT_PATH}{query}")
     assert response.status_code == 200
-    return mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs
+    assert get_log_records.await_args is not None
+    return dict(get_log_records.await_args.kwargs)

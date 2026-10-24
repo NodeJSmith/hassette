@@ -63,7 +63,7 @@ async def test_bus_sync_facade_registers_listener_from_sync_init():
         listeners = harness.bus.get_listeners()
         by_name = {listener.identity.name: listener for listener in listeners}
 
-        assert "sync_temp" in by_name, f"Expected 'sync_temp' listener, got {sorted(by_name)}"
+        assert "sync_temp" in by_name, f"Expected 'sync_temp' listener, got {sorted(by_name, key=str)}"
         db_id = by_name["sync_temp"].db_id
         assert isinstance(db_id, int), f"Listener db_id should be an int after sync registration, got {db_id!r}"
         assert db_id > 0, f"Listener db_id should be a real row id, got {db_id}"
@@ -78,7 +78,7 @@ async def test_bus_sync_facade_registers_ha_lifecycle_listeners_from_sync_init()
         by_name = {listener.identity.name: listener for listener in listeners}
 
         for name in ("sync_ha_restart", "sync_ha_start", "sync_ha_stop"):
-            assert name in by_name, f"Expected {name!r} listener, got {sorted(by_name)}"
+            assert name in by_name, f"Expected {name!r} listener, got {sorted(by_name, key=str)}"
             db_id = by_name[name].db_id
             assert isinstance(db_id, int), f"Listener db_id should be an int after sync registration, got {db_id!r}"
             assert db_id > 0, f"Listener db_id should be a real row id, got {db_id}"
