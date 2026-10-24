@@ -102,6 +102,15 @@ class AnnotationConverter:
 
 
 def register_container_converter(*origins: Any):
+    """Build a decorator that registers a converter function for the given container origins.
+
+    Args:
+        *origins: Generic origins (e.g. ``list``, ``dict``) the decorated function converts values into.
+
+    Returns:
+        A decorator that registers the function with ``ContainerConverterRegistry`` and returns it unchanged.
+    """
+
     def deco(fn: Callable[["AnnotationConverter", Any, Any], Any]) -> Callable[["AnnotationConverter", Any, Any], Any]:
         for origin in origins:
             ContainerConverterRegistry.register(
@@ -114,6 +123,14 @@ def register_container_converter(*origins: Any):
 
 @register_container_converter(list, set, frozenset)
 def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+    """Convert a value into a ``list``, ``set``, or ``frozenset``, converting each element to the element type.
+
+    Returns:
+        A new container of the annotation's origin type with every element converted.
+
+    Raises:
+        UnableToConvertValueError: If the origin is unsupported or the value cannot be coerced into it.
+    """
     origin = get_origin(tp)
     args = get_args(tp)
 
@@ -143,6 +160,14 @@ def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, t
 
 @register_container_converter(dict)
 def convert_dict(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+    """Convert a value into a ``dict``, converting each key and value to the annotated key and value types.
+
+    Returns:
+        A new dict with converted keys and values; untyped dicts convert entries as ``Any``.
+
+    Raises:
+        UnableToConvertValueError: If the value cannot be coerced into a dict.
+    """
     if not isinstance(value, dict):
         try:
             value = dict(value)
@@ -156,6 +181,17 @@ def convert_dict(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
 
 @register_container_converter(tuple)
 def convert_tuple(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+    """Convert a value into a ``tuple``, converting each element per the annotation's positional or variadic types.
+
+    A bare ``tuple`` annotation returns the coerced tuple unchanged. A single-argument ``tuple[T]`` with
+    homogeneous elements is treated as ``tuple[T, ...]``.
+
+    Returns:
+        A new tuple with converted elements.
+
+    Raises:
+        UnableToConvertValueError: If the value cannot be coerced into a tuple or its length does not match.
+    """
     if not isinstance(value, tuple):
         try:
             value = tuple(value)
@@ -182,6 +218,15 @@ def convert_tuple(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
 
 @register_container_converter(TypedStateChangeEvent)
 def convert_typed_state_change_event(converter: "AnnotationConverter", value: Any, tp: Any) -> Any:
+    """Convert a ``RawStateChangeEvent`` into a ``TypedStateChangeEvent`` with typed old and new states.
+
+    Returns:
+        A ``TypedStateChangeEvent`` whose old and new states are converted to the annotation's state type.
+        A state that is absent in the raw event remains ``None``.
+
+    Raises:
+        UnableToConvertValueError: If the value is not a ``RawStateChangeEvent``.
+    """
     # tp is TypedStateChangeEvent[StateT] (already normalized/constructible)
     if not isinstance(value, RawStateChangeEvent):
         raise UnableToConvertValueError(

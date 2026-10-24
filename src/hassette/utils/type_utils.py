@@ -89,6 +89,13 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
 
 
 def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
+    """Return the callable's signature with string and forward-reference parameter annotations resolved.
+
+    Annotations are evaluated against the callable's module globals. The returned signature has no return annotation.
+
+    Raises:
+        TypeError: If an annotation cannot be resolved.
+    """
     signature = inspect.signature(call)
     globalns = getattr(call, "__globals__", {})
     typed_params = [
@@ -105,6 +112,14 @@ def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
 
 
 def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
+    """Resolve a string or ``ForwardRef`` annotation against the given globals.
+
+    Returns:
+        The resolved annotation, ``None`` for a ``None`` annotation, or the input unchanged if it is already a type.
+
+    Raises:
+        TypeError: If the forward reference cannot be resolved.
+    """
     if isinstance(annotation, str):
         annotation = ForwardRef(annotation)
 
@@ -120,11 +135,13 @@ def get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
 
 
 def is_union(tp: Any) -> bool:
+    """Return True if the annotation is a ``typing.Union`` or a PEP 604 ``X | Y`` union."""
     origin = get_origin(tp)
     return origin is Union or origin is UnionType
 
 
 def is_optional(tp: Any) -> bool:
+    """Return True if the annotation is a union that includes ``None``."""
     if not is_union(tp):
         return False
     return any(a is NoneType for a in get_args(tp))
@@ -150,6 +167,7 @@ def normalize_constructible(tp: Any) -> Any:
 
 
 def unwrap_annotated(tp: Any) -> Any:
+    """Strip all ``Annotated[...]`` layers from an annotation and return the underlying type."""
     while get_origin(tp) is Annotated:
         tp = get_args(tp)[0]
     return tp
@@ -177,6 +195,7 @@ def normalize_annotation(tp: Any, *, constructible: bool = True) -> Any:
 
 
 def safe_isinstance(value: Any, tp: Any) -> bool:
+    """Return ``isinstance(value, tp)``, or False if ``tp`` cannot be used with ``isinstance``."""
     try:
         return isinstance(value, tp)
     except TypeError:
@@ -184,6 +203,11 @@ def safe_isinstance(value: Any, tp: Any) -> bool:
 
 
 def get_type_and_details(annotation: Any) -> tuple[Any, Any] | None:
+    """Split an ``Annotated[T, meta, ...]`` annotation (or a type alias of one) into its type and first metadata item.
+
+    Returns:
+        A ``(type, metadata)`` tuple, or None if the annotation is not ``Annotated`` with metadata.
+    """
     # Unwrap type alias: `type Foo = ...`
     alias_value = getattr(annotation, "__value__", None)
     if alias_value is not None:

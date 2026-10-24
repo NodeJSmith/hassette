@@ -7,10 +7,16 @@ from whenever import Date, Instant, PlainDateTime, ZonedDateTime
 
 
 def orjson_dump(data: Any) -> str:
+    """Serialize data to a JSON string with orjson, stringifying values it cannot encode natively."""
     return orjson.dumps(data, default=str).decode("utf-8")
 
 
 def format_time_param(value: PlainDateTime | ZonedDateTime | Date | str) -> str:
+    """Format a date or time value as a request parameter string.
+
+    Returns:
+        The value as a string; a ``ZonedDateTime`` is rendered with a fixed UTC offset instead of a timezone name.
+    """
     if isinstance(value, ZonedDateTime):
         return str(value.to_fixed_offset())
     return str(value)

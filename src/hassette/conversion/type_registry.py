@@ -292,6 +292,13 @@ register_simple_type_converter(ZonedDateTime, str, fn=ZonedDateTime.format_iso)
 
 @register_type_converter_fn(error_message="String must be a datetime-like value, got {from_type}")
 def from_string_to_zoned_date_time(value: str) -> ZonedDateTime:
+    """Parse a datetime, naive ISO datetime, or ISO date string into a ``ZonedDateTime``.
+
+    Results use the configured timezone (or the system timezone if none is set); a bare date becomes midnight.
+
+    Raises:
+        ValueError: If the string matches none of the supported formats.
+    """
     with suppress(ValueError):
         return convert_datetime_str_to_tz(value)
     with suppress(ValueError):
@@ -303,21 +310,41 @@ def from_string_to_zoned_date_time(value: str) -> ZonedDateTime:
 
 @register_type_converter_fn(error_message="String must be a time-like value, got {from_type}")
 def from_string_to_stdlib_time(value: str) -> time:
+    """Parse an ISO time string into a stdlib ``time``.
+
+    Raises:
+        ValueError: If the string is not a valid ISO time.
+    """
     return Time.parse_iso(value).to_stdlib()
 
 
 @register_type_converter_fn(error_message="String must be a date-like value, got {from_type}")
 def from_string_to_stdlib_date(value: str) -> date:
+    """Parse an ISO date string into a stdlib ``date``.
+
+    Raises:
+        ValueError: If the string is not a valid ISO date.
+    """
     return Date.parse_iso(value).to_stdlib()
 
 
 @register_type_converter_fn(error_message="String must be a datetime-like value, got {from_type}")
 def from_string_to_stdlib_datetime(value: str) -> datetime:
+    """Parse a datetime-like string into a timezone-aware stdlib ``datetime``.
+
+    Raises:
+        ValueError: If the string matches none of the formats ``from_string_to_zoned_date_time`` accepts.
+    """
     return from_string_to_zoned_date_time(value).to_stdlib()
 
 
 @register_type_converter_fn(error_message="String must be a boolean-like value, got {from_type}")
 def from_string_to_bool(value: str) -> bool:
+    """Parse an ``on``/``off``, ``true``/``false``, ``yes``/``no``, or ``1``/``0`` string into a bool, ignoring case.
+
+    Raises:
+        ValueError: If the string is not one of the recognized values.
+    """
     lower_val = value.lower()
     match lower_val:
         case "on" | "true" | "yes" | "1":
