@@ -101,6 +101,10 @@ class ExecutionMarker:
     instance_index: int | None = None
     task_id: int | None = None
     """``id()`` of the owning ``asyncio.Task``, or ``None`` if bound outside a task."""
+    listener_id: int | None = None
+    """Listener row id when the execution is a bus handler, else ``None``."""
+    job_id: int | None = None
+    """Scheduled-job row id when the execution is a job, else ``None``."""
 
 
 class CommandExecutor(Service):
@@ -447,6 +451,8 @@ class CommandExecutor(Service):
             started_at=time.monotonic(),
             instance_index=context.instance_index,
             task_id=id(current_task) if current_task is not None else None,
+            listener_id=context.listener_id,
+            job_id=context.job_id,
         )
         return execution_id, token
 

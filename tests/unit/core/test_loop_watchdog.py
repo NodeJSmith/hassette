@@ -14,7 +14,9 @@ synchronous freeze does not starve the session-scoped loop and trip neighbouring
 import asyncio
 import contextlib
 import inspect
+import logging
 import re
+import sys
 import threading
 import time
 import warnings
@@ -23,12 +25,14 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import StackFrame
 
 from hassette.core import loop_watchdog as loop_watchdog_module
 from hassette.core.command_executor import ExecutionMarker
 from hassette.core.loop_watchdog import LoopWatchdog, WatchdogEvent
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
+from hassette.types.types import BlockingAttributionReason
 
 from .conftest import make_blocking_io_hassette, make_marker_executor
 
@@ -43,16 +47,26 @@ def make_watchdog(
     *,
     hassette: MagicMock | None = None,
     on_stall: Callable[[WatchdogEvent], object] | None = None,
+    seen_before: bool = False,
 ) -> LoopWatchdog:
+    """Build a watchdog for `executor`.
+
+    `seen_before` marks the marker's handler key as already reported, so a stall without captured
+    app frames warns on its first episode instead of logging at DEBUG.
+    """
     if hassette is None:
         hassette = make_blocking_io_hassette()
-    return LoopWatchdog(
+    watchdog = LoopWatchdog(
         hassette,
         loop=loop,
         loop_thread_id=threading.get_ident(),
         executor=executor,
         on_stall=on_stall,
     )
+    if seen_before:
+        marker = executor.current_execution
+        watchdog._seen_stall_keys.add((marker.app_key, marker.listener_id, marker.job_id))
+    return watchdog
 
 
 def make_idle_watchdog(**marker_kwargs: object) -> LoopWatchdog:
@@ -109,13 +123,16 @@ async def run_stall_episode(
 ) -> None:
     """Build a watchdog, start it, freeze the loop thread, let it recover, then stop.
 
+    The watchdog has already seen the marker's handler, so an attributed stall warns rather than
+    taking the first-seen DEBUG path.
+
     The full build/start/detect/recover/stop lifecycle most stall-detection tests in this file
     need. A test that must inspect watchdog state between recovery and stop (e.g. confirming the
     daemon thread survived an escalated warning), or that builds LoopWatchdog directly (e.g. to
     pass on_stall), calls freeze_loop_and_recover directly instead so it can keep its own
     watchdog reference and try/finally around the inspection.
     """
-    watchdog = make_watchdog(loop, executor, hassette=hassette)
+    watchdog = make_watchdog(loop, executor, hassette=hassette, seen_before=True)
     watchdog.start()
     try:
         await freeze_loop_and_recover(
@@ -299,7 +316,7 @@ async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
 
     with warnings.catch_warnings():
         warnings.filterwarnings("error", category=HassetteBlockingIOWarning)
-        watchdog = make_watchdog(loop, executor, hassette=hassette, on_stall=on_stall)
+        watchdog = make_watchdog(loop, executor, hassette=hassette, on_stall=on_stall, seen_before=True)
         watchdog.start()
         try:
             # Handler done — clear the marker so a CPU-starvation tick lag during recovery opens
@@ -439,12 +456,12 @@ async def test_stall_captures_structured_frames_of_the_frozen_code() -> None:
     executor = make_marker_executor(app_key="kitchen_lights", stamp_task_id=True)
     captured: list[WatchdogEvent] = []
 
-    with pytest.warns(HassetteBlockingIOWarning):
-        watchdog = make_watchdog(
-            loop, executor, hassette=make_blocking_io_hassette(capture_stack_on_block=True), on_stall=captured.append
-        )
-        async with running_watchdog(watchdog):
-            await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
+    # First stall from this location: persisted, logged at DEBUG, no warning.
+    watchdog = make_watchdog(
+        loop, executor, hassette=make_blocking_io_hassette(capture_stack_on_block=True), on_stall=captured.append
+    )
+    async with running_watchdog(watchdog):
+        await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
 
     assert captured
     innermost = captured[0].frames[0]
@@ -463,7 +480,7 @@ async def test_attributed_block_records_reason_attributed() -> None:
     captured: list[WatchdogEvent] = []
 
     with pytest.warns(HassetteBlockingIOWarning):
-        watchdog = make_watchdog(loop, executor, on_stall=captured.append)
+        watchdog = make_watchdog(loop, executor, on_stall=captured.append, seen_before=True)
         async with running_watchdog(watchdog):
             await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
 
@@ -471,3 +488,113 @@ async def test_attributed_block_records_reason_attributed() -> None:
     assert captured[0].app_key == "kitchen_lights"
     assert captured[0].reason == "attributed"
     assert captured[0].execution_id == "exec-test"
+
+
+# Issue #3307 — a one-off stall is weak evidence, so the first stall per location logs at DEBUG
+# and only a repeat warns. These drive _emit_stall directly: no real freeze is needed, and the
+# suite's global "error" filter turns any unexpected warning into a failure.
+def make_key_watchdog(
+    *, hassette: MagicMock | None = None, on_stall: Callable[[WatchdogEvent], object] | None = None
+) -> LoopWatchdog:
+    """A never-started watchdog for driving _emit_stall directly; its loop is a bare sentinel."""
+    return make_watchdog(cast("asyncio.AbstractEventLoop", object()), MagicMock(), hassette=hassette, on_stall=on_stall)
+
+
+def make_attributed_marker(app_key: str = "kitchen_lights", *, listener_id: int | None = 7) -> ExecutionMarker:
+    return ExecutionMarker(app_key, None, "exec-test", time.monotonic(), listener_id=listener_id)
+
+
+def app_frame(lineno: int, function: str = "on_motion") -> StackFrame:
+    return StackFrame(filename=__file__, lineno=lineno, function=function, module=__name__)
+
+
+def test_first_seen_stall_logs_debug_and_repeat_warns(caplog: pytest.LogCaptureFixture) -> None:
+    """The first stall for a key is persisted and logged at DEBUG with no warning; a repeat warns."""
+    on_stall = MagicMock()
+    watchdog = make_key_watchdog(on_stall=on_stall)
+    marker = make_attributed_marker()
+    frames = (app_frame(10),)
+
+    with caplog.at_level(logging.DEBUG, logger=loop_watchdog_module.__name__):
+        watchdog._emit_stall(marker, 0.5, frames, "attributed")
+    assert on_stall.call_count == 1
+    debug = [r for r in caplog.records if r.levelno == logging.DEBUG and "Event loop stalled" in r.getMessage()]
+    assert len(debug) == 1
+    assert "kitchen_lights" in debug[0].getMessage()
+
+    with pytest.warns(HassetteBlockingIOWarning, match="kitchen_lights"):
+        watchdog._emit_stall(marker, 0.5, frames, "attributed")
+    assert on_stall.call_count == 2
+
+
+def test_stall_keys_are_independent() -> None:
+    """A different app-code line, app, or handler is its own key and starts at DEBUG again."""
+    watchdog = make_key_watchdog()
+    watchdog._emit_stall(make_attributed_marker(), 0.5, (app_frame(10),), "attributed")
+
+    # None of these repeats an earlier key, so none warns.
+    watchdog._emit_stall(make_attributed_marker(), 0.5, (app_frame(20),), "attributed")
+    watchdog._emit_stall(make_attributed_marker("other_app"), 0.5, (app_frame(10),), "attributed")
+    watchdog._emit_stall(make_attributed_marker(listener_id=7), 0.5, (), "attributed")
+    watchdog._emit_stall(make_attributed_marker(listener_id=8), 0.5, (), "attributed")
+
+    with pytest.warns(HassetteBlockingIOWarning):
+        watchdog._emit_stall(make_attributed_marker(listener_id=8), 0.5, (), "attributed")
+
+
+def test_stall_key_uses_innermost_app_code_frame() -> None:
+    """Library frames inside the app-code frame don't split the key: the app line decides it."""
+    watchdog = make_key_watchdog()
+    requests_frame = StackFrame(filename=f"{sys.prefix}/lib/site-packages/requests/api.py", lineno=1, function="get")
+    httpx_frame = StackFrame(filename=f"{sys.prefix}/lib/site-packages/httpx/api.py", lineno=5, function="get")
+    marker = make_attributed_marker()
+
+    expected = ("kitchen_lights", __file__, 10, "on_motion")
+    assert watchdog._stall_key("kitchen_lights", marker, (requests_frame, app_frame(10))) == expected
+    assert watchdog._stall_key("kitchen_lights", marker, (httpx_frame, app_frame(10))) == expected
+    # No app-code frame at all: fall back to the handler.
+    assert watchdog._stall_key("kitchen_lights", marker, (requests_frame,)) == ("kitchen_lights", 7, None)
+
+
+@pytest.mark.parametrize("reason", ["displaced", "framework"])
+def test_unattributed_stall_warns_on_first_sight(reason: BlockingAttributionReason) -> None:
+    """Displaced and framework stalls skip the first-seen demotion and warn every time."""
+    watchdog = make_key_watchdog()
+    with pytest.warns(HassetteBlockingIOWarning, match="<framework>"):
+        watchdog._emit_stall(make_attributed_marker(), 0.5, (app_frame(10),), reason)
+    assert not watchdog._seen_stall_keys
+
+
+def test_attributed_stall_without_app_key_warns_on_first_sight() -> None:
+    """A confirmed task with no app_key (framework-owned execution) is unattributed and always warns."""
+    watchdog = make_key_watchdog()
+    marker = ExecutionMarker(None, None, "exec-test", time.monotonic(), listener_id=7)
+    with pytest.warns(HassetteBlockingIOWarning, match="<framework>"):
+        watchdog._emit_stall(marker, 0.5, (app_frame(10),), "attributed")
+    assert not watchdog._seen_stall_keys
+
+
+def test_ignore_behavior_skips_first_seen_tracking() -> None:
+    """IGNORE returns before persistence and before the key is recorded."""
+    on_stall = MagicMock()
+    watchdog = make_key_watchdog(
+        hassette=make_blocking_io_hassette(behavior=BlockingIOBehavior.IGNORE), on_stall=on_stall
+    )
+    watchdog._emit_stall(make_attributed_marker(), 0.5, (app_frame(10),), "attributed")
+    on_stall.assert_not_called()
+    assert not watchdog._seen_stall_keys
+
+
+def test_seen_stall_keys_bounded_and_cleared_when_full() -> None:
+    """The seen set never exceeds its cap; adding a key to a full set clears it first."""
+    watchdog = make_key_watchdog()
+    cap = loop_watchdog_module._MAX_SEEN_STALL_KEYS
+    for i in range(cap):
+        assert watchdog._is_first_sighting(("app", i, None))
+    assert len(watchdog._seen_stall_keys) == cap
+    assert not watchdog._is_first_sighting(("app", 0, None))
+
+    assert watchdog._is_first_sighting(("app", cap, None))
+    assert watchdog._seen_stall_keys == {("app", cap, None)}
+    # A key seen before the clear is first-seen again.
+    assert watchdog._is_first_sighting(("app", 0, None))

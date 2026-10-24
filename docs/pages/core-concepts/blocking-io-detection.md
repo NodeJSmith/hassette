@@ -25,6 +25,8 @@ call site: sensor_app.py:42
 
 A Tier 1 warning starts with `Event loop stalled by a blocking call (Tier 1 — loop watchdog)` instead. It reports how long the loop was held rather than a primitive, followed by the loop thread's stack, since the stall may have come from CPU-bound work rather than I/O.
 
+Tier 1 warns only when a stall repeats. A single lag event is weak evidence, so the first stall from a given line of app code is logged at DEBUG instead. When no app line was captured, the handler or job stands in for the line. A second stall from the same place emits the warning. The first stall is still recorded in telemetry. The record of seen places resets on restart. Stalls not attributed to an app always warn.
+
 The warning integrates with standard Python filter machinery: `filterwarnings("error")`, `-W error`, and `pytest.warns` all work as expected.
 
 Tier 2 emits this warning *before* the blocking call runs. On its own the call still proceeds — the warning is informational. Escalating the warning to an error turns Tier 2 into an interceptor: with `filterwarnings("error", category=HassetteBlockingIOWarning)` active, the emit raises, and the blocking call never runs. Adding that filter to a pytest config or to application startup is the recommended way to make blocking I/O fail fast during development and CI. Tier 1 never raises — it reports a stall after the fact, regardless of the filter.

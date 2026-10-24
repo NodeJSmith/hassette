@@ -29,6 +29,7 @@ def make_blocking_io_hassette(
     cfg.blocking_io.deep_detection_enabled = deep_detection_enabled
     cfg.blocking_io.allow_deep_detection_in_prod = allow_deep_detection_in_prod
     cfg.blocking_io.behavior = behavior
+    cfg.apps.manifests = {}
     h = MagicMock()
     h.config = cfg
     h.app_handler.get.return_value = None
