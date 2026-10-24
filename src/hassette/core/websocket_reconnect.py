@@ -441,6 +441,7 @@ def traceback_key(exc: BaseException) -> tuple[str, str]:
 
 
 def format_duration(seconds: float) -> str:
+    """Format `seconds` compactly as ``42s``, ``3m05s``, or ``2h07m``; negative values clamp to ``0s``."""
     seconds = max(seconds, 0.0)
     if seconds < 60:
         return f"{seconds:.0f}s"

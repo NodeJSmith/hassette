@@ -114,6 +114,7 @@ async def schedule_retry(proxy: "StateProxy", generation: int) -> None:
 
 
 def compute_retry_delay(attempt: int) -> float:
+    """Return the jittered backoff delay in seconds before sync retry number `attempt` (1-based)."""
     return fast_backoff_delay(attempt)
 
 
@@ -147,6 +148,7 @@ async def run_retry_after_delay(proxy: "StateProxy", *, generation: int, delay: 
 
 
 async def cancel_retry_task(proxy: "StateProxy") -> None:
+    """Cancel the scheduled sync retry under the control lock, then wait for the cancelled task to finish."""
     task: asyncio.Task[None] | None = None
     async with proxy._sync_control_lock:
         task = proxy._retry_task
@@ -156,6 +158,10 @@ async def cancel_retry_task(proxy: "StateProxy") -> None:
 
 
 def cancel_retry_task_locked_if_superseded(proxy: "StateProxy", generation: int) -> None:
+    """Cancel the pending retry and reset backoff if it targets a generation other than `generation`.
+
+    The caller must hold ``_sync_control_lock``.
+    """
     if proxy._retry_generation is None or proxy._retry_generation == generation:
         return
     cancel_retry_task_locked(proxy)
@@ -163,6 +169,10 @@ def cancel_retry_task_locked_if_superseded(proxy: "StateProxy", generation: int)
 
 
 def cancel_retry_task_locked(proxy: "StateProxy") -> None:
+    """Cancel any pending retry task without awaiting it and clear the tracked retry task and generation.
+
+    The caller must hold ``_sync_control_lock``.
+    """
     if proxy._retry_task is not None and not proxy._retry_task.done():
         proxy._retry_task.cancel()
     proxy._retry_task = None

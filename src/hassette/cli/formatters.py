@@ -141,6 +141,7 @@ def fmt_uptime(secs: float) -> str:
 
 
 def fmt_services(services: list[dict[str, Any]]) -> str:
+    """Comma-separated names of the running services, or the empty-value placeholder when none are running."""
     running = [s["name"] for s in services if s.get("status") == ResourceStatus.RUNNING.value]
     return ", ".join(running) if running else EMPTY_VALUE
 

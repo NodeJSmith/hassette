@@ -152,6 +152,7 @@ def env_lookup(environ: Mapping[str, str], name: str) -> str | None:
 
 
 def is_config_dir_env(name: str) -> bool:
+    """Return whether `name` is the config-dir environment variable, compared case-insensitively."""
     return name.lower() == CONFIG_DIR_ENV_NAME
 
 
@@ -174,6 +175,7 @@ def anchored(path: str | PurePath, base: Path) -> Path:
 
 
 def file_list(files: FileList, cwd: Path) -> tuple[Path, ...]:
+    """Normalize one path or a list of paths to a tuple, each anchored at `cwd` (see `anchored`)."""
     if isinstance(files, str | PurePath):
         files = [files]
     return tuple(anchored(f, cwd) for f in files)

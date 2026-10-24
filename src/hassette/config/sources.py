@@ -172,6 +172,7 @@ def config_file_error(path: Path, exc: Exception) -> ConfigError:
 
 
 def anchor(value: Any, base: Path) -> Any:
+    """Return a str or Path `value` anchored at `base` (see `anchored`); any other value is returned unchanged."""
     if not isinstance(value, str | Path):
         return value
     return anchored(value, base)
