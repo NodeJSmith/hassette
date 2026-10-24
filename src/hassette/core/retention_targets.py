@@ -82,9 +82,10 @@ since the table is small relative to the size limit."""
 
 
 def build_tier_where(target: RetentionTarget) -> tuple[str, list[Any]]:
-    """Build a ``WHERE source_tier = ?`` clause (with trailing space) for ``target``, or an
-    empty clause when it carries no tier filter. Shared by the size failsafe's delete and its
-    stale-row probe, which filter by tier alone (no age cutoff).
+    """Build a ``WHERE source_tier = ?`` clause (with trailing space) for ``target``.
+
+    Returns an empty clause when ``target`` carries no tier filter. Shared by the size failsafe's
+    delete and its stale-row probe, which filter by tier alone (no age cutoff).
     """
     if target.source_tier:
         return "WHERE source_tier = ? ", [target.source_tier]

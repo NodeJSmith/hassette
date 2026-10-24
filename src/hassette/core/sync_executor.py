@@ -232,8 +232,7 @@ class SyncExecutor:
         self.log_saturation_rate_limited()
 
     def log_saturation_rate_limited(self) -> None:
-        """Emit a pool-saturation WARNING when outstanding submissions cross the configured
-        threshold, rate-limited.
+        """Emit a rate-limited pool-saturation WARNING when outstanding submissions cross the threshold.
 
         Uses a single global timestamp for rate-limiting — pool saturation is a global
         condition, not per-entity, so the global-timestamp model from enqueue_record

@@ -66,8 +66,9 @@ async def _execute_target_delete(
     cutoff: float,
     batch_limit: int,
 ) -> int:
-    """Delete up to ``batch_limit`` rows in ``target.table`` older than ``cutoff``, filtered by
-    ``target.source_tier`` when set, for age-based retention cleanup.
+    """Delete up to ``batch_limit`` rows in ``target.table`` older than ``cutoff``.
+
+    Used for age-based retention cleanup; rows are filtered by ``target.source_tier`` when set.
 
     Does not manage transactions -- the caller owns BEGIN/commit/rollback.
     """
