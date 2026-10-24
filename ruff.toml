@@ -97,8 +97,6 @@ ignore = [
     "D104",   # undocumented-public-package
     "D105",   # undocumented-magic-method
     "D107",   # undocumented-public-init
-    "D205",   # blank-line-after-summary — burn down incrementally (#1274)
-    "D417",   # undocumented-param — burn down incrementally (#1274)
     "ANN204", # missing-return-type-special-method
     "ANN003", # missing-type-kwargs
     "ANN002", # missing-type-args (ANN002)
@@ -138,12 +136,14 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "PT031",  # GC-triggered warning tests require del + gc.collect() (two statements)
     "PLC0415", # inline imports: pytest-collection workarounds and import-raises assertions
     "D103",   # undocumented-public-function
+    "D205",   # blank-line-after-summary
+    "D417",   # undocumented-param
 ]
-"wire/tests/**/*.py" = ["S101", "S603", "D103"]
-"client/tests/**/*.py" = ["S101", "D103"]
-"tools/**/*.py" = ["D103"]
-"scripts/**" = ["D103"]
-"design/**/*.py" = ["D103"]
+"wire/tests/**/*.py" = ["S101", "S603", "D103", "D205", "D417"]
+"client/tests/**/*.py" = ["S101", "D103", "D205", "D417"]
+"tools/**/*.py" = ["D103", "D205", "D417"]
+"scripts/**" = ["D103", "D205", "D417"]
+"design/**/*.py" = ["D103", "D205", "D417"]
 "noxfile.py" = ["D103"]
 "tests/integration/telemetry/test_session_queries.py" = ["ASYNC251"]
 "tools/*.py" = ["S603", "S607"]
