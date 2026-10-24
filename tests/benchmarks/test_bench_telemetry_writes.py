@@ -12,7 +12,6 @@ the same work without polling for "all records committed".
 """
 
 import itertools
-import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +24,7 @@ from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
+from tests.integration.telemetry.helpers import open_db_with_session
 from tests.support.factories import make_execution_record, make_listener_registration
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -87,16 +87,7 @@ def telemetry_writer(run_async: RunAsync, tmp_path: Path) -> Iterator[TelemetryW
             sealed=False,
             database=PRODUCTION_DATABASE_CONFIG.model_dump(),
         )
-        db_service = DatabaseService(hassette, parent=None)
-        await db_service.on_initialize()
-        now = time.time()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (now, now),
-        )
-        session_id = cursor.lastrowid
-        assert session_id is not None
-        await db_service.db.commit()
+        db_service, session_id = await open_db_with_session(hassette)
         hassette.session_id = session_id
         hassette.try_session_id.return_value = session_id
         hassette.database_service = db_service
