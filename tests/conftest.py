@@ -224,7 +224,7 @@ def test_config_class() -> type[HassetteConfig]:
 def test_config(unused_tcp_port_factory) -> HassetteConfig:
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(web_api={"port": port})
+    tc = TestConfig(web_api=WebApiConfig(port=port))
 
     return tc
 

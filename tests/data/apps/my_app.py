@@ -24,7 +24,7 @@ class MyApp(App[MyAppUserConfig]):
         self.logger.info("MyApp is initializing")
         await self.bus.on_attribute_change(
             "light.office",
-            A.get_attr_new("rgb_color"),
+            "rgb_color",
             handler=self.handle_color_change,
             name="office_light_color_change",
         )
@@ -51,7 +51,7 @@ class MyApp(App[MyAppUserConfig]):
             self.logger.info("Test button exists: %s", self.test_button)
 
     async def test_reload_app(self) -> None:
-        await self.hassette._app_handler.reload_app(self.app_key)
+        await self.hassette.app_handler.reload_app(self.app_key)
 
     async def test_stuff(self) -> None:
         if self.office_light_exists:
@@ -67,12 +67,6 @@ class MyApp(App[MyAppUserConfig]):
         old_state: D.StateOld[states.InputButtonState],
         **kwargs,
     ) -> None:
-        if new_state is None:
-            raise ValueError("new_state should not be None in handle_event_sync")
-
-        if old_state is None:
-            raise ValueError("old_state should not be None in handle_event_sync")
-
         self.logger.info("new_state: %s, kwargs: %s", new_state, kwargs)
         test = self.api.sync.get_state_value("input_button.test")
         self.logger.info("state: %s", test)

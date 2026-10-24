@@ -62,7 +62,7 @@ async def test_fire_event_received_by_bus(ha_container: str, tmp_path) -> None:
     """fire_event causes a matching event to arrive on the bus with the expected data."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
-        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+        bus = hassette.bus
         captured, capture = make_event_collector(AnyEvent)
 
         # Custom HA events are dispatched on topic "hass.event.<event_type>"
