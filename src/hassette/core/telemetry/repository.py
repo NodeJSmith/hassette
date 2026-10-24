@@ -18,6 +18,7 @@ from hassette.core.telemetry.insert_params import (
     manifest_insert_params,
 )
 from hassette.core.telemetry.reconcile_sql import (
+    build_clear_stale_job_timing_query,
     build_delete_query,
     build_retire_query,
     instance_index_clause,
@@ -288,6 +289,17 @@ class TelemetryRepository:
                 "id": db_id,
             },
         )
+        await db.commit()
+
+    async def clear_stale_job_timing(self, live_job_ids: list[int]) -> None:
+        """Clear ``next_run``, ``fire_at`` and ``jitter`` on every scheduled_jobs row not in ``live_job_ids``.
+
+        Args:
+            live_job_ids: ``id`` of every job registered this session. Empty clears every row.
+        """
+        sql, params = build_clear_stale_job_timing_query(live_job_ids)
+        db = self._db_service.db
+        await db.execute(sql, params)
         await db.commit()
 
     async def mark_listener_cancelled(self, db_id: int) -> None:

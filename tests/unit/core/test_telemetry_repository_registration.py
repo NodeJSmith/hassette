@@ -196,6 +196,33 @@ async def test_mark_job_status_terminal_transition_clears_timing(
     assert await fetch_job_field(telemetry_db, job_id, "schedule_status") == status
 
 
+async def test_clear_stale_job_timing_clears_only_rows_outside_live_ids(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """clear_stale_job_timing() NULLs the timing of a non-live row and leaves a live row's timing intact."""
+    live_id = await telemetry_repo.register_job(make_timed_job_registration(1_000.0, 1_004.5, 10.0))
+    stale_reg = replace(make_job_registration(job_name="stale_job"), next_run=500.0, fire_at=502.0, jitter=5.0)
+    stale_id = await telemetry_repo.register_job(stale_reg)
+
+    await telemetry_repo.clear_stale_job_timing([live_id])
+
+    assert await fetch_job_timing(telemetry_db, live_id) == (1_000.0, 1_004.5, 10.0)
+    assert await fetch_job_timing(telemetry_db, stale_id) == (None, None, None)
+
+
+async def test_clear_stale_job_timing_with_no_live_ids_clears_every_row(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """An empty live list clears timing on every scheduled_jobs row."""
+    job_id = await telemetry_repo.register_job(make_timed_job_registration(1_000.0, 1_004.5, 10.0))
+
+    await telemetry_repo.clear_stale_job_timing([])
+
+    assert await fetch_job_timing(telemetry_db, job_id) == (None, None, None)
+
+
 async def test_mark_listener_cancelled_sets_removed_at(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

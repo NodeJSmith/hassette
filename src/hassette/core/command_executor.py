@@ -660,6 +660,16 @@ class CommandExecutor(Service):
             self.repository.mark_job_status(db_id, status, reason, next_run=next_run, fire_at=fire_at, jitter=jitter)
         )
 
+    async def clear_stale_job_timing(self, live_job_ids: list[int]) -> None:
+        """Clear the timing columns of every scheduled_jobs row not registered this session.
+
+        Delegates to ``TelemetryRepository.clear_stale_job_timing`` via ``DatabaseService.submit``.
+
+        Args:
+            live_job_ids: ``id`` of every job registered this session. Empty clears every row.
+        """
+        await self.hassette.database_service.submit(self.repository.clear_stale_job_timing(live_job_ids))
+
     async def mark_listener_cancelled(self, db_id: int) -> None:
         """Set ``removed_at`` on the listeners row to persist durable removal state.
 
