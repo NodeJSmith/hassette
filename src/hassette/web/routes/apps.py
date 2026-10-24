@@ -93,8 +93,9 @@ def source_not_found(app_key: str) -> WebApiError:
 
 
 def _generic_action_failure_detail(action: AppAction, app_key: str) -> str:
-    """Shared fallback 500 detail for an action failure with no more specific message —
-    used both when ``operation()`` itself raises and when a swallowed failure's
+    """Shared fallback 500 detail for an action failure with no more specific message.
+
+    Used both when ``operation()`` itself raises and when a swallowed failure's
     ``error_message`` is empty (see ``_failed_target_instances``).
     """
     return f"Failed to {action} app {app_key!r}"
@@ -118,7 +119,9 @@ def _require_no_action_in_progress(app_key: str, hassette: HassetteDep) -> None:
 
 
 def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction) -> bool:
-    """An app with no manifest is only ever treated as "known" via its still-running instances
+    """Return whether an app with no manifest may proceed with ``action``.
+
+    An app with no manifest is only ever treated as "known" via its still-running instances
     for ``stop`` — ``AppLifecycleService.stop_instance()``/``_stop_app_unlocked()`` are
     deliberately permissive for an orphaned app (manifest gone from config, but the registry
     still has running instances), so the route lets the request through to match. ``start`` and
@@ -231,8 +234,9 @@ async def _run_app_action(
     operation: Callable[[], Awaitable[object]],
     instance_index: int | None = None,
 ) -> ActionResponse:
-    """Run one app lifecycle action behind the validation, error mapping, and logging every
-    start/stop/reload endpoint shares.
+    """Run one app lifecycle action behind the shared validation, error mapping, and logging.
+
+    Every start/stop/reload endpoint goes through this.
 
     ``AppBootstrapNotReleasedError`` maps to a retryable 409. It is only reachable from
     start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint's
@@ -277,8 +281,9 @@ async def _run_app_action(
 
 
 async def _await_operation(action: AppAction, app_key: str, operation: Callable[[], Awaitable[object]]) -> None:
-    """Await ``operation`` and map the exceptions it can raise to their problem codes
-    (see ``_run_app_action`` for why each mapping exists).
+    """Await ``operation`` and map the exceptions it can raise to their problem codes.
+
+    See ``_run_app_action`` for why each mapping exists.
     """
     try:
         await operation()

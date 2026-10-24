@@ -38,6 +38,9 @@ async def reset_state_proxy(proxy: "StateProxy", *, require_initial_state_capabi
 
     Args:
         proxy: The StateProxy instance to reset
+        require_initial_state_capability: When the websocket is connected, wait for the proxy's
+            initial state capability after re-initializing (raising ``TimeoutError`` if it never
+            arrives). Pass ``False`` to skip the wait.
 
     """
     await proxy.shutdown()
@@ -131,8 +134,7 @@ def _reject_if_active_or_reported(resource: "Resource") -> None:
 
 
 def _reject_tree_if_active_or_reported(resource: "Resource") -> None:
-    """Validate ``resource`` and every current descendant before any shutdown/ready state is
-    mutated.
+    """Validate ``resource`` and every current descendant before any shutdown/ready state is mutated.
 
     ``reset_hassette_lifecycle()`` calls this on the whole tree after restoring ``children`` to
     an ``original_children`` snapshot (if given) but before clearing ``shutdown_event`` or any
@@ -150,8 +152,9 @@ def _reject_tree_if_active_or_reported(resource: "Resource") -> None:
 
 
 def reset_resource_flags(resource: "Resource") -> None:
-    """Recursively reset a not-yet-started shutdown request on all descendants of a resource
-    (not the resource itself).
+    """Recursively reset a not-yet-started shutdown request on all descendants of a resource.
+
+    The resource itself is not reset.
 
     Assumes the whole tree was already validated up front by
     ``_reject_tree_if_active_or_reported()`` (called from ``reset_hassette_lifecycle()`` after

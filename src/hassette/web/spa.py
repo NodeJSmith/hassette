@@ -194,8 +194,9 @@ class SpaShell:
 
 
 def load_spa_shell(spa_dir: Path) -> SpaShell | None:
-    """Read the built ``index.html`` and check the build is servable: the file is readable, carries the base marker,
-    and has an ``assets/`` directory beside it.
+    """Read the built ``index.html`` and check the build is servable.
+
+    Servable means the file is readable, carries the base marker, and has an ``assets/`` directory beside it.
 
     Returns:
         The shell, or ``None`` (after logging an ERROR) when ``index.html`` or ``assets/`` is missing, the

@@ -263,8 +263,9 @@ class AsyncCache:
         await self._write_conn.commit()
 
     async def close(self) -> None:
-        """Close both ``aiosqlite`` connections. Attempts both even if one fails; logs and
-        raises the first close error encountered, if any.
+        """Close both ``aiosqlite`` connections.
+
+        Attempts both even if one fails; logs and raises the first close error encountered, if any.
         """
         await self._close_connections()
 
