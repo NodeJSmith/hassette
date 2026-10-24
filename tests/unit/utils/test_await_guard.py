@@ -439,7 +439,7 @@ def test_handle_held_alive_does_not_warn_immediately():
     """A handle stored on an object does not warn while the object is reachable."""
 
     class _Holder:
-        pass
+        sub: object
 
     holder = _Holder()
     holder.sub = _make_handle()
@@ -510,5 +510,5 @@ def test_app_config_forgotten_await_behavior_accepts_enum():
 
 def test_app_config_forgotten_await_behavior_accepts_string():
     """AppConfig forgotten_await_behavior coerces string values to enum."""
-    config = AppConfig(forgotten_await_behavior="error")
+    config = AppConfig(forgotten_await_behavior="error")  # pyright: ignore[reportArgumentType]
     assert config.forgotten_await_behavior == ForgottenAwaitBehavior.ERROR

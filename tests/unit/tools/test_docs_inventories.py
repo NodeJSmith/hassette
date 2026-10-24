@@ -2,6 +2,7 @@ import importlib.util
 import io
 import urllib.error
 import urllib.request
+from email.message import Message
 from pathlib import Path
 
 import pytest
@@ -69,7 +70,7 @@ def test_check_names_changed_and_missing_copies_without_writing(
 @pytest.mark.parametrize(
     "failure",
     [
-        urllib.error.HTTPError("https://alpha.test/objects.inv", 429, "Too Many Requests", {}, None),
+        urllib.error.HTTPError("https://alpha.test/objects.inv", 429, "Too Many Requests", Message(), None),
         b"<html>rate limited</html>",
     ],
     ids=["http-429", "not-an-inventory"],

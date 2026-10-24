@@ -74,7 +74,7 @@ class TestProblemResponse:
         assert response.status_code == 404
         assert response.media_type == "application/problem+json"
         assert response.headers["x-a"] == "1"
-        assert json.loads(response.body) == {
+        assert json.loads(bytes(response.body)) == {
             "type": "about:blank",
             "title": "Not Found",
             "status": 404,
@@ -85,7 +85,7 @@ class TestProblemResponse:
     def test_status_outside_the_title_table_gets_a_generic_title(self) -> None:
         response = problem_response(ProblemCode.HTTP_ERROR, "odd", status=499)
 
-        assert json.loads(response.body)["title"] == "Error"
+        assert json.loads(bytes(response.body))["title"] == "Error"
 
 
 class TestProblemResponses:

@@ -223,14 +223,7 @@
         "tests/unit/test_types.py",
         "tests/unit/test_url_utils.py",
         "tests/unit/test_ws_models.py",
-        "tests/unit/tools/test_check_duplicate_code.py",
-        "tests/unit/tools/test_docs_inventories.py",
-        "tests/unit/utils/test_await_guard.py",
-        "tests/unit/web/test_config_view.py",
-        "tests/unit/web/test_errors.py",
         "tests/unit/web/test_mappers.py",
-        "tests/unit/web/test_spa.py",
-        "tests/unit/web/test_telemetry_helpers.py",
         "wire/tests/test_lenient.py"
     ],
     // pytest fixtures are registered by decorator and never referenced by name.
