@@ -122,8 +122,9 @@ class AppFullSnapshot:
 
 
 def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:
-    """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``,
-    ``degraded``).
+    """Count manifests by status.
+
+    Statuses counted: ``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``, ``degraded``.
 
     Unrecognized status values are silently skipped rather than raising a ``KeyError`` — this
     tallies manifests from both the in-memory registry (status always one of the known values)

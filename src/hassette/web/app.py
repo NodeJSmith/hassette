@@ -67,8 +67,9 @@ SPA_PATH_CONVERTOR = "hassette_spa_path"
 
 
 class SpaPathConvertor(Convertor[str]):
-    """Matches every path except the API prefix, so unknown ``/api`` paths get the router's own
-    404 (and real 405s survive) whether or not the SPA is served.
+    """Matches every path except the API prefix.
+
+    Unknown ``/api`` paths get the router's own 404 (and real 405s survive) whether or not the SPA is served.
     """
 
     regex = rf"(?!{re.escape(API_PREFIX.removeprefix('/'))}(?:/|$)).*"

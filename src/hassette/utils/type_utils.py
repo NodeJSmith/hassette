@@ -148,7 +148,9 @@ def is_optional(tp: Any) -> bool:
 
 
 def normalize_constructible(tp: Any) -> Any:
-    """If tp is typing.List[int] / typing.Dict[str,int] / etc, normalize to
+    """Normalize typing aliases like typing.List[int] to builtin generics like list[int].
+
+    If tp is typing.List[int] / typing.Dict[str,int] / etc, normalize to
     list[int] / dict[str,int] when possible. Otherwise return tp unchanged.
     """
     origin = get_origin(tp)
