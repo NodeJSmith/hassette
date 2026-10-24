@@ -264,3 +264,6 @@ coverage.system.xml
 
 # per-machine hassette config overlay
 *.local.toml
+
+# pytest-benchmark saved runs (nox -s benchmarks)
+.benchmarks/
