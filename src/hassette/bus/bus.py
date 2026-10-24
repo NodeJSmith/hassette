@@ -243,9 +243,8 @@ class Bus(Resource):
     def on_error(self, handler: "BusErrorHandlerType") -> None:
         """Register an app-level error handler for this bus.
 
-        The handler is called when any listener on this bus raises an exception
-        (including ``TimeoutError``) and the listener does not have its own
-        per-registration error handler.
+        The handler is called when any listener on this bus raises an exception (including ``TimeoutError``) and
+        the listener does not have its own per-registration error handler.
 
         This is an app-level fallback — it is resolved at dispatch time, not at listener
         registration time. A later call to ``on_error()`` replaces any previously registered
@@ -586,9 +585,8 @@ class Bus(Resource):
         if source_tier not in ("app", "framework"):
             raise ValueError(f"Invalid source_tier={source_tier!r} on {parent.class_name}")
 
-        # Tier-aware default (see resolve_execution_mode): framework listeners default to
-        # ``parallel`` to preserve supervisor/state-cache concurrency; app listeners default to
-        # ``single``.
+        # Tier-aware default (see resolve_execution_mode): framework listeners default to ``parallel`` to
+        # preserve supervisor/state-cache concurrency; app listeners default to ``single``.
         resolved_mode = resolve_execution_mode(mode, source_tier)
 
         handler_name = callable_name(handler)
@@ -1777,12 +1775,7 @@ def build_state_preds(
     changed_from: Any,
     changed_to: Any,
 ) -> "tuple[list[Predicate], list[Predicate]]":
-    """Build the predicates for a state-change subscription on ``entity_id``.
-
-    Returns:
-        A ``(preds, hold_preds)`` pair: the predicates every matching event must pass, and the
-        subset re-checked while a duration hold is running (entity match plus ``changed_to``).
-    """
+    """Return ``(preds, hold_preds)`` for a state-change listener; ``hold_preds`` re-check a duration hold."""
     return _build_preds(
         entity_id,
         changed=changed,
@@ -1803,12 +1796,7 @@ def build_attr_preds(
     changed_from: Any,
     changed_to: Any,
 ) -> "tuple[list[Predicate], list[Predicate]]":
-    """Build the predicates for an attribute-change subscription on ``attr`` of ``entity_id``.
-
-    Returns:
-        A ``(preds, hold_preds)`` pair: the predicates every matching event must pass, and the
-        subset re-checked while a duration hold is running (entity match plus ``changed_to``).
-    """
+    """Return ``(preds, hold_preds)`` for an attribute-change listener; ``hold_preds`` re-check a duration hold."""
     return _build_preds(
         entity_id,
         changed=changed,
