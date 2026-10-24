@@ -7,7 +7,7 @@ handles them correctly.
 """
 
 from enum import StrEnum
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 import pytest
 from pydantic import Field
@@ -17,6 +17,9 @@ from hassette.conversion.type_registry import TypeRegistry
 from hassette.exceptions import UnableToConvertValueError
 from hassette.models.states.base import AttributesBase, BaseState, BoolBaseState, NumericBaseState, StringBaseState
 from hassette.testing import make_state_dict, make_typed_state
+
+if TYPE_CHECKING:
+    from hassette.events import HassStateDict
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +89,7 @@ class TestCustomStateWithAttributes:
 
     def test_try_convert_state_populates_typed_attributes(self) -> None:
         raw = make_state_dict("plant.fern", "ok", {"moisture": 42, "conductivity": 300})
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is PlantState
         assert isinstance(state.attributes, PlantAttributes)
         assert state.attributes.moisture == 42
@@ -118,40 +121,40 @@ class TestCustomStateValueCoercion:
 
     def test_custom_bool_state_coerces_on_to_true(self) -> None:
         raw = make_state_dict("custom_bool_test.switch1", "on")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is CustomBoolState
         assert state.value is True
 
     def test_custom_bool_state_coerces_off_to_false(self) -> None:
         raw = make_state_dict("custom_bool_test.switch1", "off")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is CustomBoolState
         assert state.value is False
 
     def test_custom_numeric_state_coerces_string_to_number(self) -> None:
         raw = make_state_dict("custom_numeric_test.gauge", "42.5")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is CustomNumericState
         assert state.value == 42.5
         assert isinstance(state.value, float)
 
     def test_custom_numeric_state_integer_string(self) -> None:
         raw = make_state_dict("custom_numeric_test.gauge", "100")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is CustomNumericState
         assert state.value == 100
         assert isinstance(state.value, int)
 
     def test_custom_state_unknown_normalization(self) -> None:
         raw = make_state_dict("custom_bool_test.switch1", "unknown")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is CustomBoolState
         assert state.value is None
         assert state.is_unknown is True
 
     def test_custom_state_unavailable_normalization(self) -> None:
         raw = make_state_dict("custom_numeric_test.gauge", "unavailable")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is CustomNumericState
         assert state.value is None
         assert state.is_unavailable is True
@@ -168,13 +171,13 @@ class TestCustomEnumValueType:
 
     def test_custom_enum_coercion_via_try_convert_state(self, robot_mode_converter: None) -> None:
         raw = make_state_dict("custom_robot_test.vacuum", "idle")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is RobotState
         assert state.value == RobotMode.IDLE
 
     def test_custom_enum_unknown_yields_none(self, robot_mode_converter: None) -> None:
         raw = make_state_dict("custom_robot_test.vacuum", "unknown")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is RobotState
         assert state.value is None
         assert state.is_unknown is True
@@ -182,7 +185,7 @@ class TestCustomEnumValueType:
     def test_without_converter_uses_constructor_fallback(self) -> None:
         assert (str, RobotMode) not in TypeRegistry.conversion_map
         raw = make_state_dict("custom_robot_test.vacuum", "cleaning")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is RobotState
         assert state.value == RobotMode.CLEANING
 

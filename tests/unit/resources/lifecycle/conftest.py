@@ -1,6 +1,7 @@
 """Shared helpers for lifecycle propagation tests."""
 
 import asyncio
+from typing import TypeVar
 from unittest.mock import AsyncMock
 
 from hassette.resources.base import Resource
@@ -8,6 +9,8 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
+
+ResourceT = TypeVar("ResourceT", bound=Resource)
 
 __all__ = [
     "ConcreteResource",
@@ -80,8 +83,8 @@ class SimpleService(Service):
 
 
 def make_parent_with_child(
-    order_list: list, child_cls: type[Resource], hassette: AsyncMock | None = None
-) -> tuple[SimpleParent, Resource]:
+    order_list: list, child_cls: type[ResourceT], hassette: AsyncMock | None = None
+) -> tuple[SimpleParent, ResourceT]:
     """Clear `order_list`, build a `SimpleParent`, and attach one `child_cls` child.
 
     Callers needing more than one child add the rest with `parent.add_child(...)` after.

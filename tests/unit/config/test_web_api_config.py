@@ -40,19 +40,19 @@ class TestSessionTtlConstraint:
 
 class TestAuthTokenMasking:
     def test_auth_token_is_secret_str(self) -> None:
-        config = WebApiConfig(auth_token="super-secret-token")
+        config = WebApiConfig.model_validate({"auth_token": "super-secret-token"})
         assert isinstance(config.auth_token, SecretStr)
 
     def test_auth_token_not_in_repr(self) -> None:
-        config = WebApiConfig(auth_token="super-secret-token")
+        config = WebApiConfig.model_validate({"auth_token": "super-secret-token"})
         assert "super-secret-token" not in repr(config)
 
     def test_auth_token_not_in_str(self) -> None:
-        config = WebApiConfig(auth_token="super-secret-token")
+        config = WebApiConfig.model_validate({"auth_token": "super-secret-token"})
         assert "super-secret-token" not in str(config)
 
     def test_auth_token_unwraps_via_get_secret_value(self) -> None:
-        config = WebApiConfig(auth_token="super-secret-token")
+        config = WebApiConfig.model_validate({"auth_token": "super-secret-token"})
         assert config.auth_token is not None
         assert config.auth_token.get_secret_value() == "super-secret-token"
 

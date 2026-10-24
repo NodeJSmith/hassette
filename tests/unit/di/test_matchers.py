@@ -8,7 +8,7 @@ from typing import Annotated, Any
 import pytest
 
 from hassette.di import AnnotatedMatcher, AnnotationDetails, InjectionParam, TypeMatcher
-from hassette.events import AnyEvent, CallServiceEvent, Event, RawStateChangeEvent
+from hassette.events import AnyEvent, CallServiceEvent, Event, EventPayload, RawStateChangeEvent
 from hassette.utils.type_utils import get_typed_signature
 
 
@@ -59,7 +59,7 @@ class TestTypeMatcher:
         assert result.extractor(sentinel) is sentinel
 
     def test_unwraps_parameterized_generic(self):
-        def handler(event: "Event[str]"):
+        def handler(event: "Event[EventPayload[Any]]"):
             pass
 
         matcher = TypeMatcher(Event)
