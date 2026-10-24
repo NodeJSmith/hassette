@@ -19,6 +19,7 @@ from hassette.logging_ import (
     LogPersistenceHandler,
 )
 from tests.support.factories import make_log_record, make_recording_log_capture_handler
+from tests.support.helpers import sealed_fallback_task_factory
 from tests.support.mock_hassette import make_mock_hassette
 
 EXTRA_LOGGER_NAME = "my_app.notify"
@@ -346,6 +347,22 @@ class TestLoggingServiceOnShutdown:
         listener_thread = queue_listener._thread  # pyright: ignore[reportAttributeAccessIssue]
         if listener_thread is not None:
             assert not listener_thread.is_alive()
+
+    async def test_on_shutdown_stops_listener_when_the_loops_fallback_bucket_is_sealed(
+        self, track_service: TrackService
+    ) -> None:
+        """The QueueListener still stops at exit, after the root's TaskBucket (the loop's fallback) is sealed.
+
+        Only fails without the fix on Python 3.11, where ``asyncio.wait_for`` wraps its awaitable in a task.
+        """
+        svc = track_service(await make_initialized_logging_service())
+        queue_listener = svc._queue_listener
+        assert queue_listener is not None
+
+        with patch.object(queue_listener, "stop", wraps=queue_listener.stop) as stop, sealed_fallback_task_factory():
+            await svc.on_shutdown()
+
+        stop.assert_called_once()
 
     async def test_on_shutdown_sets_capture_handler_shutting_down(self, track_service: TrackService) -> None:
         """capture_handler.shutting_down is set to True during shutdown."""

@@ -23,7 +23,7 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.testing import EventCapture
 from hassette.types import Topic
 from tests.support.factories import make_mock_parent
-from tests.support.helpers import noop
+from tests.support.helpers import noop, sealed_fallback_task_factory
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import app_state_payloads, make_mock_app_instance, set_registry_apps
@@ -603,6 +603,20 @@ class TestShutdownAll:
         set_registry_apps(mock_registry, {"app1": {0: app1}, "app2": {0: app2}})
 
         await lifecycle_service.shutdown_all()
+
+        app1.shutdown.assert_awaited_once()
+        app2.shutdown.assert_awaited_once()
+
+    async def test_stops_apps_when_the_loops_fallback_bucket_is_sealed(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """App stops still run at exit, when the root's sealed TaskBucket is the loop's task-factory fallback."""
+        app1 = make_mock_app_instance(instance_name="app1")
+        app2 = make_mock_app_instance(instance_name="app2")
+        set_registry_apps(mock_registry, {"app1": {0: app1}, "app2": {0: app2}})
+
+        with sealed_fallback_task_factory():
+            await lifecycle_service.shutdown_all()
 
         app1.shutdown.assert_awaited_once()
         app2.shutdown.assert_awaited_once()

@@ -2,7 +2,7 @@
 
 import asyncio
 import typing
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from logging import Logger
 from timeit import default_timer as timer
 
@@ -290,7 +290,7 @@ class AppInstanceLifecycleMixin:
             await self.hassette.send_event(event)
             return await self.shutdown_instance(inst, idx, deadline=deadline)
 
-        reports = await gather_all(stop_one(idx, inst) for idx, inst in instances.items())
+        reports = await gather_all((stop_one(idx, inst) for idx, inst in instances.items()), name="app:stop_instance")
         return merge_teardown_reports(*(report for report in reports if report is not None))
 
     async def shutdown_all(self, *, deadline: float | None = None) -> TeardownReport:
@@ -306,7 +306,10 @@ class AppInstanceLifecycleMixin:
             for app_key in self.registry.app_keys()
             for idx, inst in self.registry.get_running_apps(app_key).items()
         ]
-        reports = await gather_all(self.shutdown_instances({idx: inst}, deadline=deadline) for idx, inst in instances)
+        reports = await gather_all(
+            (self.shutdown_instances({idx: inst}, deadline=deadline) for idx, inst in instances),
+            name="app:shutdown_all",
+        )
         self.registry.clear_all()
         return merge_teardown_reports(*reports) if reports else TeardownReport()
 
@@ -324,12 +327,15 @@ class AppInstanceLifecycleMixin:
         await self.hassette.send_event(event)
 
 
-async def gather_all(aws: Iterable[Awaitable[T]]) -> list[T]:
-    """Await every awaitable to the end, then re-raise the first exception any of them raised.
+async def gather_all(coros: Iterable[Coroutine[typing.Any, typing.Any, T]], *, name: str) -> list[T]:
+    """Run every coroutine to the end, then re-raise the first exception any of them raised.
 
-    Unlike a plain ``asyncio.gather``, no awaitable is left running detached after another one raised.
+    Unlike a plain ``asyncio.gather``, no coroutine is left running detached after another one raised.
+    Each runs in a ``create_lifecycle_task()`` task: at exit the root's TaskBucket is sealed and is the
+    loop's task-factory fallback, so the tasks ``asyncio.gather`` would create itself are rejected.
     """
-    results = await asyncio.gather(*aws, return_exceptions=True)
+    tasks = [create_lifecycle_task(coro, name=name) for coro in coros]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:
         if isinstance(result, BaseException):
             raise result

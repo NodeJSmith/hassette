@@ -420,9 +420,9 @@ def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> Non
 def create_lifecycle_task(coro: "Coroutine[Any, Any, Any]", *, name: str) -> asyncio.Task:
     """Create a lifecycle-owned task outside TaskBucket ownership.
 
-    Not module-private despite the plain name -- ``Resource._shutdown_children()`` (base.py)
-    and ``Hassette._shutdown_children()`` (core.py) also use this to create each child's
-    ``shutdown()`` task, for the same reason the coordinator/body tasks below need it: those
+    Not module-private despite the plain name -- ``shutdown_batch()`` (operations.py) and
+    ``gather_all()`` (core/app_lifecycle_instances.py) also use this to create each task they
+    gather at exit, for the same reason the coordinator/body tasks below need it: those
     calls happen after ``_run_task_bucket_shutdown_stage()`` has already sealed the resource's
     own TaskBucket, and for the root resource that bucket is also the loop's global fallback
     bucket (see ``make_task_factory``). Letting ``asyncio.gather()`` create those child-shutdown

@@ -210,7 +210,10 @@ class DatabaseWriteQueueMixin:
         deadline = asyncio.get_running_loop().time() + timeout
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         try:
-            await asyncio.wait_for(queue.put((coro, future)), timeout=timeout)
+            # asyncio.timeout, not wait_for: the session finalize submits after the TaskBucket seal
+            # (see "No implicit task creation at exit" in .claude/rules/resource-lifecycle.md)
+            async with asyncio.timeout(timeout):
+                await queue.put((coro, future))
         except TimeoutError:
             coro.close()
             future.cancel()

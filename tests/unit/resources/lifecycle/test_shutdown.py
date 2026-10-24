@@ -25,9 +25,8 @@ from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.task_bucket import make_task_factory
 from hassette.testing import wait_for
-from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS, sealed_fallback_task_factory
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
@@ -818,14 +817,9 @@ async def test_shutdown_children_survives_root_bucket_sealed_as_global_factory_b
     parent = SimpleParent(hassette)
     child = parent.add_child(ShutdownCounter)
 
-    loop = asyncio.get_running_loop()
-    previous_factory = loop.get_task_factory()
-    loop.set_task_factory(make_task_factory(parent.task_bucket))  # pyright: ignore[reportArgumentType]
-    try:
+    with sealed_fallback_task_factory(parent.task_bucket):
         await parent.initialize()
         report = await parent.shutdown()
-    finally:
-        loop.set_task_factory(previous_factory)
 
     assert report.is_restart_safe is True, f"expected a clean report, got causes={report.causes}"
     assert child.shutdown_count == 1, "child's on_shutdown must have actually run"
