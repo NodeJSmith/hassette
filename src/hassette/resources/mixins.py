@@ -11,7 +11,6 @@ from hassette.resources.teardown import TeardownReport
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
-    from hassette.resources.shutdown_budget import ShutdownBudget
     from hassette.types.enums import ResourceRole
 
 LOGGER = getLogger(__name__)
@@ -93,8 +92,7 @@ class _TaskBucketP(Protocol):
 
 
 class _LifecycleConfigP(Protocol):
-    resource_shutdown_timeout_seconds: float
-    total_shutdown_timeout_seconds: float
+    shutdown_timeout_seconds: float
     task_cancellation_timeout_seconds: float
 
 
@@ -189,15 +187,23 @@ class LifecycleMixin(_LifecycleHostP):
     ``False`` has no in-process reset path.
     """
 
-    _shutdown_budget: "ShutdownBudget | None" = None
-    """Pre-computed budget allocation for the current shutdown attempt.
+    _shutdown_deadline: float | None = None
+    """Absolute loop time by which the current shutdown attempt's operation must finish.
 
-    Set once by ``_run_shutdown_coordinator()`` (``hassette.resources.lifecycle``) via
-    ``shutdown_budget.compute_shutdown_budget()`` before any shutdown stage runs. Each stage reads its own
-    field (hooks read ``hooks_pool_deadline``, task-cancel reads ``task_cancel_seconds``, etc.)
-    instead of computing a fraction of a shrinking remainder. ``None`` means no shutdown
-    attempt has set a budget yet (e.g. a direct ``cleanup()`` call outside the normal
-    coordinator flow, as some tests do).
+    Set by the operation's owner before it calls ``shutdown()`` (the root for each exit stage,
+    ``AppLifecycleService`` for a runtime instance operation) and passed down to children; a caller
+    joining an attempt in flight can only tighten it (``shutdown_deadline.tighten_shutdown_deadline()``).
+    Leaves clamp their own bounds to it. ``None`` means no owner set one: leaves keep their own caps
+    and interior nodes wait without a bound. Reset when an accepted initialization consumes the
+    previous attempt.
+    """
+
+    shutdown_hook_timeout_applies: typing.ClassVar[bool] = True
+    """Whether ``shutdown_timeout_seconds`` bounds this resource's shutdown hooks.
+
+    ``False`` only for the foundation services the root stops in its foundation stage, whose
+    framework steps carry fixed caps of their own; their hooks are bounded by the stage's deadline
+    alone.
     """
 
     _previous_status: ResourceStatus = ResourceStatus.NOT_STARTED
@@ -217,7 +223,7 @@ class LifecycleMixin(_LifecycleHostP):
         self._shutdown_task = None
         self._shutdown_body_task = None
         self._teardown_report = None
-        self._shutdown_budget = None
+        self._shutdown_deadline = None
 
     @property
     def shutting_down(self) -> bool:

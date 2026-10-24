@@ -157,11 +157,9 @@ Sync handlers, sync jobs, and App sync lifecycle hooks run on a dedicated thread
 | `sync_executor_saturation_warn_threshold` | `0.75` | Fraction of the pool that must be occupied before the saturation WARNING fires. |
 | `sync_executor_saturation_warn_rate_limit_seconds` | `30.0` | Minimum seconds between repeated saturation WARNINGs. |
 
-The shutdown budget (`sync_executor_shutdown_timeout_seconds`) is documented in the [Startup and Shutdown Timeouts](#startup-and-shutdown-timeouts) table below.
-
 When the pool nears its ceiling (≥ `sync_executor_saturation_warn_threshold`, 75% by default), Hassette logs a rate-limited WARNING at most once every `sync_executor_saturation_warn_rate_limit_seconds` (30s by default). The WARNING fires on submission and from a periodic background probe, so it appears even when the pool is fully starved and no new work is being submitted. A lower threshold provides earlier headroom alerts on quiet instances. A higher rate-limit window reduces repeated WARNINGs on busy instances that operate near the ceiling by design.
 
-At shutdown, Hassette joins workers within the budget. Threads still alive after the join attempt receive `SystemExit` (best-effort — C-blocked threads such as `time.sleep()` or native I/O cannot be interrupted at the Python level and are abandoned when the budget expires). Shutdown still completes within `total_shutdown_timeout_seconds` regardless.
+At shutdown, Hassette joins workers for up to 10 seconds (`SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS`). Threads still alive after the join attempt receive `SystemExit`. That is best-effort: C-blocked threads such as `time.sleep()` or native I/O can't be interrupted at the Python level. A thread that survives the join is logged at ERROR, and Hassette exits without waiting for it (see [How shutdown is bounded](#how-shutdown-is-bounded)).
 
 ## Startup and Shutdown Timeouts
 
@@ -171,13 +169,34 @@ Hassette starts its internal components — database, WebSocket connection, bus,
 |---|---|---|
 | `startup_timeout_seconds` | 30s | Each startup wave. Must be ≥ `app_startup_timeout_seconds`, since app readiness is part of a wave. |
 | `app_startup_timeout_seconds` | 20s | A single app's `on_initialize`. A slow app times out individually without failing the whole wave budget. |
-| `app_shutdown_timeout_seconds` | 10s | A single app's `on_shutdown`. |
-| `resource_shutdown_timeout_seconds` | = app shutdown | Each non-app resource's shutdown phase. |
-| `total_shutdown_timeout_seconds` | 30s | The entire shutdown, hooks and propagation included. |
-| `sync_executor_shutdown_timeout_seconds` | 10s | Budget for joining and interrupting sync-handler worker threads. Must be less than `total_shutdown_timeout_seconds`. |
+| `shutdown_timeout_seconds` | 10s | Each shutdown hook: an app's `before_shutdown`, `on_shutdown` and `after_shutdown`, and each framework component's. |
+| `total_shutdown_timeout_seconds` | 45s | The entire shutdown. Must be more than the foundation stage's fixed 20 seconds. |
 | `task_cancellation_timeout_seconds` | 5s | Waiting for cancelled tasks to finish before they are abandoned. |
 
 Apps that fetch external data or open slow connections in `on_initialize` are the common reason to raise `app_startup_timeout_seconds` — and `startup_timeout_seconds` with it. The shutdown ceilings matter on constrained hardware where cleanup runs slowly; raising them trades slower restarts for cleaner teardown.
+
+### How shutdown is bounded
+
+Shutdown runs in two stages:
+
+1. **Stop stage.** Apps and every framework component except the database and the worker threads stop here. Apps stop concurrently, so a slow app never shortens another app's hooks. The stage gets `total_shutdown_timeout_seconds` minus the foundation stage's budget: 25 seconds by default.
+2. **Foundation stage.** The session record is finalized, the database drains and closes, and the worker threads join. This stage has a fixed 20-second budget (`FOUNDATION_SHUTDOWN_BUDGET_SECONDS`) and runs even when the stop stage ran out of time.
+
+Last, Hassette writes the [shutdown snapshot](../getting-started/addon/operating.md#backups), if one is configured. Nothing bounds the snapshot copy.
+
+Each hook gets `shutdown_timeout_seconds`, or less when its stage has less time left. A hook that outlives its bound is cancelled. `AppSync`'s shutdown hooks (`before_shutdown_sync`, `on_shutdown_sync`, `after_shutdown_sync`) share the worker-thread pool, so when more of them run at once than there are workers, the wait for a thread counts against each hook's bound. When a stage runs out of time, Hassette stops waiting: it force-terminates whatever hasn't finished and logs one ERROR naming each component.
+
+Stopping or reloading a single app at runtime gets the same limit as the stop stage. A stop that runs past it ends as a failed, timed-out stop, and the app's listeners and jobs are removed.
+
+When Hassette force-terminated work at any point, or worker threads survived the join, `hassette run` exits as soon as shutdown finishes. It logs one ERROR naming what was left, and doesn't wait for that work. A process supervisor would otherwise have to kill it. An exit whose only problem is abandoned work still exits 0.
+
+!!! warning "Give your supervisor more time than Hassette needs"
+    Set your supervisor's stop grace period above `total_shutdown_timeout_seconds` plus time for the snapshot. The Docker compose example uses 60 seconds for the 45-second default. A shorter grace period kills Hassette mid-shutdown, which can skip the session record and leave the previous snapshot in place.
+
+!!! warning "Upgrading from the old shutdown settings"
+    `app_shutdown_timeout_seconds`, `resource_shutdown_timeout_seconds` and `sync_executor_shutdown_timeout_seconds` no longer exist. A config that still sets one fails to load, and Hassette won't start until you remove it. Use `shutdown_timeout_seconds` for the per-hook bound.
+
+    `total_shutdown_timeout_seconds` now includes the foundation stage's fixed 20 seconds, so an explicit value leaves 20 seconds less for stopping apps than it used to. A config that set it to 30 gets a 10-second stop stage. A supervisor grace period of 45 seconds, which older versions of the compose example used, can kill Hassette before the shutdown snapshot is written; use 60.
 
 ## Scheduler Cadence
 

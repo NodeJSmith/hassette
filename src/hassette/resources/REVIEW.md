@@ -9,7 +9,7 @@ That spawn runs in a different task, so the direct task check would miss it.
 
 ## Force-Terminal Report Storage
 `_force_terminal()` in `src/hassette/resources/base.py` stores a teardown report
-(lines 379-385) before cancelling `_shutdown_task`. The coordinator cannot store
+before cancelling `_shutdown_task`. The coordinator cannot store
 a report before the shutdown work that produces it. Does `_force_terminal()`
 always store its report before issuing the cancellation, and does the
 coordinator merge against that report rather than assuming it owns all storage?
@@ -27,3 +27,11 @@ the resource's status is already in `TERMINAL_STATUSES` from
 `src/hassette/types/enums.py`. Does `TERMINAL_STATUSES` include every status where
 a late failure should be dropped (`STOPPED`, `EXHAUSTED_DEAD`), or could a resource
 in `EXHAUSTED_COOLING` swallow a failure that should trigger a different outcome?
+
+## Implicit Task Creation After the Seal
+At exit the root's TaskBucket is sealed and is the loop's task-factory fallback, so
+a task created through the loop with no bucket in context is rejected (see
+`create_lifecycle_task()` in `src/hassette/resources/lifecycle.py`). Does code that
+runs in a shutdown hook or a root exit stage call `asyncio.gather()` on bare
+coroutines, or `asyncio.wait_for()` (which wraps its awaitable in a task on Python
+3.11), instead of `create_lifecycle_task()` and `asyncio.timeout()`?

@@ -22,12 +22,13 @@ Does every fatal-outcome path in `ServiceWatcher` (`handle_restart_refused`,
 triggering shutdown (via `request_shutdown()` or `hassette.shutdown()`)? A path
 that triggers shutdown first loses the reason.
 
-## Shutdown Wave Budget
-`_shutdown_children()` in `src/hassette/core/core.py` divides the remaining deadline
-across dependency waves via `children_budget_remaining()` in
-`src/hassette/resources/lifecycle.py`. Does the division account for time already
-consumed by earlier waves, or could early waves eating their floor allocation starve
-the final wave (which holds `DatabaseService` and `SyncExecutorService`)?
+## Shutdown Deadlines
+Shutdown deadlines are owned by operations (`src/hassette/resources/shutdown_deadline.py`): the
+root's stop and foundation stages in `src/hassette/core/core.py`, and the entry deadline in
+`src/hassette/core/app_lifecycle_instances.py`. Does new shutdown work bound itself only as a leaf
+(its own cap clamped to the deadline), leaving interior waits unbounded and walking away to those two
+owners? Does anything added to the foundation stage fit inside `FOUNDATION_SHUTDOWN_BUDGET_SECONDS`,
+and does work a walk-away leaves running get recorded with `record_force_terminated()`?
 
 ## Tier Processing Parity
 When a maintenance loop in `src/hassette/core/database_service.py` processes

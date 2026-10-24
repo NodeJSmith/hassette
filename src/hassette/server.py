@@ -1,15 +1,62 @@
 """Hassette framework server entry point."""
 
 import asyncio
+import logging
 import os
 import signal
 import threading
+from contextlib import suppress
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
+from hassette.exceptions import AppPrecheckFailedError, ConfigError
 from hassette.resources.lifecycle import request_shutdown
 
 LOGGER = getLogger(__name__)
+
+EX_CONFIG = 78
+"""sysexits.h ``EX_CONFIG``: the configuration must be edited before a restart can succeed.
+
+Raised for a `ConfigError` and for a failed app precheck (an app file must be edited). Supervisors
+key on it (systemd ``RestartPreventExitStatus=78``, the add-on's s6 ``finish`` script).
+"""
+
+
+def exit_code_for(exc: BaseException | None) -> int:
+    """The exit code ``hassette run`` maps a server run's outcome to.
+
+    A clean stop or a keyboard interrupt is 0, a config error or failed app precheck ``EX_CONFIG``, and a
+    fatal error or anything else unexpected 1.
+    """
+    if exc is None or isinstance(exc, KeyboardInterrupt):
+        return 0
+    if isinstance(exc, ConfigError | AppPrecheckFailedError):
+        return EX_CONFIG
+    return 1
+
+
+async def exit_now_if_work_force_terminated(core: Hassette, exc: BaseException | None) -> None:
+    """Hard-exit when a shutdown deadline walked away from work during this process's life.
+
+    The event loop's cancel-and-await at ``asyncio.run()``'s end and the interpreter's thread join would
+    otherwise wait on that work until the supervisor kills the process. An in-flight shutdown snapshot is
+    waited for first, so it isn't cut short. The exit code is the one ``hassette run`` maps the outcome
+    to, so an exit whose only problem is force-terminated work exits 0.
+    """
+    left = core.force_terminated_work
+    if not left:
+        return
+    snapshot = core.shutdown_snapshot_task
+    if snapshot is not None and not snapshot.done():
+        # the snapshot's own done-callback logs its outcome
+        with suppress(BaseException):
+            await asyncio.shield(snapshot)
+    if exc is not None and not isinstance(exc, KeyboardInterrupt):
+        # the hard exit never returns to `hassette run`, whose handlers would otherwise report the failure
+        LOGGER.error("Hassette is exiting after an error: %s", exc, exc_info=exc)
+    LOGGER.error("Exiting without waiting for work shutdown left running: %s", ", ".join(left))
+    logging.shutdown()
+    os._exit(exit_code_for(exc))
 
 
 def _handle_sigint_signal(core: Hassette, loop: asyncio.AbstractEventLoop, sigint_seen: threading.Event) -> None:
@@ -83,4 +130,9 @@ async def main(config: HassetteConfig) -> None:
     else:
         threading.Thread(target=_sigint_wait_loop, args=(core, loop, sigint_seen), daemon=True).start()
 
-    await core.run_forever()
+    try:
+        await core.run_forever()
+    except BaseException as exc:
+        await exit_now_if_work_force_terminated(core, exc)
+        raise
+    await exit_now_if_work_force_terminated(core, None)

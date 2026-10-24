@@ -165,13 +165,12 @@ class LoggingService(Resource):
 
         self.logger.debug("LoggingService shutting down — subsequent log records will be console-only")
 
-        # Stop QueueListener via asyncio.to_thread() to avoid blocking the event loop
+        # Stop QueueListener via asyncio.to_thread() to avoid blocking the event loop. asyncio.timeout, not
+        # wait_for: this runs after the TaskBucket seal (see .claude/rules/resource-lifecycle.md)
         if self._queue_listener is not None:
             try:
-                await asyncio.wait_for(
-                    asyncio.to_thread(self._queue_listener.stop),
-                    timeout=_QUEUE_LISTENER_STOP_TIMEOUT_SECONDS,
-                )
+                async with asyncio.timeout(_QUEUE_LISTENER_STOP_TIMEOUT_SECONDS):
+                    await asyncio.to_thread(self._queue_listener.stop)
             except TimeoutError:
                 self.logger.warning(
                     "QueueListener.stop() timed out after %ss during shutdown",

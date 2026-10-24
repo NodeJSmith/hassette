@@ -19,11 +19,13 @@ AppSync hook submits to a closed pool and raises RuntimeError.
 import asyncio
 from typing import TYPE_CHECKING, ClassVar
 
+from hassette.config.models import SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
 from hassette.core.sync_executor import _SATURATION_PROBE_INTERVAL_SECS, SYNC_EXECUTOR_THREAD_NAME_PREFIX
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
+from hassette.resources.shutdown_deadline import clamp_to_shutdown_deadline
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -46,6 +48,8 @@ class SyncExecutorService(Service):
 
     depends_on: ClassVar[list[type[Resource]]] = []
     restart_spec = CORE_PERMANENT_RESTART
+    shutdown_hook_timeout_applies: ClassVar[bool] = False
+    """A foundation service: the root's foundation stage bounds its shutdown, and its join has a fixed cap."""
 
     sync_executor: "SyncExecutor"
     """The SyncExecutor capability instance whose lifecycle this service manages."""
@@ -98,26 +102,16 @@ class SyncExecutorService(Service):
                 self.sync_executor.log_saturation_rate_limited()
 
     async def on_shutdown(self) -> None:
-        """Shut down the thread pool within the configured interruption budget.
+        """Shut down the thread pool within ``SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS``, clamped to the shutdown deadline.
 
         Called by Service.shutdown() after the serve task has been cancelled, so no new
         work can be submitted by the time this runs. ``shutdown_pool`` is a blocking
         call (it joins/interrupts worker threads), so it runs in a worker thread via
-        ``asyncio.to_thread`` to avoid parking the event loop while other services in the
-        shutdown wave finish. The budget is capped at ``resource_shutdown_timeout_seconds``
-        — the per-wave bound on how long this hook may run — so the join/interrupt phase
-        cannot push the wave (and thus the total shutdown) past its budget.
-
-        Note: at default config the two values are equal (both 10s), so the cap is a no-op
-        and the per-wave timeout is the effective backstop. Set
-        ``sync_executor_shutdown_timeout_seconds`` below ``resource_shutdown_timeout_seconds``
-        to give the wave explicit headroom.
+        ``asyncio.to_thread`` to avoid parking the event loop. The join budget is a fixed part of
+        the foundation stage's budget (``FOUNDATION_SHUTDOWN_BUDGET_SECONDS``); threads that survive
+        it are reported by ``SyncExecutor.surviving_threads()``, which the root reads after this stage.
         """
-        lifecycle = self.hassette.config.lifecycle
-        budget = min(
-            lifecycle.sync_executor_shutdown_timeout_seconds,
-            float(lifecycle.resource_shutdown_timeout_seconds),
-        )
+        budget = clamp_to_shutdown_deadline(self, SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS)
         self.logger.debug("Shutting down SyncExecutorService executor (budget=%.1fs)", budget)
         await asyncio.to_thread(self.sync_executor.shutdown_pool, budget)
         self.logger.debug("SyncExecutorService executor shut down")

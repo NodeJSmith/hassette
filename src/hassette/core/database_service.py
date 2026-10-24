@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 import aiosqlite
 from hassette_wire import LogLevel
 
-from hassette.config.models import DatabaseConfig
+from hassette.config.models import SHUTDOWN_DRAIN_TIMEOUT_SECONDS, DatabaseConfig
 from hassette.core.database_failsafe import DatabaseSizeFailsafeMixin
 from hassette.core.database_retention import DatabaseRetentionMixin
 from hassette.core.database_snapshot import write_snapshot
@@ -28,6 +28,7 @@ from hassette.exceptions import SchemaVersionError, WriteQueueUnavailableError
 from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.resources.shutdown_deadline import clamp_to_shutdown_deadline
 from hassette.types.enums import RestartType
 from hassette.utils.aiosqlite_utils import (
     SQLITE_BUSY_TIMEOUT_MS,
@@ -101,6 +102,12 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         fatal_error_names=("SchemaVersionError",),
     )
 
+    shutdown_hook_timeout_applies: ClassVar[bool] = False
+    """A foundation service: the root's foundation stage bounds its shutdown, and its drain has a fixed cap."""
+
+    shutdown_snapshot_task: "asyncio.Task[bool] | None"
+    """The shutdown snapshot's copy, once ``write_shutdown_snapshot()`` started it; the hard exit waits for it."""
+
     _db: aiosqlite.Connection | None
     """The aiosqlite write connection, set during on_initialize."""
 
@@ -159,6 +166,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._db_worker_task = None
         self._write_queue_detached = False
         self._executing_future = None
+        self.shutdown_snapshot_task = None
 
     @property
     def config_log_level(self) -> LogLevel:
@@ -240,7 +248,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         # bucket's cancel_all() runs before wave-based child shutdown begins, killing the worker before
         # on_shutdown() can drain the queue — producing two 10s stalls per test (one in each downstream wave
         # that tries to submit() a write to the dead worker). The worker's lifecycle is managed by
-        # on_shutdown() (drain-and-close) and _force_terminal() (hard cancel on the total-shutdown-timeout path).
+        # on_shutdown() (drain-and-close) and _force_terminal() (hard cancel when a deadline owner walks away).
         self._db_worker_task = create_lifecycle_task(
             run_write_queue_worker(self), name=f"db_write_worker:{self.unique_name}"
         )
@@ -252,7 +260,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 
         ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
         ``Service._force_terminal()``'s ``TaskBucket.cancel_all_sync()`` never reaches it.
-        Without cancelling it here, a total-shutdown-timeout force-terminal call (which skips
+        Without cancelling it here, a force-terminal call from a deadline owner walking away (which skips
         ``on_shutdown()``, the only other place this task is cancelled) leaves the worker
         and its queue/connections running after the process has declared shutdown complete.
 
@@ -327,15 +335,18 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 size_failsafe_attempt = CleanupAttempt(attempted_at=time.monotonic(), enqueued=enqueued)
 
     async def on_shutdown(self) -> None:
-        """Drain the write queue, cancel the worker, close the database connections, then write the shutdown
-        snapshot if one is configured.
+        """Drain the write queue, cancel the worker, and close the database connections.
+
+        The root writes the shutdown snapshot after the foundation stage (``write_shutdown_snapshot()``).
         """
         queue: asyncio.Queue[_WriteQueueItem] | None = None
         try:
             if self._db_worker_task is not None:
                 queue = detach_write_queue(self)
                 if queue is not None:
-                    await self.drain_write_queue(queue)
+                    await self.drain_write_queue(
+                        queue, clamp_to_shutdown_deadline(self, SHUTDOWN_DRAIN_TIMEOUT_SECONDS)
+                    )
                 await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
         except Exception:
@@ -345,21 +356,20 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
             self.close_remaining_queue_items(queue)
-            try:
-                await self.close_connections()
-            finally:
-                await self.write_shutdown_snapshot()
+            await self.close_connections()
 
     async def write_shutdown_snapshot(self) -> None:
-        """Write ``database.shutdown_snapshot_path`` at the end of shutdown, after the drain and close are attempted.
+        """Write ``database.shutdown_snapshot_path``, last in shutdown, after the foundation stage.
 
-        Runs even when draining or closing failed, so the snapshot then holds every write that committed. A
-        failure is logged, never raised: shutdown carries on, and the previous snapshot stays in place.
+        The root calls it even when the drain, the close or the foundation stage itself failed, so the snapshot
+        then holds every write that committed. It opens its own connection to the database file, so the closed
+        service connections don't affect it. A failure is logged, never raised: shutdown carries on, and the
+        previous snapshot stays in place.
 
-        The shutdown hook budget doesn't bound the copy. It runs in a worker thread inside a shielded task, so if
-        the budget cancels this await, the copy still finishes and logs its outcome, and ``asyncio.run`` waits for
-        the thread before the process exits. Only a kill (Supervisor's stop timeout under the add-on) cuts it
-        short, which leaves the previous snapshot in place.
+        Nothing bounds the copy. It runs in a worker thread inside a shielded task kept on
+        ``shutdown_snapshot_task``, so if this await is cancelled the copy still finishes and logs its outcome,
+        and the hard exit waits for it. Only a kill (the supervisor's stop grace period) cuts it short, which
+        leaves the previous snapshot in place.
         """
         snapshot_path = self.hassette.config.database.shutdown_snapshot_path
         if snapshot_path is None:
@@ -370,6 +380,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             name=f"shutdown_snapshot:{self.unique_name}",
         )
         copy.add_done_callback(partial(log_shutdown_snapshot_outcome, self, snapshot_path))
+        self.shutdown_snapshot_task = copy
         # failures are logged by the callback, which also runs if this await is cancelled
         with contextlib.suppress(sqlite3.Error, OSError):
             await asyncio.shield(copy)

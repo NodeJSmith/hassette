@@ -24,7 +24,7 @@ def stub_state_proxy() -> StateProxy:
     hassette = make_mock_hassette(
         sealed=False,
         logging={"state_proxy": "INFO"},
-        lifecycle={"resource_shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
+        lifecycle={"shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
     )
     obj = StateProxy.__new__(StateProxy)
     Resource.__init__(obj, hassette, parent=hassette)

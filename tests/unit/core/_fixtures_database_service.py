@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.database_service import DatabaseService
-from tests.support.helpers import DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
+from tests.support.helpers import DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -28,7 +28,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
         data_dir=tmp_path,
         set_ready=False,
         database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
+        lifecycle={"shutdown_timeout_seconds": DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS},
     )
 
 

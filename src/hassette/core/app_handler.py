@@ -18,6 +18,7 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
+from hassette.resources.teardown import TeardownReport, merge_teardown_reports
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.types import Topic
 from hassette.utils.service_utils import cancel_and_drain
@@ -121,12 +122,45 @@ class AppHandler(Resource):
         return self._bootstrap_completed.is_set()
 
     async def on_shutdown(self) -> None:
-        """Shutdown all app instances gracefully."""
+        """Stop bootstrapping; the registry apps stop in the child stage (``_shutdown_children()``)."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
         mark_not_ready(self, reason="shutting-down")
         await cancel_and_drain(self._bootstrap_task)
         self._bootstrap_task = None
-        await self.lifecycle.shutdown_all()
+
+    async def _shutdown_children(self) -> TeardownReport:
+        """Stop every registry app concurrently, then this handler's own children.
+
+        Apps stop through the same instance-stop path runtime stops use, each under its own entry
+        deadline shortened to this attempt's deadline, so an app whose hooks run long costs no other app
+        its ``on_shutdown``. Their teardown reports merge into this handler's own. Orchestration, not a
+        hook: nothing bounds it but the deadline, and only the root walks away from it.
+        """
+        apps_report = await self.lifecycle.shutdown_all(deadline=self._shutdown_deadline)
+        children_report = await super()._shutdown_children()
+        return merge_teardown_reports(apps_report, children_report)
+
+    def _force_terminal(self) -> None:
+        """Also force-terminate the registry apps, which are not children of this handler.
+
+        The root's stop-stage ERROR names only this handler, so the apps whose stop hadn't finished get
+        their own ERROR here and are recorded as force-terminated work. A runtime stop or reload already in
+        flight has unregistered its instances, so this doesn't reach them; their own entry deadline bounds
+        them instead.
+        """
+        instances = [
+            inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()
+        ]
+        unfinished = [inst for inst in instances if not inst.shutdown_completed]
+        if unfinished:
+            self.logger.error(
+                "Force-terminating apps whose stop hadn't finished: %s",
+                ", ".join(f"{inst.app_config.instance_name} ({inst.class_name})" for inst in unfinished),
+            )
+            self.hassette.record_force_terminated(inst.unique_name for inst in unfinished)
+        for inst in instances:
+            inst._force_terminal()
+        super()._force_terminal()
 
     def is_action_in_progress(self, app_key: str) -> bool:
         """Whether an action on ``app_key`` is running — delegates to lifecycle service."""

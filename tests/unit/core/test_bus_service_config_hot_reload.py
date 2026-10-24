@@ -10,7 +10,7 @@ def stub_bus_service() -> BusService:
     hassette = make_mock_hassette(
         sealed=False,
         logging={"bus_service": "WARNING"},
-        lifecycle={"resource_shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
+        lifecycle={"shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
     )
     obj = BusService.__new__(BusService)
     Resource.__init__(obj, hassette, parent=hassette)

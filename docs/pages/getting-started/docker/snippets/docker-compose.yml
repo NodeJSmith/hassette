@@ -3,7 +3,7 @@ services:
     image: ghcr.io/nodejsmith/hassette:latest-py3.13
     container_name: hassette
     restart: unless-stopped
-    stop_grace_period: 45s # time for Hassette to shut down apps cleanly before Docker force-kills it
+    stop_grace_period: 60s # Hassette's 45s shutdown plus time for the database snapshot, before Docker force-kills it
     volumes:
       - ./config:/config
       - data:/data

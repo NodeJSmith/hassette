@@ -23,6 +23,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.app_factory import AppFactory
     from hassette.core.app_key_lock import AppKeyLock
     from hassette.core.app_registry import AppRegistry
+    from hassette.resources.teardown import TeardownReport
     from hassette.schemas.app_snapshots import AppInstanceInfo
 
 
@@ -40,7 +41,7 @@ class AppStartStopMixin:
     _resolve_manifest: Callable[[str], "AppManifest | None"]
     initialize_instances: Callable[..., Awaitable[None]]
     cleanup_failed_instance: Callable[..., Awaitable[None]]
-    shutdown_instances: Callable[..., Awaitable[None]]
+    shutdown_instances: "Callable[..., Awaitable[TeardownReport]]"
 
     async def start_app(
         self,

@@ -1,7 +1,8 @@
 """AppInstanceLifecycleMixin — per-instance initialization, cleanup, shutdown, and state-event emission."""
 
+import asyncio
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from logging import Logger
 from timeit import default_timer as timer
 
@@ -19,7 +20,9 @@ from hassette.core.app_lifecycle_common import (
     STOPPING,
 )
 from hassette.events.hassette import HassetteAppStateEvent
-from hassette.resources.lifecycle import mark_ready
+from hassette.resources.lifecycle import create_lifecycle_task, mark_ready
+from hassette.resources.shutdown_deadline import deadline_in, tighten_shutdown_deadline
+from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -27,6 +30,8 @@ if typing.TYPE_CHECKING:
     from hassette.app.app import App
     from hassette.config.classes import AppManifest
     from hassette.core.app_registry import AppRegistry
+
+T = typing.TypeVar("T")
 
 
 class AppInstanceLifecycleMixin:
@@ -38,7 +43,7 @@ class AppInstanceLifecycleMixin:
     logger: Logger
     registry: "AppRegistry"
     startup_timeout: int
-    shutdown_timeout: int
+    entry_deadline_seconds: float
     cleanup_timeout: int
     reconcile_app_registrations: Callable[..., Awaitable[None]]
 
@@ -126,42 +131,7 @@ class AppInstanceLifecycleMixin:
         """
         try:
             with anyio.fail_after(self.cleanup_timeout):
-                try:
-                    inst.bus.remove_all_listeners()
-                except Exception:
-                    self.logger.warning(
-                        "Listener cleanup failed for instance '%s'",
-                        inst.app_config.instance_name,
-                        exc_info=True,
-                    )
-                try:
-                    # Goes straight to Scheduler.remove_all_jobs() rather than scanning the
-                    # full registry by owner string — the per-app Scheduler already holds its
-                    # owned jobs (including waiting, completed, and manual jobs that never
-                    # touch the heap) in _jobs_by_name, and remove_all_jobs() is the same
-                    # identity-checked, registry-aware path the normal shutdown uses
-                    # (Scheduler.on_shutdown). A heap-only scan would miss those jobs and leak
-                    # their entity-watch subscriptions.
-                    #
-                    # Also deregisters the removal callback, mirroring on_shutdown()'s second
-                    # statement — remove_all_jobs() itself never does this (hassette/testing/_reset.py
-                    # calls it on a Scheduler instance meant to be reused across tests, where
-                    # deregistering would silently break future job removals on that instance).
-                    # A failed-init instance is discarded, not reused: Scheduler.__init__
-                    # registers this callback unconditionally, before on_initialize ever runs,
-                    # so a failed instance always has one registered, and nothing here will
-                    # reuse this Scheduler object afterward — skipping the deregister would
-                    # leak the stale callback (and the Scheduler it closes over) in
-                    # SchedulerService._removal_callbacks until/unless a future instance for
-                    # the same owner_id happens to overwrite that dict entry.
-                    await inst.scheduler.remove_all_jobs()
-                    inst.scheduler.scheduler_service.deregister_removal_callback(inst.scheduler.owner_id)
-                except Exception:
-                    self.logger.warning(
-                        "Job cleanup failed for instance '%s'",
-                        inst.app_config.instance_name,
-                        exc_info=True,
-                    )
+                await self.remove_instance_registrations(inst)
                 try:
                     await inst.cache.close()
                 except Exception:
@@ -176,71 +146,172 @@ class AppInstanceLifecycleMixin:
                 inst.app_config.instance_name,
             )
 
-    async def shutdown_instance(self, inst: "App[AppConfig]", instance_index: int | None = None) -> None:
-        """Shutdown a single app instance.
+    async def remove_instance_registrations(self, inst: "App[AppConfig]") -> None:
+        """Remove an instance's bus listeners and scheduler jobs by owner, running no user hook.
 
-        Args:
-            inst: The app instance to shutdown
-            instance_index: Instance index for correlation ID binding. When provided, app identity
-                context vars are bound for the duration of the shutdown call so all log records
-                emitted during on_shutdown carry app identity.
+        Shared by failed-init cleanup and an entry-deadline walk-away: both leave an instance whose own
+        ``Bus`` and ``Scheduler`` teardown never ran, so nothing else would remove these.
         """
-        if instance_index is not None:
-            structlog.contextvars.bind_contextvars(
-                app_key=inst.app_key,
-                instance_name=inst.app_config.instance_name,
-                instance_index=instance_index,
+        try:
+            inst.bus.remove_all_listeners()
+        except Exception:
+            self.logger.warning(
+                "Listener cleanup failed for instance '%s'", inst.app_config.instance_name, exc_info=True
             )
         try:
-            start_time = timer()
-            with anyio.fail_after(self.shutdown_timeout):
-                await inst.shutdown()
+            # Goes straight to Scheduler.remove_all_jobs() rather than scanning the full registry by
+            # owner string — the per-app Scheduler already holds its owned jobs (including waiting,
+            # completed, and manual jobs that never touch the heap) in _jobs_by_name, and
+            # remove_all_jobs() is the same identity-checked, registry-aware path the normal shutdown
+            # uses (Scheduler.on_shutdown). A heap-only scan would miss those jobs and leak their
+            # entity-watch subscriptions.
+            #
+            # Also deregisters the removal callback, mirroring on_shutdown()'s second statement —
+            # remove_all_jobs() itself never does this (hassette/testing/_reset.py calls it on a
+            # Scheduler instance meant to be reused across tests). An instance reaching this path is
+            # discarded, not reused, so skipping the deregister would leak the stale callback (and the
+            # Scheduler it closes over) in SchedulerService._removal_callbacks.
+            await inst.scheduler.remove_all_jobs()
+            inst.scheduler.scheduler_service.deregister_removal_callback(inst.scheduler.owner_id)
+        except Exception:
+            self.logger.warning("Job cleanup failed for instance '%s'", inst.app_config.instance_name, exc_info=True)
 
-            end_time = timer()
-            friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
-            self.logger.debug(
-                "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
-            )
-            await self.emit_app_state_change(inst, status=STOPPED, previous_status=STOPPING)
-        except Exception as exc:
+    async def shutdown_instance(
+        self, inst: "App[AppConfig]", instance_index: int, *, deadline: float | None = None
+    ) -> TeardownReport | None:
+        """Stop a single app instance under its entry deadline.
+
+        The stop leg gets ``entry_deadline_seconds`` from now, shortened to ``deadline`` when the caller
+        has one (process exit passes what is left of its stop stage). When the deadline passes, this walks
+        away: the instance is force-terminated and its listeners and jobs are removed by owner. A stop
+        whose hook timed out, or that this walked away from, is reported FAILED with a "timed out" reason
+        and an ``AppRegistry`` failure entry; any other completed stop is STOPPED.
+
+        App identity is bound to the log context for the duration of the stop, so every record emitted
+        during ``on_shutdown`` carries it.
+
+        Returns:
+            The instance's ``TeardownReport``, or ``None`` when its shutdown raised.
+        """
+        structlog.contextvars.bind_contextvars(
+            app_key=inst.app_key,
+            instance_name=inst.app_config.instance_name,
+            instance_index=instance_index,
+        )
+        try:
+            start_time = timer()
+            entry_deadline = deadline_in(self.entry_deadline_seconds)
+            stop_deadline = entry_deadline if deadline is None else min(entry_deadline, deadline)
+            tighten_shutdown_deadline(inst, stop_deadline)
+            task = create_lifecycle_task(inst.shutdown(), name=f"app:shutdown:{inst.unique_name}")
+            timeout = max(0.0, stop_deadline - asyncio.get_running_loop().time())
+            done, _pending = await asyncio.wait([task], timeout=timeout)
+            force_terminated = task not in done
+            if force_terminated:
+                report = await self.walk_away_from_instance(inst, task)
+            else:
+                report = task.result()
+            timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+
+            friendly_time = precisedelta(timer() - start_time, minimum_unit="milliseconds")
+            if not timed_out:
+                self.logger.debug(
+                    "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
+                )
+                await self.emit_app_state_change(inst, status=STOPPED, previous_status=STOPPING)
+                return report
+
+            exc = TimeoutError(f"stop of app '{inst.app_config.instance_name}' timed out after {friendly_time}")
+            if report.pending_tasks:
+                left = f"still pending: {', '.join(report.pending_tasks)}"
+            elif force_terminated:
+                left = f"force-terminated {inst.unique_name}; its evidence is incomplete, so work may still be running"
+            else:
+                left = "nothing still pending"
             self.logger.error(
-                "Failed to stop app '%s' after %s seconds:\n%s",
+                "Stop of app '%s' (%s) timed out after %s; %s",
                 inst.app_config.instance_name,
-                self.shutdown_timeout,
-                get_short_traceback(),
+                inst.class_name,
+                friendly_time,
+                left,
             )
+            self.registry.record_failure(inst.app_key, instance_index, exc)
             await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=exc)
+            return report
+        except Exception as exc:
+            self.logger.error("Failed to stop app '%s':\n%s", inst.app_config.instance_name, get_short_traceback())
+            await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=exc)
+            return None
         finally:
-            if instance_index is not None:
-                structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+            structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+
+    async def walk_away_from_instance(
+        self, inst: "App[AppConfig]", task: "asyncio.Task[TeardownReport]"
+    ) -> TeardownReport:
+        """Stop waiting on an instance whose stop outlived its entry deadline.
+
+        Force-terminates it (which cancels its shutdown coordinator), removes its listeners and jobs by
+        owner (bounded by ``cleanup_timeout``, as failed-init cleanup is), and records it as force-terminated
+        work for the process's hard exit. Returns the evidence force-termination left, which is incomplete
+        (``FORCED_TERMINAL``).
+        """
+        inst._force_terminal()
+        task.cancel()
+        try:
+            with anyio.fail_after(self.cleanup_timeout):
+                await self.remove_instance_registrations(inst)
+        except TimeoutError:
+            self.logger.warning(
+                "Cleanup timed out for walked-away instance '%s' — some listeners or jobs may leak until restart",
+                inst.app_config.instance_name,
+            )
+        self.hassette.record_force_terminated([inst.unique_name])
+        return inst.teardown_report or TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
 
     async def shutdown_instances(
-        self,
-        instances: dict[int, "App[AppConfig]"],
-    ) -> None:
-        """Shutdown all provided app instances.
+        self, instances: dict[int, "App[AppConfig]"], *, deadline: float | None = None
+    ) -> TeardownReport:
+        """Stop the given app instances concurrently, each under its own entry deadline.
 
         Args:
-            instances: Dict of index -> App to shutdown
+            instances: Dict of index -> App to shut down.
+            deadline: An outer deadline each instance's stop is shortened to (process exit's stop stage).
+
+        Returns:
+            The instances' teardown reports, merged.
         """
         if not instances:
-            return
+            return TeardownReport()
 
         self.logger.debug("Stopping %d app instances", len(instances))
 
-        for idx, inst in instances.items():
+        async def stop_one(idx: int, inst: "App[AppConfig]") -> TeardownReport | None:
             event = HassetteAppStateEvent.from_app(app=inst, status=STOPPING, previous_status=inst.status)
             await self.hassette.send_event(event)
-            await self.shutdown_instance(inst, instance_index=idx)
+            return await self.shutdown_instance(inst, idx, deadline=deadline)
 
-    async def shutdown_all(self) -> None:
-        """Shutdown all registered apps."""
+        reports = await gather_all((stop_one(idx, inst) for idx, inst in instances.items()), name="app:stop_instance")
+        return merge_teardown_reports(*(report for report in reports if report is not None))
+
+    async def shutdown_all(self, *, deadline: float | None = None) -> TeardownReport:
+        """Stop every registered app instance concurrently, then clear the registry.
+
+        Called from ``AppHandler``'s child stage at process exit, with what is left of its stop stage as
+        ``deadline``, so no app's hooks are cut short by other apps' hooks. ``AppSync`` hooks share the
+        sync executor's threads, so past its worker count the wait for a thread counts against their bound.
+        """
         self.logger.debug("Shutting down all apps")
-
-        for app_key in self.registry.app_keys():
-            await self.shutdown_instances(self.registry.get_running_apps(app_key))
-
+        instances = [
+            (idx, inst)
+            for app_key in self.registry.app_keys()
+            for idx, inst in self.registry.get_running_apps(app_key).items()
+        ]
+        reports = await gather_all(
+            (self.shutdown_instances({idx: inst}, deadline=deadline) for idx, inst in instances),
+            name="app:shutdown_all",
+        )
         self.registry.clear_all()
+        return merge_teardown_reports(*reports) if reports else TeardownReport()
 
     async def emit_app_state_change(
         self,
@@ -254,3 +325,18 @@ class AppInstanceLifecycleMixin:
             app=app, status=status, previous_status=previous_status, exception=exception
         )
         await self.hassette.send_event(event)
+
+
+async def gather_all(coros: Iterable[Coroutine[typing.Any, typing.Any, T]], *, name: str) -> list[T]:
+    """Run every coroutine to the end, then re-raise the first exception any of them raised.
+
+    Unlike a plain ``asyncio.gather``, no coroutine is left running detached after another one raised.
+    Each runs in a ``create_lifecycle_task()`` task: at exit the root's TaskBucket is sealed and is the
+    loop's task-factory fallback, so the tasks ``asyncio.gather`` would create itself are rejected.
+    """
+    tasks = [create_lifecycle_task(coro, name=name) for coro in coros]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, BaseException):
+            raise result
+    return typing.cast("list[T]", results)

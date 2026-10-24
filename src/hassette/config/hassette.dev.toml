@@ -6,8 +6,7 @@ state_proxy_poll_interval_seconds = 15
 [hassette.lifecycle]
 startup_timeout_seconds = 20
 app_startup_timeout_seconds = 40
-app_shutdown_timeout_seconds = 20
-resource_shutdown_timeout_seconds = 20
+shutdown_timeout_seconds = 20
 task_cancellation_timeout_seconds = 10
 run_sync_timeout_seconds = 12
 

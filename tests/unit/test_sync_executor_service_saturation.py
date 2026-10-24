@@ -30,6 +30,7 @@ import pytest
 
 import hassette.task_bucket.interruptible_executor as ie_module
 from hassette.config import HassetteConfig, LifecycleConfig
+from hassette.config.models import SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
 from hassette.core.sync_executor import (  # pyright: ignore[reportPrivateUsage]
     _DEFAULT_SATURATION_WARN_RATE_LIMIT_SECS,
     _DEFAULT_SATURATION_WARN_THRESHOLD,
@@ -38,6 +39,7 @@ from hassette.core.sync_executor import (  # pyright: ignore[reportPrivateUsage]
 )
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.exceptions import ConfigError
+from hassette.resources.shutdown_deadline import deadline_in
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
 from tests.unit.conftest import (
@@ -107,8 +109,8 @@ skip_c_blocked_under_coverage_py311 = pytest.mark.skipif(
 class TestOnShutdown:
     @pytest.mark.anyio
     async def test_on_shutdown_calls_executor_shutdown_with_budget(self) -> None:
-        """on_shutdown passes sync_executor_shutdown_timeout_seconds as the budget."""
-        svc = make_service(shutdown_timeout=7.5)
+        """With no shutdown deadline set, on_shutdown passes the fixed join cap as the budget."""
+        svc = make_service()
 
         shutdown_calls: list[dict] = []
         original_shutdown = svc.sync_executor.executor.shutdown
@@ -122,7 +124,7 @@ class TestOnShutdown:
         await svc.on_shutdown()
 
         assert len(shutdown_calls) == 1
-        assert shutdown_calls[0]["kwargs"].get("timeout") == 7.5
+        assert shutdown_calls[0]["kwargs"].get("timeout") == SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
 
     @pytest.mark.anyio
     async def test_on_shutdown_works_without_on_initialize(self) -> None:
@@ -367,7 +369,7 @@ class TestPeriodicSaturationProbe:
         cooperative-exit path by setting the service-level event and then cancelling,
         matching Service.shutdown() behavior.
         """
-        svc = make_service(max_workers=2, shutdown_timeout=5.0)
+        svc = make_service(max_workers=2)
         with patch("hassette.core.sync_executor_service._SATURATION_PROBE_INTERVAL_SECS", 0.05):
             serve_task = asyncio.create_task(svc.serve())
             await asyncio.sleep(0)  # let serve run to mark_ready
@@ -382,7 +384,7 @@ class TestPeriodicSaturationProbe:
     @pytest.mark.anyio
     async def test_serve_calls_probe_on_each_cycle(self, caplog: pytest.LogCaptureFixture) -> None:
         """serve() calls sync_executor.log_saturation_rate_limited() on each probe cycle."""
-        svc = make_service(max_workers=1, shutdown_timeout=5.0)
+        svc = make_service(max_workers=1)
         gate = threading.Event()
         ready = threading.Event()
 
@@ -472,7 +474,7 @@ class TestShutdownInterruptsPythonWorker:
     @pytest.mark.anyio
     async def test_on_shutdown_with_busy_worker_completes(self, caplog: pytest.LogCaptureFixture) -> None:
         """SyncExecutorService.on_shutdown() completes with a Python busy-loop worker."""
-        svc = make_service(max_workers=1, shutdown_timeout=3.0)
+        svc = make_service(max_workers=1)
         terminated = threading.Event()
         submit_busy_worker(svc.sync_executor.executor, terminated=terminated, reraise=True)
 
@@ -527,12 +529,12 @@ class TestShutdownCBlockedWorker:
     @pytest.mark.anyio
     async def test_on_shutdown_c_blocked_completes_within_budget(self) -> None:
         """SyncExecutorService.on_shutdown() completes within budget with a C-blocked worker."""
-        svc = make_service(max_workers=1, shutdown_timeout=1.0)
+        svc = make_service(max_workers=1)
         submit_c_blocked_worker(svc.sync_executor.executor)
 
         wall_start = time.monotonic()
-        # on_shutdown budget = min(sync_executor_shutdown_timeout_seconds, resource_shutdown_timeout_seconds)
-        # resource_shutdown_timeout_seconds defaults to app_shutdown_timeout_seconds (10s); capped by 1.0 here.
+        # The fixed join cap is clamped to what is left of the shutdown deadline: 1.0s here.
+        svc._shutdown_deadline = deadline_in(1.0)
         await asyncio.wait_for(svc.on_shutdown(), timeout=3.0)
         elapsed = time.monotonic() - wall_start
 
@@ -541,7 +543,7 @@ class TestShutdownCBlockedWorker:
 
 
 class TestConfigBehavior:
-    """Custom max_workers and shutdown_timeout change behavior; defaults apply when unset."""
+    """Custom max_workers changes behavior; defaults apply when unset."""
 
     def test_custom_max_workers_is_respected(self) -> None:
         """Executor uses the configured max_workers ceiling."""
@@ -555,9 +557,9 @@ class TestConfigBehavior:
         expected = min(32, (os.cpu_count() or 1) + 4)
         assert config.lifecycle.sync_executor_max_workers == expected
 
-    def test_custom_shutdown_timeout_is_used_in_on_shutdown(self) -> None:
-        """on_shutdown passes the configured budget to executor.shutdown."""
-        svc = make_service(max_workers=2, shutdown_timeout=3.7)
+    def test_join_budget_is_clamped_to_the_shutdown_deadline(self) -> None:
+        """on_shutdown passes what is left of the shutdown deadline when it is under the join cap."""
+        svc = make_service(max_workers=2)
 
         shutdown_kwargs: list[dict[str, Any]] = []
         original = svc.sync_executor.executor.shutdown
@@ -568,28 +570,16 @@ class TestConfigBehavior:
 
         svc.sync_executor.executor.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
-        asyncio.run(svc.on_shutdown())
+        async def run() -> None:
+            svc._shutdown_deadline = deadline_in(3.7)
+            await svc.on_shutdown()
+
+        asyncio.run(run())
 
         assert shutdown_kwargs, "executor.shutdown must have been called"
-        assert shutdown_kwargs[0].get("timeout") == pytest.approx(3.7), (
-            f"Expected timeout=3.7; got {shutdown_kwargs[0].get('timeout')}"
-        )
-
-    def test_default_shutdown_timeout_is_10s(self) -> None:
-        """Default sync_executor_shutdown_timeout_seconds is 10.0 (HA's value)."""
-        config = HassetteConfig(token=TEST_TOKEN)
-        assert config.lifecycle.sync_executor_shutdown_timeout_seconds == 10.0
-
-    def test_validator_rejects_shutdown_timeout_gte_total(self) -> None:
-        """sync_executor_shutdown_timeout_seconds >= total_shutdown_timeout_seconds is rejected."""
-        with pytest.raises(ConfigError, match="sync_executor_shutdown_timeout_seconds"):
-            HassetteConfig(
-                token=TEST_TOKEN,
-                lifecycle={
-                    "sync_executor_shutdown_timeout_seconds": 30.0,
-                    "total_shutdown_timeout_seconds": 30,  # equal — must be rejected
-                },
-            )
+        timeout = shutdown_kwargs[0].get("timeout")
+        assert timeout is not None
+        assert 3.0 < timeout <= 3.7, f"Expected the remaining deadline (~3.7s); got {timeout}"
 
     def test_default_saturation_warn_threshold_and_rate_limit(self) -> None:
         """Defaults preserve current behavior: 0.75 threshold, 30.0s rate-limit."""
@@ -669,7 +659,7 @@ class TestTrackSubmission:
     @pytest.mark.anyio
     async def test_run_in_thread_calls_saturation_check(self) -> None:
         """After run_in_thread submits work, track_submission is called (which calls log check)."""
-        svc = make_service(max_workers=1, shutdown_timeout=5.0)
+        svc = make_service(max_workers=1)
         mock_hassette = svc.hassette
 
         track_calls: list[None] = []

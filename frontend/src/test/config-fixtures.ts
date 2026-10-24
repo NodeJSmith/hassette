@@ -58,7 +58,7 @@ const MINIMAL_CONFIG_SCHEMA = {
       properties: {
         startup_timeout_seconds: { type: "integer", title: "Startup Timeout Seconds" },
         app_startup_timeout_seconds: { type: "integer", title: "App Startup Timeout Seconds" },
-        app_shutdown_timeout_seconds: { type: "integer", title: "App Shutdown Timeout Seconds" },
+        shutdown_timeout_seconds: { type: "number", title: "Shutdown Timeout Seconds" },
       },
     },
     apps: {
@@ -112,7 +112,7 @@ const DEFAULT_CONFIG_VALUES: Record<string, unknown> = {
   lifecycle: {
     startup_timeout_seconds: 30,
     app_startup_timeout_seconds: 20,
-    app_shutdown_timeout_seconds: 10,
+    shutdown_timeout_seconds: 10,
   },
   apps: {
     warn_unconfigured: true,

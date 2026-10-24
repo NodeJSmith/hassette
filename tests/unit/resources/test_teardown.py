@@ -136,11 +136,11 @@ class TestAddTeardownEvidence:
     def test_add_evidence_cannot_remove_a_cause(self) -> None:
         # Simulates a later completion (e.g. a straggling shutdown-body task) adding more
         # evidence on top of an already-unsafe report. The original cause must survive.
-        report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_TIMED_OUT,))
+        report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_TIMED_OUT,))
 
         updated = add_teardown_evidence(report, causes=[TeardownCause.SHUTDOWN_BODY_FAILED])
 
-        assert TeardownCause.SHUTDOWN_BODY_TIMED_OUT in updated.causes
+        assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in updated.causes
         assert updated.is_restart_safe is False
 
     def test_add_no_evidence_returns_equal_but_new_report(self) -> None:
@@ -218,7 +218,7 @@ class TestRestartRefusedError:
         assert TeardownCause.FORCED_TERMINAL in str(error)
 
     def test_is_a_fatal_error(self) -> None:
-        report = TeardownReport(causes=(TeardownCause.TOTAL_TIMEOUT,))
+        report = TeardownReport(causes=(TeardownCause.CHILD_SHUTDOWN_TIMED_OUT,))
         error = RestartRefusedError("my_service", report)
 
         assert isinstance(error, FatalError)

@@ -14,6 +14,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.database_write_queue import _WriteQueueItem, log_worker_exit
 from hassette.testing import wait_for
 from tests.support.helpers import async_noop
+from tests.support.task_buckets import sealed_fallback_task_factory
 from tests.unit.core._fixtures_database_service import initialized_service_with_worker, service
 
 __all__ = ["initialized_service_with_worker", "service"]  # re-exposed as fixtures
@@ -186,6 +187,22 @@ async def test_submit_returns_coroutine_result(
         return 42
 
     result = await initialized_service_with_worker.submit(coro())
+    assert result == 42
+
+
+async def test_submit_works_when_the_loops_fallback_bucket_is_sealed(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """submit() still enqueues at exit, after the root's TaskBucket (the loop's fallback) is sealed.
+
+    Only fails without the fix on Python 3.11, where ``asyncio.wait_for`` wraps its awaitable in a task.
+    """
+
+    async def coro() -> int:
+        return 42
+
+    with sealed_fallback_task_factory():
+        result = await initialized_service_with_worker.submit(coro())
     assert result == 42
 
 

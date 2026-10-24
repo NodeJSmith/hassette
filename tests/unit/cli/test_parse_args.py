@@ -17,8 +17,8 @@ from rich.console import Console
 from whenever import Instant
 
 from hassette.cli import app
-from hassette.cli.commands.run import EX_CONFIG
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
+from hassette.server import EX_CONFIG
 from tests.unit.cli.conftest import NOW_EPOCH, fixed_now
 
 DOCKER_START_SCRIPT = Path(__file__).parents[3] / "scripts" / "docker_start.sh"

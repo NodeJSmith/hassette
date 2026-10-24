@@ -154,13 +154,18 @@ class InterruptibleThreadPoolExecutor(ThreadPoolExecutor):
                 worker threads and interrupt stragglers within *timeout* seconds.
             timeout: Total seconds budgeted for the join/interrupt loop. Defaults to
                 ``10.0`` (HA's ``EXECUTOR_SHUTDOWN_TIMEOUT``). The caller should pass
-                the remaining shutdown budget rather than the raw configured value so
-                the loop never overruns the total shutdown timeout.
+                its cap clamped to what is left of its shutdown deadline, so the loop
+                never overruns that deadline.
             **kwargs: Forwarded to the base ``ThreadPoolExecutor.shutdown``.
         """
         super().shutdown(wait=False, cancel_futures=True)
         if join_threads_or_timeout:
             self.join_threads_or_timeout(timeout)
+
+    def surviving_threads(self) -> list[str]:
+        """Names of this pool's worker threads still alive, sorted."""
+        threads = self._threads  # pyright: ignore[reportAttributeAccessIssue]
+        return sorted(thread.name for thread in threads if thread.is_alive())
 
     def join_threads_or_timeout(self, timeout: float) -> None:
         """Join worker threads or give up after *timeout* seconds.

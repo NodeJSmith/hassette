@@ -1,4 +1,4 @@
-"""DatabaseService writes database.shutdown_snapshot_path on shutdown, after draining its write queue."""
+"""DatabaseService writes database.shutdown_snapshot_path last in shutdown, after its drain and close."""
 
 import asyncio
 import sqlite3
@@ -14,7 +14,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.database_snapshot import write_snapshot
 from hassette.testing import wait_for
 from tests.support.helpers import (
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
 )
 from tests.support.mock_hassette import make_mock_hassette
@@ -28,7 +28,7 @@ def build_service(tmp_path: Path, snapshot_path: Path | None) -> DatabaseService
             "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
             "shutdown_snapshot_path": snapshot_path,
         },
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
+        lifecycle={"shutdown_timeout_seconds": DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS},
     )
     return DatabaseService(hassette, parent=None)
 
@@ -60,6 +60,7 @@ async def test_shutdown_writes_the_snapshot_with_drained_writes(tmp_path: Path) 
     service.enqueue(insert_session(service))
 
     await service.on_shutdown()
+    await service.write_shutdown_snapshot()
 
     assert session_count(snapshot) == 2
 
@@ -69,6 +70,7 @@ async def test_shutdown_without_the_setting_writes_no_snapshot(tmp_path: Path) -
     await service.on_initialize()
 
     await service.on_shutdown()
+    await service.write_shutdown_snapshot()
 
     names = await asyncio.to_thread(lambda: {path.name for path in tmp_path.iterdir()})
     assert names <= {"hassette.db", "hassette.db-wal", "hassette.db-shm"}, names
@@ -82,6 +84,7 @@ async def test_failed_shutdown_snapshot_does_not_fail_shutdown(tmp_path: Path) -
     await service.on_initialize()
 
     await service.on_shutdown()
+    await service.write_shutdown_snapshot()
 
     assert snapshot.is_dir()
     assert not service.is_db_ready
@@ -98,7 +101,7 @@ async def test_shutdown_snapshot_skips_a_database_that_was_never_opened(tmp_path
 
 
 async def test_cancelled_shutdown_snapshot_still_finishes(tmp_path: Path) -> None:
-    """The shutdown hook budget can cancel the await; the copy runs on in its thread and still lands."""
+    """Cancelling the await doesn't stop the copy: it runs on in its thread and still lands."""
     snapshot = tmp_path / "backup" / "hassette-snapshot.db"
     service = build_service(tmp_path, snapshot)
     await service.on_initialize()

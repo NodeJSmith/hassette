@@ -22,7 +22,7 @@ import pytest
 from hassette.core.database_service import DatabaseService
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.helpers import (
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
     SIZE_FAILSAFE_TRIGGER_MB,
 )
@@ -56,7 +56,7 @@ def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
             "framework_retention_days": FRAMEWORK_RETENTION_DAYS,
         },
         logging={"log_retention_days": LOG_RETENTION_DAYS},
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
+        lifecycle={"shutdown_timeout_seconds": DB_HASSETTE_SHUTDOWN_TIMEOUT_SECONDS},
     )
 
 

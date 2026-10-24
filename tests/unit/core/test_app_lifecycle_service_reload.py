@@ -364,7 +364,7 @@ class TestApplyChangesPerInstanceRestart:
 
         # Only index 1 was ever unregistered/stopped — index 0 is never touched.
         mock_registry.unregister_app.assert_called_once_with("app_a", 1)
-        lifecycle_service.shutdown_instance.assert_called_once_with(app1, instance_index=1)
+        lifecycle_service.shutdown_instance.assert_called_once_with(app1, 1, deadline=None)
 
         # Only index 1 was ever (re)created.
         mock_factory.create_single_instance.assert_called_once()

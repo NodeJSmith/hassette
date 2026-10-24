@@ -15,17 +15,11 @@ from hassette.config.config import HassetteConfig
 from hassette.config.helpers import get_log_level
 from hassette.exceptions import AppPrecheckFailedError, ConfigError, FatalError
 from hassette.logging_ import enable_basic_logging
+from hassette.server import EX_CONFIG, exit_code_for
 from hassette.server import main as run_server
 from hassette.utils.app_utils import missing_apps_dir_warning
 
 LOGGER = getLogger("hassette.cli")
-
-EX_CONFIG = 78
-"""sysexits.h ``EX_CONFIG``: the configuration must be edited before a restart can succeed.
-
-Raised for a `ConfigError` and for a failed app precheck (an app file must be edited). Supervisors
-key on it (systemd ``RestartPreventExitStatus=78``, the add-on's s6 ``finish`` script).
-"""
 
 
 def split_app_keys(values: list[str]) -> tuple[str, ...]:
@@ -103,15 +97,15 @@ def cmd_run(
         LOGGER.info("Keyboard interrupt received, shutting down")
     except ConfigError as exc:
         LOGGER.error("Invalid configuration: %s", exc)
-        raise SystemExit(EX_CONFIG) from None
+        raise SystemExit(exit_code_for(exc)) from None
     except AppPrecheckFailedError as exc:
         LOGGER.error("App precheck failed: %s", exc)
         LOGGER.error("Hassette is shutting down due to app precheck failure")
-        raise SystemExit(EX_CONFIG) from None
+        raise SystemExit(exit_code_for(exc)) from None
     except FatalError as exc:
         LOGGER.error("Fatal error occurred: %s", exc)
         LOGGER.error("Hassette is shutting down due to a fatal error")
-        raise SystemExit(1) from None
+        raise SystemExit(exit_code_for(exc)) from None
     except Exception as exc:
         LOGGER.exception("Unexpected error in Hassette: %s", exc)
         raise

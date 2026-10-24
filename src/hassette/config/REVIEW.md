@@ -5,7 +5,7 @@ Does every new config field that references another group's field have a
 cross-group validator? `src/hassette/config/config.py` has
 `validate_log_retention_days` ensuring `logging.log_retention_days <=
 database.retention_days`, and `src/hassette/config/models.py` has
-`validate_framework_retention_days` and `validate_sync_executor_shutdown_budget`.
+`validate_framework_retention_days`.
 Is there a similar invariant missing for the new field?
 
 ## Dev-Mode Overrides

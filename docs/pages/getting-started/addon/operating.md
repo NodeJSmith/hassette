@@ -67,7 +67,7 @@ The lines above the banner name the setting. With Watchdog off, the add-on stays
 
 ### Stopping
 
-The add-on has 60 seconds to stop. That covers Hassette's 30-second shutdown budget plus the final database snapshot, which is slow on an SD card. Raising `lifecycle.total_shutdown_timeout_seconds` past 30 seconds risks Supervisor stopping Hassette before the snapshot is written. See [Backups](#backups).
+The add-on has 60 seconds to stop. That covers Hassette's 45-second shutdown plus 15 seconds for the final database snapshot, which is slow on an SD card. Raising `lifecycle.total_shutdown_timeout_seconds` past 45 seconds risks Supervisor stopping Hassette before the snapshot is written. See [Backups](#backups).
 
 ## Backups
 

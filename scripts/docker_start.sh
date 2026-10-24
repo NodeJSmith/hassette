@@ -66,7 +66,7 @@ fi
 # Only Docker halts on a network failure (the add-on installs from the uv cache or starts degraded), but it's set
 # for both so a future add-on halt can't trip set -u
 REMEDY_NETWORK="Check the container's network access (DNS and the route to the package index)"
-EX_CONFIG=78  # EX_CONFIG in hassette/cli/commands/run.py; a test keeps them in sync
+EX_CONFIG=78  # EX_CONFIG in hassette/server.py; a test keeps them in sync
 # Args that make `hassette run` print and exit instead of starting: cyclopts' help flags and the
 # root app's version_flags (hassette/cli/__init__.py). A test keeps this list in sync.
 PASSTHROUGH_FLAGS=(--help -h --version -v)

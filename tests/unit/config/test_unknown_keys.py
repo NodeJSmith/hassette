@@ -88,6 +88,21 @@ class TestFlagged:
             pytest.param("[hassette.apps]\nautodetect = false\n", "apps.autodetect", id="removed-autodetect"),
             pytest.param("[hassette.apps]\nexclude_dirs = ['lib']\n", "apps.exclude_dirs", id="removed-exclude-dirs"),
             pytest.param("[logging]\nall_events = true\n", "logging.all_events", id="removed-logging-key"),
+            pytest.param(
+                "[lifecycle]\napp_shutdown_timeout_seconds = 10\n",
+                "lifecycle.app_shutdown_timeout_seconds",
+                id="removed-app-shutdown-timeout",
+            ),
+            pytest.param(
+                "[lifecycle]\nresource_shutdown_timeout_seconds = 10\n",
+                "lifecycle.resource_shutdown_timeout_seconds",
+                id="removed-resource-shutdown-timeout",
+            ),
+            pytest.param(
+                "[lifecycle]\nsync_executor_shutdown_timeout_seconds = 10\n",
+                "lifecycle.sync_executor_shutdown_timeout_seconds",
+                id="removed-sync-executor-shutdown-timeout",
+            ),
         ],
     )
     def test_toml_key(self, cfg: Path, toml: str, dotted: str) -> None:

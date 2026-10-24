@@ -145,7 +145,7 @@ def make_config_schema_response() -> ConfigSchemaResponse:
             "lifecycle": {
                 "startup_timeout_seconds": 30,
                 "app_startup_timeout_seconds": 20,
-                "app_shutdown_timeout_seconds": 10,
+                "shutdown_timeout_seconds": 10,
             },
             "apps": {"warn_unconfigured": True, "directory": "apps"},
             "scheduler": {"behind_schedule_threshold_seconds": 5, "job_timeout_seconds": 600.0},

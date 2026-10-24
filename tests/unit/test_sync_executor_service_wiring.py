@@ -318,7 +318,7 @@ class TestShutdownOrderingRegression:
         is set.  Because the executor shuts down *after* its consumers, the submit
         must succeed — not raise RuntimeError: cannot schedule new futures after shutdown.
         """
-        svc = make_service(max_workers=2, shutdown_timeout=2.0)
+        svc = make_service(max_workers=2)
 
         # Simulate: shutdown_event fires (consumers are being torn down)
         svc.hassette.shutdown_event.set()
