@@ -5,7 +5,9 @@ from typing import Any
 
 import pytest
 from hassette_wire import StackFrame
+from pydantic import ValidationError
 
+from hassette.config import BlockingIODetectionConfig
 from hassette.core.telemetry.blocking_findings import (
     all_apps_classifier,
     classifier_for_apps,
@@ -87,7 +89,7 @@ class TestGrouping:
             group(stack=[SSL, GCSA, CAL, HANDLER_A], detected_ts=1000.0, stall_duration_ms=200.0, **job(7, "scan")),
         ]
 
-        [finding] = group_findings(rows, classifier_for)
+        [finding] = group_findings(rows, classifier_for, min_events=1)
 
         assert finding.call_site is not None
         assert (finding.call_site.display_path, finding.call_site.lineno) == ("calendar_service.py", 98)
@@ -105,16 +107,16 @@ class TestGrouping:
     def test_different_call_sites_are_separate_findings_newest_first(self) -> None:
         rows = [group(stack=[HANDLER_B], detected_ts=2000.0), group(stack=[CAL, HANDLER_A], detected_ts=1000.0)]
 
-        findings = group_findings(rows, classifier_for)
+        findings = group_findings(rows, classifier_for, min_events=1)
 
         assert [f.call_site.lineno for f in findings if f.call_site] == [20, 98]
 
     def test_same_call_site_in_different_apps_is_not_merged(self) -> None:
         rows = [group(stack=[CAL]), group(stack=[CAL], app_key="other_app")]
-        assert {f.app_key for f in group_findings(rows, classifier_for)} == {"car_climate", "other_app"}
+        assert {f.app_key for f in group_findings(rows, classifier_for, min_events=1)} == {"car_climate", "other_app"}
 
     def test_call_site_frame_with_nothing_inside_has_no_callee(self) -> None:
-        [finding] = group_findings([group(stack=[CAL, HANDLER_A])], classifier_for)
+        [finding] = group_findings([group(stack=[CAL, HANDLER_A])], classifier_for, min_events=1)
         assert finding.callee is None
 
     def test_merges_group_aggregates_with_weighted_average(self) -> None:
@@ -126,7 +128,7 @@ class TestGrouping:
             ),
         ]
 
-        [finding] = group_findings(rows, classifier_for)
+        [finding] = group_findings(rows, classifier_for, min_events=1)
 
         assert (finding.event_count, finding.max_stall_ms, finding.last_seen_ts) == (4, 500.0, 3000.0)
         assert finding.avg_stall_ms == pytest.approx(200.0)
@@ -138,7 +140,7 @@ class TestGrouping:
             group(stack=[SSL, CAL, HANDLER_A], detected_ts=2000.0, stall_duration_ms=80.0),
         ]
 
-        [finding] = group_findings(rows, classifier_for)
+        [finding] = group_findings(rows, classifier_for, min_events=1)
 
         assert (finding.event_count, finding.max_stall_ms) == (3, 80.0)
         assert finding.avg_stall_ms == pytest.approx(80.0)
@@ -159,7 +161,7 @@ class TestSameLocationDifferentFunction:
             group(stack=[old], detected_ts=1000.0, **overrides),
         ]
 
-        findings = group_findings(rows, classifier_for)
+        findings = group_findings(rows, classifier_for, min_events=1)
 
         assert [f.call_site.function for f in findings if f.call_site] == ["new_fetch", "old_fetch"]
         assert [f.event_count for f in findings] == [1, 1]
@@ -170,7 +172,7 @@ class TestCallSiteNotCaptured:
         """No stack (or a pre-structured-frames row) → one finding per handler, call_site None."""
         rows = [group(**listener(1, "a")), group(**listener(1, "a")), group(**job(2, "b")), group()]
 
-        findings = group_findings(rows, classifier_for)
+        findings = group_findings(rows, classifier_for, min_events=1)
 
         assert all(f.call_site is None for f in findings)
         assert [([(h.kind, h.id) for h in f.handlers], f.event_count) for f in findings] == [
@@ -180,11 +182,11 @@ class TestCallSiteNotCaptured:
         ]
 
     def test_unreadable_frames_read_as_not_captured(self) -> None:
-        [finding] = group_findings([group(frames="not json", **listener(1, "a"))], classifier_for)
+        [finding] = group_findings([group(frames="not json", **listener(1, "a"))], classifier_for, min_events=1)
         assert (finding.call_site, finding.latest_stack) == (None, [])
 
     def test_stack_with_no_user_frame_is_not_captured(self) -> None:
-        [finding] = group_findings([group(stack=[SSL, GCSA], **listener(1, "a"))], classifier_for)
+        [finding] = group_findings([group(stack=[SSL, GCSA], **listener(1, "a"))], classifier_for, min_events=1)
         assert finding.call_site is None
         assert finding.latest_stack == [SSL, GCSA]
 
@@ -196,7 +198,7 @@ class TestCallSiteNotCaptured:
             group(tier="monkeypatch", primitive="open", stall_duration_ms=None, **listener(1, "a")),
         ]
 
-        findings = group_findings(rows, classifier_for)
+        findings = group_findings(rows, classifier_for, min_events=1)
 
         assert sorted((f.tier, f.primitive, f.event_count) for f in findings) == [
             ("monkeypatch", "open", 1),
@@ -215,7 +217,7 @@ class TestTier2:
             group(tier="monkeypatch", primitive="builtins.open", stall_duration_ms=None, stack=[CAL]),
         ]
 
-        findings = group_findings(rows, classifier_for)
+        findings = group_findings(rows, classifier_for, min_events=1)
 
         assert [(f.primitive, f.event_count) for f in findings] == [("time.sleep", 2), ("builtins.open", 1)]
         assert all(f.call_site_is_user_code and f.detected_in_package is None for f in findings)
@@ -225,9 +227,39 @@ class TestTier2:
         [finding] = group_findings(
             [group(tier="monkeypatch", primitive="socket.connect", stall_duration_ms=None, stack=[GCSA])],
             classifier_for,
+            min_events=1,
         )
         assert not finding.call_site_is_user_code
         assert finding.detected_in_package == "gcsa"
+
+
+class TestRecurrenceGate:
+    def test_config_minimum_defaults_to_two_and_rejects_zero(self) -> None:
+        assert BlockingIODetectionConfig().min_events == 2
+        with pytest.raises(ValidationError):
+            BlockingIODetectionConfig(min_events=0)
+
+    @pytest.mark.parametrize(("min_events", "kept"), [(1, True), (2, False)])
+    def test_one_event_watchdog_finding_needs_the_minimum(self, min_events: int, *, kept: bool) -> None:
+        findings = group_findings([group(stack=[CAL, HANDLER_A])], classifier_for, min_events=min_events)
+        assert bool(findings) is kept
+
+    def test_minimum_counts_events_merged_across_groups(self) -> None:
+        """Two one-event stacks at one call site sum to two events and clear a minimum of two."""
+        rows = [group(stack=[SSL, CAL, HANDLER_A]), group(stack=[GCSA, CAL, HANDLER_B])]
+        [finding] = group_findings(rows, classifier_for, min_events=2)
+        assert finding.event_count == 2
+
+    def test_uncaptured_watchdog_finding_is_gated_too(self) -> None:
+        assert group_findings([group(stack=[SSL], **listener(1, "a"))], classifier_for, min_events=2) == []
+
+    def test_tier2_findings_are_never_gated(self) -> None:
+        rows = [
+            group(tier="monkeypatch", primitive="time.sleep", stall_duration_ms=None, stack=[CAL]),
+            group(tier="monkeypatch", primitive="builtins.open", stall_duration_ms=None, **listener(1, "a")),
+        ]
+        findings = group_findings(rows, classifier_for, min_events=5)
+        assert [(f.primitive, f.event_count) for f in findings] == [("time.sleep", 1), ("builtins.open", 1)]
 
 
 class TestUnattributed:

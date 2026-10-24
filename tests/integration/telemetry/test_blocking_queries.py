@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import BlockingFindingsResponse, StackFrame
 
+from hassette.config import BlockingIODetectionConfig
 from hassette.config.classes import AppManifest
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry import blocking_queries
@@ -36,6 +37,12 @@ def configured_app(db_hassette: MagicMock) -> None:
             }
         )
     }
+
+
+@pytest.fixture(autouse=True)
+def report_every_stall(db_hassette: MagicMock) -> None:
+    """Disable the Tier 1 recurrence gate so single-event fixtures stay findings; gate tests set their own."""
+    db_hassette.config.blocking_io.min_events = 1
 
 
 @pytest.fixture
@@ -206,6 +213,48 @@ class TestBlockingFindings:
         assert result.truncated
         [finding] = result.findings
         assert finding.last_seen_ts == 2000.0
+
+
+class TestRecurrenceGate:
+    @pytest.fixture(autouse=True)
+    def default_minimum(self, db_hassette: MagicMock) -> None:
+        db_hassette.config.blocking_io.min_events = BlockingIODetectionConfig().min_events
+
+    async def test_hides_a_one_off_lag_finding_until_it_recurs(
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
+    ) -> None:
+        await insert_event(db_svc, detected_ts=2000.0)
+        await insert_event(db_svc, tier="monkeypatch", primitive="time.sleep", stall_duration_ms=None)
+        assert [f.tier for f in (await instance_zero_findings(query_service)).findings] == ["monkeypatch"]
+
+        await insert_event(db_svc, detected_ts=3000.0)
+
+        result = await instance_zero_findings(query_service)
+        assert [(f.tier, f.event_count) for f in result.findings] == [("watchdog", 2), ("monkeypatch", 1)]
+
+    async def test_cap_and_truncated_count_only_findings_past_the_gate(
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Gated-out one-off stalls neither take a cap slot nor mark the response truncated."""
+        monkeypatch.setattr(blocking_queries, "BLOCKING_FINDING_LIMIT", 1)
+        await insert_event(db_svc, frames=[OTHER_SITE, HANDLER], detected_ts=3000.0)
+        for ts in (1000.0, 2000.0):
+            await insert_event(db_svc, detected_ts=ts)
+
+        result = await instance_zero_findings(query_service)
+
+        assert not result.truncated
+        [finding] = result.findings
+        assert (finding.call_site.lineno if finding.call_site else None, finding.event_count) == (98, 2)
+
+    async def test_unattributed_stalls_are_never_gated(
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
+    ) -> None:
+        await insert_event(db_svc, app_key=None, instance_index=None, reason="displaced")
+
+        result = await query_service.get_unattributed_blocking(since=None)
+
+        assert (result.total_count, len(result.recent)) == (1, 1)
 
 
 class TestUnattributedBlocking:

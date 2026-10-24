@@ -663,6 +663,11 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     """Tier 1: minimum loop lag in seconds before a blocking-detected event is emitted.
     Defaults to 100ms — brief stalls under this threshold are not reported."""
 
+    min_events: int = Field(default=2, ge=1)
+    """Tier 1: minimum number of lag events at one call site before it is reported as a finding.
+    Defaults to 2 — a single stray stall is evidence, not proof, so it stays hidden until it
+    recurs. Set to 1 to report every stall. Tier 2 findings are exact and are never gated."""
+
     watchdog_interval_seconds: float = Field(default=0.25, gt=0)
     """Tier 1: interval in seconds between watchdog heartbeat checks.
     Defaults to 250ms — trades detection latency for overhead."""
