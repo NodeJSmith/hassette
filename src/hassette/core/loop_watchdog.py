@@ -30,6 +30,12 @@ the loop **recovers**, reporting the full stall duration (the gap the tick was s
 is "report after the stall" and makes the reported duration ≈ the block length.
 A block that never recovers before shutdown is flushed once in ``stop()``.
 
+**Repeats warn, one-offs log at DEBUG.** One lag event is weak evidence, so the first attributed
+stall from a given place (the innermost app-code frame, or the handler when no app frame was
+captured) is logged at DEBUG instead of warned. A repeat from the same place warns. The seen set
+is in-memory only, so it resets on restart. Persistence is unaffected: every non-ignored stall is
+still recorded.
+
 Architecture reference: design/specs/074-blocking-io-detection/design.md §"Tier 1"
 """
 
@@ -41,6 +47,7 @@ import time
 import warnings
 from dataclasses import dataclass
 from logging import getLogger
+from pathlib import PurePath
 from typing import TYPE_CHECKING
 
 from hassette_wire import BlockingTier, StackFrame
@@ -49,7 +56,7 @@ from hassette.core.block_io_guard import format_attribution_label, resolve_block
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import BlockingAttributionReason
-from hassette.utils.stack_frames import capture_frames, format_stack_text
+from hassette.utils.stack_frames import FrameClassifier, capture_frames, format_stack_text
 
 LOGGER = getLogger(__name__)
 
@@ -67,6 +74,13 @@ _POLL_SUBDIVISIONS = 3
 # would cut the stack before reaching the app frame; the walk runs on the watchdog thread, so a
 # deeper limit costs the loop nothing.
 _MAX_STACK_FRAMES = 60
+# Cap on remembered stall keys. When full the set is cleared, so the worst case is one more
+# first-seen (DEBUG) report for a key that had already been seen.
+_MAX_SEEN_STALL_KEYS = 1024
+
+StallKey = tuple[str, str, int, str] | tuple[str, int | None, int | None]
+"""Where an attributed stall came from: ``(app_key, filename, lineno, function)`` of the innermost
+app-code frame, or ``(app_key, listener_id, job_id)`` when no app-code frame was captured."""
 
 
 @dataclass(frozen=True)
@@ -191,6 +205,10 @@ class LoopWatchdog:
         # Attribution outcome for the open episode, decided when the freeze is first captured.
         # Default to "displaced" so a half-set episode never blames an app.
         self._stall_reason: BlockingAttributionReason = "displaced"
+
+        # Attributed stall keys already reported once; a key's first stall logs at DEBUG, a repeat
+        # warns. Touched only by whichever thread emits (the daemon, or stop() after the daemon exited).
+        self._seen_stall_keys: set[StallKey] = set()
 
     def start(self) -> None:
         """Install the tick callback and start the daemon thread. Idempotent."""
@@ -380,9 +398,28 @@ class LoopWatchdog:
             detected_at=time.time(),
             reason=reason,
         )
-        self._emit(event)
+        self._emit(event, self._stall_key(event.app_key, marker, frames) if event.app_key else None)
 
-    def _emit(self, event: WatchdogEvent) -> None:
+    def _stall_key(self, app_key: str, marker: "ExecutionMarker", frames: tuple[StackFrame, ...]) -> StallKey:
+        """Key an attributed stall by its innermost app-code frame, falling back to its handler or job."""
+        manifest = self._hassette.config.apps.manifests.get(app_key)
+        app_dirs = [PurePath(manifest.app_dir)] if manifest is not None else []
+        call_site = FrameClassifier.for_current_interpreter(app_dirs).find_call_site(frames)
+        if call_site is None:
+            return (app_key, marker.listener_id, marker.job_id)
+        frame = frames[call_site]
+        return (app_key, frame.filename, frame.lineno, frame.function)
+
+    def _is_first_sighting(self, key: StallKey) -> bool:
+        """Record ``key`` as seen; True when it had not been seen before. Clears the set when full."""
+        if key in self._seen_stall_keys:
+            return False
+        if len(self._seen_stall_keys) >= _MAX_SEEN_STALL_KEYS:
+            self._seen_stall_keys.clear()
+        self._seen_stall_keys.add(key)
+        return True
+
+    def _emit(self, event: WatchdogEvent, stall_key: StallKey | None) -> None:
         """Resolve behavior and emit the warning for a detected stall.
 
         Resolution: per-app ``AppConfig.blocking_io_behavior`` → global
@@ -396,6 +433,9 @@ class LoopWatchdog:
 
         A displaced/framework stall has no ``app_key``, so behavior resolves from global config
         rather than the (innocent) most-recently-bound app's per-app setting.
+
+        ``stall_key`` is ``None`` for stalls with no ``app_key``, which always warn. An attributed stall
+        whose key is seen for the first time is persisted and logged at DEBUG without a warning.
         """
         owner = resolve_owner(self._hassette, event.app_key, event.instance_index)
         behavior = resolve_blocking_io_behavior(owner)
@@ -423,6 +463,10 @@ class LoopWatchdog:
                 self._on_stall(event)
             except Exception as exc:
                 LOGGER.debug("Failed to persist stall event (loop unavailable at shutdown?): %s", exc)
+
+        if stall_key is not None and self._is_first_sighting(stall_key):
+            LOGGER.debug("%s (first stall from this location; a repeat will warn)", msg)
+            return
 
         # Emit on the daemon thread. WARN and ERROR both go through warnings.warn; if the user's
         # filter escalates it to an error, warnings.warn raises — swallow it so the escalation
