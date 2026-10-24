@@ -100,8 +100,9 @@ class AppRegistry:
         )
 
     def prune_stale_failed_indices(self, app_key: str, valid_index_count: int) -> dict[int, AppInstanceInfo]:
-        """Remove failed (non-running) entries at indices no longer present in the current config,
-        returning what was removed (resolved to ``AppInstanceInfo``, same as ``get_failed_instance_infos``).
+        """Remove failed (non-running) entries at indices no longer present in the current config.
+
+        Returns what was removed, resolved to ``AppInstanceInfo`` (same as ``get_failed_instance_infos``).
 
         Config can shrink (fewer configured instances) without the app going through a full
         reload — e.g. an ``autostart=false`` app that isn't auto-reconciled on a config change
@@ -216,8 +217,9 @@ class AppRegistry:
         }
 
     def _resolve_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
-        """Resolve the configured ``instance_name`` for an index with no live ``App`` object —
-        a failed entry, or an index that isn't tracked in the registry at all.
+        """Resolve the configured ``instance_name`` for an index with no live ``App`` object.
+
+        That is a failed entry, or an index that isn't tracked in the registry at all.
 
         An index past the manifest's configured instances has no name; it gets a display label
         that can never pass instance-name validation, so it can't be mistaken for a real name.
@@ -286,8 +288,9 @@ class AppRegistry:
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
-        """Build a manifest snapshot whose ``instances`` covers every *configured* instance, not
-        just the ones currently tracked in the registry.
+        """Build a manifest snapshot whose ``instances`` covers every *configured* instance.
+
+        This includes configured instances beyond the ones currently tracked in the registry.
 
         A configured index with no registry entry (never started, or independently stopped via
         ``AppLifecycleService.stop_instance()``) gets a synthetic ``ResourceStatus.STOPPED``

@@ -62,6 +62,8 @@ class AppStartStopMixin:
         Args:
             app_key: The app key to start
             force_reload: Whether to force-reload the app class from disk
+            admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
+                ``AppBootstrapNotReleasedError``.
         """
         app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
@@ -226,6 +228,8 @@ class AppStartStopMixin:
         Args:
             app_key: The app key to reload
             force_reload: Whether to force-reload the app class from disk
+            admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
+                ``AppBootstrapNotReleasedError``.
         """
         self.logger.debug("Reloading app %s", app_key)
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
@@ -382,6 +386,8 @@ class AppStartStopMixin:
             app_key: The app key
             index: The instance index to reload
             force_reload: Whether to force-reload the app class from disk
+            admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
+                ``AppBootstrapNotReleasedError``.
         """
         self.logger.debug("Reloading instance %d of app %s", index, app_key)
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
@@ -451,6 +457,8 @@ class AppStartStopMixin:
         Args:
             app_key: The app key
             index: The instance index to start
+            admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
+                ``AppBootstrapNotReleasedError``.
         """
         app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:

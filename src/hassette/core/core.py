@@ -706,8 +706,10 @@ class Hassette(HassetteAccessorsMixin, Resource):
             await self._event_stream_service.close_streams()
 
     async def _shutdown_body(self) -> "TeardownReport":
-        """Root shutdown body: the ordinary hooks/cleanup/children pipeline, with the root owning both
-        exit stages' deadlines, then stream closing and terminal status.
+        """Run the root shutdown body: hooks/cleanup/children, then stream closing and terminal status.
+
+        This is the ordinary hooks/cleanup/children pipeline, with the root owning both exit stages'
+        deadlines.
 
         The root's own hooks, task-cancel and cleanup run under the stop stage's deadline
         (``total_shutdown_timeout_seconds`` minus the foundation budget); ``_shutdown_children()`` runs

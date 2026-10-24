@@ -288,8 +288,10 @@ def _make_method_wrapper(
 
 
 class _Attribution(NamedTuple):
-    """Resolved attribution for one detected blocking call. The first four fields are ``None``
-    unless ``reason == "attributed"`` (a displaced/framework call carries no owner).
+    """Resolved attribution for one detected blocking call.
+
+    The first four fields are ``None`` unless ``reason == "attributed"`` (a displaced/framework
+    call carries no owner).
     """
 
     app_key: str | None
