@@ -139,9 +139,11 @@ class AppChangeReconcilerMixin:
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
     ) -> "AppRestart | None":
-        """Plan the restart a config change needs: only the instances whose ``app_config`` dict
-        changed, or every instance when the app has none running (dormant), the instance count
-        changed, or a manifest is missing on either side. None when no instance changed.
+        """Plan the restart a config change needs, or return None when no instance changed.
+
+        The plan covers only the instances whose ``app_config`` dict changed, or every instance
+        when the app has none running (dormant), the instance count changed, or a manifest is
+        missing on either side.
 
         A dormant app (no running instances) that reaches here via should_auto_reconcile
         (autostart just flipped to True) needs all instances created, not just the changed ones,

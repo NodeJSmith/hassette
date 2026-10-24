@@ -256,6 +256,8 @@ class AppLifecycleService(
 
         Args:
             apps: Set of app keys to initialize. If None, initialize all autostart-enabled apps.
+            admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
+                ``AppBootstrapNotReleasedError``.
         """
         apps = apps if apps is not None else set(self.registry.autostart_manifests.keys())
 
