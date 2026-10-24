@@ -21,9 +21,9 @@ Also pins nested-module layer scoping (#2381): ``layer_of()`` resolves a file's 
 let a ``Rule`` target a nested module independently of its siblings while every existing
 top-level rule keeps matching files nested arbitrarily deep under it.
 
-Also pins the ``no-hassette-client`` rule (#2387): no layer may import ``hassette_client`` at
-runtime — its ``applies`` is unconditional (``lambda _: True``), so it governs every layer rather
-than a single one like the rules above.
+Also pins the ``no-hassette-client`` rule (#2387, #3302): only ``hassette.cli`` may import
+``hassette_client`` at runtime — its ``applies`` is ``applies_outside("cli")``, so it governs every
+other layer rather than a single one like the rules above.
 
 Also pins the ``model-copy-update`` rule (#2385): ``.model_copy(update=...)`` on a served wire
 model is flagged within ``MODEL_COPY_UPDATE_SCAN_PATHS`` (``web/`` and
@@ -49,6 +49,10 @@ from check_module_boundaries import (
 
 #: A stand-in allowlist entry; the real ``PRIVATE_ATTR_ALLOWLIST`` may be empty.
 ALLOWLIST_FIXTURE: frozenset[tuple[str, str]] = frozenset({("resources/base.py", "_internal_hook")})
+
+NO_HASSETTE_CLIENT_REASON = (
+    "only hassette.cli may import hassette_client; the framework and server never depend on the client (#3302)"
+)
 
 
 def reach_through_msg(attr: str) -> str:
@@ -554,33 +558,27 @@ def test_testing_isolation_not_applied_outside_testing_layer() -> None:
     assert check_source(src, "core") == []
 
 
-def test_hassette_client_import_rejected_from_every_layer() -> None:
-    # no-hassette-client applies to every layer (Rule.applies=lambda _: True) — the CLI plugin
-    # receives the client through hassette.cli's register(app) argument, never an import (#2387).
+def test_hassette_client_import_rejected_outside_cli() -> None:
+    # no-hassette-client applies to every layer except cli (Rule.applies=applies_outside("cli")).
     # "hassette_client" is a bare WATCHED_ROOTS entry, so "from hassette_client import X" resolves
     # like "from hassette import testing" does — the imported name is reassembled onto the root.
     src = "from hassette_client import HassetteClient\n"
-    expected_msg = (
-        "no-hassette-client: imports hassette_client.HassetteClient — "
-        "no hassette module may import hassette_client; the CLI plugin receives the client "
-        "through the hassette.cli entry point's register(app) argument, never through an "
-        "import (#2387)"
-    )
-    for layer in ("core", "web", "cli", "<root>"):
+    expected_msg = f"no-hassette-client: imports hassette_client.HassetteClient — {NO_HASSETTE_CLIENT_REASON}"
+    for layer in ("core", "web", "api", "<root>"):
         assert check_source(src, layer) == [(1, expected_msg)]
 
 
-def test_hassette_client_submodule_import_rejected() -> None:
+def test_hassette_client_submodule_import_rejected_outside_cli() -> None:
     src = "import hassette_client.plugin\n"
-    assert check_source(src, "cli") == [
-        (
-            1,
-            "no-hassette-client: imports hassette_client.plugin — "
-            "no hassette module may import hassette_client; the CLI plugin receives the client "
-            "through the hassette.cli entry point's register(app) argument, never through an "
-            "import (#2387)",
-        )
+    assert check_source(src, "core") == [
+        (1, f"no-hassette-client: imports hassette_client.plugin — {NO_HASSETTE_CLIENT_REASON}")
     ]
+
+
+def test_hassette_client_import_allowed_in_cli() -> None:
+    src = "from hassette_client import HassetteClient\nimport hassette_client.plugin\n"
+    for layer in ("cli", "cli/commands"):
+        assert check_source(src, layer) == []
 
 
 def test_layer_of_top_level_file() -> None:

@@ -64,11 +64,9 @@ dependencies = [
     "whenever>=0.11,<0.12",
     "tomli-w>=1.2.0",
     # Lockstep with the release train: release-please rewrites these pins on the marked lines
-    # (the `version` above is bumped by its python release-type, so it needs no marker). The
-    # [cli] extra is empty until the CLI moves into hassette-client; it is declared now so
-    # the published metadata never changes shape.
+    # (the `version` above is bumped by its python release-type, so it needs no marker).
     "hassette-wire==0.60.0",  # x-release-please-version
-    "hassette-client[cli]==0.60.0",  # x-release-please-version
+    "hassette-client==0.60.0",  # x-release-please-version
 ]
 
 [project.optional-dependencies]

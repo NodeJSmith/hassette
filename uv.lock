@@ -1075,7 +1075,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.134.0" },
     { name = "frozendict", specifier = ">=2.4.7" },
     { name = "glom", specifier = ">=24.11.0" },
-    { name = "hassette-client", extras = ["cli"], editable = "client" },
+    { name = "hassette-client", editable = "client" },
     { name = "hassette-wire", editable = "wire" },
     { name = "httpx2", specifier = ">=2.12.0" },
     { name = "humanize", specifier = ">=4.13.0" },
@@ -1162,7 +1162,6 @@ requires-dist = [
     { name = "hassette-wire", editable = "wire" },
     { name = "pydantic", specifier = ">=2.7" },
 ]
-provides-extras = ["cli"]
 
 [package.metadata.requires-dev]
 dev = [
