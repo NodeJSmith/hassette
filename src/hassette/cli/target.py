@@ -403,7 +403,8 @@ def resolve_cli_auth_token(
             continue
         credential = source.resolve(inputs)
         if credential is not None:
-            if URL(target.base_url).user is not None:
+            url = URL(target.base_url)
+            if url.user is not None or url.password is not None:
                 raise CredentialResolutionError(AUTHORIZATION_CONFLICT_MESSAGE)
             return credential
     return None

@@ -29,6 +29,8 @@ from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, REMOTE_SERVER_URL_BARE, make_cli_config
 
 USERINFO_SERVER_URL = "https://alice:secret@example.com"
+PASSWORD_ONLY_USERINFO_SERVER_URL = "https://:hunter2@example.com"
+USERNAME_ONLY_USERINFO_SERVER_URL = "https://alice@example.com"
 
 # Target resolution precedence
 
@@ -392,9 +394,14 @@ class TestCredentialHeaderSafety:
 class TestUserinfoTokenConflict:
     """Token-only behavior is pinned by ``TestCredentialScopeGate.test_cli_auth_token_sent_to_non_loopback_target``."""
 
-    def test_userinfo_with_resolved_token_raises(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "server_url",
+        [USERINFO_SERVER_URL, PASSWORD_ONLY_USERINFO_SERVER_URL, USERNAME_ONLY_USERINFO_SERVER_URL],
+        ids=["user-and-password", "password-only", "username-only"],
+    )
+    def test_userinfo_with_resolved_token_raises(self, tmp_path: Path, server_url: str) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token")
-        target = resolve_server_target(config, server_url_flag=USERINFO_SERVER_URL)
+        target = resolve_server_target(config, server_url_flag=server_url)
         with pytest.raises(CredentialResolutionError) as exc_info:
             resolve_cli_auth_token(config, target)
         assert str(exc_info.value) == AUTHORIZATION_CONFLICT_MESSAGE
