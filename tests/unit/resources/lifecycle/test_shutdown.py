@@ -26,8 +26,9 @@ from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import wait_for
-from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS, sealed_fallback_task_factory
+from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
+from tests.support.task_buckets import sealed_fallback_task_factory
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
 from .conftest import (

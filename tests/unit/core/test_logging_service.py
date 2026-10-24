@@ -19,8 +19,8 @@ from hassette.logging_ import (
     LogPersistenceHandler,
 )
 from tests.support.factories import make_log_record, make_recording_log_capture_handler
-from tests.support.helpers import sealed_fallback_task_factory
 from tests.support.mock_hassette import make_mock_hassette
+from tests.support.task_buckets import sealed_fallback_task_factory
 
 EXTRA_LOGGER_NAME = "my_app.notify"
 

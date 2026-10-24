@@ -23,8 +23,9 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.testing import EventCapture
 from hassette.types import Topic
 from tests.support.factories import make_mock_parent
-from tests.support.helpers import noop, sealed_fallback_task_factory
+from tests.support.helpers import noop
 from tests.support.mock_hassette import make_mock_hassette
+from tests.support.task_buckets import sealed_fallback_task_factory
 
 from .conftest import app_state_payloads, make_mock_app_instance, set_registry_apps
 

@@ -8,7 +8,7 @@ from io import StringIO
 from logging import WARNING, Logger, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
 import anyio
@@ -19,21 +19,18 @@ from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 from hassette.bus.listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
-from hassette.core.sync_executor import SyncExecutor
 from hassette.events import RawStateChangeEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
 from hassette.exceptions import RestartRefusedError, TaskBucketSealedError
 from hassette.execution_mode import run_through_guard
 from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._simulation import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
-from tests.support.mock_hassette import make_mock_hassette
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -463,27 +460,6 @@ def make_rejecting_task_bucket(error: BaseException | None = None) -> MagicMock:
 
     bucket.spawn = MagicMock(side_effect=reject)
     return bucket
-
-
-@contextmanager
-def sealed_fallback_task_factory(bucket: TaskBucket | None = None) -> Iterator[None]:
-    """Install a TaskBucket as the running loop's task-factory fallback for the wrapped block.
-
-    The arrangement ``Hassette`` has during exit: its TaskBucket is the loop's fallback bucket (see
-    ``make_task_factory``) and is sealed, so any task created through the loop with no bucket in
-    context is rejected. With no ``bucket``, a fresh one is created already sealed; pass a resource's
-    own bucket to have it sealed by that resource's shutdown instead.
-    """
-    if bucket is None:
-        bucket = TaskBucket(make_mock_hassette(), sync_executor=Mock(spec=SyncExecutor))
-        bucket.seal()
-    loop = asyncio.get_running_loop()
-    previous_factory = loop.get_task_factory()
-    loop.set_task_factory(make_task_factory(bucket))  # pyright: ignore[reportArgumentType]
-    try:
-        yield
-    finally:
-        loop.set_task_factory(previous_factory)
 
 
 class ControlledClock:
