@@ -60,9 +60,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
     def add_listener(self, listener: "Listener", *, if_exists: IfExistsPolicy = "error") -> Subscription:
         """Add a pre-built listener to the bus.
 
-        This is the direct entry point for callers that construct a ``Listener``
-        externally. The normal registration flow (``on_state_change``, ``on()``,
-        etc.) goes through ``_on_internal`` instead.
+        This is the direct entry point for callers that construct a ``Listener`` externally. The normal registration
+        flow (``on_state_change``, ``on()``, etc.) goes through ``_on_internal`` instead.
 
         Args:
             listener: The pre-built listener to add.
@@ -103,9 +102,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
-        This is the public registration method for raw topic subscriptions.
-        Registration completes before the call returns — ``sub.listener.db_id`` is a valid
-        integer immediately on return.
+        This is the public registration method for raw topic subscriptions. Registration completes
+        before the call returns — ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             topic: The event topic to listen to.
@@ -202,8 +200,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
-                registered on this bus in the current session and ``if_exists="error"``
-                (the default).
+                registered on this bus in the current session and ``if_exists="error"`` (the default).
         """
         return self.task_bucket.run_sync(
             self._bus.on_state_change(
@@ -259,17 +256,15 @@ class BusSyncFacade(BusSyncEventShortcuts):
             duration: Fire only after the attribute has held the value for this many seconds continuously.
                 Not supported with glob patterns.
             name: Required. Stable string identifier. Omitting it entirely raises ``TypeError``
-                (no default value); passing an empty string raises ``ListenerNameRequiredError``
-                at call time.
+                (no default value); passing an empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
-                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
-                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
-                counts are live-only diagnostics, reset on restart.
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order (bounded at 10 pending),
+                ``"parallel"`` runs concurrently. Suppressed/dropped counts are live-only diagnostics, reset on restart.
 
                 ``backpressure`` controls what this listener does when the dispatch concurrency
                 semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
@@ -335,9 +330,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
-                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
-                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
-                counts are live-only diagnostics, reset on restart.
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order (bounded at 10 pending),
+                ``"parallel"`` runs concurrently. Suppressed/dropped counts are live-only diagnostics, reset on restart.
 
                 ``backpressure`` controls what this listener does when the dispatch concurrency
                 semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
@@ -364,13 +358,11 @@ class BusSyncFacade(BusSyncEventShortcuts):
     ) -> "AnyEvent":
         """Wait for a single matching event, then return it.
 
-        Registers a one-shot listener before waiting begins, so only
-        events dispatched *after* registration can resolve the wait — pre-existing
-        state is never consulted.
+        Registers a one-shot listener before waiting begins, so only events dispatched *after*
+        registration can resolve the wait — pre-existing state is never consulted.
 
-        Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`:
-        it returns an `Event`, not a `Subscription`, so there is no forgotten-`await`
-        footgun for that helper to guard against.
+        Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`: it returns an `Event`, not a
+        `Subscription`, so there is no forgotten-`await` footgun for that helper to guard against.
 
         Args:
             topic: The event topic to wait for.
@@ -405,13 +397,11 @@ class BusSyncFacade(BusSyncEventShortcuts):
         The handler is called when any listener on this bus raises an exception (including ``TimeoutError``) and
         the listener does not have its own per-registration error handler.
 
-        This is an app-level fallback — it is resolved at dispatch time, not at listener
-        registration time. A later call to ``on_error()`` replaces any previously registered
-        handler.
+        This is an app-level fallback — it is resolved at dispatch time, not at listener registration time. A later call
+        to ``on_error()`` replaces any previously registered handler.
 
-        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near
-        app shutdown may be cancelled before they complete. Do not rely on error handlers
-        for delivery-critical alerting during system teardown.
+        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near app shutdown may be cancelled
+        before they complete. Do not rely on error handlers for delivery-critical alerting during system teardown.
 
         Args:
             handler: A sync or async callable that accepts a :class:`~hassette.bus.error_context.BusErrorContext`.
