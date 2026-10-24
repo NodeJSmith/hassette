@@ -55,6 +55,7 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -90,6 +91,7 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -216,10 +218,10 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
-                natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
-                default value); passing an empty string raises ``ListenerNameRequiredError``
-                at call time.
+                natural key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across restarts.
+                Omitting it entirely raises ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -248,10 +250,9 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
-                natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
-                default value); passing an empty string raises ``ListenerNameRequiredError``
-                at call time.
+                natural key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across restarts.
+                Omitting it entirely raises ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
@@ -412,6 +413,7 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:

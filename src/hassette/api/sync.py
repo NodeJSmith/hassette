@@ -89,6 +89,7 @@ class ApiSyncFacade(Resource):
             params: Query parameters for the request.
             data: JSON payload for the request.
             suppress_error_message: Whether to suppress error messages.
+            kwargs: Additional keyword arguments to pass to the request.
 
         Returns:
             The response from the API.

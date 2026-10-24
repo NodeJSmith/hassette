@@ -246,13 +246,11 @@ class Bus(Resource):
         The handler is called when any listener on this bus raises an exception (including ``TimeoutError``) and
         the listener does not have its own per-registration error handler.
 
-        This is an app-level fallback — it is resolved at dispatch time, not at listener
-        registration time. A later call to ``on_error()`` replaces any previously registered
-        handler.
+        This is an app-level fallback — it is resolved at dispatch time, not at listener registration time. A later call
+        to ``on_error()`` replaces any previously registered handler.
 
-        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near
-        app shutdown may be cancelled before they complete. Do not rely on error handlers
-        for delivery-critical alerting during system teardown.
+        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near app shutdown may be cancelled
+        before they complete. Do not rely on error handlers for delivery-critical alerting during system teardown.
 
         Args:
             handler: A sync or async callable that accepts a :class:`~hassette.bus.error_context.BusErrorContext`.
@@ -272,9 +270,8 @@ class Bus(Resource):
     ) -> "Coroutine[Any, Any, Subscription]":
         """Add a pre-built listener to the bus.
 
-        This is the direct entry point for callers that construct a ``Listener``
-        externally. The normal registration flow (``on_state_change``, ``on()``,
-        etc.) goes through ``_on_internal`` instead.
+        This is the direct entry point for callers that construct a ``Listener`` externally. The normal registration
+        flow (``on_state_change``, ``on()``, etc.) goes through ``_on_internal`` instead.
 
         Args:
             listener: The pre-built listener to add.
@@ -317,10 +314,9 @@ class Bus(Resource):
         Mutates the per-bus key registry as a side effect — this is the single point where
         in-session duplicate detection and resolution happens.
 
-        On skip short-circuit (matching existing listener), returns the existing ``Listener``
-        so the caller can wrap it in a ``Subscription``. Returns ``None`` on the proceed path
-        (no existing, or replace after cancelling the old), meaning the caller should register
-        the new listener normally.
+        On skip short-circuit (matching existing listener), returns the existing ``Listener`` so the caller can wrap it
+        in a ``Subscription``. Returns ``None`` on the proceed path (no existing, or replace after cancelling the old),
+        meaning the caller should register the new listener normally.
 
         Collision semantics:
         - No existing listener → register the key, return ``None`` (proceed).
@@ -376,14 +372,12 @@ class Bus(Resource):
     ) -> Subscription:
         """Resolve a collision then register the listener, returning its Subscription.
 
-        The async body for both add_listener and _on_internal. _resolve_collision mutates the
-        per-bus key registry, so it must not run for a never-awaited call — keeping it here, in
-        the awaited coroutine, is what prevents that.
+        The async body for both add_listener and _on_internal. _resolve_collision mutates the per-bus key registry, so
+        it must not run for a never-awaited call — keeping it here, in the awaited coroutine, is what prevents that.
 
-        On the skip short-circuit, returns a subscription wrapping the existing listener.
-        On the replace path, _resolve_collision has already cancelled the existing listener;
-        if the new registration then fails, an ERROR is logged so the now-open gap (no handler
-        routed under this key) is observable before the exception propagates.
+        On the skip short-circuit, returns a subscription wrapping the existing listener. On the replace path,
+        _resolve_collision has already cancelled the existing listener; if the new registration then fails, an ERROR is
+        logged so the now-open gap (no handler routed under this key) is observable before the exception propagates.
         """
         # `is_replacing` must be captured BEFORE _resolve_collision runs: on the replace path it
         # pops the existing key, so reading _registered_listeners afterward would always be False.
@@ -484,9 +478,8 @@ class Bus(Resource):
     ) -> "Coroutine[Any, Any, Subscription]":
         """Subscribe to an event topic with optional filtering and modifiers.
 
-        This is the public registration method for raw topic subscriptions. Must be awaited.
-        Registration completes before the call returns — ``sub.listener.db_id`` is a valid
-        integer immediately on return.
+        This is the public registration method for raw topic subscriptions. Must be awaited. Registration completes
+        before the call returns — ``sub.listener.db_id`` is a valid integer immediately on return.
 
         Args:
             topic: The event topic to listen to.
@@ -562,9 +555,8 @@ class Bus(Resource):
     ) -> Subscription:
         """Private registration method carrying the full parameter set.
 
-        ``mode=None`` means "not supplied" — it resolves to the tier-aware default
-        (``parallel`` for framework listeners, ``single`` for app listeners). An explicit
-        mode always wins.
+        ``mode=None`` means "not supplied" — it resolves to the tier-aware default (``parallel`` for framework
+        listeners, ``single`` for app listeners). An explicit mode always wins.
 
         Called by on() (with duration_config=None) and by _subscribe() (which
         builds DurationConfig from duration/entity_id when provided).
@@ -782,10 +774,15 @@ class Bus(Resource):
             where: Additional predicates to filter events (e.g. ValueIs) or custom callables. These will receive the
                 full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
+            immediate: Whether to fire once with the current state on registration, then on every subsequent change.
+                Not supported with glob patterns.
+            duration: Fire only after the state has held for this many seconds continuously.
+                Not supported with glob patterns.
             name: Required. A stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -812,8 +809,7 @@ class Bus(Resource):
         Raises:
             ListenerNameRequiredError: If ``name`` is not provided.
             DuplicateListenerError: If a listener with the same ``(name, topic)`` is already
-                registered on this bus in the current session and ``if_exists="error"``
-                (the default).
+                registered on this bus in the current session and ``if_exists="error"`` (the default).
         """
         # Synchronous validation runs before the handle is constructed (design Edge Cases).
         _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}")
@@ -882,17 +878,20 @@ class Bus(Resource):
             changed_to: A value or callable that will be used to filter attribute changes *to* this value.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            immediate: Whether to fire once with the current attribute value on registration, then on every
+                subsequent change. Not supported with glob patterns.
+            duration: Fire only after the attribute has held the value for this many seconds continuously.
+                Not supported with glob patterns.
             name: Required. Stable string identifier. Omitting it entirely raises ``TypeError``
-                (no default value); passing an empty string raises ``ListenerNameRequiredError``
-                at call time.
+                (no default value); passing an empty string raises ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
-                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
-                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
-                counts are live-only diagnostics, reset on restart.
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order (bounded at 10 pending),
+                ``"parallel"`` runs concurrently. Suppressed/dropped counts are live-only diagnostics, reset on restart.
 
                 ``backpressure`` controls what this listener does when the dispatch concurrency
                 semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
@@ -980,14 +979,14 @@ class Bus(Resource):
             name: Required. Stable string identifier for this listener. Omitting it entirely
                 raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
                 ``mode`` controls overlap behavior when a trigger fires while a prior invocation
                 is still running: ``"single"`` drops the re-fire (the default for app handlers),
-                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order
-                (bounded at 10 pending), ``"parallel"`` runs concurrently. Suppressed/dropped
-                counts are live-only diagnostics, reset on restart.
+                ``"restart"`` cancels and replaces, ``"queued"`` serializes in arrival order (bounded at 10 pending),
+                ``"parallel"`` runs concurrently. Suppressed/dropped counts are live-only diagnostics, reset on restart.
 
                 ``backpressure`` controls what this listener does when the dispatch concurrency
                 semaphore is saturated: ``"block"`` (default) waits for a slot, unchanged from
@@ -1057,6 +1056,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1114,6 +1114,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1286,10 +1287,10 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
-                natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
-                default value); passing an empty string raises ``ListenerNameRequiredError``
-                at call time.
+                natural key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across restarts.
+                Omitting it entirely raises ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1340,10 +1341,9 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
-                natural key ``(app_key, instance_index, name, topic)`` used for upsert
-                deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
-                default value); passing an empty string raises ``ListenerNameRequiredError``
-                at call time.
+                natural key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across restarts.
+                Omitting it entirely raises ``TypeError`` (no default value); passing an empty string raises
+                ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
@@ -1534,6 +1534,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1662,13 +1663,11 @@ class Bus(Resource):
     ) -> "AnyEvent":
         """Wait for a single matching event, then return it.
 
-        Must be awaited. Registers a one-shot listener before waiting begins, so only
-        events dispatched *after* registration can resolve the wait — pre-existing
-        state is never consulted.
+        Must be awaited. Registers a one-shot listener before waiting begins, so only events dispatched *after*
+        registration can resolve the wait — pre-existing state is never consulted.
 
-        Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`:
-        it returns an `Event`, not a `Subscription`, so there is no forgotten-`await`
-        footgun for that helper to guard against.
+        Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`: it returns an `Event`, not a
+        `Subscription`, so there is no forgotten-`await` footgun for that helper to guard against.
 
         Args:
             topic: The event topic to wait for.
