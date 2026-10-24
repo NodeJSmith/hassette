@@ -8,7 +8,7 @@ than the expected golden output.
 Write golden values from observation, not from calling the same code path twice.
 """
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from whenever import Time, ZonedDateTime
 
@@ -20,6 +20,9 @@ from hassette.models.states.light import LightState
 from hassette.models.states.number import NumberState
 from hassette.models.states.sensor import SensorState
 from hassette.testing import make_state_dict, make_typed_state
+
+if TYPE_CHECKING:
+    from hassette.events import HassStateDict
 
 
 class TestBoolValueTypeFamily:
@@ -181,34 +184,34 @@ class TestTryConvertStateEntryPoint:
 
     def test_light_on_via_registry(self) -> None:
         raw = make_state_dict("light.kitchen", "on")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is LightState
         assert state.value is True
 
     def test_sensor_string_via_registry(self) -> None:
         raw = make_state_dict("sensor.outdoor_temperature", "23.5")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is SensorState
         assert state.value == "23.5"
         assert isinstance(state.value, str)
 
     def test_number_float_via_registry(self) -> None:
         raw = make_state_dict("number.brightness", "23.5")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is NumberState
         assert state.value == 23.5
         assert isinstance(state.value, float)
 
     def test_unknown_light_via_registry(self) -> None:
         raw = make_state_dict("light.kitchen", "unknown")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is LightState
         assert state.value is None
         assert state.is_unknown is True
 
     def test_unregistered_domain_falls_back_to_base_state(self) -> None:
         raw = make_state_dict("custom_unregistered.demo", "payload")
-        state = STATE_REGISTRY.try_convert_state(raw)
+        state = STATE_REGISTRY.try_convert_state(cast("HassStateDict", raw))
         assert type(state) is BaseState
         assert state.value == "payload"
         assert state.domain == "custom_unregistered"

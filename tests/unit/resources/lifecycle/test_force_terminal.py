@@ -242,7 +242,7 @@ async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
     root._force_terminal()
 
     assert child.teardown_report is safe_report, "force-terminal must not touch an already-completed SAFE report"
-    assert child.teardown_report.is_restart_safe is True
+    assert safe_report.is_restart_safe is True
 
 
 async def test_force_terminal_reaches_grandchild_under_already_reported_child():

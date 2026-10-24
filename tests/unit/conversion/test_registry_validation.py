@@ -132,7 +132,7 @@ class TestTypeRegistryValidation:
 
     def test_type_registry_none_from_type_error(self) -> None:
         """An entry with from_type=None should produce an error issue."""
-        TypeRegistry.conversion_map[(None, int)] = TypeConverterEntry(  # pyright: ignore[reportIndexIssue]
+        TypeRegistry.conversion_map[(None, int)] = TypeConverterEntry(  # pyright: ignore[reportArgumentType]
             func=int,
             from_type=None,  # pyright: ignore[reportArgumentType]
             to_type=int,

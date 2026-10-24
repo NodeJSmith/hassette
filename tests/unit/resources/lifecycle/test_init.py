@@ -259,6 +259,7 @@ async def test_leaf_ready_after_initialize_not_after_init(leaf_type: str):
 
     # For ApiSyncFacade, initialize the parent Api (which propagates to the facade)
     if leaf_type == "ApiSyncFacade":
+        assert resource.parent is not None
         await resource.parent.initialize()
     else:
         await resource.initialize()
@@ -272,6 +273,7 @@ async def test_leaf_ready_after_restart(leaf_type: str):
     hassette = make_mock_hassette(sealed=False)
     resource = make_leaf(hassette, leaf_type)
     init_target = resource.parent if leaf_type == "ApiSyncFacade" else resource
+    assert init_target is not None
 
     await init_target.initialize()
     assert resource.is_ready()

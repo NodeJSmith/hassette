@@ -15,6 +15,7 @@ fd_path = shutil.which("fd") or shutil.which("fdfind")
 
 def find_requirements(*search_dirs: str | Path) -> list[str]:
     """Run fd to discover requirements.txt files, matching docker_start.sh's exact-match pattern."""
+    assert fd_path is not None
     result = subprocess.run(
         [fd_path, "-t", "f", "-a", "-0", "--max-depth", "5", "^requirements\\.txt$", *(str(d) for d in search_dirs)],
         capture_output=True,

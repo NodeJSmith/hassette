@@ -44,12 +44,12 @@ def test_deserialize_missing_class_returns_sentinel() -> None:
 
     Thing.__module__ = module_name
     Thing.__qualname__ = "Thing"
-    fake_module.Thing = Thing
+    fake_module.__dict__["Thing"] = Thing
     sys.modules[module_name] = fake_module
 
     try:
         blob = serialize(Thing())
-        del fake_module.Thing  # simulate the class being renamed/moved between restarts
+        del fake_module.__dict__["Thing"]  # simulate the class being renamed/moved between restarts
 
         result = deserialize(blob, "renamed-class-key")
 

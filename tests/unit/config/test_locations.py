@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, get_args
 
+import platformdirs
 import pytest
 from pydantic import BaseModel
 
@@ -23,7 +24,7 @@ def no_docker_config_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Pat
     """Point the unset-config_dir default at a temp dir standing in for platformdirs."""
     default_dir = tmp_path / "platform-config"
     monkeypatch.setattr(locations, "DOCKER_CONFIG_DIR", tmp_path / "no-such-config")
-    monkeypatch.setattr(locations.platformdirs, "user_config_path", lambda *_a, **_kw: default_dir)
+    monkeypatch.setattr(platformdirs, "user_config_path", lambda *_a, **_kw: default_dir)
     return default_dir
 
 
@@ -137,7 +138,7 @@ class TestRelativePaths:
         assert config.apps.directory == cfg / "my_apps"
         assert config.database.path == cfg / "db" / "h.db"
         assert config.cli.token_file == cfg / "token"
-        assert config.apps.apps["my_app"]["app_dir"] == cfg / "sub"
+        assert config.apps.apps["my_app"].get("app_dir") == cfg / "sub"
 
     def test_empty_toml_path_is_unset_not_the_working_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
