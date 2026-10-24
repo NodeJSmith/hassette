@@ -12,7 +12,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 
 @dataclass(frozen=True)
@@ -55,11 +55,39 @@ def resolve_ref_name(cli_ref: str | None) -> str:
     )
 
 
-def classify(ref_name: str) -> Classification:
-    v_str = ref_name[1:] if ref_name.startswith("v") else ref_name
-    ver = Version(v_str)
-    is_stable = not (ver.is_prerelease or ver.is_devrelease)
-    return Classification(version=ver, is_stable_release=is_stable)
+def list_version_tags() -> list[str]:
+    """Return every `v*` tag in the checkout; needs full history fetched (`fetch-depth: 0`) in CI."""
+    out = subprocess.check_output(["git", "tag", "--list", "v*"], text=True)
+    return out.split()
+
+
+def is_stable(ver: Version) -> bool:
+    return not (ver.is_prerelease or ver.is_devrelease)
+
+
+def highest_stable_version(tags: list[str]) -> Version | None:
+    """Highest stable version among `tags`, skipping tags that aren't valid versions."""
+    versions = []
+    for tag in tags:
+        try:
+            versions.append(Version(tag.removeprefix("v")))
+        except InvalidVersion:
+            continue
+    stable = [v for v in versions if is_stable(v)]
+    return max(stable, default=None)
+
+
+def classify(ref_name: str, existing_tags: list[str]) -> Classification:
+    """Classify `ref_name`; a stable tag counts as a stable release only if no higher stable tag exists.
+
+    `IS_STABLE_RELEASE` gates the Docker `latest` tag, so a late patch for an older line
+    (e.g. v0.55.2 after v0.56.0) must not move `latest` backwards.
+    """
+    ver = Version(ref_name.removeprefix("v"))
+    if not is_stable(ver):
+        return Classification(version=ver, is_stable_release=False)
+    highest = highest_stable_version(existing_tags)
+    return Classification(version=ver, is_stable_release=highest is None or ver >= highest)
 
 
 def write_github_env(c: Classification) -> bool:
@@ -74,7 +102,9 @@ def write_github_env(c: Classification) -> bool:
 
 
 def main(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(description="Classify a git tag as stable vs prerelease/dev.")
+    p = argparse.ArgumentParser(
+        description="Classify a git tag as the highest stable release vs an older-line or prerelease/dev tag."
+    )
     p.add_argument(
         "--ref-name",
         help="Tag/ref name (e.g. v0.18.0, v0.18.0.dev1). If omitted, uses GITHUB_REF_NAME or git describe.",
@@ -86,7 +116,7 @@ def main(argv: list[str]) -> int:
     args = p.parse_args(argv)
 
     ref_name = resolve_ref_name(args.ref_name)
-    c = classify(ref_name)
+    c = classify(ref_name, list_version_tags())
 
     # Validate that ref name matches project version if provided
     if args.project_version:
