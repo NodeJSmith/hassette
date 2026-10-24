@@ -83,10 +83,12 @@ def action_route(path: str, *codes: ProblemCode) -> Callable[[DecoratedCallable]
 
 
 def app_not_found(app_key: str) -> WebApiError:
+    """Build the 404 error raised when no app is registered under ``app_key``."""
     return WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
 
 
 def source_not_found(app_key: str) -> WebApiError:
+    """Build the 404 error raised when an app's source file cannot be found."""
     return WebApiError(ProblemCode.SOURCE_NOT_FOUND, f"Source file not found for app {app_key!r}")
 
 
@@ -418,16 +420,19 @@ async def get_app(app_key: str, runtime: RuntimeDep, telemetry: TelemetryDep) ->
 
 @action_route("/apps/{app_key}/start", *ACTION_CODES)
 async def start_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Start every instance of the app. Returns 202 once the start is accepted."""
     return await _run_app_action("start", app_key, hassette, request, lambda: hassette.app_handler.start_app(app_key))
 
 
 @action_route("/apps/{app_key}/stop", *STOP_ACTION_CODES)
 async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Stop every instance of the app. Returns 202 once the stop is accepted."""
     return await _run_app_action("stop", app_key, hassette, request, lambda: hassette.app_handler.stop_app(app_key))
 
 
 @action_route("/apps/{app_key}/reload", *ACTION_CODES)
 async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Re-import the app from disk and restart its instances. Returns 202 once the reload is accepted."""
     # Always re-import from disk so a previously-failed app recovers once its
     # source is fixed -- without force_reload the cached failed class is reused (#1005).
     return await _run_app_action(
@@ -437,6 +442,7 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
 
 @action_route("/apps/{app_key}/instances/{index}/start", *INSTANCE_INDEX_CODES, *ACTION_CODES)
 async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Start one instance of the app by index. Returns 202 once the start is accepted."""
     _require_valid_instance_index(app_key, index, hassette, "start")
     return await _run_app_action(
         "start",
@@ -450,6 +456,7 @@ async def start_instance(app_key: str, index: int, hassette: HassetteDep, reques
 
 @action_route("/apps/{app_key}/instances/{index}/stop", *INSTANCE_INDEX_CODES, *STOP_ACTION_CODES)
 async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Stop one instance of the app by index. Returns 202 once the stop is accepted."""
     _require_valid_instance_index(app_key, index, hassette, "stop")
     return await _run_app_action(
         "stop",
@@ -463,6 +470,7 @@ async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request
 
 @action_route("/apps/{app_key}/instances/{index}/reload", *INSTANCE_INDEX_CODES, *ACTION_CODES)
 async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Re-import the app from disk and restart one instance by index. Returns 202 once the reload is accepted."""
     _require_valid_instance_index(app_key, index, hassette, "reload")
     # Always re-import from disk, matching the full app-key reload endpoint's force_reload=True
     # convention (#1005) at instance granularity.

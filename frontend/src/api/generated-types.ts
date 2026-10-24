@@ -31,7 +31,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Live */
+        /**
+         * Get Live
+         * @description Return liveness status. Always 200 while the event loop can serve requests.
+         */
         get: operations["get_live_api_health_live_get"];
         put?: never;
         post?: never;
@@ -120,7 +123,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start App */
+        /**
+         * Start App
+         * @description Start every instance of the app. Returns 202 once the start is accepted.
+         */
         post: operations["start_app_api_apps__app_key__start_post"];
         delete?: never;
         options?: never;
@@ -137,7 +143,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Stop App */
+        /**
+         * Stop App
+         * @description Stop every instance of the app. Returns 202 once the stop is accepted.
+         */
         post: operations["stop_app_api_apps__app_key__stop_post"];
         delete?: never;
         options?: never;
@@ -154,7 +163,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reload App */
+        /**
+         * Reload App
+         * @description Re-import the app from disk and restart its instances. Returns 202 once the reload is accepted.
+         */
         post: operations["reload_app_api_apps__app_key__reload_post"];
         delete?: never;
         options?: never;
@@ -171,7 +183,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start Instance */
+        /**
+         * Start Instance
+         * @description Start one instance of the app by index. Returns 202 once the start is accepted.
+         */
         post: operations["start_instance_api_apps__app_key__instances__index__start_post"];
         delete?: never;
         options?: never;
@@ -188,7 +203,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Stop Instance */
+        /**
+         * Stop Instance
+         * @description Stop one instance of the app by index. Returns 202 once the stop is accepted.
+         */
         post: operations["stop_instance_api_apps__app_key__instances__index__stop_post"];
         delete?: never;
         options?: never;
@@ -205,7 +223,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reload Instance */
+        /**
+         * Reload Instance
+         * @description Re-import the app from disk and restart one instance by index. Returns 202 once the reload is accepted.
+         */
         post: operations["reload_instance_api_apps__app_key__instances__index__reload_post"];
         delete?: never;
         options?: never;
@@ -365,7 +386,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Listener Metrics */
+        /**
+         * Get Listener Metrics
+         * @description Return per-listener invocation metrics, optionally scoped to one app, merged with live execution counts.
+         */
         get: operations["get_listener_metrics_api_bus_listeners_get"];
         put?: never;
         post?: never;
