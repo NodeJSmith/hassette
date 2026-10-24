@@ -195,7 +195,7 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
 - **`lag_threshold_seconds`** (float): Tier 1 minimum stall duration in seconds before detection fires. Default: `0.1` (100ms).
 
-- **`min_events`** (int): Tier 1 minimum number of stalls at one call site before it shows up as a finding in the UI and CLI. A single stall can be a fluke, so the default hides it until it recurs. Set to `1` to list every stall. Tier 2 findings always show. Default: `2`.
+- **`min_events`** (int): Tier 1 minimum number of stalls at one call site before it shows up as a finding in the UI and CLI. A single stall can be a fluke, so the default hides it until it recurs. A value of `1` lists every Tier 1 stall. Tier 2 findings always show. Default: `2`.
 
 - **`watchdog_interval_seconds`** (float): How often the Tier 1 watchdog polls in seconds. Smaller values reduce detection latency at a small overhead cost. Default: `0.25` (250ms).
 
