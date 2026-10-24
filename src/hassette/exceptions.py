@@ -308,8 +308,9 @@ class AppBootstrapNotReleasedError(HassetteError):
 
 
 class AppBlockedError(HassetteError):
-    """Raised when a manual start/reload is requested for an app the exclusive-app filter
-    (``--app``) has blocked. Without this, the caller would get a lying 202 "accepted" for a
+    """Raised when a manual start/reload is requested for an app the exclusive-app filter has blocked.
+
+    The filter is set by ``--app``. Without this, the caller would get a lying 202 "accepted" for a
     request the registry silently no-ops — see AppLifecycleService's blocked-app guards.
     """
 
@@ -429,8 +430,7 @@ class DomainNotFoundError(StateRegistryError):
 
 
 class DomainRequiredError(StateRegistryError):
-    """Raised when ``register_state_converter`` (or ``StateRegistry.register``) is called
-    with ``domain=None``.
+    """Raised when ``register_state_converter`` (or ``StateRegistry.register``) gets ``domain=None``.
 
     A concrete domain is required to register a class in the catalog — ``None`` would
     silently store an unresolvable ``StateKey(domain=None)`` entry that ``resolve(domain=None)``
@@ -497,8 +497,7 @@ class EntityShapeError(StateRegistryError):
 
 
 class UnableToConvertAnnotatedStateError(EntityShapeError):
-    """Raised when a state dict fails Pydantic validation against a dependency-injection-annotated
-    state class.
+    """Raised when a state dict fails Pydantic validation against a DI-annotated state class.
 
     Wraps the underlying ``pydantic.ValidationError`` (chained via ``raise ... from exc``) with a
     message that names the entity, its actual device class, and the annotated class — legible where
@@ -520,8 +519,9 @@ class UnableToConvertAnnotatedStateError(EntityShapeError):
 
 
 class SensorShapeMismatchError(EntityShapeError):
-    """Raised when a dependency-injection-annotated narrowed sensor shape class does not match the
-    entity's actual value shape, even when coercion would otherwise succeed.
+    """Raised when a DI-annotated narrowed sensor shape class does not match the entity's value shape.
+
+    Raised even when coercion would otherwise succeed.
 
     Only triggered for the four narrowed sensor shape classes (``NumericSensorState``,
     ``EnumSensorState``, ``TimestampSensorState``, ``DateSensorState``) from
@@ -538,9 +538,10 @@ class SensorShapeMismatchError(EntityShapeError):
 
 
 class EntityNotInViewError(KeyError, EntityShapeError):
-    """Raised when direct lookup finds an entity that exists in its domain but is not a member of
-    a filtered ``DomainStates`` view — its state either fails the view's membership predicate, or
-    its current value does not convert to the view's model.
+    """Raised when direct lookup finds an entity in its domain that is not in a filtered ``DomainStates`` view.
+
+    The entity's state either fails the view's membership predicate, or its current value does
+    not convert to the view's model.
 
     Subclasses both ``KeyError`` and the state-error hierarchy: ``Mapping.get()`` is implemented by
     catching ``KeyError``, so ``.get()`` returns ``None`` for non-members — consistent with
@@ -612,8 +613,7 @@ class InvalidLifecycleTransitionError(HassetteError):
 
 
 class RestartRefusedError(FatalError):
-    """Raised when a lifecycle front door refuses to start a new attempt after teardown proved
-    restart-unsafe.
+    """Raised when a lifecycle front door refuses a new attempt after teardown proved restart-unsafe.
 
     Carries the resource identity and the exact stored ``TeardownReport`` (``is_restart_safe`` is
     always ``False`` whenever this exception is raised) so ``ServiceWatcher`` and any other caller can inspect why
@@ -649,9 +649,11 @@ class RestartRefusedError(FatalError):
 
 
 class LifecycleReentryError(HassetteError):
-    """Raised when a lifecycle front door (``initialize()``, ``start()``, ``restart()``, or
-    ``shutdown()``) is invoked from the resource's own active initialization coordinator,
-    shutdown coordinator, or shutdown body.
+    """Raised when a lifecycle front door is invoked from the resource's own active lifecycle code.
+
+    The front doors are ``initialize()``, ``start()``, ``restart()``, and ``shutdown()``; the
+    guarded callers are the resource's own active initialization coordinator, shutdown
+    coordinator, or shutdown body.
 
     A hook that calls back into its own owner's lifecycle orchestration cannot be joined,
     cancelled, or awaited safely -- the calling task *is* the coordinator or body being awaited,
@@ -720,8 +722,7 @@ class SchedulerNameRequiredError(HassetteError):
 
 
 class JobRemovedError(HassetteError):
-    """Raised when submitting or otherwise acting on a scheduler job whose registration
-    has been removed.
+    """Raised when submitting or otherwise acting on a scheduler job whose registration was removed.
 
     Raised by ``SchedulerService.submit_job()`` when a job's ``db_id`` no longer maps to
     the same live object in the service's registry — the registration was removed (via
@@ -737,8 +738,9 @@ class JobRemovedError(HassetteError):
 
 
 class DuplicateListenerError(HassetteError):
-    """Raised at call time when a second listener with the same ``(name, topic)`` is
-    registered within the same app instance in the same session.
+    """Raised at call time when a second listener with the same ``(name, topic)`` is registered.
+
+    Applies within the same app instance in the same session.
 
     Detected in-memory by the Bus before any database write. Cross-session duplicates
     are handled by upsert and are not an error.

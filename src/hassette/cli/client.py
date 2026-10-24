@@ -183,7 +183,9 @@ class HassetteCLIClient:
         """Perform a GET request, deserialize the response, and handle errors.
 
         Args:
+            path: API path to request, relative to the resolved server URL.
             model: Pydantic model class or ``list``/``dict`` for raw responses.
+            params: Optional query parameters to send with the request.
             tolerate_503: When ``True``, a 503 response is deserialized and returned
                 rather than treated as an error. Use for human-inspection commands
                 whose endpoint returns 503 with a valid status body (e.g. a degraded
@@ -239,6 +241,7 @@ class HassetteCLIClient:
         params and respond with a single wire model on success.
 
         Args:
+            path: API path of the mutation endpoint, relative to the resolved server URL.
             model: The wire model the endpoint returns on success.
 
         Raises:
@@ -449,8 +452,9 @@ class HassetteCLIClient:
         return None if instance is None else self.resolve_instance(app_key, instance)
 
     def _echo_success_target_and_warnings(self) -> None:
-        """Surface the resolved non-loopback target and any TLS-verification warning once per
-        invocation on the success path.
+        """Surface the resolved non-loopback target and any TLS-verification warning on success.
+
+        Runs at most once per invocation.
 
         JSON mode prints the same lines: they go to stderr, so stdout still carries exactly the
         one JSON document the command's render function writes. The target is not added as a key
