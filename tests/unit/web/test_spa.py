@@ -148,11 +148,11 @@ class TestSpaShell:
     def test_substitutes_base(self) -> None:
         resp = SpaShell(self.SHELL).render(f"{INGRESS}/", PROXY)
         assert resp.status_code == 200
-        assert f'<base href="{INGRESS}/" />' in resp.body.decode()
-        assert BASE_MARKER not in resp.body.decode()
+        assert f'<base href="{INGRESS}/" />' in bytes(resp.body).decode()
+        assert BASE_MARKER not in bytes(resp.body).decode()
 
     def test_root_base_keeps_marker_value(self) -> None:
-        assert BASE_MARKER in SpaShell(self.SHELL).render("/", PROXY).body.decode()
+        assert BASE_MARKER in bytes(SpaShell(self.SHELL).render("/", PROXY).body).decode()
 
     @pytest.mark.parametrize("resolution", ["/", Rejected(BaseRejection.UNTRUSTED_PEER, INGRESS_PATH_HEADER)])
     def test_caching_headers(self, resolution: str | Rejected) -> None:
@@ -165,7 +165,7 @@ class TestSpaShell:
     @pytest.mark.parametrize("reason", list(BaseRejection))
     def test_rejection_serves_diagnostic_page(self, reason: BaseRejection) -> None:
         resp = SpaShell(self.SHELL).render(Rejected(reason, FORWARDED_PREFIX_HEADER), STRANGER)
-        body = resp.body.decode()
+        body = bytes(resp.body).decode()
         assert resp.status_code == 403
         assert FORWARDED_PREFIX_HEADER in body
         assert STRANGER not in body
@@ -176,8 +176,8 @@ class TestSpaShell:
         shell = SpaShell(self.SHELL)
         untrusted = shell.render(Rejected(BaseRejection.UNTRUSTED_PEER, INGRESS_PATH_HEADER), STRANGER)
         inactive = shell.render(Rejected(BaseRejection.TRUST_INACTIVE, INGRESS_PATH_HEADER), STRANGER)
-        assert "web_api.trusted_proxies" in untrusted.body.decode()
-        assert "web_api.auth_enabled" in inactive.body.decode()
+        assert "web_api.trusted_proxies" in bytes(untrusted.body).decode()
+        assert "web_api.auth_enabled" in bytes(inactive.body).decode()
 
     def test_each_reason_and_peer_is_warned_once(self) -> None:
         shell = SpaShell(self.SHELL)

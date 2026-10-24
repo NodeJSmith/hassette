@@ -168,7 +168,7 @@ class TestMaskingInputSources:
         mask replaces that with MASK_SENTINEL — the value is masked either way.
         """
         schema = _PlainConfig.model_json_schema()
-        obj = _PlainConfig(real_secret="hunter2", plain_field="visible")
+        obj = _PlainConfig(real_secret=SecretStr("hunter2"), plain_field="visible")
         values = obj.model_dump(mode="json")
         # Pydantic has already masked it: values["real_secret"] == "**********"
         assert values["real_secret"] == "**********"
@@ -192,7 +192,7 @@ class TestNestedMasking:
     def test_nested_secret_masked_in_model_dump(self) -> None:
         """A SecretStr nested inside a group is masked when values come from model_dump."""
         schema = _OuterConfig.model_json_schema()
-        obj = _OuterConfig(name="test", inner=_InnerConfig(nested_secret="deep-secret", nested_name="lbl"))
+        obj = _OuterConfig(name="test", inner=_InnerConfig(nested_secret=SecretStr("deep-secret"), nested_name="lbl"))
         values = obj.model_dump(mode="json")
         result = build_config_view(schema, values)
         assert result["config_values"]["inner"]["nested_secret"] == MASK_SENTINEL

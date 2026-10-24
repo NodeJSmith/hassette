@@ -6,6 +6,7 @@ its error paths), PMD XML parsing, and the `--gate-new-code` merge-base cluster 
 without invoking the real PMD binary or network.
 """
 
+import inspect
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -131,7 +132,7 @@ def test_is_excluded_file_true_for_generated_marker(write_file: Callable[[str, s
 
 
 def test_is_excluded_file_true_for_self() -> None:
-    self_path = Path(check_duplicate_code.__file__)
+    self_path = Path(inspect.getfile(check_duplicate_code))
     assert is_excluded_file(self_path, check_duplicate_code.REPO_ROOT) is True
 
 
@@ -142,7 +143,7 @@ def test_is_dup_ignore_file_false_for_self() -> None:
     so the docstring example never accidentally suppresses the tool's own findings.
     """
     is_dup_ignore_file.cache_clear()
-    self_path = Path(check_duplicate_code.__file__)
+    self_path = Path(inspect.getfile(check_duplicate_code))
     assert is_dup_ignore_file(self_path, check_duplicate_code.REPO_ROOT) is False
 
 
@@ -245,7 +246,7 @@ def test_marker_not_triggered_by_own_source_file() -> None:
     # PYTHON_SCAN_PATHS, and this file's docstring explanation of the marker syntax plus
     # IGNORE_START_RE/IGNORE_END_RE's own literal pattern text used to trip the marker parser
     # on itself (raised "nested dup-ignore-start" scanning its own module docstring).
-    self_path = Path(check_duplicate_code.__file__)
+    self_path = Path(inspect.getfile(check_duplicate_code))
     ignore_ranges(self_path)  # must not raise IgnoreMarkerError
 
 
