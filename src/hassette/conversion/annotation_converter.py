@@ -222,6 +222,7 @@ def convert_typed_state_change_event(converter: "AnnotationConverter", value: An
 
     Returns:
         A ``TypedStateChangeEvent`` whose old and new states are converted to the annotation's state type.
+        A state that is absent in the raw event remains ``None``.
 
     Raises:
         UnableToConvertValueError: If the value is not a ``RawStateChangeEvent``.

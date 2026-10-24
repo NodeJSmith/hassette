@@ -176,7 +176,7 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
     """Normalize a raw app config entry into an ``AppDict``.
 
     Adds a ``.py`` extension when the filename has none, defaults ``app_dir`` to the given directory, resolves the
-    full module path, wraps a single config in a list, and fills defaults for optional fields.
+    app file's absolute filesystem path, wraps a single config in a list, and fills defaults for optional fields.
 
     Args:
         app_key: Key of the app entry in the configuration.

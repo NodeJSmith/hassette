@@ -89,9 +89,9 @@ def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
 
 
 def get_typed_signature(call: Callable[..., Any]) -> inspect.Signature:
-    """Return the callable's signature with string and forward-reference annotations resolved.
+    """Return the callable's signature with string and forward-reference parameter annotations resolved.
 
-    Annotations are evaluated against the callable's module globals.
+    Annotations are evaluated against the callable's module globals. The returned signature has no return annotation.
 
     Raises:
         TypeError: If an annotation cannot be resolved.
