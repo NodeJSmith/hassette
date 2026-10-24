@@ -782,10 +782,15 @@ class Bus(Resource):
             where: Additional predicates to filter events (e.g. ValueIs) or custom callables. These will receive the
                 full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
+            immediate: Whether to fire once with the current state on registration, then on every subsequent change.
+                Not supported with glob patterns.
+            duration: Fire only after the state has held for this many seconds continuously.
+                Not supported with glob patterns.
             name: Required. A stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -882,9 +887,14 @@ class Bus(Resource):
             changed_to: A value or callable that will be used to filter attribute changes *to* this value.
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
+            immediate: Whether to fire once with the current attribute value on registration, then on every
+                subsequent change. Not supported with glob patterns.
+            duration: Fire only after the attribute has held the value for this many seconds continuously.
+                Not supported with glob patterns.
             name: Required. Stable string identifier. Omitting it entirely raises ``TypeError``
                 (no default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -980,6 +990,7 @@ class Bus(Resource):
             name: Required. Stable string identifier for this listener. Omitting it entirely
                 raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options. Accepts ``once``, ``debounce``, ``throttle``, ``timeout``,
                 ``timeout_disabled``, ``if_exists``, ``mode``, and ``backpressure``.
 
@@ -1057,6 +1068,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1114,6 +1126,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1290,6 +1303,7 @@ class Bus(Resource):
                 deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
                 default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -1534,6 +1548,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:

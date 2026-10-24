@@ -55,6 +55,7 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -90,6 +91,7 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -220,6 +222,7 @@ class BusSyncEventShortcuts(Resource):
                 deduplication across restarts. Omitting it entirely raises ``TypeError`` (no
                 default value); passing an empty string raises ``ListenerNameRequiredError``
                 at call time.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
@@ -412,6 +415,7 @@ class BusSyncEventShortcuts(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Stable name for this listener. Required on all DB-registered listeners.
+            on_error: Optional per-listener error handler.
             **opts: Additional options like `once`, `debounce`, `throttle`, `mode`, and `backpressure`.
 
         Returns:
