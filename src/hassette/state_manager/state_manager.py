@@ -371,8 +371,9 @@ class StateManager(Resource):
 
     @property
     def enum_sensor(self) -> "DomainStates[states.EnumSensorState]":
-        """Sensors whose value is one of a fixed set of options — see
-        :class:`hassette.models.states.EnumSensorState`.
+        """Sensors whose value is one of a fixed set of options.
+
+        See :class:`hassette.models.states.EnumSensorState`.
 
         A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
         view/projection contract shared by all four narrowed sensor accessors.
@@ -381,8 +382,9 @@ class StateManager(Resource):
 
     @property
     def timestamp_sensor(self) -> "DomainStates[states.TimestampSensorState]":
-        """Sensors whose value is a timezone-aware point in time — see
-        :class:`hassette.models.states.TimestampSensorState`.
+        """Sensors whose value is a timezone-aware point in time.
+
+        See :class:`hassette.models.states.TimestampSensorState`.
 
         Includes both ``device_class: timestamp`` and ``device_class: uptime`` sensors; there is
         no separate uptime accessor. A filtered view over ``self.states.sensor``; see
@@ -395,8 +397,9 @@ class StateManager(Resource):
 
     @property
     def date_sensor(self) -> "DomainStates[states.DateSensorState]":
-        """Sensors whose value is a calendar date — see
-        :class:`hassette.models.states.DateSensorState`.
+        """Sensors whose value is a calendar date.
+
+        See :class:`hassette.models.states.DateSensorState`.
 
         A filtered view over ``self.states.sensor``; see :attr:`numeric_sensor` for the
         view/projection contract shared by all four narrowed sensor accessors.
@@ -404,8 +407,10 @@ class StateManager(Resource):
         return self._domain_states_for(states.DateSensorState, domain="sensor", predicate=_DATE_SENSOR_PREDICATE)
 
     def __getitem__(self, model: type[StateT]) -> DomainStates[StateT]:
-        """Access domain states using the indexing syntax. This is required if you need
-        to access domain states for a state model class that is not known by the StateRegistry.
+        """Access domain states using the indexing syntax.
+
+        This is required if you need to access domain states for a state model class that is not known by the
+        StateRegistry.
 
         Returns a fresh ``DomainStates`` on every call — it does not share the per-entity validation
         cache that attribute access (``self.states.light``) and iteration (``values()``) reuse. Prefer

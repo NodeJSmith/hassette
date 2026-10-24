@@ -1,5 +1,7 @@
 # dup-ignore-file: collection-condition dataclasses share __post_init__ + __call__ + summarize by design
-"""Conditions receive one or more values extracted from an event and return a boolean indicating
+"""Conditions test values extracted from an event and return whether the condition is met.
+
+Conditions receive one or more values extracted from an event and return a boolean indicating
 whether the condition is met.
 
 These are the building blocks for more complex predicates used in event listeners. Any callable

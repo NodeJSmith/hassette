@@ -477,8 +477,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         return TeardownReport()
 
     async def _run_post_hook_shutdown_stage(self) -> TeardownReport:
-        """Cleanup, child propagation, and terminal event emission shared by every
-        ``_shutdown_body()`` implementation (Resource, Service, and Hassette).
+        """Run the post-hook shutdown stage shared by every ``_shutdown_body()`` implementation.
+
+        Covers cleanup, child propagation, and terminal event emission for Resource, Service, and Hassette.
 
         Runs after the class-specific shutdown hooks have already executed. Returns evidence
         instead of setting flags directly — the shutdown coordinator (``coordinate_shutdown()``
@@ -548,8 +549,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @final
     async def initialize(self) -> None:
-        """Coordinator front door: joins or creates the resource's one owned initialization
-        attempt.
+        """Coordinator front door: joins or creates the resource's one owned initialization attempt.
 
         This method itself never runs class-specific initialization work — see
         ``_initialize_body()``, which every initialization attempt (direct calls, ``start()``'s
@@ -609,8 +609,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     @final
     async def shutdown(self) -> TeardownReport:
-        """Coordinator front door: joins or creates the resource's one owned shutdown attempt
-        and returns its stored ``TeardownReport``.
+        """Coordinator front door: joins or creates the resource's one owned shutdown attempt.
+
+        Returns the attempt's stored ``TeardownReport``.
 
         This method itself never runs class-specific shutdown work — see ``_shutdown_body()``,
         which the coordinator runs exactly once per attempt. Repeated calls after completion

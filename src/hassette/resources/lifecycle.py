@@ -398,8 +398,9 @@ async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
 
 
 def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> None:
-    """Raise ``LifecycleReentryError`` when a lifecycle front door is called from its own
-    active initialization coordinator, shutdown coordinator, or shutdown body.
+    """Raise ``LifecycleReentryError`` when a lifecycle front door re-enters its own active lifecycle task.
+
+    The active task is the resource's own initialization coordinator, shutdown coordinator, or shutdown body.
 
     Every public front door (``initialize()``, ``start()``, ``restart()``, ``shutdown()``)
     calls this first, before creating, joining, or cancelling any lifecycle task. A hook that

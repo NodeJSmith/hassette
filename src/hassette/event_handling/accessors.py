@@ -1,4 +1,6 @@
-"""Accessors are combined with predicates and annotations to easily and cleanly extract values from events. Instead of
+"""Accessors extract values from events for use with predicates and annotations.
+
+Accessors are combined with predicates and annotations to easily and cleanly extract values from events. Instead of
 writing a lambda like ``lambda e: e.payload.data.old_state_value``, you can use the accessor ``get_state_value_old``
 or use ``get_path("payload.data.old_state_value")`` for a more generic solution.
 
