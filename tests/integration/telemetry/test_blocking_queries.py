@@ -223,8 +223,8 @@ class TestRecurrenceGate:
     async def test_hides_a_one_off_lag_finding_until_it_recurs(
         self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
-        await insert_event(db_svc, detected_ts=2000.0)
         await insert_event(db_svc, tier="monkeypatch", primitive="time.sleep", stall_duration_ms=None)
+        await insert_event(db_svc, detected_ts=2000.0)
         assert [f.tier for f in (await instance_zero_findings(query_service)).findings] == ["monkeypatch"]
 
         await insert_event(db_svc, detected_ts=3000.0)
