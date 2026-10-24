@@ -116,8 +116,14 @@ class BlockingQueriesMixin:
         )
         # Classifying stacks is pure-Python CPU work that grows with the number of distinct stacks; a
         # worker thread keeps it off the event loop the watchdog is measuring.
-        findings = await asyncio.to_thread(group_findings, groups, classifier_for_apps(self._app_dirs()))
-        # group_findings orders findings by their newest stack, so the slice drops the least recently seen.
+        findings = await asyncio.to_thread(
+            group_findings,
+            groups,
+            classifier_for_apps(self._app_dirs()),
+            min_events=self.hassette.config.blocking_io.min_events,
+        )
+        # group_findings orders findings by their newest stack and has already dropped Tier 1 findings
+        # below the recurrence minimum, so the cap and truncated flag count only reportable findings.
         return BlockingFindingsResponse(
             findings=findings[:BLOCKING_FINDING_LIMIT], truncated=len(findings) > BLOCKING_FINDING_LIMIT
         )

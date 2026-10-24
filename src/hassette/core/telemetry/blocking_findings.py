@@ -126,12 +126,15 @@ def classifier_for_apps(app_dirs: Mapping[str, PurePath]) -> Callable[[str], Fra
 
 
 def group_findings(
-    groups: Iterable[Mapping[str, Any]], classifier_for: Callable[[str], FrameClassifier]
+    groups: Iterable[Mapping[str, Any]], classifier_for: Callable[[str], FrameClassifier], *, min_events: int
 ) -> list[BlockingFinding]:
     """Merge per-stack event groups (most recently seen first) into findings, most recently seen first.
 
     Each group is one distinct stored stack and handler with SQL aggregates over its events
     (``event_count``, ``max_stall_ms``, ``stall_sum_ms``, ``stall_count``, ``last_seen_ts``).
+
+    A Tier 1 (watchdog) finding with fewer than ``min_events`` merged events is dropped: a lag event
+    is evidence, not proof, so it counts only once it recurs. Tier 2 findings are exact and kept.
     """
     groups = list(groups)
     builders: dict[Hashable, _FindingBuilder] = {}
@@ -140,7 +143,7 @@ def group_findings(
         key, builder = _start_finding(group, app_key, frames, classifier_for(app_key))
         builders.setdefault(key, builder).add(group)
     # Dicts keep insertion order and groups arrive most recently seen first, so this is last-seen order.
-    return [b.build() for b in builders.values()]
+    return [b.build() for b in builders.values() if b.tier != "watchdog" or b.event_count >= min_events]
 
 
 def decode_stacks(rows: Sequence[Mapping[str, Any]], *, id_field: str) -> list[list[StackFrame]]:

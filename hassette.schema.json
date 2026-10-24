@@ -402,6 +402,13 @@
           "title": "Lag Threshold Seconds",
           "type": "number"
         },
+        "min_events": {
+          "default": 2,
+          "description": "Tier 1: minimum number of lag events at one call site before it is reported as a finding.\nDefaults to 2 \u2014 a single stray stall is evidence, not proof, so it stays hidden until it\nrecurs. Set to 1 to report every stall. Tier 2 findings are exact and are never gated.",
+          "minimum": 1,
+          "title": "Min Events",
+          "type": "integer"
+        },
         "watchdog_interval_seconds": {
           "default": 0.25,
           "description": "Tier 1: interval in seconds between watchdog heartbeat checks.\nDefaults to 250ms \u2014 trades detection latency for overhead.",
