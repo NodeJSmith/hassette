@@ -127,6 +127,7 @@ def cmd_job_trigger(job_id: int, *, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) 
 
     Args:
         job_id: The job ID, as shown in the ID column of ``hassette job``.
+        ctx: The CLI context for this invocation (output mode and server target).
     """
     client = make_client(ctx)
     result = client.post(f"/api/scheduler/jobs/{job_id}/trigger", JobTriggerResponse)

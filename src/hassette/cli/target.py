@@ -262,8 +262,10 @@ def _ensure_header_safe(value: str, source: str) -> ResolvedCredential:
 
 
 def _resolve_token_file_flag(inputs: CredentialInputs) -> ResolvedCredential | None:
-    """``--token-file``. Missing/unreadable raises — a path just typed on the command is a fresh,
-    attributable mistake, so failing loudly beats a silent fall-through.
+    """``--token-file``. Missing/unreadable raises.
+
+    A path just typed on the command is a fresh, attributable mistake, so failing loudly beats a
+    silent fall-through.
     """
     path = inputs.token_file_flag
     if path is None:
@@ -294,8 +296,9 @@ def _read_token_file(path: Path, source: str) -> ResolvedCredential | None:
 
 
 def _resolve_cli_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
-    """``cli.token_file``. Missing/unreadable falls through to the next source — a config path is
-    reused unattended and goes stale in ways the operator isn't present to see.
+    """``cli.token_file``. Missing/unreadable falls through to the next source.
+
+    A config path is reused unattended and goes stale in ways the operator isn't present to see.
     """
     path = inputs.config.cli.token_file
     if path is None:
@@ -315,8 +318,10 @@ def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredentia
 
 
 def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential | None:
-    """``web_api.auth_token``. Server-scoped: describes what the *local* instance validates
-    against, so it is gated to loopback targets by ``resolve_cli_auth_token``.
+    """``web_api.auth_token``. Server-scoped.
+
+    Describes what the *local* instance validates against, so it is gated to loopback targets by
+    ``resolve_cli_auth_token``.
     """
     token = inputs.config.web_api.auth_token
     if token is None:
