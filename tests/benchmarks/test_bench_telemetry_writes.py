@@ -11,7 +11,6 @@ which never happens while a round is draining, so calling ``drain_and_persist`` 
 the same work without polling for "all records committed".
 """
 
-import itertools
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -113,10 +112,13 @@ def test_telemetry_write_throughput(
 ) -> None:
     """Enqueue and persist ``RECORDS_PER_ROUND`` records in ``PRODUCTION_BATCH_SIZE`` batches."""
     executor = telemetry_writer.executor
-    round_index = itertools.count()
+    rounds_run = 0
 
     def setup():
-        return (telemetry_writer.make_round_records(next(round_index)),), {}
+        nonlocal rounds_run
+        records = telemetry_writer.make_round_records(rounds_run)
+        rounds_run += 1
+        return (records,), {}
 
     async def write_round(records: list[ExecutionRecord]) -> None:
         for record in records:
@@ -127,8 +129,9 @@ def test_telemetry_write_throughput(
     benchmark.pedantic(lambda records: run_async(write_round(records)), setup=setup, rounds=ROUNDS, iterations=1)
 
     assert executor.get_drop_counters() == (0, 0, 0)
+    # --benchmark-disable runs the round once instead of ROUNDS times.
     total = run_async(_count_executions(executor))
-    assert total == RECORDS_PER_ROUND * ROUNDS
+    assert total == RECORDS_PER_ROUND * rounds_run
     record_throughput(benchmark, request, records_per_round=RECORDS_PER_ROUND)
 
 
