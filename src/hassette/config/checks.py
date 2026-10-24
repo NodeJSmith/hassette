@@ -103,6 +103,7 @@ def find_unknown_keys(settings_cls: type[BaseSettings], build: ConfigBuild) -> l
 
 
 def format_unknown_keys(unknown: list[UnknownKey]) -> str:
+    """Render the unknown keys as a multi-line message with sources, suggestions, and a docs link."""
     lines = ["Unknown configuration keys (they match no Hassette setting):"]
     for key in unknown:
         line = f"  - {key.name} (from {key.source})"
@@ -241,11 +242,13 @@ def field_spellings(name: str, info: FieldInfo) -> list[str]:
 
 
 def field_names(model: type[BaseModel]) -> Iterator[str]:
+    """Yield every accepted spelling (field name and string aliases) of each field on `model`."""
     for name, info in model.model_fields.items():
         yield from field_spellings(name, info)
 
 
 def is_json_object(value: str | None) -> bool:
+    """Return whether `value` parses as JSON to an object (dict); empty or invalid JSON returns False."""
     if not value:
         return False
     try:

@@ -34,6 +34,7 @@ def fmt_calls_into(finding: BlockingFinding) -> str:
 
 
 def fmt_instances(finding: BlockingFinding) -> str:
+    """Comma-separated names of the app instances that hit this call site, falling back to their index."""
     return ", ".join(inst.name or f"instance {inst.index}" for inst in finding.instances)
 
 
@@ -45,6 +46,7 @@ def fmt_stall(stall: UnattributedStall) -> str:
 
 
 def fmt_app_frame(stall: UnattributedStall) -> str:
+    """``file.py:98 in func`` for the app frame found in the stalled stack, or ``""`` when none was found."""
     frame = stall.app_frame
     return f"{frame.display_path}:{frame.lineno} in {frame.function}" if frame is not None else ""
 

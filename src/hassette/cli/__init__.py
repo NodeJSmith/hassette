@@ -162,6 +162,7 @@ def launcher(
         ),
     ] = None,
 ) -> None:
+    """Build the `CLIContext` from the global options, then dispatch the remaining tokens to their command."""
     ctx = CLIContext(
         json_mode=json,
         debug_mode=debug,

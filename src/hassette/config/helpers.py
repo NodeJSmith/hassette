@@ -76,6 +76,7 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
 
 
 def warn_log_level_not_valid(log_level: str, fallback_value: LogLevel) -> None:
+    """Log a warning that `log_level` is invalid and `fallback_value` is used instead."""
     LOGGER.warning("Log level %r is not valid, defaulting to %r", log_level, fallback_value)
 
 
