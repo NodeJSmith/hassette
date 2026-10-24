@@ -37,7 +37,8 @@ def not_in_clause(live_ids: list[int]) -> tuple[str, dict]:
     """Build the ``AND id NOT IN (...)`` WHERE fragment and its bind params.
 
     Single-sources the live-ID exclusion fragment shared by ``build_delete_query``,
-    ``build_retire_query``, and the hand-written ``once=True`` cleanup block.
+    ``build_retire_query``, ``build_clear_stale_job_timing_query``, and the hand-written
+    ``once=True`` cleanup block.
 
     Args:
         live_ids: IDs to exclude, bound as ``:id_0``, ``:id_1``, ...
@@ -188,6 +189,28 @@ def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[s
         RETURNING app_key
     """
     return sql, {"live_keys": encode_app_keys(live_app_keys)}
+
+
+def build_clear_stale_job_timing_query(live_job_ids: list[int]) -> tuple[str, dict]:
+    """Build an UPDATE clearing ``next_run``/``fire_at``/``jitter`` on every job row not registered this session.
+
+    Registration rewrites a live job's timing each session, so any row outside ``live_job_ids``
+    (a removed app's job, or one not re-registered) still carries a previous session's timing.
+    Rows whose timing is already all NULL are skipped.
+
+    Args:
+        live_job_ids: ``scheduled_jobs.id`` of every job registered this session. Empty clears every row.
+
+    Returns:
+        A ``(sql, params)`` tuple.
+    """
+    live_ids_clause, live_ids_params = not_in_clause(live_job_ids)
+    sql = f"""
+        UPDATE scheduled_jobs SET next_run = NULL, fire_at = NULL, jitter = NULL
+        WHERE (next_run IS NOT NULL OR fire_at IS NOT NULL OR jitter IS NOT NULL)
+        {live_ids_clause}
+    """
+    return sql, live_ids_params
 
 
 def encode_app_keys(app_keys: list[str]) -> str:

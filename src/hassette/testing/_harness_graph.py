@@ -13,7 +13,7 @@ from hassette.resources.base import Resource
 DEPENDENCIES: dict[str, set[str]] = {
     "sync_executor": set(),
     "bus": {"sync_executor"},
-    "scheduler": {"sync_executor"},
+    "scheduler": {"sync_executor", "bus"},
     "file_watcher": set(),
     "api_mock": set(),
     "app_bootstrap_coordinator": {"bus", "scheduler", "state_proxy", "sync_executor"},

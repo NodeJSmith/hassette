@@ -7,6 +7,8 @@ from hassette_wire import LogLevel, ScheduleStatus
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
+from hassette.bus import Bus
+from hassette.core.bus_service import BusService
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.scheduler_dispatch import SchedulerDispatchMixin
@@ -18,6 +20,7 @@ from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.scheduler.job_queue import _ScheduledJobQueue
+from hassette.types.enums import Topic
 from hassette.utils.func_utils import callable_stable_name, describe_predicate
 from hassette.utils.serialization import safe_json_serialize
 
@@ -36,8 +39,11 @@ without re-reading the wall clock (e.g. after a system clock change)."""
 class SchedulerService(SchedulerDispatchMixin, Service):
     """Service that manages scheduled jobs."""
 
-    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService, SyncExecutorService]
+    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService, SyncExecutorService, BusService]
     restart_spec = CORE_PERMANENT_RESTART
+
+    bus: Bus
+    """Event bus for the ``APP_LOAD_COMPLETED`` listener that clears stale job timing."""
 
     _job_queue: "_ScheduledJobQueue"
     """Queue of scheduled jobs."""
@@ -70,6 +76,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._executor = executor
+        self.bus = self.add_child(Bus)
         self._job_queue = self.add_child(_ScheduledJobQueue)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
@@ -79,6 +86,23 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     async def before_initialize(self) -> None:
         """Wait until the database and session are ready before the scheduler initializes."""
         await self.hassette.ready_event.wait()
+
+    async def on_initialize(self) -> None:
+        """Subscribe to ``APP_LOAD_COMPLETED`` to clear timing left on job rows not registered this session."""
+        await self.bus.on(
+            topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
+            handler=self.on_app_load_completed,
+            name="hassette.scheduler_service.on_app_load_completed",
+        )
+
+    async def on_app_load_completed(self) -> None:
+        """Clear ``next_run``/``fire_at``/``jitter`` on every job row outside the live registry.
+
+        ``_jobs_by_id`` holds every job registered this session, framework jobs included, so the
+        rows outside it belong to removed apps or jobs not re-registered. A job registered between
+        the snapshot and the UPDATE can lose its timing until its next transition rewrites it.
+        """
+        await self._executor.clear_stale_job_timing(list(self._jobs_by_id))
 
     async def serve(self) -> None:
         """Run the scheduler forever, processing jobs as they become due."""
