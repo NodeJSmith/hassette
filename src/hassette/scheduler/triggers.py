@@ -542,8 +542,9 @@ class EntityTime:
         self._state_reader = reader
 
     def resolve(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
-        """Return the next fire time read from the bound state source, or :data:`WAITING`
-        when the source has no usable time right now.
+        """Return the next fire time read from the bound state source.
+
+        Returns :data:`WAITING` when the source has no usable time right now.
         """
         if self._state_reader is None:
             LOGGER.debug("EntityTime(%s): no state reader bound", self.entity_id)
