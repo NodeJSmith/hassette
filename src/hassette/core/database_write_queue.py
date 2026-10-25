@@ -13,6 +13,7 @@ import typing
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+from hassette.core.pipeline_counters import PipelineCounter
 from hassette.exceptions import WriteQueueUnavailableError
 
 if typing.TYPE_CHECKING:
@@ -128,6 +129,8 @@ class DatabaseWriteQueueMixin:
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
     _executing_future: "asyncio.Future[Any] | None"
     _write_queue_detached: bool
+    _waiting_submits: int
+    """``submit()`` callers currently suspended waiting for queue capacity; ``enqueue()`` yields to them."""
 
     async def drain_write_queue(self, queue: asyncio.Queue[_WriteQueueItem], timeout: float) -> None:
         """Wait for already-queued writes to finish, bounded by ``timeout``.
@@ -209,6 +212,10 @@ class DatabaseWriteQueueMixin:
         # draw from it, so together they never exceed one write_submit_timeout_seconds wait.
         deadline = asyncio.get_running_loop().time() + timeout
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+        # Counted for the whole put so enqueue() can't take the slot the worker frees for this
+        # caller: asyncio wakes a waiting putter on a later loop tick, and a put_nowait() that
+        # runs first would otherwise win the slot every time under a fire-and-forget storm.
+        self._waiting_submits += 1
         try:
             # asyncio.timeout, not wait_for: the session finalize submits after the TaskBucket seal
             # (see "No implicit task creation at exit" in .claude/rules/resource-lifecycle.md)
@@ -222,6 +229,8 @@ class DatabaseWriteQueueMixin:
             coro.close()
             future.cancel()
             raise
+        finally:
+            self._waiting_submits -= 1
         remaining = max(0.0, deadline - asyncio.get_running_loop().time())
         try:
             # asyncio.wait, unlike wait_for, never cancels the future on timeout, so a write that
@@ -247,15 +256,28 @@ class DatabaseWriteQueueMixin:
         executed by the single-writer worker. Any exception is logged; the worker
         continues processing subsequent items.
 
+        While any ``submit()`` caller is waiting for queue capacity, the item is dropped and
+        counted under ``PipelineCounter.DB_WRITE_QUEUE_YIELDED_TO_SUBMIT`` instead, so an awaited
+        write always gets the next free slot.
+
         Args:
             coro: The coroutine to execute.
 
         Returns:
-            True if enqueued successfully, False if dropped due to a full queue.
+            True if enqueued successfully, False if dropped due to a full queue or a waiting ``submit()``.
         """
         if self._db_write_queue is None:  # sync method, no await point -- see submit()'s capture-once comment
             coro.close()
             raise build_queue_unavailable_error(self, "enqueue")
+        if self._waiting_submits > 0:
+            coro.close()
+            self.hassette.pipeline_counters.increment(PipelineCounter.DB_WRITE_QUEUE_YIELDED_TO_SUBMIT)
+            # DEBUG, not ERROR like the full-queue drop: these drops come in storms, and an ERROR
+            # record would itself be persisted through this queue. The counter is the signal.
+            self.logger.debug(
+                "Dropping fire-and-forget DB write while %d submit() caller(s) wait", self._waiting_submits
+            )
+            return False
         try:
             self._db_write_queue.put_nowait((coro, None))
         except asyncio.QueueFull:

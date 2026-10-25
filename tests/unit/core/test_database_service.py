@@ -11,7 +11,8 @@ from hassette_wire import ResourceStatus
 
 # Underscore-prefixed names below are intentional test-only reaches into module internals.
 from hassette.core.database_service import DatabaseService
-from hassette.core.database_write_queue import _WriteQueueItem, log_worker_exit
+from hassette.core.database_write_queue import _WriteQueueItem, log_worker_exit, run_write_queue_worker
+from hassette.core.pipeline_counters import PipelineCounter, PipelineCounters
 from hassette.testing import wait_for
 from tests.support.helpers import async_noop
 from tests.support.task_buckets import sealed_fallback_task_factory
@@ -416,8 +417,56 @@ async def test_submit_queue_full_wait_is_bounded_by_timeout(
 
         # The rejected write was closed rather than added -- the queue is still exactly full.
         assert small_queue.qsize() == small_queue.maxsize
+        assert service._waiting_submits == 0
     finally:
         filler.close()
+
+
+async def test_enqueue_storm_cannot_starve_a_waiting_submit(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A sustained enqueue() storm against a full queue must not time out a concurrent submit().
+
+    The worker frees a slot and wakes the waiting submit() on a later loop tick; without the
+    yield rule a storm's put_nowait() runs first and takes that slot every time.
+    """
+    service = initialized_service_with_worker
+    service.hassette.config.database.write_submit_timeout_seconds = TEST_WRITE_TIMEOUT_SECONDS
+    counters = PipelineCounters()
+    service.hassette.pipeline_counters = counters
+
+    # Swap in a tiny queue with its own worker so the storm keeps it full.
+    assert service._db_worker_task is not None
+    service._db_worker_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await service._db_worker_task
+    service._db_write_queue = asyncio.Queue(maxsize=2)
+    service._db_worker_task = asyncio.create_task(run_write_queue_worker(service))
+
+    stop = asyncio.Event()
+
+    async def storm_write() -> None:
+        await asyncio.sleep(0)
+
+    async def storm() -> None:
+        while not stop.is_set():
+            while service.enqueue(storm_write()):
+                pass
+            await asyncio.sleep(0)
+
+    async def awaited_write() -> str:
+        return "done"
+
+    storm_task = asyncio.create_task(storm())
+    try:
+        await wait_for(lambda: service._db_write_queue is not None and service._db_write_queue.full())
+        assert await service.submit(awaited_write()) == "done"
+    finally:
+        stop.set()
+        await storm_task
+
+    assert service._waiting_submits == 0
+    assert counters.get(PipelineCounter.DB_WRITE_QUEUE_YIELDED_TO_SUBMIT) > 0
 
 
 async def test_enqueue_is_fire_and_forget(

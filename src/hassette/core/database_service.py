@@ -166,6 +166,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._db_worker_task = None
         self._write_queue_detached = False
         self._executing_future = None
+        self._waiting_submits = 0
         self.shutdown_snapshot_task = None
 
     @property
