@@ -592,8 +592,8 @@
           "type": "integer"
         },
         "heartbeat_interval_seconds": {
-          "default": 300,
-          "description": "Interval in seconds between database heartbeat checks.",
+          "default": 30,
+          "description": "Interval in seconds between database heartbeat checks. A failed check counts toward\n``max_consecutive_heartbeat_failures`` only when no database write completed since the previous check.",
           "minimum": 10,
           "title": "Heartbeat Interval Seconds",
           "type": "integer"

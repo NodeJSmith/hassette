@@ -68,7 +68,7 @@ class TestDatabaseConfig:
         assert cfg.migration_timeout_seconds == 120
         assert cfg.write_queue_max == 2000
         assert cfg.telemetry_write_queue_max == 1000
-        assert cfg.heartbeat_interval_seconds == 300
+        assert cfg.heartbeat_interval_seconds == 30
         assert cfg.retention_interval_seconds == 3600
         assert cfg.size_failsafe_interval_seconds == 3600
         assert cfg.size_failsafe_max_iterations == 10

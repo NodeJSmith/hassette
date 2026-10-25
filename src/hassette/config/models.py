@@ -108,8 +108,9 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     telemetry_write_queue_max: int = Field(default=1000, ge=1)
     """Maximum pending records in the CommandExecutor write queue before records are dropped."""
 
-    heartbeat_interval_seconds: int = Field(default=300, ge=10)
-    """Interval in seconds between database heartbeat checks."""
+    heartbeat_interval_seconds: int = Field(default=30, ge=10)
+    """Interval in seconds between database heartbeat checks. A failed check counts toward
+    ``max_consecutive_heartbeat_failures`` only when no database write completed since the previous check."""
 
     retention_interval_seconds: int = Field(default=3600, ge=60)
     """Interval in seconds between retention enforcement runs."""
