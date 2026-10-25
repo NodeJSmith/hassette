@@ -32,6 +32,8 @@ uv add hassette@latest
 
 This updates `pyproject.toml` and installs the new version into your project environment. If you installed Hassette as a uv tool rather than a project dependency, run `uv tool upgrade hassette` instead.
 
+A running Hassette process keeps the version it started with. After any of the commands above, restart Hassette, then run `hassette --version` to confirm the new version (`uv run hassette --version` for a uv project dependency, so it checks the project's copy rather than whatever `hassette` is on your `PATH`).
+
 **Docker**
 
 Pull the latest image and restart your container:
@@ -47,12 +49,12 @@ This pulls whatever tag is configured in your `docker-compose.yml`. To pin a spe
 
 The changelog lives in two places: `CHANGELOG.md` at the root of the repository, and the [GitHub Releases page](https://github.com/NodeJSmith/hassette/releases). Both contain the same content. GitHub Releases is easier to browse by version; `CHANGELOG.md` is useful if you have the repo checked out.
 
-Before upgrading, scan the entries between your current version and the target version. Pay attention to two signals:
+Each release's notes are curated by hand and grouped by topic, so they don't show raw commit messages or `feat!:`-style prefixes. Before upgrading, read the notes for every version between your current version and the target version. Two sections matter most:
 
-- A `BREAKING CHANGE:` footer in a release note means something in your app code may need to change. The footer describes what changed and what you need to do.
-- A `!` after the commit type (for example, `feat!:` or `fix!:`) marks a breaking change. If the entry has a `BREAKING CHANGE:` footer, that footer has the details. If it does not, the summary line is all you have. Read it carefully.
+- **Breaking Changes** comes first when a release has any. Each entry names what changed and what to do about it. Treat every entry there as something your app code or config may need to change for.
+- **For App Authors: You Can Now Delete** lists workarounds the release makes unnecessary. Nothing breaks if you keep them; removing them is optional cleanup.
 
-Entries without either signal are safe to take without changes to your app code.
+A release with no Breaking Changes section needs no changes to your app code.
 
 ## Major Version Upgrades
 
@@ -70,7 +72,15 @@ data_dir = "/home/youruser/.local/share/hassette/v0"
 
 With an explicit path set, Hassette uses it regardless of the built-in version default. You control when the data moves.
 
-To keep reading config from the old versioned directory, pass `--config-dir` or set `HASSETTE__CONFIG_DIR` in the process environment. `config_dir` can't go in `hassette.toml`, because Hassette needs it to find that file.
+The default config directory is versioned the same way. Outside Docker it is `platformdirs.user_config_path("hassette", version="v<major>")`, which is `~/.config/hassette/v0/` on Linux. In Docker it is `/config`, which doesn't change between versions.
+
+To keep reading config from the old versioned directory, point `--config-dir` (or `HASSETTE__CONFIG_DIR` in the process environment) at it:
+
+```bash
+hassette run --config-dir ~/.config/hassette/v0
+```
+
+`config_dir` can't go in `hassette.toml`, because Hassette needs it to find that file.
 
 Docker data volumes carry over across major versions. Mount points are version-independent.
 
@@ -216,6 +226,8 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 | `config_dir` in `hassette.toml` or `.env` | `--config-dir`, or `HASSETTE__CONFIG_DIR` in the process environment |
 | An app's `AppConfig` `env_prefix` starting with `hassette__` (its variables are now checked as Hassette settings) | a prefix outside `HASSETTE__`: `env_prefix="hassette__myapp_"` becomes `env_prefix="myapp_"`, and `HASSETTE__MYAPP_API_KEY` becomes `MYAPP_API_KEY` |
 
+An app's `env_prefix` is set on its config class, the `AppConfig` subclass the app is generic over, as `model_config = SettingsConfigDict(env_prefix=...)`. [App Configuration](../core-concepts/apps/configuration.md) covers how that class receives its values.
+
 The container's start script reads the `HASSETTE_DOCKER_*` variables, not Hassette itself. They use a single underscore after `HASSETTE` because the double-underscore `HASSETTE__` namespace belongs to Hassette settings.
 
 The renamed variables have no fallback. If an old name such as `HASSETTE__INSTALL_DEPS` is still set, the start script's config check rejects it as an unknown key, prints the "HASSETTE CAN'T START" banner, and the container exits with code 78 after its retry delay. The dependency install never runs under the old name.
@@ -288,4 +300,6 @@ Use `docker compose up -d` after editing the compose file, not `docker restart`,
 
 ### Verify the Upgrade
 
-Run `hassette run --check` (in Docker, the `docker compose exec` form above) and confirm `APPS_DIR` points where your apps live. Then start Hassette and look for the `Apps directory:` line in the logs, followed by your apps loading.
+Run `hassette run --check` (in Docker, the `docker compose exec` form above) and confirm `APPS_DIR` points where your apps live.
+
+Once Hassette is up, run [`hassette app`](../cli/commands.md#hassette-app). No app should show `failed` (it didn't import or initialize) or `degraded` (only some of its instances started). `stopped` is expected for an app with `autostart = false`, and `blocked` for apps excluded by `hassette run --app`. To see why an app failed, read the logs: they go to the terminal that runs `hassette run`, or in Docker, to `docker compose logs hassette`.
