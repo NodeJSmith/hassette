@@ -7,13 +7,14 @@ test_logging_persistence.py (LogPersistenceHandler batching/flush).
 """
 
 import inspect
+import json
 import logging
 import queue
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from io import StringIO
-from typing import Literal
+from typing import Any, Literal
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,9 +24,13 @@ import hassette.logging_ as logging_module
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import (
+    CorrelationFilter,
     HassetteQueueHandler,
     HassetteQueueListener,
+    LogFormat,
     LogIdentity,
+    LogIdentityFilter,
+    LogPersistenceHandler,
     enable_basic_logging,
     set_logger_identity,
 )
@@ -34,6 +39,8 @@ from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+STDLIB_LOGGER_NAME = "hassette.apps.example_stdlib"
+NATIVE_LOGGER_NAME = "hassette.apps.example_native"
 # A UUIDv7 execution id and the short id the console shows for it.
 EXECUTION_ID = "0192f3a1-7c2e-7b44-9d0f-6e1a41c09e7b"
 SHORT_EXECUTION_ID = "@41c09e7b"
@@ -263,41 +270,65 @@ class TestConsoleLineFormat:
 
 
 @contextmanager
-def queued_pipeline(stream_handler: logging.StreamHandler) -> Iterator[None]:
-    """Route the hassette logger through a queue to ``stream_handler``, as ``LoggingService`` does in Phase 2."""
+def queued_pipeline(*handlers: logging.Handler) -> Iterator[None]:
+    """Route the hassette logger through a queue to ``handlers``, as ``LoggingService`` does in Phase 2.
+
+    The first handler is the ``enable_basic_logging`` stream handler that the queue replaces.
+    """
     logger = logging.getLogger(HASSETTE_LOGGER_NAME)
     log_queue: queue.Queue[logging.LogRecord] = queue.Queue()
     queue_handler = HassetteQueueHandler(log_queue)
-    listener = HassetteQueueListener(log_queue, stream_handler)
+    queue_handler.addFilter(LogIdentityFilter())
+    queue_handler.addFilter(CorrelationFilter())
+    listener = HassetteQueueListener(log_queue, *handlers)
     logger.addHandler(queue_handler)
-    logger.removeHandler(stream_handler)
+    logger.removeHandler(handlers[0])
     listener.start()
     try:
         yield
     finally:
         listener.stop()
         logger.removeHandler(queue_handler)
-        logger.addHandler(stream_handler)
+        logger.addHandler(handlers[0])
+
+
+def log_caught_error(logger: Any, *, via_exc_info: bool = False) -> None:
+    """Log ``"failed"`` while a ``ValueError("kaboom")`` is being handled.
+
+    ``via_exc_info`` logs with ``error(..., exc_info=True)`` instead of ``exception()``.
+    """
+    try:
+        raise ValueError("kaboom")
+    except ValueError:
+        if via_exc_info:
+            logger.error("failed", exc_info=True)  # noqa: G201 - the exc_info=True path is under test
+        else:
+            logger.exception("failed")
+
+
+def render(log_format: LogFormat, emit: Callable[[], None], *, queued: bool) -> str:
+    """Log through a fresh ``enable_basic_logging`` handler, optionally behind the Phase 2 queue."""
+    stream = StringIO()
+    stream_handler = enable_basic_logging("INFO", log_format=log_format, stream=stream)
+    if queued:
+        with queued_pipeline(stream_handler):
+            emit()
+    else:
+        emit()
+    return ANSI_ESCAPE.sub("", stream.getvalue())
 
 
 @pytest.mark.parametrize("queued", [False, True], ids=["sync", "queued"])
-class TestJsonStack:
-    """JSON output carries a stdlib and a structlog-native caller's stack under the same ``stack`` key,
-    both before and after ``LoggingService`` swaps in the queued pipeline.
+class TestJsonStackAndException:
+    """JSON output carries stdlib and structlog-native callers' stacks under ``stack`` and exceptions under
+    ``exception``, both before and after ``LoggingService`` swaps in the queued pipeline.
     """
 
-    def render_json(self, emit: Callable[[], None], *, queued: bool) -> dict:
-        stream = StringIO()
-        stream_handler = enable_basic_logging("INFO", log_format="json", stream=stream)
-        if queued:
-            with queued_pipeline(stream_handler):
-                emit()
-        else:
-            emit()
-        return last_json_record(stream)
+    def render_json(self, emit: Callable[[], None], *, queued: bool) -> dict[str, Any]:
+        return json.loads(render("json", emit, queued=queued).strip().splitlines()[-1])
 
     def test_stdlib_stack_info_is_rendered(self, queued: bool) -> None:
-        stdlib_logger = logging.getLogger("hassette.apps.example_stdlib")
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
         record = self.render_json(lambda: stdlib_logger.info("where am I", stack_info=True), queued=queued)
         assert record["event"] == "where am I", record
         assert "stack_info" not in record, record
@@ -305,12 +336,88 @@ class TestJsonStack:
         assert "test_stdlib_stack_info_is_rendered" in record["stack"], record
 
     def test_structlog_stack_info_is_rendered(self, queued: bool) -> None:
-        native = structlog.get_logger("hassette.apps.example_native")
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
         record = self.render_json(lambda: native.info("where am I", stack_info=True), queued=queued)
         assert record["event"] == "where am I", record
         assert "stack_info" not in record, record
         assert "Stack (most recent call last):" in record["stack"], record
         assert "test_structlog_stack_info_is_rendered" in record["stack"], record
+
+    def test_stdlib_exception_is_rendered(self, queued: bool) -> None:
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
+        record = self.render_json(lambda: log_caught_error(stdlib_logger), queued=queued)
+        assert record["event"] == "failed", record
+        assert "exc_info" not in record, record
+        assert "ValueError: kaboom" in record["exception"], record
+
+    @pytest.mark.parametrize("via_exc_info", [False, True], ids=["exception", "error_exc_info"])
+    def test_structlog_exception_is_rendered(self, queued: bool, via_exc_info: bool) -> None:
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
+        record = self.render_json(lambda: log_caught_error(native, via_exc_info=via_exc_info), queued=queued)
+        assert record["event"] == "failed", record
+        assert "exc_info" not in record, record
+        assert "ValueError: kaboom" in record["exception"], record
+
+
+@pytest.mark.parametrize("queued", [False, True], ids=["sync", "queued"])
+@pytest.mark.parametrize("log_format", ["console", "compact"])
+class TestConsoleException:
+    """Console formats render the traceback for stdlib and structlog-native callers in both pipeline phases."""
+
+    def test_stdlib_exception_is_rendered(self, queued: bool, log_format: LogFormat) -> None:
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
+        output = render(log_format, lambda: log_caught_error(stdlib_logger), queued=queued)
+        assert "Traceback" in output, output
+        assert "ValueError: kaboom" in output, output
+
+    def test_structlog_exception_is_rendered(self, queued: bool, log_format: LogFormat) -> None:
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
+        output = render(log_format, lambda: log_caught_error(native), queued=queued)
+        assert "Traceback" in output, output
+        assert "ValueError: kaboom" in output, output
+
+
+class TestQueuedPersistedRow:
+    """The row ``LogPersistenceHandler`` builds from a record that crossed the Phase 2 queue."""
+
+    def persisted_row(self, emit: Callable[[], None]) -> dict[str, Any]:
+        collected: list[logging.LogRecord] = []
+        collector = logging.Handler()
+        collector.emit = collected.append  # pyright: ignore[reportAttributeAccessIssue]
+        stream_handler = enable_basic_logging("INFO", log_format="json", stream=StringIO())
+        with queued_pipeline(stream_handler, collector):
+            emit()
+        persistence = LogPersistenceHandler(MagicMock(), MagicMock(), persistence_level=logging.DEBUG)
+        return persistence.record_to_dict(collected[-1])
+
+    def test_structlog_message_is_the_event(self) -> None:
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
+        row = self.persisted_row(lambda: native.info("door opened", door="front"))
+        assert row["message"] == "door opened", row
+
+    def test_structlog_stack_is_appended_to_message(self) -> None:
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
+        row = self.persisted_row(lambda: native.info("where am I", stack_info=True))
+        assert row["message"].startswith("where am I\nStack (most recent call last):"), row
+        assert "test_structlog_stack_is_appended_to_message" in row["message"], row
+
+    def test_stdlib_stack_is_appended_to_message(self) -> None:
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
+        row = self.persisted_row(lambda: stdlib_logger.info("where am I %s", "now", stack_info=True))
+        assert row["message"].startswith("where am I now\nStack (most recent call last):"), row
+
+    def test_stdlib_exception_lands_in_exc_info(self) -> None:
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
+        row = self.persisted_row(lambda: log_caught_error(stdlib_logger))
+        assert row["message"] == "failed", row
+        assert "ValueError: kaboom" in row["exc_info"], row
+
+    @pytest.mark.parametrize("via_exc_info", [False, True], ids=["exception", "error_exc_info"])
+    def test_structlog_exception_lands_in_exc_info(self, via_exc_info: bool) -> None:
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
+        row = self.persisted_row(lambda: log_caught_error(native, via_exc_info=via_exc_info))
+        assert row["message"] == "failed", row
+        assert "ValueError: kaboom" in row["exc_info"], row
 
 
 @contextmanager
