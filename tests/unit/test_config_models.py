@@ -7,6 +7,7 @@ test_config_nested_loading.py.
 """
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -198,7 +199,7 @@ class TestAppsConfig:
 
     def test_remove_incomplete_apps(self):
         """Apps missing required keys are removed with a warning."""
-        cfg = AppsConfig(apps={"incomplete": {"filename": "foo.py"}})
+        cfg = AppsConfig(apps={"incomplete": {"filename": "foo.py"}})  # pyright: ignore[reportArgumentType]
 
         assert "incomplete" not in cfg.apps
 
@@ -209,14 +210,14 @@ class TestAppsConfig:
 
     def test_inline_app_defs_extracted(self):
         """Dict-valued unknown keys are extracted as app definitions."""
-        cfg = AppsConfig(**{"my_app": {"filename": "f.py", "class_name": "C"}, "warn_unconfigured": False})
+        cfg = AppsConfig(**{"my_app": {"filename": "f.py", "class_name": "C"}, "warn_unconfigured": False})  # pyright: ignore[reportArgumentType]
         assert "my_app" in cfg.apps
         assert cfg.warn_unconfigured is False
 
     def test_inline_defs_merged_with_existing_apps_key(self):
         """Inline app defs merge with an explicit apps dict."""
         cfg = AppsConfig(
-            **{
+            **{  # pyright: ignore[reportArgumentType]
                 "apps": {"existing": {"filename": "e.py", "class_name": "E"}},
                 "new_app": {"filename": "n.py", "class_name": "N"},
             }
@@ -232,7 +233,7 @@ class TestAppsConfig:
 
     def test_caller_dict_not_mutated(self):
         """The model_validator doesn't mutate the caller's input dict."""
-        original = {"my_app": {"filename": "f.py", "class_name": "C"}}
+        original: dict[str, Any] = {"my_app": {"filename": "f.py", "class_name": "C"}}
         snapshot = dict(original)
         AppsConfig(**original)
         assert original == snapshot
@@ -240,8 +241,9 @@ class TestAppsConfig:
     @pytest.mark.parametrize("reserved_name", ["directory", "warn_unconfigured"])
     def test_reserved_app_name_raises(self, reserved_name: str):
         """App names that collide with config fields produce a clear error."""
+        app_defs: dict[str, Any] = {reserved_name: {"filename": "f.py", "class_name": "C"}}
         with pytest.raises(ValidationError, match="conflicts with a reserved config field"):
-            AppsConfig(**{reserved_name: {"filename": "f.py", "class_name": "C"}})
+            AppsConfig(**app_defs)
 
 
 class TestSchedulerConfig:

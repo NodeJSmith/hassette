@@ -8,6 +8,7 @@ start/stop actions.
 """
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 from hassette_wire import ResourceStatus
 
@@ -15,6 +16,9 @@ from hassette.app.app import App
 from hassette.events.hassette import HassetteAppStateEvent
 from tests.support.factories import make_app
 from tests.support.mock_hassette import make_mock_hassette
+
+if TYPE_CHECKING:
+    from hassette.config.classes import AppManifest
 
 
 class TestAppKey:
@@ -37,7 +41,7 @@ class TestAppKey:
         # Mimic the factory writing the shared ClassVar for the last section loaded.
         # App has no app_manifest in its own __dict__ by default, so deleting (not
         # restoring an original) is the correct cleanup for the attribute this test adds.
-        App.app_manifest = SimpleNamespace(app_key="blocking_io_lab_ignore")
+        App.app_manifest = cast("AppManifest", SimpleNamespace(app_key="blocking_io_lab_ignore"))
         try:
             assert app_a.app_key == "blocking_io_lab"
             assert app_b.app_key == "blocking_io_lab_ignore"

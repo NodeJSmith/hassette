@@ -399,34 +399,34 @@ class TestAuthHeaders:
         assert "Content-Type" not in config.auth_headers
 
     def test_truncated_token_shows_prefix_and_suffix(self) -> None:
-        config = LogLevelTestConfig(token="abcdef1234567890ghijkl")
+        config = LogLevelTestConfig(token=SecretStr("abcdef1234567890ghijkl"))
         assert config.truncated_token == "abcdef...ghijkl"
 
     def test_truncated_token_preserves_six_chars_each_end(self) -> None:
-        config = LogLevelTestConfig(token="123456__middle__789012")
+        config = LogLevelTestConfig(token=SecretStr("123456__middle__789012"))
         result = config.truncated_token
         assert result.startswith("123456")
         assert result.endswith("789012")
         assert "..." in result
 
     def test_truncated_token_masks_very_short_token(self) -> None:
-        config = LogLevelTestConfig(token="abc123")
+        config = LogLevelTestConfig(token=SecretStr("abc123"))
         assert config.truncated_token == "***"
 
     def test_truncated_token_masks_two_char_token(self) -> None:
-        config = LogLevelTestConfig(token="ab")
+        config = LogLevelTestConfig(token=SecretStr("ab"))
         assert config.truncated_token == "***"
 
     def test_truncated_token_eight_char_shows_prefix(self) -> None:
-        config = LogLevelTestConfig(token="abcdefgh")
+        config = LogLevelTestConfig(token=SecretStr("abcdefgh"))
         assert config.truncated_token == "abc***"
 
     def test_truncated_token_guards_twelve_char_boundary(self) -> None:
-        config = LogLevelTestConfig(token="abcdefghijkl")
+        config = LogLevelTestConfig(token=SecretStr("abcdefghijkl"))
         assert config.truncated_token == "abc***"
 
     def test_truncated_token_thirteen_char_uses_full_format(self) -> None:
-        config = LogLevelTestConfig(token="abcdefghijklm")
+        config = LogLevelTestConfig(token=SecretStr("abcdefghijklm"))
         assert config.truncated_token == "abcdef...hijklm"
 
 
@@ -440,28 +440,28 @@ class TestErrorHandlerTimeoutSeconds:
 
     def test_error_handler_timeout_accepts_none(self) -> None:
         """lifecycle.error_handler_timeout_seconds accepts None to disable the timeout."""
-        config = LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": None})
+        config = LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": None})  # pyright: ignore[reportArgumentType]
         assert config.lifecycle.error_handler_timeout_seconds is None
 
     def test_error_handler_timeout_accepts_positive_float(self) -> None:
         """lifecycle.error_handler_timeout_seconds accepts a positive float."""
-        config = LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 10.0})
+        config = LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 10.0})  # pyright: ignore[reportArgumentType]
         assert config.lifecycle.error_handler_timeout_seconds == 10.0
 
     def test_error_handler_timeout_rejects_zero(self) -> None:
         """lifecycle.error_handler_timeout_seconds rejects zero (must be positive)."""
         with pytest.raises(Exception, match="timeout must be"):
-            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 0.0})
+            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 0.0})  # pyright: ignore[reportArgumentType]
 
     def test_error_handler_timeout_rejects_negative(self) -> None:
         """lifecycle.error_handler_timeout_seconds rejects negative values."""
         with pytest.raises(Exception, match="timeout must be"):
-            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": -1.0})
+            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": -1.0})  # pyright: ignore[reportArgumentType]
 
     def test_error_handler_timeout_rejects_bool(self) -> None:
         """lifecycle.error_handler_timeout_seconds rejects booleans."""
         with pytest.raises(Exception, match="timeout must be"):
-            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
+            LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})  # pyright: ignore[reportArgumentType]
 
 
 class TestRestRequestTimeout:
@@ -517,7 +517,8 @@ class TestOnlyApps:
         """Replaying init kwargs must not pin values that were never passed in."""
         toml_file = tmp_path / "hassette.toml"
         toml_file.write_text("", encoding="utf-8")
-        config = LogLevelTestConfig(config_file=toml_file)
+        # pyright synthesizes subclass __init__ from fields, hiding HassetteConfig.__init__'s loader kwargs.
+        config = LogLevelTestConfig(config_file=toml_file)  # pyright: ignore[reportCallIssue]
         assert config.only_apps == ()
 
         toml_file.write_text('only_apps = ["porch"]\n', encoding="utf-8")
@@ -527,7 +528,7 @@ class TestOnlyApps:
 
     def test_replayed_kwargs_keep_secrets_wrapped(self) -> None:
         """The retained kwargs must not hold a second, unmasked copy of the token."""
-        config = LogLevelTestConfig(token=TEST_TOKEN)
+        config = LogLevelTestConfig(token=TEST_TOKEN)  # pyright: ignore[reportArgumentType]
 
         assert isinstance(config._load_inputs.init_kwargs["token"], SecretStr)
         assert TEST_TOKEN not in repr(config._load_inputs.init_kwargs)

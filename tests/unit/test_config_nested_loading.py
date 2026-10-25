@@ -214,8 +214,8 @@ class TestCrossModelValidation:
 
         with pytest.raises((ValidationError, ValueError)) as exc_info:
             ValidationConfig(
-                database={"retention_days": 3, "framework_retention_days": 1},
-                logging={"log_retention_days": 5},
+                database={"retention_days": 3, "framework_retention_days": 1},  # pyright: ignore[reportArgumentType]
+                logging={"log_retention_days": 5},  # pyright: ignore[reportArgumentType]
             )
         error_text = str(exc_info.value)
         # Error should reference both nested paths
