@@ -2,7 +2,6 @@
 
 import sqlite3
 import time
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
@@ -14,6 +13,7 @@ from ._fixtures_retention import (
     SOURCE_TIER_APP,
     db,
     insert_tiered_execution,
+    make_failing_execute,
     mock_hassette_for_db,
     retention_service,
     run_size_failsafe,
@@ -50,14 +50,7 @@ async def test_failsafe_delete_non_storage_error_propagates(
     """A non-storage exception from a failsafe DELETE escapes the cycle instead of being logged and skipped."""
     await insert_tiered_execution(db, time.time(), SOURCE_TIER_APP)
     await db.commit()
-    original_execute = db.execute
-
-    async def failing_execute(sql: str, *args: Any, **kwargs: Any) -> Any:
-        if sql.strip().startswith("DELETE"):
-            raise RuntimeError("programming error")
-        return await original_execute(sql, *args, **kwargs)
-
-    monkeypatch.setattr(db, "execute", failing_execute)
+    monkeypatch.setattr(db, "execute", make_failing_execute(db, "DELETE", RuntimeError("programming error")))
 
     with pytest.raises(RuntimeError, match="programming error"):
         await run_size_failsafe(retention_service, mock_hassette_for_db)

@@ -152,6 +152,11 @@ class DatabaseRetentionMixin:
                 await self.db.commit()
             except STORAGE_ERRORS as exc:
                 return TargetDeleteResult(total_deleted, error=exc)
+            except Exception:
+                # A bug propagates, but not out of an open transaction: the write-queue worker
+                # only forwards the exception, so the next queued write would inherit the batch.
+                await safe_rollback(self.db, self, target.failsafe_label)
+                raise
             self._write_progress_count += 1
             total_deleted += batch_count
             if batch_count < batch_size:
@@ -390,13 +395,17 @@ class DatabaseRetentionMixin:
                 guard = await self._run_parent_guard_deletes(
                     cutoff, now, self.live_app_keys(), self.hassette.try_session_id()
                 )
-            # Storage errors only; anything else is a bug and propagates. Cancellation needs no
+            # Storage errors are logged; anything else is a bug and propagates. Cancellation needs no
             # rollback here: every cancellation path either rolls back itself (the startup
             # catch-up timeout) or closes the connection (shutdown), which rolls back.
             except STORAGE_ERRORS:
                 await safe_rollback(self.db, self, "parent-guard deletes")
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
                 parent_guard_failed = True
+            except Exception:
+                # Same as a failed batch: roll back so the bug doesn't leave the transaction open.
+                await safe_rollback(self.db, self, "parent-guard deletes")
+                raise
         else:
             self._record_parent_guard_skip(failed_labels, incomplete_labels)
 

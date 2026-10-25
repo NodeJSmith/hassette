@@ -17,6 +17,7 @@ from ._fixtures_retention import (
     count_rows,
     db,
     insert_tiered_execution,
+    make_failing_execute,
     mock_hassette_for_db,
     retention_service,
 )
@@ -141,14 +142,9 @@ async def test_non_storage_error_from_batch_propagates(
     db = retention_service.db
     await insert_tiered_execution(db, time.time() - (5 * SECONDS_PER_DAY), SOURCE_TIER_FRAMEWORK)
     await db.commit()
-    original_execute = db.execute
-
-    async def failing_delete(sql: str, *args: Any, **kwargs: Any) -> Any:
-        if "DELETE FROM executions" in sql:
-            raise RuntimeError("programming error")
-        return await original_execute(sql, *args, **kwargs)
-
-    monkeypatch.setattr(db, "execute", failing_delete)
+    monkeypatch.setattr(
+        db, "execute", make_failing_execute(db, "DELETE FROM executions", RuntimeError("programming error"))
+    )
 
     with pytest.raises(RuntimeError, match="programming error"):
         await retention_service._delete_target_batched(  # pyright: ignore[reportPrivateUsage]
@@ -163,14 +159,9 @@ async def test_non_storage_error_from_parent_guard_rolls_back_and_propagates(
 ) -> None:
     """A non-storage exception from the parent-guard transaction rolls it back, then propagates."""
     db = retention_service.db
-    original_execute = db.execute
-
-    async def failing_listener_delete(sql: str, *args: Any, **kwargs: Any) -> Any:
-        if "DELETE FROM listeners" in sql:
-            raise RuntimeError("programming error")
-        return await original_execute(sql, *args, **kwargs)
-
-    monkeypatch.setattr(db, "execute", failing_listener_delete)
+    monkeypatch.setattr(
+        db, "execute", make_failing_execute(db, "DELETE FROM listeners", RuntimeError("programming error"))
+    )
 
     with pytest.raises(RuntimeError, match="programming error"):
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
