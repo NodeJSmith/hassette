@@ -8,8 +8,9 @@ matching Home Assistant's automation mode names.
 --8<-- "pages/core-concepts/bus/snippets/execution_modes.py:mode_parameter_basic"
 ```
 
-All four bus registration methods — `on_state_change`, `on_attribute_change`,
-`on_call_service`, and `on()` — accept `mode=`.
+Every bus subscription method accepts `mode=`, including `on_state_change`,
+`on_attribute_change`, `on_call_service`, and `on()`. See
+[Shared Parameters](methods.md#shared-parameters) for the full list.
 
 ## The Four Modes
 
