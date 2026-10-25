@@ -6,7 +6,8 @@ Also holds the shared size-failsafe arrange/act helpers (``run_size_failsafe``) 
 
 Not re-exported from ``conftest.py`` -- a directory-wide ``db`` fixture name would shadow too
 easily. Consumers import directly from this module instead: ``test_log_records_retention.py``,
-``test_retention_batch_failure.py`` and ``test_app_manifest_retention.py``.
+``test_retention_batch_failure.py``, ``test_size_failsafe_error_scope.py`` and
+``test_app_manifest_retention.py``.
 """
 
 import logging
@@ -90,18 +91,21 @@ async def insert_tiered_execution(db: aiosqlite.Connection, timestamp: float, so
     )
 
 
-def make_failing_execute(db: aiosqlite.Connection, fail_on: str) -> Callable[..., Coroutine[Any, Any, Any]]:
-    """Build a ``db.execute`` replacement that raises on the first SQL statement containing
+def make_failing_execute(
+    db: aiosqlite.Connection, fail_on: str, error: Exception | None = None
+) -> Callable[..., Coroutine[Any, Any, Any]]:
+    """Build a ``db.execute`` replacement that raises on every SQL statement containing
     ``fail_on``, delegating everything else to the real ``db.execute``.
 
-    Used by retention tests that simulate one statement raising ``sqlite3.OperationalError`` to
-    verify the rest of the cleanup cycle reacts correctly (isolation, parent-guard gating).
+    Raises ``error`` if given, else ``sqlite3.OperationalError``. Used by retention and failsafe
+    tests that simulate one statement failing, either as a storage error the cycle recovers
+    from or as a programming error that must propagate.
     """
     original_execute = db.execute
 
     async def failing_execute(sql: str, *args: Any, **kwargs: Any) -> Any:
         if fail_on in sql:
-            raise sqlite3.OperationalError("simulated failure")
+            raise error if error is not None else sqlite3.OperationalError("simulated failure")
         return await original_execute(sql, *args, **kwargs)
 
     return failing_execute

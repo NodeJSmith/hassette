@@ -12,6 +12,7 @@ from hassette.core.database_sql import (
     reclaim_free_pages,
 )
 from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_tier_where
+from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.utils.aiosqlite_utils import CHECKPOINT_TRUNCATE_SQL, checkpoint_blocked
 
 if typing.TYPE_CHECKING:
@@ -82,7 +83,7 @@ class DatabaseSizeFailsafeMixin:
         """Return ``get_live_data_size_mb()``, or None (logged) if reading it failed."""
         try:
             return await self.get_live_data_size_mb()
-        except Exception:
+        except STORAGE_ERRORS:
             self.logger.exception("Size failsafe: reading live data size failed")
             return None
 
@@ -100,7 +101,7 @@ class DatabaseSizeFailsafeMixin:
         """
         try:
             reclaim = await reclaim_free_pages(self.db)
-        except Exception:
+        except STORAGE_ERRORS:
             self.logger.exception("Size failsafe: free-page reclaim failed after deleting rows")
         else:
             if reclaim.reclaimed > 0:
@@ -113,7 +114,7 @@ class DatabaseSizeFailsafeMixin:
             self.logger.warning(
                 "Size failsafe: WAL checkpoint blocked after deleting rows; the WAL stays until next time"
             )
-        except Exception:
+        except STORAGE_ERRORS:
             self.logger.exception("Size failsafe: WAL checkpoint failed after deleting rows")
 
     async def _check_size_failsafe(self) -> None:
@@ -209,7 +210,7 @@ class DatabaseSizeFailsafeMixin:
                 for target in group:
                     try:
                         n = await _execute_failsafe_delete(db, target, batch_limit=batch_limit)
-                    except Exception:
+                    except STORAGE_ERRORS:
                         # No rollback here — this connection is opened with isolation_level=None
                         # (autocommit), and unlike the age-based retention path, this loop never
                         # issues an explicit BEGIN, so there is no open transaction to roll back.
@@ -278,7 +279,7 @@ class DatabaseSizeFailsafeMixin:
                             stale_row = await stale_cursor.fetchone()
                         finally:
                             await stale_cursor.close()
-                    except Exception:
+                    except STORAGE_ERRORS:
                         # No rollback here either — the probe is a plain SELECT, and (as above)
                         # this loop never opens a transaction to roll back in the first place.
                         self.logger.exception(
