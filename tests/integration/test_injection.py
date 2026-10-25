@@ -1,7 +1,8 @@
 # pyright: reportInvalidTypeForm=none
 """Tests for Maybe/Required annotations and custom dependency injection extractors."""
 
-from typing import Annotated
+from collections.abc import Callable
+from typing import Annotated, Any
 
 import pytest
 
@@ -14,6 +15,13 @@ from hassette.models import states
 from hassette.utils.type_utils import get_type_and_details, get_typed_signature
 
 
+def get_extractor(annotation: Any) -> Callable[[Any], Any]:
+    """Return the dependency extractor carried by an ``Annotated`` DI alias."""
+    type_and_details = get_type_and_details(annotation)
+    assert type_and_details is not None, f"{annotation!r} is not an Annotated alias"
+    return type_and_details[1].extractor
+
+
 class TestMaybeAnnotations:
     """Test Maybe* type aliases that allow None/MISSING_VALUE."""
 
@@ -23,8 +31,8 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.new_state is None), None)
         assert event is not None, "No event with new_state=None found"
 
-        _, annotation_details = get_type_and_details(D.MaybeStateNew[states.BaseState])
-        result = annotation_details.extractor(event)
+        extractor = get_extractor(D.MaybeStateNew[states.BaseState])
+        result = extractor(event)
 
         assert result is None
 
@@ -33,8 +41,8 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.new_state is not None), None)
         assert event is not None, "No event with new_state found"
 
-        _, annotation_details = get_type_and_details(D.MaybeStateNew[states.BaseState])
-        result = annotation_details.extractor(event)
+        extractor = get_extractor(D.MaybeStateNew[states.BaseState])
+        result = extractor(event)
 
         assert result is not None
         assert result == event.payload.data.new_state
@@ -45,8 +53,8 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.old_state is None), None)
         assert event is not None, "No event with old_state=None found"
 
-        _, annotation_details = get_type_and_details(D.MaybeStateOld[states.BaseState])
-        result = annotation_details.extractor(event)
+        extractor = get_extractor(D.MaybeStateOld[states.BaseState])
+        result = extractor(event)
 
         assert result is None
 
@@ -55,8 +63,8 @@ class TestMaybeAnnotations:
         event = next((e for e in state_change_events if e.payload.data.old_state is not None), None)
         assert event is not None, "No event with old_state found"
 
-        _, annotation_details = get_type_and_details(D.MaybeStateOld[states.BaseState])
-        result = annotation_details.extractor(event)
+        extractor = get_extractor(D.MaybeStateOld[states.BaseState])
+        result = extractor(event)
 
         assert result is not None
         assert result == event.payload.data.old_state
@@ -65,8 +73,8 @@ class TestMaybeAnnotations:
         """Test MaybeEntityId returns entity_id when present."""
         event = state_change_events[0]
 
-        _, annotation_details = get_type_and_details(D.MaybeEntityId)
-        result = annotation_details.extractor(event)
+        extractor = get_extractor(D.MaybeEntityId)
+        result = extractor(event)
 
         assert result is not MISSING_VALUE
         assert result == event.payload.data.entity_id
@@ -77,8 +85,8 @@ class TestMaybeAnnotations:
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
         assert call_service_event is not None, "No CallServiceEvent found"
 
-        _, annotation_details = get_type_and_details(D.MaybeDomain)
-        result = annotation_details.extractor(call_service_event)
+        extractor = get_extractor(D.MaybeDomain)
+        result = extractor(call_service_event)
 
         assert result is not MISSING_VALUE
         assert result == call_service_event.payload.data.domain
@@ -93,10 +101,10 @@ class TestRequiredAnnotations:
         event = next((e for e in state_change_events if e.payload.data.new_state is None), None)
         assert event is not None, "No event with new_state=None found"
 
-        _, annotation_details = get_type_and_details(D.StateNew[states.BaseState])
+        extractor = get_extractor(D.StateNew[states.BaseState])
 
         with pytest.raises(DependencyResolutionError):
-            annotation_details.extractor(event)
+            extractor(event)
 
     def test_state_old_raises_on_none(self, state_change_events: list[RawStateChangeEvent]):
         """Test StateOld raises DependencyResolutionError when old_state is None."""
@@ -104,17 +112,17 @@ class TestRequiredAnnotations:
         event = next((e for e in state_change_events if e.payload.data.old_state is None), None)
         assert event is not None, "No event with old_state=None found"
 
-        _, annotation_details = get_type_and_details(D.StateOld[states.BaseState])
+        extractor = get_extractor(D.StateOld[states.BaseState])
 
         with pytest.raises(DependencyResolutionError):
-            annotation_details.extractor(event)
+            extractor(event)
 
     def test_entity_id_succeeds_with_value(self, state_change_events: list[RawStateChangeEvent]):
         """Test EntityId succeeds when entity_id is present."""
         event = state_change_events[0]
 
-        _, annotation_details = get_type_and_details(D.EntityId)
-        result = annotation_details.extractor(event)
+        extractor = get_extractor(D.EntityId)
+        result = extractor(event)
 
         assert result is not MISSING_VALUE
         assert result == event.payload.data.entity_id
@@ -124,8 +132,8 @@ class TestRequiredAnnotations:
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
         assert call_service_event is not None, "No CallServiceEvent found"
 
-        _, annotation_details = get_type_and_details(D.Domain)
-        result = annotation_details.extractor(call_service_event)
+        extractor = get_extractor(D.Domain)
+        result = extractor(call_service_event)
 
         assert result is not MISSING_VALUE
         assert result == call_service_event.payload.data.domain
@@ -174,7 +182,9 @@ class TestCustomDI:
         kwargs = injector.inject_parameters(event)
         result = kwargs["brightness"]
 
-        expected_brightness = event.payload.data.new_state.get("attributes", {}).get("brightness")
+        new_state = event.payload.data.new_state
+        assert new_state is not None
+        expected_brightness = new_state.get("attributes", {}).get("brightness")
 
         assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
 
@@ -204,7 +214,9 @@ class TestCustomDI:
 
         assert isinstance(result, float), f"Expected result to be float, got {type(result)}"
 
-        expected_brightness = event.payload.data.new_state.get("attributes", {}).get("brightness")
+        new_state = event.payload.data.new_state
+        assert new_state is not None
+        expected_brightness = new_state.get("attributes", {}).get("brightness")
 
         assert result == expected_brightness, f"Expected brightness {expected_brightness}, got {result}"
 

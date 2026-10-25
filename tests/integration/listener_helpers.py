@@ -51,12 +51,21 @@ def make_recording_listener(
     return listener, calls
 
 
+async def invoke_with(listener: Listener, data: str) -> None:
+    """Invoke the listener's handler once with a mock event carrying `data`.
+
+    MockEvent's plain-string payload is not an `EventPayload`; tests use it so handlers can
+    record `event.data` directly.
+    """
+    await listener.invoker.invoke(mock_event(data))  # pyright: ignore[reportArgumentType]
+
+
 async def dispatch_values(listener: Listener, *values: str) -> None:
     """Dispatch one invocation per value through the listener's rate limiter."""
     for value in values:
 
         async def invoke_fn(val: str = value) -> None:
-            await listener.invoker.invoke(mock_event(val))
+            await invoke_with(listener, val)
 
         await listener.invoker.dispatch(invoke_fn)
 
@@ -64,4 +73,4 @@ async def dispatch_values(listener: Listener, *values: str) -> None:
 async def invoke_handler(bucket: TaskBucket, handler: HandlerType, data: str = "test_data") -> None:
     """Create a listener for `handler` and invoke it once with a mock event carrying `data`."""
     listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="t")
-    await listener.invoker.invoke(mock_event(data))
+    await invoke_with(listener, data)

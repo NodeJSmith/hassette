@@ -159,7 +159,8 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
     """run_forever uses phased startup: DB first, session, then wave-based remaining services."""
-    stub_run_forever_collaborators(hassette_instance)
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    assert stubs.shutdown is not None
 
     with patch("hassette.core.core.start") as mock_start:
         task = asyncio.create_task(hassette_instance.run_forever())
@@ -174,14 +175,14 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
         if child is not hassette_instance.database_service:
             mock_start.assert_any_call(child)
     # wait_for_ready called: once for DB, then once per startup wave.
-    assert hassette_instance.wait_for_ready.await_count >= 2
-    hassette_instance.wait_for_ready.assert_any_await(
+    assert stubs.wait_for_ready.await_count >= 2
+    stubs.wait_for_ready.assert_any_await(
         [hassette_instance.database_service], timeout=hassette_instance.config.lifecycle.startup_timeout_seconds
     )
     # Session created between phase 1 and phase 2
-    hassette_instance.session_manager.mark_orphaned_sessions.assert_awaited_once()
-    hassette_instance.session_manager.create_session.assert_awaited_once()
-    hassette_instance.shutdown.assert_awaited()
+    stubs.mark_orphaned_sessions.assert_awaited_once()
+    stubs.create_session.assert_awaited_once()
+    stubs.shutdown.assert_awaited()
     assert hassette_instance.loop is asyncio.get_running_loop()
     assert hassette_instance.loop_thread_id == threading.get_ident(), "Thread ID does not match"
 
@@ -222,28 +223,30 @@ async def test_run_forever_restores_prior_task_factory_on_shutdown(hassette_inst
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when session initialization raises."""
-    stub_run_forever_collaborators(hassette_instance)
-    hassette_instance.session_manager.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    assert stubs.shutdown is not None
+    stubs.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
 
     with patch("hassette.core.core.start"), pytest.raises(FatalError):
         await hassette_instance.run_forever()
 
-    hassette_instance.session_manager.mark_orphaned_sessions.assert_awaited_once()
-    hassette_instance.session_manager.create_session.assert_not_awaited()
-    hassette_instance.shutdown.assert_awaited()
+    stubs.mark_orphaned_sessions.assert_awaited_once()
+    stubs.create_session.assert_not_awaited()
+    stubs.shutdown.assert_awaited()
 
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown and raises FatalError when resources fail to become ready."""
     # DB wait succeeds (True), all-children wait fails (False)
-    stub_run_forever_collaborators(hassette_instance)
-    hassette_instance.wait_for_ready.side_effect = [True, False]
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    assert stubs.shutdown is not None
+    stubs.wait_for_ready.side_effect = [True, False]
 
     with patch("hassette.core.core.start"), pytest.raises(FatalError):
         await hassette_instance.run_forever()
 
-    assert hassette_instance.wait_for_ready.await_count == 2
-    hassette_instance.shutdown.assert_awaited_once()
+    assert stubs.wait_for_ready.await_count == 2
+    stubs.shutdown.assert_awaited_once()
     assert hassette_instance.ready_event.is_set(), "Ready event was not set"
 
 
@@ -259,7 +262,7 @@ async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_inst
     hassette_instance.config.dev_mode = True
     hassette_instance.config.blocking_io.deep_detection_enabled = True
 
-    real_install = core_module.install_block_io_guard
+    real_install = block_io_guard.install
     try:
         with (
             patch("hassette.core.core.start", side_effect=RuntimeError("db start broke")),

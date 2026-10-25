@@ -57,8 +57,8 @@ class TestRunForeverFatalOnCrash:
 
     async def test_run_forever_raises_fatal_on_session_init_failure(self, hassette_instance: Hassette):
         """Startup failure in session init branch raises FatalError."""
-        stub_run_forever_collaborators(hassette_instance)
-        hassette_instance.session_manager.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
+        stubs = stub_run_forever_collaborators(hassette_instance)
+        stubs.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
 
         with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
@@ -68,8 +68,8 @@ class TestRunForeverFatalOnCrash:
     async def test_run_forever_raises_fatal_on_resource_startup_failure(self, hassette_instance: Hassette):
         """Startup failure (resources not ready) branch raises FatalError."""
         # DB wait succeeds, wave wait fails
-        stub_run_forever_collaborators(hassette_instance)
-        hassette_instance.wait_for_ready.side_effect = [True, False]
+        stubs = stub_run_forever_collaborators(hassette_instance)
+        stubs.wait_for_ready.side_effect = [True, False]
 
         with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()
