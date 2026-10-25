@@ -22,8 +22,9 @@ class EnergyApp(App):
         # Also works with attributes via P.AttrComparison
         await self.bus.on_state_change(
             "climate.bedroom",
-            handler=self.on_brightness_increased,
+            handler=self.on_temperature_increased,
             where=P.AttrComparison("current_temperature", C.Increased()),
+            changed=False,  # only the attribute changes, not the main state
             name="bedroom_temp_up",
         )
 
@@ -33,5 +34,5 @@ class EnergyApp(App):
     async def on_battery_decreased(self, event):
         pass
 
-    async def on_brightness_increased(self, event):
+    async def on_temperature_increased(self, event):
         pass
