@@ -8,16 +8,16 @@ Covers gaps in the test matrix:
 """
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from whenever import SYSTEM_TZ, ZonedDateTime
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.bus.error_context import BusErrorContext
-from hassette.events import RawStateChangeEvent
+from hassette.events import HassStateDict, RawStateChangeEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
-from hassette.testing import AppTestHarness, HassetteHarness, wait_for
+from hassette.testing import AppTestHarness, HassetteHarness, make_state_dict, wait_for
 from tests.support.helpers import settle
 
 from .conftest import (
@@ -27,7 +27,7 @@ from .conftest import (
     ELAPSED_REMAINING_OFFSET_SECONDS,
     REMAINING_FIRE_TIMEOUT,
 )
-from .helpers import ErrorCollector, drive_state_change, seed, send_live_event_and_wait_drain
+from .helpers import ErrorCollector, drive_state_change, send_live_event_and_wait_drain
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -204,14 +204,14 @@ async def test_immediate_app_level_error_handler(bus_harness: tuple[HassetteHarn
     """Immediate fire handler raises → app-level on_error receives the error context."""
     harness, hassette, bus = bus_harness
 
-    # dup-ignore-start: seed() + `errors = ErrorCollector()` + `async def bad_handler(...)` is
+    # dup-ignore-start: seed_state() + `errors = ErrorCollector()` + `async def bad_handler(...)` is
     # the standard single-collector arrange used by every test in this file that doesn't compare
     # app-level vs. per-listener precedence (those use make_error_collector_pair() instead).
     # `ErrorCollector()` alone is too trivial a call to name a helper for, and bad_handler's raised
     # exception type/message is the one thing that varies per test and is the actual point of each
-    # one — the preceding seed() call also differs by entity, so nothing here generalizes into
+    # one — the preceding seed_state() call also differs by entity, so nothing here generalizes into
     # a single shared call without losing that specificity.
-    await seed(harness, "light.kitchen", "on")
+    await harness.seed_state("light.kitchen", cast("HassStateDict", make_state_dict("light.kitchen", "on")))
 
     errors = ErrorCollector()
 
@@ -239,7 +239,7 @@ async def test_immediate_per_listener_error_handler_wins(
     """Immediate fire + per-listener on_error takes precedence over app-level handler."""
     harness, hassette, bus = bus_harness
 
-    await seed(harness, "switch.outlet", "on")
+    await harness.seed_state("switch.outlet", cast("HassStateDict", make_state_dict("switch.outlet", "on")))
 
     app_level, per_listener = make_error_collector_pair()
 
@@ -269,7 +269,7 @@ async def test_immediate_once_error_handler_and_removal(
     """Immediate + once=True + on_error: handler raises, error handler fires, listener consumed."""
     harness, hassette, bus = bus_harness
 
-    await seed(harness, "switch.outlet", "on")
+    await harness.seed_state("switch.outlet", cast("HassStateDict", make_state_dict("switch.outlet", "on")))
 
     errors = ErrorCollector()
     call_count = 0
@@ -306,10 +306,10 @@ async def test_immediate_error_handler_receives_synthetic_event(
     """Error context from an immediate fire carries the synthetic event (old_state=None)."""
     harness, hassette, bus = bus_harness
 
-    # dup-ignore-start: same seed()+single-collector arrange as
+    # dup-ignore-start: same seed_state()+single-collector arrange as
     # test_immediate_app_level_error_handler above — see that test's note for why `ErrorCollector()`
     # alone doesn't warrant a helper and bad_handler's raise stays inline.
-    await seed(harness, "sensor.temp", "25.5")
+    await harness.seed_state("sensor.temp", cast("HassStateDict", make_state_dict("sensor.temp", "25.5")))
 
     errors = ErrorCollector()
 
@@ -341,14 +341,17 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Immediate + duration (elapsed >= duration) + on_error: fires immediately, error handler called."""
-    # dup-ignore-start: same seed()+single-collector arrange as
+    # dup-ignore-start: same seed_state()+single-collector arrange as
     # test_immediate_app_level_error_handler above — see that test's note. This occurrence differs
     # from the two prior ones in that the seed uses a computed past last_changed, not a plain state
     # value, since this three-way combo needs the elapsed-time boundary too.
     harness, hassette, bus = bus_harness
 
     past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
-    await seed(harness, "switch.boiler", "on", last_changed=past.format_iso())
+    await harness.seed_state(
+        "switch.boiler",
+        cast("HassStateDict", make_state_dict("switch.boiler", "on", last_changed=past.format_iso())),
+    )
 
     errors = ErrorCollector()
 
@@ -381,7 +384,10 @@ async def test_immediate_duration_remaining_timer_error_handler(
     harness, hassette, bus = bus_harness
 
     past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
-    await seed(harness, "switch.fan", "on", last_changed=past.format_iso())
+    await harness.seed_state(
+        "switch.fan",
+        cast("HassStateDict", make_state_dict("switch.fan", "on", last_changed=past.format_iso())),
+    )
 
     errors = ErrorCollector()
 
@@ -415,7 +421,10 @@ async def test_immediate_duration_per_listener_error_handler(
     harness, hassette, bus = bus_harness
 
     past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
-    await seed(harness, "switch.heater", "on", last_changed=past.format_iso())
+    await harness.seed_state(
+        "switch.heater",
+        cast("HassStateDict", make_state_dict("switch.heater", "on", last_changed=past.format_iso())),
+    )
 
     app_level, per_listener = make_error_collector_pair()
 
