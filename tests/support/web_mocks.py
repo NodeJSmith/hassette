@@ -388,7 +388,6 @@ def create_mock_runtime_query_service(
     svc._lock = asyncio.Lock() if use_real_lock else MagicMock()
     svc._start_time = start_time
     svc._subscriptions = []
-    svc._ws_drops = 0
     svc._ws_drops_since_last_log = 0
     svc._ws_drops_last_logged = 0.0
     svc._pending_completions = []

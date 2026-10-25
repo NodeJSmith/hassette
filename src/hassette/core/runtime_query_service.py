@@ -25,6 +25,7 @@ from hassette.bus import Bus
 from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
+from hassette.core.pipeline_counters import PipelineCounter
 from hassette.core.service_status_predicates import IS_NOT_APP_ROLE
 from hassette.core.state_proxy import StateProxy
 from hassette.events import AnyEvent
@@ -82,7 +83,6 @@ class RuntimeQueryService(Resource):
         self.bus = self.add_child(Bus)
         self._ws_clients: set[asyncio.Queue[dict[str, Any] | None]] = set()
         self._lock = asyncio.Lock()
-        self._ws_drops: int = 0
         self._ws_drops_since_last_log: int = 0
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
@@ -177,7 +177,6 @@ class RuntimeQueryService(Resource):
                     queue.put_nowait(None)  # sentinel to close
             self._ws_clients.clear()
 
-        self._ws_drops = 0
         self._ws_drops_since_last_log = 0
         self._ws_drops_last_logged = 0.0
 
@@ -479,13 +478,13 @@ class RuntimeQueryService(Resource):
                 try:
                     queue.put_nowait(safe_message)
                 except asyncio.QueueFull:
-                    self._ws_drops += 1
+                    self.hassette.pipeline_counters.increment(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL)
                     self._ws_drops_since_last_log += 1
                     now = time.monotonic()
                     if now - self._ws_drops_last_logged >= _WS_DROP_LOG_INTERVAL:
                         should_log = True
                         log_since = self._ws_drops_since_last_log
-                        log_total = self._ws_drops
+                        log_total = self.hassette.pipeline_counters.get(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL)
                         log_clients = len(self._ws_clients)
                         self._ws_drops_since_last_log = 0
                         self._ws_drops_last_logged = now
