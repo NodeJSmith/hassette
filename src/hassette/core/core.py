@@ -47,6 +47,7 @@ from .file_watcher import FileWatcherService
 from .hassette_accessors import HassetteAccessorsMixin, service_not_wired_error
 from .logging_service import LoggingService
 from .loop_watchdog import LoopWatchdog
+from .pipeline_counters import PipelineCounters
 from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
@@ -107,6 +108,10 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # rebuild_pool() on both first start and restart-in-place.
         self._sync_executor = SyncExecutor()
         self.sync_executor = self._sync_executor
+
+        # Process-wide telemetry loss/sample/failure counters (D24.1). Plain thread-safe class, set
+        # unconditionally so every component can increment it from construction onward.
+        self.pipeline_counters = PipelineCounters()
 
         super().__init__(
             self, task_bucket=TaskBucket(self, parent=self, sync_executor=self._sync_executor), parent=self
