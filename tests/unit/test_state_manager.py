@@ -1,5 +1,6 @@
 """Unit tests for StateManager.__getattr__ and DomainStates._validate_or_return_from_cache."""
 
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,9 +13,27 @@ from hassette.state_manager.state_manager import DomainStates, StateManager
 from hassette.testing import make_light_state_dict, make_state_dict
 from tests.support.mock_hassette import make_mock_hassette
 
+if TYPE_CHECKING:
+    from hassette.events import HassStateDict
+
 FIXED_TIMESTAMP = "2026-01-01T00:00:00+00:00"
 BAD_TIMESTAMP = "INVALID-TIMESTAMP"
 BAD_CONTEXT = {"id": None, "parent_id": None, "user_id": None}
+
+
+def registry_mock(state_manager: StateManager) -> MagicMock:
+    """Return the ``MagicMock`` state registry the ``mock_hassette`` fixture installs."""
+    return cast("MagicMock", state_manager.hassette.state_registry)
+
+
+def domain_states_cache(state_manager: StateManager) -> dict[type[BaseState], DomainStates[BaseState]]:
+    """Return the private per-class DomainStates cache, which the public ``.pyi`` stub omits."""
+    return state_manager._domain_states_cache  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def as_hass_state(state: dict[str, Any]) -> "HassStateDict":
+    """Type a factory-built state dict as the ``HassStateDict`` the state proxy hands out."""
+    return cast("HassStateDict", state)
 
 
 @pytest.fixture
@@ -36,14 +55,14 @@ def state_manager(mock_hassette: AsyncMock) -> StateManager:
 class TestStateManagerGetattr:
     def test_underscore_prefix_raises_attribute_error(self, state_manager: StateManager) -> None:
         with pytest.raises(AttributeError, match="has no attribute '_internal_attr'"):
-            state_manager._internal_attr  # noqa: B018
+            state_manager._internal_attr  # noqa: B018  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_reserved_name_raises_attribute_error(self, state_manager: StateManager) -> None:
         with pytest.raises(AttributeError, match="has no attribute 'name'"):
-            state_manager.name  # noqa: B018
+            state_manager.name  # noqa: B018  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_registry_not_ready_raises_attribute_error(self, state_manager: StateManager) -> None:
-        state_manager.hassette.state_registry.resolve.side_effect = RegistryNotReadyError()
+        registry_mock(state_manager).resolve.side_effect = RegistryNotReadyError()
 
         with pytest.raises(AttributeError, match="State registry not initialized") as exc_info:
             state_manager.light  # noqa: B018
@@ -51,13 +70,13 @@ class TestStateManagerGetattr:
         assert exc_info.value.__suppress_context__ is True
 
     def test_unregistered_domain_raises_attribute_error(self, state_manager: StateManager) -> None:
-        state_manager.hassette.state_registry.resolve.return_value = None
+        registry_mock(state_manager).resolve.return_value = None
 
         with pytest.raises(AttributeError, match="not registered in the state registry"):
-            state_manager.totally_unknown_domain  # noqa: B018
+            state_manager.totally_unknown_domain  # noqa: B018  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_registered_domain_returns_domain_states(self, state_manager: StateManager) -> None:
-        state_manager.hassette.state_registry.resolve.return_value = LightState
+        registry_mock(state_manager).resolve.return_value = LightState
 
         result = state_manager.light
 
@@ -65,7 +84,7 @@ class TestStateManagerGetattr:
         assert result._model is LightState
 
     def test_registered_domain_is_cached_on_second_access(self, state_manager: StateManager) -> None:
-        state_manager.hassette.state_registry.resolve.return_value = LightState
+        registry_mock(state_manager).resolve.return_value = LightState
 
         first = state_manager.light
         second = state_manager.light
@@ -76,7 +95,7 @@ class TestStateManagerGetattr:
         def resolve_side_effect(*, domain: str) -> type[BaseState] | None:
             return {"light": LightState, "sensor": SensorState}.get(domain)
 
-        state_manager.hassette.state_registry.resolve.side_effect = resolve_side_effect
+        registry_mock(state_manager).resolve.side_effect = resolve_side_effect
 
         light_states = state_manager.light
         sensor_states = state_manager.sensor
@@ -121,8 +140,8 @@ class TestDomainStatesCacheValidation:
         )
 
         with patch.object(STATE_REGISTRY, "coerce_and_construct", wraps=STATE_REGISTRY.coerce_and_construct) as spy:
-            first = ds._validate_or_return_from_cache("light.bedroom", state_1)
-            second = ds._validate_or_return_from_cache("light.bedroom", state_2)
+            first = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(state_1))
+            second = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(state_2))
 
         assert first is second
         assert spy.call_count == 1
@@ -148,8 +167,8 @@ class TestDomainStatesCacheValidation:
         state_2 = state_without_last_updated()
 
         with patch.object(STATE_REGISTRY, "coerce_and_construct", wraps=STATE_REGISTRY.coerce_and_construct) as spy:
-            first = ds._validate_or_return_from_cache("light.bedroom", state_1)
-            second = ds._validate_or_return_from_cache("light.bedroom", state_2)
+            first = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(state_1))
+            second = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(state_2))
 
         assert first is second
         assert spy.call_count == 1
@@ -181,8 +200,8 @@ class TestDomainStatesCacheValidation:
             context=ctx,
         )
 
-        first = ds._validate_or_return_from_cache("light.bedroom", turned_on)
-        second = ds._validate_or_return_from_cache("light.bedroom", settled_off)
+        first = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(turned_on))
+        second = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(settled_off))
 
         assert first.value is True
         assert second.value is False
@@ -194,8 +213,8 @@ class TestDomainStatesCacheValidation:
         state_off = make_light_state_dict("light.bedroom", "off")
 
         with patch.object(STATE_REGISTRY, "coerce_and_construct", wraps=STATE_REGISTRY.coerce_and_construct) as spy:
-            first = ds._validate_or_return_from_cache("light.bedroom", state_on)
-            second = ds._validate_or_return_from_cache("light.bedroom", state_off)
+            first = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(state_on))
+            second = ds._validate_or_return_from_cache("light.bedroom", as_hass_state(state_off))
 
         assert first is not second
         assert spy.call_count == 2
@@ -300,13 +319,13 @@ class TestStateManagerIterationCache:
 
     def test_values_returns_cached_instance_shared_with_attr_access(self, state_manager: StateManager) -> None:
         """values() and attribute access return the same DomainStates instance."""
-        state_manager.hassette.state_registry.resolve.return_value = LightState
+        registry_mock(state_manager).resolve.return_value = LightState
 
         # Prime attribute access to populate the cache
         attr_result = state_manager.light  # goes through __getattr__ → _domain_states_for
 
-        assert LightState in state_manager._domain_states_cache
-        assert state_manager._domain_states_cache[LightState] is attr_result
+        assert LightState in domain_states_cache(state_manager)
+        assert domain_states_cache(state_manager)[LightState] is attr_result
 
         # values() must return the same cached instance attribute access produced
         with patch.object(STATE_REGISTRY, "values", return_value=iter([LightState])):
@@ -331,15 +350,15 @@ class TestStateManagerIterationCache:
             _key, domain_states_from_items = items_list[0]
             assert domain_states_from_items._model is LightState
 
-            assert LightState in state_manager._domain_states_cache
-            assert state_manager._domain_states_cache[LightState] is domain_states_from_items
+            assert LightState in domain_states_cache(state_manager)
+            assert domain_states_cache(state_manager)[LightState] is domain_states_from_items
 
     def test_getitem_returns_fresh_uncached_instance(self, state_manager: StateManager) -> None:
         """__getitem__ always returns a fresh DomainStates, not the cached one."""
         with patch.object(STATE_REGISTRY, "items", return_value=iter([("light", LightState)])):
             # Populate cache via items()
             list(state_manager.items())
-            cached = state_manager._domain_states_cache.get(LightState)
+            cached = domain_states_cache(state_manager).get(LightState)
             assert cached is not None
 
             # __getitem__ should return a DIFFERENT (fresh) instance
@@ -353,8 +372,8 @@ class TestStateManagerIterationCache:
             assert len(values_list) == 1
             val = values_list[0]
             assert val._model is LightState
-            assert LightState in state_manager._domain_states_cache
-            assert state_manager._domain_states_cache[LightState] is val
+            assert LightState in domain_states_cache(state_manager)
+            assert domain_states_cache(state_manager)[LightState] is val
 
     def test_collision_guard_still_passes(self, state_manager: StateManager) -> None:
         """items/values/keys methods on StateManager are not shadowed by DomainStates (unchanged)."""

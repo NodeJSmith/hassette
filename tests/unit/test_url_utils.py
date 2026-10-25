@@ -9,12 +9,11 @@ from hassette.testing.config import TEST_TOKEN
 from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url, resolve_rest_path
 
 
-def make_config(base_url: str, api_port: int = 8123) -> HassetteConfig:
-    """Create a test configuration with the given base_url and api_port."""
+def make_config(base_url: str) -> HassetteConfig:
+    """Create a test configuration with the given base_url."""
     config = HassetteConfig.model_construct(_fields_set=set())
     config.token = SecretStr(TEST_TOKEN)
     config.base_url = base_url
-    config.api_port = api_port
     return config
 
 
@@ -34,9 +33,9 @@ def test_https_scheme_conversion():
     assert build_rest_url(config) == "https://example.com/api/"
 
 
-def test_custom_port_in_url_overrides_api_port():
-    """Test that port specified in URL takes precedence over api_port."""
-    config = make_config("http://example.com:9000", api_port=8123)
+def test_custom_port_in_url_is_used():
+    """Test that a port specified in the URL is used for both URLs."""
+    config = make_config("http://example.com:9000")
 
     assert build_ws_url(config) == "ws://example.com:9000/api/websocket"
     assert build_rest_url(config) == "http://example.com:9000/api/"
@@ -137,7 +136,7 @@ def test_ipv6_address(func):
 @pytest.mark.parametrize(("func"), [build_ws_url, build_rest_url])
 def test_no_scheme_raises_exception(func):
     """Test that an exception is raised for URLs without schemes."""
-    config = make_config("example.com", api_port=9123)
+    config = make_config("example.com")
 
     with pytest.raises(SchemeRequiredInBaseUrlError):
         func(config)
