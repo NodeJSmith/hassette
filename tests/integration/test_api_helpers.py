@@ -168,6 +168,7 @@ async def test_helper_create_does_not_retry_on_timeout(api: Api):
 
     await api.helpers.create(CreateInputBooleanParams(name="Vacation Mode"))
 
+    assert api.ws_send_and_wait.await_args is not None
     assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
 
 
@@ -176,6 +177,7 @@ async def test_helper_update_does_not_retry_on_timeout(api: Api):
 
     await api.helpers.update("vacation_mode", UpdateInputBooleanParams(name="Holiday Mode"))
 
+    assert api.ws_send_and_wait.await_args is not None
     assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
 
 
@@ -185,6 +187,7 @@ async def test_helper_delete_does_not_retry_on_timeout(api: Api):
 
     await api.helpers.delete("input_boolean", "vacation_mode")
 
+    assert api.ws_send_and_wait.await_args is not None
     assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
 
 

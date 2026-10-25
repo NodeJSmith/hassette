@@ -24,6 +24,20 @@ def get_random_model(exclude_models: list[type[states.BaseState]]) -> type[state
     return states.BaseState  # Fallback, should not happen in this test
 
 
+def resolve_model(event: RawStateChangeEvent) -> type[states.BaseState]:
+    """Return the registered state class for `event`'s domain."""
+    model = STATE_REGISTRY.resolve(domain=event.payload.data.domain)
+    assert model is not None, f"No state class registered for domain {event.payload.data.domain!r}"
+    return model
+
+
+def get_extractor(annotation: Any) -> Callable[[Any], Any]:
+    """Return the dependency extractor carried by an ``Annotated`` DI alias."""
+    type_and_details = get_type_and_details(annotation)
+    assert type_and_details is not None, f"{annotation!r} is not an Annotated alias"
+    return type_and_details[1].extractor
+
+
 def inject(handler: Callable[..., Any], event: AnyEvent) -> dict[str, Any]:
     """Resolve `handler`'s parameters against `event` the way the bus does at dispatch time."""
     signature = get_typed_signature(handler)
@@ -62,11 +76,10 @@ class TestDependencyInjectionHandlesTypeConversion:
     async def test_state_conversion(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
         """Test that StateNew converts BaseState to domain-specific state type."""
         for state_change_event in state_change_events_with_new_state:
-            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            model = resolve_model(state_change_event)
             domain = state_change_event.payload.data.domain
 
-            _, annotation_details = get_type_and_details(D.StateNew[model])
-            result = annotation_details.extractor(state_change_event)
+            result = get_extractor(D.StateNew[model])(state_change_event)
             state = ANNOTATION_CONVERTER.convert(result, model)
 
             assert isinstance(state, model), f"State should be converted to {model.__name__}"
@@ -79,8 +92,7 @@ class TestDependencyInjectionHandlesTypeConversion:
         for state_change_event in state_change_events_with_new_state:
             domain = state_change_event.payload.data.domain
 
-            _, annotation_details = get_type_and_details(D.StateNew[states.BaseState])
-            result = annotation_details.extractor(state_change_event)
+            result = get_extractor(D.StateNew[states.BaseState])(state_change_event)
             state = ANNOTATION_CONVERTER.convert(result, states.BaseState)
 
             assert isinstance(state, states.BaseState), f"State should be BaseState, got {type(state)}"
@@ -89,7 +101,7 @@ class TestDependencyInjectionHandlesTypeConversion:
     async def test_maybe_state_conversion(self, state_change_events: list[RawStateChangeEvent]):
         """Test that MaybeStateNew converts BaseState to domain-specific state type."""
         for state_change_event in state_change_events:
-            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            model = resolve_model(state_change_event)
             domain = state_change_event.payload.data.domain
 
             def handler(new_state: D.MaybeStateNew[model]):
@@ -127,7 +139,7 @@ class TestDependencyInjectionHandlesTypeConversion:
     ):
         """Test StateNew and MaybeStateOld conversion when only new_state is present."""
         for state_change_event in state_change_events_with_new_state:
-            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            model = resolve_model(state_change_event)
 
             def handler(new_state: D.StateNew[model], old_state: D.MaybeStateOld[model]):
                 pass
@@ -146,7 +158,7 @@ class TestDependencyInjectionHandlesTypeConversion:
     ):
         """Test MaybeStateNew and StateOld conversion when only old_state is present."""
         for state_change_event in state_change_events_with_old_state:
-            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            model = resolve_model(state_change_event)
 
             def handler(new_state: D.MaybeStateNew[model], old_state: D.StateOld[model]):
                 pass
@@ -168,7 +180,7 @@ class TestDependencyInjectionHandlesTypeConversion:
     ):
         """Test StateNew and StateOld conversion when both states are present."""
         for state_change_event in state_change_events_with_both_states:
-            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            model = resolve_model(state_change_event)
 
             def handler(new_state: D.StateNew[model], old_state: D.StateOld[model]):
                 pass
@@ -184,7 +196,7 @@ class TestDependencyInjectionHandlesTypeConversion:
     async def test_typed_state_change_event(self, state_change_events_with_new_state: list[RawStateChangeEvent]):
         """Test TypedStateChangeEvent provides typed states."""
         for state_change_event in state_change_events_with_new_state:
-            model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            model = resolve_model(state_change_event)
 
             def handler(event: D.TypedStateChangeEvent[model]):
                 pass
@@ -204,7 +216,7 @@ class TestDependencyInjectionHandlesTypeConversion:
     ):
         """Test TypedStateChangeEvent provides typed states."""
         for state_change_event in state_change_events_with_new_state:
-            correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            correct_model = resolve_model(state_change_event)
             incorrect_model = get_random_model([correct_model])
 
             def typed_state_change_handler(event: D.TypedStateChangeEvent[incorrect_model]):
@@ -226,7 +238,7 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
     ):
         """Test TypedStateChangeEvent provides typed states."""
         for state_change_event in state_change_events_with_new_state:
-            correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            correct_model = resolve_model(state_change_event)
             incorrect_model = get_random_model([correct_model])
 
             def typed_state_change_handler(event: D.TypedStateChangeEvent[incorrect_model | correct_model]):
@@ -244,7 +256,7 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
     ):
         """Test TypedStateChangeEvent provides typed states."""
         for state_change_event in state_change_events_with_new_state:
-            correct_model = STATE_REGISTRY.resolve(domain=state_change_event.payload.data.domain)
+            correct_model = resolve_model(state_change_event)
             incorrect_model = get_random_model([correct_model])
             another_incorrect_model = get_random_model([correct_model, incorrect_model])
 

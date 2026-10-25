@@ -19,6 +19,17 @@ from hassette.testing import AppTestHarness
 from hassette.testing._time_control import TimeControlMixin
 
 
+async def daily_job_run_at(harness: AppTestHarness) -> ZonedDateTime:
+    """Return the next run time of the `daily` job SimTestApp registers on initialize."""
+    scheduler_service = harness.require_harness().hassette._scheduler_service
+    assert scheduler_service is not None
+    jobs = await scheduler_service._job_queue.get_all()
+    daily_job = next((j for j in jobs if j.name == "daily"), None)
+    assert daily_job is not None, "daily job not found"
+    assert daily_job.next_run is not None
+    return daily_job.next_run
+
+
 class SimConfig(AppConfig):
     """Minimal AppConfig for simulation tests."""
 
@@ -155,7 +166,7 @@ async def test_freeze_time_cleans_up_started_patchers_when_start_raises(monkeypa
     control = TimeControlMixin()
     exit_stack = AsyncExitStack()
     control._exit_stack = exit_stack
-    control._NOW_PATCH_TARGETS = ("first.target", "second.target")
+    monkeypatch.setattr(control, "_NOW_PATCH_TARGETS", ("first.target", "second.target"))
 
     try:
         with pytest.raises(RuntimeError) as exc_info:
@@ -174,7 +185,7 @@ async def test_freeze_time_cleans_up_started_patchers_when_start_raises(monkeypa
         await exit_stack.aclose()
 
 
-async def test_failed_freeze_cleanup_cannot_release_another_owner():
+async def test_failed_freeze_cleanup_cannot_release_another_owner(monkeypatch: pytest.MonkeyPatch):
     """A stale exit callback cannot unlock a later harness's active patch."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
     first = TimeControlMixin()
@@ -183,7 +194,7 @@ async def test_failed_freeze_cleanup_cannot_release_another_owner():
     first._exit_stack = AsyncExitStack()
     second._exit_stack = AsyncExitStack()
     third._exit_stack = AsyncExitStack()
-    first._NOW_PATCH_TARGETS = ("hassette.utils.date_utils.missing_now",)
+    monkeypatch.setattr(first, "_NOW_PATCH_TARGETS", ("hassette.utils.date_utils.missing_now",))
 
     try:
         with pytest.raises(AttributeError):
@@ -204,13 +215,9 @@ async def test_trigger_due_jobs_fires_scheduled():
     """Freeze at 6:00, advance to 7:00, trigger — daily job fires."""
     # The app registers run_daily at 7:00 during on_initialize.
     async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
-        jobs = await harness._harness.hassette._scheduler_service._job_queue.get_all()
-        assert len(jobs) > 0, "No jobs registered"
-        daily_job = next((j for j in jobs if j.name == "daily"), None)
-        assert daily_job is not None, "daily job not found"
+        job_run_at = await daily_job_run_at(harness)
 
         # Freeze time to 1 second after the job's scheduled run time
-        job_run_at = daily_job.next_run
         # Advance by setting frozen time to just after job's run time
         # Use the job's ZonedDateTime directly as a ZonedDateTime
         harness.freeze_time(job_run_at.add(seconds=1))
@@ -224,11 +231,9 @@ async def test_trigger_due_jobs_fires_scheduled():
 async def test_trigger_due_jobs_returns_count():
     """trigger_due_jobs returns the number of jobs fired."""
     async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
-        jobs = await harness._harness.hassette._scheduler_service._job_queue.get_all()
-        daily_job = next((j for j in jobs if j.name == "daily"), None)
-        assert daily_job is not None
+        daily_run_at = await daily_job_run_at(harness)
 
-        harness.freeze_time(daily_job.next_run.add(seconds=1))
+        harness.freeze_time(daily_run_at.add(seconds=1))
         count = await harness.trigger_due_jobs()
         assert count == 1
 
@@ -236,12 +241,10 @@ async def test_trigger_due_jobs_returns_count():
 async def test_trigger_due_jobs_snapshot_prevents_infinite_loop():
     """trigger_due_jobs fires a repeating job exactly once per call, not infinitely."""
     async with AppTestHarness(SimTestApp, config={"instance_name": "sim_test_app"}) as harness:
-        jobs = await harness._harness.hassette._scheduler_service._job_queue.get_all()
-        daily_job = next((j for j in jobs if j.name == "daily"), None)
-        assert daily_job is not None
+        daily_run_at = await daily_job_run_at(harness)
 
         # Freeze time far in the future so the rescheduled job would also be due
-        harness.freeze_time(daily_job.next_run.add(hours=48))
+        harness.freeze_time(daily_run_at.add(hours=48))
 
         count = await harness.trigger_due_jobs()
         # Should fire exactly 1 job (snapshot-based), not loop infinitely
