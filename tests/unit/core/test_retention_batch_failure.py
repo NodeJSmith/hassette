@@ -133,7 +133,11 @@ async def test_each_committed_batch_advances_write_progress(
 async def test_non_storage_error_from_batch_propagates(
     retention_service: DatabaseService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A non-storage exception from a batch is a bug: it propagates instead of being returned as the error."""
+    """A non-storage exception from a batch is a bug: it propagates instead of being returned as the error.
+
+    The batch's transaction is rolled back first, so the shared write connection isn't left mid-transaction
+    for the next queued write.
+    """
     db = retention_service.db
     await insert_tiered_execution(db, time.time() - (5 * SECONDS_PER_DAY), SOURCE_TIER_FRAMEWORK)
     await db.commit()
@@ -150,3 +154,25 @@ async def test_non_storage_error_from_batch_propagates(
         await retention_service._delete_target_batched(  # pyright: ignore[reportPrivateUsage]
             FRAMEWORK_TARGET, time.time(), retention_service.hassette.config
         )
+
+    assert not db.in_transaction
+
+
+async def test_non_storage_error_from_parent_guard_rolls_back_and_propagates(
+    retention_service: DatabaseService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-storage exception from the parent-guard transaction rolls it back, then propagates."""
+    db = retention_service.db
+    original_execute = db.execute
+
+    async def failing_listener_delete(sql: str, *args: Any, **kwargs: Any) -> Any:
+        if "DELETE FROM listeners" in sql:
+            raise RuntimeError("programming error")
+        return await original_execute(sql, *args, **kwargs)
+
+    monkeypatch.setattr(db, "execute", failing_listener_delete)
+
+    with pytest.raises(RuntimeError, match="programming error"):
+        await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
+
+    assert not db.in_transaction
