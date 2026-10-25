@@ -25,6 +25,9 @@ EMPTY_VALUE = "—"
 EXCEPTION_GROUP_TRACEBACK_HEADER = "+ Exception Group Traceback"
 # A ``| Type: message`` line inside one; the first is the outermost group's own.
 EXCEPTION_GROUP_LINE_RE = re.compile(r"^\s*\| (\w[\w.]*: .*)$")
+# A traceback frame's location line; its source and caret lines follow it, indented further.
+TRACEBACK_FRAME_PREFIX = '  File "'
+TRACEBACK_SOURCE_INDENT = "    "
 
 
 def now_epoch() -> float:
@@ -127,9 +130,11 @@ def fmt_log_author(value: Any) -> str:
 def fmt_log_message(entry: LogEntry) -> str:
     """The entry's message, with its exception's ``Type: message`` line (``ValueError: kaboom``) beneath it.
 
-    That line is the first one after the traceback's last indented frame line; a multi-line exception message
-    continues below it. An exception group's traceback is indented throughout, so its line is the group's own
-    ``| ExceptionGroup: ...`` header. The full traceback is in ``--json`` output and the web dashboard's log detail.
+    That line follows the last frame's ``File "..."`` line and the source and caret lines indented under it. A
+    multi-line exception message continues below it, and its continuation lines may be indented too (Pydantic's
+    per-field errors), so they can't mark where the frames end. An exception group's traceback is indented
+    throughout, so its line is the group's own ``| ExceptionGroup: ...`` header. The full traceback is in
+    ``--json`` output and the web dashboard's log detail.
     """
     lines = (entry.exc_info or "").strip().splitlines()
     if not lines:
@@ -138,8 +143,12 @@ def fmt_log_message(entry: LogEntry) -> str:
         header = next((m.group(1) for line in lines if (m := EXCEPTION_GROUP_LINE_RE.match(line))), None)
         if header is not None:
             return f"{entry.message}\n{header}"
-    after_frames = next((i + 1 for i in range(len(lines) - 1, -1, -1) if lines[i].startswith(" ")), 0)
-    return f"{entry.message}\n{lines[min(after_frames, len(lines) - 1)].strip()}"
+    last_frame = next((i for i in range(len(lines) - 1, -1, -1) if lines[i].startswith(TRACEBACK_FRAME_PREFIX)), -1)
+    exc_line = next(
+        (i for i in range(last_frame + 1, len(lines)) if not lines[i].startswith(TRACEBACK_SOURCE_INDENT)),
+        len(lines) - 1,
+    )
+    return f"{entry.message}\n{lines[exc_line].strip()}"
 
 
 def fmt_handler_short(value: Any) -> str:
