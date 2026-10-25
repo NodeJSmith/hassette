@@ -10,6 +10,7 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, SQL_BEGIN, reclaim_free_pages, safe_rollback
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
+from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.core.telemetry.reconcile_sql import (
     build_prune_removed_app_manifests_query,
     build_retire_removed_apps_query,
@@ -149,7 +150,7 @@ class DatabaseRetentionMixin:
                 await self.db.execute(SQL_BEGIN)
                 batch_count = await _execute_target_delete(self.db, target, cutoff=cutoff, batch_limit=batch_size)
                 await self.db.commit()
-            except Exception as exc:
+            except STORAGE_ERRORS as exc:
                 return TargetDeleteResult(total_deleted, error=exc)
             self._write_progress_count += 1
             total_deleted += batch_count
@@ -171,7 +172,7 @@ class DatabaseRetentionMixin:
             try:
                 stale_cursor = await self.db.execute(f"SELECT 1 FROM {target.table} WHERE {where} LIMIT 1", params)
                 stale_row = await stale_cursor.fetchone()
-            except Exception as exc:
+            except STORAGE_ERRORS as exc:
                 return TargetDeleteResult(total_deleted, error=exc)
             if stale_row is not None:
                 exhausted = True
@@ -389,9 +390,10 @@ class DatabaseRetentionMixin:
                 guard = await self._run_parent_guard_deletes(
                     cutoff, now, self.live_app_keys(), self.hassette.try_session_id()
                 )
-            # Not BaseException: every cancellation path today either rolls back itself (the
-            # startup catch-up timeout) or closes the connection (shutdown), which rolls back.
-            except Exception:
+            # Storage errors only; anything else is a bug and propagates. Cancellation needs no
+            # rollback here: every cancellation path either rolls back itself (the startup
+            # catch-up timeout) or closes the connection (shutdown), which rolls back.
+            except STORAGE_ERRORS:
                 await safe_rollback(self.db, self, "parent-guard deletes")
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
                 parent_guard_failed = True
@@ -442,7 +444,7 @@ class DatabaseRetentionMixin:
         """
         try:
             reclaim = await reclaim_free_pages(self.db)
-        except Exception:
+        except STORAGE_ERRORS:
             self.logger.exception("Retention cleanup: free-page reclaim failed")
             return
         if reclaim.reclaimed > 0:
