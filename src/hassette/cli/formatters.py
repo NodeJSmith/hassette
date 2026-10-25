@@ -25,9 +25,14 @@ EMPTY_VALUE = "—"
 EXCEPTION_GROUP_TRACEBACK_HEADER = "+ Exception Group Traceback"
 # A ``| Type: message`` line inside one; the first is the outermost group's own.
 EXCEPTION_GROUP_LINE_RE = re.compile(r"^\s*\| (\w[\w.]*: .*)$")
-# A traceback frame's location line; its source and caret lines follow it, indented further.
-TRACEBACK_FRAME_PREFIX = '  File "'
-TRACEBACK_SOURCE_INDENT = "    "
+TRACEBACK_HEADER = "Traceback (most recent call last):"
+# Lines that end one exception's section in a chained traceback; the logged exception's section comes last.
+CHAINED_EXCEPTION_SEPARATORS = frozenset(
+    {
+        "The above exception was the direct cause of the following exception:",
+        "During handling of the above exception, another exception occurred:",
+    }
+)
 
 
 def now_epoch() -> float:
@@ -130,25 +135,25 @@ def fmt_log_author(value: Any) -> str:
 def fmt_log_message(entry: LogEntry) -> str:
     """The entry's message, with its exception's ``Type: message`` line (``ValueError: kaboom``) beneath it.
 
-    That line follows the last frame's ``File "..."`` line and the source and caret lines indented under it. A
-    multi-line exception message continues below it, and its continuation lines may be indented too (Pydantic's
-    per-field errors), so they can't mark where the frames end. An exception group's traceback is indented
-    throughout, so its line is the group's own ``| ExceptionGroup: ...`` header. The full traceback is in
-    ``--json`` output and the web dashboard's log detail.
+    A chained traceback lists earlier exceptions first, so only the last section is read. In it, everything
+    describing the stack (frames, source and caret lines, repeated-frame markers) is indented, so the exception's
+    line is the first unindented line after the ``Traceback`` header; a multi-line message continues below it.
+    An exception group's section is indented throughout, so its line is the group's own
+    ``| ExceptionGroup: ...`` header. The full traceback is in ``--json`` output and the web dashboard's log detail.
+
+    This parses rendered text; capturing the summary when the exception is logged would replace it (#749).
     """
     lines = (entry.exc_info or "").strip().splitlines()
-    if not lines:
+    start = next((i + 1 for i in range(len(lines) - 1, -1, -1) if lines[i] in CHAINED_EXCEPTION_SEPARATORS), 0)
+    section = [line for line in lines[start:] if line.strip()]
+    if not section:
         return entry.message
-    if lines[0].startswith(EXCEPTION_GROUP_TRACEBACK_HEADER):
-        header = next((m.group(1) for line in lines if (m := EXCEPTION_GROUP_LINE_RE.match(line))), None)
+    if section[0].lstrip().startswith(EXCEPTION_GROUP_TRACEBACK_HEADER):
+        header = next((m.group(1) for line in section if (m := EXCEPTION_GROUP_LINE_RE.match(line))), None)
         if header is not None:
             return f"{entry.message}\n{header}"
-    last_frame = next((i for i in range(len(lines) - 1, -1, -1) if lines[i].startswith(TRACEBACK_FRAME_PREFIX)), -1)
-    exc_line = next(
-        (i for i in range(last_frame + 1, len(lines)) if not lines[i].startswith(TRACEBACK_SOURCE_INDENT)),
-        len(lines) - 1,
-    )
-    return f"{entry.message}\n{lines[exc_line].strip()}"
+    summary = next((line for line in section if line != TRACEBACK_HEADER and not line[0].isspace()), section[-1])
+    return f"{entry.message}\n{summary.strip()}"
 
 
 def fmt_handler_short(value: Any) -> str:
