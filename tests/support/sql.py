@@ -80,9 +80,15 @@ def insert_execution_row(
     )
 
 
-async def count_rows(db: "aiosqlite.Connection", table: str) -> int:
-    """Return the number of rows in ``table`` (a literal table name from the test, never user input)."""
-    cursor = await db.execute(f"SELECT COUNT(*) FROM {table}")
+async def count_rows(db: "aiosqlite.Connection", table: str, **filters: object) -> int:
+    """Return the number of rows in ``table``, AND-ing an equality filter per keyword argument.
+
+    Table and column names are interpolated, so pass only literals from test code, never user input.
+    """
+    sql = f"SELECT COUNT(*) FROM {table}"
+    if filters:
+        sql += " WHERE " + " AND ".join(f"{column} = ?" for column in filters)
+    cursor = await db.execute(sql, tuple(filters.values()))
     row = await cursor.fetchone()
     assert row is not None
     return row[0]

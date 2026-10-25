@@ -21,6 +21,7 @@ from tests.support.factories import (
     make_listener_registration,
     make_mock_listener,
 )
+from tests.support.sql import count_rows
 
 from .conftest import (
     execute_job_and_pop_record,
@@ -297,13 +298,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
     # Both records should be in DB, queue should be empty
     assert executor._write_queue.empty()
 
-    cursor = await db_service.db.execute(
-        "SELECT COUNT(*) FROM executions WHERE listener_id = ?",
-        (listener_id,),
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 2
+    assert await count_rows(db_service.db, "executions", listener_id=listener_id) == 2
 
 
 async def test_execute_job_success_record_queued(executor: CommandExecutor) -> None:
