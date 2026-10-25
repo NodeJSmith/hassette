@@ -17,6 +17,7 @@ Shutdown STOPPING path:
 - shutdown() sets STOPPING before hooks run (Service)
 - Full shutdown sequence: RUNNING → STOPPING → STOPPED
 - RUNNING → STOPPED direct assignment applies (natural service completion via _serve_wrapper)
+- Any changed status applies through the setter under strict_lifecycle
 """
 
 import asyncio
@@ -164,6 +165,16 @@ async def test_running_to_stopped_direct_is_valid():
 
     resource.status = ResourceStatus.STOPPED
     assert resource.status == ResourceStatus.STOPPED
+
+
+async def test_setter_applies_any_transition_under_strict_lifecycle():
+    """Any changed status applies through the setter, even under strict_lifecycle, and records the prior status."""
+    resource = make_strict_running_resource(strict_lifecycle=True)
+
+    resource.status = ResourceStatus.NOT_STARTED
+
+    assert resource.status == ResourceStatus.NOT_STARTED
+    assert resource._previous_status == ResourceStatus.RUNNING
 
 
 @pytest.mark.parametrize("terminal", [ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD])
