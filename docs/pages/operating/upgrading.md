@@ -32,7 +32,7 @@ uv add hassette@latest
 
 This updates `pyproject.toml` and installs the new version into your project environment. If you installed Hassette as a uv tool rather than a project dependency, run `uv tool upgrade hassette` instead.
 
-A running Hassette process keeps the version it started with. After any of the commands above, restart Hassette, then run `hassette --version` to confirm the new version.
+A running Hassette process keeps the version it started with. After any of the commands above, restart Hassette, then run `hassette --version` to confirm the new version (`uv run hassette --version` for a uv project dependency, so it checks the project's copy rather than whatever `hassette` is on your `PATH`).
 
 **Docker**
 
@@ -296,13 +296,6 @@ Use `docker compose up -d` after editing the compose file, not `docker restart`,
 
 ### Verify the Upgrade
 
-Run `hassette run --check` (in Docker, the `docker compose exec` form above) and confirm `APPS_DIR` points where your apps live. Then start Hassette and check its logs for these two lines:
+Run `hassette run --check` (in Docker, the `docker compose exec` form above) and confirm `APPS_DIR` points where your apps live.
 
-```text
-Apps directory: /config/apps
-Found 2 active apps
-```
-
-`Apps directory:` names the directory Hassette loads apps from. `Found <n> active apps` counts the enabled entries in your config. Hassette logs it before importing or starting any app, so it appears even when an app fails to load. Logs go to the terminal that runs `hassette run`; in Docker, read them with `docker compose logs hassette`.
-
-To confirm each app actually started, run [`hassette app`](../cli/commands.md#hassette-app) once Hassette is up. Every enabled app should show status `running`. An app that failed to import or initialize shows `failed`, or `degraded` when only some of its instances started. With `logging.app_handler = "DEBUG"`, each app that starts also logs `App '<instance_name>' (<ClassName>) initialized successfully`.
+Once Hassette is up, run [`hassette app`](../cli/commands.md#hassette-app). No app should show `failed` (it didn't import or initialize) or `degraded` (only some of its instances started). `stopped` is expected for an app with `autostart = false`, and `blocked` for apps excluded by `hassette run --app`. To see why an app failed, read the logs: they go to the terminal that runs `hassette run`, or in Docker, to `docker compose logs hassette`.
