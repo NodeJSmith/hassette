@@ -171,27 +171,27 @@ No `C.InRange` condition exists. For range checks, combine two `C.Comparison` in
 
 ## Accessors (`A`)
 
-An accessor is a factory function that returns a callable `(event) -> value`. Single-value accessors work with `P.ValueIs`, `P.IsPresent`, and `P.IsMissing`. Tuple-returning accessors (the `*_old_new` variants) work with `P.DidChange`. Some accessors are used directly (e.g., `A.get_state_value_new`); others are factories that require a call first (e.g., `A.get_attr_new("brightness")`). `Bus` helpers use accessors internally. Direct use is needed only when pointing a predicate at a non-standard field.
+An accessor is a callable `(event) -> value`, or a factory that takes arguments and returns one. Single-value accessors work with `P.ValueIs`, `P.IsPresent`, and `P.IsMissing`. Tuple-returning accessors (the `*_old_new` variants) work with `P.DidChange`. Some accessors are used directly (e.g., `A.get_state_value_new`); others are factories that require a call first (e.g., `A.get_attr_new("brightness")`). `Bus` helpers use accessors internally. Direct use is needed only when pointing a predicate at a non-standard field.
 
 ### State Value
 
 Works with: `RawStateChangeEvent`.
 
-| Accessor | Returns | Description |
-|---|---|---|
-| `A.get_state_value_old` | `Any \| MISSING_VALUE` | The old state string, or `MISSING_VALUE` when `old_state` is `None`. |
-| `A.get_state_value_new` | `Any \| MISSING_VALUE` | The new state string, or `MISSING_VALUE` when `new_state` is `None`. |
-| `A.get_state_value_old_new` | `tuple[Any, Any]` | `(old_state_value, new_state_value)` as a tuple. |
+| Accessor | Signature | Returns | Description |
+|---|---|---|---|
+| `A.get_state_value_old` | `get_state_value_old` | `Any \| MISSING_VALUE` | The old state string, or `MISSING_VALUE` when `old_state` is `None`. |
+| `A.get_state_value_new` | `get_state_value_new` | `Any \| MISSING_VALUE` | The new state string, or `MISSING_VALUE` when `new_state` is `None`. |
+| `A.get_state_value_old_new` | `get_state_value_old_new` | `tuple[Any, Any]` | `(old_state_value, new_state_value)` as a tuple. |
 
 ### State Object
 
 Works with: `RawStateChangeEvent`.
 
-| Accessor | Returns | Description |
-|---|---|---|
-| `A.get_state_object_old` | `HassStateDict \| None` | The full old state dict, or `None` when absent. |
-| `A.get_state_object_new` | `HassStateDict \| None` | The full new state dict, or `None` when absent. |
-| `A.get_state_object_old_new` | `tuple[HassStateDict \| None, HassStateDict \| None]` | Both state objects as a tuple. |
+| Accessor | Signature | Returns | Description |
+|---|---|---|---|
+| `A.get_state_object_old` | `get_state_object_old` | `HassStateDict \| None` | The full old state dict, or `None` when absent. |
+| `A.get_state_object_new` | `get_state_object_new` | `HassStateDict \| None` | The full new state dict, or `None` when absent. |
+| `A.get_state_object_old_new` | `get_state_object_old_new` | `tuple[HassStateDict \| None, HassStateDict \| None]` | Both state objects as a tuple. |
 
 ### Attribute
 
@@ -213,11 +213,11 @@ Works with: `RawStateChangeEvent`.
 
 Works with: `HassEvent` (any event).
 
-| Accessor | Returns | Description |
-|---|---|---|
-| `A.get_domain` | `str \| MISSING_VALUE` | The domain portion of the event (e.g., `"light"` from `"light.kitchen"`). |
-| `A.get_entity_id` | `str \| MISSING_VALUE` | The `entity_id` from the event payload, or from `service_data` for `CallServiceEvent`. |
-| `A.get_context` | `HassContext` | The context dict from the event payload. |
+| Accessor | Signature | Returns | Description |
+|---|---|---|---|
+| `A.get_domain` | `get_domain` | `str \| MISSING_VALUE` | The domain portion of the event (e.g., `"light"` from `"light.kitchen"`). |
+| `A.get_entity_id` | `get_entity_id` | `str \| MISSING_VALUE` | The `entity_id` from the event payload, or from `service_data` for `CallServiceEvent`. |
+| `A.get_context` | `get_context` | `HassContext` | The context dict from the event payload. |
 
 ### Service
 
