@@ -346,3 +346,5 @@ Close code 1009 is the WebSocket "Message Too Big" code (RFC 6455): aiohttp clos
 - `hassette.testing._ws_mocks`: `run_start_recv_and_subscribe` became `run_connect_sequence` (start_recv_and_subscribe, then mark_connected), and `make_clean_connection_task`/`make_dropped_connection_task` were deleted, since they only stubbed the removed `make_connection`.
 
 ## Addendum
+
+- **2026-10-25:** D9's Propagate row no longer lists `InvalidLifecycleTransitionError`. #3211 made `set_connection_state` warn and apply in every mode, and nothing reachable from `run_connection()` or `handle_connection_failure()` assigns `ResourceStatus`, so the error can't reach the loop. `PROPAGATED_EXCEPTIONS` is `(MemoryError,)`. Spec 134 D18 removes `strict_lifecycle` entirely.
