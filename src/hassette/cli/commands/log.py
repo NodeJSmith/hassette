@@ -6,7 +6,7 @@ from hassette_wire import LogEntry, LogsByExecutionResponse
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.formatters import fmt_log_author, fmt_relative_time
+from hassette.cli.formatters import fmt_log_author, fmt_log_message, fmt_relative_time
 from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, AuthorArg, LimitArg, LogInstanceArg, SinceArg
 
@@ -19,7 +19,7 @@ LOG_COLUMNS: list[Column] = [
     Column("app_key", "App"),
     Column("instance_name", "Instance"),
     Column("func_name", "Function"),
-    Column("message", "Message", wrap=True, overflow="fold"),
+    Column("message", "Message", wrap=True, overflow="fold", row_formatter=fmt_log_message),
 ]
 
 EXECUTION_LOG_COLUMNS: list[Column] = [
@@ -28,7 +28,7 @@ EXECUTION_LOG_COLUMNS: list[Column] = [
     Column("author", "Author", formatter=fmt_log_author),
     Column("func_name", "Function"),
     Column("lineno", "Line"),
-    Column("message", "Message", wrap=True, overflow="fold"),
+    Column("message", "Message", wrap=True, overflow="fold", row_formatter=fmt_log_message),
 ]
 
 

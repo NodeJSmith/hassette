@@ -263,3 +263,23 @@ def test_multiline_message_does_not_collapse_columns(columns: list[Column]) -> N
     for col in columns:
         if col.field in identity_values:
             assert identity_values[col.field] in first_row_line, f"{col.header} value clipped: {first_row_line!r}"
+
+
+@pytest.mark.parametrize("columns", [LOG_COLUMNS, EXECUTION_LOG_COLUMNS], ids=["log", "execution"])
+def test_exception_final_line_follows_message(columns: list[Column]) -> None:
+    """A record's exception shows as its final line under the message; the full traceback stays out of the table."""
+    entry = make_log_entry(
+        level="ERROR",
+        message="Handler failed",
+        exc_info='Traceback (most recent call last):\n  File "apps/door.py", line 12, in on_door\nValueError: kaboom\n',
+    )
+    buf = StringIO()
+    console = Console(file=buf, highlight=False, no_color=True, width=NARROW_CONSOLE_WIDTH * 2)
+
+    with patch.object(output_module, "stdout_console", console):
+        render_table([entry], columns, json_mode=False)
+
+    output = buf.getvalue()
+    assert "Handler failed" in output, output
+    assert "ValueError: kaboom" in output, output
+    assert "Traceback" not in output, output

@@ -118,6 +118,16 @@ def fmt_log_author(value: Any) -> str:
     return "framework" if value == "framework" else ""
 
 
+def fmt_log_message(entry: Any) -> str:
+    """The entry's message, with its exception's final line (``ValueError: kaboom``) beneath it.
+
+    The full traceback is in ``--json`` output and the web dashboard's log detail.
+    """
+    if not entry.exc_info:
+        return entry.message
+    return f"{entry.message}\n{entry.exc_info.rstrip().splitlines()[-1]}"
+
+
 def fmt_handler_short(value: Any) -> str:
     """Extract just the method name from a fully qualified handler path."""
     if value is None:
