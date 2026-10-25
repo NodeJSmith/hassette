@@ -103,6 +103,27 @@ async def test_malformed_response_warns_and_keeps_previous_value(
     assert any(r.levelname == "WARNING" and "get_config" in r.getMessage() for r in caplog.records)
 
 
+async def test_started_event_rereads_config_dropped_while_connecting(websocket_service: WebsocketService) -> None:
+    # A core_config_updated during STARTING is dropped before CONNECTED; ending the wait must still re-read.
+    replies = iter([{**HA_CONFIG, "state": "STARTING"}, MOVED_CONFIG])
+
+    async def get_config(**_: Any) -> dict[str, Any]:
+        reply = next(replies)
+        if reply["state"] == "STARTING":
+            # homeassistant_started lands after the STARTING reply, as dispatch_hass_event would set it.
+            websocket_service._core_started_event.set()  # pyright: ignore[reportPrivateUsage]
+        return reply
+
+    send_and_wait = AsyncMock(side_effect=get_config)
+    websocket_service.send_and_wait = send_and_wait  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service.report_connection_status = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    await run_core_running_gate(websocket_service)
+
+    assert send_and_wait.await_count == 2
+    assert websocket_service.ha_core_config == expected(MOVED_CONFIG)
+
+
 async def test_malformed_first_response_does_not_block_startup(websocket_service: WebsocketService) -> None:
     stub_get_config(websocket_service, {"state": "RUNNING"})
 

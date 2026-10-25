@@ -452,10 +452,13 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             self._outage_log.record_core_wait(
                 core_state, now=time.monotonic(), has_ever_connected=self.has_ever_connected
             )
-            # homeassistant_started means RUNNING, so it ends the wait without another get_config.
+            # homeassistant_started means RUNNING, so it ends the wait without re-checking the core state.
+            # One more get_config read still refreshes ha_core_config: dispatch_hass_event drops any
+            # core_config_updated that arrived while CONNECTING, and nothing else would replay it.
             if await race_recv_task(
                 event_set_within(self._core_started_event, CORE_RUNNING_RECHECK_SECONDS), recv_task
             ):
+                self.store_ha_core_config(await race_recv_task(self.send_and_wait(type="get_config"), recv_task))
                 return
 
     def store_ha_core_config(self, config: dict[str, typing.Any]) -> None:
