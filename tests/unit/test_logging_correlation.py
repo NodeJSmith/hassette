@@ -257,7 +257,7 @@ class TestExecutionIdInheritedByChildTask:
 
     async def test_child_task_inherits_execution_id(self) -> None:
         """A child task spawned during an execution inherits the execution_id."""
-        child_event_dict: dict = {}
+        child_event_dict: structlog.types.EventDict = {}
 
         async def child_work() -> None:
             # Read execution_id via the processor

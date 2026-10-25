@@ -58,7 +58,7 @@ def test_tier2_not_importable_from_testing() -> None:
     """Tier 2 symbols are not importable directly from hassette.testing."""
     with pytest.raises(ImportError):
         # house-lint: ignore-next[HSL002] - import must be inline to assert it raises
-        from hassette.testing import make_mock_hassette  # noqa: F401
+        from hassette.testing import make_mock_hassette  # noqa: F401  # pyright: ignore[reportUnusedImport]
 
 
 def test_star_import_only_tier1() -> None:
@@ -81,4 +81,4 @@ def test_test_utils_removed() -> None:
     """The old test_utils package no longer exists after the migration to hassette.testing."""
     with pytest.raises(ModuleNotFoundError):
         # house-lint: ignore-next[HSL002] - import must be inline to assert it raises
-        import hassette.test_utils  # noqa: F401
+        import hassette.test_utils  # noqa: F401  # pyright: ignore[reportUnusedImport, reportMissingImports]

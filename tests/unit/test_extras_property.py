@@ -8,7 +8,7 @@ class TestAttributesBaseExtras:
     """Tests for AttributesBase.extras and .extra()."""
 
     def test_extras_returns_extra_fields(self) -> None:
-        attrs = LightAttributes(friendly_name="Kitchen", is_hue_group=True, preset=5)
+        attrs = LightAttributes.model_validate({"friendly_name": "Kitchen", "is_hue_group": True, "preset": 5})
         assert attrs.extras == {"is_hue_group": True, "preset": 5}
 
     def test_extras_returns_empty_dict_when_no_extras(self) -> None:
@@ -16,7 +16,7 @@ class TestAttributesBaseExtras:
         assert attrs.extras == {}
 
     def test_extra_returns_value_when_present(self) -> None:
-        attrs = LightAttributes(friendly_name="Kitchen", is_hue_group=True)
+        attrs = LightAttributes.model_validate({"friendly_name": "Kitchen", "is_hue_group": True})
         assert attrs.extra("is_hue_group") is True
 
     def test_extra_returns_none_when_missing(self) -> None:
