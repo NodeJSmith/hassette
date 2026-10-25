@@ -60,6 +60,8 @@ Conditions are value-level matchers. They work as arguments to `changed_to`, `ch
 
 The handler runs only when `app_name` becomes `"Home Assistant Lovelace"` or `"Netflix"`.
 
+`A.get_attr_old("app_name")` and `A.get_attr_new("app_name")` are accessors, imported from `hassette` like `C`. Inside `Annotated[...]`, each one passes the attribute's old or new value as that handler parameter. They work the same way as `D.*` annotations. [Custom Extractors](custom-extractors.md) covers accessors in full.
+
 ### Numeric comparison: `C.Comparison`
 
 `C.Comparison` tests a value against a threshold using an operator string.
