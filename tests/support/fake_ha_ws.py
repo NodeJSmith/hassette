@@ -110,7 +110,18 @@ class FakeHomeAssistant:
                     case "get_config":
                         self.get_config_calls += 1
                         core_state = next(core_states, core_state)
-                        await self.reply(ws, msg, {"state": core_state, "version": "2026.10.0"})
+                        await self.reply(
+                            ws,
+                            msg,
+                            {
+                                "state": core_state,
+                                "version": "2026.10.0",
+                                "latitude": 52.37,
+                                "longitude": 4.89,
+                                "elevation": 12,
+                                "time_zone": "Europe/Amsterdam",
+                            },
+                        )
                     case "get_states":
                         await self.reply(ws, msg, self.get_states_payload)
                     case _:

@@ -10,7 +10,9 @@ import aiohttp
 import anyio
 from aiohttp import ClientTimeout
 from hassette_wire import LogLevel
+from pydantic import ValidationError
 
+from hassette.core.ha_core_config import HaCoreConfig
 from hassette.core.observer_list import ObserverList
 from hassette.core.websocket_io import WebsocketMessageIOMixin
 from hassette.core.websocket_reconnect import (
@@ -137,6 +139,13 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
     _held_started_event: "HassEventEnvelopeDict | None"
     """``homeassistant_started`` caught by the RUNNING gate, dispatched once the connection is CONNECTED (D12)."""
 
+    ha_core_config: HaCoreConfig | None
+    """Home Assistant's location and time zone from its last good ``get_config`` read; None until the first load.
+
+    Set by the RUNNING gate on every connection, before CONNECTED, and replaced on ``core_config_updated``.
+    Kept across a disconnect, and kept unchanged when a read or parse fails.
+    """
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self.url = self.hassette.ws_url
@@ -157,6 +166,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         self._observers_announced = False
         self._bus_announced = False
         self._held_started_event = None
+        self.ha_core_config = None
         self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
         self._ever_connected: bool = False
         self._generation_seq = count(1)
@@ -431,6 +441,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         while True:
             self._core_started_event.clear()
             config = await race_recv_task(self.send_and_wait(type="get_config"), recv_task)
+            self.store_ha_core_config(config)
             core_state = str(config["state"])
             if core_state == CORE_STATE_RUNNING:
                 return
@@ -441,11 +452,34 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             self._outage_log.record_core_wait(
                 core_state, now=time.monotonic(), has_ever_connected=self.has_ever_connected
             )
-            # homeassistant_started means RUNNING, so it ends the wait without another get_config.
+            # homeassistant_started means RUNNING, so it ends the wait without re-checking the core state.
+            # One more get_config read still refreshes ha_core_config: dispatch_hass_event drops any
+            # core_config_updated that arrived while CONNECTING, and nothing else would replay it.
             if await race_recv_task(
                 event_set_within(self._core_started_event, CORE_RUNNING_RECHECK_SECONDS), recv_task
             ):
+                self.store_ha_core_config(await race_recv_task(self.send_and_wait(type="get_config"), recv_task))
                 return
+
+    def store_ha_core_config(self, config: dict[str, typing.Any]) -> None:
+        """Replace ``ha_core_config`` from a ``get_config`` response; a malformed one keeps the previous value."""
+        try:
+            self.ha_core_config = HaCoreConfig.model_validate(config)
+        except ValidationError as exc:
+            self.logger.warning(
+                "Could not read Home Assistant's location from get_config, keeping the previous value: %s", exc
+            )
+
+    async def refresh_ha_core_config(self) -> None:
+        """Re-read ``get_config`` and replace ``ha_core_config``; a failed read keeps the previous value."""
+        try:
+            config = await self.send_and_wait(type="get_config")
+        except Exception as exc:
+            self.logger.warning(
+                "Could not re-read Home Assistant's core config after an update, keeping the previous value: %s", exc
+            )
+            return
+        self.store_ha_core_config(config)
 
     async def mark_connected(self, recv_task: asyncio.Task) -> None:
         """Advertise external readiness: CONNECTED, a new generation, observers, and the public event."""

@@ -17,6 +17,7 @@ from aiohttp import WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
 from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_attempt, wait_exponential_jitter
 
+from hassette.core.ha_core_config import CORE_CONFIG_UPDATED_EVENT_TYPE
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
 from hassette.core.websocket_inbound import log_dispatch_failure, parse_text_frame
 from hassette.core.websocket_reconnect import CLOSE_MSG_TYPE_MESSAGES, HA_STARTED_EVENT_TYPE
@@ -37,6 +38,7 @@ from hassette.types.enums import ConnectionState
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.events.hass.raw import HassEventEnvelopeDict
+    from hassette.task_bucket import TaskBucket
 
 RESPONSE_TIMEOUT_SECONDS = 15
 """Seconds to wait for a Home Assistant reply to a sent message.
@@ -59,6 +61,7 @@ class WebsocketMessageIOMixin:
     _connection_state: ConnectionState
     _core_started_event: asyncio.Event
     _held_started_event: "HassEventEnvelopeDict | None"
+    task_bucket: "TaskBucket"
 
     _seq: typing.Iterator[int]
     """Iterator for generating unique message IDs."""
@@ -67,6 +70,10 @@ class WebsocketMessageIOMixin:
 
         def get_connected_generation(self) -> int | None:
             """Return the active connection generation; provided by the host ``WebsocketService``."""
+            ...
+
+        async def refresh_ha_core_config(self) -> None:
+            """Re-read Home Assistant's core config; provided by the host ``WebsocketService``."""
             ...
 
     def get_next_message_id(self) -> int:
@@ -345,6 +352,7 @@ class WebsocketMessageIOMixin:
         Before CONNECTED (HA still booting, D12) events are dropped unstamped: the resync at
         CONNECTED replaces whatever they carried. ``homeassistant_started`` ends
         ``wait_for_core_running``'s wait and is held for ``mark_connected`` to dispatch.
+        ``core_config_updated`` also starts a re-read of ``get_config`` in a framework task.
         """
         if self._connection_state != ConnectionState.CONNECTED:
             if (data.get("event") or {}).get("event_type") == HA_STARTED_EVENT_TYPE:
@@ -356,3 +364,6 @@ class WebsocketMessageIOMixin:
         if isinstance(event, RawStateChangeEvent):
             stamp_websocket_generation(event, self.get_connected_generation())
         await self.hassette.send_event(event)
+
+        if (data.get("event") or {}).get("event_type") == CORE_CONFIG_UPDATED_EVENT_TYPE:
+            self.task_bucket.spawn(self.refresh_ha_core_config(), name="ws:refresh_core_config")
