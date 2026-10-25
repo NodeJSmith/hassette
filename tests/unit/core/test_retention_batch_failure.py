@@ -102,3 +102,40 @@ async def test_mid_batch_failure_keeps_committed_rows_and_continues_later_target
 
     assert retention_service._consecutive_parent_guard_skips == 1  # pyright: ignore[reportPrivateUsage]
     assert error_exc_infos == [failure]
+
+
+async def test_each_committed_batch_advances_write_progress(
+    retention_service: DatabaseService,
+    db: aiosqlite.Connection,
+) -> None:
+    """A multi-batch pass advances the counter once per committed batch, including the short final one."""
+    retention_service.hassette.config.database.retention_delete_batch = 2
+    retention_service.hassette.config.database.retention_max_batches_per_target = 5
+    now = time.time()
+    for _ in range(5):
+        await insert_tiered_execution(db, now - (5 * SECONDS_PER_DAY), SOURCE_TIER_FRAMEWORK)
+    await db.commit()
+    before = retention_service._write_progress_count  # pyright: ignore[reportPrivateUsage]
+
+    result = await retention_service._delete_target_batched(  # pyright: ignore[reportPrivateUsage]
+        FRAMEWORK_TARGET, now, retention_service.hassette.config
+    )
+
+    assert result.deleted == 5
+    assert retention_service._write_progress_count == before + 3  # pyright: ignore[reportPrivateUsage]
+
+
+async def test_failed_batch_does_not_advance_write_progress(
+    retention_service: DatabaseService,
+    db: aiosqlite.Connection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the two batches committed before the failing third one advance the counter."""
+    await seed_and_fail_third_executions_delete(retention_service, db, monkeypatch)
+    before = retention_service._write_progress_count  # pyright: ignore[reportPrivateUsage]
+
+    await retention_service._delete_target_batched(  # pyright: ignore[reportPrivateUsage]
+        FRAMEWORK_TARGET, time.time(), retention_service.hassette.config
+    )
+
+    assert retention_service._write_progress_count == before + 2  # pyright: ignore[reportPrivateUsage]

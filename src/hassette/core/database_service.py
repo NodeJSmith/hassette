@@ -142,6 +142,11 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
     ``submit()`` tell a write still waiting in the queue (safe to withdraw on timeout) from one
     already executing (whose outcome must be awaited, since it may commit)."""
 
+    _write_progress_count: int
+    """Monotonic count of completed write work: write-queue jobs that returned without raising, plus
+    each retention or size-failsafe batch that committed. Never reset, so a reader compares two
+    readings to tell a busy write worker from a stuck one."""
+
     _consecutive_size_triggers: int
     """Counter for consecutive hourly size failsafe triggers; logged as a warning."""
 
@@ -167,6 +172,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._write_queue_detached = False
         self._executing_future = None
         self._waiting_submits = 0
+        self._write_progress_count = 0
         self.shutdown_snapshot_task = None
 
     @property

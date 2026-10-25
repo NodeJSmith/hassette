@@ -212,3 +212,16 @@ async def test_retention_cleanup_reclaims_freed_pages(initialized_service: Datab
 
     assert await count_rows(db, "executions") == 0
     assert await get_freelist_count(db) == 0
+
+
+async def test_size_failsafe_deletes_advance_write_progress(initialized_service: DatabaseService) -> None:
+    """Each autocommitted failsafe DELETE advances the write-progress counter."""
+    config = initialized_service.hassette.config.database
+    config.size_failsafe_delete_batch = 100
+    await seed_large_executions(initialized_service)
+    config.max_size_mb = await get_live_data_mb(initialized_service.db) / 2
+    before = initialized_service._write_progress_count  # pyright: ignore[reportPrivateUsage]
+
+    await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+
+    assert initialized_service._write_progress_count > before  # pyright: ignore[reportPrivateUsage]

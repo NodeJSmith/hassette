@@ -113,6 +113,7 @@ class DatabaseRetentionMixin:
     hassette: "Hassette"
     logger: "logging.Logger"
     _consecutive_parent_guard_skips: int
+    _write_progress_count: int
 
     db: aiosqlite.Connection
     enqueue_if_ready: "Callable[[Callable[[], Coroutine[Any, Any, Any]]], bool]"
@@ -150,6 +151,7 @@ class DatabaseRetentionMixin:
                 await self.db.commit()
             except Exception as exc:
                 return TargetDeleteResult(total_deleted, error=exc)
+            self._write_progress_count += 1
             total_deleted += batch_count
             if batch_count < batch_size:
                 break

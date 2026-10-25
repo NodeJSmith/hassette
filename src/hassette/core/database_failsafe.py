@@ -67,6 +67,7 @@ class DatabaseSizeFailsafeMixin:
     logger: "logging.Logger"
     _consecutive_size_triggers: int
     _consecutive_exhaustion_triggers: int
+    _write_progress_count: int
     db: aiosqlite.Connection
     enqueue_if_ready: "Callable[[Callable[[], Coroutine[Any, Any, Any]]], bool]"
 
@@ -221,6 +222,7 @@ class DatabaseSizeFailsafeMixin:
                         )
                         group_failed = True
                         continue
+                    self._write_progress_count += 1  # the DELETE autocommitted on execute
                     total_deleted_by_label[target.failsafe_label] += n
                     group_deleted += n
 
