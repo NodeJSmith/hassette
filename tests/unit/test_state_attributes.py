@@ -22,7 +22,7 @@ from hassette.models.states.weather import WeatherAttributes
 
 class TestSensorAttributes:
     def test_last_reset_present(self) -> None:
-        attrs = SensorAttributes(last_reset="2024-01-01T00:00:00+00:00")
+        attrs = SensorAttributes.model_validate({"last_reset": "2024-01-01T00:00:00+00:00"})
         assert isinstance(attrs.last_reset, ZonedDateTime)
 
     def test_last_reset_defaults_to_none(self) -> None:
@@ -46,11 +46,11 @@ class TestAlarmControlPanelAttributes:
         assert attrs.changed_by == "user123"
 
     def test_removed_previous_state_lands_in_extras(self) -> None:
-        attrs = AlarmControlPanelAttributes(previous_state="armed_away")
+        attrs = AlarmControlPanelAttributes.model_validate({"previous_state": "armed_away"})
         assert attrs.extra("previous_state") == "armed_away"
 
     def test_removed_next_state_lands_in_extras(self) -> None:
-        attrs = AlarmControlPanelAttributes(next_state="disarmed")
+        attrs = AlarmControlPanelAttributes.model_validate({"next_state": "disarmed"})
         assert attrs.extra("next_state") == "disarmed"
 
 
@@ -86,7 +86,7 @@ class TestClimateAttributes:
         ],
     )
     def test_new_field_present(self, field: str, value: object) -> None:
-        attrs = ClimateAttributes(**{field: value})
+        attrs = ClimateAttributes.model_validate({field: value})
         assert getattr(attrs, field) == value
 
     @pytest.mark.parametrize(
@@ -155,7 +155,7 @@ class TestWeatherAttributes:
         ],
     )
     def test_new_field_present(self, field: str, value: object) -> None:
-        attrs = WeatherAttributes(**{field: value})
+        attrs = WeatherAttributes.model_validate({field: value})
         assert getattr(attrs, field) == value
 
     @pytest.mark.parametrize(
@@ -181,7 +181,7 @@ class TestFanAttributes:
         ["temperature", "model", "sn", "screen_status", "child_lock", "night_light", "mode"],
     )
     def test_removed_field_lands_in_extras(self, field: str) -> None:
-        attrs = FanAttributes(**{field: "test_value"})
+        attrs = FanAttributes.model_validate({field: "test_value"})
         assert attrs.extra(field) == "test_value"
 
 
@@ -245,11 +245,11 @@ class TestMediaPlayerAttributes:
         ],
     )
     def test_new_field_present(self, field: str, value: object) -> None:
-        attrs = MediaPlayerAttributes(**{field: value})
+        attrs = MediaPlayerAttributes.model_validate({field: value})
         assert getattr(attrs, field) == value
 
     def test_media_position_updated_at_present(self) -> None:
-        attrs = MediaPlayerAttributes(media_position_updated_at="2024-01-01T12:00:00+00:00")
+        attrs = MediaPlayerAttributes.model_validate({"media_position_updated_at": "2024-01-01T12:00:00+00:00"})
         assert isinstance(attrs.media_position_updated_at, ZonedDateTime)
 
     @pytest.mark.parametrize(
@@ -292,7 +292,7 @@ class TestMediaPlayerAttributes:
         ["assumed_state", "adb_response", "hdmi_input"],
     )
     def test_removed_field_lands_in_extras(self, field: str) -> None:
-        attrs = MediaPlayerAttributes(**{field: "test_value"})
+        attrs = MediaPlayerAttributes.model_validate({field: "test_value"})
         assert attrs.extra(field) == "test_value"
 
 
@@ -319,7 +319,7 @@ class TestNumericWideningRegression:
         ],
     )
     def test_accepts_fractional_value(self, attrs_cls: type, field: str, value: float) -> None:
-        attrs = attrs_cls(**{field: value})
+        attrs = attrs_cls.model_validate({field: value})
         assert getattr(attrs, field) == value
 
     @pytest.mark.parametrize(
@@ -336,7 +336,7 @@ class TestNumericWideningRegression:
         ],
     )
     def test_still_accepts_int_value(self, attrs_cls: type, field: str, value: int) -> None:
-        attrs = attrs_cls(**{field: value})
+        attrs = attrs_cls.model_validate({field: value})
         assert getattr(attrs, field) == value
         assert isinstance(getattr(attrs, field), int)
 

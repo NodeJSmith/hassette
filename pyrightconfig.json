@@ -145,7 +145,6 @@
         "tests/unit/test_scheduler_resource.py",
         "tests/unit/test_source_tier_models.py",
         "tests/unit/test_source_tier_propagation.py",
-        "tests/unit/test_state_attributes.py",
         "tests/unit/test_structural_resource_mark_ready.py",
         "tests/unit/test_ws_models.py",
         "tests/unit/web/test_mappers.py",
