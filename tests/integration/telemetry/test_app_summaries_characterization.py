@@ -156,7 +156,7 @@ async def test_pinned_output(
 async def test_storage_error_raises_telemetry_unavailable(query_service: TelemetryQueryService, db: DbFixture) -> None:
     """A storage failure inside the snapshot read surfaces as TelemetryUnavailableError and frees the lock."""
     db_svc, _ = db
-    await db_svc._read_db.close()
+    await db_svc.read_db.close()
     try:
         with pytest.raises(TelemetryUnavailableError):
             await query_service.get_all_app_summaries()

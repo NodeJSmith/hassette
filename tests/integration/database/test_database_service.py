@@ -13,7 +13,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.database_write_queue import detach_write_queue
 from hassette.resources.shutdown_deadline import deadline_in
 from hassette.utils.aiosqlite_utils import connect_daemon
-from tests.integration.database.conftest import seed_app_executions
+from tests.integration.database.conftest import seed_app_executions, write_queue
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, async_noop, seed_listener_for_fk
 
 
@@ -78,6 +78,7 @@ async def test_migration_idempotency(service: DatabaseService) -> None:
         # Verify DB is connected
         cursor = await service.db.execute("SELECT 1")
         row = await cursor.fetchone()
+        assert row is not None
         assert row[0] == 1
 
         # Tear down the first init cleanly before re-initializing
@@ -88,6 +89,7 @@ async def test_migration_idempotency(service: DatabaseService) -> None:
         # Verify DB reconnected successfully
         cursor = await service.db.execute("SELECT 1")
         row = await cursor.fetchone()
+        assert row is not None
         assert row[0] == 1
     finally:
         await service.on_shutdown()
@@ -127,7 +129,7 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
     await asyncio.sleep(0.05)
     await initialized_service.update_heartbeat()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
 
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
     row = await cursor.fetchone()
@@ -185,7 +187,7 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
 
     await initialized_service.run_retention_cleanup()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
 
     # Old records should be deleted, recent ones retained.
     # Both handler and job records now live in executions; 2 old removed, 2 recent kept.
@@ -227,14 +229,14 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
     shutdown_task = asyncio.create_task(shutdown_after_loop())
 
     # Patch intervals to very small values so the loop iterates quickly
-    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.1
-    initialized_service.hassette.config.database.retention_interval_seconds = 0.1
+    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.1  # pyright: ignore[reportAttributeAccessIssue]  # sub-second interval keeps the loop fast
+    initialized_service.hassette.config.database.retention_interval_seconds = 0.1  # pyright: ignore[reportAttributeAccessIssue]  # sub-second interval keeps the loop fast
 
     await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
     await shutdown_task
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
 
     # Heartbeat should have been updated
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
@@ -252,7 +254,7 @@ async def test_serve_runs_size_failsafe(initialized_service: DatabaseService) ->
 
     shutdown_task = asyncio.create_task(shutdown_after_loop())
 
-    initialized_service.hassette.config.database.size_failsafe_interval_seconds = 0.1
+    initialized_service.hassette.config.database.size_failsafe_interval_seconds = 0.1  # pyright: ignore[reportAttributeAccessIssue]  # sub-second interval keeps the loop fast
 
     with patch.object(
         initialized_service, "run_size_failsafe", wraps=initialized_service.run_size_failsafe
@@ -275,24 +277,24 @@ async def test_heartbeat_failure_counter_tracks_failures(initialized_service: Da
 
     await initialized_service.update_heartbeat()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     await initialized_service.update_heartbeat()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
     assert initialized_service._consecutive_heartbeat_failures == 2
 
     await initialized_service.update_heartbeat()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
     assert initialized_service._consecutive_heartbeat_failures == 3
 
     # Restore a valid connection and verify recovery resets counter
     initialized_service._db = await connect_daemon(initialized_service._db_path)
     await initialized_service.update_heartbeat()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
     assert initialized_service._consecutive_heartbeat_failures == 0
 
 
@@ -305,14 +307,14 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
 
     await initialized_service.update_heartbeat()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     # Restore real connection — next heartbeat should succeed and reset
     initialized_service._db = real_db
     await initialized_service.update_heartbeat()
 
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
     assert initialized_service._consecutive_heartbeat_failures == 0
 
 
@@ -323,6 +325,7 @@ async def test_db_property_works_after_init(initialized_service: DatabaseService
 
     cursor = await conn.execute("SELECT 1")
     row = await cursor.fetchone()
+    assert row is not None
     assert row[0] == 1
 
 
@@ -332,7 +335,7 @@ async def test_serve_raises_after_max_heartbeat_failures(initialized_service: Da
     assert initialized_service._db is not None
     await initialized_service._db.close()
 
-    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.01
+    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.01  # pyright: ignore[reportAttributeAccessIssue]  # sub-second interval keeps the loop fast
     with pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"):
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
@@ -355,7 +358,7 @@ async def test_serve_raises_when_write_worker_is_wedged(initialized_service: Dat
     assert initialized_service.enqueue(wedge()) is True
     await asyncio.wait_for(wedged.wait(), timeout=1)
 
-    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.01
+    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.01  # pyright: ignore[reportAttributeAccessIssue]  # sub-second interval keeps the loop fast
     try:
         with (
             patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05),
@@ -449,6 +452,7 @@ async def test_read_db_property_works_after_init(initialized_service: DatabaseSe
 
     cursor = await conn.execute("SELECT 1")
     row = await cursor.fetchone()
+    assert row is not None
     assert row[0] == 1
 
 
@@ -475,7 +479,7 @@ async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseSer
         drained.append(index)
 
     # Fill the queue to capacity
-    queue = initialized_service._db_write_queue
+    queue = write_queue(initialized_service)
     max_size = queue.maxsize
 
     # Put items directly so we don't trigger the put_nowait path yet
@@ -507,7 +511,7 @@ async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service:
     async def gated_coro() -> None:
         await gate.wait()
 
-    queue = initialized_service._db_write_queue
+    queue = write_queue(initialized_service)
 
     # Fill 99 slots directly (bypassing enqueue's logging) so the next enqueue hits depth 100
     for _ in range(99):
@@ -599,7 +603,7 @@ async def test_run_size_failsafe_enqueues_check_size_failsafe(initialized_servic
     initialized_service._consecutive_size_triggers = 5
 
     await initialized_service.run_size_failsafe()
-    await initialized_service._db_write_queue.join()
+    await write_queue(initialized_service).join()
 
     assert initialized_service._consecutive_size_triggers == 0
 
@@ -613,14 +617,13 @@ async def test_cleanup_returns_false_when_db_is_none(initialized_service: Databa
     real_db = initialized_service._db
     initialized_service._db = None
     try:
-        assert initialized_service._db_write_queue is not None
-        qsize_before = initialized_service._db_write_queue.qsize()
+        qsize_before = write_queue(initialized_service).qsize()
 
         # False is the signal serve() records in this cleanup's CleanupAttempt so it retries sooner.
         assert await getattr(initialized_service, method_name)() is False
 
         # Nothing was enqueued -- the _db is None guard fired, proven by real observable queue state.
-        assert initialized_service._db_write_queue.qsize() == qsize_before
+        assert write_queue(initialized_service).qsize() == qsize_before
     finally:
         initialized_service._db = real_db
 
@@ -668,7 +671,7 @@ async def test_serve_retries_cleanup_after_dropped_enqueue(
     svc = initialized_service
     interval = 0.5
 
-    svc.hassette.config.database.heartbeat_interval_seconds = 0.01
+    svc.hassette.config.database.heartbeat_interval_seconds = 0.01  # pyright: ignore[reportAttributeAccessIssue]  # sub-second interval keeps the loop fast
     # Park both timers out of reach, then bring only the one under test into range, so the
     # other branch can't interleave calls into the queue or the recorded attempts.
     svc.hassette.config.database.retention_interval_seconds = 3600

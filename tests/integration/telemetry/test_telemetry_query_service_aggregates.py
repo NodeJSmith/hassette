@@ -412,6 +412,7 @@ class TestCrossSessionAndRetiredRows:
             (time.time(), time.time()),
         )
         session_2 = cursor.lastrowid
+        assert session_2 is not None
         await db_svc.db.commit()
 
         # Session 1: register listener and create 2 invocations
@@ -532,7 +533,7 @@ class TestCrossSessionAndRetiredRows:
         assert await cursor.fetchone() is not None, "Retired job with a recent execution must survive"
 
         cursor = await db_svc.db.execute("SELECT id FROM executions WHERE id IN (?, ?)", (invocation_id, execution_id))
-        assert len(await cursor.fetchall()) == 2, "Recent executions must survive and stay joinable"
+        assert len(list(await cursor.fetchall())) == 2, "Recent executions must survive and stay joinable"
 
 
 class TestGetAllAppSummariesSourceTier:

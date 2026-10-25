@@ -4,6 +4,7 @@ Covers the execution_id, author, level, since, app_key, and instance_index filte
 that are uncovered by the web API mock layer.
 """
 
+import itertools
 import time
 
 import pytest
@@ -14,7 +15,7 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 
 from .helpers import DbFixture, insert_listener
 
-SEQ_COUNTER = 0
+SEQ_COUNTER = itertools.count(1)
 
 
 async def insert_log_record(
@@ -28,8 +29,6 @@ async def insert_log_record(
     timestamp: float | None = None,
     message: str = "test message",
 ) -> None:
-    global SEQ_COUNTER
-    SEQ_COUNTER += 1
     ts = timestamp if timestamp is not None else time.time()
     await db_svc.db.execute(
         """INSERT INTO log_records
@@ -37,7 +36,7 @@ async def insert_log_record(
                 exc_info, app_key, instance_name, instance_index, execution_id, author)
            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?)""",
         (
-            SEQ_COUNTER,
+            next(SEQ_COUNTER),
             ts,
             level,
             "hassette.test",

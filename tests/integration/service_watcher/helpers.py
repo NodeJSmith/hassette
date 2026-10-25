@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import sys
 from collections.abc import AsyncIterator, Callable
-from typing import ClassVar, NamedTuple
+from typing import ClassVar, NamedTuple, TypedDict, Unpack
 
 from hassette_wire import ResourceStatus
 
@@ -15,6 +15,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import HassetteHarness, build_harness, wait_for
 from hassette.types import Topic
+from hassette.types.enums import RestartType
 from tests.support.helpers import (
     make_service_failed_event,
 )
@@ -30,11 +31,26 @@ def make_call_counts() -> dict[str, int]:
     return {"cancel": 0, "start": 0}
 
 
-def make_fast_spec(**overrides: object) -> RestartSpec:
+class RestartSpecOverrides(TypedDict, total=False):
+    """Keyword overrides accepted by ``make_fast_spec``; mirrors ``RestartSpec``'s fields so pyright checks them."""
+
+    restart_type: RestartType
+    non_retryable_error_names: tuple[str, ...]
+    fatal_error_names: tuple[str, ...]
+    backoff_base_seconds: float
+    backoff_multiplier: float
+    backoff_max_seconds: float
+    budget_intensity: int
+    budget_period_seconds: float
+    startup_timeout_seconds: float
+    cooldown_seconds: float
+    max_cooldown_cycles: int
+
+
+def make_fast_spec(**overrides: Unpack[RestartSpecOverrides]) -> RestartSpec:
     """RestartSpec with zero backoff for test speed. Override any field via kwargs."""
-    defaults: dict[str, object] = {"backoff_base_seconds": 0}
-    defaults.update(overrides)
-    return RestartSpec(**defaults)  # pyright: ignore[reportCallIssue]
+    fields: RestartSpecOverrides = {"backoff_base_seconds": 0, **overrides}
+    return RestartSpec(**fields)
 
 
 @contextlib.asynccontextmanager
@@ -171,7 +187,7 @@ class DummyServiceSetup(NamedTuple):
 
 
 def register_dummy_service(
-    watcher: ServiceWatcher, *, fail_times: int = 0, **spec_overrides: object
+    watcher: ServiceWatcher, *, fail_times: int = 0, **spec_overrides: Unpack[RestartSpecOverrides]
 ) -> DummyServiceSetup:
     """Attach a FAILED dummy service to `watcher`'s hassette and pre-build what tests assert against."""
     calls = make_call_counts()

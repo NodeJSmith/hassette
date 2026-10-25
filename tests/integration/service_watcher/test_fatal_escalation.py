@@ -1,7 +1,7 @@
 """Integration tests for ServiceWatcher fatal-error and restart-refusal escalation."""
 
 import asyncio
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest.mock import patch
 
 from hassette_wire import ResourceStatus
@@ -231,7 +231,7 @@ async def test_episode_failed_event_with_non_retryable_error_is_not_routed_twice
             await watcher.restart_service(attempt_event)
         await real_dispatch(name, role, event)
 
-    async def counting_exhaustion(*args: object, **kwargs: object) -> None:
+    async def counting_exhaustion(*args: Any, **kwargs: Any) -> None:
         nonlocal exhaustion_calls
         exhaustion_calls += 1
         await real_exhaustion(*args, **kwargs)

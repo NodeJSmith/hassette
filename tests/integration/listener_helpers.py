@@ -9,25 +9,25 @@ from dataclasses import dataclass
 from typing import Any
 
 from hassette.bus.listeners import Listener
-from hassette.events import Event
+from hassette.events import Event, EventPayload
 from hassette.task_bucket import TaskBucket
 from hassette.types import HandlerType
 from tests.support.helpers import create_listener
 
 
 @dataclass(frozen=True, slots=True)
-class MockEvent(Event[str]):
+class MockEvent(Event[EventPayload[str]]):
     """Mock event for testing."""
 
     @property
     def data(self) -> str:
-        """Return payload for backward compatibility with tests."""
-        return self.payload
+        """Return the payload's data so handlers can record it directly."""
+        return self.payload.data
 
 
 def mock_event(data: str = "test") -> MockEvent:
     """Create a MockEvent with a topic and payload."""
-    return MockEvent(topic="test_topic", payload=data)
+    return MockEvent(topic="test_topic", payload=EventPayload(data=data))
 
 
 def make_recording_listener(
@@ -52,12 +52,8 @@ def make_recording_listener(
 
 
 async def invoke_with(listener: Listener, data: str) -> None:
-    """Invoke the listener's handler once with a mock event carrying `data`.
-
-    MockEvent's plain-string payload is not an `EventPayload`; tests use it so handlers can
-    record `event.data` directly.
-    """
-    await listener.invoker.invoke(mock_event(data))  # pyright: ignore[reportArgumentType]
+    """Invoke the listener's handler once with a mock event carrying `data`."""
+    await listener.invoker.invoke(mock_event(data))
 
 
 async def dispatch_values(listener: Listener, *values: str) -> None:
