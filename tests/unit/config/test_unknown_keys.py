@@ -55,6 +55,7 @@ class TestFlagged:
         [
             pytest.param("HASSETTE__APPS__AUTODETECT", "false", id="removed-autodetect"),
             pytest.param("HASSETTE__APPS__EXCLUDE_DIRS", '["lib"]', id="removed-exclude-dirs"),
+            pytest.param("HASSETTE__WEBSOCKET__RESPONSE_TIMEOUT_SECONDS", "5", id="removed-websocket-response-timeout"),
         ],
     )
     def test_removed_apps_env_var(self, cfg: Path, name: str, value: str) -> None:
@@ -102,6 +103,26 @@ class TestFlagged:
                 "[lifecycle]\nsync_executor_shutdown_timeout_seconds = 10\n",
                 "lifecycle.sync_executor_shutdown_timeout_seconds",
                 id="removed-sync-executor-shutdown-timeout",
+            ),
+            pytest.param(
+                "[websocket]\nauthentication_timeout_seconds = 10\n",
+                "websocket.authentication_timeout_seconds",
+                id="removed-websocket-authentication-timeout",
+            ),
+            pytest.param(
+                "[websocket]\nresponse_timeout_seconds = 10\n",
+                "websocket.response_timeout_seconds",
+                id="removed-websocket-response-timeout",
+            ),
+            pytest.param(
+                "[websocket]\ntotal_timeout_seconds = 10\n",
+                "websocket.total_timeout_seconds",
+                id="removed-websocket-total-timeout",
+            ),
+            pytest.param(
+                "[websocket]\ncleanup_timeout_seconds = 10\n",
+                "websocket.cleanup_timeout_seconds",
+                id="removed-websocket-cleanup-timeout",
             ),
         ],
     )

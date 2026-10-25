@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+import hassette.core.websocket_io as websocket_io_module
 from hassette.core import websocket_responses as websocket_responses_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import (
@@ -52,8 +53,8 @@ def _drop_connection(websocket_service: WebsocketService, *, close_code: int | N
     websocket_service.send_json = AsyncMock(side_effect=drop)
 
 
-def _time_out_immediately(websocket_service: WebsocketService) -> None:
-    websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+def _time_out_immediately(websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
     websocket_service.send_json = AsyncMock()
 
 
@@ -66,10 +67,10 @@ async def _timed_out_write(websocket_service: WebsocketService, **data) -> int:
 
 class TestResponseTimeout:
     async def test_non_retried_send_goes_out_once_and_raises_response_timeout(
-        self, websocket_service: WebsocketService
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A write that times out is sent once and raises the distinguishable outcome-unknown type."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
 
         with pytest.raises(ResponseTimeoutError) as exc_info:
             await websocket_service.send_and_wait(type="fire_event", event_type="doorbell", retry_on_timeout=False)
@@ -82,10 +83,10 @@ class TestResponseTimeout:
         assert exc.code is None
 
     async def test_retried_read_raises_response_timeout_on_last_attempt(
-        self, websocket_service: WebsocketService
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Reads keep retrying on timeout; the final attempt raises the same type as a write."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
         attempts = 2
 
         with (
@@ -97,10 +98,10 @@ class TestResponseTimeout:
         assert websocket_service.send_json.await_count == attempts
 
     async def test_message_names_type_id_and_timeout_without_payload_values(
-        self, websocket_service: WebsocketService
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The message carries no payload values; the full outgoing payload lives on original_data."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
 
         with pytest.raises(ResponseTimeoutError) as exc_info:
             await websocket_service.send_and_wait(
@@ -120,9 +121,11 @@ class TestResponseTimeout:
             "id": msg_id,
         }
 
-    async def test_timeout_logs_warning_when_raised(self, websocket_service: WebsocketService) -> None:
+    async def test_timeout_logs_warning_when_raised(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Raising an outcome-unknown error leaves a WARNING behind even if the caller swallows it."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
         websocket_service.logger = Mock()
 
         msg_id = await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
@@ -218,9 +221,11 @@ class TestResponseLost:
 
 
 class TestLateReplyToTimedOutWrite:
-    async def test_late_success_logs_info_and_drops_entry(self, websocket_service: WebsocketService) -> None:
+    async def test_late_success_logs_info_and_drops_entry(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A late success settles a timed-out write as applied."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
         msg_id = await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
         websocket_service._pending.logger = Mock()
 
@@ -233,9 +238,11 @@ class TestLateReplyToTimedOutWrite:
         assert str(msg_id) in rendered
         assert msg_id not in websocket_service._pending.entries
 
-    async def test_late_failure_logs_warning_and_drops_entry(self, websocket_service: WebsocketService) -> None:
+    async def test_late_failure_logs_warning_and_drops_entry(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A late failure reports HA's error for a timed-out write, not that it failed to apply."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
         msg_id = await _timed_out_write(websocket_service, type="counter/delete", counter_id="motion")
         websocket_service._pending.logger = Mock()
 
@@ -250,13 +257,15 @@ class TestLateReplyToTimedOutWrite:
         assert str(msg_id) in rendered
         assert msg_id not in websocket_service._pending.entries
 
-    async def test_reply_racing_the_deadline_is_returned_or_logged(self, websocket_service: WebsocketService) -> None:
+    async def test_reply_racing_the_deadline_is_returned_or_logged(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A reply queued as the response timeout fires is never silently dropped.
 
         The reply lands after the deadline but before the sending task resumes. It must either
         come back as the call's result or be logged as a late reply, leaving nothing recorded.
         """
-        websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+        monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
         websocket_service._pending.logger = Mock()
         loop = asyncio.get_running_loop()
 
@@ -296,9 +305,11 @@ class TestLateReplyToTimedOutWrite:
         assert websocket_service._pending.entries == {}
         assert websocket_service._pending.logger.method_calls == []
 
-    async def test_retried_read_timeout_is_not_recorded(self, websocket_service: WebsocketService) -> None:
+    async def test_retried_read_timeout_is_not_recorded(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A late reply to a read settles nothing, so retried reads are never recorded."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
         single_attempt = 1  # the read goes through the retrying path, which still records nothing
 
         with (
@@ -319,9 +330,11 @@ class TestLateReplyToTimedOutWrite:
 
         assert websocket_service._pending.logger.method_calls == []
 
-    async def test_reconnect_clears_record(self, websocket_service: WebsocketService) -> None:
+    async def test_reconnect_clears_record(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Msg ids belong to one connection, so partial_cleanup() drops the record."""
-        _time_out_immediately(websocket_service)
+        _time_out_immediately(websocket_service, monkeypatch)
         await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
         websocket_service._ws = None
         websocket_service._recv_task = None
@@ -330,15 +343,19 @@ class TestLateReplyToTimedOutWrite:
 
         assert websocket_service._pending.entries == {}
 
-    async def test_cleanup_clears_record(self, websocket_service: WebsocketService) -> None:
-        _time_out_immediately(websocket_service)
+    async def test_cleanup_clears_record(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _time_out_immediately(websocket_service, monkeypatch)
         await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
         await cleanup_disconnected(websocket_service)
 
         assert websocket_service._pending.entries == {}
 
-    async def test_cap_evicts_oldest_entry(self, websocket_service: WebsocketService) -> None:
-        _time_out_immediately(websocket_service)
+    async def test_cap_evicts_oldest_entry(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _time_out_immediately(websocket_service, monkeypatch)
 
         cap = 2
 

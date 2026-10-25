@@ -172,10 +172,7 @@ class TestWebSocketConfig:
     def test_defaults(self):
         """WebSocketConfig constructs with all defaults."""
         cfg = WebSocketConfig()
-        assert cfg.authentication_timeout_seconds == 10
-        assert cfg.response_timeout_seconds == 15
         assert cfg.connection_timeout_seconds == 5
-        assert cfg.total_timeout_seconds == 30
         assert cfg.heartbeat_interval_seconds == 30
 
 

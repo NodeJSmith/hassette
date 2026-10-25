@@ -50,6 +50,16 @@ if typing.TYPE_CHECKING:
     from hassette.resources.base import Resource
 
 
+AUTHENTICATION_TIMEOUT_SECONDS = 10
+"""Seconds to wait for Home Assistant to answer the auth handshake."""
+
+TOTAL_TIMEOUT_SECONDS = 30
+"""Total seconds aiohttp allows for one WebSocket operation (``ClientTimeout.total``)."""
+
+CLEANUP_TIMEOUT_SECONDS = 2.0
+"""Seconds to wait for the receive task to finish cancelling during partial cleanup."""
+
+
 # Valid WebSocket connection state transitions. Failed attempts and their backoffs stay in
 # CONNECTING with no transition, so an outage produces no per-attempt state changes.
 # DISCONNECTED → CONNECTING: serve() starts an attempt (first, or after the recv task died)
@@ -247,24 +257,9 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         return self.hassette.config.websocket.connection_timeout_seconds
 
     @property
-    def total_timeout_seconds(self) -> int:
-        """Total seconds aiohttp allows for WebSocket operations, from the websocket config."""
-        return self.hassette.config.websocket.total_timeout_seconds
-
-    @property
     def heartbeat_interval_seconds(self) -> int:
         """Seconds between aiohttp keep-alive pings on the WebSocket, from the websocket config."""
         return self.hassette.config.websocket.heartbeat_interval_seconds
-
-    @property
-    def authentication_timeout_seconds(self) -> int:
-        """Seconds to wait for Home Assistant to answer the auth handshake, from the websocket config."""
-        return self.hassette.config.websocket.authentication_timeout_seconds
-
-    @property
-    def cleanup_timeout_seconds(self) -> float:
-        """Seconds to wait for the receive task to finish cancelling during partial cleanup."""
-        return self.hassette.config.websocket.cleanup_timeout_seconds
 
     @property
     def is_connected(self) -> bool:
@@ -320,7 +315,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         exceptions in ``PROPAGATED_EXCEPTIONS`` (and cancellation, at shutdown) escape.
         """
         async with self._connect_lock:
-            timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
+            timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=TOTAL_TIMEOUT_SECONDS)
 
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 self._policy = ReconnectPolicy()
@@ -521,7 +516,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
             # asyncio.timeout, not wait_for: on 3.11 wait_for swallows a cancellation that lands
             # as its inner awaitable completes, so shutdown would resume the reconnect loop.
             with suppress(Exception):
-                async with asyncio.timeout(self.cleanup_timeout_seconds):
+                async with asyncio.timeout(CLEANUP_TIMEOUT_SECONDS):
                     await asyncio.gather(recv_task, return_exceptions=True)
 
         if self._ws is not None and not self._ws.closed:
@@ -583,7 +578,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         truncated_token = self.hassette.config.truncated_token
         ws_url = self.hassette.ws_url
 
-        with anyio.fail_after(self.authentication_timeout_seconds):
+        with anyio.fail_after(AUTHENTICATION_TIMEOUT_SECONDS):
             msg = await self._ws.receive_json()
             if msg["type"] != "auth_required":
                 raise RuntimeError(f"Unexpected authentication response: {msg}")

@@ -157,10 +157,6 @@ def build_file_watcher_config() -> FileWatcherConfig:
 def build_websocket_config() -> WebSocketConfig:
     return WebSocketConfig(
         connection_timeout_seconds=1,
-        authentication_timeout_seconds=1,
-        # Keep in sync with TEST_TOTAL_TIMEOUT_SECONDS in hassette.testing.config.
-        total_timeout_seconds=30,
-        response_timeout_seconds=1,
         heartbeat_interval_seconds=5,
     )
 

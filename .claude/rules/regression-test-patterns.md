@@ -30,9 +30,9 @@ assert result > 0                                  # registration succeeded afte
 
 ## Config-driven real-clock timeouts
 
-A test that overrides a production timeout (e.g. `websocket.total_timeout_seconds`) races that value in real wall-clock time against any deliberate delay in the same test — an `asyncio.wait_for(..., timeout=1)` inside `pytest.raises(TimeoutError)` proving something hasn't happened yet, an `asyncio.sleep()`, or scheduling overhead. With under a second of margin, CI's noisier scheduling eventually eats it, even if the test passes locally for months.
+A test that overrides a production timeout (a config field such as `lifecycle.startup_timeout_seconds`, or a monkeypatched module constant such as `websocket_io.RESPONSE_TIMEOUT_SECONDS`) races that value in real wall-clock time against any deliberate delay in the same test — an `asyncio.wait_for(..., timeout=1)` inside `pytest.raises(TimeoutError)` proving something hasn't happened yet, an `asyncio.sleep()`, or scheduling overhead. With under a second of margin, CI's noisier scheduling eventually eats it, even if the test passes locally for months.
 
-To reproduce, drive the overridden timeout down until it fails on any machine (e.g. `0`) and confirm the failure matches CI. To fix, widen the override to give the deliberate hold generous headroom — the Pydantic field default (e.g. `HassetteConfig`'s `total_timeout_seconds` of 30) is usually right, since it's already the framework's "reasonable real-world chance to finish." Do not shrink the competing delay instead; the delay is the thing under test.
+To reproduce, drive the overridden timeout down until it fails on any machine (e.g. `0`) and confirm the failure matches CI. To fix, widen the override to give the deliberate hold generous headroom — the production default (the Pydantic field default or the module constant's value) is usually right, since it's already the framework's "reasonable real-world chance to finish." Do not shrink the competing delay instead; the delay is the thing under test.
 
 ## Sentinel filtering
 

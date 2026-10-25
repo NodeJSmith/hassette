@@ -38,6 +38,12 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.events.hass.raw import HassEventEnvelopeDict
 
+RESPONSE_TIMEOUT_SECONDS = 15
+"""Seconds to wait for a Home Assistant reply to a sent message.
+
+Read at call time, so tests can force a timeout by monkeypatching it.
+"""
+
 
 class WebsocketMessageIOMixin:
     """Message send/receive/dispatch for ``WebsocketService``."""
@@ -66,11 +72,6 @@ class WebsocketMessageIOMixin:
     def get_next_message_id(self) -> int:
         """Get the next message ID."""
         return next(self._seq)
-
-    @property
-    def resp_timeout_seconds(self) -> int:
-        """Seconds to wait for a Home Assistant reply to a sent message, from the websocket config."""
-        return self.hassette.config.websocket.response_timeout_seconds
 
     async def recv_loop(self) -> None:
         """Receive and dispatch frames until the socket closes.
@@ -109,7 +110,7 @@ class WebsocketMessageIOMixin:
             The response payload once ``respond_if_necessary`` resolves the future.
 
         Raises:
-            TimeoutError: If no response arrives within ``resp_timeout_seconds``.
+            TimeoutError: If no response arrives within ``RESPONSE_TIMEOUT_SECONDS``.
         """
         fut = self.hassette.loop.create_future()
         self._pending.register(msg_id, fut)
@@ -118,7 +119,7 @@ class WebsocketMessageIOMixin:
             # asyncio.wait, unlike wait_for, never cancels fut. A reply landing after the deadline
             # but before this task resumes still resolves it and is returned below, and the
             # check-and-mark that follows has no await in it for a reply to slip into.
-            await asyncio.wait({fut}, timeout=self.resp_timeout_seconds)
+            await asyncio.wait({fut}, timeout=RESPONSE_TIMEOUT_SECONDS)
             if fut.done():
                 return fut.result()
             if late_reply_command is not None:
@@ -167,7 +168,7 @@ class WebsocketMessageIOMixin:
             except TimeoutError:
                 last_abandoned_id = msg_id
                 raise FailedMessageError(
-                    f"subscribe_events response timed out after {self.resp_timeout_seconds}s"
+                    f"subscribe_events response timed out after {RESPONSE_TIMEOUT_SECONDS}s"
                 ) from None
 
         return await subscribe_with_retry()
@@ -227,7 +228,7 @@ class WebsocketMessageIOMixin:
                 return await self.send_and_await_response(data, attempt_id, late_reply_command=late_reply_command)
             except TimeoutError:
                 raise ResponseTimeoutError(
-                    f"{command_label(data)}: no response within {self.resp_timeout_seconds}s; "
+                    f"{command_label(data)}: no response within {RESPONSE_TIMEOUT_SECONDS}s; "
                     "the command may or may not have applied",
                     original_data=dict(data),
                 ) from None

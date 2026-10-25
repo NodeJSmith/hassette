@@ -176,26 +176,16 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
 class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
     """WebSocket connection and timeout settings.
 
-    Reconnect pacing is fixed, not configurable: see ``hassette.core.websocket_reconnect``.
+    Reconnect pacing is fixed, not configurable: see ``hassette.core.websocket_reconnect``. The
+    authentication, response, total and cleanup timeouts are module constants in
+    ``hassette.core.websocket_service`` and ``hassette.core.websocket_io``.
     """
-
-    authentication_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for WebSocket authentication to complete."""
-
-    response_timeout_seconds: int = Field(default=15)
-    """Length of time to wait for a response from the WebSocket."""
 
     connection_timeout_seconds: int = Field(default=5)
     """Length of time to wait for WebSocket connection to complete. Passed to aiohttp."""
 
-    total_timeout_seconds: int = Field(default=30)
-    """Total length of time to wait for WebSocket operations to complete. Passed to aiohttp."""
-
     heartbeat_interval_seconds: int = Field(default=30)
     """Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp."""
-
-    cleanup_timeout_seconds: float = Field(default=2.0)
-    """Length of time to wait for the recv task to finish cancelling during partial cleanup."""
 
 
 class LoggingConfig(ExcludeExtrasMixin, BaseModel):

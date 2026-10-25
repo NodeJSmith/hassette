@@ -1337,30 +1337,12 @@
       }
     },
     "WebSocketConfig": {
-      "description": "WebSocket connection and timeout settings.\n\nReconnect pacing is fixed, not configurable: see ``hassette.core.websocket_reconnect``.",
+      "description": "WebSocket connection and timeout settings.\n\nReconnect pacing is fixed, not configurable: see ``hassette.core.websocket_reconnect``. The\nauthentication, response, total and cleanup timeouts are module constants in\n``hassette.core.websocket_service`` and ``hassette.core.websocket_io``.",
       "properties": {
-        "authentication_timeout_seconds": {
-          "default": 10,
-          "description": "Length of time to wait for WebSocket authentication to complete.",
-          "title": "Authentication Timeout Seconds",
-          "type": "integer"
-        },
-        "response_timeout_seconds": {
-          "default": 15,
-          "description": "Length of time to wait for a response from the WebSocket.",
-          "title": "Response Timeout Seconds",
-          "type": "integer"
-        },
         "connection_timeout_seconds": {
           "default": 5,
           "description": "Length of time to wait for WebSocket connection to complete. Passed to aiohttp.",
           "title": "Connection Timeout Seconds",
-          "type": "integer"
-        },
-        "total_timeout_seconds": {
-          "default": 30,
-          "description": "Total length of time to wait for WebSocket operations to complete. Passed to aiohttp.",
-          "title": "Total Timeout Seconds",
           "type": "integer"
         },
         "heartbeat_interval_seconds": {
@@ -1368,12 +1350,6 @@
           "description": "Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp.",
           "title": "Heartbeat Interval Seconds",
           "type": "integer"
-        },
-        "cleanup_timeout_seconds": {
-          "default": 2.0,
-          "description": "Length of time to wait for the recv task to finish cancelling during partial cleanup.",
-          "title": "Cleanup Timeout Seconds",
-          "type": "number"
         }
       },
       "title": "WebSocketConfig",

@@ -18,6 +18,7 @@ import pytest
 from aiohttp import WSMsgType
 from aiohttp.client_exceptions import ClientConnectorError
 
+import hassette.core.websocket_io as websocket_io_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, RetryableConnectionClosedError
 from hassette.testing import EventCapture
@@ -32,13 +33,10 @@ SECRET_VALUE = "hunter2-do-not-log"
 
 class TestTimeoutAndLogLevelProperties:
     def test_properties_delegate_to_config(self, websocket_service: WebsocketService) -> None:
-        """resp/connection/total/heartbeat/authentication timeouts and config_log_level read from config."""
+        """connection/heartbeat timeouts and config_log_level read from config."""
         cfg = websocket_service.hassette.config.websocket
-        assert websocket_service.resp_timeout_seconds == cfg.response_timeout_seconds
         assert websocket_service.connection_timeout_seconds == cfg.connection_timeout_seconds
-        assert websocket_service.total_timeout_seconds == cfg.total_timeout_seconds
         assert websocket_service.heartbeat_interval_seconds == cfg.heartbeat_interval_seconds
-        assert websocket_service.authentication_timeout_seconds == cfg.authentication_timeout_seconds
         assert websocket_service.config_log_level == websocket_service.hassette.config.logging.websocket
 
 
@@ -117,14 +115,16 @@ class TestSendAndWaitCallerProvidedId:
 
 
 class TestSendAndWaitRetryOnTimeout:
-    async def test_retry_on_timeout_false_sends_exactly_once(self, websocket_service: WebsocketService) -> None:
+    async def test_retry_on_timeout_false_sends_exactly_once(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A non-idempotent command is not re-sent when its response envelope never arrives.
 
         A retry allocates a fresh message id and re-sends the payload, so Home Assistant applies
         the command a second time. For a command HA may already have applied before the envelope
         was lost (counter.increment), that turns one timeout into a duplicated side effect.
         """
-        websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+        monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
         websocket_service.send_json = AsyncMock()
 
         with pytest.raises(FailedMessageError):
@@ -134,9 +134,11 @@ class TestSendAndWaitRetryOnTimeout:
 
         assert websocket_service.send_json.await_count == 1, "a timed-out non-idempotent command must not be re-sent"
 
-    async def test_retry_on_timeout_true_resends(self, websocket_service: WebsocketService) -> None:
+    async def test_retry_on_timeout_true_resends(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """The default keeps the existing retry behavior for idempotent reads."""
-        websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+        monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
         websocket_service.send_json = AsyncMock()
 
         with patch("hassette.core.websocket_io.MAX_RETRY_ATTEMPTS", 2), pytest.raises(FailedMessageError):

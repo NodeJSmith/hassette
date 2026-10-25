@@ -11,10 +11,7 @@ task_cancellation_timeout_seconds = 10
 run_sync_timeout_seconds = 12
 
 [hassette.websocket]
-authentication_timeout_seconds = 20
-response_timeout_seconds = 30
 connection_timeout_seconds = 10
-total_timeout_seconds = 80
 heartbeat_interval_seconds = 60
 
 [hassette.file_watcher]
