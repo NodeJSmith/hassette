@@ -8,14 +8,18 @@ from pydantic import AliasChoices, AliasPath, Field
 from pydantic.alias_generators import to_camel
 from pydantic_settings import SettingsConfigDict
 
-from hassette import AppConfig
+from hassette import App, AppConfig
 from hassette.core.app_factory import AppFactory, accepted_config_keys
-from hassette.core.app_registry import AppRegistry
 
 
 def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
     """A mock App class with a real config class, so config validation runs for real."""
     return Mock(app_config_cls=config_cls, **kwargs)
+
+
+def as_app_class(mock_app_class: Mock) -> type[App[AppConfig]]:
+    """Present a mock App class where ``create_single_instance`` expects a real one."""
+    return cast("type[App[AppConfig]]", mock_app_class)
 
 
 @pytest.fixture
@@ -25,14 +29,14 @@ def mock_hassette():
 
 
 @pytest.fixture
-def mock_registry():
+def mock_registry() -> Mock:
     """Create a mock AppRegistry instance."""
     registry = Mock()
     registry.register_app = Mock()
     registry.record_failure = Mock()
     registry.get = Mock(return_value=None)
     registry.get_running_apps = Mock(return_value={})
-    return cast("AppRegistry", registry)
+    return registry
 
 
 @pytest.fixture
@@ -67,7 +71,7 @@ class TestAppFactoryCreateInstances:
         self,
         mock_load_class,
         factory: AppFactory,
-        mock_registry: AppRegistry,
+        mock_registry: Mock,
         mock_manifest,
     ):
         """Successfully creates single app instance from dict config."""
@@ -80,7 +84,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_success_multiple_configs(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Creates multiple instances from list of configs."""
         mock_load_class.return_value = mock_app_class = make_app_class()
@@ -98,7 +102,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_empty_config(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Handles empty/None app_config gracefully."""
         mock_manifest.app_config = None
@@ -112,7 +116,7 @@ class TestAppFactoryCreateInstances:
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
     def test_create_instances_class_load_failure(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Records failure at index 0 when class loading fails."""
         cached_error = ValueError("Failed to load")
@@ -126,7 +130,7 @@ class TestAppFactoryCreateInstances:
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
     def test_create_instances_class_load_failure_reports_unoccupied_sibling(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """When index 0 is already running (preserved) and class loading fails for a
         multi-instance app, the failure must be recorded against the first unstarted sibling
@@ -151,7 +155,7 @@ class TestAppFactoryCreateInstances:
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
     def test_create_instances_class_load_failure_all_indices_occupied(
-        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """When every configured index already has a live entry, there is no unstarted index
         to report the failure against -- skip recording entirely rather than overwriting a
@@ -169,7 +173,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_validation_failure(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Records failure when Pydantic validation fails."""
         mock_app_class = Mock(__name__="TestApp")
@@ -185,7 +189,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_app_create_failure(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Records failure when App() constructor raises exception."""
         create_error = RuntimeError("Create failed")
@@ -222,7 +226,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_registers_each_app(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Verifies registry.register_app() called for each successful instance."""
         mock_manifest.app_config = [
@@ -249,7 +253,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_force_reload_ignored_when_instance_already_running(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """force_reload=True must not reload the shared class while any instance of this
         app_key is already running -- doing so would leave the preserved instance bound to
@@ -274,7 +278,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_force_reload_ignored_when_all_indices_occupied(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """When every configured index is already live, force_reload=True must not reload the
         class at all -- there is no instance left to apply a fresh class to, so reloading would
@@ -293,7 +297,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_force_reload_ignored_for_out_of_range_running_orphan(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """force_reload=True must also be downgraded when the only running instance of this
         app_key sits at an index the *current* config no longer covers (e.g. the config shrank
@@ -314,7 +318,7 @@ class TestAppFactoryCreateInstances:
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_skips_already_running_indices(
-        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """create_instances skips indices that already have a live registry entry, rather
         than overwriting them via register_app() and orphaning the originals' listeners,
@@ -341,19 +345,19 @@ class TestAppFactoryCreateInstances:
 
 
 class TestAppFactoryCreateSingleInstance:
-    def test_create_single_instance_success(self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest):
+    def test_create_single_instance_success(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """Registers the instance at the given index on success."""
         mock_app_class = make_app_class()
         config = {"instance_name": "test_instance"}
 
-        factory.create_single_instance("test_app", mock_manifest, 3, config, mock_app_class)
+        factory.create_single_instance("test_app", mock_manifest, 3, config, as_app_class(mock_app_class))
 
         mock_app_class.assert_called_once()
         mock_registry.register_app.assert_called_once_with("test_app", 3, mock_app_class.return_value)
         mock_registry.record_failure.assert_not_called()
 
     def test_create_single_instance_validation_failure_records_correct_index(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Records failure at the real index (not hardcoded 0) when Pydantic validation fails."""
         mock_app_class = Mock(__name__="TestApp")
@@ -361,13 +365,13 @@ class TestAppFactoryCreateSingleInstance:
         mock_app_class.app_config_cls.model_validate.side_effect = validation_error
         config = {"instance_name": "test_instance"}
 
-        factory.create_single_instance("test_app", mock_manifest, 5, config, mock_app_class)
+        factory.create_single_instance("test_app", mock_manifest, 5, config, as_app_class(mock_app_class))
 
         mock_registry.record_failure.assert_called_once_with("test_app", 5, validation_error)
         mock_registry.register_app.assert_not_called()
 
     def test_create_single_instance_app_create_failure_records_correct_index(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Records failure at the real index when App() constructor raises."""
         create_error = RuntimeError("Create failed")
@@ -375,7 +379,7 @@ class TestAppFactoryCreateSingleInstance:
         mock_app_class.side_effect = create_error
         config = {"instance_name": "test_instance"}
 
-        factory.create_single_instance("test_app", mock_manifest, 7, config, mock_app_class)
+        factory.create_single_instance("test_app", mock_manifest, 7, config, as_app_class(mock_app_class))
 
         mock_registry.record_failure.assert_called_once_with("test_app", 7, create_error)
         mock_registry.register_app.assert_not_called()
@@ -444,26 +448,22 @@ def test_accepted_config_keys_follow_pydantic_lookup(
 
 
 class TestAppFactoryUnrecognizedConfigKeyWarning:
-    def test_bare_app_config_does_not_warn_on_extras(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
-    ):
+    def test_bare_app_config_does_not_warn_on_extras(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """A bare AppConfig takes arbitrary keys as intended extras, so none of them warn."""
         config = {"instance_name": "test_instance", "anything": 1, "off_dealy": 5}
 
-        factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class())
+        factory.create_single_instance("test_app", mock_manifest, 0, config, as_app_class(make_app_class()))
 
         mock_registry.register_app.assert_called_once()
         mock_registry.record_failure.assert_not_called()
 
-    def test_typed_config_typo_warns_with_suggestion(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
-    ):
+    def test_typed_config_typo_warns_with_suggestion(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """A typo'd key on a typed subclass warns once, names the key, and suggests the field."""
         mock_app_class = make_app_class(MotionLightConfig)
         config = {"instance_name": "test_instance", "off_dealy": 5}
 
         with pytest.warns(UserWarning, match="Unrecognized configuration key") as record:
-            factory.create_single_instance("test_app", mock_manifest, 0, config, mock_app_class)
+            factory.create_single_instance("test_app", mock_manifest, 0, config, as_app_class(mock_app_class))
 
         assert len(record) == 1
         msg = str(record[0].message)
@@ -475,59 +475,67 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         assert validated.off_delay == 30
 
     def test_config_overriding_only_inherited_fields_warns_on_typo(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """Redeclaring an inherited field is still a typed schema, so a typo against it warns."""
         config = {"instance_name": "test_instance", "log_lebel": "INFO"}
 
         with pytest.warns(UserWarning, match="'log_lebel' \\(did you mean 'log_level'\\?\\)"):
-            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(OverrideOnlyConfig))
+            factory.create_single_instance(
+                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(OverrideOnlyConfig))
+            )
 
         mock_registry.register_app.assert_called_once()
 
     @pytest.mark.parametrize("config_cls", [MixinOnlyConfig, TrailingMixinConfig], ids=["leading", "trailing"])
     def test_config_with_mixin_fields_warns_on_typo(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest, config_cls: type[AppConfig]
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest, config_cls: type[AppConfig]
     ):
         """Fields contributed by a plain mixin make the config typed, on either side of ``AppConfig`` in the bases."""
         config = {"instance_name": "test_instance", "off_dealy": 5}
 
         with pytest.warns(UserWarning, match="'off_dealy' \\(did you mean 'off_delay'\\?\\)"):
-            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(config_cls))
+            factory.create_single_instance(
+                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(config_cls))
+            )
 
         mock_registry.register_app.assert_called_once()
 
     def test_typed_config_unrelated_key_warns_without_suggestion(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """An unrecognized key with no close field match warns without a suggestion."""
         config = {"instance_name": "test_instance", "zzz": 5}
 
         with pytest.warns(UserWarning, match="'zzz'") as record:
-            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(MotionLightConfig))
+            factory.create_single_instance(
+                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(MotionLightConfig))
+            )
 
         assert "did you mean" not in str(record[0].message)
         mock_registry.register_app.assert_called_once()
 
-    def test_typed_config_suggests_alias_not_field_name(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
-    ):
+    def test_typed_config_suggests_alias_not_field_name(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """An aliased field is populated by its alias, so the suggestion names the alias, not the attribute."""
         config = {"instance_name": "test_instance", "off_delay": 5}
 
         with pytest.warns(UserWarning, match="Unrecognized configuration key") as record:
-            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(AliasedDelayConfig))
+            factory.create_single_instance(
+                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(AliasedDelayConfig))
+            )
 
         assert "'off_delay' (did you mean 'delay'?)" in str(record[0].message)
 
     def test_typed_config_incomplete_alias_path_does_not_suggest_itself(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """A correctly spelled alias-path head whose nested value is missing warns without suggesting itself."""
         config = {"instance_name": "test_instance", "timing": []}
 
         with pytest.warns(UserWarning, match="'timing'") as record:
-            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(AliasChoicesConfig))
+            factory.create_single_instance(
+                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(AliasChoicesConfig))
+            )
 
         msg = str(record[0].message)
         assert "did you mean" not in msg
@@ -535,29 +543,33 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         mock_registry.register_app.assert_called_once()
 
     def test_typed_config_aliased_instance_name_does_not_warn(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """The framework requires the literal instance_name key, so it never warns, even under an alias generator."""
         config = {"instance_name": "test_instance", "offDelay": 5}
 
-        factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(CamelCaseConfig))
+        factory.create_single_instance(
+            "test_app", mock_manifest, 0, config, as_app_class(make_app_class(CamelCaseConfig))
+        )
 
         mock_registry.register_app.assert_called_once()
         mock_registry.record_failure.assert_not_called()
 
     def test_typed_config_all_keys_recognized_does_not_warn(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):
         """No warning when every key maps to a declared field (pytest escalates warnings to errors)."""
         config = {"instance_name": "test_instance", "off_delay": 5}
 
-        factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(MotionLightConfig))
+        factory.create_single_instance(
+            "test_app", mock_manifest, 0, config, as_app_class(make_app_class(MotionLightConfig))
+        )
 
         mock_registry.register_app.assert_called_once()
         mock_registry.record_failure.assert_not_called()
 
     def test_typed_config_ignores_dotenv_extras(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest, tmp_path, monkeypatch
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest, tmp_path, monkeypatch
     ):
         """Unrelated .env entries folded into model_extra by pydantic-settings never warn."""
         (tmp_path / ".env").write_text("SOME_OTHER_SECRET=1\n")
@@ -566,7 +578,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         mock_app_class = make_app_class(MotionLightConfig)
 
-        factory.create_single_instance("test_app", mock_manifest, 0, config, mock_app_class)
+        factory.create_single_instance("test_app", mock_manifest, 0, config, as_app_class(mock_app_class))
 
         assert "some_other_secret" in mock_app_class.call_args.kwargs["app_config"].model_extra
         mock_registry.register_app.assert_called_once()
