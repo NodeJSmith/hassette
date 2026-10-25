@@ -334,3 +334,34 @@ def test_fmt_log_message_skips_indented_exception_message_lines() -> None:
     expected_line = "pydantic_core._pydantic_core.ValidationError: 1 validation error for Model"
 
     assert fmt_log_message(entry) == f"Handler failed\n{expected_line}"
+
+
+def recurse_forever(depth: int) -> int:
+    return recurse_forever(depth + 1)
+
+
+def test_fmt_log_message_skips_the_repeated_frame_marker() -> None:
+    """A recursive traceback's ``[Previous line repeated N more times]`` marker isn't taken for the exception line."""
+    try:
+        recurse_forever(0)
+    except RecursionError as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+
+    assert fmt_log_message(entry) == "Handler failed\nRecursionError: maximum recursion depth exceeded"
+
+
+def test_fmt_log_message_picks_the_last_exception_in_a_chain() -> None:
+    """A chained traceback lists the earlier exception first; the logged (last) one's line is picked."""
+    try:
+        try:
+            raise ValueError("original")
+        except ValueError:
+            raise ExceptionGroup("handlers failed", [TypeError("bad")])  # noqa: B904 - the implicit chain is the case under test
+    except ExceptionGroup as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+
+    assert fmt_log_message(entry) == "Handler failed\nExceptionGroup: handlers failed (1 sub-exception)"
