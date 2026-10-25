@@ -21,13 +21,14 @@ from fair_async_rlock import FairAsyncRLock
 import hassette.context as ctx_module
 import tests.unit.test_framework_injection_points as _this_module
 from hassette.api import Api
-from hassette.app.app import App, AppConfig
+from hassette.app import App, AppConfig
 from hassette.context import (
     HASSETTE_INSTANCE as HASSETTE_INSTANCE,
 )
 from hassette.context import set_global_hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
+from hassette.events import HassContextDict, HassStateDict
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.task_bucket.task_bucket import TaskBucket
@@ -35,6 +36,17 @@ from hassette.testing import AppConfigurationError, HassetteHarness, make_test_c
 from hassette.testing._harness_support import Timeouts
 from hassette.testing.app_harness import HERMETIC_CONFIG_CACHE, make_hermetic_config
 from tests.support.mock_hassette import make_mock_hassette
+
+TEST_CONTEXT: HassContextDict = {"id": "test", "parent_id": None, "user_id": None}
+
+
+class _HermeticApp(App):
+    """App class passed to make_hermetic_config; only its name appears in errors."""
+
+
+def sensor_temp_state() -> HassStateDict:
+    """A fresh minimal state dict for sensor.temp."""
+    return {"entity_id": "sensor.temp", "state": "25", "attributes": {}, "context": TEST_CONTEXT}
 
 
 def build_mock_hassette():
@@ -45,13 +57,6 @@ def build_mock_hassette():
     hassette.task_bucket = Mock()
     hassette.task_bucket.spawn = Mock()
     return hassette
-
-
-class _MinimalAppConfig:
-    """Minimal stand-in for AppConfig."""
-
-    instance_name = "test"
-    log_level = "DEBUG"
 
 
 @pytest.fixture(autouse=False)
@@ -255,13 +260,13 @@ class TestHarnessSeedState:
         """seed_state inserts the state dict into StateProxy.states."""
         harness, proxy = self.make_harness_with_proxy(tmp_path)
 
-        state_dict = {
+        state_dict: HassStateDict = {
             "entity_id": "light.kitchen",
             "state": "on",
             "attributes": {"brightness": 255},
             "last_updated": "1970-01-01T00:00:00+00:00",
             "last_changed": "1970-01-01T00:00:00+00:00",
-            "context": {"id": "test"},
+            "context": TEST_CONTEXT,
         }
 
         await harness.seed_state("light.kitchen", state_dict)
@@ -273,8 +278,18 @@ class TestHarnessSeedState:
         """seed_state replaces any existing entry for the entity."""
         harness, proxy = self.make_harness_with_proxy(tmp_path)
 
-        old_dict = {"entity_id": "light.kitchen", "state": "off", "attributes": {}}
-        new_dict = {"entity_id": "light.kitchen", "state": "on", "attributes": {}}
+        old_dict: HassStateDict = {
+            "entity_id": "light.kitchen",
+            "state": "off",
+            "attributes": {},
+            "context": TEST_CONTEXT,
+        }
+        new_dict: HassStateDict = {
+            "entity_id": "light.kitchen",
+            "state": "on",
+            "attributes": {},
+            "context": TEST_CONTEXT,
+        }
 
         proxy.states["light.kitchen"] = old_dict  # pyright: ignore[reportAttributeAccessIssue]
         await harness.seed_state("light.kitchen", new_dict)
@@ -291,17 +306,17 @@ class TestHarnessSeedState:
         class _SpyLock:
             """Wrapper that records whether the lock was acquired."""
 
-            async def acquire(self) -> bool:
+            async def acquire(self) -> None:
                 nonlocal lock_acquired
                 lock_acquired = True
-                return await original_lock.acquire()
+                await original_lock.acquire()
 
             def release(self) -> None:
                 original_lock.release()
 
         proxy.lock = _SpyLock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
+        state_dict = sensor_temp_state()
         await harness.seed_state("sensor.temp", state_dict)
 
         assert lock_acquired, "seed_state must acquire the write lock"
@@ -322,7 +337,7 @@ class TestHarnessSeedState:
         task = asyncio.create_task(_hold_lock())
         await lock_held.wait()
 
-        state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
+        state_dict = sensor_temp_state()
 
         try:
             with (
@@ -344,7 +359,7 @@ class TestHarnessSeedState:
         # method — patch it at the call site (state_proxy.py) rather than reassigning an
         # instance attribute, since StateProxy calls the free function directly.
         with patch("hassette.core.state_proxy.mark_ready") as mock_mark_ready:
-            state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
+            state_dict = sensor_temp_state()
             await harness.seed_state("sensor.temp", state_dict)
 
             mock_mark_ready.assert_not_called()
@@ -359,10 +374,7 @@ class TestHermeticConfigClosure:
         class _Cfg(AppConfig):
             pass
 
-        class _App:
-            pass
-
-        result = make_hermetic_config(_App, _Cfg, {"instance_name": "test"})
+        result = make_hermetic_config(_HermeticApp, _Cfg, {"instance_name": "test"})
         assert isinstance(result, _Cfg)
         assert result.instance_name == "test"
 
@@ -372,11 +384,8 @@ class TestHermeticConfigClosure:
         class _RequiredCfg(AppConfig):
             must_be_present: str
 
-        class _App:
-            pass
-
         with pytest.raises(AppConfigurationError) as exc_info:
-            make_hermetic_config(_App, _RequiredCfg, {"instance_name": "test"})
+            make_hermetic_config(_HermeticApp, _RequiredCfg, {"instance_name": "test"})
 
         assert exc_info.value.original_error is not None
 
@@ -386,19 +395,16 @@ class TestHermeticConfigClosure:
         class _CacheCfg(AppConfig):
             pass
 
-        class _App:
-            pass
-
         # Clear cache entry for this class to start fresh
         HERMETIC_CONFIG_CACHE.pop(_CacheCfg, None)
 
-        make_hermetic_config(_App, _CacheCfg, {"instance_name": "a"})
+        make_hermetic_config(_HermeticApp, _CacheCfg, {"instance_name": "a"})
         first_entry = HERMETIC_CONFIG_CACHE.get(_CacheCfg)
         assert first_entry is not None, "Cache must contain an entry after first call"
 
         first_subclass = first_entry[0]
 
-        make_hermetic_config(_App, _CacheCfg, {"instance_name": "b"})
+        make_hermetic_config(_HermeticApp, _CacheCfg, {"instance_name": "b"})
         second_entry = HERMETIC_CONFIG_CACHE.get(_CacheCfg)
         assert second_entry is not None
 
@@ -414,11 +420,8 @@ class TestHermeticConfigClosure:
         class _MultiCfg(AppConfig):
             instance_name: str = "default"
 
-        class _App:
-            pass
-
-        r1 = make_hermetic_config(_App, _MultiCfg, {"instance_name": "first"})
-        r2 = make_hermetic_config(_App, _MultiCfg, {"instance_name": "second"})
+        r1 = make_hermetic_config(_HermeticApp, _MultiCfg, {"instance_name": "first"})
+        r2 = make_hermetic_config(_HermeticApp, _MultiCfg, {"instance_name": "second"})
 
         assert r1.instance_name == "first"
         assert r2.instance_name == "second"

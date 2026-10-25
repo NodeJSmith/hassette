@@ -2,7 +2,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -10,12 +10,16 @@ from pydantic import ValidationError
 from hassette.config.classes import AppManifest
 from hassette.config.config import validate_app_manifests
 from hassette.exceptions import ConfigError
+from hassette.types.types import AppDict
 
 APP_DIR = Path("/tmp/apps")
 
 
-def app_entry(app_key: str, config: Any = None, **overrides: Any) -> dict[str, Any]:
-    """A cleaned app entry, as config loading hands it to manifest validation."""
+def app_entry(app_key: str, config: Any = None, **overrides: Any) -> AppDict:
+    """A cleaned app entry, as config loading hands it to manifest validation.
+
+    Cast because tests pass deliberately loose values (a bare config dict, invalid instance names).
+    """
     entry: dict[str, Any] = {
         "app_key": app_key,
         "filename": f"{app_key}.py",
@@ -25,7 +29,7 @@ def app_entry(app_key: str, config: Any = None, **overrides: Any) -> dict[str, A
         "config": config if config is not None else [],
     }
     entry.update(overrides)
-    return entry
+    return cast("AppDict", entry)
 
 
 def manifest_names(manifest: AppManifest) -> list[str]:
@@ -33,7 +37,7 @@ def manifest_names(manifest: AppManifest) -> list[str]:
     return [c["instance_name"] for c in configs]
 
 
-def validate(entry: dict[str, Any]) -> AppManifest:
+def validate(entry: AppDict) -> AppManifest:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         return AppManifest.model_validate(entry)

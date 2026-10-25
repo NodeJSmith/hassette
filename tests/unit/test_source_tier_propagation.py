@@ -46,7 +46,9 @@ class TestResourceAppKey:
         """Resource.app_key returns __hassette__.<ClassName>."""
         mock = Mock(spec=Resource)
         mock.class_name = "StateProxy"
-        assert Resource.app_key.fget(mock) == "__hassette__.StateProxy"  # pyright: ignore[reportOptionalMemberAccess]
+        fget = Resource.app_key.fget
+        assert fget is not None
+        assert fget(mock) == "__hassette__.StateProxy"
 
 
 @pytest.fixture
@@ -60,7 +62,9 @@ async def framework_bus(
     Resource.source_tier='framework' — no mock override needed.
     """
     async with hassette_harness(test_config).with_bus() as harness:
-        yield harness.hassette._bus
+        bus = harness.hassette._bus
+        assert bus is not None
+        yield bus
 
 
 @pytest.fixture
@@ -71,6 +75,7 @@ async def app_bus(
     """Bus whose parent is an App (source_tier='app')."""
     async with hassette_harness(test_config).with_bus() as harness:
         bus = harness.hassette._bus
+        assert bus is not None
         bus.parent = make_mock_parent(source_tier="app", app_key="my_app", index=0, unique_name="MyApp.0")
         yield bus
 

@@ -21,6 +21,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from _pytest.mark import ParameterSet
 
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
@@ -467,7 +468,7 @@ def _sched_call(method_name: str):
 # Build parametrized cases
 
 
-def _build_warning_cases() -> list[pytest.param]:
+def _build_warning_cases() -> list[ParameterSet]:
     """Build one pytest.param per canonical method, skipping those with special setup."""
     cases = []
     for method_name in _BUS_METHODS_PARAMETRIZED:
