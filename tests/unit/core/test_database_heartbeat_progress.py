@@ -19,6 +19,19 @@ __all__ = ["initialized_service_with_worker", "service"]  # re-exposed as fixtur
 TEST_HEARTBEAT_TIMEOUT_SECONDS = 0.05
 """Patched heartbeat write timeout: short enough that several attempts expire quickly."""
 
+PROGRESSING_PASS_HEARTBEAT_TIMEOUT_SECONDS = 1.0
+"""Patched heartbeat write timeout for the progressing-pass test.
+
+Each timed-out attempt there must see a committed batch, so this keeps a full second of margin over
+``BATCH_COMMIT_INTERVAL_SECONDS`` against CI scheduling noise.
+"""
+
+BATCH_COMMIT_INTERVAL_SECONDS = 0.01
+"""Delay between simulated retention-batch commits in the progressing-pass test."""
+
+PROGRESSING_PASS_DEADLINE_SECONDS = 15.0
+"""Outer bound on the progressing-pass test: three full timeouts plus generous headroom."""
+
 TEST_HEARTBEAT_INTERVAL_SECONDS = 0.01
 """Sub-second heartbeat interval so serve() makes attempts back to back."""
 
@@ -63,13 +76,17 @@ async def test_batched_retention_pass_outlasting_three_heartbeat_timeouts_does_n
         # attempt after the third timed-out one has started.
         while attempts <= TIMEOUTS_OUTLASTED:
             service._write_progress_count += 1
-            await asyncio.sleep(TEST_HEARTBEAT_TIMEOUT_SECONDS / 5)
+            await asyncio.sleep(BATCH_COMMIT_INTERVAL_SECONDS)
 
     pass_task = asyncio.create_task(service.submit(batched_retention_pass()))
-    with patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", TEST_HEARTBEAT_TIMEOUT_SECONDS):
+    with patch(
+        "hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", PROGRESSING_PASS_HEARTBEAT_TIMEOUT_SECONDS
+    ):
         serve_task = asyncio.create_task(service.serve())
         try:
-            await asyncio.wait({pass_task, serve_task}, timeout=5.0, return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait(
+                {pass_task, serve_task}, timeout=PROGRESSING_PASS_DEADLINE_SECONDS, return_when=asyncio.FIRST_COMPLETED
+            )
             assert not serve_task.done(), f"serve() exited during a progressing pass: {serve_task!r}"
             assert pass_task.done(), "maintenance pass never finished"
             assert service._consecutive_heartbeat_failures == 0
