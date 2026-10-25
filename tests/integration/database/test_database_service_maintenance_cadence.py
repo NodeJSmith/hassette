@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from hassette.core.database_service import CleanupAttempt, DatabaseService
+from tests.integration.database.conftest import write_queue
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 
 
@@ -48,7 +49,7 @@ async def test_maintenance_interval_shorter_than_heartbeat_is_honored(
 
     with patch.object(svc, method_name, side_effect=run_and_count):
         await asyncio.wait_for(svc.serve(), timeout=5.0)
-    await svc._db_write_queue.join()
+    await write_queue(svc).join()
 
     assert calls == 2
     assert await read_last_heartbeat(svc, session_id) == initial_heartbeat
@@ -62,7 +63,7 @@ async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initiali
     """
     svc = initialized_service
     config = svc.hassette.config.database
-    config.heartbeat_interval_seconds = 0.1
+    config.heartbeat_interval_seconds = 0.1  # pyright: ignore[reportAttributeAccessIssue]  # sub-second interval keeps the loop fast
     config.retention_interval_seconds = 3600
     config.size_failsafe_interval_seconds = 3600
 
@@ -95,7 +96,7 @@ async def test_reloaded_longer_retention_interval_applies_to_pending_wake(initia
     svc = initialized_service
     config = svc.hassette.config.database
     config.heartbeat_interval_seconds = 60
-    config.retention_interval_seconds = 1.0
+    config.retention_interval_seconds = 1.0  # pyright: ignore[reportAttributeAccessIssue]  # float keeps the loop fast
     config.size_failsafe_interval_seconds = 3600
 
     async def raise_interval_then_stop() -> None:

@@ -11,6 +11,7 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
 from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL
+from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, seed_listener_for_fk
 from tests.support.sql import count_rows
 
@@ -22,10 +23,9 @@ def endless_delete_connect(statement_started: asyncio.Event) -> Any:
     """Build a connect_daemon replacement whose first DELETE runs an endless statement instead,
     occupying the real sqlite worker thread the way a huge batch or slow vacuum would.
     """
-    real_connect_daemon = database_service_module.connect_daemon
 
     async def connect(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
-        conn = await real_connect_daemon(*args, **kwargs)
+        conn = await connect_daemon(*args, **kwargs)
         real_execute = conn.execute
 
         async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
@@ -34,7 +34,7 @@ def endless_delete_connect(statement_started: asyncio.Event) -> Any:
                 return await real_execute(ENDLESS_STATEMENT)
             return await real_execute(sql, parameters)
 
-        conn.execute = endless_execute
+        conn.execute = endless_execute  # pyright: ignore[reportAttributeAccessIssue]
         return conn
 
     return connect

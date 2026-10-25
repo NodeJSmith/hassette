@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import sys
 from collections.abc import AsyncIterator, Callable
-from typing import ClassVar, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 from hassette_wire import ResourceStatus
 
@@ -30,11 +30,11 @@ def make_call_counts() -> dict[str, int]:
     return {"cancel": 0, "start": 0}
 
 
-def make_fast_spec(**overrides: object) -> RestartSpec:
+def make_fast_spec(**overrides: Any) -> RestartSpec:
     """RestartSpec with zero backoff for test speed. Override any field via kwargs."""
-    defaults: dict[str, object] = {"backoff_base_seconds": 0}
+    defaults: dict[str, Any] = {"backoff_base_seconds": 0}
     defaults.update(overrides)
-    return RestartSpec(**defaults)  # pyright: ignore[reportCallIssue]
+    return RestartSpec(**defaults)
 
 
 @contextlib.asynccontextmanager

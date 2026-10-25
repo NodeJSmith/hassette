@@ -4,7 +4,7 @@ Tests use RestartSpec-based per-service configuration rather than global config 
 """
 
 import asyncio
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest.mock import patch
 
 from hassette_wire import ResourceStatus
@@ -373,7 +373,7 @@ async def test_readiness_during_restart_episode_does_not_release_episode_key(wat
     episodes = 0
     real_execute = watcher.execute_restart
 
-    async def counting_execute(*args: object, **kwargs: object) -> None:
+    async def counting_execute(*args: Any, **kwargs: Any) -> None:
         nonlocal episodes
         episodes += 1
         await real_execute(*args, **kwargs)
@@ -407,7 +407,7 @@ async def test_late_failed_event_during_exhaustion_does_not_exhaust_twice(watche
             await watcher.restart_service(dummy.failed_event)
         await real_dispatch(name, role, event)
 
-    async def counting_exhaustion(*args: object, **kwargs: object) -> None:
+    async def counting_exhaustion(*args: Any, **kwargs: Any) -> None:
         nonlocal exhaustion_calls
         exhaustion_calls += 1
         await real_exhaustion(*args, **kwargs)

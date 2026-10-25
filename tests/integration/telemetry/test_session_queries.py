@@ -38,7 +38,7 @@ class TestCheckHealth:
         """check_health() raises TelemetryUnavailableError when the read_db connection is closed."""
         db_svc, _session_id = db
         # Close the read connection to simulate a failed connection
-        await db_svc._read_db.close()
+        await db_svc.read_db.close()
         try:
             with pytest.raises(TelemetryUnavailableError):
                 await query_service.check_health()

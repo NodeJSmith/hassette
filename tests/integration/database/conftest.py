@@ -1,8 +1,10 @@
 """Shared fixtures for the real-SQLite DatabaseService integration tests."""
 
+import asyncio
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
@@ -87,3 +89,10 @@ async def seed_app_executions(db: aiosqlite.Connection, session_id: int, *, age_
             (session_id, now - (age_offset - i)),
         )
     await db.commit()
+
+
+def write_queue(service: DatabaseService) -> asyncio.Queue[Any]:
+    """Return the service's write queue, failing the test if it has not been initialized."""
+    queue = service._db_write_queue
+    assert queue is not None, "write queue is not initialized"
+    return queue
