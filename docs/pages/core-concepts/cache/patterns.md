@@ -83,7 +83,7 @@ Cache access is a SQLite read. For values read many times per second, loading in
 
 ### Cache Not Persisting
 
-If values do not survive a restart, check four common causes:
+If values do not survive a restart, check five common causes:
 
 - **Write targets a local variable instead of `self.cache`.** Verify the call is `await self.cache.set("key", value)`, not an assignment to a local dict.
 - **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs — no error, no write, no log message. Every data method on `self.cache` is a coroutine.
