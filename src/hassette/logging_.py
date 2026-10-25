@@ -370,7 +370,8 @@ class HassetteQueueHandler(logging.handlers.QueueHandler):
         and stringify a structlog-native event dict. Anything that depends on the caller's frame is already
         resolved: stdlib captures ``exc_info`` and ``stack_info`` when it creates the record, and the native
         chain runs ``StackInfoRenderer`` and ``resolve_exc_info``. Args are merged now so an argument mutated
-        after the call can't change the logged message.
+        after the call can't change the logged message. A native event dict's values are not copied: an object
+        the caller mutates right after logging it can render with the later value.
         """
         record = copy.copy(record)  # other handlers on the caller's side still hold the original
         if structlog_event_dict(record) is None:  # a native record has no args, and getMessage() would stringify it
