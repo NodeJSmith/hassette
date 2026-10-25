@@ -26,8 +26,8 @@ from hassette.exceptions import RestartRefusedError, TaskBucketSealedError
 from hassette.execution_mode import run_through_guard
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import create_state_change_event, wait_for
-from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
-from hassette.testing._simulation import create_service_registered_event as create_service_registered_event
+from hassette.testing._factories import create_component_loaded_event as create_component_loaded_event
+from hassette.testing._factories import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
