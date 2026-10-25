@@ -66,6 +66,8 @@ The drawer shows a severity badge, full timestamp, and a metadata grid. The grid
 
 Below the grid, the full message appears in a scrollable block with a copy button. Entries with exception info show a separate code block beneath the message.
 
+![Log detail drawer showing an exception traceback](../../_static/web_ui_detail_log_drawer_exception.png)
+
 The arrow keys move between entries without closing the drawer. Escape closes it.
 
 On desktop and tablet the drawer opens as a side panel. On mobile it appears as a bottom sheet.

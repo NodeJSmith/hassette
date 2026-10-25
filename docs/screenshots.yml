@@ -273,6 +273,29 @@
     }
     })()
 
+# demo_stimulator's cooldown job logs one handled exception via logger.exception().
+# JS types into the (React-controlled) search box through the native value setter so
+# React sees the input event, then clicks the matching row; wait_for gates on the
+# drawer's exception block, which only renders when the row carries exc_info.
+- url: "http://localhost:{port}/logs"
+  output: docs/_static/web_ui_detail_log_drawer_exception.png
+  selector: "[data-testid='log-detail-drawer']"
+  width: 1400
+  height: 580
+  wait: 2000
+  wait_for: "document.querySelector('[data-testid=\"log-detail-drawer\"] [aria-label=\"Copy exception\"]')"
+  javascript: >-
+    (async()=>{
+    const input=document.querySelector('[data-testid="logs-search"]');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'malformed humidity');
+    input.dispatchEvent(new Event('input',{bubbles:true}));
+    for(let i=0;i<60;i++){
+    const r=[...document.querySelectorAll('[data-testid="log-table"] tbody tr')].find(e=>e.textContent.includes('malformed humidity'));
+    if(r){r.click();return}
+    await new Promise(r=>setTimeout(r,500));
+    }
+    })()
+
 # ===========================================================================
 # Execution detail page
 # Navigates to the detail view for a specific execution. The demo_stimulator
