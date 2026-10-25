@@ -38,7 +38,7 @@ class TestSchedulerErrorContextConstruction:
         ctx = make_scheduler_error_context()
 
         with pytest.raises(Exception, match="cannot assign to field"):  # FrozenInstanceError (dataclasses internal)
-            ctx.job_name = "other_job"  # pyright: ignore[reportGeneralIssues]
+            ctx.job_name = "other_job"  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_scheduler_error_context_args_kwargs(self) -> None:
         """Args and kwargs are recorded at registration time and accessible on context."""

@@ -8,23 +8,29 @@ DomainStates". Before this change, a naive filtered view could report ``len() ==
 instead of running the same predicate+conversion check as ``__iter__``.
 """
 
+from typing import TYPE_CHECKING, Any, cast
+
 import pytest
 
-from hassette.events import HassStateDict
 from hassette.exceptions import EntityNotInViewError
 from hassette.models.states import LightState, SensorState
 from hassette.models.states.sensor_shapes import NumericSensorState
 from hassette.state_manager import DomainStates
-from hassette.state_manager.state_manager import _NUMERIC_SENSOR_PREDICATE
+
+# The stub (state_manager.pyi) omits this private module constant; the test pins it directly.
+from hassette.state_manager.state_manager import _NUMERIC_SENSOR_PREDICATE  # pyright: ignore[reportAttributeAccessIssue]
 from hassette.testing import make_sensor_state_dict
 from tests.support.helpers import FakeStateReader
+
+if TYPE_CHECKING:
+    from hassette.events import HassStateDict
 
 
 def build_multi_shape_sensor_fixture() -> FakeStateReader:
     """A fixture proxy spanning all four sensor shapes, an unmatched sensor, and a numeric-metadata
     sensor whose value fails conversion — the case a naive implementation gets wrong.
     """
-    states: dict[str, HassStateDict] = {
+    states: dict[str, Any] = {
         "sensor.temperature": make_sensor_state_dict(
             "sensor.temperature", "21.5", unit_of_measurement="°C", device_class="temperature"
         ),
@@ -41,7 +47,7 @@ def build_multi_shape_sensor_fixture() -> FakeStateReader:
         ),
         "sensor.no_metadata": make_sensor_state_dict("sensor.no_metadata", "some text"),
     }
-    return FakeStateReader(states)
+    return FakeStateReader(cast("dict[str, HassStateDict]", states))
 
 
 def build_numeric_domain_states() -> DomainStates[NumericSensorState]:
@@ -235,7 +241,7 @@ class TestNullAttributesGuard:
     """
 
     @staticmethod
-    def _state_with_null_attributes(entity_id: str = "sensor.no_attrs") -> HassStateDict:
+    def _state_with_null_attributes(entity_id: str = "sensor.no_attrs") -> dict[str, Any]:
         state = make_sensor_state_dict(entity_id, "25.5")
         state["attributes"] = None
         return state
@@ -244,13 +250,13 @@ class TestNullAttributesGuard:
         state = self._state_with_null_attributes()
 
         # Must not raise AttributeError — null attributes classify as UNKNOWN, not NUMERIC.
-        assert _NUMERIC_SENSOR_PREDICATE(state) is False
+        assert _NUMERIC_SENSOR_PREDICATE(state) is False  # pyright: ignore[reportArgumentType]
 
     def test_getitem_does_not_raise_on_null_attributes(self) -> None:
         """A predicate-failing entity with null attributes raises EntityNotInViewError (via the
         device_class extraction at line ~217), not a raw AttributeError.
         """
-        reader = FakeStateReader({"sensor.no_attrs": self._state_with_null_attributes()})
+        reader = FakeStateReader({"sensor.no_attrs": self._state_with_null_attributes()})  # pyright: ignore[reportArgumentType]
         ds: DomainStates[NumericSensorState] = DomainStates(
             reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
         )
@@ -263,7 +269,7 @@ class TestNullAttributesGuard:
 
     def test_contains_and_iteration_do_not_raise_on_null_attributes(self) -> None:
         """`__contains__` and `__iter__` route through the same predicate; confirm end-to-end."""
-        reader = FakeStateReader({"sensor.no_attrs": self._state_with_null_attributes()})
+        reader = FakeStateReader({"sensor.no_attrs": self._state_with_null_attributes()})  # pyright: ignore[reportArgumentType]
         ds: DomainStates[NumericSensorState] = DomainStates(
             reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
         )
@@ -290,9 +296,8 @@ class TestBoolShortCircuit:
 
     def test_bool_false_when_all_entities_are_excluded(self) -> None:
         """Entities exist in the domain but none pass the predicate — still falsy."""
-        reader = FakeStateReader(
-            {"sensor.mode": make_sensor_state_dict("sensor.mode", "cool", device_class="enum", options=["cool"])}
-        )
+        state = make_sensor_state_dict("sensor.mode", "cool", device_class="enum", options=["cool"])
+        reader = FakeStateReader({"sensor.mode": cast("HassStateDict", state)})
         ds: DomainStates[NumericSensorState] = DomainStates(
             reader, NumericSensorState, domain="sensor", predicate=_NUMERIC_SENSOR_PREDICATE
         )

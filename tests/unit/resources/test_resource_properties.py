@@ -52,7 +52,7 @@ class TestRegisterTaskBucketFactory:
             def sentinel_factory(_hassette, _resource):
                 return "sentinel-task-bucket"
 
-            register_task_bucket_factory(sentinel_factory)
+            register_task_bucket_factory(sentinel_factory)  # pyright: ignore[reportArgumentType]  # sentinel, not a TaskBucket
 
             assert Resource._default_task_bucket_factory is sentinel_factory
         finally:

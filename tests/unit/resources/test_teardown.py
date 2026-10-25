@@ -37,7 +37,7 @@ class TestReportImmutability:
         report = TeardownReport()
 
         with pytest.raises(AttributeError):
-            report.causes = (TeardownCause.CLEANUP_FAILED,)
+            report.causes = (TeardownCause.CLEANUP_FAILED,)  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_report_fields_are_tuples(self) -> None:
         report = TeardownReport(
