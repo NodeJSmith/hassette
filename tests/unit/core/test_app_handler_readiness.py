@@ -29,6 +29,7 @@ class TestAppHandlerReadiness:
         app_handler.lifecycle.bootstrap_apps = AsyncMock()
 
         await app_handler.after_initialize()
+        assert app_handler._bootstrap_task is not None
         await asyncio.wait_for(app_handler._bootstrap_task, timeout=1.0)
 
         assert app_handler.is_ready()
@@ -54,6 +55,7 @@ class TestAppHandlerReadiness:
         assert app_handler.has_bootstrapped() is False
 
         gate.set()
+        assert app_handler._bootstrap_task is not None
         await asyncio.wait_for(app_handler._bootstrap_task, timeout=1.0)
 
         assert app_handler.has_bootstrapped() is True, "Should report bootstrapped after bootstrap completes"
@@ -70,6 +72,7 @@ class TestAppHandlerReadiness:
         await app_handler.after_initialize()
 
         assert app_handler.is_ready()
+        assert app_handler._bootstrap_task is not None
         with pytest.raises(RuntimeError, match="app init exploded"):
             await app_handler._bootstrap_task
         assert app_handler.has_bootstrapped() is False

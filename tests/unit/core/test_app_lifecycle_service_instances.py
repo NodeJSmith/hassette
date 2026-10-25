@@ -10,6 +10,7 @@ file covers instance initialization, failed-instance cleanup, and instance/all-a
 """
 
 import asyncio
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import pytest
@@ -29,13 +30,16 @@ from tests.support.task_buckets import sealed_fallback_task_factory
 
 from .conftest import app_state_payloads, make_mock_app_instance, set_registry_apps
 
+if TYPE_CHECKING:
+    from hassette.app.app import App
+
 
 class TestInitializeInstances:
     async def test_success_calls_initialize_and_mark_ready(
         self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_manifest: MagicMock
     ) -> None:
         """Calls initialize() and mark_ready() on each instance."""
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
@@ -47,7 +51,7 @@ class TestInitializeInstances:
         """Initializes all provided instances."""
         app1 = make_mock_app_instance(instance_name="instance_0", class_name="TestApp")
         app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
-        instances = {0: app1, 1: app2}
+        instances: dict[int, App] = {0: app1, 1: app2}
 
         with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
@@ -68,7 +72,7 @@ class TestInitializeInstances:
     ) -> None:
         """Sets status to STOPPED and records failure on TimeoutError."""
         mock_app_instance.initialize.side_effect = TimeoutError("Timed out")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -89,7 +93,7 @@ class TestInitializeInstances:
         """Sets status to STOPPED and records failure on any exception."""
         error = ValueError("Init failed")
         mock_app_instance.initialize.side_effect = error
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -127,7 +131,7 @@ class TestInitializeInstances:
             await level_2()
 
         mock_app_instance.initialize.side_effect = level_1
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         with patch.object(lifecycle_service, "logger") as mock_logger:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
@@ -144,7 +148,7 @@ class TestInitializeInstances:
 
         app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
 
-        instances = {0: app1, 1: app2}
+        instances: dict[int, App] = {0: app1, 1: app2}
 
         with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
@@ -163,7 +167,7 @@ class TestInitializeInstances:
     ) -> None:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with RUNNING status on success."""
         event_capture.install(mock_hassette)
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -181,7 +185,7 @@ class TestInitializeInstances:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with FAILED status on error."""
         event_capture.install(mock_hassette)
         mock_app_instance.initialize.side_effect = ValueError("boom")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -198,7 +202,7 @@ class TestCleanupFailedInstance:
     ) -> None:
         """Bus listeners registered before the failure are removed via Bus.remove_all_listeners."""
         mock_app_instance.initialize.side_effect = ValueError("boom")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -217,7 +221,7 @@ class TestCleanupFailedInstance:
         covers a job that never touches the heap).
         """
         mock_app_instance.initialize.side_effect = ValueError("boom")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -232,7 +236,7 @@ class TestCleanupFailedInstance:
     ) -> None:
         """TimeoutError path also cleans up listeners and jobs."""
         mock_app_instance.initialize.side_effect = TimeoutError("Timed out")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -259,7 +263,7 @@ class TestCleanupFailedInstance:
         mock_app_instance.scheduler.remove_all_jobs = Mock(side_effect=track_jobs)
         mock_registry.record_failure.side_effect = lambda *_args: call_order.append("record_failure")
         mock_app_instance.initialize.side_effect = ValueError("boom")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -275,7 +279,7 @@ class TestCleanupFailedInstance:
         """If cleanup raises, init failure is still recorded."""
         mock_app_instance.bus.remove_all_listeners.side_effect = RuntimeError("cleanup exploded")
         mock_app_instance.initialize.side_effect = ValueError("boom")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -291,7 +295,7 @@ class TestCleanupFailedInstance:
         """Bus listener cleanup failure does not prevent scheduler job cleanup."""
         mock_app_instance.bus.remove_all_listeners.side_effect = RuntimeError("bus exploded")
         mock_app_instance.initialize.side_effect = ValueError("boom")
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
@@ -549,8 +553,9 @@ class TestShutdownInstances:
             finished.append(1)
             return TeardownReport()
 
-        instances = {idx: make_mock_app_instance(instance_name=f"inst_{idx}") for idx in range(2)}
-        instances[1].shutdown = AsyncMock(side_effect=slow_stop)
+        mocks = [make_mock_app_instance(instance_name=f"inst_{idx}") for idx in range(2)]
+        mocks[1].shutdown = AsyncMock(side_effect=slow_stop)
+        instances: dict[int, App] = dict(enumerate(mocks))
         mock_hassette.send_event = AsyncMock(side_effect=[RuntimeError("event bus down"), None, None, None])
 
         with pytest.raises(RuntimeError, match="event bus down"):
@@ -565,7 +570,7 @@ class TestShutdownInstances:
         app2 = make_mock_app_instance(instance_name="app2")
         app2.status = ResourceStatus.RUNNING
 
-        instances = {0: app1, 1: app2}
+        instances: dict[int, App] = {0: app1, 1: app2}
 
         await lifecycle_service.shutdown_instances(instances)
 
@@ -582,7 +587,7 @@ class TestShutdownInstances:
         """Emits STOPPING event for each instance before shutting down."""
         event_capture.install(mock_hassette)
         mock_app_instance.status = ResourceStatus.RUNNING
-        instances = {0: mock_app_instance}
+        instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.shutdown_instances(instances)
 

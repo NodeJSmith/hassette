@@ -44,7 +44,6 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
     executor.current_execution = None
     executor.repository = MagicMock()
     executor.hassette = hassette
-    executor._logger = MagicMock()
     executor.logger = MagicMock()
 
     task_bucket = MagicMock()
@@ -58,7 +57,7 @@ def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
 
     task_bucket.spawn = spawn
     executor.task_bucket = task_bucket
-    executor._spawned_tasks = spawned_tasks
+    executor._spawned_tasks = spawned_tasks  # pyright: ignore[reportAttributeAccessIssue]  # test-only handle on spawned tasks
     return executor
 
 
@@ -142,7 +141,7 @@ def make_mock_cmd_listener(
         listener.invoker.invoke = AsyncMock(return_value=None)
     else:
         listener.invoker.invoke = AsyncMock(side_effect=side_effect)
-    listener.__repr__ = lambda _self: "Listener<test>"
+    listener.__repr__ = MagicMock(return_value="Listener<test>")
     return listener
 
 

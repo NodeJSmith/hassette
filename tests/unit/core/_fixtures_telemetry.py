@@ -160,6 +160,7 @@ async def assert_listener_count(db: aiosqlite.Connection, listener_id: int, expe
     """Assert the number of listener rows with the given id matches expected."""
     cursor = await db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
+    assert row is not None
     assert row["count"] == expected, message
 
 
@@ -175,6 +176,7 @@ async def assert_job_count(db: aiosqlite.Connection, job_id: int, expected: int,
     """Assert the number of scheduled_jobs rows with the given id matches expected."""
     cursor = await db.execute("SELECT COUNT(*) AS count FROM scheduled_jobs WHERE id = ?", (job_id,))
     row = await cursor.fetchone()
+    assert row is not None
     assert row["count"] == expected, message
 
 

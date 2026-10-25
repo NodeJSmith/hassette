@@ -5,6 +5,7 @@ shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
 """
 
 import asyncio
+from typing import TYPE_CHECKING, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -16,14 +17,23 @@ from tests.support.factories import make_change_set
 
 from .conftest import assert_acquires_app_key_lock_once, set_registry_apps
 
+if TYPE_CHECKING:
+    from hassette.config.classes import AppManifest
 
-def stub_full_restarts(lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> MagicMock:
-    """Stub the whole-app stop/start bodies apply_changes() restarts through; returns the manifest they resolve."""
-    manifest = MagicMock()
-    mock_registry.get_manifest = Mock(return_value=manifest)
-    lifecycle_service._stop_app_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    lifecycle_service._start_app_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    return manifest
+
+class FullRestartStubs(NamedTuple):
+    manifest: MagicMock
+    stop_app_unlocked: AsyncMock
+    start_app_unlocked: AsyncMock
+
+
+def stub_full_restarts(lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> FullRestartStubs:
+    """Stub the whole-app stop/start bodies apply_changes() restarts through, and the manifest they resolve."""
+    stubs = FullRestartStubs(manifest=MagicMock(), stop_app_unlocked=AsyncMock(), start_app_unlocked=AsyncMock())
+    mock_registry.get_manifest = Mock(return_value=stubs.manifest)
+    lifecycle_service._stop_app_unlocked = stubs.stop_app_unlocked  # pyright: ignore[reportAttributeAccessIssue]
+    lifecycle_service._start_app_unlocked = stubs.start_app_unlocked  # pyright: ignore[reportAttributeAccessIssue]
+    return stubs
 
 
 class TestApplyChanges:
@@ -31,7 +41,7 @@ class TestApplyChanges:
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
     ) -> None:
         """Routes orphans/reimport/reload/new to correct methods when autostart gates pass."""
-        manifest = stub_full_restarts(lifecycle_service, mock_registry)
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
         lifecycle_service.stop_app = AsyncMock()
         lifecycle_service.start_app = AsyncMock()
         # Gates are transparent for autostart=True apps — mock helpers so this test stays
@@ -49,10 +59,10 @@ class TestApplyChanges:
         await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.stop_app.assert_called_once_with("orphan_app")
-        lifecycle_service._stop_app_unlocked.assert_any_call("reimport_app")
-        lifecycle_service._stop_app_unlocked.assert_any_call("reload_app")
-        lifecycle_service._start_app_unlocked.assert_any_call("reimport_app", manifest, True)
-        lifecycle_service._start_app_unlocked.assert_any_call("reload_app", manifest, False)
+        stubs.stop_app_unlocked.assert_any_call("reimport_app")
+        stubs.stop_app_unlocked.assert_any_call("reload_app")
+        stubs.start_app_unlocked.assert_any_call("reimport_app", stubs.manifest, True)
+        stubs.start_app_unlocked.assert_any_call("reload_app", stubs.manifest, False)
         lifecycle_service.start_app.assert_called_once_with("new_app")
 
     async def test_blocked_app_raise_does_not_abort_remaining_apps(
@@ -128,11 +138,11 @@ class TestApplyChanges:
         app_y's renames b -> c, so app_y's old b must be gone before app_x's new b is created.
         """
         set_registry_apps(mock_registry, {"app_x": {0: MagicMock()}, "app_y": {0: MagicMock()}})
-        old = {
+        old: dict[str, AppManifest] = {
             "app_x": MagicMock(app_config=[{"instance_name": "a"}]),
             "app_y": MagicMock(app_config=[{"instance_name": "b"}]),
         }
-        new = {
+        new: dict[str, AppManifest] = {
             "app_x": MagicMock(app_config=[{"instance_name": "b"}]),
             "app_y": MagicMock(app_config=[{"instance_name": "c"}]),
         }
@@ -379,7 +389,7 @@ class TestApplyChangesPerInstanceRestart:
         """A file-level change (reimport_apps bucket) restarts the whole app key with a fresh class
         import, never the per-instance path — regardless of any per-instance config diff.
         """
-        manifest = stub_full_restarts(lifecycle_service, mock_registry)
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -393,8 +403,8 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service._stop_app_unlocked.assert_called_once_with("app_a")
-        lifecycle_service._start_app_unlocked.assert_called_once_with("app_a", manifest, True)
+        stubs.stop_app_unlocked.assert_called_once_with("app_a")
+        stubs.start_app_unlocked.assert_called_once_with("app_a", stubs.manifest, True)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
 
     async def test_instance_count_change_falls_back_to_full_restart(
@@ -413,7 +423,7 @@ class TestApplyChangesPerInstanceRestart:
         new_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
 
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
-        stub_full_restarts(lifecycle_service, mock_registry)
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
         mock_registry.get_manifest = Mock(return_value=new_manifest)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
@@ -423,8 +433,8 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service._stop_app_unlocked.assert_called_once_with("app_a")
-        lifecycle_service._start_app_unlocked.assert_called_once_with("app_a", new_manifest, False)
+        stubs.stop_app_unlocked.assert_called_once_with("app_a")
+        stubs.start_app_unlocked.assert_called_once_with("app_a", new_manifest, False)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
 
     async def test_renamed_index_takes_selective_reload_path(
@@ -441,7 +451,7 @@ class TestApplyChangesPerInstanceRestart:
         new_manifest.app_config = [{"instance_name": "a_changed"}, {"instance_name": "b"}]
 
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
-        stub_full_restarts(lifecycle_service, mock_registry)
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
         mock_registry.get_manifest = Mock(return_value=new_manifest)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
@@ -452,7 +462,7 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service._stop_app_unlocked.assert_not_called()
+        stubs.stop_app_unlocked.assert_not_called()
         lifecycle_service._stop_instance_unlocked.assert_called_once_with("app_a", 0)
         lifecycle_service._create_instance_unlocked.assert_called_once()
 
@@ -577,7 +587,7 @@ class TestApplyChangesPerInstanceRestart:
         new_manifest.app_config = [{"instance_name": "a_changed"}]
 
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
-        stub_full_restarts(lifecycle_service, mock_registry)
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
         mock_registry.get_manifest = Mock(return_value=new_manifest)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=False)
@@ -587,8 +597,8 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        lifecycle_service._stop_app_unlocked.assert_not_called()
-        lifecycle_service._start_app_unlocked.assert_not_called()
+        stubs.stop_app_unlocked.assert_not_called()
+        stubs.start_app_unlocked.assert_not_called()
         lifecycle_service._stop_instance_unlocked.assert_not_called()
 
     async def test_dormant_app_falls_back_to_full_reload_not_selective(
@@ -605,7 +615,7 @@ class TestApplyChangesPerInstanceRestart:
         # in this class calls set_registry_apps explicitly, so match the convention).
         set_registry_apps(mock_registry, {})
 
-        manifest = stub_full_restarts(lifecycle_service, mock_registry)
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -614,7 +624,7 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": MagicMock()}, {"app_a": MagicMock()})
 
-        lifecycle_service._stop_app_unlocked.assert_called_once_with("app_a")
-        lifecycle_service._start_app_unlocked.assert_called_once_with("app_a", manifest, False)
+        stubs.stop_app_unlocked.assert_called_once_with("app_a")
+        stubs.start_app_unlocked.assert_called_once_with("app_a", stubs.manifest, False)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
         lifecycle_service._create_instance_unlocked.assert_not_called()
