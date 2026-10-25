@@ -53,7 +53,6 @@ def make_mock_hassette(
             may be passed as dicts::
 
                 make_mock_hassette(database={"retention_days": 60})
-                make_mock_hassette(strict_lifecycle=True)
 
     Returns:
         A sealed (by default) :class:`~unittest.mock.AsyncMock` with:
@@ -91,10 +90,6 @@ def make_mock_hassette(
         async def test_something():
             hassette = make_mock_hassette()
             assert hassette.config.token.get_secret_value() == "test-token"
-
-        async def test_strict(tmp_path):
-            hassette = make_mock_hassette(data_dir=tmp_path, strict_lifecycle=True)
-            assert hassette.config.strict_lifecycle is True
     """
     if data_dir is None:
         data_dir = tempfile.mkdtemp()
@@ -191,7 +186,7 @@ def make_mock_hassette(
     return hassette
 
 
-def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True) -> AsyncMock:
+def make_ws_hassette_stub(*, sealed: bool = True) -> AsyncMock:
     """Create a mock hassette pre-configured for WebSocket testing with fast timeouts.
 
     Thin wrapper around :func:`make_mock_hassette` that bakes in the config overrides
@@ -202,8 +197,6 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
     complete quickly. The non-websocket overrides set DEBUG logging and fast lifecycle timeouts.
 
     Args:
-        strict_lifecycle: Passed through to ``make_mock_hassette()`` as a config override.
-            Set ``True`` for strict-lifecycle test scenarios.
         sealed: If ``True`` (default), calls :func:`unittest.mock.seal` after wiring all
             attributes. Pass ``False`` if the test needs to set additional attributes
             (e.g. ``send_event``) after construction.
@@ -220,7 +213,6 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
             "connection_timeout_seconds": 1,
             "heartbeat_interval_seconds": 5,
         },
-        strict_lifecycle=strict_lifecycle,
     )
     hassette.ws_url = TEST_WS_URL
     if sealed:

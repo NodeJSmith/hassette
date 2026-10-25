@@ -276,7 +276,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Lifecycle
 
-**`RegistryValidationError`** Startup registry validation found error-level issues (for example, a malformed custom state class). Only raised when `strict_lifecycle = true`; the exception message lists each issue found. In non-strict mode, the same issues log as warnings.
+**Registry validation warnings** Startup registry validation logs each problem it finds as a warning and never stops startup. A malformed custom state class is a typical cause. The startup log ends the list with `Registry validation: N issue(s) found`, and the lines above it name each issue. Fix the class each warning names, then restart Hassette.
 
 **`AppPrecheckFailedError`** One or more apps failed the precheck. Check the log for the specific app and error. Set `allow_startup_if_app_precheck_fails = true` to let other apps run while you diagnose.
 

@@ -291,7 +291,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         # Validate STATE_REGISTRY and TYPE_REGISTRY after all service children are added
         # (importing service modules may register additional state/type converters).
-        validate_registries(STATE_REGISTRY, TYPE_REGISTRY, strict=self.config.strict_lifecycle)
+        validate_registries(STATE_REGISTRY, TYPE_REGISTRY)
 
         self.logger.debug("All components registered...", stacklevel=2)
 

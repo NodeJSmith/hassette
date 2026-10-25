@@ -749,9 +749,9 @@ class DuplicateListenerError(HassetteError):
 class RegistryValidationError(HassetteError):
     """Raised when startup registry validation finds error-level issues.
 
-    Raised by ``validate_registries(strict=True)`` after collecting all issues.
-    ``Hassette.wire_services()`` passes ``strict=config.strict_lifecycle``, so in
-    production this only fires when the user explicitly enables strict mode.
+    Raised only by ``validate_registries(strict=True)`` after collecting all issues.
+    ``Hassette.wire_services()`` calls it without ``strict``, so a running instance
+    logs registry issues as warnings and never raises this exception.
 
     Attributes:
         issues: The full list of validation issues found. Always contains at least

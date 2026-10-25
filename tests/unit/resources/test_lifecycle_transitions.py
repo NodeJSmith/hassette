@@ -17,7 +17,7 @@ Shutdown STOPPING path:
 - shutdown() sets STOPPING before hooks run (Service)
 - Full shutdown sequence: RUNNING → STOPPING → STOPPED
 - RUNNING → STOPPED direct assignment applies (natural service completion via _serve_wrapper)
-- Any changed status applies through the setter under strict_lifecycle
+- Any changed status applies through the setter
 """
 
 import asyncio
@@ -40,9 +40,9 @@ from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 from tests.unit.resources.lifecycle.conftest import make_running_simple_service
 
 
-def make_strict_running_resource(strict_lifecycle: bool = True) -> ConcreteResource:
+def make_running_resource() -> ConcreteResource:
     """Build a `ConcreteResource` with `_status` set directly to RUNNING, bypassing the setter."""
-    hassette = make_mock_hassette(strict_lifecycle=strict_lifecycle, sealed=False)
+    hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
     resource._status = ResourceStatus.RUNNING
     return resource
@@ -50,7 +50,7 @@ def make_strict_running_resource(strict_lifecycle: bool = True) -> ConcreteResou
 
 async def test_force_terminal_sets_stopped():
     """_force_terminal() on a RUNNING resource leaves it STOPPED."""
-    resource = make_strict_running_resource()
+    resource = make_running_resource()
 
     resource._force_terminal()
 
@@ -59,7 +59,7 @@ async def test_force_terminal_sets_stopped():
 
 async def test_same_state_no_transition():
     """handle_running() when already RUNNING returns early — idempotency preserved, previous_status unchanged."""
-    resource = make_strict_running_resource()
+    resource = make_running_resource()
     resource._previous_status = ResourceStatus.STARTING
 
     await handle_running(resource)
@@ -70,7 +70,7 @@ async def test_same_state_no_transition():
 
 async def test_same_state_setter_no_raise():
     """Direct same-state assignment via setter should not raise or re-validate."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
+    hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
     resource._status = ResourceStatus.RUNNING
     resource._previous_status = ResourceStatus.STARTING
@@ -161,15 +161,15 @@ async def test_shutdown_stopping_then_stopped_sequence():
 
 async def test_running_to_stopped_direct_is_valid():
     """RUNNING → STOPPED is valid for natural service completion (_serve_wrapper normal return)."""
-    resource = make_strict_running_resource()
+    resource = make_running_resource()
 
     resource.status = ResourceStatus.STOPPED
     assert resource.status == ResourceStatus.STOPPED
 
 
-async def test_setter_applies_any_transition_under_strict_lifecycle():
-    """Any changed status applies through the setter, even under strict_lifecycle, and records the prior status."""
-    resource = make_strict_running_resource(strict_lifecycle=True)
+async def test_setter_applies_any_transition():
+    """Any changed status applies through the setter and records the prior status."""
+    resource = make_running_resource()
 
     resource.status = ResourceStatus.NOT_STARTED
 
@@ -186,7 +186,7 @@ async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStat
     not move a terminal resource (STOPPED, EXHAUSTED_DEAD) to FAILED, so handle_failed() leaves
     the status unchanged.
     """
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
+    hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
     resource._status = terminal
 
