@@ -52,6 +52,7 @@ async def run_write_queue_worker(service: "DatabaseService") -> None:
         service._executing_future = future
         try:
             result = await coro
+            service._write_progress_count += 1
             if future is not None and not future.done():
                 future.set_result(result)
         except asyncio.CancelledError:
@@ -129,6 +130,7 @@ class DatabaseWriteQueueMixin:
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
     _executing_future: "asyncio.Future[Any] | None"
     _write_queue_detached: bool
+    _write_progress_count: int
     _waiting_submits: int
     """``submit()`` callers currently suspended waiting for queue capacity; ``enqueue()`` yields to them."""
 

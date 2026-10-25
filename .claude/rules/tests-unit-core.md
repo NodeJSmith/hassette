@@ -21,7 +21,8 @@ shadow one or the other. `test_database_service.py`, `test_database_service_toct
 
 `_fixtures_retention.py` (in-memory telemetry `db`, `mock_hassette_for_db`, `retention_service`, plus the
 `run_size_failsafe` and `count_rows` helpers) is
-likewise imported directly, by `test_log_records_retention.py` and `test_retention_batch_failure.py`,
+likewise imported directly, by `test_log_records_retention.py`, `test_retention_batch_failure.py`, and
+`test_size_failsafe_write_progress.py`,
 to keep its generic `db` fixture name out of the directory-wide namespace.
 
 ## Available fixtures (re-exported from this directory's conftest.py)

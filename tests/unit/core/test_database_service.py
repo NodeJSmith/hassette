@@ -656,3 +656,40 @@ class TestQueueUnavailableErrorMessage:
         assert service._db_write_queue is None
         with pytest.raises(RuntimeError, match=r"enqueue\(\) called before on_initialize\(\)"):
             service.enqueue(async_noop())
+
+
+def test_write_progress_count_starts_at_zero(service: DatabaseService) -> None:
+    assert service._write_progress_count == 0
+
+
+async def test_successful_write_advances_write_progress(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """Each job that returns without raising advances the counter, whether submitted or enqueued."""
+    before = initialized_service_with_worker._write_progress_count
+
+    await initialized_service_with_worker.submit(async_noop())
+    initialized_service_with_worker.enqueue(async_noop())
+    assert initialized_service_with_worker._db_write_queue is not None
+    await initialized_service_with_worker._db_write_queue.join()
+
+    assert initialized_service_with_worker._write_progress_count == before + 2
+
+
+async def test_failed_write_does_not_advance_write_progress(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A job that raises leaves the counter where it was, whether submitted or enqueued."""
+
+    async def failing_coro() -> None:
+        raise ValueError("intentional failure")
+
+    before = initialized_service_with_worker._write_progress_count
+
+    with pytest.raises(ValueError, match="intentional failure"):
+        await initialized_service_with_worker.submit(failing_coro())
+    initialized_service_with_worker.enqueue(failing_coro())
+    assert initialized_service_with_worker._db_write_queue is not None
+    await initialized_service_with_worker._db_write_queue.join()
+
+    assert initialized_service_with_worker._write_progress_count == before

@@ -64,8 +64,12 @@ async def test_mid_batch_failure_returns_committed_progress_and_original_error(
     db: aiosqlite.Connection,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A DELETE failing on a later batch returns the rows earlier batches committed plus the original error."""
+    """A DELETE failing on a later batch returns the rows earlier batches committed plus the original error.
+
+    Only the two committed batches advance the write-progress counter; the failed third does not.
+    """
     failure = await seed_and_fail_third_executions_delete(retention_service, db, monkeypatch)
+    progress_before = retention_service._write_progress_count  # pyright: ignore[reportPrivateUsage]
 
     result = await retention_service._delete_target_batched(  # pyright: ignore[reportPrivateUsage]
         FRAMEWORK_TARGET, time.time(), retention_service.hassette.config
@@ -74,6 +78,7 @@ async def test_mid_batch_failure_returns_committed_progress_and_original_error(
     assert result.deleted == 4
     assert result.error is failure
     assert result.exhausted is False
+    assert retention_service._write_progress_count == progress_before + 2  # pyright: ignore[reportPrivateUsage]
 
 
 async def test_mid_batch_failure_keeps_committed_rows_and_continues_later_targets(
@@ -102,3 +107,24 @@ async def test_mid_batch_failure_keeps_committed_rows_and_continues_later_target
 
     assert retention_service._consecutive_parent_guard_skips == 1  # pyright: ignore[reportPrivateUsage]
     assert error_exc_infos == [failure]
+
+
+async def test_each_committed_batch_advances_write_progress(
+    retention_service: DatabaseService,
+    db: aiosqlite.Connection,
+) -> None:
+    """A multi-batch pass advances the counter once per committed batch, including the short final one."""
+    retention_service.hassette.config.database.retention_delete_batch = 2
+    retention_service.hassette.config.database.retention_max_batches_per_target = 5
+    now = time.time()
+    for _ in range(5):
+        await insert_tiered_execution(db, now - (5 * SECONDS_PER_DAY), SOURCE_TIER_FRAMEWORK)
+    await db.commit()
+    before = retention_service._write_progress_count  # pyright: ignore[reportPrivateUsage]
+
+    result = await retention_service._delete_target_batched(  # pyright: ignore[reportPrivateUsage]
+        FRAMEWORK_TARGET, now, retention_service.hassette.config
+    )
+
+    assert result.deleted == 5
+    assert retention_service._write_progress_count == before + 3  # pyright: ignore[reportPrivateUsage]
