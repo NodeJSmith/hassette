@@ -12,7 +12,7 @@ easily. Consumers import directly from this module instead: ``test_log_records_r
 
 import logging
 import sqlite3
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -62,7 +62,7 @@ def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
 
 
 @pytest.fixture
-async def db() -> aiosqlite.Connection:
+async def db() -> AsyncIterator[aiosqlite.Connection]:
     """In-memory aiosqlite connection with log_records schema."""
     conn = await connect_daemon(":memory:")
     conn.row_factory = aiosqlite.Row

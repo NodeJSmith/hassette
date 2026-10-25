@@ -230,11 +230,11 @@ class TestHandleChangeEventBranches:
         """
         event_capture.install(mock_hassette)
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = is_released
-        stub_detected_changes(lifecycle_service, changes)
+        apply_changes = stub_detected_changes(lifecycle_service, changes)
 
         await lifecycle_service.handle_change_event()
 
-        lifecycle_service.apply_changes.assert_not_called()
+        apply_changes.assert_not_called()
         assert_load_completed_count(event_capture, expected_broadcasts)
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
@@ -299,12 +299,12 @@ class TestHandleChangeEventBranches:
     ) -> None:
         event_capture.install(mock_hassette)
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"my_app"}))
+        apply_changes = stub_detected_changes(lifecycle_service, make_change_set(new_apps={"my_app"}))
 
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/first.py")}))
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/second.py")}))
 
-        lifecycle_service.apply_changes.assert_not_called()
+        apply_changes.assert_not_called()
         pending = lifecycle_service._pending_reconciliation
         assert pending is not None
         assert pending.original_apps_config is not None
@@ -429,11 +429,11 @@ class TestReplayPreReleaseReconciliationBranches:
             original_apps_config={}, current_apps_config={}, changed_paths=None
         )
         lifecycle_service.resolve_only_apps = AsyncMock()
-        stub_detected_changes(lifecycle_service, make_change_set(metadata_apps={"app_a"}))
+        apply_changes = stub_detected_changes(lifecycle_service, make_change_set(metadata_apps={"app_a"}))
 
         await lifecycle_service._replay_pre_release_reconciliation_if_needed()
 
-        lifecycle_service.apply_changes.assert_not_called()
+        apply_changes.assert_not_called()
         assert_load_completed_count(event_capture, 1)
         # dup-ignore-end
 
@@ -451,11 +451,11 @@ class TestReplayPreReleaseReconciliationBranches:
             original_apps_config={}, current_apps_config={}, changed_paths=None
         )
         lifecycle_service.resolve_only_apps = AsyncMock()
-        stub_detected_changes(lifecycle_service, make_change_set())
+        apply_changes = stub_detected_changes(lifecycle_service, make_change_set())
 
         await lifecycle_service._replay_pre_release_reconciliation_if_needed()
 
-        lifecycle_service.apply_changes.assert_not_called()
+        apply_changes.assert_not_called()
         assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
         # dup-ignore-end
 

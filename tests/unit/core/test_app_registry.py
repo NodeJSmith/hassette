@@ -6,6 +6,7 @@ The `get_full_snapshot()`, blocking, autostart, and manifest-info tests live in
 """
 
 import dataclasses
+from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,6 +16,9 @@ from hassette.core.app_registry import AppRegistry, InstanceEntry
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 
 from .conftest import make_manifest_obj
+
+if TYPE_CHECKING:
+    from hassette.config.classes import AppManifest
 
 
 class TestAppStatusSnapshot:
@@ -253,7 +257,7 @@ class TestAppRegistry:
         records with no App object to build an event from.
         """
         manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "configured_name"}])
-        registry.set_manifests({"my_app": manifest})
+        registry.set_manifests({"my_app": cast("AppManifest", manifest)})
         registry.record_failure("my_app", 0, ValueError("boom"))
 
         infos = registry.get_failed_instance_infos("my_app")
@@ -498,7 +502,7 @@ class TestAppRegistry:
 
     def test_set_manifests(self, registry: AppRegistry, mock_manifest: MagicMock) -> None:
         """Test setting manifests."""
-        manifests = {"app1": mock_manifest}
+        manifests: dict[str, AppManifest] = {"app1": mock_manifest}
         registry.set_manifests(manifests)
 
         assert registry.manifests == manifests

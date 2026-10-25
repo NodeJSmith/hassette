@@ -5,10 +5,14 @@ shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
 """
 
 import asyncio
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.types.enums import BlockReason
+
+if TYPE_CHECKING:
+    from hassette.config.classes import AppManifest
 
 
 class TestReconcileBlockedApps:
@@ -152,7 +156,7 @@ class TestReconcileAppRegistrations:
 class TestSetAppsConfigs:
     def test_sets_manifests_on_registry(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Calls registry.set_manifests with the provided config."""
-        manifests = {"app_a": MagicMock()}
+        manifests: dict[str, AppManifest] = {"app_a": MagicMock()}
 
         lifecycle_service.set_apps_configs(manifests)
 

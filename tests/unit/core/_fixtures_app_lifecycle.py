@@ -117,15 +117,17 @@ async def assert_acquires_app_key_lock_once(
     assert not lock.locked()
 
 
-def stub_detected_changes(lifecycle_service: AppLifecycleService, changes: ChangeSet) -> None:
+def stub_detected_changes(lifecycle_service: AppLifecycleService, changes: ChangeSet) -> AsyncMock:
     """Make `detect_changes` report `changes`, and stub `apply_changes` so nothing is really applied.
 
     Tests of `handle_change_event`'s own decisions -- whether it applies, defers, or broadcasts --
     drive the detector's verdict directly rather than building configs for it to diff, and assert
-    against the `apply_changes` stub this leaves behind.
+    against the `apply_changes` stub this leaves behind, which is returned.
     """
+    apply_changes = AsyncMock()
     lifecycle_service.change_detector.detect_changes = Mock(return_value=changes)  # pyright: ignore[reportAttributeAccessIssue]
-    lifecycle_service.apply_changes = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    lifecycle_service.apply_changes = apply_changes  # pyright: ignore[reportAttributeAccessIssue]
+    return apply_changes
 
 
 def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> None:
