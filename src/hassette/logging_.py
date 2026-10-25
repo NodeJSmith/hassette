@@ -25,10 +25,11 @@ from hassette.logging_processors import (
     console_identity,
     console_renderer,
     extract_record_fields,
-    record_exc_text,
-    record_message,
+    persisted_exc_text,
+    persisted_message,
     resolve_exc_info,
-    stdlib_stack_to_stack,
+    stack_info_to_stack,
+    structlog_event_dict,
 )
 from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
 
@@ -371,8 +372,8 @@ class HassetteQueueHandler(logging.handlers.QueueHandler):
         chain runs ``StackInfoRenderer`` and ``resolve_exc_info``. Args are merged now so an argument mutated
         after the call can't change the logged message.
         """
-        record = copy.copy(record)
-        if not isinstance(record.msg, dict):
+        record = copy.copy(record)  # other handlers on the caller's side still hold the original
+        if structlog_event_dict(record) is None:  # a native record has no args, and getMessage() would stringify it
             record.msg, record.args = record.getMessage(), None
         return record
 
@@ -516,8 +517,8 @@ class LogPersistenceHandler(logging.Handler):
             "logger_name": record.name,
             "func_name": record.funcName or "",
             "lineno": record.lineno,
-            "message": record_message(record),
-            "exc_info": record_exc_text(record),
+            "message": persisted_message(record),
+            "exc_info": persisted_exc_text(record),
             **_extract_correlation_attrs(record),
         }
 
@@ -692,7 +693,7 @@ def enable_basic_logging(
             *shared_processors,
             # Native chain only: it runs in the caller's frame, and the formatter runs on the log queue's
             # listener thread in Phase 2. Stdlib records capture their stack and exception at creation;
-            # stdlib_stack_to_stack moves the stack to the same ``stack`` key.
+            # stack_info_to_stack moves the stack to the same ``stack`` key.
             structlog.processors.StackInfoRenderer(),
             resolve_exc_info,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
@@ -703,6 +704,7 @@ def enable_basic_logging(
     )
 
     if use_json:
+        # JSONRenderer can't serialize an exc_info tuple; the console renderers format it themselves.
         output_processors: list = [structlog.processors.format_exc_info, structlog.processors.JSONRenderer()]
     elif log_format == "compact":
         output_processors = [console_identity, console_renderer(compact=True)]
@@ -713,7 +715,7 @@ def enable_basic_logging(
         foreign_pre_chain=shared_processors,
         processors=[
             extract_record_fields,
-            stdlib_stack_to_stack,
+            stack_info_to_stack,
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             *output_processors,
         ],

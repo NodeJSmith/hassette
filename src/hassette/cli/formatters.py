@@ -9,7 +9,7 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
-from hassette_wire import ResourceStatus
+from hassette_wire import LogEntry, ResourceStatus
 from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
@@ -118,14 +118,17 @@ def fmt_log_author(value: Any) -> str:
     return "framework" if value == "framework" else ""
 
 
-def fmt_log_message(entry: Any) -> str:
-    """The entry's message, with its exception's final line (``ValueError: kaboom``) beneath it.
+def fmt_log_message(entry: LogEntry) -> str:
+    """The entry's message, with its exception's ``Type: message`` line (``ValueError: kaboom``) beneath it.
 
-    The full traceback is in ``--json`` output and the web dashboard's log detail.
+    That line is the first one after the traceback's last indented frame line; a multi-line exception message
+    continues below it. The full traceback is in ``--json`` output and the web dashboard's log detail.
     """
-    if not entry.exc_info:
+    lines = (entry.exc_info or "").strip().splitlines()
+    if not lines:
         return entry.message
-    return f"{entry.message}\n{entry.exc_info.rstrip().splitlines()[-1]}"
+    after_frames = next((i + 1 for i in range(len(lines) - 1, -1, -1) if lines[i].startswith(" ")), 0)
+    return f"{entry.message}\n{lines[min(after_frames, len(lines) - 1)].strip()}"
 
 
 def fmt_handler_short(value: Any) -> str:

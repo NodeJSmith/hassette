@@ -41,6 +41,8 @@ from tests.unit.conftest import LoggingPipelineFixture
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 STDLIB_LOGGER_NAME = "hassette.apps.example_stdlib"
 NATIVE_LOGGER_NAME = "hassette.apps.example_native"
+# A local in the frame that logs an exception; console tracebacks must not print it.
+HELD_LOCAL_VALUE = "local-value-not-for-logs"
 # A UUIDv7 execution id and the short id the console shows for it.
 EXECUTION_ID = "0192f3a1-7c2e-7b44-9d0f-6e1a41c09e7b"
 SHORT_EXECUTION_ID = "@41c09e7b"
@@ -263,33 +265,45 @@ class TestConsoleLineFormat:
 
     @pytest.mark.parametrize("log_format", ["console", "compact"])
     def test_structlog_stack_info_is_rendered(self, log_format: Literal["console", "compact"]) -> None:
-        native = structlog.get_logger("hassette.apps.example_native")
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
         output = self.render(log_format, lambda: native.info("where am I", stack_info=True))
         assert "Stack (most recent call last):" in output, output
         assert "test_structlog_stack_info_is_rendered" in output, output
 
 
 @contextmanager
-def queued_pipeline(*handlers: logging.Handler) -> Iterator[None]:
-    """Route the hassette logger through a queue to ``handlers``, as ``LoggingService`` does in Phase 2.
+def queued_pipeline(stream_handler: logging.Handler, *extra_handlers: logging.Handler) -> Iterator[None]:
+    """Swap the hassette logger's ``stream_handler`` for the Phase 2 queue, as ``LoggingService`` does.
 
-    The first handler is the ``enable_basic_logging`` stream handler that the queue replaces.
+    The queue's listener feeds ``stream_handler`` and ``extra_handlers``. This changes the process-wide
+    hassette logger, so the ``finally`` puts ``stream_handler`` back.
     """
     logger = logging.getLogger(HASSETTE_LOGGER_NAME)
     log_queue: queue.Queue[logging.LogRecord] = queue.Queue()
     queue_handler = HassetteQueueHandler(log_queue)
     queue_handler.addFilter(LogIdentityFilter())
     queue_handler.addFilter(CorrelationFilter())
-    listener = HassetteQueueListener(log_queue, *handlers)
+    listener = HassetteQueueListener(log_queue, stream_handler, *extra_handlers)
     logger.addHandler(queue_handler)
-    logger.removeHandler(handlers[0])
+    logger.removeHandler(stream_handler)
     listener.start()
     try:
         yield
     finally:
         listener.stop()
         logger.removeHandler(queue_handler)
-        logger.addHandler(handlers[0])
+        logger.addHandler(stream_handler)
+
+
+class RecordCollector(logging.Handler):
+    """Keeps every record it receives, as the listener hands them to its handlers."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
 
 
 def log_caught_error(logger: Any, *, via_exc_info: bool = False) -> None:
@@ -297,6 +311,7 @@ def log_caught_error(logger: Any, *, via_exc_info: bool = False) -> None:
 
     ``via_exc_info`` logs with ``error(..., exc_info=True)`` instead of ``exception()``.
     """
+    held_local = HELD_LOCAL_VALUE  # noqa: F841  # pyright: ignore[reportUnusedVariable] - a frame local the traceback must not print
     try:
         raise ValueError("kaboom")
     except ValueError:
@@ -306,7 +321,7 @@ def log_caught_error(logger: Any, *, via_exc_info: bool = False) -> None:
             logger.exception("failed")
 
 
-def render(log_format: LogFormat, emit: Callable[[], None], *, queued: bool) -> str:
+def render_pipeline(log_format: LogFormat, emit: Callable[[], None], *, queued: bool) -> str:
     """Log through a fresh ``enable_basic_logging`` handler, optionally behind the Phase 2 queue."""
     stream = StringIO()
     stream_handler = enable_basic_logging("INFO", log_format=log_format, stream=stream)
@@ -325,7 +340,7 @@ class TestJsonStackAndException:
     """
 
     def render_json(self, emit: Callable[[], None], *, queued: bool) -> dict[str, Any]:
-        return json.loads(render("json", emit, queued=queued).strip().splitlines()[-1])
+        return json.loads(render_pipeline("json", emit, queued=queued).strip().splitlines()[-1])
 
     def test_stdlib_stack_info_is_rendered(self, queued: bool) -> None:
         stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
@@ -366,34 +381,41 @@ class TestConsoleException:
 
     def test_stdlib_exception_is_rendered(self, queued: bool, log_format: LogFormat) -> None:
         stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
-        output = render(log_format, lambda: log_caught_error(stdlib_logger), queued=queued)
+        output = render_pipeline(log_format, lambda: log_caught_error(stdlib_logger), queued=queued)
         assert "Traceback" in output, output
         assert "ValueError: kaboom" in output, output
+        assert HELD_LOCAL_VALUE not in output, output
 
     def test_structlog_exception_is_rendered(self, queued: bool, log_format: LogFormat) -> None:
         native = structlog.get_logger(NATIVE_LOGGER_NAME)
-        output = render(log_format, lambda: log_caught_error(native), queued=queued)
+        output = render_pipeline(log_format, lambda: log_caught_error(native), queued=queued)
         assert "Traceback" in output, output
         assert "ValueError: kaboom" in output, output
+        assert HELD_LOCAL_VALUE not in output, output
 
 
 class TestQueuedPersistedRow:
     """The row ``LogPersistenceHandler`` builds from a record that crossed the Phase 2 queue."""
 
     def persisted_row(self, emit: Callable[[], None]) -> dict[str, Any]:
-        collected: list[logging.LogRecord] = []
-        collector = logging.Handler()
-        collector.emit = collected.append  # pyright: ignore[reportAttributeAccessIssue]
+        collector = RecordCollector()
         stream_handler = enable_basic_logging("INFO", log_format="json", stream=StringIO())
         with queued_pipeline(stream_handler, collector):
             emit()
-        persistence = LogPersistenceHandler(MagicMock(), MagicMock(), persistence_level=logging.DEBUG)
-        return persistence.record_to_dict(collected[-1])
+        # record_to_dict only reads the record; the database and loop are never touched.
+        persistence = LogPersistenceHandler(db_service=MagicMock(), loop=MagicMock(), persistence_level=logging.DEBUG)
+        return persistence.record_to_dict(collector.records[-1])
 
     def test_structlog_message_is_the_event(self) -> None:
         native = structlog.get_logger(NATIVE_LOGGER_NAME)
         row = self.persisted_row(lambda: native.info("door opened", door="front"))
         assert row["message"] == "door opened", row
+
+    def test_stdlib_dict_message_is_kept(self) -> None:
+        """A stdlib caller logging a dict isn't mistaken for a structlog record with no ``event``."""
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
+        row = self.persisted_row(lambda: stdlib_logger.info({"door": "front"}))
+        assert row["message"] == "{'door': 'front'}", row
 
     def test_structlog_stack_is_appended_to_message(self) -> None:
         native = structlog.get_logger(NATIVE_LOGGER_NAME)

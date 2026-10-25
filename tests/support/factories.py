@@ -33,7 +33,7 @@ from hassette.logging_ import (
     LogRecordEntry,
     _extract_correlation_attrs,  # pyright: ignore[reportPrivateUsage]
 )
-from hassette.logging_processors import record_exc_text, record_message
+from hassette.logging_processors import persisted_exc_text, persisted_message
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
@@ -501,8 +501,8 @@ def build_log_entry(record: logging.LogRecord) -> LogRecordEntry:
         logger_name=record.name,
         func_name=record.funcName or "",
         lineno=record.lineno,
-        message=record_message(record),
-        exc_info=record_exc_text(record),
+        message=persisted_message(record),
+        exc_info=persisted_exc_text(record),
         **attrs,
     )
 

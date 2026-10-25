@@ -14,6 +14,7 @@ from hassette.cli.commands.log import (
     cmd_execution,
     cmd_log,
 )
+from hassette.cli.formatters import fmt_log_message
 from hassette.cli.output import Column, render_table
 from tests.support.web_telemetry_helpers import make_log_entry, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
@@ -283,3 +284,22 @@ def test_exception_final_line_follows_message(columns: list[Column]) -> None:
     assert "Handler failed" in output, output
     assert "ValueError: kaboom" in output, output
     assert "Traceback" not in output, output
+
+
+@pytest.mark.parametrize(
+    ("exc_info", "expected"),
+    [
+        pytest.param(None, "Handler failed", id="no-exception"),
+        pytest.param("  \n", "Handler failed", id="whitespace-only"),
+        pytest.param(
+            'Traceback (most recent call last):\n  File "apps/door.py", line 12, in on_door\n'
+            "    raise ValueError(msg)\nValueError: first line\nsecond line\n",
+            "Handler failed\nValueError: first line",
+            id="multi-line-exception-message",
+        ),
+        pytest.param("ValueError: no traceback\n", "Handler failed\nValueError: no traceback", id="no-frames"),
+    ],
+)
+def test_fmt_log_message_picks_the_exception_line(exc_info: str | None, expected: str) -> None:
+    """The message gains the exception's ``Type: message`` line, never a frame or a continuation line."""
+    assert fmt_log_message(make_log_entry(message="Handler failed", exc_info=exc_info)) == expected
