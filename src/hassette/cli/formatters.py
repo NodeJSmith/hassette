@@ -4,6 +4,7 @@ Each formatter turns one raw field value into a display string. The rendering la
 (:mod:`hassette.cli.output`) applies them to table cells and detail-panel rows.
 """
 
+import re
 import time
 from collections.abc import Callable
 from functools import wraps
@@ -19,6 +20,11 @@ JUST_NOW_SECONDS = 5
 MS_PER_SECOND = 1000
 #: Placeholder shown for a missing or empty value in detail panels and summary cells.
 EMPTY_VALUE = "—"
+
+# First line of a formatted exception group traceback, once the text is stripped.
+EXCEPTION_GROUP_TRACEBACK_HEADER = "+ Exception Group Traceback"
+# A ``| Type: message`` line inside one; the first is the outermost group's own.
+EXCEPTION_GROUP_LINE_RE = re.compile(r"^\s*\| (\w[\w.]*: .*)$")
 
 
 def now_epoch() -> float:
@@ -122,11 +128,16 @@ def fmt_log_message(entry: LogEntry) -> str:
     """The entry's message, with its exception's ``Type: message`` line (``ValueError: kaboom``) beneath it.
 
     That line is the first one after the traceback's last indented frame line; a multi-line exception message
-    continues below it. The full traceback is in ``--json`` output and the web dashboard's log detail.
+    continues below it. An exception group's traceback is indented throughout, so its line is the group's own
+    ``| ExceptionGroup: ...`` header. The full traceback is in ``--json`` output and the web dashboard's log detail.
     """
     lines = (entry.exc_info or "").strip().splitlines()
     if not lines:
         return entry.message
+    if lines[0].startswith(EXCEPTION_GROUP_TRACEBACK_HEADER):
+        header = next((m.group(1) for line in lines if (m := EXCEPTION_GROUP_LINE_RE.match(line))), None)
+        if header is not None:
+            return f"{entry.message}\n{header}"
     after_frames = next((i + 1 for i in range(len(lines) - 1, -1, -1) if lines[i].startswith(" ")), 0)
     return f"{entry.message}\n{lines[min(after_frames, len(lines) - 1)].strip()}"
 

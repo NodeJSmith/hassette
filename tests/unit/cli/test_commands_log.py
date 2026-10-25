@@ -16,6 +16,7 @@ from hassette.cli.commands.log import (
 )
 from hassette.cli.formatters import fmt_log_message
 from hassette.cli.output import Column, render_table
+from hassette.utils.exception_utils import get_traceback_string
 from tests.support.web_telemetry_helpers import make_log_entry, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
@@ -303,3 +304,15 @@ def test_exception_final_line_follows_message(columns: list[Column]) -> None:
 def test_fmt_log_message_picks_the_exception_line(exc_info: str | None, expected: str) -> None:
     """The message gains the exception's ``Type: message`` line, never a frame or a continuation line."""
     assert fmt_log_message(make_log_entry(message="Handler failed", exc_info=exc_info)) == expected
+
+
+def test_fmt_log_message_picks_the_exception_group_header() -> None:
+    """An exception group's traceback is indented throughout; the group's own header line is picked."""
+    try:
+        raise ExceptionGroup("handlers failed", [ValueError("x"), TypeError("y")])
+    except ExceptionGroup as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+
+    assert fmt_log_message(entry) == "Handler failed\nExceptionGroup: handlers failed (2 sub-exceptions)"
