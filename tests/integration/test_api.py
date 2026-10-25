@@ -9,7 +9,7 @@ from hassette.api import Api
 from hassette.core import api_resource as api_resource_module
 from hassette.exceptions import EntityNotFoundError, HassetteError, HttpRequestError
 from hassette.models.entities.light import LightEntity
-from hassette.testing._harness import SimpleTestServer
+from hassette.testing._server import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
 
 
@@ -67,6 +67,7 @@ async def test_get_state_return_type(
         # Check specific types
         domain = entity_id.split(".")[0]
         expected_class = STATE_REGISTRY.resolve(domain=domain)
+        assert expected_class is not None, f"No state class registered for domain {domain!r}"
         assert isinstance(state, expected_class), f"Expected {expected_class}, got {type(state)}"
 
 

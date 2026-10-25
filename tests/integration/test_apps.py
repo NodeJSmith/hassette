@@ -20,9 +20,8 @@ from tests.support.factories import make_change_set, make_job_registration, make
 from tests.support.helpers import create_listener, noop
 
 if typing.TYPE_CHECKING:
-    from data.my_app import MyApp
-
     from hassette.core.app_handler import AppHandler
+    from tests.data.apps.my_app import MyApp
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
@@ -278,6 +277,7 @@ class TestApps:
         assert "my_app" in self.app_handler.registry, "my_app must remain registered after disconnect"
         my_app_instance_after = self.app_handler.get("my_app", 0)
         assert my_app_instance_after is my_app_instance_before, "The same running instance must be preserved"
+        assert my_app_instance_after is not None
         assert my_app_instance_after.is_ready()
 
     async def test_manual_start_reload_still_allowed_after_disconnect_when_already_released(self) -> None:
@@ -395,7 +395,7 @@ class TestPerInstanceSelectiveRestart:
             filename="multi_instance_app.py",
             class_name="MultiInstanceApp",
             app_dir=TEST_APPS_PATH,
-            config=app_config,
+            app_config=app_config,
             enabled=True,
             display_name="Multi Instance",
             full_path=TEST_APPS_PATH / "multi_instance_app.py",
@@ -478,8 +478,8 @@ class TestPerInstanceSelectiveRestart:
 
         await wait_for(
             lambda: (
-                lifecycle.registry.get(app_key, 1) is not None
-                and lifecycle.registry.get(app_key, 1).app_config.value == "changed"
+                (instance1 := lifecycle.registry.get(app_key, 1)) is not None
+                and instance1.app_config.model_dump()["value"] == "changed"
             ),
             desc="instance 1 reloaded with updated config",
         )
@@ -491,7 +491,7 @@ class TestPerInstanceSelectiveRestart:
         )
         assert instance1_after is not None
         assert instance1_after is not instance1_before, "instance 1 should have been recreated"
-        assert instance1_after.app_config.value == "changed", "instance 1 should reflect the new config"
+        assert instance1_after.app_config.model_dump()["value"] == "changed", "instance 1 should reflect the new config"
 
     async def test_reload_instance_preserves_sibling_db_rows(
         self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
@@ -600,16 +600,18 @@ class TestPerInstanceSelectiveRestart:
         orig_stop = lifecycle._stop_instance_unlocked
         orig_create = lifecycle._create_instance_unlocked
 
-        async def instrumented_stop(app_key_: str, index: int) -> None:
+        async def instrumented_stop(app_key: str, index: int) -> None:
             if index == 1:
                 index_1_stop_entered.set()
                 await release_index_1_stop.wait()
-            await orig_stop(app_key_, index)
+            await orig_stop(app_key, index)
             call_order.append(f"stop_{index}_done")
 
-        async def instrumented_create(app_key_: str, index: int, manifest: object, force_reload: bool = False) -> None:
+        async def instrumented_create(
+            app_key: str, index: int, app_manifest: AppManifest, force_reload: bool = False
+        ) -> None:
             call_order.append(f"create_{index}_start")
-            await orig_create(app_key_, index, manifest, force_reload)
+            await orig_create(app_key, index, app_manifest, force_reload)
 
         lifecycle._stop_instance_unlocked = instrumented_stop
         lifecycle._create_instance_unlocked = instrumented_create

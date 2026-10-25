@@ -2,6 +2,7 @@
 
 import contextvars
 import logging
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,7 +21,8 @@ from tests.support.app_staging_helpers import clear_loaded_class_caches
 
 if TYPE_CHECKING:
     from hassette import HassetteConfig
-    from hassette.app.app import App, AppConfig
+    from hassette.app.app import App
+    from hassette.app.app_config import AppConfig
     from hassette.testing import HassetteHarness
 
 
@@ -52,7 +54,9 @@ def app_factory(hassette_with_app_handler: "HassetteHarness", app_registry: AppR
 
 
 @pytest.fixture
-async def app_lifecycle(hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry) -> AppLifecycleService:
+async def app_lifecycle(
+    hassette_with_app_handler: "HassetteHarness", app_registry: AppRegistry
+) -> AsyncIterator[AppLifecycleService]:
     """Create an AppLifecycleService with real Hassette instance."""
     lifecycle = AppLifecycleService(hassette_with_app_handler.hassette, parent=None, registry=app_registry)
     yield lifecycle
@@ -69,7 +73,7 @@ def make_manifest(  # factory-local: returns AppManifest, not AppManifestInfo
         filename=filename,
         class_name=class_name,
         app_dir=TEST_APPS_PATH,
-        config=config,  # Use 'config' not 'app_config' to match validation_alias
+        app_config=config,
         enabled=enabled,
         display_name=class_name,
         full_path=TEST_APPS_PATH / filename,
@@ -187,7 +191,7 @@ class TestAppFactoryIntegration:
         create_app(app_factory, app_registry, manifest)
 
         app_instance = get_app(app_registry, "my_app", 0)
-        assert app_instance.app_config.test_entity == "light.kitchen"
+        assert app_instance.app_config.model_dump()["test_entity"] == "light.kitchen"
 
     def test_factory_creates_multiple_instances(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Creates separate instances with different configs."""
@@ -225,8 +229,8 @@ class TestAppFactoryIntegration:
         instance_1 = app_registry.get("multi_instance", 1)
         assert instance_0 is not None
         assert instance_1 is not None
-        assert instance_0.app_config.value == "first"
-        assert instance_1.app_config.value == "second"
+        assert instance_0.app_config.model_dump()["value"] == "first"
+        assert instance_1.app_config.model_dump()["value"] == "second"
 
     def test_factory_records_failure_for_invalid_module(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Records failure when module path is wrong."""
@@ -398,6 +402,7 @@ class TestAppLifecycleServiceIntegration:
         failed = get_failed_by_key(app_registry, "failing")
         assert len(failed) == 1
         assert failed[0].index == 0
+        assert failed[0].error_message is not None
         assert "Intentional init failure" in failed[0].error_message
 
     async def test_lifecycle_logs_init_failure_exactly_once(

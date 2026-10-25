@@ -36,7 +36,7 @@ def queue_record(
     listener_id: int,
     session_id: int,
     *,
-    status: ExecutionStatus = "success",
+    status: ExecutionStatus = ExecutionStatus.SUCCESS,
     duration_ms: float = 10.0,
 ) -> None:
     """Put one handler execution record straight onto the executor's write queue.
@@ -83,7 +83,7 @@ async def test_restart_cancellation_persists_cancelled_row(
 
     listener_id = await executor.register_listener(make_listener_registration())
 
-    queue_record(executor, listener_id, session_id, status="cancelled")
+    queue_record(executor, listener_id, session_id, status=ExecutionStatus.CANCELLED)
     await execution_pipeline.drain_and_persist(executor)
 
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
@@ -95,7 +95,7 @@ async def test_restart_cancellation_persists_cancelled_row(
         "SELECT status FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert len(rows) == 1
     assert rows[0][0] == "cancelled"
     # dup-ignore-end
@@ -177,6 +177,7 @@ async def test_handler_raised_timeout_error_recorded_as_error(
 
     record = pop_user_timeout_error_record(executor)
     assert record.error_message == "upstream"
+    assert record.error_traceback is not None
     assert "TimeoutError" in record.error_traceback
 
 
@@ -272,7 +273,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
         "SELECT status, listener_id, session_id FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert len(rows) == 1
     assert rows[0][0] == "success"
     assert rows[0][1] == listener_id
@@ -301,6 +302,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
         (listener_id,),
     )
     row = await cursor.fetchone()
+    assert row is not None
     assert row[0] == 2
 
 
@@ -335,7 +337,7 @@ def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
 
     cmd = invoke_cmd(make_mock_listener(), listener_id=5)
     result = ExecutionResult()
-    result.status = "success"
+    result.status = ExecutionStatus.SUCCESS
     result.duration_ms = 1.0
 
     record = build_execution_record(cmd, result, time.time(), "test-exec-id", session_id=exc.hassette.try_session_id())
@@ -371,7 +373,7 @@ async def test_persist_batch_drops_presession_records(
     await execution_pipeline.persist_batch(executor, [valid, pre_session])
 
     # Restore session_id to the real value for the next assertion query
-    type(executor.hassette).session_id = PropertyMock(return_value=session_id)
+    type(executor.hassette).session_id = PropertyMock(return_value=session_id)  # pyright: ignore[reportAttributeAccessIssue]
     executor.hassette.try_session_id = MagicMock(return_value=session_id)
 
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
@@ -383,7 +385,7 @@ async def test_persist_batch_drops_presession_records(
         "SELECT session_id FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     # valid record has session_id set — it is persisted; pre_session has None — dropped
     assert len(rows) == 1
     assert rows[0][0] == session_id
@@ -525,7 +527,7 @@ async def test_fk_preserved_across_restart(
         "SELECT listener_id FROM executions WHERE listener_id = ?",
         (listener_id,),
     )
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert len(rows) == 1
     assert rows[0][0] == listener_id
     # dup-ignore-end
