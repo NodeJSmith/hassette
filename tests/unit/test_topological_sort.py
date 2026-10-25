@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class StubBase:
     """Minimal stub base so stubs share a common ancestor for isinstance checks."""
 
-    depends_on: ClassVar[list[type["StubBase"]]] = []
+    depends_on: ClassVar[list[type["StubBase"]]]
 
 
 def sort_stubs(types: list[type[StubBase]]) -> list[type[StubBase]]:
