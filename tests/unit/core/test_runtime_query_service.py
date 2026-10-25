@@ -10,6 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppRegistry
+from hassette.core.pipeline_counters import PipelineCounter, PipelineCounters
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import (
     HassetteExecutionCompletedEvent,
@@ -55,6 +56,7 @@ def mock_hassette():
     hassette.bus_service = hassette._bus_service
     hassette.scheduler_service = hassette._scheduler_service
     hassette.runtime_query_service = hassette._runtime_query_service
+    hassette.pipeline_counters = PipelineCounters()
 
     # The log health helpers are synchronous; replace AsyncMock with Mock
     hassette.get_log_queue_drops = Mock(return_value=0)
@@ -673,6 +675,18 @@ class TestWebSocketClientManagement:
         assert queue.qsize() == WS_QUEUE_MAX  # still full, message was dropped
 
         await runtime.unregister_ws_client(queue)
+
+    async def test_broadcast_drop_increments_pipeline_counter(self, runtime: RuntimeQueryService) -> None:
+        full = await runtime.register_ws_client()
+        for i in range(WS_QUEUE_MAX):
+            await full.put({"type": "filler", "index": i})
+        open_queue = await runtime.register_ws_client()
+
+        await runtime.broadcast({"type": "first"})
+        await runtime.broadcast({"type": "second"})
+
+        assert runtime.hassette.pipeline_counters.get(PipelineCounter.WS_BROADCAST_CLIENT_QUEUE_FULL) == 2
+        assert open_queue.qsize() == 2
 
 
 class TestServiceStatusMapping:
