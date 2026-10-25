@@ -83,12 +83,15 @@ def insert_execution_row(
 async def count_rows(db: "aiosqlite.Connection", table: str, **filters: object) -> int:
     """Return the number of rows in ``table``, AND-ing an equality filter per keyword argument.
 
+    A ``None`` filter value matches ``IS NULL``, since ``column = NULL`` never matches any row.
     Table and column names are interpolated, so pass only literals from test code, never user input.
     """
     sql = f"SELECT COUNT(*) FROM {table}"
-    if filters:
-        sql += " WHERE " + " AND ".join(f"{column} = ?" for column in filters)
-    cursor = await db.execute(sql, tuple(filters.values()))
+    clauses = [f"{column} IS NULL" if value is None else f"{column} = ?" for column, value in filters.items()]
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    values = tuple(value for value in filters.values() if value is not None)
+    cursor = await db.execute(sql, values)
     row = await cursor.fetchone()
     assert row is not None
     return row[0]
