@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
@@ -52,7 +52,7 @@ async def initialized_fresh_service(fresh_service: DatabaseService) -> AsyncIter
             "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
             (now, now),
         )
-        fresh_service.hassette.session_id = cursor.lastrowid
+        cast("MagicMock", fresh_service.hassette).session_id = cursor.lastrowid
         await fresh_service.db.commit()
         yield fresh_service
     finally:
@@ -70,7 +70,7 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
             "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
             (now, now),
         )
-        service.hassette.session_id = cursor.lastrowid
+        cast("MagicMock", service.hassette).session_id = cursor.lastrowid
         await service.db.commit()
         yield service
     finally:

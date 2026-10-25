@@ -5,12 +5,12 @@ State is seeded into the StateProxy via harness.seed_state() before the listener
 """
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from whenever import SYSTEM_TZ, ZonedDateTime
 
-from hassette.events import RawStateChangeEvent
+from hassette.events import HassStateDict, RawStateChangeEvent
 from hassette.testing import HassetteHarness, make_state_dict, wait_for
 from tests.support.helpers import settle
 
@@ -320,7 +320,7 @@ async def test_immediate_duration_last_changed_none(bus_harness: tuple[HassetteH
     """last_changed missing from state dict → elapsed=0, full timer starts (does NOT fire immediately)."""
     harness, hassette, bus = bus_harness
 
-    state = make_state_dict("switch.pump", "on")
+    state = cast("HassStateDict", make_state_dict("switch.pump", "on"))
     # Override last_changed to None to simulate missing timestamp — seed() can't express this,
     # since passing last_changed=None falls back to make_state_dict's default of "now".
     state["last_changed"] = None  # pyright: ignore[reportArgumentType]

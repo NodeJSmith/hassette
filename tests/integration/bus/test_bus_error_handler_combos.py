@@ -8,14 +8,14 @@ Covers gaps in the test matrix:
 """
 
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from whenever import SYSTEM_TZ, ZonedDateTime
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.bus.error_context import BusErrorContext
-from hassette.events import RawStateChangeEvent
+from hassette.events import HassStateDict, RawStateChangeEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing import AppTestHarness, HassetteHarness, make_state_dict, wait_for
 from tests.support.helpers import settle
@@ -211,7 +211,7 @@ async def test_immediate_app_level_error_handler(bus_harness: tuple[HassetteHarn
     # exception type/message is the one thing that varies per test and is the actual point of each
     # one — the preceding seed_state() call also differs by entity, so nothing here generalizes into
     # a single shared call without losing that specificity.
-    await harness.seed_state("light.kitchen", make_state_dict("light.kitchen", "on"))
+    await harness.seed_state("light.kitchen", cast("HassStateDict", make_state_dict("light.kitchen", "on")))
 
     errors = ErrorCollector()
 
@@ -239,7 +239,7 @@ async def test_immediate_per_listener_error_handler_wins(
     """Immediate fire + per-listener on_error takes precedence over app-level handler."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state("switch.outlet", make_state_dict("switch.outlet", "on"))
+    await harness.seed_state("switch.outlet", cast("HassStateDict", make_state_dict("switch.outlet", "on")))
 
     app_level, per_listener = make_error_collector_pair()
 
@@ -269,7 +269,7 @@ async def test_immediate_once_error_handler_and_removal(
     """Immediate + once=True + on_error: handler raises, error handler fires, listener consumed."""
     harness, hassette, bus = bus_harness
 
-    await harness.seed_state("switch.outlet", make_state_dict("switch.outlet", "on"))
+    await harness.seed_state("switch.outlet", cast("HassStateDict", make_state_dict("switch.outlet", "on")))
 
     errors = ErrorCollector()
     call_count = 0
@@ -309,7 +309,7 @@ async def test_immediate_error_handler_receives_synthetic_event(
     # dup-ignore-start: same seed_state()+single-collector arrange as
     # test_immediate_app_level_error_handler above — see that test's note for why `ErrorCollector()`
     # alone doesn't warrant a helper and bad_handler's raise stays inline.
-    await harness.seed_state("sensor.temp", make_state_dict("sensor.temp", "25.5"))
+    await harness.seed_state("sensor.temp", cast("HassStateDict", make_state_dict("sensor.temp", "25.5")))
 
     errors = ErrorCollector()
 
@@ -350,7 +350,7 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
     past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await harness.seed_state(
         "switch.boiler",
-        make_state_dict("switch.boiler", "on", last_changed=past.format_iso()),
+        cast("HassStateDict", make_state_dict("switch.boiler", "on", last_changed=past.format_iso())),
     )
 
     errors = ErrorCollector()
@@ -386,7 +386,7 @@ async def test_immediate_duration_remaining_timer_error_handler(
     past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
     await harness.seed_state(
         "switch.fan",
-        make_state_dict("switch.fan", "on", last_changed=past.format_iso()),
+        cast("HassStateDict", make_state_dict("switch.fan", "on", last_changed=past.format_iso())),
     )
 
     errors = ErrorCollector()
@@ -423,7 +423,7 @@ async def test_immediate_duration_per_listener_error_handler(
     past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await harness.seed_state(
         "switch.heater",
-        make_state_dict("switch.heater", "on", last_changed=past.format_iso()),
+        cast("HassStateDict", make_state_dict("switch.heater", "on", last_changed=past.format_iso())),
     )
 
     app_level, per_listener = make_error_collector_pair()

@@ -4,13 +4,13 @@ import asyncio
 import functools
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 from unittest.mock import MagicMock
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.commands import InvokeHandler
-from hassette.events import RawStateChangeEvent
-from hassette.events.base import Event
+from hassette.events import HassStateDict, RawStateChangeEvent
+from hassette.events.base import Event, EventPayload
 from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict, wait_for
 
 from .conftest import ASYNC_SAFETY_TIMEOUT
@@ -46,8 +46,16 @@ async def seed(
     """Seed state into the StateProxy."""
     await harness.seed_state(
         entity_id,
-        make_state_dict(entity_id, state_value, attributes=attributes, last_changed=last_changed),
+        cast(
+            "HassStateDict",
+            make_state_dict(entity_id, state_value, attributes=attributes, last_changed=last_changed),
+        ),
     )
+
+
+def mock_bus_executor(harness: HassetteHarness) -> MagicMock:
+    """The harness's mocked ``CommandExecutor`` behind ``harness.bus_service``."""
+    return cast("MagicMock", harness.bus_service._executor)
 
 
 def make_collector(
@@ -259,11 +267,11 @@ async def send_through_mock_executor(
     until ``len(bus.task_bucket) == 0``, and ``"execute_called"`` until ``execute.called``. These
     are not interchangeable, so each call site names the condition it was written against.
     """
-    execute = harness.bus_service._executor.execute
+    execute = mock_bus_executor(harness).execute
     execute.reset_mock()
 
     for payload in BURST_PAYLOADS if burst else ("test-payload",):
-        await harness.send_event(Event(topic=topic, payload=payload))
+        await harness.send_event(Event(topic=topic, payload=EventPayload(data=payload)))
 
     await asyncio.wait_for(handled.wait(), timeout=1.0)
 

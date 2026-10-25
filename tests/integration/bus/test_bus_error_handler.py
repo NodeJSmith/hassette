@@ -1,10 +1,9 @@
 """Integration tests for bus error handler precedence and routing via HassetteHarness."""
 
 import asyncio
-from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
-from hassette.events.base import AnyEvent, Event
+from hassette.events.base import AnyEvent, Event, EventPayload
 from hassette.testing import create_call_service_event, wait_for
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, settle
 
@@ -27,7 +26,7 @@ async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "Has
     bus.on_error(errors.bound(hassette))
     await bus.on(topic="test.app_level", handler=bad_handler, name="app_level_bad_handler")
 
-    event = Event(topic="test.app_level", payload=SimpleNamespace())
+    event = Event(topic="test.app_level", payload=EventPayload(data=None))
     await hassette.send_event(event)
 
     await errors.wait()
@@ -56,7 +55,7 @@ async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarne
         name="per_listener_bad_handler",
     )
 
-    event = Event(topic="test.per_listener", payload=SimpleNamespace())
+    event = Event(topic="test.per_listener", payload=EventPayload(data=None))
     await hassette.send_event(event)
 
     await per_listener.wait()
@@ -80,7 +79,7 @@ async def test_no_handler_framework_default_behavior(hassette_with_bus: "Hassett
 
     await bus.on(topic="test.no_handler", handler=bad_handler, name="no_handler_bad_handler")
 
-    event = Event(topic="test.no_handler", payload=SimpleNamespace())
+    event = Event(topic="test.no_handler", payload=EventPayload(data=None))
     await hassette.send_event(event)
 
     # Handler ran (exception was raised) and harness didn't crash
@@ -105,8 +104,8 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
     await bus.on(topic="test.multi_a", handler=fail_a, on_error=errors_a.bound(hassette), name="multi_fail_a")
     await bus.on(topic="test.multi_b", handler=fail_b, on_error=errors_b.bound(hassette), name="multi_fail_b")
 
-    await hassette.send_event(Event(topic="test.multi_a", payload=SimpleNamespace()))
-    await hassette.send_event(Event(topic="test.multi_b", payload=SimpleNamespace()))
+    await hassette.send_event(Event(topic="test.multi_a", payload=EventPayload(data=None)))
+    await hassette.send_event(Event(topic="test.multi_b", payload=EventPayload(data=None)))
 
     await errors_a.wait()
     await errors_b.wait()
@@ -131,7 +130,7 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
     # Register error handler AFTER the listener
     bus.on_error(errors.bound(hassette))
 
-    event = Event(topic="test.late_registration", payload=SimpleNamespace())
+    event = Event(topic="test.late_registration", payload=EventPayload(data=None))
     await hassette.send_event(event)
 
     await errors.wait()
@@ -158,8 +157,8 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
 
     bus.on_error(errors.bound(hassette))
 
-    await hassette.send_event(Event(topic="test.multi_late.a", payload=SimpleNamespace()))
-    await hassette.send_event(Event(topic="test.multi_late.b", payload=SimpleNamespace()))
+    await hassette.send_event(Event(topic="test.multi_late.a", payload=EventPayload(data=None)))
+    await hassette.send_event(Event(topic="test.multi_late.b", payload=EventPayload(data=None)))
 
     await errors.wait()
 

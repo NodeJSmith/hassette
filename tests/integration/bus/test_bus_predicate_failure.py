@@ -8,15 +8,16 @@ Verifies that a raising where= predicate on a bus listener:
 """
 
 import asyncio
-from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from hassette_wire import ExecutionStatus
 
 from hassette.bus.error_context import BusErrorContext
-from hassette.events.base import AnyEvent, Event
+from hassette.events.base import AnyEvent, Event, EventPayload
 from hassette.testing import create_state_change_event, wait_for
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
+
+from .helpers import mock_bus_executor
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
@@ -26,7 +27,7 @@ async def test_predicate_failure_enqueues_error_record(hassette_with_bus: "Hasse
     """A raising predicate produces an ExecutionRecord with status='error'."""
     hassette = hassette_with_bus
     bus = hassette.bus
-    executor = hassette.bus_service._executor
+    executor = mock_bus_executor(hassette)
 
     executor.enqueue_record.reset_mock()
 
@@ -38,7 +39,7 @@ async def test_predicate_failure_enqueues_error_record(hassette_with_bus: "Hasse
 
     await bus.on(topic="test.pred_record", handler=handler, where=bad_predicate, name="pred_record")
 
-    event = Event(topic="test.pred_record", payload=SimpleNamespace())
+    event = Event(topic="test.pred_record", payload=EventPayload(data=None))
     await hassette.send_event(event)
     await wait_for(lambda: executor.enqueue_record.call_count > 0, desc="record enqueued")
 
@@ -56,7 +57,7 @@ async def test_predicate_failure_invokes_per_listener_error_handler(hassette_wit
     """A raising predicate routes to the per-listener on_error handler."""
     hassette = hassette_with_bus
     bus = hassette.bus
-    executor = hassette.bus_service._executor
+    executor = mock_bus_executor(hassette)
 
     executor.invoke_error_handler.reset_mock()
     executor.enqueue_record.reset_mock()
@@ -78,7 +79,7 @@ async def test_predicate_failure_invokes_per_listener_error_handler(hassette_wit
         name="pred_per_listener",
     )
 
-    event = Event(topic="test.pred_per_listener", payload=SimpleNamespace())
+    event = Event(topic="test.pred_per_listener", payload=EventPayload(data=None))
     await hassette.send_event(event)
     await wait_for(lambda: executor.invoke_error_handler.call_count > 0, desc="error handler invoked")
 
@@ -98,7 +99,7 @@ async def test_predicate_failure_invokes_app_level_error_handler(hassette_with_b
     """When no per-listener handler exists, predicate failure routes to the app-level handler."""
     hassette = hassette_with_bus
     bus = hassette.bus
-    executor = hassette.bus_service._executor
+    executor = mock_bus_executor(hassette)
 
     executor.invoke_error_handler.reset_mock()
 
@@ -119,7 +120,7 @@ async def test_predicate_failure_invokes_app_level_error_handler(hassette_with_b
         name="pred_app_level",
     )
 
-    event = Event(topic="test.pred_app_level", payload=SimpleNamespace())
+    event = Event(topic="test.pred_app_level", payload=EventPayload(data=None))
     await hassette.send_event(event)
     await wait_for(lambda: executor.invoke_error_handler.call_count > 0, desc="app-level error handler invoked")
 
@@ -147,7 +148,7 @@ async def test_predicate_failure_does_not_crash_sibling_listeners(hassette_with_
     await bus.on(topic="test.pred_isolation", handler=bad_handler, where=bad_predicate, name="pred_isolation_bad")
     await bus.on(topic="test.pred_isolation", handler=good_handler, name="pred_isolation_good")
 
-    event = Event(topic="test.pred_isolation", payload=SimpleNamespace())
+    event = Event(topic="test.pred_isolation", payload=EventPayload(data=None))
     await hassette.send_event(event)
 
     await asyncio.wait_for(sibling_ran.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
@@ -157,7 +158,7 @@ async def test_predicate_failure_no_error_handler_still_records(hassette_with_bu
     """When no error handler is registered, predicate failure still records but doesn't crash."""
     hassette = hassette_with_bus
     bus = hassette.bus
-    executor = hassette.bus_service._executor
+    executor = mock_bus_executor(hassette)
 
     bus._error_handler = None
     executor.enqueue_record.reset_mock()
@@ -171,7 +172,7 @@ async def test_predicate_failure_no_error_handler_still_records(hassette_with_bu
 
     await bus.on(topic="test.pred_no_handler", handler=handler, where=bad_predicate, name="pred_no_handler")
 
-    event = Event(topic="test.pred_no_handler", payload=SimpleNamespace())
+    event = Event(topic="test.pred_no_handler", payload=EventPayload(data=None))
     await hassette.send_event(event)
     await wait_for(lambda: executor.enqueue_record.call_count > 0, desc="record enqueued without error handler")
 
@@ -191,7 +192,7 @@ async def test_glob_listener_predicate_failure_recorded_once(hassette_with_bus: 
     """
     hassette = hassette_with_bus
     bus = hassette.bus
-    executor = hassette.bus_service._executor
+    executor = mock_bus_executor(hassette)
 
     bus._error_handler = None
     executor.enqueue_record.reset_mock()
