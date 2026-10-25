@@ -14,7 +14,7 @@ __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and
     "FatalError", "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning",
     "HassetteNotInitializedError", "HttpRequestError",
     "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError",
-    "InvalidEntityIdError", "InvalidInheritanceError", "InvalidLifecycleTransitionError", "JobRemovedError",
+    "InvalidEntityIdError", "InvalidInheritanceError", "JobRemovedError",
     "LifecycleReentryError", "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError",
     "RegistryNotReadyError", "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError",
     "ResponseTimeoutError", "RestartRefusedError", "RetryableConnectionClosedError", "SchedulerNameRequiredError",
@@ -591,25 +591,6 @@ class InvalidEntityIdError(StateRegistryError):
 
 class UnableToConvertValueError(HassetteError):
     """Raised when a raw value cannot be converted from one type to another via the TypeRegistry."""
-
-
-class InvalidLifecycleTransitionError(HassetteError):
-    """Raised when a ResourceStatus transition is invalid in strict lifecycle mode.
-
-    Only raised when ``HassetteConfig.strict_lifecycle`` is True. In non-strict
-    mode the same condition logs a WARNING instead.
-
-    Attributes:
-        from_status: The status the resource was in before the attempted transition.
-        to_status: The status the resource was attempting to transition to.
-        resource_name: The unique_name of the resource that made the invalid transition.
-    """
-
-    def __init__(self, from_status: Any, to_status: Any, resource_name: str) -> None:
-        self.from_status = from_status
-        self.to_status = to_status
-        self.resource_name = resource_name
-        super().__init__(f"Invalid lifecycle transition for '{resource_name}': {from_status!r} → {to_status!r}")
 
 
 class RestartRefusedError(FatalError):

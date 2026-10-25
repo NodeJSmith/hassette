@@ -299,12 +299,10 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
 
     if resource.status in TERMINAL_STATUSES:
         # The resource already reached a terminal end-state: STOPPED (clean finish) or
-        # EXHAUSTED_DEAD (permanent restart-budget failure). A late error does not retroactively
-        # un-stop it, so failing it is benign — and VALID_TRANSITIONS forbids both → FAILED.
+        # EXHAUSTED_DEAD (permanent restart-budget failure). A late error on an already-terminal
+        # resource must not move it to FAILED: it does not retroactively un-stop the resource.
         # This happens during teardown when a submit-after-shutdown error ("cannot schedule new
-        # futures after shutdown") surfaces on an already-stopped resource; driving it to FAILED
-        # would raise InvalidLifecycleTransitionError under strict_lifecycle — the error that
-        # escaped harness teardown and leaked the global Hassette singleton on Python 3.11.
+        # futures after shutdown") surfaces on an already-stopped resource.
         # Only terminal end-states are guarded. Non-terminal states (NOT_STARTED, STARTING,
         # RUNNING, STOPPING, EXHAUSTED_COOLING) keep failing normally — a failure there is real,
         # and callers do invoke handle_failed() on a not-yet-started resource.

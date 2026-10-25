@@ -229,14 +229,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Default TTL for cache entries in seconds. None means entries persist indefinitely."""
 
     strict_lifecycle: bool = Field(default=False)
-    """Enable strict validation for lifecycle transitions and registries.
+    """Enable strict startup registry validation.
 
-    Controls two subsystems uniformly:
-    - Resource lifecycle: invalid ResourceStatus transitions raise InvalidLifecycleTransitionError
-    - Registry validation: startup issues raise RegistryValidationError
-
-    When False (default), both subsystems log WARNING instead of raising. Invalid WebSocket
-    ConnectionState transitions always log WARNING, regardless of this setting.
+    When True, registry validation issues found at startup raise RegistryValidationError.
+    When False (default), they log WARNING instead. Invalid WebSocket ConnectionState
+    transitions always log WARNING, regardless of this setting.
     The test harness sets this to True by default."""
 
     asyncio_debug_mode: bool = Field(default=False)
