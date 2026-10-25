@@ -31,7 +31,7 @@ from hassette.core.websocket_reconnect import (
     RetryPlan,
 )
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import InvalidLifecycleTransitionError, ResponseLostError
+from hassette.exceptions import ResponseLostError
 from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
@@ -499,20 +499,18 @@ async def test_shutdown_during_connected_observers_emits_no_unpaired_disconnecte
     assert len(disconnected_notified) == 1
 
 
-async def test_invalid_lifecycle_transition_propagates_out_of_serve(
+async def test_memory_error_propagates_out_of_serve(
     websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
 ) -> None:
-    """Strict-mode lifecycle bugs are never retried: they leave serve() and fail the test that hit them."""
+    """A MemoryError is never retried: it leaves serve() instead of feeding the reconnect loop."""
 
     async def broken_connection(_session: Any) -> None:
-        raise InvalidLifecycleTransitionError(
-            from_status=ConnectionState.CONNECTED, to_status=ConnectionState.CONNECTED, resource_name="test"
-        )
+        raise MemoryError
 
     websocket_service.run_connection = broken_connection  # pyright: ignore[reportAttributeAccessIssue]
 
     async with serving(websocket_service, fake_ha) as task:
-        with pytest.raises(InvalidLifecycleTransitionError):
+        with pytest.raises(MemoryError):
             await asyncio.wait_for(task, timeout=WAIT_SECONDS)
 
 

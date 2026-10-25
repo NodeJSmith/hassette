@@ -26,7 +26,6 @@ import aiohttp
 from hassette.exceptions import (
     HassetteError,
     InvalidAuthError,
-    InvalidLifecycleTransitionError,
     RetryableConnectionClosedError,
 )
 
@@ -114,7 +113,7 @@ CORE_NOT_RUNNING_REASON = "Home Assistant core state is {}, waiting for RUNNING"
 FIRST_CONNECT_HINT = "Check that base_url points at your Home Assistant instance and that it is running."
 """D11: appended to outage logs until a connection has ever succeeded."""
 
-PROPAGATED_EXCEPTIONS: tuple[type[BaseException], ...] = (InvalidLifecycleTransitionError, MemoryError)
+PROPAGATED_EXCEPTIONS: tuple[type[BaseException], ...] = (MemoryError,)
 """D9 Propagate: exceptions the loop never catches. Cancellation is a ``BaseException`` and
 passes through on its own."""
 

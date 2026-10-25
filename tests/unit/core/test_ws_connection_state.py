@@ -11,7 +11,7 @@ import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
+from hassette.exceptions import InvalidAuthError, RetryableConnectionClosedError
 from hassette.testing import wait_for
 from hassette.testing.config import TEST_WS_URL
 from hassette.types.enums import ConnectionState
@@ -99,17 +99,16 @@ class TestConnectedGeneration:
 class TestTransitionTable:
     @pytest.mark.parametrize(("old", "new"), ALL_STATE_PAIRS, ids=lambda state: state.value)
     async def test_every_pair_matches_the_ratified_table(
-        self, websocket_service_strict: WebsocketService, old: ConnectionState, new: ConnectionState
+        self, websocket_service: WebsocketService, old: ConnectionState, new: ConnectionState
     ) -> None:
-        websocket_service_strict._connection_state = old
+        """Every pair applies; only pairs outside the ratified table warn."""
+        websocket_service._connection_state = old
+        websocket_service.logger = Mock()
 
-        if (old, new) in ALLOWED_TRANSITIONS:
-            websocket_service_strict.set_connection_state(new)
-            assert websocket_service_strict.connection_state == new
-        else:
-            with pytest.raises(InvalidLifecycleTransitionError):
-                websocket_service_strict.set_connection_state(new)
-            assert websocket_service_strict.connection_state == old
+        websocket_service.set_connection_state(new)
+
+        assert websocket_service.connection_state == new
+        assert websocket_service.logger.warning.called is ((old, new) not in ALLOWED_TRANSITIONS)
 
 
 class TestConnectionStateLogging:
@@ -178,36 +177,25 @@ class TestStartupUrlLogging:
 
 
 class TestInvalidTransitions:
-    async def test_invalid_transition_strict(self, websocket_service_strict: WebsocketService) -> None:
-        """DISCONNECTED → CONNECTED raises InvalidLifecycleTransitionError in strict mode."""
-        websocket_service_strict._connection_state = ConnectionState.DISCONNECTED
-
-        with pytest.raises(InvalidLifecycleTransitionError):
-            websocket_service_strict.set_connection_state(ConnectionState.CONNECTED)
-
-        # State unchanged after invalid transition
-        assert websocket_service_strict.connection_state == ConnectionState.DISCONNECTED
-
-    async def test_invalid_transition_nonstrict(self, websocket_service: WebsocketService) -> None:
-        """DISCONNECTED → CONNECTED logs WARNING in non-strict mode (no raise)."""
+    async def test_invalid_transition_warns_and_applies(self, websocket_service: WebsocketService) -> None:
+        """DISCONNECTED → CONNECTED logs a WARNING and the new state is still applied."""
         websocket_service._connection_state = ConnectionState.DISCONNECTED
+        websocket_service.logger = Mock()
 
-        # Should not raise — non-strict mode only warns
         websocket_service.set_connection_state(ConnectionState.CONNECTED)
 
-        # In non-strict mode the transition is still applied (warn-and-continue)
-        # (this matches the lifecycle mixin behavior)
+        websocket_service.logger.warning.assert_called_once()
         assert websocket_service.connection_state == ConnectionState.CONNECTED
 
-    async def test_invalid_transition_connected_to_connected_is_noop(
-        self, websocket_service_strict: WebsocketService
-    ) -> None:
-        """CONNECTED → CONNECTED is a no-op (self-transition) even in strict mode."""
-        websocket_service_strict._connection_state = ConnectionState.CONNECTED
+    async def test_self_transition_is_a_silent_noop(self, websocket_service: WebsocketService) -> None:
+        """CONNECTED → CONNECTED is not an invalid transition: nothing is logged and the state stays."""
+        websocket_service._connection_state = ConnectionState.CONNECTED
+        websocket_service.logger = Mock()
 
-        # Self-transitions are always silently ignored — they are not invalid transitions
-        websocket_service_strict.set_connection_state(ConnectionState.CONNECTED)
-        assert websocket_service_strict.connection_state == ConnectionState.CONNECTED
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
+
+        websocket_service.logger.warning.assert_not_called()
+        assert websocket_service.connection_state == ConnectionState.CONNECTED
 
 
 @pytest.fixture

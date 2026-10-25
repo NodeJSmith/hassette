@@ -34,7 +34,7 @@ from hassette.core.websocket_reconnect import (
 )
 from hassette.core.websocket_responses import PendingResponses
 from hassette.events import HassetteSimpleEvent, create_event_from_hass
-from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError
+from hassette.exceptions import InvalidAuthError
 from hassette.resources.lifecycle import mark_ready, set_ready_reason
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -202,9 +202,8 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
     def set_connection_state(self, new: ConnectionState) -> None:
         """Transition to a new connection state with validation.
 
-        Validates the transition against WS_VALID_TRANSITIONS. In strict lifecycle mode
-        raises InvalidLifecycleTransitionError for invalid transitions; in non-strict
-        (default) mode logs WARNING. Logs every valid transition at DEBUG with previous state.
+        Validates the transition against WS_VALID_TRANSITIONS. An invalid transition logs a
+        WARNING and is still applied. Logs every transition at DEBUG with the previous state.
 
         Only the first CONNECTED is logged at INFO here, so the Home Assistant connection is
         visible at the default log level. That is the line the quickstart tells a new user to
@@ -213,9 +212,6 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
         Args:
             new: The new connection state to transition to.
-
-        Raises:
-            InvalidLifecycleTransitionError: If the transition is invalid and strict_lifecycle is True.
         """
         old = self._connection_state
         if old == new:
@@ -223,12 +219,6 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
 
         allowed = WS_VALID_TRANSITIONS.get(old, frozenset())
         if new not in allowed:
-            if getattr(self.hassette.config, "strict_lifecycle", False) is True:
-                raise InvalidLifecycleTransitionError(
-                    from_status=old,
-                    to_status=new,
-                    resource_name=self.unique_name,
-                )
             frame_summary = "".join(traceback.format_stack(limit=INVALID_TRANSITION_TRACE_LIMIT)[:-1]).strip()
             self.logger.warning(
                 "Invalid WebSocket connection state transition for '%s': %r → %r\n%s",

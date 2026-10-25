@@ -31,7 +31,7 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 - `mock_registry`, `mock_factory`, `mock_manifest`, `mock_app_instance` — mocked collaborators for lifecycle tests
 - `lifecycle_service` — `AppLifecycleService` built from the mocks above
 - `telemetry_db`, `telemetry_repo`, `telemetry_session_id` — SQLite-backed telemetry test chain
-- `websocket_service`, `websocket_service_strict` — `WebsocketService` on a mocked hassette stub; the `_strict` variant sets `strict_lifecycle=True` so an invalid connection-state transition raises
+- `websocket_service` — `WebsocketService` on a mocked hassette stub
 
 ## Shared helpers and constants (module-level, not fixtures)
 
