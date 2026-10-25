@@ -47,11 +47,10 @@ if typing.TYPE_CHECKING:
 # A wedged write worker stops draining the queue without ever raising, so an unbounded
 # await would park serve() forever and never reach its failure-count escalation.
 # Sized between the two clocks it sits between: comfortably above SQLITE_BUSY_TIMEOUT_MS (5s), so a
-# healthy write merely blocked on the SQLite lock is never mistaken for a wedge, and well under
-# the default heartbeat interval (300s, see DatabaseConfig.heartbeat_interval_seconds), so a
-# timed-out attempt cannot overlap the next tick. Three strikes therefore escalate roughly
-# DatabaseConfig.max_consecutive_heartbeat_failures intervals in.
-_HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
+# healthy write merely blocked on the SQLite lock is never mistaken for a wedge, and under the
+# default heartbeat interval (DatabaseConfig.heartbeat_interval_seconds), so a timed-out attempt
+# cannot overlap the next tick.
+_HEARTBEAT_WRITE_TIMEOUT_SECONDS = 20
 
 _STARTUP_CLEANUP_BUDGET_FRACTION = 0.5
 """Share of ``startup_timeout_seconds`` the startup cleanup catch-up may spend before it yields
@@ -128,6 +127,10 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
     _consecutive_heartbeat_failures: int
     """Counter for consecutive heartbeat failures; triggers RuntimeError after threshold."""
 
+    _progress_at_last_heartbeat: int | None
+    """``_write_progress_count`` when the previous heartbeat attempt finished, or None before the first
+    attempt of this lifecycle. A failed attempt only counts a strike when the count hasn't moved since."""
+
     _db_write_queue: asyncio.Queue[_WriteQueueItem] | None
     """Bounded queue of pending write coroutines; each paired with an optional Future for result delivery."""
 
@@ -164,6 +167,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._read_db = None
         self._db_path = Path()
         self._consecutive_heartbeat_failures = 0
+        self._progress_at_last_heartbeat = None
         self._consecutive_size_triggers = 0
         self._consecutive_exhaustion_triggers = 0
         self._consecutive_parent_guard_skips = 0
@@ -220,6 +224,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
     async def on_initialize(self) -> None:
         """Set up the database: check schema version, run migrations and open connection."""
         self._consecutive_heartbeat_failures = 0
+        self._progress_at_last_heartbeat = None
         self._consecutive_size_triggers = 0
         self._consecutive_exhaustion_triggers = 0
         self._consecutive_parent_guard_skips = 0
@@ -559,11 +564,14 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         never raises, so without this outer bound serve() would park on submit() forever and
         never reach its failure-count escalation. Either timeout surfaces as the same
         TimeoutError: the queue was backed up past its limit, or the worker is wedged.
-        A timeout, or a WriteQueueUnavailableError from submit(), counts as a heartbeat failure
-        identically to a raised sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
+        A timeout, or a WriteQueueUnavailableError from submit(), is a failed attempt identically to a
+        raised sqlite3.Error/OSError/ValueError. A failed attempt counts a strike only when
+        _write_progress_count has not moved since the previous attempt finished (or, on the first
+        attempt, since this one started): a worker still committing writes, such as a long batched
+        retention pass holding the queue, is busy rather than stuck and must not be restarted.
 
         This method is the only place _consecutive_heartbeat_failures moves, so one attempt
-        costs exactly one strike. Counting the timeout here and the raise inside the queued
+        costs at most one strike. Counting the timeout here and the raise inside the queued
         coroutine would let a single slow-then-failing write consume two of the three,
         restarting the service a full heartbeat interval early.
         """
@@ -575,28 +583,50 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             _ = self.hassette.session_id
         except RuntimeError:
             return
-        max_consecutive_heartbeat_failures = self.hassette.config.database.max_consecutive_heartbeat_failures
+        progress_baseline = self._progress_at_last_heartbeat
+        if progress_baseline is None:
+            progress_baseline = self._write_progress_count
         try:
             async with asyncio.timeout(_HEARTBEAT_WRITE_TIMEOUT_SECONDS):
                 await self.submit(self._do_update_heartbeat())
-        except TimeoutError:
-            self._consecutive_heartbeat_failures += 1
-            self.logger.exception(
-                "Heartbeat write timed out — write queue backed up or worker wedged (failure %d/%d)",
-                self._consecutive_heartbeat_failures,
-                max_consecutive_heartbeat_failures,
+        except TimeoutError as exc:
+            self.record_heartbeat_failure(
+                "Heartbeat write timed out — write queue backed up or worker wedged", exc, progress_baseline
             )
-        except (sqlite3.Error, OSError, ValueError, WriteQueueUnavailableError):
-            self._consecutive_heartbeat_failures += 1
-            self.logger.exception(
-                "Failed to update heartbeat (failure %d/%d)",
-                self._consecutive_heartbeat_failures,
-                max_consecutive_heartbeat_failures,
-            )
+        except (sqlite3.Error, OSError, ValueError, WriteQueueUnavailableError) as exc:
+            self.record_heartbeat_failure("Failed to update heartbeat", exc, progress_baseline)
         else:
             if self._consecutive_heartbeat_failures > 0:
                 self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
                 self._consecutive_heartbeat_failures = 0
+        finally:
+            self._progress_at_last_heartbeat = self._write_progress_count
+
+    def record_heartbeat_failure(self, message: str, exc: BaseException, progress_baseline: int) -> None:
+        """Count a strike for a failed heartbeat attempt unless writes progressed past ``progress_baseline``.
+
+        ``exc`` is the attempt's failure; its traceback is attached to the logged entry either way.
+        """
+        max_failures = self.hassette.config.database.max_consecutive_heartbeat_failures
+        progress = self._write_progress_count - progress_baseline
+        if progress > 0:
+            self.logger.warning(
+                "%s, but %d write(s) completed since the previous attempt; not counted (failures %d/%d)",
+                message,
+                progress,
+                self._consecutive_heartbeat_failures,
+                max_failures,
+                exc_info=exc,
+            )
+            return
+        self._consecutive_heartbeat_failures += 1
+        self.logger.error(
+            "%s with no write progress since the previous attempt (failure %d/%d)",
+            message,
+            self._consecutive_heartbeat_failures,
+            max_failures,
+            exc_info=exc,
+        )
 
     async def _do_update_heartbeat(self) -> None:
         """Execute the heartbeat DB write; called by the write-queue worker.
