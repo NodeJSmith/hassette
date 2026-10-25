@@ -44,6 +44,7 @@ from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolE
 from hassette.task_bucket.task_bucket import TaskBucket
 from tests.unit.conftest import (
     TEST_TOKEN,
+    live_pool,
     make_service,
     make_sync_executor_hassette,
     submit_busy_worker,
@@ -54,7 +55,7 @@ from tests.unit.conftest import (
 
 def shutdown_pool(svc: SyncExecutorService) -> None:
     """Tear down the service's pool without the join/interrupt loop — teardown, not under test."""
-    svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+    live_pool(svc.sync_executor).shutdown(join_threads_or_timeout=False)
 
 
 async def cancel_serve_task(task: "asyncio.Task[None]") -> None:
@@ -93,7 +94,7 @@ def saturation_probe(
     try:
         yield sync_executor, _capture_saturation_warnings(sync_executor)
     finally:
-        sync_executor.executor.shutdown(join_threads_or_timeout=False)
+        live_pool(sync_executor).shutdown(join_threads_or_timeout=False)
 
 
 # async_raise(SystemExit) into a worker stuck in a C-level call (time.sleep) deadlocks under
@@ -113,13 +114,14 @@ class TestOnShutdown:
         svc = make_service()
 
         shutdown_calls: list[dict] = []
-        original_shutdown = svc.sync_executor.executor.shutdown
+        pool = live_pool(svc.sync_executor)
+        original_shutdown = pool.shutdown
 
         def recording_shutdown(*args: object, **kwargs: object) -> None:
             shutdown_calls.append({"args": args, "kwargs": kwargs})
             original_shutdown(join_threads_or_timeout=False)
 
-        svc.sync_executor.executor.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+        pool.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         await svc.on_shutdown()
 
@@ -140,7 +142,7 @@ class TestOnShutdown:
         await svc.on_shutdown()
 
         with pytest.raises(RuntimeError, match="cannot schedule new futures after shutdown"):
-            svc.sync_executor.executor.submit(lambda: None)
+            live_pool(svc.sync_executor).submit(lambda: None)
 
 
 # Module-level constant relationship (probe interval >= suppress window)
@@ -234,8 +236,8 @@ class TestSubmissionTimeSaturationWarning:
                 ready2.set()
                 gate.wait(timeout=5)
 
-            sync_executor.executor.submit(block1)
-            sync_executor.executor.submit(block2)
+            live_pool(sync_executor).submit(block1)
+            live_pool(sync_executor).submit(block2)
             ready1.wait(timeout=2)
             ready2.wait(timeout=2)
 
@@ -252,7 +254,7 @@ class TestSubmissionTimeSaturationWarning:
 
         finally:
             gate.set()
-            sync_executor.executor.shutdown(join_threads_or_timeout=False)
+            live_pool(sync_executor).shutdown(join_threads_or_timeout=False)
 
     def test_warning_not_fired_below_threshold(self) -> None:
         """No WARNING is emitted when pool occupancy is below 75%."""
@@ -390,7 +392,7 @@ class TestPeriodicSaturationProbe:
 
         try:
             # Fill pool so saturation check would fire
-            svc.sync_executor.executor.submit(lambda: (ready.set(), gate.wait(timeout=10)))
+            live_pool(svc.sync_executor).submit(lambda: (ready.set(), gate.wait(timeout=10)))
             ready.wait(timeout=2)
             # Simulate full saturation via active counter
             svc.sync_executor._outstanding_submissions = 1
@@ -476,7 +478,7 @@ class TestShutdownInterruptsPythonWorker:
         """SyncExecutorService.on_shutdown() completes with a Python busy-loop worker."""
         svc = make_service(max_workers=1)
         terminated = threading.Event()
-        submit_busy_worker(svc.sync_executor.executor, terminated=terminated, reraise=True)
+        submit_busy_worker(live_pool(svc.sync_executor), terminated=terminated, reraise=True)
 
         # on_shutdown runs executor.shutdown in a thread so the event loop stays live
         await asyncio.wait_for(svc.on_shutdown(), timeout=5.0)
@@ -530,7 +532,7 @@ class TestShutdownCBlockedWorker:
     async def test_on_shutdown_c_blocked_completes_within_budget(self) -> None:
         """SyncExecutorService.on_shutdown() completes within budget with a C-blocked worker."""
         svc = make_service(max_workers=1)
-        submit_c_blocked_worker(svc.sync_executor.executor)
+        submit_c_blocked_worker(live_pool(svc.sync_executor))
 
         wall_start = time.monotonic()
         # The fixed join cap is clamped to what is left of the shutdown deadline: 1.0s here.
@@ -548,7 +550,7 @@ class TestConfigBehavior:
     def test_custom_max_workers_is_respected(self) -> None:
         """Executor uses the configured max_workers ceiling."""
         svc = make_service(max_workers=3)
-        assert svc.sync_executor.executor._max_workers == 3  # pyright: ignore[reportAttributeAccessIssue]
+        assert live_pool(svc.sync_executor)._max_workers == 3
         shutdown_pool(svc)
 
     def test_default_max_workers_is_reasonable(self) -> None:
@@ -562,13 +564,14 @@ class TestConfigBehavior:
         svc = make_service(max_workers=2)
 
         shutdown_kwargs: list[dict[str, Any]] = []
-        original = svc.sync_executor.executor.shutdown
+        pool = live_pool(svc.sync_executor)
+        original = pool.shutdown
 
         def recording_shutdown(**kwargs: Any) -> None:
             shutdown_kwargs.append(kwargs)
             original(join_threads_or_timeout=False)
 
-        svc.sync_executor.executor.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+        pool.shutdown = recording_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         async def run() -> None:
             svc._shutdown_deadline = deadline_in(3.7)
@@ -637,7 +640,7 @@ class TestTrackSubmission:
                 blocking_gate.wait(timeout=5)
 
             loop = asyncio.get_running_loop()
-            future: asyncio.Future[None] = loop.run_in_executor(sync_executor.executor, blocking_work)
+            future: asyncio.Future[None] = loop.run_in_executor(live_pool(sync_executor), blocking_work)
             sync_executor.track_submission(future)
 
             ready.wait(timeout=2)
@@ -654,7 +657,7 @@ class TestTrackSubmission:
             )
 
         finally:
-            sync_executor.executor.shutdown(join_threads_or_timeout=False)
+            live_pool(sync_executor).shutdown(join_threads_or_timeout=False)
 
     @pytest.mark.anyio
     async def test_run_in_thread_calls_saturation_check(self) -> None:

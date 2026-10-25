@@ -123,6 +123,12 @@ def make_service(
     return SyncExecutorService(mock_hassette)
 
 
+def live_pool(sync_executor: SyncExecutor) -> InterruptibleThreadPoolExecutor:
+    """Return the executor's thread pool, failing the test if no pool has been built."""
+    assert sync_executor.executor is not None, "SyncExecutor has no pool; rebuild_pool() was never called"
+    return sync_executor.executor
+
+
 def make_api() -> Api:
     """Create an Api instance with mocked WebSocket and REST layers.
 

@@ -14,6 +14,7 @@ Saturation warnings, shutdown-interruption, and config-driven behavior tests liv
 test_sync_executor_service_saturation.py.
 """
 
+from collections.abc import AsyncIterator
 from contextvars import ContextVar
 from typing import ClassVar
 
@@ -32,7 +33,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.types.enums import RestartType
 from hassette.utils.service_utils import validate_dependency_graph
-from tests.unit.conftest import make_service, make_sync_executor_config, make_sync_executor_hassette
+from tests.unit.conftest import live_pool, make_service, make_sync_executor_config, make_sync_executor_hassette
 
 
 class TestSyncExecutorServiceClassAttrs:
@@ -82,7 +83,7 @@ class TestExecutorConstruction:
         svc = SyncExecutorService(mock_hassette)
         assert svc.sync_executor.executor is not None
         assert isinstance(svc.sync_executor.executor, InterruptibleThreadPoolExecutor)
-        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+        live_pool(svc.sync_executor).shutdown(join_threads_or_timeout=False)
 
     @pytest.mark.anyio
     async def test_on_initialize_rebuilds_pool(self) -> None:
@@ -91,7 +92,7 @@ class TestExecutorConstruction:
         """
         mock_hassette = make_sync_executor_hassette(max_workers=3)
         svc = SyncExecutorService(mock_hassette)
-        pool_before_initialize = svc.sync_executor.executor
+        pool_before_initialize = live_pool(svc.sync_executor)
 
         await svc.on_initialize()
 
@@ -99,30 +100,30 @@ class TestExecutorConstruction:
         assert isinstance(svc.sync_executor.executor, InterruptibleThreadPoolExecutor)
         assert svc.sync_executor.executor is not pool_before_initialize
         pool_before_initialize.shutdown(join_threads_or_timeout=False)
-        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+        live_pool(svc.sync_executor).shutdown(join_threads_or_timeout=False)
 
     @pytest.mark.anyio
     async def test_executor_uses_config_max_workers(self) -> None:
         """Executor is constructed with max_workers from lifecycle config."""
         mock_hassette = make_sync_executor_hassette(max_workers=7)
         svc = SyncExecutorService(mock_hassette)
-        pool_before_initialize = svc.sync_executor.executor
+        pool_before_initialize = live_pool(svc.sync_executor)
 
         await svc.on_initialize()
 
-        assert svc.sync_executor.executor._max_workers == 7  # pyright: ignore[reportAttributeAccessIssue]
+        assert live_pool(svc.sync_executor)._max_workers == 7
         pool_before_initialize.shutdown(join_threads_or_timeout=False)
-        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+        live_pool(svc.sync_executor).shutdown(join_threads_or_timeout=False)
 
     def test_executor_thread_name_prefix(self) -> None:
         """Worker threads get the 'hassette-sync' prefix for identifiability in logs."""
         svc = make_service()
 
-        future = svc.sync_executor.executor.submit(lambda: None)
+        future = live_pool(svc.sync_executor).submit(lambda: None)
         future.result(timeout=2.0)
-        thread_names = {t.name for t in svc.sync_executor.executor._threads}  # pyright: ignore[reportAttributeAccessIssue]
+        thread_names = {t.name for t in live_pool(svc.sync_executor)._threads}
         assert all("hassette-sync" in name for name in thread_names)
-        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+        live_pool(svc.sync_executor).shutdown(join_threads_or_timeout=False)
 
     @pytest.mark.anyio
     async def test_restart_rebuilds_executor(self) -> None:
@@ -134,11 +135,11 @@ class TestExecutorConstruction:
         mock_hassette = make_sync_executor_hassette(max_workers=2)
         svc = SyncExecutorService(mock_hassette)
         sync_executor = svc.sync_executor
-        pool_at_birth = sync_executor.executor
+        pool_at_birth = live_pool(sync_executor)
         await svc.on_initialize()
         pool_at_birth.shutdown(join_threads_or_timeout=False)
 
-        first_executor = svc.sync_executor.executor
+        first_executor = live_pool(svc.sync_executor)
         result: list[str] = []
         future = first_executor.submit(lambda: result.append("before"))
         future.result(timeout=2.0)
@@ -154,11 +155,11 @@ class TestExecutorConstruction:
         assert svc.sync_executor.executor is not first_executor, "the pool itself must be rebuilt"
 
         result.clear()
-        future = svc.sync_executor.executor.submit(lambda: result.append("after"))
+        future = live_pool(svc.sync_executor).submit(lambda: result.append("after"))
         future.result(timeout=2.0)
         assert result == ["after"]
 
-        svc.sync_executor.executor.shutdown(join_threads_or_timeout=False)
+        live_pool(svc.sync_executor).shutdown(join_threads_or_timeout=False)
 
 
 class TestDependencyGraph:
@@ -212,16 +213,16 @@ def isolated_hassette_context(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
-async def wired_hassette(isolated_hassette_context: object) -> Hassette:  # noqa: ARG001
+async def wired_hassette(isolated_hassette_context: object) -> AsyncIterator[Hassette]:  # noqa: ARG001
     config = make_sync_executor_config()
     h = Hassette(config)
     h.wire_services()
-    yield h  # pyright: ignore[reportReturnType]
+    yield h
     if h._sync_executor_service is not None and h._sync_executor_service.sync_executor.executor is not None:
         h._sync_executor_service.sync_executor.executor.shutdown(join_threads_or_timeout=False)
     if h._bus_service is not None and not h._bus_service.stream._closed:
         await h._bus_service.stream.aclose()
-    if not h._event_stream_service.event_streams_closed:
+    if h._event_stream_service is not None and not h._event_stream_service.event_streams_closed:
         await h._event_stream_service.close_streams()
 
 
@@ -255,6 +256,7 @@ class TestWireServicesRegistration:
     def test_child_task_buckets_get_sync_executor_from_factory(self, wired_hassette: Hassette) -> None:
         """Children created after wire_services() get _sync_executor via the TaskBucket factory."""
         bus_svc = wired_hassette._bus_service
+        assert bus_svc is not None
         assert bus_svc.task_bucket._sync_executor is wired_hassette.sync_executor
 
     def test_wire_services_graph_validates_without_error(self, wired_hassette: Hassette) -> None:
@@ -326,13 +328,13 @@ class TestShutdownOrderingRegression:
         # The executor itself has NOT been shut down yet — it outlives consumers.
         # An AppSync on_shutdown hook submits sync work at this point.
         result: list[str] = []
-        future = svc.sync_executor.executor.submit(lambda: result.append("ran"))
+        future = live_pool(svc.sync_executor).submit(lambda: result.append("ran"))
         future.result(timeout=2.0)
 
         assert result == ["ran"], "Sync work submitted during consumer shutdown must complete"
 
         # Now shut down the executor (what SyncExecutorService.on_shutdown does).
-        svc.sync_executor.executor.shutdown(timeout=2.0)
+        live_pool(svc.sync_executor).shutdown(timeout=2.0)
 
     def test_submit_after_executor_shutdown_raises(self) -> None:
         """Confirms baseline: submitting to a *closed* executor raises RuntimeError.
@@ -340,7 +342,7 @@ class TestShutdownOrderingRegression:
         This is the failure mode the depends_on ordering prevents.
         """
         svc = make_service()
-        svc.sync_executor.executor.shutdown(timeout=1.0)
+        live_pool(svc.sync_executor).shutdown(timeout=1.0)
 
         with pytest.raises(RuntimeError, match="cannot schedule new futures after shutdown"):
-            svc.sync_executor.executor.submit(lambda: None)
+            live_pool(svc.sync_executor).submit(lambda: None)

@@ -1,10 +1,13 @@
 """Unit tests for topological_sort() in hassette.utils.service_utils."""
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import pytest
 
 from hassette.utils import topological_sort
+
+if TYPE_CHECKING:
+    from hassette.resources.base import Resource
 
 # These are plain classes that satisfy the `getattr(node, 'depends_on', [])`
 # contract. They do NOT subclass the real Resource (which requires a live
@@ -13,6 +16,13 @@ from hassette.utils import topological_sort
 
 class StubBase:
     """Minimal stub base so stubs share a common ancestor for isinstance checks."""
+
+    depends_on: ClassVar[list[type["StubBase"]]] = []
+
+
+def sort_stubs(types: list[type[StubBase]]) -> list[type[StubBase]]:
+    """Call topological_sort on stub classes, which satisfy its duck-typed contract but not its annotation."""
+    return cast("list[type[StubBase]]", topological_sort(cast("list[type[Resource]]", types)))
 
 
 class A(StubBase):
@@ -33,13 +43,13 @@ class D(StubBase):
 
 def test_empty_list():
     """Empty input returns empty output."""
-    result = topological_sort([])
+    result = sort_stubs([])
     assert result == []
 
 
 def test_single_node_no_deps():
     """Single node with no deps is returned as-is."""
-    result = topological_sort([A])
+    result = sort_stubs([A])
     assert result == [A]
 
 
@@ -57,7 +67,7 @@ def test_linear_chain():
     class Leaf(StubBase):
         depends_on: ClassVar[list] = [Mid]
 
-    result = topological_sort([Leaf, Mid, Root])
+    result = sort_stubs([Leaf, Mid, Root])
     # Root must come before Mid, Mid before Leaf
     assert result.index(Root) < result.index(Mid)
     assert result.index(Mid) < result.index(Leaf)
@@ -69,7 +79,7 @@ def test_diamond():
     """Diamond: D depends on B and C, both depend on A.
     Expected: A before B and C, B and C before D.
     """
-    result = topological_sort([A, B, C, D])
+    result = sort_stubs([A, B, C, D])
     assert A in result
     assert B in result
     assert C in result
@@ -96,7 +106,7 @@ def test_cycle_raises():
     CycleB.depends_on = [CycleA]
 
     with pytest.raises(ValueError, match=r"Cycle detected:.*CycleA.*CycleB|Cycle detected:.*CycleB.*CycleA"):
-        topological_sort([CycleA, CycleB])
+        sort_stubs([CycleA, CycleB])
 
 
 def test_self_dependency_raises():
@@ -108,7 +118,7 @@ def test_self_dependency_raises():
     SelfDep.depends_on = [SelfDep]
 
     with pytest.raises(ValueError, match="SelfDep"):
-        topological_sort([SelfDep])
+        sort_stubs([SelfDep])
 
 
 def test_disconnected_components():
@@ -123,7 +133,7 @@ def test_disconnected_components():
     class Isolated3(StubBase):
         depends_on: ClassVar[list] = []
 
-    result = topological_sort([Isolated1, Isolated2, Isolated3])
+    result = sort_stubs([Isolated1, Isolated2, Isolated3])
     assert set(result) == {Isolated1, Isolated2, Isolated3}
     assert len(result) == 3
 
@@ -140,7 +150,7 @@ def test_disconnected_with_dep_chain():
     class Dependent(StubBase):
         depends_on: ClassVar[list] = [Root]
 
-    result = topological_sort([Standalone, Dependent, Root])
+    result = sort_stubs([Standalone, Dependent, Root])
     assert set(result) == {Standalone, Dependent, Root}
     assert result.index(Root) < result.index(Dependent)
 
@@ -164,11 +174,11 @@ def test_stable_ordering():
 
     # All four are roots — no deps between them.
     # They should appear in input order: R1, R2, R3, R4
-    result = topological_sort([R1, R2, R3, R4])
+    result = sort_stubs([R1, R2, R3, R4])
     assert result == [R1, R2, R3, R4]
 
     # Different input order → different (but still stable) output
-    result2 = topological_sort([R3, R1, R4, R2])
+    result2 = sort_stubs([R3, R1, R4, R2])
     assert result2 == [R3, R1, R4, R2]
 
 
@@ -184,7 +194,7 @@ def test_deps_not_in_input_are_excluded():
         depends_on: ClassVar[list] = [External]
 
     # External is NOT in the input list
-    result = topological_sort([GivenNode])
+    result = sort_stubs([GivenNode])
     assert result == [GivenNode]
     assert External not in result
 
@@ -202,4 +212,4 @@ def test_cycle_error_message_format():
     Y.depends_on = [X]
 
     with pytest.raises(ValueError, match=r"Cycle detected:.*→"):
-        topological_sort([X, Y])
+        sort_stubs([X, Y])
