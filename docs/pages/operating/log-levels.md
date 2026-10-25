@@ -68,6 +68,8 @@ Console and compact lines name what each line is about in one bracketed column b
 
 Console lines carry nothing else. App key, listener and job IDs, and the full execution ID are in JSON output and in the telemetry database.
 
+A JSON line logged with `stack_info=True` carries the call stack under `stack`. A JSON line logged with an exception carries the formatted traceback under `exception`. Both keys work the same for `logging` loggers (such as `self.logger`) and structlog loggers.
+
 `log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `log_level`. `DEBUG` makes debug output queryable via `hassette log` and visible on the dashboard.
 
 Persistence can never be stricter than what's actually being logged. Setting `log_persistence_level` above `log_level` (e.g. `WARNING` while `log_level` stays `INFO`) is a configuration error, because records shown in the console would be missing from the log view. Left unset, it follows `log_level`, so raising `log_level` to `DEBUG` lowers the persistence floor with it.

@@ -2,7 +2,8 @@
 
 Generates activity data for screenshots and visual QA. Triggers state
 changes on demo entities to fire other apps' event handlers, and includes
-a configurable failing job for error-state screenshots.
+a configurable failing job for error-state screenshots. The cooldown job
+logs one handled exception so the log drawer has a traceback to show.
 
 NOT a real automation — this exists solely to populate the UI with
 representative data. Disable via hassette.toml when not needed.
@@ -98,6 +99,12 @@ class DemoStimulator(App[DemoStimulatorConfig]):
             "off",
             attributes={"friendly_name": "Movement Backyard", "device_class": "motion"},
         )
+        # A handled error logged with its traceback, for the log drawer's exception block screenshot
+        raw_humidity = "unavailable"
+        try:
+            float(raw_humidity)
+        except ValueError:
+            self.logger.exception("Skipping malformed humidity reading")
         self.logger.info("Activity burst complete — states reset")
 
     async def trigger_activity_cycle(self) -> None:

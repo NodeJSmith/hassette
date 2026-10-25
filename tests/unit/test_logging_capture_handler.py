@@ -93,13 +93,13 @@ class TestQueueHandlerPipeline:
     """Records flow through the QueueHandler → QueueListener pipeline."""
 
     def test_hassette_logger_uses_queue_handler(self, logging_pipeline: LoggingPipelineFixture) -> None:
-        """logging_pipeline installs a QueueHandler on the hassette logger.
+        """logging_pipeline installs a HassetteQueueHandler on the hassette logger, as LoggingService does.
 
         Note: other handlers may also be installed (e.g. by enable_basic_logging in
-        other tests — we just verify a QueueHandler is present).
+        other tests — we just verify a HassetteQueueHandler is present).
         """
         handler_types = [type(h).__name__ for h in logging_pipeline.logger.handlers]
-        assert "QueueHandler" in handler_types
+        assert "HassetteQueueHandler" in handler_types
 
     def test_records_flow_through_stream_and_capture_handlers(self, logging_pipeline: LoggingPipelineFixture) -> None:
         """Records reach stream and capture handlers via the pipeline."""

@@ -4,6 +4,7 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
+from pydantic import BaseModel, ValidationError
 from rich.console import Console
 
 import hassette.cli.output as output_module
@@ -14,7 +15,9 @@ from hassette.cli.commands.log import (
     cmd_execution,
     cmd_log,
 )
+from hassette.cli.formatters import fmt_log_message
 from hassette.cli.output import Column, render_table
+from hassette.utils.exception_utils import get_traceback_string
 from tests.support.web_telemetry_helpers import make_log_entry, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
@@ -263,3 +266,102 @@ def test_multiline_message_does_not_collapse_columns(columns: list[Column]) -> N
     for col in columns:
         if col.field in identity_values:
             assert identity_values[col.field] in first_row_line, f"{col.header} value clipped: {first_row_line!r}"
+
+
+@pytest.mark.parametrize("columns", [LOG_COLUMNS, EXECUTION_LOG_COLUMNS], ids=["log", "execution"])
+def test_exception_final_line_follows_message(columns: list[Column]) -> None:
+    """A record's exception shows as its final line under the message; the full traceback stays out of the table."""
+    entry = make_log_entry(
+        level="ERROR",
+        message="Handler failed",
+        exc_info='Traceback (most recent call last):\n  File "apps/door.py", line 12, in on_door\nValueError: kaboom\n',
+    )
+    buf = StringIO()
+    console = Console(file=buf, highlight=False, no_color=True, width=NARROW_CONSOLE_WIDTH * 2)
+
+    with patch.object(output_module, "stdout_console", console):
+        render_table([entry], columns, json_mode=False)
+
+    output = buf.getvalue()
+    assert "Handler failed" in output, output
+    assert "ValueError: kaboom" in output, output
+    assert "Traceback" not in output, output
+
+
+@pytest.mark.parametrize(
+    ("exc_info", "expected"),
+    [
+        pytest.param(None, "Handler failed", id="no-exception"),
+        pytest.param("  \n", "Handler failed", id="whitespace-only"),
+        pytest.param(
+            'Traceback (most recent call last):\n  File "apps/door.py", line 12, in on_door\n'
+            "    raise ValueError(msg)\nValueError: first line\nsecond line\n",
+            "Handler failed\nValueError: first line",
+            id="multi-line-exception-message",
+        ),
+        pytest.param("ValueError: no traceback\n", "Handler failed\nValueError: no traceback", id="no-frames"),
+    ],
+)
+def test_fmt_log_message_picks_the_exception_line(exc_info: str | None, expected: str) -> None:
+    """The message gains the exception's ``Type: message`` line, never a frame or a continuation line."""
+    assert fmt_log_message(make_log_entry(message="Handler failed", exc_info=exc_info)) == expected
+
+
+def test_fmt_log_message_picks_the_exception_group_header() -> None:
+    """An exception group's traceback is indented throughout; the group's own header line is picked."""
+    try:
+        raise ExceptionGroup("handlers failed", [ValueError("x"), TypeError("y")])
+    except ExceptionGroup as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+
+    assert fmt_log_message(entry) == "Handler failed\nExceptionGroup: handlers failed (2 sub-exceptions)"
+
+
+def test_fmt_log_message_skips_indented_exception_message_lines() -> None:
+    """An exception message's indented continuation lines (Pydantic's per-field errors) aren't mistaken for frames."""
+
+    class Model(BaseModel):
+        name: str
+
+    try:
+        Model.model_validate({})
+    except ValidationError as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+    expected_line = "pydantic_core._pydantic_core.ValidationError: 1 validation error for Model"
+
+    assert fmt_log_message(entry) == f"Handler failed\n{expected_line}"
+
+
+def recurse_forever(depth: int) -> int:
+    return recurse_forever(depth + 1)
+
+
+def test_fmt_log_message_skips_the_repeated_frame_marker() -> None:
+    """A recursive traceback's ``[Previous line repeated N more times]`` marker isn't taken for the exception line."""
+    try:
+        recurse_forever(0)
+    except RecursionError as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+
+    assert fmt_log_message(entry) == "Handler failed\nRecursionError: maximum recursion depth exceeded"
+
+
+def test_fmt_log_message_picks_the_last_exception_in_a_chain() -> None:
+    """A chained traceback lists the earlier exception first; the logged (last) one's line is picked."""
+    try:
+        try:
+            raise ValueError("original")
+        except ValueError:
+            raise ExceptionGroup("handlers failed", [TypeError("bad")])  # noqa: B904 - the implicit chain is the case under test
+    except ExceptionGroup as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+
+    assert fmt_log_message(entry) == "Handler failed\nExceptionGroup: handlers failed (1 sub-exception)"

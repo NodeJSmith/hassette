@@ -4,12 +4,13 @@ Each formatter turns one raw field value into a display string. The rendering la
 (:mod:`hassette.cli.output`) applies them to table cells and detail-panel rows.
 """
 
+import re
 import time
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
-from hassette_wire import ResourceStatus
+from hassette_wire import LogEntry, ResourceStatus
 from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
@@ -19,6 +20,19 @@ JUST_NOW_SECONDS = 5
 MS_PER_SECOND = 1000
 #: Placeholder shown for a missing or empty value in detail panels and summary cells.
 EMPTY_VALUE = "—"
+
+# First line of a formatted exception group traceback, once the text is stripped.
+EXCEPTION_GROUP_TRACEBACK_HEADER = "+ Exception Group Traceback"
+# A ``| Type: message`` line inside one; the first is the outermost group's own.
+EXCEPTION_GROUP_LINE_RE = re.compile(r"^\s*\| (\w[\w.]*: .*)$")
+TRACEBACK_HEADER = "Traceback (most recent call last):"
+# Lines that end one exception's section in a chained traceback; the logged exception's section comes last.
+CHAINED_EXCEPTION_SEPARATORS = frozenset(
+    {
+        "The above exception was the direct cause of the following exception:",
+        "During handling of the above exception, another exception occurred:",
+    }
+)
 
 
 def now_epoch() -> float:
@@ -116,6 +130,30 @@ def fmt_duration_s(num: float) -> str:
 def fmt_log_author(value: Any) -> str:
     """Mark framework-authored log lines and leave app lines blank, so the framework ones stand out."""
     return "framework" if value == "framework" else ""
+
+
+def fmt_log_message(entry: LogEntry) -> str:
+    """The entry's message, with its exception's ``Type: message`` line (``ValueError: kaboom``) beneath it.
+
+    A chained traceback lists earlier exceptions first, so only the last section is read. In it, everything
+    describing the stack (frames, source and caret lines, repeated-frame markers) is indented, so the exception's
+    line is the first unindented line after the ``Traceback`` header; a multi-line message continues below it.
+    An exception group's section is indented throughout, so its line is the group's own
+    ``| ExceptionGroup: ...`` header. The full traceback is in ``--json`` output and the web dashboard's log detail.
+
+    This parses rendered text; capturing the summary when the exception is logged would replace it (#749).
+    """
+    lines = (entry.exc_info or "").strip().splitlines()
+    start = next((i + 1 for i in range(len(lines) - 1, -1, -1) if lines[i] in CHAINED_EXCEPTION_SEPARATORS), 0)
+    section = [line for line in lines[start:] if line.strip()]
+    if not section:
+        return entry.message
+    if section[0].lstrip().startswith(EXCEPTION_GROUP_TRACEBACK_HEADER):
+        header = next((m.group(1) for line in section if (m := EXCEPTION_GROUP_LINE_RE.match(line))), None)
+        if header is not None:
+            return f"{entry.message}\n{header}"
+    summary = next((line for line in section if line != TRACEBACK_HEADER and not line[0].isspace()), section[-1])
+    return f"{entry.message}\n{summary.strip()}"
 
 
 def fmt_handler_short(value: Any) -> str:

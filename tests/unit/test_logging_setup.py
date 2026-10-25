@@ -21,12 +21,17 @@ import structlog
 import hassette.logging_ as logging_module
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import LogIdentity, enable_basic_logging, set_logger_identity
+from hassette.logging_ import (
+    LogIdentity,
+    enable_basic_logging,
+    set_logger_identity,
+)
 from hassette.logging_processors import console_identity, identity_label
 from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+NATIVE_LOGGER_NAME = "hassette.apps.example_native"
 # A UUIDv7 execution id and the short id the console shows for it.
 EXECUTION_ID = "0192f3a1-7c2e-7b44-9d0f-6e1a41c09e7b"
 SHORT_EXECUTION_ID = "@41c09e7b"
@@ -246,6 +251,13 @@ class TestConsoleLineFormat:
         output = self.render(log_format, lambda: app_logger.info("where am I", stack_info=True))
         assert "Stack (most recent call last):" in output, output
         assert "test_stdlib_stack_info_is_rendered" in output, output
+
+    @pytest.mark.parametrize("log_format", ["console", "compact"])
+    def test_structlog_stack_info_is_rendered(self, log_format: Literal["console", "compact"]) -> None:
+        native = structlog.get_logger(NATIVE_LOGGER_NAME)
+        output = self.render(log_format, lambda: native.info("where am I", stack_info=True))
+        assert "Stack (most recent call last):" in output, output
+        assert "test_structlog_stack_info_is_rendered" in output, output
 
 
 @contextmanager
