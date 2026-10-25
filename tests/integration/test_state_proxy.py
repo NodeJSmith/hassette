@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -8,12 +8,18 @@ from hassette.config.config import HassetteConfig
 from hassette.core import state_proxy_sync
 from hassette.core.state_proxy import StateProxy
 from hassette.core.state_proxy_sync import StateCacheFreshness, StateSynchronizationStatus
-from hassette.events import RawStateChangeEvent
-from hassette.events.metadata import stamp_websocket_generation
+from hassette.events import HassStateDict
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing import HassetteHarness, build_harness, make_full_state_change_event, make_light_state_dict
 from hassette.testing._harness_resources import HarnessStateProxy
+from tests.integration.state_proxy_helpers import (
+    api_mock,
+    cached_light_state,
+    gated_get_states_raw_factory,
+    with_websocket_generation,
+    ws_mock,
+)
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_mocks import configure_ready_websocket_mock
 
@@ -48,39 +54,6 @@ def build_state_proxy(*, poll: bool = False) -> StateProxy:
     return proxy
 
 
-def with_websocket_generation(event: RawStateChangeEvent, generation: int) -> RawStateChangeEvent:
-    stamp_websocket_generation(event, generation)
-    return event
-
-
-def gated_get_states_raw_factory(
-    result: list[dict[str, object]] | None = None,
-    error: Exception | None = None,
-) -> tuple[asyncio.Event, asyncio.Event, Callable[[], Awaitable[list[dict[str, object]]]]]:
-    """Build a gated ``api.get_states_raw`` side effect for ``AsyncMock(side_effect=...)``.
-
-    Collapses the repeated snapshot_entered/release_snapshot gate scaffold duplicated across
-    this file's reconnect/retry tests (issue #1493) into one helper.
-
-    Returns ``(entered, release, side_effect)``: ``entered`` is set the moment the side effect
-    starts running — await it to know the snapshot call has begun. The side effect then blocks
-    on ``release`` (call ``.set()`` to let it proceed) before returning ``result`` (default
-    ``[]``) or raising ``error`` if given. If ``release`` is never set, the call blocks
-    forever — useful for tests that assert on cancellation rather than completion.
-    """
-    entered = asyncio.Event()
-    release = asyncio.Event()
-
-    async def side_effect() -> list[dict[str, object]]:
-        entered.set()
-        await release.wait()
-        if error is not None:
-            raise error
-        return result if result is not None else []
-
-    return entered, release, side_effect
-
-
 async def finish_bootstrap(proxy: StateProxy) -> None:
     """Wait out the fixture's background bootstrap sync so it can't claim a gate the test installs next."""
     assert proxy._bootstrap_task is not None
@@ -108,7 +81,7 @@ async def test_successful_empty_snapshot_establishes_initial_capability(state_pr
 
 async def test_failed_initial_sync_keeps_cold_cache_blocked() -> None:
     proxy = build_state_proxy()
-    proxy.hassette.api.get_states_raw.side_effect = RuntimeError("boom")
+    api_mock(proxy).get_states_raw.side_effect = RuntimeError("boom")
 
     await proxy.on_initialize()
 
@@ -239,16 +212,18 @@ async def test_new_generation_is_not_lost_before_active_sync_is_initialized() ->
     proxy = build_state_proxy()
     begin_entered = asyncio.Event()
     release_begin = asyncio.Event()
-    calls: list[int] = []
+    calls: list[int | None] = []
     original_begin = proxy._begin_synchronization
 
-    async def gated_begin(*, request_id: int, generation: int, status: StateSynchronizationStatus) -> dict[str, object]:
+    async def gated_begin(
+        *, request_id: int, generation: int, status: StateSynchronizationStatus
+    ) -> dict[str, HassStateDict]:
         begin_entered.set()
         await release_begin.wait()
         return await original_begin(request_id=request_id, generation=generation, status=status)
 
     async def snapshot() -> list[dict[str, object]]:
-        calls.append(proxy.hassette.websocket_service.get_connected_generation())
+        calls.append(ws_mock(proxy).get_connected_generation())
         return [make_light_state_dict("light.kitchen", "on")]
 
     proxy._begin_synchronization = gated_begin  # pyright: ignore[reportAttributeAccessIssue]
@@ -257,7 +232,7 @@ async def test_new_generation_is_not_lost_before_active_sync_is_initialized() ->
     task1 = asyncio.create_task(proxy.on_reconnect())
     await asyncio.wait_for(begin_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
-    proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(proxy).get_connected_generation.return_value = 2
     task2 = asyncio.create_task(proxy.on_reconnect())
     release_begin.set()
     await asyncio.wait_for(asyncio.gather(task1, task2), timeout=SYNC_WAIT_TIMEOUT)
@@ -272,22 +247,22 @@ async def test_new_generation_is_not_lost_before_active_sync_is_initialized() ->
 async def test_poll_skips_during_active_sync_and_reconnect_afterward_runs_once(state_proxy: StateProxy) -> None:
     gate = asyncio.Event()
     sync_entered = asyncio.Event()
-    calls: list[int] = []
+    calls: list[int | None] = []
 
     async def gated_get_states_raw() -> list[dict[str, object]]:
-        calls.append(state_proxy.hassette.websocket_service.get_connected_generation())
+        calls.append(ws_mock(state_proxy).get_connected_generation())
         sync_entered.set()
         await gate.wait()
         return [make_light_state_dict("light.kitchen", "on")]
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
+    ws_mock(state_proxy).get_connected_generation.return_value = 1
 
     poll_task = asyncio.create_task(state_proxy.load_cache())
     await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     await state_proxy.load_cache()
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
     reconnect_task_1 = asyncio.create_task(state_proxy.on_reconnect())
     reconnect_task_2 = asyncio.create_task(state_proxy.on_reconnect())
 
@@ -310,7 +285,7 @@ async def test_obsolete_generation_sync_cannot_publish_freshness_or_capability()
     await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     sync_task = proxy._sync_task
     assert sync_task is not None
-    proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(proxy).get_connected_generation.return_value = 2
     release_snapshot.set()
     await asyncio.wait_for(sync_task, timeout=SYNC_WAIT_TIMEOUT)
 
@@ -322,7 +297,7 @@ async def test_obsolete_generation_sync_cannot_publish_freshness_or_capability()
 
 
 async def test_obsolete_generation_failure_cannot_publish_freshness(state_proxy: StateProxy) -> None:
-    state_proxy.states = {"light.kitchen": make_light_state_dict("light.kitchen", "on")}
+    state_proxy.states = {"light.kitchen": cached_light_state("light.kitchen", "on")}
     assert state_proxy.cache_freshness == StateCacheFreshness.FRESH
 
     snapshot_entered, release_snapshot, failing_get_states_raw = gated_get_states_raw_factory(
@@ -330,11 +305,11 @@ async def test_obsolete_generation_failure_cannot_publish_freshness(state_proxy:
     )
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_get_states_raw)
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
+    ws_mock(state_proxy).get_connected_generation.return_value = 1
 
     sync_task = asyncio.create_task(state_proxy.load_cache())
     await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
     release_snapshot.set()
     await asyncio.wait_for(sync_task, timeout=SYNC_WAIT_TIMEOUT)
 
@@ -343,10 +318,10 @@ async def test_obsolete_generation_failure_cannot_publish_freshness(state_proxy:
 
 
 async def test_obsolete_generation_state_event_cannot_overwrite_fresh_cache(state_proxy: StateProxy) -> None:
-    state_proxy.states = {"light.kitchen": make_light_state_dict("light.kitchen", "on")}
+    state_proxy.states = {"light.kitchen": cached_light_state("light.kitchen", "on")}
     assert state_proxy.cache_freshness == StateCacheFreshness.FRESH
 
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
 
     stale_event = with_websocket_generation(
         make_full_state_change_event(
@@ -365,11 +340,11 @@ async def test_obsolete_generation_state_event_cannot_overwrite_fresh_cache(stat
 
 async def test_journaled_updates_and_tombstones_win_over_snapshot(state_proxy: StateProxy) -> None:
     state_proxy.states = {
-        "light.kitchen": make_light_state_dict("light.kitchen", "off", last_updated="2024-01-01T00:00:00+00:00"),
-        "light.garage": make_light_state_dict("light.garage", "on", last_updated="2024-01-01T00:00:00+00:00"),
+        "light.kitchen": cached_light_state("light.kitchen", "off", last_updated="2024-01-01T00:00:00+00:00"),
+        "light.garage": cached_light_state("light.garage", "on", last_updated="2024-01-01T00:00:00+00:00"),
     }
     await state_proxy.on_disconnect()
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
 
     snapshot_entered, release_snapshot, gated_get_states_raw = gated_get_states_raw_factory(
         result=[
@@ -385,12 +360,12 @@ async def test_journaled_updates_and_tombstones_win_over_snapshot(state_proxy: S
     await state_proxy.on_state_change(
         make_full_state_change_event(
             "light.kitchen",
-            state_proxy.states["light.kitchen"],
+            dict(state_proxy.states["light.kitchen"]),
             make_light_state_dict("light.kitchen", "on", last_updated="2024-01-01T00:00:05+00:00"),
         )
     )
     await state_proxy.on_state_change(
-        make_full_state_change_event("light.garage", state_proxy.states["light.garage"], None)
+        make_full_state_change_event("light.garage", dict(state_proxy.states["light.garage"]), None)
     )
 
     release_snapshot.set()
@@ -402,19 +377,19 @@ async def test_journaled_updates_and_tombstones_win_over_snapshot(state_proxy: S
 
 async def test_pre_sync_state_event_does_not_overwrite_reconnect_snapshot(state_proxy: StateProxy) -> None:
     state_proxy.states = {
-        "light.kitchen": make_light_state_dict("light.kitchen", "off", last_updated="2024-01-01T00:00:00+00:00")
+        "light.kitchen": cached_light_state("light.kitchen", "off", last_updated="2024-01-01T00:00:00+00:00")
     }
     stale_event = with_websocket_generation(
         make_full_state_change_event(
             "light.kitchen",
-            state_proxy.states["light.kitchen"],
+            dict(state_proxy.states["light.kitchen"]),
             make_light_state_dict("light.kitchen", "off", last_updated="2024-01-01T00:00:02+00:00"),
         ),
         generation=1,
     )
 
     await state_proxy.on_disconnect()
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
     snapshot_entered, release_snapshot, gated_snapshot = gated_get_states_raw_factory(
         result=[make_light_state_dict("light.kitchen", "on", last_updated="2024-01-01T00:00:01+00:00")]
     )
@@ -434,7 +409,7 @@ async def test_pre_sync_state_event_does_not_overwrite_reconnect_snapshot(state_
 
 async def test_fresher_snapshot_replaces_older_cached_state(state_proxy: StateProxy) -> None:
     state_proxy.states = {
-        "light.kitchen": make_light_state_dict("light.kitchen", "off", last_updated="2024-01-01T00:00:00+00:00")
+        "light.kitchen": cached_light_state("light.kitchen", "off", last_updated="2024-01-01T00:00:00+00:00")
     }
     state_proxy.hassette.api.get_states_raw = AsyncMock(
         return_value=[make_light_state_dict("light.kitchen", "on", last_updated="2024-01-01T00:00:01+00:00")]
@@ -446,7 +421,7 @@ async def test_fresher_snapshot_replaces_older_cached_state(state_proxy: StatePr
 
 
 async def test_disconnect_preserves_stale_reads_and_reconnect_failure_keeps_listener(state_proxy: StateProxy) -> None:
-    state_proxy.states["light.kitchen"] = make_light_state_dict("light.kitchen", "on")
+    state_proxy.states["light.kitchen"] = cached_light_state("light.kitchen", "on")
 
     await state_proxy.on_disconnect()
 
@@ -455,7 +430,7 @@ async def test_disconnect_preserves_stale_reads_and_reconnect_failure_keeps_list
     assert state_proxy.state_change_sub is not None
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("boom"))
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
     await state_proxy.on_reconnect()
 
     assert state_proxy.state_change_sub is not None
@@ -524,7 +499,7 @@ async def test_retry_attempt_resets_when_generation_changes(monkeypatch: pytest.
     await asyncio.wait_for(first_sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     await finish_bootstrap(proxy)
 
-    proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(proxy).get_connected_generation.return_value = 2
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("boom-2"))
 
     await proxy.on_reconnect()
@@ -562,7 +537,7 @@ async def test_poll_enabled_initial_failure_converges_through_next_poll() -> Non
 
 
 async def test_poll_enabled_reconnect_failure_converges_through_next_poll(state_proxy: StateProxy) -> None:
-    state_proxy.states = {"light.kitchen": make_light_state_dict("light.kitchen", "on")}
+    state_proxy.states = {"light.kitchen": cached_light_state("light.kitchen", "on")}
     state_proxy.poll_job = Mock()
     await state_proxy.on_disconnect()
 
@@ -576,7 +551,7 @@ async def test_poll_enabled_reconnect_failure_converges_through_next_poll(state_
         return [make_light_state_dict("light.kitchen", "off")]
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=reconnect_then_successful_snapshot)
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
 
     await state_proxy.on_reconnect()
 
@@ -594,9 +569,9 @@ async def test_poll_enabled_reconnect_failure_converges_through_next_poll(state_
 
 
 async def test_duplicate_reconnect_waiters_do_not_retry_immediately_after_failure(state_proxy: StateProxy) -> None:
-    state_proxy.states = {"light.kitchen": make_light_state_dict("light.kitchen", "on")}
+    state_proxy.states = {"light.kitchen": cached_light_state("light.kitchen", "on")}
     await state_proxy.on_disconnect()
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
     snapshot_entered, release_snapshot, failing_snapshot = gated_get_states_raw_factory(error=RuntimeError("boom"))
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
@@ -620,7 +595,7 @@ async def test_disconnect_cancels_active_sync_so_reconnect_can_start_fresh(state
     )
 
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
+    ws_mock(state_proxy).get_connected_generation.return_value = 1
 
     poll_task = asyncio.create_task(state_proxy.load_cache())
     await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
@@ -628,7 +603,7 @@ async def test_disconnect_cancels_active_sync_so_reconnect_can_start_fresh(state
     await state_proxy.on_disconnect()
     assert state_proxy._sync_task is None
 
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
     state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "off")])
 
     await asyncio.wait_for(state_proxy.on_reconnect(), timeout=SYNC_WAIT_TIMEOUT)
@@ -644,7 +619,7 @@ async def test_disconnect_mid_poll_returns_normally_and_next_poll_still_syncs(st
     await finish_bootstrap(state_proxy)
     sync_entered, _never_release, blocked_snapshot = gated_get_states_raw_factory()
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
+    ws_mock(state_proxy).get_connected_generation.return_value = 1
 
     poll_task = asyncio.create_task(state_proxy.load_cache())
     await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
@@ -665,7 +640,7 @@ async def test_disconnect_mid_sync_returns_connected_waiters_normally(state_prox
     await finish_bootstrap(state_proxy)
     sync_entered, _never_release, blocked_snapshot = gated_get_states_raw_factory()
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
-    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(state_proxy).get_connected_generation.return_value = 2
 
     owner_task = asyncio.create_task(state_proxy.on_reconnect())
     await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
@@ -707,7 +682,7 @@ async def test_superseded_retry_task_is_canceled_when_new_generation_sync_starts
     first_retry = proxy._retry_task
     assert first_retry is not None
 
-    proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+    ws_mock(proxy).get_connected_generation.return_value = 2
     proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
 
     await proxy.on_reconnect()

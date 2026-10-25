@@ -5,9 +5,11 @@ connection-lost event), test_reconnect_loop.py (serve()'s reconnect loop), and t
 """
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
+from aiohttp import ClientWebSocketResponse
 from aiohttp.client_exceptions import ClientConnectionResetError
 
 import hassette.core.websocket_io as websocket_io_module
@@ -19,6 +21,16 @@ from hassette.exceptions import ConnectionClosedError, FailedMessageError
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types.enums import ConnectionState
 
+if TYPE_CHECKING:
+    from hassette.core.api_resource import ApiResource
+
+
+def last_sent_payload(fake_ws: ClientWebSocketResponse) -> dict[str, Any]:
+    """Return the payload of the fake socket's most recent ``send_json`` call."""
+    send_call = cast("AsyncMock", fake_ws.send_json).await_args
+    assert send_call is not None
+    return send_call.args[0]
+
 
 async def test_send_json_injects_message_id_when_absent(websocket_service: WebsocketService) -> None:
     """Ensure send_json injects a message id and forwards the payload."""
@@ -27,7 +39,7 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
     mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="ping")
-    payload = fake_ws.send_json.await_args.args[0]
+    payload = last_sent_payload(fake_ws)
     assert payload["type"] == "ping", "Expected original payload to be forwarded"
     assert payload["id"] == 1, "Expected send_json to add a message id when absent"
 
@@ -39,7 +51,7 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: We
     mark_websocket_service_connected(websocket_service, reason="test connected")
 
     await websocket_service.send_json(type="pong", id=41)
-    second_payload = fake_ws.send_json.await_args_list[0].args[0]
+    second_payload = cast("AsyncMock", fake_ws.send_json).await_args_list[0].args[0]
     assert second_payload["id"] == 41, "Expected explicit message id to be preserved"
 
 
@@ -54,7 +66,7 @@ async def test_send_json_allows_setup_send_before_external_readiness(
 
     await websocket_service.send_json(type="subscribe_events")
 
-    payload = fake_ws.send_json.await_args.args[0]
+    payload = last_sent_payload(fake_ws)
     assert payload["type"] == "subscribe_events"
     assert payload["id"] == 1
 
@@ -74,7 +86,7 @@ async def test_send_json_checks_connection_state(websocket_service: WebsocketSer
 
     await websocket_service.send_json(type="ping")
 
-    assert fake_ws.send_json.await_count == 1  # pyright: ignore[reportUnknownMemberType]
+    assert cast("AsyncMock", fake_ws.send_json).await_count == 1
 
 
 async def test_api_ws_send_json_checks_external_readiness() -> None:
@@ -83,7 +95,7 @@ async def test_api_ws_send_json_checks_external_readiness() -> None:
     ws_conn = MagicMock()
     ws_conn.is_connected = False
     ws_conn.send_json = AsyncMock()
-    api._api_service = SimpleNamespace(ws_conn=ws_conn)
+    api._api_service = cast("ApiResource", SimpleNamespace(ws_conn=ws_conn))
 
     with pytest.raises(ConnectionClosedError):
         await api.ws_send_json(type="ping")
@@ -97,7 +109,7 @@ async def test_api_ws_send_and_wait_checks_external_readiness() -> None:
     ws_conn = MagicMock()
     ws_conn.is_connected = False
     ws_conn.send_and_wait = AsyncMock()
-    api._api_service = SimpleNamespace(ws_conn=ws_conn)
+    api._api_service = cast("ApiResource", SimpleNamespace(ws_conn=ws_conn))
 
     with pytest.raises(ConnectionClosedError):
         await api.ws_send_and_wait(type="ping")
@@ -108,7 +120,7 @@ async def test_api_ws_send_and_wait_checks_external_readiness() -> None:
 async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
     """Surface ClientConnectionResetError when the websocket resets."""
     fake_ws = build_fake_ws()
-    fake_ws.send_json.side_effect = ClientConnectionResetError("boom")
+    cast("AsyncMock", fake_ws.send_json).side_effect = ClientConnectionResetError("boom")
 
     websocket_service._ws = fake_ws
     mark_websocket_service_connected(websocket_service, reason="test connected")
@@ -120,7 +132,7 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
 async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketService) -> None:
     """Wrap unexpected errors in FailedMessageError."""
     fake_ws = build_fake_ws()
-    fake_ws.send_json.side_effect = RuntimeError("unexpected")
+    cast("AsyncMock", fake_ws.send_json).side_effect = RuntimeError("unexpected")
 
     websocket_service._ws = fake_ws
     mark_websocket_service_connected(websocket_service, reason="test connected")
@@ -132,7 +144,7 @@ async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketSe
 async def test_send_and_wait_returns_response(websocket_service: WebsocketService) -> None:
     """Resolve send_and_wait when the websocket replies with success."""
 
-    async def send_side_effect(**data: object) -> None:
+    async def send_side_effect(**data: Any) -> None:
         msg_id = data["id"]
         response_future = websocket_service._pending.entries[msg_id].future
         response_future.set_result({"ok": True})
@@ -163,7 +175,7 @@ async def test_send_and_wait_retries_on_timeout(websocket_service: WebsocketServ
     websocket_service.hassette.config.websocket.response_timeout_seconds = 0
     call_count = 0
 
-    async def send_side_effect(**data: object) -> None:
+    async def send_side_effect(**data: Any) -> None:
         nonlocal call_count
         call_count += 1
         if call_count >= 2:
@@ -183,7 +195,7 @@ async def test_send_and_wait_retries_on_timeout(websocket_service: WebsocketServ
 async def test_send_and_wait_no_retry_on_ha_error(websocket_service: WebsocketService) -> None:
     """send_and_wait does not retry HA application errors (non-None code)."""
 
-    async def send_side_effect(**data: object) -> None:
+    async def send_side_effect(**data: Any) -> None:
         msg_id = data["id"]
         fut = websocket_service._pending.entries[msg_id].future
         fut.set_exception(FailedMessageError("not found", code="not_found"))
@@ -311,7 +323,9 @@ async def test_dispatch_stamps_state_change_event_with_connected_generation(
         }
     )
 
-    event = websocket_service.hassette.send_event.await_args.args[0]
+    send_event_call = websocket_service.hassette.send_event.await_args
+    assert send_event_call is not None
+    event = send_event_call.args[0]
     assert isinstance(event, RawStateChangeEvent)
     assert get_websocket_generation(event) == 1
 

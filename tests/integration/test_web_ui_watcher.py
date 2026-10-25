@@ -30,6 +30,11 @@ def watcher(mock_hassette: MagicMock) -> WebUiWatcherService:
     return make_bypassed_service(WebUiWatcherService, mock_hassette)
 
 
+@pytest.fixture
+def broadcast(mock_hassette: MagicMock) -> AsyncMock:
+    return mock_hassette.runtime_query_service.broadcast
+
+
 def fake_awatch(*changes_batches: set[tuple[int, str]]):
     """Return an async generator factory that yields the given change batches."""
 
@@ -40,7 +45,7 @@ def fake_awatch(*changes_batches: set[tuple[int, str]]):
     return _awatch
 
 
-async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
+async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
     css_path = str(_WEB_DIR / "static/css/style.css")
     fake = fake_awatch({(2, css_path)})
 
@@ -48,36 +53,32 @@ async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService) ->
         await watcher.serve()
 
     assert watcher.is_ready()
-    watcher.hassette.runtime_query_service.broadcast.assert_awaited_once_with(
-        {"type": "dev_reload", "data": {"path": "static/css/style.css", "kind": "css"}}
-    )
+    broadcast.assert_awaited_once_with({"type": "dev_reload", "data": {"path": "static/css/style.css", "kind": "css"}})
 
 
-async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
+async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
     js_path = str(_WEB_DIR / "static/js/app.js")
     fake = fake_awatch({(2, js_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    watcher.hassette.runtime_query_service.broadcast.assert_awaited_once_with(
-        {"type": "dev_reload", "data": {"path": "static/js/app.js", "kind": "js"}}
-    )
+    broadcast.assert_awaited_once_with({"type": "dev_reload", "data": {"path": "static/js/app.js", "kind": "js"}})
 
 
-async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
+async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
     tmpl_path = str(_WEB_DIR / "templates/pages/dashboard.html")
     fake = fake_awatch({(2, tmpl_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    watcher.hassette.runtime_query_service.broadcast.assert_awaited_once_with(
+    broadcast.assert_awaited_once_with(
         {"type": "dev_reload", "data": {"path": "templates/pages/dashboard.html", "kind": "template"}}
     )
 
 
-async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService) -> None:
+async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
     fake = fake_awatch(
         {
             (2, str(_WEB_DIR / "static/css/style.css")),
@@ -88,13 +89,13 @@ async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService) ->
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
 
-    assert watcher.hassette.runtime_query_service.broadcast.await_count == 2
-    kinds = {call.args[0]["data"]["kind"] for call in watcher.hassette.runtime_query_service.broadcast.await_args_list}
+    assert broadcast.await_count == 2
+    kinds = {call.args[0]["data"]["kind"] for call in broadcast.await_args_list}
     assert kinds == {"css", "js"}
 
 
-async def test_disabled_config_does_not_broadcast(watcher: WebUiWatcherService) -> None:
+async def test_disabled_config_does_not_broadcast(watcher: WebUiWatcherService, broadcast: AsyncMock) -> None:
     watcher.hassette.config.web_api.ui_hot_reload = False
     watcher.shutdown_event.set()
     await watcher.serve()
-    watcher.hassette.runtime_query_service.broadcast.assert_not_awaited()
+    broadcast.assert_not_awaited()

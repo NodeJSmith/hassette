@@ -5,6 +5,7 @@ and test_reconnect.py (disconnect/reconnect-retry).
 """
 
 from collections.abc import Awaitable, Callable
+from typing import Any
 from unittest.mock import AsyncMock
 
 from hassette.core.websocket_service import WebsocketService
@@ -14,7 +15,7 @@ def _make_subscribe_side_effect(ws: WebsocketService, *, succeed_on_call: int = 
     """Build a send side effect that times out subscribe_events until the Nth call."""
     call_count = 0
 
-    async def side_effect(**data: object) -> None:
+    async def side_effect(**data: Any) -> None:
         nonlocal call_count
         call_count += 1
         if data.get("type") == "subscribe_events" and call_count >= succeed_on_call:

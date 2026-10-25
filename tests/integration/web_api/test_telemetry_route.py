@@ -64,6 +64,7 @@ class TestAppJobsEnrichmentWithLiveMatch:
 
     async def test_next_run_fire_at_jitter_from_live(self, client: AsyncClient, mock_hassette) -> None:
         live_job = make_live_job(42, "test_job", jitter=15.0)
+        assert live_job.next_run is not None
         # fire_at deliberately differs from next_run (jitter is added by Job.set_next_run).
         live_job.fire_at = live_job.next_run.add(seconds=10.0)
 
@@ -78,6 +79,7 @@ class TestAppJobsEnrichmentWithLiveMatch:
         assert row["next_run"] == pytest.approx(live_job.next_run.timestamp(), abs=0.01)
         assert isinstance(row["next_run"], float)
         # fire_at is populated because the live job carries a concrete fire_at value.
+        assert live_job.fire_at is not None
         assert row["fire_at"] == pytest.approx(live_job.fire_at.timestamp(), abs=0.01)
         assert isinstance(row["fire_at"], float)
         assert row["jitter"] == 15.0
@@ -94,6 +96,8 @@ class TestAppJobsEnrichmentWithLiveMatch:
         )
 
         assert live_job.jitter is None
+        assert live_job.next_run is not None
+        assert live_job.fire_at is not None
         assert row["next_run"] == pytest.approx(live_job.next_run.timestamp(), abs=0.01)
         assert row["fire_at"] == pytest.approx(live_job.fire_at.timestamp(), abs=0.01)
         assert row["fire_at"] == pytest.approx(row["next_run"], abs=0.01)

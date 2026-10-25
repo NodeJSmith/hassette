@@ -18,6 +18,7 @@ from typing import Any
 
 import aiohttp
 import pytest
+from aiohttp.client_reqrep import ConnectionKey
 
 import hassette.core.websocket_reconnect as reconnect_module
 import hassette.core.websocket_service as websocket_service_module
@@ -169,7 +170,7 @@ async def test_unresolvable_host_retries_at_fast_pace(
     websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A DNS failure (HA's host not resolvable yet, e.g. after a router reboot) is Fast, not Slow."""
-    key = aiohttp.client_reqrep.ConnectionKey("ha-host.invalid", 8123, False, None, None, None, None)
+    key = ConnectionKey("ha-host.invalid", 8123, False, True, None, None, None)
 
     async def fail_resolution(*_args: Any, **_kwargs: Any) -> None:
         raise aiohttp.ClientConnectorDNSError(key, OSError("name resolution failed"))

@@ -160,10 +160,14 @@ class TestDomainStates:
         new_sensor_dict = make_state_dict("input_number.test_value", "22.5")
         await send_and_wait(hassette, "input_number.test_value", old_sensor_dict, new_sensor_dict)
 
-        assert state_manager.input_number.get("input_number.test_value").value == 22.5
+        first_read = state_manager.input_number.get("input_number.test_value")
+        assert first_read is not None
+        assert first_read.value == 22.5
 
         # initial issue had second access of value causing loss of precision due to double conversion
-        assert state_manager.input_number.get("input_number.test_value").value == 22.5
+        second_read = state_manager.input_number.get("input_number.test_value")
+        assert second_read is not None
+        assert second_read.value == 22.5
 
     async def test_states_are_cached_until_changed(
         self, hassette_with_state_proxy: "HassetteHarness", state_manager: StateManager
