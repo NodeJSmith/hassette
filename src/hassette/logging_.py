@@ -7,7 +7,6 @@ import logging.handlers
 import queue
 import sys
 import threading
-import traceback
 import warnings
 from collections.abc import Callable, Coroutine
 from dataclasses import asdict, dataclass
@@ -26,6 +25,9 @@ from hassette.logging_processors import (
     console_identity,
     console_renderer,
     extract_record_fields,
+    record_exc_text,
+    record_message,
+    resolve_exc_info,
     stdlib_stack_to_stack,
 )
 from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
@@ -105,20 +107,6 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
         "instance_index": getattr(record, "instance_index", None),
         "seq": getattr(record, "seq", 0),
     }
-
-
-def _message_with_stack(record: logging.LogRecord) -> str:
-    """The record's message with its ``stack_info`` appended, which ``HassetteQueueHandler`` leaves unmerged."""
-    message = record.getMessage()
-    if record.stack_info:
-        return f"{message}\n{record.stack_info}"
-    return message
-
-
-def _format_exc_info(record: logging.LogRecord) -> str | None:
-    if record.exc_info:
-        return "".join(traceback.format_exception(*record.exc_info))
-    return None
 
 
 class LogCaptureHandler(logging.Handler):
@@ -374,21 +362,19 @@ class HassetteQueueHandler(logging.handlers.QueueHandler):
             return self._dropped
 
     def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
-        """Hand the listener's formatters what they need to render the record's stack under ``stack``.
+        """Queue a copy of the record with a stdlib caller's message args merged in, and nothing else rendered.
 
-        The stdlib ``prepare()`` formats the record before it is queued, which folds a stack into the
-        message and stringifies a structlog-native event dict. This queue never leaves the process, so
-        a native record keeps its event dict (its stack is already under ``stack``) and a stdlib record
-        keeps ``stack_info`` for ``stdlib_stack_to_stack``. Message args and exception text are still
-        merged into the message here, as the stdlib does.
+        The stdlib ``prepare()`` renders the whole record so it can cross a process boundary. This queue
+        never leaves the process, and rendering here would fold the stack and traceback into the message
+        and stringify a structlog-native event dict. Anything that depends on the caller's frame is already
+        resolved: stdlib captures ``exc_info`` and ``stack_info`` when it creates the record, and the native
+        chain runs ``StackInfoRenderer`` and ``resolve_exc_info``. Args are merged now so an argument mutated
+        after the call can't change the logged message.
         """
         record = copy.copy(record)
-        if isinstance(record.msg, dict):
-            return record
-        stack_info, record.stack_info = record.stack_info, None
-        prepared = super().prepare(record)
-        prepared.stack_info = stack_info
-        return prepared
+        if not isinstance(record.msg, dict):
+            record.msg, record.args = record.getMessage(), None
+        return record
 
     def enqueue(self, record: logging.LogRecord) -> None:
         """Put the record on the queue without blocking, counting it as dropped when the queue is full."""
@@ -530,8 +516,8 @@ class LogPersistenceHandler(logging.Handler):
             "logger_name": record.name,
             "func_name": record.funcName or "",
             "lineno": record.lineno,
-            "message": _message_with_stack(record),
-            "exc_info": _format_exc_info(record),
+            "message": record_message(record),
+            "exc_info": record_exc_text(record),
             **_extract_correlation_attrs(record),
         }
 
@@ -704,9 +690,11 @@ def enable_basic_logging(
     structlog.configure(
         processors=[
             *shared_processors,
-            # Native chain only: it runs in the caller's frame. Stdlib records arrive with their stack
-            # already formatted, which stdlib_stack_to_stack moves to the same ``stack`` key.
+            # Native chain only: it runs in the caller's frame, and the formatter runs on the log queue's
+            # listener thread in Phase 2. Stdlib records capture their stack and exception at creation;
+            # stdlib_stack_to_stack moves the stack to the same ``stack`` key.
             structlog.processors.StackInfoRenderer(),
+            resolve_exc_info,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -715,7 +703,7 @@ def enable_basic_logging(
     )
 
     if use_json:
-        output_processors: list = [structlog.processors.JSONRenderer()]
+        output_processors: list = [structlog.processors.format_exc_info, structlog.processors.JSONRenderer()]
     elif log_format == "compact":
         output_processors = [console_identity, console_renderer(compact=True)]
     else:

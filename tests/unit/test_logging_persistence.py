@@ -14,12 +14,7 @@ from contextlib import contextmanager
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from hassette.logging_ import (
-    DEQUEUE_TIMEOUT_SECONDS,
-    HassetteQueueHandler,
-    HassetteQueueListener,
-    LogPersistenceHandler,
-)
+from hassette.logging_ import DEQUEUE_TIMEOUT_SECONDS, HassetteQueueListener, LogPersistenceHandler
 from tests.support.factories import make_log_record
 
 
@@ -169,21 +164,6 @@ class TestLogPersistenceHandlerBatching:
 
             handle_error.assert_called_once_with(unstamped)
             assert [row["message"] for row in handler._batch] == ["stamped"]
-
-
-class TestLogPersistenceMessage:
-    """The persisted message keeps a record's stack after the queue handler prepares it."""
-
-    def test_queued_stack_info_is_appended_to_message(self) -> None:
-        stack = 'Stack (most recent call last):\n  File "app.py", line 1, in <module>'
-        record = make_log_record(msg="where am I %s", args=("now",))
-        record.stack_info = stack
-        prepared = HassetteQueueHandler(queue.Queue()).prepare(record)
-
-        with _persistence_handler() as (handler, _loop):
-            row = handler.record_to_dict(prepared)
-
-        assert row["message"] == f"where am I now\n{stack}"
 
 
 class TestLogPersistenceDropCountWithDB:

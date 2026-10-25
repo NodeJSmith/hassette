@@ -1,9 +1,12 @@
-"""Structlog event-dict processors for Hassette's log pipeline, and the console renderer.
+"""Structlog event-dict processors for Hassette's log pipeline, the console renderer, and record readers.
 
 ``enable_basic_logging`` in ``hassette.logging_`` chains these. The ``console`` and ``compact`` formats print
 one identity column before the message and no key=value tail; JSON output and the DB keep every field.
 """
 
+import logging
+import sys
+import traceback
 from collections.abc import Mapping
 from typing import Any
 
@@ -158,3 +161,56 @@ def stdlib_stack_to_stack(
     out = {key: value for key, value in event_dict.items() if key != "stack_info"}
     out.setdefault("stack", stack_info)
     return out
+
+
+# dup-ignore-start: structlog fixes the processor signature
+def resolve_exc_info(
+    _logger: object,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    # dup-ignore-end
+    """Replace a structlog-native caller's ``exc_info`` flag with the exception it refers to.
+
+    ``exc_info=True`` means "the exception being handled", which only ``sys.exc_info()`` in the caller's
+    thread can answer, and Hassette renders on the log queue's listener thread. So this runs in the native
+    chain, before the record is queued. An exception instance becomes its tuple too, and a false flag, or a
+    true one with no exception being handled, is dropped, so renderers only ever see a tuple.
+    """
+    exc_info = event_dict.get("exc_info")
+    if exc_info is None or isinstance(exc_info, tuple):
+        return event_dict
+    out = {key: value for key, value in event_dict.items() if key != "exc_info"}
+    if isinstance(exc_info, BaseException):
+        out["exc_info"] = (type(exc_info), exc_info, exc_info.__traceback__)
+    elif exc_info and sys.exc_info()[0] is not None:
+        out["exc_info"] = sys.exc_info()
+    return out
+
+
+def record_message(record: logging.LogRecord) -> str:
+    """The record's message with its stack appended, as ``log_records`` stores it (it has no stack column).
+
+    A structlog-native record's ``msg`` is its event dict: the message is ``event`` and the stack is
+    ``stack``, where ``StackInfoRenderer`` put it. A stdlib record's stack is ``stack_info``.
+    """
+    if isinstance(record.msg, dict):
+        message, stack = str(record.msg.get("event", "")), record.msg.get("stack")
+    else:
+        message, stack = record.getMessage(), record.stack_info
+    return f"{message}\n{stack}" if stack else message
+
+
+def record_exc_text(record: logging.LogRecord) -> str | None:
+    """The record's formatted traceback, or ``None`` when it carries no exception.
+
+    A native ``error(..., exc_info=True)`` leaves ``record.exc_info`` unset; ``resolve_exc_info`` put
+    the tuple in the event dict instead.
+    """
+    if isinstance(record.msg, dict) and record.msg.get("exc_info"):
+        exc_info = record.msg["exc_info"]
+    else:
+        exc_info = record.exc_info
+    if exc_info and exc_info[1] is not None:
+        return "".join(traceback.format_exception(exc_info[1]))
+    return None
