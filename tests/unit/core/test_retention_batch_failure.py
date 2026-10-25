@@ -131,11 +131,10 @@ async def test_each_committed_batch_advances_write_progress(
 
 
 async def test_non_storage_error_from_batch_propagates(
-    retention_service: DatabaseService,
-    db: aiosqlite.Connection,
-    monkeypatch: pytest.MonkeyPatch,
+    retention_service: DatabaseService, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A non-storage exception from a batch is a bug: it propagates instead of being returned as the error."""
+    db = retention_service.db
     await insert_tiered_execution(db, time.time() - (5 * SECONDS_PER_DAY), SOURCE_TIER_FRAMEWORK)
     await db.commit()
     original_execute = db.execute
