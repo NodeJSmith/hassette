@@ -4,6 +4,7 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
+from pydantic import BaseModel, ValidationError
 from rich.console import Console
 
 import hassette.cli.output as output_module
@@ -316,3 +317,20 @@ def test_fmt_log_message_picks_the_exception_group_header() -> None:
     entry = make_log_entry(message="Handler failed", exc_info=exc_info)
 
     assert fmt_log_message(entry) == "Handler failed\nExceptionGroup: handlers failed (2 sub-exceptions)"
+
+
+def test_fmt_log_message_skips_indented_exception_message_lines() -> None:
+    """An exception message's indented continuation lines (Pydantic's per-field errors) aren't mistaken for frames."""
+
+    class Model(BaseModel):
+        name: str
+
+    try:
+        Model.model_validate({})
+    except ValidationError as exc:
+        exc_info = get_traceback_string(exc)
+
+    entry = make_log_entry(message="Handler failed", exc_info=exc_info)
+    expected_line = "pydantic_core._pydantic_core.ValidationError: 1 validation error for Model"
+
+    assert fmt_log_message(entry) == f"Handler failed\n{expected_line}"
