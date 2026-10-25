@@ -23,7 +23,7 @@ from hassette.event_handling.predicates import (
 from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_call_service_event, create_state_change_event, wait_for
 
-from .helpers import last_invoke_handler, send_through_mock_executor
+from .helpers import last_invoke_handler, mock_bus_executor, send_through_mock_executor
 
 if TYPE_CHECKING:
     from hassette.bus import Bus
@@ -376,7 +376,7 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
 
     await wait_for(lambda: listener.db_id is not None, desc="listener registered")
 
-    hassette.bus_service._executor.register_listener.assert_called()
+    mock_bus_executor(hassette).register_listener.assert_called()
     assert listener.db_id is not None
     assert listener.db_id > 0
 
@@ -652,8 +652,10 @@ async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, immediate=True, name="kitchen_immediate")
-    assert subscription.listener.duration_config.immediate is True
-    assert subscription.listener.duration_config.entity_id == "light.kitchen"
+    duration_config = subscription.listener.duration_config
+    assert duration_config is not None
+    assert duration_config.immediate is True
+    assert duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
@@ -663,8 +665,10 @@ async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, duration=5.0, name="kitchen_duration")
-    assert subscription.listener.duration_config.duration == 5.0
-    assert subscription.listener.duration_config.entity_id == "light.kitchen"
+    duration_config = subscription.listener.duration_config
+    assert duration_config is not None
+    assert duration_config.duration == 5.0
+    assert duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
@@ -689,8 +693,10 @@ async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
     subscription = await bus.on_attribute_change(
         "light.kitchen", "brightness", handler=handler, immediate=True, name="kitchen_brightness_immediate"
     )
-    assert subscription.listener.duration_config.immediate is True
-    assert subscription.listener.duration_config.entity_id == "light.kitchen"
+    duration_config = subscription.listener.duration_config
+    assert duration_config is not None
+    assert duration_config.immediate is True
+    assert duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
@@ -702,8 +708,10 @@ async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
     subscription = await bus.on_attribute_change(
         "light.kitchen", "brightness", handler=handler, duration=5.0, name="kitchen_brightness_duration"
     )
-    assert subscription.listener.duration_config.duration == 5.0
-    assert subscription.listener.duration_config.entity_id == "light.kitchen"
+    duration_config = subscription.listener.duration_config
+    assert duration_config is not None
+    assert duration_config.duration == 5.0
+    assert duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_attribute_change_rejects_glob_with_immediate(bus: "Bus") -> None:

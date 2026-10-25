@@ -91,6 +91,7 @@ async def test_queued_runs_all_in_order(
 
     async def handler(event: RawStateChangeEvent) -> None:
         value = event.payload.data.new_state_value
+        assert isinstance(value, str)
         if not first_started.is_set():
             first_started.set()
             order.append(value)
@@ -133,6 +134,7 @@ async def test_await_dispatch_idle_blocks_until_queued_handlers_run(
 
     async def handler(event: RawStateChangeEvent) -> None:
         value = event.payload.data.new_state_value
+        assert isinstance(value, str)
         if not first_started.is_set():
             first_started.set()
             await release_first.wait()
@@ -174,6 +176,7 @@ async def test_queued_cap_drops_newest(
 
     async def handler(event: RawStateChangeEvent) -> None:
         value = event.payload.data.new_state_value
+        assert isinstance(value, str)
         if not first_started.is_set():
             first_started.set()
             await release_first.wait()
