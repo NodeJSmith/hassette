@@ -1,37 +1,32 @@
-"""Tests for LifecycleMixin transition validation and shutdown STOPPING path.
+"""Tests for LifecycleMixin status transitions and the shutdown STOPPING path.
 
 Verifies:
-- Valid transitions go through without error and emit DEBUG logs
-- Invalid transitions raise InvalidLifecycleTransitionError in strict mode
-- Invalid transitions log WARNING (and still proceed) in non-strict mode
-- _force_terminal() bypasses the setter and skips validation
-- Restart transitions (FAILED→STARTING, CRASHED→STARTING) are accepted
-- STOPPING→CRASHED is accepted (serve() raising after the shutdown window opened)
-- EXHAUSTED states transition table is correct
-- Terminal EXHAUSTED_DEAD rejects further transitions in strict mode
+- _force_terminal() sets STOPPED directly
 - handle_running() idempotency is preserved (already RUNNING → early return, no setter)
+- Same-state setter assignment is a no-op
+- handle_failed() leaves an already-terminal resource unchanged
 - handle_failed() idempotency (already FAILED → early return)
 - handle_starting() idempotency (already STARTING → early return)
 - handle_crash() idempotency (already CRASHED → early return)
 - start() idempotency (task already running → early return)
+- start()/cancel() from a worker thread redispatch onto the loop thread
 - cancel() cancels a running init task
 
 Shutdown STOPPING path:
 - shutdown() sets STOPPING before hooks run (Resource)
 - shutdown() sets STOPPING before hooks run (Service)
 - Full shutdown sequence: RUNNING → STOPPING → STOPPED
-- RUNNING → STOPPED direct transition is valid (natural service completion via _serve_wrapper)
+- RUNNING → STOPPED direct assignment applies (natural service completion via _serve_wrapper)
+- Any changed status applies through the setter under strict_lifecycle
 """
 
 import asyncio
 import contextlib
 import threading
-from unittest.mock import AsyncMock
 
 import pytest
 from hassette_wire import ResourceStatus
 
-from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.resources.lifecycle import (
     cancel,
     handle_crash,
@@ -53,131 +48,13 @@ def make_strict_running_resource(strict_lifecycle: bool = True) -> ConcreteResou
     return resource
 
 
-async def test_valid_transition_sequence():
-    """Walk NOT_STARTED → STARTING → RUNNING → STOPPING → STOPPED via the setter — no error raised."""
-    hassette = make_mock_hassette(sealed=False)
-    resource = ConcreteResource(hassette)
-
-    resource.status = ResourceStatus.STARTING
-    assert resource.status == ResourceStatus.STARTING
-
-    resource.status = ResourceStatus.RUNNING
-    assert resource.status == ResourceStatus.RUNNING
-
-    resource.status = ResourceStatus.STOPPING
-    assert resource.status == ResourceStatus.STOPPING
-
-    resource.status = ResourceStatus.STOPPED
-    assert resource.status == ResourceStatus.STOPPED
-
-
-async def test_invalid_transition_raises_strict():
-    """In strict mode, NOT_STARTED → RUNNING raises InvalidLifecycleTransitionError with correct fields."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-    resource = ConcreteResource(hassette)
-
-    assert resource.status == ResourceStatus.NOT_STARTED
-
-    with pytest.raises(InvalidLifecycleTransitionError) as exc_info:
-        resource.status = ResourceStatus.RUNNING
-
-    err = exc_info.value
-    assert err.from_status == ResourceStatus.NOT_STARTED
-    assert err.to_status == ResourceStatus.RUNNING
-    assert err.resource_name  # non-empty
-
-
-async def test_invalid_transition_warns_nonstrict():
-    """Non-strict mode: invalid transition does not raise and the transition still proceeds."""
-    hassette = make_mock_hassette(strict_lifecycle=False, sealed=False)
-    resource = ConcreteResource(hassette)
-
-    assert resource.status == ResourceStatus.NOT_STARTED
-
-    resource.status = ResourceStatus.RUNNING
-
-    assert resource.status == ResourceStatus.RUNNING
-
-
-async def test_force_terminal_bypasses_validation():
-    """In strict mode, _force_terminal() on a RUNNING resource succeeds with STOPPED and no error."""
+async def test_force_terminal_sets_stopped():
+    """_force_terminal() on a RUNNING resource leaves it STOPPED."""
     resource = make_strict_running_resource()
 
-    # _force_terminal() must NOT raise even in strict mode
     resource._force_terminal()
 
     assert resource.status == ResourceStatus.STOPPED
-
-
-async def test_restart_transitions_valid():
-    """FAILED → STARTING and CRASHED → STARTING are valid restart transitions."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-
-    # FAILED → STARTING
-    resource1 = ConcreteResource(hassette)
-    resource1._status = ResourceStatus.FAILED
-    # Should not raise
-    resource1.status = ResourceStatus.STARTING
-    assert resource1.status == ResourceStatus.STARTING
-
-    # CRASHED → STARTING
-    resource2 = ConcreteResource(hassette)
-    resource2._status = ResourceStatus.CRASHED
-    # Should not raise
-    resource2.status = ResourceStatus.STARTING
-    assert resource2.status == ResourceStatus.STARTING
-
-
-async def test_stopping_to_crashed_is_valid():
-    """STOPPING → CRASHED is valid: serve() can raise a FatalError after shutdown has begun.
-
-    STOPPING already accepts FAILED for the same reason; CRASHED is the sibling terminal
-    outcome that RUNNING's own transition set has always allowed alongside it.
-    """
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-
-    resource = ConcreteResource(hassette)
-    resource._status = ResourceStatus.STOPPING
-    resource.status = ResourceStatus.CRASHED
-
-    assert resource.status == ResourceStatus.CRASHED
-
-
-async def test_exhausted_transitions_valid():
-    """FAILED→EXHAUSTED_COOLING, EXHAUSTED_COOLING→STARTING, EXHAUSTED_COOLING→EXHAUSTED_DEAD are valid."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-
-    # FAILED → EXHAUSTED_COOLING
-    resource1 = ConcreteResource(hassette)
-    resource1._status = ResourceStatus.FAILED
-    resource1.status = ResourceStatus.EXHAUSTED_COOLING
-    assert resource1.status == ResourceStatus.EXHAUSTED_COOLING
-
-    # EXHAUSTED_COOLING → STARTING
-    resource2 = ConcreteResource(hassette)
-    resource2._status = ResourceStatus.EXHAUSTED_COOLING
-    resource2.status = ResourceStatus.STARTING
-    assert resource2.status == ResourceStatus.STARTING
-
-    # EXHAUSTED_COOLING → EXHAUSTED_DEAD
-    resource3 = ConcreteResource(hassette)
-    resource3._status = ResourceStatus.EXHAUSTED_COOLING
-    resource3.status = ResourceStatus.EXHAUSTED_DEAD
-    assert resource3.status == ResourceStatus.EXHAUSTED_DEAD
-
-
-async def test_terminal_state_rejects_transitions():
-    """EXHAUSTED_DEAD → STARTING raises InvalidLifecycleTransitionError in strict mode."""
-    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
-    resource = ConcreteResource(hassette)
-    resource._status = ResourceStatus.EXHAUSTED_DEAD
-
-    with pytest.raises(InvalidLifecycleTransitionError) as exc_info:
-        resource.status = ResourceStatus.STARTING
-
-    err = exc_info.value
-    assert err.from_status == ResourceStatus.EXHAUSTED_DEAD
-    assert err.to_status == ResourceStatus.STARTING
 
 
 async def test_same_state_no_transition():
@@ -189,19 +66,6 @@ async def test_same_state_no_transition():
 
     assert resource.status == ResourceStatus.RUNNING
     assert resource._previous_status == ResourceStatus.STARTING
-
-
-async def test_is_true_identity_check_mock_safe():
-    """MagicMock's truthy strict_lifecycle must NOT trigger strict mode (is True identity check)."""
-    hassette = AsyncMock()
-    hassette.config.logging.log_level = "DEBUG"
-    resource = ConcreteResource(hassette)
-
-    assert resource.hassette.config.strict_lifecycle
-    assert resource.hassette.config.strict_lifecycle is not True
-
-    resource.status = ResourceStatus.RUNNING
-    assert resource.status == ResourceStatus.RUNNING
 
 
 async def test_same_state_setter_no_raise():
@@ -303,20 +167,27 @@ async def test_running_to_stopped_direct_is_valid():
     assert resource.status == ResourceStatus.STOPPED
 
 
+async def test_setter_applies_any_transition_under_strict_lifecycle():
+    """Any changed status applies through the setter, even under strict_lifecycle, and records the prior status."""
+    resource = make_strict_running_resource(strict_lifecycle=True)
+
+    resource.status = ResourceStatus.NOT_STARTED
+
+    assert resource.status == ResourceStatus.NOT_STARTED
+    assert resource._previous_status == ResourceStatus.RUNNING
+
+
 @pytest.mark.parametrize("terminal", [ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD])
 async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStatus):
-    """handle_failed() on an already-terminal resource is a no-op, even in strict mode.
+    """handle_failed() on an already-terminal resource is a no-op.
 
-    Regression for #1059. Terminal states (STOPPED, EXHAUSTED_DEAD) have no valid transition to
-    FAILED, so a late failure arriving after teardown completed — such as a submit-after-shutdown
-    ``RuntimeError("cannot schedule new futures after shutdown")`` — is benign. handle_failed()
-    must therefore leave the status unchanged. Driving the terminal → FAILED transition instead
-    would violate VALID_TRANSITIONS and raise InvalidLifecycleTransitionError under
-    strict_lifecycle.
+    Regression for #1059. A late failure arriving after teardown completed — such as a
+    submit-after-shutdown ``RuntimeError("cannot schedule new futures after shutdown")`` — must
+    not move a terminal resource (STOPPED, EXHAUSTED_DEAD) to FAILED, so handle_failed() leaves
+    the status unchanged.
     """
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = ConcreteResource(hassette)
-    # Set _status directly: the setter would reject NOT_STARTED → terminal as an invalid transition.
     resource._status = terminal
 
     # Must not raise and must not move off the terminal state.

@@ -276,8 +276,6 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Lifecycle
 
-**`InvalidLifecycleTransitionError`** A resource attempted an invalid status transition. Only raised when `strict_lifecycle = true` in `hassette.toml`. In non-strict mode, the same condition logs a WARNING. Disable strict mode or investigate the resource initialization order.
-
 **`RegistryValidationError`** Startup registry validation found error-level issues (for example, a malformed custom state class). Only raised when `strict_lifecycle = true`; the exception message lists each issue found. In non-strict mode, the same issues log as warnings.
 
 **`AppPrecheckFailedError`** One or more apps failed the precheck. Check the log for the specific app and error. Set `allow_startup_if_app_precheck_fails = true` to let other apps run while you diagnose.

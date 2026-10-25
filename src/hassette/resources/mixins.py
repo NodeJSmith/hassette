@@ -1,12 +1,10 @@
 import asyncio
-import traceback
 import typing
 from logging import Logger, getLogger
 from typing import Any, Protocol
 
 from hassette_wire import ResourceStatus
 
-from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.resources.teardown import TeardownReport
 from hassette.types.types import CoroLikeT
 
@@ -14,74 +12,6 @@ if typing.TYPE_CHECKING:
     from hassette.types.enums import ResourceRole
 
 LOGGER = getLogger(__name__)
-
-
-# Valid ResourceStatus transitions. This is the authoritative table for the entire framework.
-# All code paths that change status must go through the setter (or use _status directly to bypass,
-# e.g. _force_terminal).
-VALID_TRANSITIONS: dict[ResourceStatus, frozenset[ResourceStatus]] = {
-    ResourceStatus.NOT_STARTED: frozenset(
-        {
-            ResourceStatus.STARTING,
-            ResourceStatus.STOPPING,
-            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted before first start (timing edge)
-            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted before first start (timing edge)
-        }
-    ),
-    ResourceStatus.STARTING: frozenset(
-        {
-            ResourceStatus.RUNNING,
-            ResourceStatus.FAILED,
-            ResourceStatus.STOPPED,
-            ResourceStatus.STOPPING,
-            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted while restarting (timing edge)
-            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted while restarting (timing edge)
-        }
-    ),
-    ResourceStatus.RUNNING: frozenset(
-        {
-            ResourceStatus.STOPPING,
-            ResourceStatus.STOPPED,  # natural service completion (_serve_wrapper normal return)
-            ResourceStatus.FAILED,
-            ResourceStatus.CRASHED,
-            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted while running (timing edge)
-            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted while running (timing edge)
-        }
-    ),
-    ResourceStatus.STOPPING: frozenset(
-        {
-            ResourceStatus.STOPPED,
-            ResourceStatus.FAILED,
-            ResourceStatus.CRASHED,  # serve() raised while the shutdown window was already open
-        }
-    ),
-    ResourceStatus.STOPPED: frozenset({ResourceStatus.STARTING}),  # restart
-    ResourceStatus.FAILED: frozenset(
-        {
-            ResourceStatus.STARTING,  # restart
-            ResourceStatus.STOPPING,  # shutdown after failure
-            ResourceStatus.STOPPED,  # handle_stop after failure
-            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted, transient
-            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted, temporary
-        }
-    ),
-    ResourceStatus.CRASHED: frozenset(
-        {
-            ResourceStatus.STARTING,  # restart
-            ResourceStatus.STOPPING,  # shutdown after crash
-            ResourceStatus.STOPPED,  # handle_stop after crash
-            ResourceStatus.EXHAUSTED_DEAD,  # fatal, permanent
-        }
-    ),
-    ResourceStatus.EXHAUSTED_COOLING: frozenset(
-        {
-            ResourceStatus.STARTING,  # restart after cooldown
-            ResourceStatus.STOPPING,  # shutdown while cooling
-            ResourceStatus.EXHAUSTED_DEAD,  # cooldown cycles exceeded
-        }
-    ),
-    ResourceStatus.EXHAUSTED_DEAD: frozenset({ResourceStatus.STOPPING}),  # shutdown while dead
-}
 
 
 class _TaskBucketP(Protocol):
@@ -266,9 +196,8 @@ class LifecycleMixin(_LifecycleHostP):
     def status(self) -> ResourceStatus:
         """Current lifecycle status.
 
-        Assigning a new value checks it against ``VALID_TRANSITIONS``: an invalid transition raises
-        ``InvalidLifecycleTransitionError`` under ``strict_lifecycle``, and is logged as a warning
-        but still applied otherwise.
+        Assigning a new value always applies it and logs the transition at DEBUG; assigning the
+        current value is a no-op.
         """
         return self._status
 
@@ -277,23 +206,6 @@ class LifecycleMixin(_LifecycleHostP):
         old = self._status
         if old == value:
             return
-
-        allowed = VALID_TRANSITIONS.get(old, frozenset())
-        if value not in allowed:
-            if getattr(self.hassette.config, "strict_lifecycle", False) is True:
-                raise InvalidLifecycleTransitionError(
-                    from_status=old,
-                    to_status=value,
-                    resource_name=self.unique_name,
-                )
-            frame_summary = "".join(traceback.format_stack(limit=3)[:-1]).strip()
-            LOGGER.warning(
-                "Invalid lifecycle transition for '%s': %r → %r\n%s",
-                self.unique_name,
-                old,
-                value,
-                frame_summary,
-            )
 
         LOGGER.debug("%s: %s → %s", self.unique_name, old, value)
 
