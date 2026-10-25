@@ -37,7 +37,6 @@ from hassette.testing import make_light_state_dict, wait_for
 from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
 from tests.support.helpers import cleanup_hassette_streams, make_addrinfo, patch_loop_getaddrinfo
-from tests.support.mock_hassette import TEST_TOTAL_TIMEOUT_SECONDS
 
 WEBAPI_READY_TIMEOUT = 10.0
 STARTUP_EVENT_TIMEOUT = 5
@@ -129,7 +128,6 @@ def _wire_hassette_without_ha(
         # enforces it. Pinning host to loopback alongside disabling auth matches the project's
         # startup guard (a non-loopback host with auth disabled refuses to start).
         web_api={"run": True, "port": port, "auth_enabled": False, "host": "127.0.0.1", **web_api_overrides},
-        websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
         apps={
             "directory": TEST_APPS_PATH,
             "apps": {

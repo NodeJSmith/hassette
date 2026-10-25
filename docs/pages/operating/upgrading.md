@@ -206,6 +206,10 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 | `[hassette.websocket] early_drop_backoff_initial_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
 | `[hassette.websocket] early_drop_backoff_max_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
 | `[hassette.websocket] max_recovery_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] authentication_timeout_seconds` | Removed; the timeout is fixed at 10s |
+| `[hassette.websocket] response_timeout_seconds` | Removed; the timeout is fixed at 15s |
+| `[hassette.websocket] total_timeout_seconds` | Removed; the timeout is fixed at 30s |
+| `[hassette.websocket] cleanup_timeout_seconds` | Removed; the timeout is fixed at 2s |
 | `run_app_precheck` | Removed; the precheck always runs. Set `allow_startup_if_app_precheck_fails = true` to start despite a failure |
 | `disable_state_proxy_polling` | Removed; the state cache poll always runs. Tune it with `state_proxy_poll_interval_seconds` |
 | `config_file` / `env_file` settings | the `--config-file` / `--env-file` CLI flags |

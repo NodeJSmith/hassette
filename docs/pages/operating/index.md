@@ -89,9 +89,7 @@ Running apps keep reading the last-known states (marked stale) through an outage
 
 ### Per-operation timeouts
 
-The `[hassette.websocket]` fields cap individual operations: `connection_timeout_seconds` (default: 5s) for establishing the connection, `authentication_timeout_seconds` (default: 10s) for the HA auth handshake, `response_timeout_seconds` (default: 15s) for a reply to a single WebSocket command, and `total_timeout_seconds` (default: 30s) as the overall ceiling for a single operation. Slow or high-latency HA hosts (remote instances, constrained hardware) are the usual reason to raise them.
-
-All fields live under `[hassette.websocket]` in `hassette.toml`.
+`connection_timeout_seconds` under `[hassette.websocket]` (default: 5s) caps how long opening the connection takes. Slow or high-latency HA hosts (remote instances, constrained hardware) are the usual reason to raise it. The other WebSocket timeouts are fixed: 10s for the auth handshake, 15s for a reply to one command, and 30s as the ceiling for one operation.
 
 ## Handler Exceptions
 

@@ -160,7 +160,7 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
 async def test_send_and_wait_times_out(websocket_service: WebsocketService, monkeypatch) -> None:
     """Raise FailedMessageError after exhausting retries on timeout."""
     monkeypatch.setattr(websocket_io_module, "MAX_RETRY_ATTEMPTS", 2)
-    websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+    monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
 
     websocket_service.send_json = AsyncMock(return_value=None)
 
@@ -170,16 +170,18 @@ async def test_send_and_wait_times_out(websocket_service: WebsocketService, monk
     assert websocket_service._pending.entries == {}, "Expected future mapping to be cleared after timeout"
 
 
-async def test_send_and_wait_retries_on_timeout(websocket_service: WebsocketService) -> None:
+async def test_send_and_wait_retries_on_timeout(
+    websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """send_and_wait retries transient timeouts and succeeds when HA responds."""
-    websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+    monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
     call_count = 0
 
     async def send_side_effect(**data: Any) -> None:
         nonlocal call_count
         call_count += 1
         if call_count >= 2:
-            websocket_service.hassette.config.websocket.response_timeout_seconds = 5
+            monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 5)
             msg_id = data["id"]
             fut = websocket_service._pending.entries[msg_id].future
             fut.set_result({"ok": True})

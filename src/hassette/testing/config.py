@@ -47,11 +47,6 @@ TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 # constant defined in either one and imported by the other would form a circular import.
 WAIT_FOR_READY_TIMEOUT_SECONDS: float = 5.0
 
-# Matches the production default (WebSocketConfig.total_timeout_seconds). Tests use this
-# instead of a tight override to avoid the config-driven real-clock timeout race
-# documented in .claude/rules/regression-test-patterns.md.
-TEST_TOTAL_TIMEOUT_SECONDS = 30
-
 # Matches the production default shared by LifecycleConfig.event_handler_timeout_seconds and
 # SchedulerConfig.job_timeout_seconds. Bus- and scheduler-dispatch tests use it as the stand-in
 # "config default" their per-listener/per-job overrides are resolved against, so the value is
