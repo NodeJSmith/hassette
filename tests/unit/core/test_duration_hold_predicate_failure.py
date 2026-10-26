@@ -54,9 +54,8 @@ def make_registered_listener(db_id: int, **kwargs: Any) -> Listener:
 
 
 def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> None:
-    executor = executor_mock(svc)
-    executor.enqueue_record.assert_called_once()
-    record = executor.enqueue_record.call_args[0][0]
+    executor_mock(svc).enqueue_record.assert_called_once()
+    record = executor_mock(svc).enqueue_record.call_args[0][0]
     assert record.kind == "handler"
     assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "ValueError"
@@ -64,14 +63,14 @@ def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> Non
     assert record.listener_id == listener.db_id
     assert record.session_id == 7
 
-    executor.invoke_error_handler.assert_awaited_once()
-    handler, ctx = executor.invoke_error_handler.await_args[0]
+    executor_mock(svc).invoke_error_handler.assert_awaited_once()
+    handler, ctx = executor_mock(svc).invoke_error_handler.await_args[0]
     assert handler is on_error
     assert isinstance(ctx, BusErrorContext)
     assert isinstance(ctx.exception, ValueError)
     assert ctx.topic == TOPIC
     assert ctx.execution_id == record.execution_id
-    executor.execute.assert_not_called()
+    executor_mock(svc).execute.assert_not_called()
 
 
 async def test_raising_hold_predicate_on_duration_fire_is_recorded_and_routed() -> None:
