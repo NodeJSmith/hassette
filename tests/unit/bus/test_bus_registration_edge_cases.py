@@ -13,6 +13,8 @@ Covers:
 """
 
 import typing
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
@@ -31,6 +33,7 @@ from tests.support.helpers import create_component_loaded_event, create_service_
 from .conftest import mock_add_listener
 
 if typing.TYPE_CHECKING:
+    from hassette.app.app import App
     from hassette.bus.bus import Bus
 
 
@@ -111,7 +114,9 @@ class TestOnCallServiceWhereVariants:
         """
         with mock_add_listener(bus):
             sub = await bus.on_call_service(
-                handler=handler_a, name="svc_mapping_list", where=[{"entity_id": "light.kitchen"}]
+                handler=handler_a,
+                name="svc_mapping_list",
+                where=[{"entity_id": "light.kitchen"}],  # pyright: ignore[reportArgumentType]
             )
 
         matching = create_call_service_event(
@@ -212,14 +217,6 @@ class TestStateChangeComparisonCondition:
         assert sub.listener.matches(decreased) is False
 
 
-def make_app_stub(*, app_key: str, index: int = 0, instance_name: str | None = None):
-    """Minimal stand-in for an App instance, exposing only what HassetteAppStateEvent.from_data reads."""
-
-    class _AppStub:
-        pass
-
-    stub = _AppStub()
-    stub.app_key = app_key  # pyright: ignore[reportAttributeAccessIssue]
-    stub.index = index  # pyright: ignore[reportAttributeAccessIssue]
-    stub.instance_name = instance_name  # pyright: ignore[reportAttributeAccessIssue]
-    return stub
+def make_app_stub(*, app_key: str, index: int = 0, instance_name: str | None = None) -> "App[Any]":
+    """Minimal stand-in for an App instance, exposing only what HassetteAppStateEvent.from_app reads."""
+    return cast("App[Any]", SimpleNamespace(app_key=app_key, index=index, instance_name=instance_name))

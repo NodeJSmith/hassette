@@ -18,7 +18,8 @@ Covers:
 
 import asyncio
 import typing
-from unittest.mock import AsyncMock
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -43,6 +44,7 @@ async def handler_b(event) -> None:
 
 def make_bus_listener(bus: "Bus", *, handler: HandlerType = handler_a, name: str = "test_listener") -> Listener:
     """Build a listener whose identity fields (app key, instance index, owner) come off `bus`."""
+    assert bus.parent is not None
     return create_listener(
         handler=handler,
         app_key=bus.parent.app_key,
@@ -140,7 +142,7 @@ async def test_registration_cancelled_mid_add_rolls_back_registry_key(bus: "Bus"
         return 1
 
     # Block at the DB boundary so the real BusService.add_listener runs up to its executor await.
-    register = bus.bus_service._executor.register_listener
+    register = cast("MagicMock", bus.bus_service._executor.register_listener)
     register.side_effect = blocking_register
     task = asyncio.create_task(bus.on(topic="test.topic", handler=handler_a, name="my_listener"))
     await asyncio.wait_for(entered.wait(), timeout=1)
@@ -172,7 +174,7 @@ async def test_replace_then_add_listener_fails_propagates(bus: "Bus") -> None:
     async def failing_add(_listener) -> int:
         raise RuntimeError("db down")
 
-    bus.bus_service.add_listener = failing_add
+    bus.bus_service.add_listener = failing_add  # pyright: ignore[reportAttributeAccessIssue]
     with pytest.raises(RuntimeError, match="db down"):
         await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
 

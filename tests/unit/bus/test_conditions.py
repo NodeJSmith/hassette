@@ -10,6 +10,7 @@ import pytest
 
 from hassette.const import MISSING_VALUE
 from hassette.event_handling.conditions import (
+    OPS,
     Comparison,
     Contains,
     CrossedAbove,
@@ -156,7 +157,7 @@ def test_comparison_condition() -> None:
         ("ne", 0, "0", False),
     ],
 )
-def test_comparison_numeric_string_coercion(op: str, threshold: int | float, value: str, expected: bool) -> None:
+def test_comparison_numeric_string_coercion(op: OPS, threshold: int | float, value: str, expected: bool) -> None:
     assert Comparison(op, threshold)(value) is expected
 
 
@@ -176,7 +177,7 @@ def test_comparison_non_numeric_string_returns_false(value: str) -> None:
         ("ne", "unavailable", "unavailable", False),
     ],
 )
-def test_comparison_string_to_string_unchanged(op: str, threshold: str, value: str, expected: bool) -> None:
+def test_comparison_string_to_string_unchanged(op: OPS, threshold: str, value: str, expected: bool) -> None:
     assert Comparison(op, threshold)(value) is expected
 
 

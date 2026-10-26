@@ -10,6 +10,7 @@ Verify criteria:
 """
 
 import inspect
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -19,6 +20,9 @@ from hassette.bus.listeners import Subscription
 from hassette.event_handling import predicates as P
 
 from .conftest import mock_add_listener
+
+if TYPE_CHECKING:
+    from hassette.types import Predicate
 
 
 async def handler(event) -> None:
@@ -47,13 +51,9 @@ def test_bus_on_signature_has_no_internal_params() -> None:
 )
 async def test_bus_on_rejects_internal_keywords(bus: "Bus", forbidden_kwarg: str, value: object) -> None:
     """Bus.on() raises TypeError for internal-only parameters."""
+    kwargs: dict[str, Any] = {forbidden_kwarg: value}
     with mock_add_listener(bus), pytest.raises(TypeError):
-        await bus.on(  # pyright: ignore[reportCallIssue]
-            topic="test.topic",
-            handler=handler,
-            name="rejects_internal_keywords",
-            **{forbidden_kwarg: value},
-        )
+        await bus.on(topic="test.topic", handler=handler, name="rejects_internal_keywords", **kwargs)
 
 
 def test_subscription_has_no_registration_task_field() -> None:
@@ -76,7 +76,7 @@ def test_subscription_default_construction() -> None:
 async def test_hold_preds_not_mutated_in_subscribe(bus: "Bus") -> None:
     """The hold_preds list passed to _subscribe() is not modified in place."""
     original_pred = P.EntityMatches("light.test")
-    original_hold_preds = [original_pred]
+    original_hold_preds: list[Predicate] = [original_pred]
     original_id = id(original_hold_preds)
     original_len = len(original_hold_preds)
 

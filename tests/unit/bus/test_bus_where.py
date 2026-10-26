@@ -7,12 +7,11 @@ Covers:
 - wait_for() detects async callable instances (#1244)
 """
 
-from types import SimpleNamespace
-
 import pytest
 
 from hassette.event_handling.predicates import compare_value, normalize_where
 from hassette.testing import wait_for
+from tests.support.factories import make_mock_event
 from tests.support.helpers import create_listener
 
 
@@ -24,7 +23,7 @@ class TestNormalizeWhereAsyncRejection:
             return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            normalize_where(pred)
+            normalize_where(pred)  # pyright: ignore[reportArgumentType]
 
     def test_async_callable_instance_raises_type_error(self) -> None:
         class AsyncPred:
@@ -32,7 +31,7 @@ class TestNormalizeWhereAsyncRejection:
                 return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            normalize_where(AsyncPred())
+            normalize_where(AsyncPred())  # pyright: ignore[reportArgumentType]
 
     def test_sequence_with_async_member_raises_type_error(self) -> None:
         def sync_pred(_ev: object) -> bool:
@@ -42,7 +41,7 @@ class TestNormalizeWhereAsyncRejection:
             return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            normalize_where([sync_pred, async_pred])
+            normalize_where([sync_pred, async_pred])  # pyright: ignore[reportArgumentType]
 
     def test_sequence_with_async_callable_instance_raises_type_error(self) -> None:
         def sync_pred(_ev: object) -> bool:
@@ -53,7 +52,7 @@ class TestNormalizeWhereAsyncRejection:
                 return True
 
         with pytest.raises(TypeError, match="synchronous"):
-            normalize_where([sync_pred, AsyncPred()])
+            normalize_where([sync_pred, AsyncPred()])  # pyright: ignore[reportArgumentType]
 
     def test_sync_callable_passes(self) -> None:
         def pred(_ev: object) -> bool:
@@ -90,7 +89,7 @@ class TestListenerMatchesRaisingPredicate:
             raise ValueError("boom")
 
         listener = create_listener(where=bad_pred)
-        ev = SimpleNamespace(payload=SimpleNamespace())
+        ev = make_mock_event()
 
         with pytest.raises(ValueError, match="boom"):
             listener.matches(ev)
@@ -100,7 +99,7 @@ class TestListenerMatchesRaisingPredicate:
             raise RuntimeError("unexpected")
 
         listener = create_listener(where=bad_pred)
-        ev = SimpleNamespace(payload=SimpleNamespace())
+        ev = make_mock_event()
 
         with pytest.raises(RuntimeError, match="unexpected"):
             listener.matches(ev)
@@ -110,7 +109,7 @@ class TestListenerMatchesRaisingPredicate:
             return True
 
         listener = create_listener(where=good_pred)
-        ev = SimpleNamespace(payload=SimpleNamespace())
+        ev = make_mock_event()
 
         assert listener.matches(ev) is True
 
@@ -119,7 +118,7 @@ class TestListenerMatchesRaisingPredicate:
             return False
 
         listener = create_listener(where=reject_pred)
-        ev = SimpleNamespace(payload=SimpleNamespace())
+        ev = make_mock_event()
 
         assert listener.matches(ev) is False
 

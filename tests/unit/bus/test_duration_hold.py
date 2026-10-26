@@ -12,7 +12,7 @@ Tests cover:
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import hassette.utils.date_utils as date_utils
@@ -20,6 +20,7 @@ from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.bus_service import compute_elapsed, make_synthetic_state_event
+from hassette.events.hass.raw import HassStateDict
 from hassette.testing import make_state_dict
 from tests.support.factories import make_mock_executor
 from tests.support.helpers import create_listener, make_task_bucket
@@ -32,12 +33,12 @@ def make_config_resolver(value: float | None = 30.0) -> Callable[[], float | Non
 
 def make_state_reader(
     state: dict[str, Any] | None = None,
-) -> Callable[[str], dict[str, Any] | None]:
+) -> Callable[[str], HassStateDict | None]:
     """Create a state_reader callable returning a fixed state dict."""
     return MagicMock(return_value=state)
 
 
-def make_remove_listener() -> Callable[[Listener], None]:
+def make_remove_listener() -> MagicMock:
     """Create a mock remove_listener callable."""
     return MagicMock()
 
@@ -116,6 +117,7 @@ def arm_duration_timer(
     manager = make_manager(state=state, remove_listener=remove_listener)
     listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
     invoke_fn = AsyncMock()
+    assert listener.duration_config is not None
     manager.start_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn)
     return manager, mock_timer, invoke_fn
 
@@ -127,6 +129,7 @@ def arm_remaining_duration_timer(
     manager = make_manager(state=state)
     listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
     invoke_fn = AsyncMock()
+    assert listener.duration_config is not None
     manager.start_remaining_duration_timer(listener, "light.kitchen", listener.duration_config, invoke_fn, remaining)
     return manager, mock_timer, invoke_fn
 
@@ -172,7 +175,7 @@ def compute_elapsed_for(state: dict[str, Any], *, duration: float = 60.0) -> flo
     only the `state` dict (built to control ``last_changed`` precisely) varies per test.
     """
     dc = DurationConfig(entity_id="light.kitchen", duration=duration)
-    return compute_elapsed(state, dc)
+    return compute_elapsed(cast("HassStateDict", state), dc)
 
 
 class TestConstruction:
@@ -496,7 +499,7 @@ class TestComputeElapsed:
         """compute_elapsed returns 0.0 for attribute listeners."""
         state = make_state_dict("light.kitchen", "on")
         dc = DurationConfig(entity_id="light.kitchen", duration=60.0, is_attribute_listener=True)
-        result = compute_elapsed(state, dc)
+        result = compute_elapsed(cast("HassStateDict", state), dc)
         assert result == 0.0
 
     def test_missing_last_changed_returns_zero(self) -> None:
@@ -516,15 +519,14 @@ class TestComputeElapsed:
             "state": "on",
             "last_changed": 12345,  # not a string
         }
-        dc = DurationConfig(entity_id="light.kitchen", duration=60.0)
-        result = compute_elapsed(state, dc)
+        result = compute_elapsed_for(state)
         assert result == 0.0
 
     def test_none_duration_returns_zero(self) -> None:
         """compute_elapsed returns 0.0 when duration_config.duration is None."""
         state = make_state_dict("light.kitchen", "on")
         dc = DurationConfig(entity_id="light.kitchen", duration=None)
-        result = compute_elapsed(state, dc)
+        result = compute_elapsed(cast("HassStateDict", state), dc)
         assert result == 0.0
 
     def test_elapsed_clamped_to_duration(self) -> None:

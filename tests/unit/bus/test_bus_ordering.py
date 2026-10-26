@@ -90,7 +90,7 @@ async def test_cancel_then_add_routes_exactly_one_handler(bus: "Bus") -> None:
 async def test_cancel_then_add_different_topics_both_routed(bus: "Bus") -> None:
     """Cancel on one topic + add on another topic — both are independent, no collision."""
     sub_a = await bus.on(topic="test.ordering.topic_a", handler=handler_alpha, name="alpha")
-    sub_b = await bus.on(topic="test.ordering.topic_b", handler=handler_beta, name="beta")  # noqa: F841
+    await bus.on(topic="test.ordering.topic_b", handler=handler_beta, name="beta")
 
     # Cancel topic_a handler
     sub_a.cancel()

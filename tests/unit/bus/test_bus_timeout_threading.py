@@ -2,7 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.bus.bus import Bus, Options
+from hassette.bus.bus import Bus
+from hassette.bus.options import Options
 from tests.support.factories import make_mock_parent
 
 
@@ -20,7 +21,6 @@ def make_bus() -> Bus:
     bus._registered_listeners = {}
     bus._unique_name = "test_bus"
     bus.unique_id = "test_bus_id"
-    bus._owner_id = "test_owner"
     return bus
 
 

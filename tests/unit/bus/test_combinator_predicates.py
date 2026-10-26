@@ -5,12 +5,11 @@ operators that build them, and utility functions for composing and normalizing
 predicates.
 """
 
-from types import SimpleNamespace
-
 import pytest
 
 from hassette.event_handling.predicate_collections import ensure_tuple, is_predicate_collection
 from hassette.event_handling.predicates import AllOf, AnyOf, Guard, Not, normalize_where
+from tests.support.factories import make_mock_event
 
 
 def always_true(_event) -> bool:
@@ -24,42 +23,42 @@ def always_false(_event) -> bool:
 # AllOf combinator tests
 def test_allof_evaluates_all_predicates() -> None:
     """Test that AllOf returns True only when all predicates return True."""
-    mock_event = SimpleNamespace()
+    mock_event = make_mock_event()
 
     # All true
     predicate = AllOf((always_true, always_true))
-    assert predicate(mock_event) is True  # pyright: ignore[reportArgumentType]
+    assert predicate(mock_event) is True
 
     # Mixed
     predicate = AllOf((always_true, always_false))
-    assert predicate(mock_event) is False  # pyright: ignore[reportArgumentType]
+    assert predicate(mock_event) is False
 
     # All false
     predicate = AllOf((always_false, always_false))
-    assert predicate(mock_event) is False  # pyright: ignore[reportArgumentType]
+    assert predicate(mock_event) is False
 
 
 # AnyOf combinator tests
 def test_anyof_evaluates_any_predicate() -> None:
     """Test that AnyOf returns True when any predicate returns True."""
-    mock_event = SimpleNamespace()
+    mock_event = make_mock_event()
 
     # Any true
     predicate = AnyOf((always_false, always_true))
-    assert predicate(mock_event) is True  # pyright: ignore[reportArgumentType]
+    assert predicate(mock_event) is True
 
     # All false
     predicate = AnyOf((always_false, always_false))
-    assert predicate(mock_event) is False  # pyright: ignore[reportArgumentType]
+    assert predicate(mock_event) is False
 
 
 # Not combinator tests
 def test_not_inverts_predicate() -> None:
     """Test that Not inverts the result of wrapped predicate."""
-    mock_event = SimpleNamespace()
+    mock_event = make_mock_event()
 
-    assert Not(always_true)(mock_event) is False  # pyright: ignore[reportArgumentType]
-    assert Not(always_false)(mock_event) is True  # pyright: ignore[reportArgumentType]
+    assert Not(always_true)(mock_event) is False
+    assert Not(always_false)(mock_event) is True
 
 
 # Guard combinator tests
@@ -78,7 +77,7 @@ def test_guard_wraps_callable() -> None:
 # Operator composition tests
 def test_and_operator_builds_allof() -> None:
     """`&` produces an AllOf with AND semantics."""
-    mock_event = SimpleNamespace()
+    mock_event = make_mock_event()
 
     predicate = Guard(always_true) & Guard(always_false)
     assert isinstance(predicate, AllOf)
@@ -89,7 +88,7 @@ def test_and_operator_builds_allof() -> None:
 
 def test_or_operator_builds_anyof() -> None:
     """`|` produces an AnyOf with OR semantics."""
-    mock_event = SimpleNamespace()
+    mock_event = make_mock_event()
 
     predicate = Guard(always_false) | Guard(always_true)
     assert isinstance(predicate, AnyOf)
@@ -100,7 +99,7 @@ def test_or_operator_builds_anyof() -> None:
 
 def test_invert_operator_builds_not() -> None:
     """`~` produces a Not with NOT semantics."""
-    mock_event = SimpleNamespace()
+    mock_event = make_mock_event()
 
     predicate = ~Guard(always_true)
     assert isinstance(predicate, Not)
@@ -127,7 +126,7 @@ def test_chained_or_flattens() -> None:
 
 def test_mixed_operators_nest_by_precedence() -> None:
     """`&` binds tighter than `|`, and unlike combinators do not flatten into each other."""
-    mock_event = SimpleNamespace()
+    mock_event = make_mock_event()
     a, b, c = Guard(always_true), Guard(always_false), Guard(always_true)
 
     assert a & b | c == AnyOf((AllOf((a, b)), c))
@@ -155,10 +154,10 @@ def test_operators_accept_plain_callables() -> None:
 def test_operators_reject_non_callables() -> None:
     """Non-callable operands raise TypeError instead of building a broken predicate."""
     with pytest.raises(TypeError):
-        Guard(always_true) & 5  # pyright: ignore[reportArgumentType]
+        Guard(always_true) & 5  # pyright: ignore[reportOperatorIssue, reportUnusedExpression]
 
     with pytest.raises(TypeError):
-        Guard(always_true) | "on"  # pyright: ignore[reportArgumentType]
+        Guard(always_true) | "on"  # pyright: ignore[reportOperatorIssue, reportUnusedExpression]
 
 
 def test_operator_composed_predicate_passes_through_normalize_where() -> None:
