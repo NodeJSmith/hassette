@@ -113,28 +113,31 @@ graph BT
 
     subgraph wave1["Wave 1"]
         BUS[BusService]
-        SCHED[SchedulerService]
         CMD[CommandExecutor]
         LOG[LoggingService]
         TQS[TelemetryQueryService]
     end
 
     subgraph wave2["Wave 2"]
-        SP[StateProxy]
+        SCHED[SchedulerService]
     end
 
     subgraph wave3["Wave 3"]
+        SP[StateProxy]
+    end
+
+    subgraph wave4["Wave 4"]
         ABC[AppBootstrapCoordinator]
         RQS[RuntimeQueryService]
     end
 
-    subgraph wave4["Wave 4 — Last to Start"]
+    subgraph wave5["Wave 5 — Last to Start"]
         AH[AppHandler]
         WEB[WebApiService]
     end
 
     BUS --> DB & SYNC
-    SCHED --> DB & SYNC
+    SCHED --> DB & SYNC & BUS
     CMD --> DB
     LOG --> DB
     TQS --> DB
@@ -150,6 +153,7 @@ graph BT
     style wave2 fill:#d0e0f0,stroke:#6688cc
     style wave3 fill:#c4d8e8,stroke:#6688cc
     style wave4 fill:#b8d0e0,stroke:#6688cc
+    style wave5 fill:#acc8d8,stroke:#6688cc
 ```
 
 Shutdown proceeds in reverse wave order. [`WebApiService`][hassette.core.web_api_service.WebApiService] and `AppHandler` stop first. [`DatabaseService`][hassette.core.database_service.DatabaseService] and `WebsocketService` stop last. `StateProxy` and `RuntimeQueryService` deliberately leave `WebsocketService` and `AppHandler` out of `depends_on`; each handles that ordering itself.
