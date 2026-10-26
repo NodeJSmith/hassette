@@ -79,7 +79,7 @@ class Service(Resource):
             )
 
     @classmethod
-    def validate_parent(cls, parent: Resource) -> None:
+    def _validate_parent(cls, parent: Resource) -> None:
         """Raise unless a required service's parent is ``Hassette``: only the root may end the process.
 
         ``Hassette`` is the one resource whose ``hassette`` is itself, so that identity test finds the root.
@@ -90,7 +90,7 @@ class Service(Resource):
                 f"{parent.class_name}. A service owned by an app must declare `required = False`."
             )
 
-    def optional_serve_task(self) -> "asyncio.Task[None] | None":
+    def _optional_serve_task(self) -> "asyncio.Task[None] | None":
         """This service's serve task if it is optional, else None."""
         return None if self.required else self._serve_task
 
@@ -227,11 +227,13 @@ class Service(Resource):
             await handle_stop(self)
 
     def stop_requested(self) -> bool:
-        """Whether something asked this service to stop: process shutdown, or this service's own shutdown.
+        """Whether this service was asked to stop: process shutdown, or its own shutdown if it is optional.
 
-        A shutdown attempt sets the service's own shutdown event before it cancels the serve task.
+        An optional service can be stopped on its own (its app reloading). A required one is always a child
+        of ``Hassette`` (``_validate_parent``), and the root sets the process event before any child's own,
+        so only process shutdown stops it; stopped any other way, it ends as a reported failure (spec 134 D8).
         """
-        return self.hassette.shutdown_event.is_set() or self.shutdown_event.is_set()
+        return self.hassette.shutdown_event.is_set() or (not self.required and self.shutdown_event.is_set())
 
     def is_running(self) -> bool:
         """Return True while the ``serve()`` task exists and has not finished."""

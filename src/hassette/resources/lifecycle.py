@@ -388,7 +388,7 @@ async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
         return
 
     resource.lifecycle_logger.error(
-        "%s crashed: %s - %s", resource.unique_name, type(exception).__name__, str(exception)
+        "%s crashed: %s - %s", resource.unique_name, type(exception).__name__, str(exception), exc_info=exception
     )
     resource.status = ResourceStatus.CRASHED
     mark_not_ready(resource, "Crashed")

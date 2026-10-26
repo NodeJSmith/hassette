@@ -85,7 +85,7 @@ class TestAddChildRequiredServiceParent:
         hassette = make_mock_hassette(sealed=False)
         hassette.hassette = hassette
 
-        _RequiredChildService.validate_parent(hassette)
+        _RequiredChildService._validate_parent(hassette)
 
 
 class TestReinitializeAfterCleanTeardown:

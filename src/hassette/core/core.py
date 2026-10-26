@@ -540,7 +540,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         if service.required:
             self.escalate_service_failure(service, exc)
             return
-        serve_task = service.optional_serve_task()
+        serve_task = service._optional_serve_task()
         serve_task_name = serve_task.get_name() if serve_task is not None else None
         pending = [name for name in service.task_bucket.pending_task_names() if name != serve_task_name]
         recovery = "a hassette restart" if service.parent is self else "reloading the app that owns it"

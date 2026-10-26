@@ -245,16 +245,18 @@ timeout fails startup: an optional watcher marks ready inside `serve()`, so one 
 first never becomes ready. The wave watches each Service member's serve task as a wake source beside
 readiness and the attempts, so it settles at once rather than at the timeout. The rule lives in
 `wait_for_wave`, so both the startup waves and `start_children_and_wait` (the harness's path) get it,
-and it reads the serve task and the declaration through a small public accessor on `Service` rather
-than its private serve-task attribute. A failed attempt stays
+and it reads the serve task and the declaration through an internal hook rather than the private
+serve-task attribute. The hook, like `add_child`'s required-parent check, is defined on `Resource` and
+overridden by `Service`, the shape of the existing `_force_terminal` hook: the wave helpers and `Resource`
+sit below `Service` in the import graph, so neither can name it. A failed attempt stays
 fatal for every member (D1), and a required member's serve failure is D14's. The wave's "a member that
 loses readiness mid-wave has to regain it" rule no longer applies to a settled optional member.
 Behavior to pin: an optional watcher whose `serve()` raises before marking ready leaves boot
 completing promptly, with the watcher FAILED and its one ERROR.
 **Pick B instead if** the audit finds a service whose child initialization needs its serve loop
 draining work. **Pick C instead if** that same need shows up and B's double-path proves unworkable.
-**Reversibility:** easy (local to `Service`)
-**Ratified:** Chose starting `serve()` last over moving the RUNNING transition or routing early serve failures, to remove the mid-attempt window instead of guarding it, accepting a readiness-timing audit of every service. At the pre-build comb for issue 4 (2026-10-26), chose letting a wave settle on a failed optional member over keeping the wave strict, so "optional" holds at boot too.
+**Reversibility:** easy (local to `Service` and its two `Resource` hooks)
+**Ratified:** Chose starting `serve()` last over moving the RUNNING transition or routing early serve failures, to remove the mid-attempt window instead of guarding it, accepting a readiness-timing audit of every service. At the pre-build comb for issue 4 (2026-10-26), chose letting a wave settle on a failed optional member over keeping the wave strict, so "optional" holds at boot too. At the ship-time challenge for issue 4 (2026-10-26), chose underscore-prefixed hooks on `Resource` that `Service` overrides over public hooks or moving both checks off `Resource`, to keep the base-class contract visibly framework-internal without duck typing around the import cycle, accepting two service-only hooks on the base class.
 
 ### D8: How does the supervisor learn that a service failed?
 

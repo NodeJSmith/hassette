@@ -341,7 +341,7 @@ async def wait_for_wave(
                 waker = ready_wakers.get(member)
                 if not member.is_ready() and (waker is None or waker.done()):
                     ready_wakers[member] = asyncio.create_task(member.wait_ready())
-            serve_tasks = [task for member in attempts if (task := member.optional_serve_task()) is not None]
+            serve_tasks = [task for member in attempts if (task := member._optional_serve_task()) is not None]
             watched = [
                 task
                 for task in (*attempt_tasks, *serve_tasks, shutdown_waker, *ready_wakers.values())
@@ -362,7 +362,7 @@ def member_settled(member: "Resource") -> bool:
     """
     if member.is_ready():
         return True
-    serve_task = member.optional_serve_task()
+    serve_task = member._optional_serve_task()
     return serve_task is not None and serve_task.done()
 
 

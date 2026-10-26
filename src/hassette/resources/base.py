@@ -287,10 +287,10 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         return self.hassette.config.logging.log_level
 
     @classmethod
-    def validate_parent(cls, parent: "Resource") -> None:
+    def _validate_parent(cls, parent: "Resource") -> None:
         """Raise when ``parent`` may not own this class; ``add_child()`` calls it. Any parent owns a plain resource."""
 
-    def optional_serve_task(self) -> "asyncio.Task[None] | None":
+    def _optional_serve_task(self) -> "asyncio.Task[None] | None":
         """The serve task of an optional service; None for every other resource.
 
         A startup wave treats a member whose optional serve task has ended as settled (spec 134 D7).
@@ -309,7 +309,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if "parent" in kwargs:
             raise ValueError("Cannot specify 'parent' argument when adding a child resource; it is set automatically.")
-        child_class.validate_parent(self)
+        child_class._validate_parent(self)
 
         inst = child_class(hassette=self.hassette, parent=self, **kwargs)
         self.children.append(inst)

@@ -10,14 +10,14 @@ paths:
 
 ## Required vs optional services
 
-Nothing restarts a service in-process. Every concrete `Service` declares `required` in its own class body (`__init_subclass__` in `service.py` rejects an undeclared one at class definition; the declaration is not inherited). A required service's failure ends the process and the external supervisor restarts it; an optional one stays dead in place, announced by one ERROR. Only a service whose parent is `Hassette` may be required: `Service.validate_parent()` runs from `add_child` and rejects the rest, so an app-owned service must declare `required = False`.
+Nothing restarts a service in-process. Every concrete `Service` declares `required` in its own class body (`__init_subclass__` in `service.py` rejects an undeclared one at class definition; the declaration is not inherited). A required service's failure ends the process and the external supervisor restarts it; an optional one stays dead in place, announced by one ERROR. Only a service whose parent is `Hassette` may be required: `Service._validate_parent()` runs from `add_child` and rejects the rest, so an app-owned service must declare `required = False`.
 
 **Report contract** (spec 134 D8):
 
 - **Report site and order.** `Service._serve_wrapper()` calls `Hassette.report_service_failure()` first at every failure exit after the handoff (raised exception, `FatalError`, `ClosedResourceError` outside shutdown, and a required service's unrequested return or cancellation), before `handle_failed()`/`handle_crash()`. Those await `send_event()` on a bounded channel, so reporting after them would let a stalled bus delay the report meant to work without it. The report never awaits, and nothing on the fatal path may await either. Pre-handoff init failures and swallowed shutdown-hook failures are never reports.
 - **Routing.** `report_service_failure()` routes by the declaration: required goes to `escalate_service_failure()` (the one fatal exit route: latch the reason, request shutdown, emit CRASHED as telemetry), optional gets the one ERROR. A failed optional service is left un-shut-down.
 - **After shutdown starts.** A report arriving once `Hassette.shutdown_event` (the process-level event, not the service's own) is set, or once a fatal reason is latched, is logged and not escalated, so a clean stop exits 0.
-- **Unrequested return.** For a required service, `serve()` returning or being cancelled with no shutdown requested (`Service.stop_requested()`) is reported as a `ServeEndedError` and leaves the status FAILED, not STOPPED.
+- **Unrequested return.** For a required service, `serve()` returning or being cancelled with no process shutdown requested (`Service.stop_requested()`; only an optional service counts its own shutdown as a stop) is reported as a `ServeEndedError` and leaves the status FAILED, not STOPPED.
 - **Harness and mocks.** `HarnessHassette` overrides `report_service_failure()` as a no-op, and `make_mock_hassette` sets a synchronous no-op, so a required-service failure under a test harness never latches a fatal reason or requests shutdown. A test of the routing itself uses a real `Hassette`.
 
 ## Lifecycle functions are module-level, not methods
