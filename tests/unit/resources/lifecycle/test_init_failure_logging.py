@@ -93,3 +93,32 @@ async def test_observer_keeps_error_when_handle_failed_never_ran(caplog: pytest.
     assert len(errors) == 1, [r.getMessage() for r in errors]
     assert "unhandled exception" in errors[0].getMessage()
     assert errors[0].exc_info is not None
+
+
+async def test_observer_keeps_error_when_handle_failed_raises_a_different_exception(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``handle_failed()`` logs the dependency failure, then its own status-event send raises.
+
+    The coordinator propagates that second exception, which nothing has logged yet, so the
+    observer must keep it at ERROR even though the resource ended the attempt in FAILED.
+    """
+    resource = ConcreteResource(hassette=make_mock_hassette(sealed=False))
+    resource.lifecycle_logger.setLevel(logging.DEBUG)
+
+    async def failing_dependency_wait() -> None:
+        raise RuntimeError("dependency boom")
+
+    monkeypatch.setattr(resource, "_auto_wait_dependencies", failing_dependency_wait)
+    # handle_starting()'s status event succeeds; handle_failed()'s raises.
+    resource.hassette.send_event.side_effect = [None, RuntimeError("event boom")]  # pyright: ignore[reportAttributeAccessIssue]
+
+    with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
+        with pytest.raises(RuntimeError, match="event boom"):
+            await resource.initialize()
+        await asyncio.sleep(0)
+
+    assert resource.status == ResourceStatus.FAILED
+    errors = [r for r in caplog.records if r.name == resource.lifecycle_logger.name and r.levelno >= logging.ERROR]
+    logged = [r.exc_info[1] for r in errors if r.exc_info is not None]
+    assert [str(exc) for exc in logged] == ["dependency boom", "event boom"], [r.getMessage() for r in errors]
