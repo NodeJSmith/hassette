@@ -108,6 +108,7 @@ For container restart automation, use `/api/health/live` or rely on the non-zero
     Use `/api/health/live` (or the non-zero exit + restart policy) for restart automation. Use `/api/health/ready` for traffic routing. Use `/api/health` for the aggregate human view. Use `/api/telemetry/status` to monitor specifically whether the telemetry database is functional.
 
 **Execution history.** `hassette log --app <key>` shows recent log entries for an app. `hassette execution <uuid>` shows the log lines emitted during a specific invocation. Execution metadata (trigger origin, error traceback) appears in `hassette listener <id>` and `hassette job <id>` output. The UUID comes from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
+With no argument, `hassette listener` and `hassette job` list every listener or job with its ID. [Command Reference](../cli/commands.md) covers each command, and [Workflows](../cli/workflows.md) walks through the full drill-down.
 
 ## Degraded Mode
 
@@ -133,7 +134,10 @@ Three steps resolve most degraded states.
 
 Hassette recreates the database on next startup.
 
+`hassette telemetry` confirms the recovery: `degraded` reads `False`, and `/api/telemetry/status` returns HTTP 200. The degraded indicator also disappears from the status bar.
+
 ## Related Resources
 
 - [Global Configuration](configuration/index.md), all configuration fields
 - [App Cache](cache/index.md), the disk cache for app data (separate from telemetry)
+- [Command Reference](../cli/commands.md), every CLI command for querying telemetry
