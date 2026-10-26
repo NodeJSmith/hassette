@@ -48,6 +48,10 @@ The state value lives at `event.payload.data.new_state.get("state")`.
 
 Raw topic subscriptions via `on()` deliver `Event[Any]` instead. The handler
 receives the full event object with `event.topic` and `event.payload`.
+`Topic` (`from hassette import Topic`) is an enum of Hassette and Home
+Assistant event topic strings. `Topic.HASS_EVENT_AUTOMATION_TRIGGERED` is
+Home Assistant's `automation_triggered` event.
+[`on(topic)`](methods.md#ontopic) covers subscribing to any other topic.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers_raw_topic.py"
