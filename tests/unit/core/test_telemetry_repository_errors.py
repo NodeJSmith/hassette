@@ -115,13 +115,8 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
     """
     # dup-ignore-end
     now = time.time()
-    record = ExecutionRecord(
-        kind="handler",
-        listener_id=NONEXISTENT_FK_ID,
-        session_id=telemetry_session_id,
-        execution_start_ts=now,
-        duration_ms=5.0,
-        status=ExecutionStatus.SUCCESS,
+    record = make_execution_record(
+        listener_id=NONEXISTENT_FK_ID, session_id=telemetry_session_id, execution_start_ts=now, duration_ms=5.0
     )
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
@@ -177,13 +172,8 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
     """persist_execution_batch_with_fk_fallback() counts dropped when null-FK retry also fails."""
     # dup-ignore-end
     now = time.time()
-    record = ExecutionRecord(
-        kind="handler",
-        listener_id=None,
-        session_id=telemetry_session_id,
-        execution_start_ts=now,
-        duration_ms=5.0,
-        status=ExecutionStatus.SUCCESS,
+    record = make_execution_record(
+        listener_id=None, session_id=telemetry_session_id, execution_start_ts=now, duration_ms=5.0
     )
 
     original_execute = telemetry_db.execute
@@ -261,13 +251,8 @@ async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
     """persist_execution_batch_with_fk_fallback() rolls back on unexpected errors."""
     # dup-ignore-end
     now = time.time()
-    record = ExecutionRecord(
-        kind="handler",
-        listener_id=None,
-        session_id=telemetry_session_id,
-        execution_start_ts=now,
-        duration_ms=5.0,
-        status=ExecutionStatus.SUCCESS,
+    record = make_execution_record(
+        listener_id=None, session_id=telemetry_session_id, execution_start_ts=now, duration_ms=5.0
     )
 
     original_execute = telemetry_db.execute
