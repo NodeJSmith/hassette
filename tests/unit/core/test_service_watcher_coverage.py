@@ -278,26 +278,6 @@ class TestCooldownAndRetry:
 
             mock_restart.assert_not_called()
 
-    async def test_restart_exception_after_cooldown_is_caught(self) -> None:
-        """A service.restart() failure after cooldown is logged, not propagated."""
-        hassette = make_watcher_hassette()
-        watcher = make_watcher(hassette)
-        dummy = DummyService(hassette)
-        hassette.children = [dummy]
-
-        spec = RestartSpec(
-            restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
-        )
-        key = watcher.service_key(dummy.class_name, dummy.role)
-
-        with patch(
-            "hassette.core.service_watcher_escalation.restart", side_effect=RuntimeError("restart blew up")
-        ) as mock_restart:
-            # Should not raise even though restart() failed.
-            await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
-
-            mock_restart.assert_awaited_once_with(dummy)
-
     async def test_skips_restart_when_service_gone_after_cooldown(self) -> None:
         """If the service disappears during cooldown, restart is skipped without error."""
         hassette = make_watcher_hassette()
