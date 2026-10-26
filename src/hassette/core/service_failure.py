@@ -1,4 +1,7 @@
-"""Routing for a service's failure after its handoff to ``serve()`` (spec 134 D8, D14). Nothing here awaits."""
+"""Routing for a service's failure after its handoff to ``serve()`` (spec 134 D8, D14).
+
+Nothing on the report path awaits; the CRASHED event send is spawned, not awaited.
+"""
 
 import typing
 

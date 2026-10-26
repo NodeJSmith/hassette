@@ -28,12 +28,11 @@ class ResourceRole(StrEnum):
     """The kind of framework component a resource is. Internal to the server; not part of the wire contract."""
 
     SERVICE = "service"
-    """A long-running framework service that is supervised and restarted on failure, such as the
-    Home Assistant connection or the database."""
+    """A long-running framework service with a ``serve()`` task, such as the Home Assistant connection or
+    the database. A required one's failure ends the process."""
 
     RESOURCE = "resource"
-    """A framework component that runs for the life of its owner but is not supervised or restarted
-    on its own."""
+    """A framework component that runs for the life of its owner, with no ``serve()`` task of its own."""
 
     APP = "app"
     """A user app instance."""

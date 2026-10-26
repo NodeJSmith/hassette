@@ -368,7 +368,7 @@ class TestServiceResistantServeNeverReplaced:
     initialization path and never spawn a replacement ``serve()`` task.
     """
 
-    async def test_shutdown_refuses_restart_and_never_spawns_replacement(self) -> None:
+    async def test_shutdown_refuses_reinitialize_and_never_spawns_replacement(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
         hassette.config.lifecycle.task_cancellation_timeout_seconds = SHORT_TASK_CANCEL_TIMEOUT_SECONDS

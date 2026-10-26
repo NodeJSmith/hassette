@@ -222,7 +222,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._consecutive_size_triggers = 0
         self._consecutive_exhaustion_triggers = 0
         self._consecutive_parent_guard_skips = 0
-        # Cleared up front, not at queue-creation time below: a restart whose initialization
+        # Cleared up front, not at queue-creation time below: a re-initialization that
         # fails before it gets that far must still report the pre-init cause rather than a
         # stale post-teardown one left over from the previous lifecycle.
         self._write_queue_detached = False
@@ -567,12 +567,12 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         raised sqlite3.Error/OSError/ValueError. A failed attempt counts a strike only when
         _write_progress_count has not moved since the previous attempt finished (or, on the first
         attempt, since this one started): a worker still committing writes, such as a long batched
-        retention pass holding the queue, is busy rather than stuck and must not be restarted.
+        retention pass holding the queue, is busy rather than stuck and must not be failed.
 
         This method is the only place _consecutive_heartbeat_failures moves, so one attempt
         costs at most one strike. Counting the timeout here and the raise inside the queued
         coroutine would let a single slow-then-failing write consume two of the three,
-        restarting the service a full heartbeat interval early.
+        failing the service a full heartbeat interval early.
         """
         if self._db is None:
             return

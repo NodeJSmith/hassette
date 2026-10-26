@@ -5,8 +5,8 @@ App sync lifecycle hooks) is owned by SyncExecutor (hassette.core.sync_executor)
 capability class constructed in Hassette.__init__() before the Resource lifecycle starts, so
 every TaskBucket holds a SyncExecutor reference from birth. The pool does not exist yet at that
 point: submit() raises until on_initialize() has built it. This service wraps that capability
-for Resource/Service lifecycle concerns only: on_initialize() creates the pool (covering both
-initial start and restart-in-place), serve() runs the periodic saturation probe, and
+for Resource/Service lifecycle concerns only: on_initialize() creates the pool (on every
+initialization, including a same-instance re-initialization), serve() runs the periodic saturation probe, and
 on_shutdown() tears the pool down within its configured budget.
 
 Shutdown ordering is declarative: BusService, SchedulerService, and AppHandler all
@@ -35,7 +35,7 @@ class SyncExecutorService(Service):
     """Lifecycle wrapper around the SyncExecutor thread-pool capability.
 
     Wraps the SyncExecutor built in Hassette.__init__() for Resource/Service lifecycle
-    concerns: on_initialize() creates the pool (first start and restart-in-place alike),
+    concerns: on_initialize() creates the pool (first start and re-initialization alike),
     serve() runs the periodic saturation probe, and on_shutdown() tears the pool down.
     Consumers (BusService, SchedulerService, AppHandler) declare
     depends_on=[SyncExecutorService] and wait for readiness, so no consumer can submit
@@ -58,7 +58,7 @@ class SyncExecutorService(Service):
         self.sync_executor = hassette.sync_executor
 
     async def on_initialize(self) -> None:
-        """Create the thread pool — covers both initial start and restart-in-place."""
+        """Create the thread pool — covers both initial start and a same-instance re-initialization."""
         lifecycle = self.hassette.config.lifecycle
         self.sync_executor.rebuild_pool(
             lifecycle.sync_executor_max_workers,

@@ -124,7 +124,7 @@ class TestOptionalServiceFailure:
         sent = capture_crashed_events(hassette)
         service = _OptionalService(hassette, parent=hassette)
 
-        hassette.report_service_failure(service, RuntimeError("watcher broke"))
+        hassette.report_service_failure(service, RuntimeError("serve broke"))
         await asyncio.sleep(0)
 
         assert hassette.fatal_shutdown_reason is None

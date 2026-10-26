@@ -309,9 +309,8 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
         # already-terminal resource must not move it to FAILED: it does not retroactively un-stop it.
         # This happens during teardown when a submit-after-shutdown error ("cannot schedule new
         # futures after shutdown") surfaces on an already-stopped resource.
-        # Only terminal end-states are guarded. Non-terminal states (NOT_STARTED, STARTING,
-        # RUNNING, STOPPING) keep failing normally — a failure there is real,
-        # and callers do invoke handle_failed() on a not-yet-started resource.
+        # Every other state (NOT_STARTED, STARTING, RUNNING, STOPPING) keeps failing normally — a
+        # failure there is real, and callers do invoke handle_failed() on a not-yet-started resource.
         resource.lifecycle_logger.debug(
             "%s already terminal (%s); ignoring failure: %s - %s",
             resource.unique_name,
@@ -486,9 +485,9 @@ def _install_exception_observer(
 async def coordinate_initialize(resource: _LifecycleHostP) -> None:
     """Coordinator front door for ``initialize()``.
 
-    Every initialization path -- direct ``initialize()`` calls and ``start()``'s spawned joiner
-    -- funnels through this function, so ``_init_task`` is authoritative for
-    every attempt. See the "Minimal lifecycle coordinator" section of
+    Every initialization path -- direct ``initialize()`` calls and ``start()``'s spawned
+    joiner -- funnels through this function, so ``_init_task`` is authoritative for every
+    attempt. See the "Minimal lifecycle coordinator" section of
     ``design/specs/105-teardown-restart-safety/design.md`` for the full admission sequence.
     """
     resource = typing.cast("LifecycleMixin", resource)

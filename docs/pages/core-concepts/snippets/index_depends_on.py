@@ -6,5 +6,5 @@ from hassette.resources.service import Service
 
 
 class CommandExecutor(Service):
-    required = True
+    required: ClassVar[bool] = True
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]

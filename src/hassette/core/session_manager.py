@@ -108,9 +108,9 @@ class SessionManager(Resource):
         not just status='running'. A session already marked 'failure' that never got its
         stopped_at is just as orphaned as one still marked 'running'; both need stopped_at
         backfilled so downstream liveness checks (the once=True listener cleanup's session join,
-        in particular) treat them as ended. Only rows
-        still 'running' get their status overwritten to 'unknown' — a 'failure' row already
-        recorded a real outcome and keeps it, gaining only the backfilled stopped_at.
+        in particular) treat them as ended. Only rows still 'running' get their status
+        overwritten to 'unknown' — a 'failure' row already recorded a real outcome and keeps it,
+        gaining only the backfilled stopped_at.
         """
         db = self._database_service.db
         cursor = await db.execute(

@@ -304,9 +304,10 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         """Connect to Home Assistant and keep reconnecting in place until shutdown.
 
         This is the connection's only retry loop: no Home Assistant-side failure leaves it, so an
-        HA restart or outage is never reported as this required service's failure. ``ReconnectPolicy`` classifies each
-        failure and paces the next attempt; a rejected token parks the loop instead. Only the
-        exceptions in ``PROPAGATED_EXCEPTIONS`` (and cancellation, at shutdown) escape.
+        HA restart or outage is never reported as this required service's failure.
+        ``ReconnectPolicy`` classifies each failure and paces the next attempt; a rejected token
+        parks the loop instead. Only the exceptions in ``PROPAGATED_EXCEPTIONS`` (and
+        cancellation, at shutdown) escape.
         """
         async with self._connect_lock:
             timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=TOTAL_TIMEOUT_SECONDS)

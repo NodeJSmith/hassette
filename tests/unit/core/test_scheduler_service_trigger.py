@@ -191,7 +191,7 @@ class TestSubmitJob:
     async def test_submit_job_raises_for_stale_handle(self) -> None:
         """submit_job() raises JobRemovedError when the registry slot holds a different object.
 
-        Simulates a crash-restart orphan: the caller's handle still names db_id=7, but the
+        Simulates a stale Job: the caller's handle still names db_id=7, but the
         registry now maps 7 to a freshly re-registered Job with a different identity — the
         same scenario ``deregister_job()``'s identity check guards against.
         """

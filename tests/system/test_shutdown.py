@@ -51,7 +51,7 @@ async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
     assert stopped_at is not None, "stopped_at should be non-null after shutdown"
 
 
-async def test_failed_service_cascade_triggers_fatal_shutdown(ha_container: str, tmp_path) -> None:
+async def test_required_service_failure_triggers_fatal_shutdown(ha_container: str, tmp_path) -> None:
     """A required service's serve() failure ends the process through the one fatal path (spec 134 D14).
 
     This is the destructive counterpart to the fatal-exit unit/integration tests — it can only live

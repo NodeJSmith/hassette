@@ -107,7 +107,7 @@ class TestReinitializeAfterCleanTeardown:
         assert resource.shutdown_completed is False, "after re-initializing the resource should be live again"
 
 
-class TestRestartRefusedAfterChildTimeout:
+class TestReinitializeRefusedAfterChildTimeout:
     """A child hook timeout that leaves the parent's stored report with ``is_restart_safe`` ``False`` must
     refuse every same-instance initialization path -- ``start()`` and a direct ``initialize()`` call --
     without running a second ``on_initialize()`` hook.

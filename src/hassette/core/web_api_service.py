@@ -144,7 +144,7 @@ class WebApiService(Service):
         stale for the life of the running server. Once ``serve()`` has built ``self._app``, this
         also writes the refreshed set through to ``self._app.state.trusted_proxies`` so a request
         against the already-serving app observes the refresh immediately, not just a future
-        restart.
+        initialization.
         """
         refreshed = await refresh_trusted_proxies(self._trusted_proxies)
         self._trusted_proxies = refreshed
@@ -203,9 +203,8 @@ class WebApiService(Service):
         except SystemExit as exc:
             # uvicorn's Server.startup() logs the bind OSError and calls sys.exit(1) when it can't
             # bind host:port — its only sys.exit. Left alone, SystemExit escapes the serve task and
-            # ends the process with no teardown. A bind failure is fatal rather than TRANSIENT-
-            # restartable: the usual cause is another instance holding the port, which a restart
-            # inside the budget window won't clear, and a bad host/port never self-corrects.
+            # ends the process with no teardown. A bind failure is fatal: the usual cause is another
+            # instance holding the port, and a bad host/port never self-corrects.
             raise FatalError(
                 f"Web API could not bind to {self.host}:{self.port} — is the port already in use "
                 "(another hassette instance running?) or the host not a local address?"

@@ -19,8 +19,7 @@ __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and
     "RegistryNotReadyError", "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError",
     "ResponseTimeoutError", "RestartRefusedError", "RetryableConnectionClosedError", "SchedulerNameRequiredError",
     "SchemaVersionError", "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "ServeEndedError",
-    "StateRegistryError",
-    "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
+    "StateRegistryError", "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
     "UnableToConvertAnnotatedStateError", "UnableToConvertStateError", "UnableToConvertValueError",
     "UndefinedUserConfigError", "WriteQueueUnavailableError",
 ]  # fmt: skip

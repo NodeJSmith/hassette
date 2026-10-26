@@ -314,7 +314,7 @@ class TestSchedulerChildLifecycle:
         children_after_construction = list(service.children)
 
         await service.on_initialize()
-        await service.on_initialize()  # simulate restart()'s second initialize() call
+        await service.on_initialize()  # simulate a second initialize() on the same instance
 
         assert service.scheduler is first_scheduler
         assert service.children == children_after_construction

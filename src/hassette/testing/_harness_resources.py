@@ -10,7 +10,7 @@ from hassette.resources.service import Service
 class HarnessHassette(Hassette):
     """Thin Hassette subclass for use in the test harness.
 
-    Overrides exactly three methods to make the harness lifecycle work:
+    Overrides these methods to make the harness lifecycle work:
     - should_skip_dependency_check: prevents startup from blocking on unmet deps.
     - wait_for_ready: returns True immediately so services do not deadlock during
       harness-controlled startup.
@@ -59,11 +59,10 @@ class HarnessStateProxy(StateProxy):
 class HarnessEventStreamService(EventStreamService):
     """EventStreamService variant that suppresses close_streams() for test harness reuse.
 
-    Module-scoped fixtures share a single HarnessHassette across many tests.  Some
-    test scenarios trigger ``hassette.shutdown()``, which normally closes the anyio memory streams inside
-    ``EventStreamService``.  Closed streams cannot be reopened, so subsequent tests
-    in the same module would receive ``ClosedResourceError`` on every ``send_event``
-    call.
+    Module-scoped fixtures share a single HarnessHassette across many tests. Some test
+    scenarios trigger ``hassette.shutdown()``, which normally closes the anyio memory streams
+    inside ``EventStreamService``. Closed streams cannot be reopened, so subsequent tests in
+    the same module would receive ``ClosedResourceError`` on every ``send_event`` call.
 
     By making ``close_streams()`` a no-op here, the streams remain open for the
     lifetime of the harness.  Explicit stream teardown is handled by

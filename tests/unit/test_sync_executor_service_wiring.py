@@ -1,12 +1,12 @@
 """Unit tests for SyncExecutorService construction, wiring, and dependency graph.
 
 Covers:
-- Executor is constructed in on_initialize (survives restart-in-place)
+- Executor is constructed in on_initialize (survives re-initialization)
 - Service is registered in wire_services() and reachable via hassette.sync_executor_service
 - depends_on=[] (leaf dependency — no DB or other service required)
 - BusService, SchedulerService, AppHandler declare depends_on=[SyncExecutorService]
 - Dependency graph validation still passes after registration
-- Regression: restart-in-place (shutdown → initialize) rebuilds the thread pool
+- Regression: re-initialization (shutdown → initialize) rebuilds the thread pool
 - Regression: AppSync shutdown hook submitting sync work during shutdown completes
   without RuntimeError: cannot schedule new futures after shutdown
 
@@ -54,9 +54,6 @@ class TestSyncExecutorServiceClassAttrs:
     def test_app_handler_depends_on_bootstrap_coordinator(self) -> None:
         """AppHandler depends on AppBootstrapCoordinator instead of composing prerequisites."""
         assert AppHandler.depends_on == [AppBootstrapCoordinator]
-
-
-# SyncExecutorService's required declaration is covered by test_service_required.py.
 
 
 class TestExecutorConstruction:

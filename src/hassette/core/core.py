@@ -115,7 +115,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # TaskBucket is constructed (super().__init__() constructs Hassette's own bucket).
         # A plain class (no Resource/Service base) — see hassette.core.sync_executor.
         # The pool is not created here — SyncExecutorService.on_initialize() calls
-        # rebuild_pool() on both first start and restart-in-place.
+        # rebuild_pool() on every initialization.
         self._sync_executor = SyncExecutor()
         self.sync_executor = self._sync_executor
 
@@ -409,7 +409,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self.ready_event.set()
 
         # Each later wave's deps are ready before it begins, so _auto_wait_dependencies returns
-        # immediately (kept as defense-in-depth for restarts).
+        # immediately.
         type_to_instance = {type(c): c for c in self.children}
         for wave_types in self._init_waves:
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
