@@ -43,6 +43,7 @@ Plain imperative description, no type prefixes (labels convey type).
   - `topic:dx` — app-author developer experience: API ergonomics, convenience methods, testing helpers
   - `topic:errors` — error handling, retries, error display, exception design
   - `topic:events` — event system design, signals, dispatch, filtering, backpressure
+  - `topic:flaky-test` — tests that fail intermittently in CI (races, timing, nondeterminism)
   - `topic:lifecycle` — startup/shutdown sequences, state machines, readiness, cleanup
   - `topic:responsive` — mobile and responsive layout
   - `topic:telemetry` — observability, execution tracking, retention, statistics
@@ -50,6 +51,10 @@ Plain imperative description, no type prefixes (labels convey type).
 - **Release**: `release:v1.0.0` — must ship before 1.0
 
 Milestones are reserved for roadmap initiatives — see the Roadmap bullet in `CLAUDE.md`'s GitHub section.
+
+### Flaky tests
+
+Confirm a flake recurs across independent commits with `scripts/ci_flake_scan.py` before filing. Its issue gets `topic:flaky-test` and `area:testing` alongside the usual type, area and size labels, and its title must start with `Fix flaky <test name>`, using the test's function name or `Class::method`. The scanner matches failures to open `topic:flaky-test` issues by that name, so the title is what marks the flake as known. Closing the issue makes later recurrences show as new again.
 
 ### Body
 
