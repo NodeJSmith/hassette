@@ -278,6 +278,8 @@ For container startup failures, dependency installation, health check failures, 
 
 **Registry validation warnings** Startup registry validation logs each problem it finds as a warning and never stops startup. A malformed custom state class is a typical cause. The startup log ends the list with `Registry validation: N issue(s) found`, and the lines above it name each issue. Fix the class each warning names, then restart Hassette.
 
+**`RegistryValidationError`** Raised only when your own code calls `hassette.conversion.validate_registries(strict=True)` and validation finds error-level issues. Hassette's startup never raises it. The exception's `issues` attribute lists every problem found.
+
 **`AppPrecheckFailedError`** One or more apps failed the precheck. Check the log for the specific app and error. Set `allow_startup_if_app_precheck_fails = true` to let other apps run while you diagnose.
 
 ### Configuration
