@@ -11,6 +11,7 @@ import queue
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from io import StringIO
 from typing import Any
 from unittest.mock import MagicMock
@@ -34,6 +35,8 @@ STDLIB_LOGGER_NAME = "hassette.apps.example_stdlib"
 NATIVE_LOGGER_NAME = "hassette.apps.example_native"
 # A local in the frame that logs an exception; console tracebacks must not print it.
 HELD_LOCAL_VALUE = "local-value-not-for-logs"
+# A creation time long past, so a timestamp taken from the clock at render time can't match it.
+PAST_CREATED = datetime(2020, 1, 2, 3, 4, 5, 500000).timestamp()
 
 
 @contextmanager
@@ -157,6 +160,34 @@ class TestConsoleException:
         assert "Traceback" in output, output
         assert "ValueError: kaboom" in output, output
         assert HELD_LOCAL_VALUE not in output, output
+
+
+def log_created_at(logger: logging.Logger, created: float) -> None:
+    """Log ``"stamped"`` through ``logger`` from a record whose creation time is ``created``."""
+    record = logger.makeRecord(logger.name, logging.INFO, __file__, 0, "stamped", (), None)
+    record.created = created
+    logger.handle(record)
+
+
+@pytest.mark.parametrize("queued", [False, True], ids=["sync", "queued"])
+class TestStdlibTimestamp:
+    """A stdlib record's rendered timestamp is its creation time, not the time it was rendered."""
+
+    def test_json_timestamp_is_record_created(self, queued: bool) -> None:
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
+        output = render_pipeline("json", lambda: log_created_at(stdlib_logger, PAST_CREATED), queued=queued)
+        record = json.loads(output.strip().splitlines()[-1])
+        assert record["timestamp"] == "2020-01-02T03:04:05.500000", record
+
+    @pytest.mark.parametrize(
+        ("log_format", "expected"), [("console", "2020-01-02T03:04:05.500000"), ("compact", "03:04:05")]
+    )
+    def test_console_timestamp_is_record_created(self, queued: bool, log_format: LogFormat, expected: str) -> None:
+        stdlib_logger = logging.getLogger(STDLIB_LOGGER_NAME)
+        output = render_pipeline(log_format, lambda: log_created_at(stdlib_logger, PAST_CREATED), queued=queued)
+        line = output.strip().splitlines()[-1]
+        assert line.startswith(expected), line
+        assert "stamped" in line, line
 
 
 class TestQueuedPersistedRow:
