@@ -2,8 +2,11 @@
 
 import asyncio
 import sqlite3
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
+
+import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
@@ -294,3 +297,16 @@ def test_no_alembic_version_table(tmp_path: Path) -> None:
         conn.close()
 
     assert row is None, "alembic_version table must not exist in the new schema"
+
+
+async def test_migration_exceeding_migration_timeout_fails_with_clear_error(
+    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
+) -> None:
+    """A migration that outlives migration_timeout_seconds fails initialization with an error naming the setting."""
+    mock_hassette_fresh.config.database = mock_hassette_fresh.config.database.model_copy(
+        update={"migration_timeout_seconds": 0.1}
+    )
+    fresh_service.run_migrations = lambda: time.sleep(0.5)  # pyright: ignore[reportAttributeAccessIssue]
+
+    with pytest.raises(TimeoutError, match="migration_timeout_seconds"):
+        await fresh_service.on_initialize()

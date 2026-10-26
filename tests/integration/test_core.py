@@ -174,11 +174,13 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     for child in hassette_instance.children:
         if child is not hassette_instance.database_service:
             mock_start.assert_any_call(child)
-    # The wave wait runs once for the DB's own wave, then once per startup wave.
+    # The wave wait runs once for the DB's own wave, then once per startup wave. The DB wave's bound
+    # adds the migration budget to the startup budget.
     assert stubs.wait_for_wave.await_count >= 2
     first_wave_attempts, first_wave_timeout = stubs.wait_for_wave.await_args_list[0].args
     assert list(first_wave_attempts) == [hassette_instance.database_service]
-    assert first_wave_timeout == hassette_instance.config.lifecycle.startup_timeout_seconds
+    config = hassette_instance.config
+    assert first_wave_timeout == config.lifecycle.startup_timeout_seconds + config.database.migration_timeout_seconds
     # Session created between phase 1 and phase 2
     stubs.mark_orphaned_sessions.assert_awaited_once()
     stubs.create_session.assert_awaited_once()
@@ -219,6 +221,51 @@ async def test_run_forever_restores_prior_task_factory_on_shutdown(hassette_inst
     assert loop.get_task_factory() is sentinel_factory, (
         "shutdown should have restored the factory that was installed before run_forever()"
     )
+
+
+async def test_run_forever_waits_for_migration_longer_than_startup_timeout(hassette_instance: Hassette) -> None:
+    """A database migration that outlasts startup_timeout_seconds but finishes within
+    migration_timeout_seconds does not fail startup (#3502).
+
+    Uses a prod-like ratio: the startup timeout is far shorter than the migration timeout, and
+    the database becomes ready after the startup timeout has elapsed.
+    """
+    config = hassette_instance.config
+    config.lifecycle = config.lifecycle.model_copy(update={"startup_timeout_seconds": 0.2})
+    config.database = config.database.model_copy(update={"migration_timeout_seconds": 5})
+
+    real_wait_for_wave = hassette_instance._wait_for_wave  # coordinator-internal
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    assert stubs.shutdown is not None
+    db = hassette_instance.database_service
+
+    async def wait_for_wave(attempts: dict[Resource, asyncio.Task[None] | None], timeout: float) -> WaveResult:
+        if list(attempts) == [db]:
+            return await real_wait_for_wave(attempts, timeout)
+        return WAVE_OK
+
+    stubs.wait_for_wave.side_effect = wait_for_wave
+
+    async def mark_orphaned_sessions() -> None:
+        # The real session manager needs an open database; fail the way it would if the
+        # database phase gave up before the migration finished.
+        if not db.is_ready():
+            raise RuntimeError("database not ready")
+
+    stubs.mark_orphaned_sessions.side_effect = mark_orphaned_sessions
+
+    def fake_start(resource: Resource) -> None:
+        # Slow migration: the database only becomes ready after the startup timeout has passed.
+        if resource is db:
+            asyncio.get_running_loop().call_later(0.6, db.ready_event.set)
+
+    with patch("hassette.core.core.start", side_effect=fake_start):
+        task = asyncio.create_task(hassette_instance.run_forever())
+        await wait_for(lambda: hassette_instance.ready_event.is_set(), timeout=5, desc="database phase finished")
+        hassette_instance.shutdown_event.set()
+        await task
+
+    stubs.create_session.assert_awaited_once()
 
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:

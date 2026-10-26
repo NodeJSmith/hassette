@@ -566,7 +566,7 @@
         },
         "migration_timeout_seconds": {
           "default": 120,
-          "description": "Maximum seconds to wait for SQL schema migrations to complete at startup.",
+          "description": "Maximum seconds to wait for SQL schema migrations to complete at startup. The database startup\nphase waits this long on top of ``lifecycle.startup_timeout_seconds``.",
           "minimum": 10,
           "title": "Migration Timeout Seconds",
           "type": "integer"

@@ -392,7 +392,14 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         # The database service starts as a wave of its own, and session tracking is created as soon
         # as it is up: this guarantees a valid session_id exists before any handler can fire.
-        if not await self._start_wave([self.database_service]):
+        # Its wave runs migrations under their own, longer bound, so it waits for the migration
+        # budget on top of the normal startup budget (which covers the rest of its initialization).
+        # Bounding it by startup_timeout_seconds alone would let a short startup timeout cut every
+        # slow migration off, and a supervisor restart would re-run it forever.
+        db_startup_timeout = (
+            self.config.lifecycle.startup_timeout_seconds + self.config.database.migration_timeout_seconds
+        )
+        if not await self._start_wave([self.database_service], db_startup_timeout):
             return
         try:
             await self.session_manager.mark_orphaned_sessions()
@@ -438,8 +445,10 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self.logger.info("Hassette stopped.")
         self._raise_if_fatal_shutdown()
 
-    async def _start_wave(self, wave: list[Resource]) -> bool:
-        """Start one startup wave and wait for it.
+    async def _start_wave(self, wave: list[Resource], timeout: float | None = None) -> bool:
+        """Start one startup wave and wait for it, for ``timeout`` seconds.
+
+        ``timeout`` defaults to ``lifecycle.startup_timeout_seconds``.
 
         Returns True once the wave has started, and False after tearing down when a shutdown was
         requested mid-wave. A failed or timed-out wave raises ``FatalError`` (via ``_fail_startup()``).
@@ -448,7 +457,8 @@ class Hassette(HassetteAccessorsMixin, Resource):
         members' initialization attempts (spec 134 D1), so a failure fails startup at once and the
         external supervisor restarts the process. ``ServiceWatcher`` leaves those failures to the wave.
         """
-        timeout = self.config.lifecycle.startup_timeout_seconds
+        if timeout is None:
+            timeout = self.config.lifecycle.startup_timeout_seconds
         # run_forever() runs on the loop thread, so start() always returns the attempt's task here.
         attempts: dict[Resource, asyncio.Task[None] | None] = {}
         for member in wave:
