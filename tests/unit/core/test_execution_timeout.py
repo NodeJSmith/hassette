@@ -1,6 +1,7 @@
 """Unit tests for timeout enforcement in track_execution and ExecutionResult."""
 
 import asyncio
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -10,11 +11,11 @@ from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.utils.execution import ExecutionResult, track_execution
 
 
-def make_invoke_handler_kwargs(**overrides: object) -> dict[str, object]:
+def make_invoke_handler_kwargs(**overrides: object) -> dict[str, Any]:
     """Shared base kwargs for constructing an InvokeHandler in the tests below — only
     `effective_timeout` (or its absence) varies per test.
     """
-    kwargs: dict[str, object] = {
+    kwargs: dict[str, Any] = {
         "listener": MagicMock(),
         "event": MagicMock(),
         "topic": "test",
@@ -96,17 +97,17 @@ class TestExecutionResultIsTimedOut:
     def test_execution_result_is_timed_out(self) -> None:
         """is_timed_out returns True for 'timed_out' status."""
         result = ExecutionResult()
-        result.status = "timed_out"
+        result.status = ExecutionStatus.TIMED_OUT
         assert result.is_timed_out is True
 
     def test_execution_result_is_timed_out_false_for_error(self) -> None:
         """is_timed_out returns False for 'error' status."""
         result = ExecutionResult()
-        result.status = "error"
+        result.status = ExecutionStatus.ERROR
         assert result.is_timed_out is False
 
     def test_execution_result_is_timed_out_false_for_success(self) -> None:
         """is_timed_out returns False for 'success' status."""
         result = ExecutionResult()
-        result.status = "success"
+        result.status = ExecutionStatus.SUCCESS
         assert result.is_timed_out is False

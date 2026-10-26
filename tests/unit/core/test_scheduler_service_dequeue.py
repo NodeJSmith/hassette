@@ -11,6 +11,7 @@ Tests verify:
 
 import asyncio
 import inspect
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -359,7 +360,7 @@ class TestDequeueJobSealedBucket:
         svc.dequeue_job(job)
 
         svc._executor.mark_job_removed.assert_not_awaited()
-        assert svc.logger.debug.called, "sealed-bucket skip must emit a debug log"
+        assert cast("MagicMock", svc.logger).debug.called, "sealed-bucket skip must emit a debug log"
 
     async def test_dequeue_job_on_sealed_bucket_still_removes_live_state(self) -> None:
         """Live-state removal happens regardless of whether the tail could be spawned."""
@@ -419,7 +420,7 @@ class TestRemoveJobsSealedBucket:
 
     async def test_remove_jobs_on_sealed_bucket_returns_awaitable_completed_future(self) -> None:
         svc = make_dequeue_service()
-        svc.hassette.loop = asyncio.get_running_loop()
+        cast("MagicMock", svc.hassette).loop = asyncio.get_running_loop()
         svc.task_bucket = make_rejecting_task_bucket()
 
         result = svc.remove_jobs([make_scheduled_job(db_id=7)])
@@ -430,9 +431,10 @@ class TestRemoveJobsSealedBucket:
 
     async def test_remove_jobs_on_sealed_bucket_still_removes_live_state(self) -> None:
         svc = make_dequeue_service()
-        svc.hassette.loop = asyncio.get_running_loop()
+        cast("MagicMock", svc.hassette).loop = asyncio.get_running_loop()
         jobs = [make_scheduled_job(db_id=7), make_scheduled_job(db_id=8)]
         for job in jobs:
+            assert job.db_id is not None
             svc._jobs_by_id[job.db_id] = job
             await svc._job_queue.add(job)
         callback = MagicMock()

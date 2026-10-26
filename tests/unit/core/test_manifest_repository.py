@@ -133,6 +133,7 @@ async def test_upsert_app_manifest_updates_existing_row_preserves_id(
         "SELECT COUNT(*) AS count FROM app_manifests WHERE app_key = ?", (manifest.app_key,)
     )
     row = await cursor.fetchone()
+    assert row is not None
     assert row["count"] == 1, "Upsert should produce a single row, not two inserts"
 
 

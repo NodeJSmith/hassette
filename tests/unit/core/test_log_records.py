@@ -269,6 +269,7 @@ class TestInsertLogRecords:
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
+        assert row is not None
         assert row[0] == 2
 
     async def test_insert_empty_list_is_noop(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
@@ -277,6 +278,7 @@ class TestInsertLogRecords:
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
+        assert row is not None
         assert row[0] == 0
 
     async def test_insert_stores_all_fields(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
@@ -336,6 +338,7 @@ class TestInsertLogRecords:
 
         cursor = await db.execute("SELECT app_key, execution_id, author FROM log_records")
         row = await cursor.fetchone()
+        assert row is not None
         assert row["app_key"] is None
         assert row["execution_id"] is None
         assert row["author"] == "framework"
@@ -358,6 +361,7 @@ class TestInsertLogRecords:
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
+        assert row is not None
         assert row[0] == 0
 
     async def test_insert_reraises_original_error_when_rollback_also_fails(
@@ -383,6 +387,7 @@ class TestInsertLogRecords:
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
+        assert row is not None
         assert row[0] == 0
 
 
