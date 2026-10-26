@@ -213,7 +213,7 @@ Subscribes to any raw event topic string.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `topic` | `str` | — | The exact event topic string to subscribe to. |
+| `topic` | `str` | — | The event topic to subscribe to: an exact topic string or a glob pattern, such as `"hass.event.state_changed.light.*"`. |
 | `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates. |
 
 `on()` does not support `immediate`, `duration`, `changed`, `changed_from`, or `changed_to`. All shared timing parameters (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`) are accepted. Internal topics used by Hassette shorthands (WebSocket events, app state events) are also accessible via `on()` for raw topic access.
@@ -401,7 +401,7 @@ Listener names must be unique per app instance and topic. Registering a second l
 | Value | Behavior |
 |---|---|
 | `"error"` (default) | Raises `DuplicateListenerError` when a listener with the same name and topic already exists. |
-| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`), the Bus `priority` the listener was registered under, execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
+| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`), execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
 | `"replace"` | Cancels the existing listener and registers the new one. The new configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload.
