@@ -1,6 +1,7 @@
 """Tests for CommandExecutor error handler invocation path."""
 
 import asyncio
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,7 +16,7 @@ from .conftest import make_execute_job_cmd, make_executor, make_mock_cmd_listene
 
 async def drain_tasks(executor: CommandExecutor) -> None:
     """Allow all spawned error handler tasks to complete."""
-    tasks = executor._spawned_tasks
+    tasks: list[asyncio.Task[Any]] = executor._spawned_tasks  # pyright: ignore[reportAttributeAccessIssue]  # set by make_executor()
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
         tasks.clear()
@@ -275,7 +276,7 @@ class TestBusErrorHandlerInvocation:
         await drain_tasks(executor)
 
         # Framework logging (via _log_error inside _execute) must have been called
-        executor.logger.error.assert_called()
+        cast("MagicMock", executor.logger).error.assert_called()
         # User handler also called
         assert len(error_handler_called) == 1
 

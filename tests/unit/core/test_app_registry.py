@@ -6,7 +6,7 @@ The `get_full_snapshot()`, blocking, autostart, and manifest-info tests live in
 """
 
 import dataclasses
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -257,7 +257,7 @@ class TestAppRegistry:
         records with no App object to build an event from.
         """
         manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "configured_name"}])
-        registry.set_manifests({"my_app": cast("AppManifest", manifest)})
+        registry.set_manifests({"my_app": manifest})
         registry.record_failure("my_app", 0, ValueError("boom"))
 
         infos = registry.get_failed_instance_infos("my_app")

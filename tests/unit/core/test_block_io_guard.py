@@ -151,7 +151,7 @@ def test_app_config_blocking_io_behavior_accepts_enum() -> None:
 
 def test_app_config_blocking_io_behavior_accepts_string() -> None:
     """AppConfig blocking_io_behavior coerces string values to enum."""
-    config = AppConfig(blocking_io_behavior="error")
+    config = AppConfig(blocking_io_behavior="error")  # pyright: ignore[reportArgumentType]
     assert config.blocking_io_behavior is BlockingIOBehavior.ERROR
 
 
@@ -198,7 +198,7 @@ def test_blocking_io_detection_config_accepts_behavior_enum() -> None:
 
 def test_blocking_io_detection_config_accepts_behavior_string() -> None:
     """BlockingIODetectionConfig.behavior coerces string values to enum."""
-    cfg = BlockingIODetectionConfig(behavior="ignore")
+    cfg = BlockingIODetectionConfig(behavior="ignore")  # pyright: ignore[reportArgumentType]
     assert cfg.behavior is BlockingIOBehavior.IGNORE
 
 

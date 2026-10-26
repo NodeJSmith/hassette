@@ -5,11 +5,13 @@ tests and the lighter `get_snapshot()` counts live in `test_app_registry.py`.
 """
 
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
 from hassette_wire import AppStatus, ResourceStatus
 
+from hassette.config.classes import AppManifest
 from hassette.core.app_registry import AppRegistry
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.types.enums import BlockReason
@@ -144,7 +146,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.register_app("my_app", 0, make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         assert snap.total == 1
-        assert snap.status_counts["running"] == 1
+        assert snap.status_counts[AppStatus.RUNNING] == 1
         assert snap.manifests[0].status == "running"
         assert snap.manifests[0].instance_count == 1
 
@@ -153,7 +155,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         # No instances registered — status is "stopped"
         snap = reg.get_full_snapshot()
-        assert snap.status_counts["stopped"] == 1
+        assert snap.status_counts[AppStatus.STOPPED] == 1
         assert snap.manifests[0].status == "stopped"
 
     def test_failed_app(self) -> None:
@@ -161,7 +163,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         reg.record_failure("my_app", 0, RuntimeError("init error"))
         snap = reg.get_full_snapshot()
-        assert snap.status_counts["failed"] == 1
+        assert snap.status_counts[AppStatus.FAILED] == 1
         assert snap.manifests[0].status == "failed"
         assert snap.manifests[0].error_message == "init error"
 
@@ -169,7 +171,7 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests({"my_app": make_manifest_obj("my_app", enabled=False)})
         snap = reg.get_full_snapshot()
-        assert snap.status_counts["disabled"] == 1
+        assert snap.status_counts[AppStatus.DISABLED] == 1
         assert snap.manifests[0].status == "disabled"
 
     def test_blocked_app(self) -> None:
@@ -177,7 +179,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.set_manifests({"my_app": make_manifest_obj("my_app")})
         reg.block_app("my_app", BlockReason.ONLY_APP)
         snap = reg.get_full_snapshot()
-        assert snap.status_counts["blocked"] == 1
+        assert snap.status_counts[AppStatus.BLOCKED] == 1
         assert snap.manifests[0].status == "blocked"
         assert snap.manifests[0].block_reason == "only_app"
 
@@ -198,11 +200,11 @@ class TestAppRegistryGetFullSnapshot:
 
         snap = reg.get_full_snapshot()
         assert snap.total == 5
-        assert snap.status_counts["running"] == 1
-        assert snap.status_counts["stopped"] == 1
-        assert snap.status_counts["failed"] == 1
-        assert snap.status_counts["disabled"] == 1
-        assert snap.status_counts["blocked"] == 1
+        assert snap.status_counts[AppStatus.RUNNING] == 1
+        assert snap.status_counts[AppStatus.STOPPED] == 1
+        assert snap.status_counts[AppStatus.FAILED] == 1
+        assert snap.status_counts[AppStatus.DISABLED] == 1
+        assert snap.status_counts[AppStatus.BLOCKED] == 1
 
         statuses = {m.app_key: m.status for m in snap.manifests}
         assert statuses["running_app"] == "running"
@@ -231,11 +233,11 @@ class TestAppRegistryGetFullSnapshot:
         snap = reg.get_full_snapshot()
 
         assert snap.total == 3
-        assert snap.status_counts["running"] == 1
-        assert snap.status_counts["failed"] == 1
-        assert snap.status_counts["stopped"] == 1
-        assert snap.status_counts["disabled"] == 0
-        assert snap.status_counts["blocked"] == 0
+        assert snap.status_counts[AppStatus.RUNNING] == 1
+        assert snap.status_counts[AppStatus.FAILED] == 1
+        assert snap.status_counts[AppStatus.STOPPED] == 1
+        assert snap.status_counts[AppStatus.DISABLED] == 0
+        assert snap.status_counts[AppStatus.BLOCKED] == 0
 
         by_key = {m.app_key: m for m in snap.manifests}
 
@@ -287,8 +289,8 @@ class TestAppRegistryGetFullSnapshot:
         snap = reg.get_full_snapshot()
         assert snap.manifests[0].status == "stopped"
         assert snap.manifests[0].autostart is False
-        assert snap.status_counts["stopped"] == 1
-        assert snap.status_counts["disabled"] == 0
+        assert snap.status_counts[AppStatus.STOPPED] == 1
+        assert snap.status_counts[AppStatus.DISABLED] == 0
 
 
 class TestAppRegistryAutostart:
@@ -300,8 +302,8 @@ class TestAppRegistryAutostart:
 
     def make_manifest(  # factory-local: returns SimpleNamespace for registry tests
         self, enabled: bool = True, autostart: bool = True
-    ) -> SimpleNamespace:
-        return SimpleNamespace(enabled=enabled, autostart=autostart)
+    ) -> AppManifest:
+        return cast("AppManifest", SimpleNamespace(enabled=enabled, autostart=autostart))
 
     def test_autostart_manifests_includes_autostart_true(self, registry: AppRegistry) -> None:
         """autostart_manifests includes enabled+autostart=true manifests."""

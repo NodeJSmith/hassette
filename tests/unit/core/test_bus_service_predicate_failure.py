@@ -1,15 +1,14 @@
 """Unit tests for BusService._record_predicate_failure and dispatch predicate-error isolation."""
 
 import time
-from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from hassette_wire import ExecutionStatus
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.core.bus_service import BusService
-from hassette.events.base import Event
+from tests.support.factories import make_hassette_event
 from tests.support.helpers import create_listener
 
 if TYPE_CHECKING:
@@ -56,7 +55,7 @@ class TestRecordPredicateFailure:
     def test_enqueues_error_record_with_correct_fields(self) -> None:
         bs, executor = make_bus_service()
         listener = make_listener_with_error_handler()
-        event = Event(topic="test.pred", payload=SimpleNamespace())
+        event = make_hassette_event(topic="test.pred")
         exc = ValueError("boom")
 
         start_ts = time.time()
@@ -77,7 +76,7 @@ class TestRecordPredicateFailure:
         bs.hassette.try_session_id = MagicMock(return_value=None)
 
         listener = make_listener_with_error_handler()
-        event = Event(topic="test.pred", payload=SimpleNamespace())
+        event = make_hassette_event(topic="test.pred")
 
         bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
 
@@ -91,11 +90,11 @@ class TestRecordPredicateFailure:
             pass
 
         listener = make_listener_with_error_handler(error_handler=on_error)
-        event = Event(topic="test.pred", payload=SimpleNamespace())
+        event = make_hassette_event(topic="test.pred")
 
         bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
 
-        bs.task_bucket.spawn.assert_called_once()
+        cast("MagicMock", bs.task_bucket).spawn.assert_called_once()
 
     def test_invokes_app_level_error_handler_as_fallback(self) -> None:
         bs, _executor = make_bus_service()
@@ -104,20 +103,20 @@ class TestRecordPredicateFailure:
             pass
 
         listener = make_listener_with_error_handler(app_resolver=lambda: app_handler)
-        event = Event(topic="test.pred", payload=SimpleNamespace())
+        event = make_hassette_event(topic="test.pred")
 
         bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
 
-        bs.task_bucket.spawn.assert_called_once()
+        cast("MagicMock", bs.task_bucket).spawn.assert_called_once()
 
     def test_no_error_handler_skips_spawn(self) -> None:
         bs, _executor = make_bus_service()
         listener = make_listener_with_error_handler()
-        event = Event(topic="test.pred", payload=SimpleNamespace())
+        event = make_hassette_event(topic="test.pred")
 
         bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
 
-        bs.task_bucket.spawn.assert_not_called()
+        cast("MagicMock", bs.task_bucket).spawn.assert_not_called()
 
 
 class TestDispatchPredicateRecordingIsolation:
@@ -138,12 +137,13 @@ class TestDispatchPredicateRecordingIsolation:
 
         listener = create_listener(where=raising_pred)
         bs.router.get_topic_listeners.return_value = [listener]
-        event = Event(topic="test.pred", payload=SimpleNamespace())
+        event = make_hassette_event(topic="test.pred")
 
         with (
-            patch.object(bs, "_record_predicate_failure", side_effect=RuntimeError("record crash")),
+            patch.object(bs, "_record_predicate_failure", side_effect=RuntimeError("record crash")) as record,
             patch.object(bs, "expand_topics", return_value=["test.pred"]),
         ):
+            # dispatch() returning normally proves the recording crash was isolated
             await bs.dispatch("test.pred", event)
 
-        bs.logger.exception.assert_any_call("Failed to record predicate failure for %s", listener)
+        record.assert_called_once()

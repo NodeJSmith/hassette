@@ -111,7 +111,7 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
 # duplicate. Shared by the same three pipeline files as ``init_executor`` above.
 def make_invocation(
     listener_id: int | None = 1,
-    session_id: int = 1,
+    session_id: int | None = 1,
     source_tier: str = "app",
     is_di_failure: bool = False,
 ) -> ExecutionRecord:

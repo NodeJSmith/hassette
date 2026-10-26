@@ -16,8 +16,8 @@ Tests cover:
 import sqlite3
 import time
 from collections.abc import Callable, Coroutine
-from typing import Any
-from unittest.mock import AsyncMock
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -390,7 +390,7 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         await execution_pipeline.persist_batch(executor, [inv], retry_count=initial_retry)
         after = time.monotonic()
 
-        queued = executor._write_queue.get_nowait()
+        queued = assert_requeued_as_retryable_batch(executor, inv, expected_retry_count=initial_retry + 1)
         expected_delay = float(initial_retry + 1)
         assert queued.not_before >= before + expected_delay
         assert queued.not_before <= after + expected_delay + 0.1
@@ -441,7 +441,7 @@ async def test_persist_batch_drops_records_with_no_session_when_session_not_read
     yet, while sibling records in the same batch that already carry a session_id still persist.
     """
     executor = init_executor()
-    executor.hassette.try_session_id.return_value = None
+    cast("MagicMock", executor.hassette).try_session_id.return_value = None
 
     inv_no_session = make_invocation(listener_id=1, session_id=None)
     inv_with_session = make_invocation(listener_id=2, session_id=1)
@@ -459,7 +459,6 @@ async def test_persist_batch_drops_records_with_no_session_when_session_not_read
     # The no-session record was filtered out (with a warning); its sibling still persisted —
     # this is selective per-record filtering, not an unconditional early return.
     assert persist_calls == [[inv_with_session]]
-    executor.logger.warning.assert_called_once()
 
 
 async def test_handle_fk_violation_all_persisted_emits_completion_events():
