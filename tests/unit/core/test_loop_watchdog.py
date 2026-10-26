@@ -21,7 +21,7 @@ import threading
 import time
 import warnings
 from collections.abc import AsyncIterator, Callable
-from typing import cast
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -69,7 +69,7 @@ def make_watchdog(
     return watchdog
 
 
-def make_idle_watchdog(**marker_kwargs: object) -> LoopWatchdog:
+def make_idle_watchdog(**marker_kwargs: Any) -> LoopWatchdog:
     """Build a watchdog whose executor has no execution bound (current_execution=None).
 
     Used by lifecycle tests (start/stop/restart) that only care that the daemon thread starts

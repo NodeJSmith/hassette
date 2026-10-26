@@ -92,7 +92,7 @@ def make_logging_service(
     # (called by on_initialize()) can operate on this bypassed instance.
     svc.ready_event = asyncio.Event()
     svc._ready_reason = None
-    svc._shutdown_event = asyncio.Event()
+    svc.shutdown_event = asyncio.Event()
     svc._init_task = None
     svc._shutdown_task = None
     svc._shutdown_body_task = None
