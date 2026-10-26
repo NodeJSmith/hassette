@@ -246,7 +246,7 @@ class CommandExecutor(Service):
                 # An item arrived — drain the full queue in one batch
                 try:
                     await execution_pipeline.drain_and_persist(self, first_item=get_fut.result())
-                except Exception:
+                except Exception:  # broad: a persist failure must not kill the writer loop; drop the batch, keep going
                     self.logger.exception(
                         "drain_and_persist failed — records from this batch are dropped (already dequeued)"
                     )
@@ -255,7 +255,7 @@ class CommandExecutor(Service):
                 if not self._write_queue.empty():
                     try:
                         await execution_pipeline.drain_and_persist(self)
-                    except Exception:
+                    except Exception:  # broad: same as above — log, drop the batch, keep the writer loop alive
                         self.logger.exception(
                             "drain_and_persist failed (timer flush) — records from this batch may be dropped"
                         )
@@ -586,7 +586,7 @@ class CommandExecutor(Service):
                 self.logger.exception("Error handler raised TimeoutError (%s)", label)
             else:
                 self.logger.warning("Error handler timed out after %.1fs (%s)", timeout, label)
-        except Exception:
+        except Exception:  # broad: user error-handler code can raise anything; count and log, never propagate
             self._error_handler_failures += 1
             self.logger.exception("Error handler raised an exception (%s)", label)
 
