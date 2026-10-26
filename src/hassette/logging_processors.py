@@ -6,7 +6,8 @@ one identity column before the message and no key=value tail; JSON output and th
 
 import logging
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from datetime import datetime
 from typing import Any
 
 import structlog.dev
@@ -116,13 +117,36 @@ def add_execution_id(
     # dup-ignore-end
     """Structlog processor: stamp execution_id from CURRENT_EXECUTION_ID context var.
 
-    Inserted in the shared processor chain after TimeStamper so structlog-native callers
+    Runs after the timestamp in both the native chain and ``foreign_pre_chain`` so structlog-native callers
     carry the execution correlation identifier. Stdlib callers rely on CorrelationFilter
     instead (the processor chain does not run for them until ProcessorFormatter picks them
     up, which is after the calling context).
     """
     event_dict["execution_id"] = CURRENT_EXECUTION_ID.get(None)
     return event_dict
+
+
+def record_timestamper(fmt: str) -> Callable[[object, str, structlog.types.EventDict], structlog.types.EventDict]:
+    """Structlog processor factory: stamp ``timestamp`` from a stdlib record's ``created`` time.
+
+    For ``ProcessorFormatter``'s ``foreign_pre_chain``, which in Phase 2 runs on the log queue's listener thread,
+    where ``TimeStamper`` would stamp the time the record was dequeued. Output matches ``TimeStamper(fmt=fmt,
+    utc=False)``: ``"iso"`` gives a local ISO 8601 string, any other ``fmt`` is a ``strftime`` format in local time.
+    stdlib ``datetime`` is used so the string is exactly what ``TimeStamper`` renders for native callers.
+    """
+
+    def stamp(_logger: object, _method_name: str, event_dict: structlog.types.EventDict) -> structlog.types.EventDict:
+        record = event_dict.get("_record")
+        if record is None:
+            return event_dict
+        created = datetime.fromtimestamp(record.created)  # noqa: DTZ006 - naive local time, as TimeStamper renders
+        if fmt.upper() == "ISO":
+            event_dict["timestamp"] = created.isoformat()
+        else:
+            event_dict["timestamp"] = created.astimezone().strftime(fmt)
+        return event_dict
+
+    return stamp
 
 
 # dup-ignore-start: structlog fixes the processor signature
