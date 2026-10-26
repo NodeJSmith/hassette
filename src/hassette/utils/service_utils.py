@@ -365,6 +365,18 @@ def describe_error(error: BaseException | None) -> str:
     return f"{type(error).__name__}: {error}" if str(error) else type(error).__name__
 
 
+def describe_wave_failure(result: WaveResult, timeout: float) -> str:
+    """Return the fatal startup reason for a FAILED or TIMEOUT wave, naming each resource and its cause."""
+    if result.outcome is WaveOutcome.FAILED:
+        causes = ", ".join(
+            f"{member.class_name} ({describe_error(error)})"
+            for member, error in zip(result.resources, result.errors, strict=True)
+        )
+        return f"startup failure: failed to initialize: {causes}"
+    names = ", ".join(r.class_name for r in result.resources)
+    return f"startup failure: did not finish starting within {timeout}s: {names}"
+
+
 def describe_wave_members(resources: "Sequence[Resource]") -> str:
     """Describe each resource for a failed wave's log, one per line.
 

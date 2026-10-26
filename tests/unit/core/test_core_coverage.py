@@ -1,7 +1,7 @@
 """Coverage-focused unit tests for Hassette (core.py).
 
 Targets branches not already exercised by test_hassette_lifecycle.py (unit) and
-tests/integration/test_core.py (integration): startup_tasks() precheck/env-file
+tests/integration/test_core.py (integration): run_startup_tasks() precheck/env-file
 branches, on_initialize() timeout warnings, send_event()'s guard branches,
 _shutdown_children()'s exception branches and exit stages, _on_children_stopped(), and several
 one-line accessors/helpers.
@@ -20,9 +20,11 @@ from anyio import ClosedResourceError
 from hassette_wire import ResourceStatus
 
 import hassette.core.core as core_module
+import hassette.core.startup_tasks as startup_tasks_module
 from hassette import context
 from hassette.config.config import HassetteConfig
 from hassette.core.core import Hassette
+from hassette.core.startup_tasks import run_startup_tasks
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
@@ -159,14 +161,13 @@ class TestStartupTasksEnvFiles:
     def test_skips_loading_env_files_when_disabled(
         self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """startup_tasks() never calls load_dotenv when import_dot_env_files is False."""
+        """run_startup_tasks() never calls load_dotenv when import_dot_env_files is False."""
         load_dotenv_mock = Mock()
-        monkeypatch.setattr(core_module, "load_dotenv", load_dotenv_mock)
+        monkeypatch.setattr(startup_tasks_module, "load_dotenv", load_dotenv_mock)
 
         with preserve_config(test_config):
             test_config.import_dot_env_files = False
-            hassette = Hassette(test_config)
-            hassette.startup_tasks()
+            run_startup_tasks(test_config, Mock())
 
         load_dotenv_mock.assert_not_called()
 
@@ -175,58 +176,58 @@ class TestStartupTasksAppWarnings:
     def test_unconfigured_app_warning_is_logged_at_warning(
         self, test_config: HassetteConfig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """startup_tasks() logs each startup warning at WARNING.
+        """run_startup_tasks() logs each startup warning at WARNING.
 
         The log line is the warning's only delivery surface, so the logger is the boundary under test;
         the warning text itself is pinned in tests/unit/utils/test_unconfigured_apps.py.
         """
-        monkeypatch.setattr(core_module, "run_apps_pre_check", Mock())
+        monkeypatch.setattr(startup_tasks_module, "run_apps_pre_check", Mock())
         write_app(tmp_path, "lights.py", "from hassette import App\n\nclass LightsApp(App): ...\n")
 
         with preserve_config(test_config):
             test_config.apps.directory = tmp_path
             test_config.apps.apps = {}
-            hassette = Hassette(test_config)
-            hassette.logger = Mock()
-            hassette.startup_tasks()
+            logger = Mock()
+            run_startup_tasks(test_config, logger)
 
-        [warning] = [call.args[0] for call in hassette.logger.warning.call_args_list]
+        [warning] = [call.args[0] for call in logger.warning.call_args_list]
         assert "[hassette.apps.lights_app]" in warning
 
 
 class TestStartupTasksAppPrecheck:
     def test_precheck_always_runs(self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch) -> None:
-        """startup_tasks() always calls run_apps_pre_check with the active config."""
+        """run_startup_tasks() always calls run_apps_pre_check with the active config."""
         precheck_mock = Mock()
-        monkeypatch.setattr(core_module, "run_apps_pre_check", precheck_mock)
+        monkeypatch.setattr(startup_tasks_module, "run_apps_pre_check", precheck_mock)
 
-        hassette = Hassette(test_config)
-        hassette.startup_tasks()
+        run_startup_tasks(test_config, Mock())
 
         precheck_mock.assert_called_once_with(test_config)
 
     def test_precheck_failure_reraises_when_not_allowed_to_continue(
         self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """startup_tasks() re-raises AppPrecheckFailedError when allow_startup_if_app_precheck_fails is False."""
-        monkeypatch.setattr(core_module, "run_apps_pre_check", Mock(side_effect=AppPrecheckFailedError("bad app")))
+        """run_startup_tasks() re-raises AppPrecheckFailedError when allow_startup_if_app_precheck_fails is False."""
+        monkeypatch.setattr(
+            startup_tasks_module, "run_apps_pre_check", Mock(side_effect=AppPrecheckFailedError("bad app"))
+        )
 
         with preserve_config(test_config):
             test_config.allow_startup_if_app_precheck_fails = False
-            hassette = Hassette(test_config)
             with pytest.raises(AppPrecheckFailedError):
-                hassette.startup_tasks()
+                run_startup_tasks(test_config, Mock())
 
     def test_precheck_failure_continues_when_allowed(
         self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """startup_tasks() swallows AppPrecheckFailedError when allow_startup_if_app_precheck_fails is True."""
-        monkeypatch.setattr(core_module, "run_apps_pre_check", Mock(side_effect=AppPrecheckFailedError("bad app")))
+        """run_startup_tasks() swallows AppPrecheckFailedError when allow_startup_if_app_precheck_fails is True."""
+        monkeypatch.setattr(
+            startup_tasks_module, "run_apps_pre_check", Mock(side_effect=AppPrecheckFailedError("bad app"))
+        )
 
         with preserve_config(test_config):
             test_config.allow_startup_if_app_precheck_fails = True
-            hassette = Hassette(test_config)
-            hassette.startup_tasks()  # must not raise
+            run_startup_tasks(test_config, Mock())  # must not raise
 
 
 class TestRunForeverEdgeCases:

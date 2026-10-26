@@ -15,8 +15,10 @@ from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.testing import wait_for
 from hassette.utils.service_utils import (
     WaveOutcome,
+    WaveResult,
     awaiting_location,
     describe_error,
+    describe_wave_failure,
     describe_wave_members,
     wait_for_wave,
 )
@@ -235,3 +237,21 @@ def test_describe_error():
     assert describe_error(RuntimeError("boom")) == "RuntimeError: boom"
     assert describe_error(TimeoutError()) == "TimeoutError"
     assert describe_error(None) == "cancelled"
+
+
+def test_describe_wave_failure_names_each_failed_member_and_cause():
+    first, second = make_members(2)
+    result = WaveResult(WaveOutcome.FAILED, (first, second), (RuntimeError("boom"), None))
+
+    assert describe_wave_failure(result, timeout=30.0) == (
+        "startup failure: failed to initialize: WaveMember (RuntimeError: boom), WaveMember (cancelled)"
+    )
+
+
+def test_describe_wave_failure_names_each_unfinished_member_and_the_timeout():
+    [member] = make_members(1)
+    result = WaveResult(WaveOutcome.TIMEOUT, (member,))
+
+    assert describe_wave_failure(result, timeout=30.0) == (
+        "startup failure: did not finish starting within 30.0s: WaveMember"
+    )

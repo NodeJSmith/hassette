@@ -4,7 +4,6 @@ import typing
 from contextlib import suppress
 from typing import Any
 
-from dotenv import load_dotenv
 from hassette_wire import ResourceStatus
 
 import hassette.utils.date_utils as date_utils
@@ -16,7 +15,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS, SESSION_FINALIZE_TIMEOUT_SECONDS
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
-from hassette.exceptions import AppPrecheckFailedError, FatalError
+from hassette.exceptions import FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, start
@@ -30,11 +29,10 @@ from hassette.resources.teardown import (
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.utils.app_utils import app_startup_warnings, run_apps_pre_check
 from hassette.utils.service_utils import (
     WaveOutcome,
     WaveResult,
-    describe_error,
+    describe_wave_failure,
     describe_wave_members,
     topological_levels,
     topological_sort,
@@ -62,6 +60,7 @@ from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .session_manager import SessionManager
+from .startup_tasks import run_startup_tasks
 from .state_proxy import StateProxy
 from .sync_executor import SyncExecutor
 from .sync_executor_service import SyncExecutorService
@@ -181,43 +180,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # Tier 1 loop-responsiveness watchdog — installed in run_forever(), torn down in before_shutdown().
         self._loop_watchdog: LoopWatchdog | None = None
 
-    def startup_tasks(self) -> None:
-        """Perform one-time startup tasks.
-
-        These were originally on the `HassetteConfig` class but we do not want these called
-        when the config is reloaded, only on initial startup.
-        """
-        # one time startup tasks
-        if self.config.import_dot_env_files:
-            for env_file in self.config.env_files:
-                if env_file.exists():
-                    self.logger.debug("Loading environment variables from %s", env_file)
-                    load_dotenv(env_file)
-
-        self.config.set_validated_app_manifests()
-
-        config_files = sorted(self.config.toml_files | self.config.env_files)
-        self.logger.info("Config files read: %s", ", ".join(map(str, config_files)) or "none", stacklevel=3)
-
-        self.logger.info("Apps directory: %s", self.config.apps.directory, stacklevel=3)
-        for warning in app_startup_warnings(self.config.apps, config_files=config_files, cwd=self.config.locations.cwd):
-            self.logger.warning(warning, stacklevel=3)
-
-        active_apps = [app for app in self.config.apps.manifests.values() if app.enabled]
-        self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
-
-        inactive_apps = [app for app in self.config.apps.manifests.values() if not app.enabled]
-        if inactive_apps:
-            self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
-
-        try:
-            run_apps_pre_check(self.config)
-        except AppPrecheckFailedError:
-            if not self.config.allow_startup_if_app_precheck_fails:
-                self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
-                raise
-            self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
-
     def wire_services(self) -> None:
         """Register context variables, wire all services, and validate the dependency graph.
 
@@ -237,7 +199,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         context.set_global_hassette(self)
         context.set_global_hassette_config(self.config)
 
-        self.startup_tasks()
+        run_startup_tasks(self.config, self.logger)
 
         self._sync_executor_service = self.add_child(SyncExecutorService)
 
@@ -511,17 +473,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
             self._raise_if_fatal_shutdown()
             return False
 
-        if result.outcome is WaveOutcome.FAILED:
-            # The attempt's own exception observer already logged the traceback at ERROR; the reason
-            # carries each cause so the exit message and session record name it too.
-            causes = ", ".join(
-                f"{member.class_name} ({describe_error(error)})"
-                for member, error in zip(result.resources, result.errors, strict=True)
-            )
-            reason = f"startup failure: failed to initialize: {causes}"
-        else:
-            names = ", ".join(r.class_name for r in result.resources)
-            reason = f"startup failure: did not finish starting within {timeout}s: {names}"
+        # The attempt's own exception observer already logged a FAILED wave's traceback at ERROR; the
+        # reason carries each cause so the exit message and session record name it too.
+        reason = describe_wave_failure(result, timeout)
         self.logger.error("%s, shutting down\n%s", reason, describe_wave_members(result.resources))
         await self._fail_startup(reason)
         return False
