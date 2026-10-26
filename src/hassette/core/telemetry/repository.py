@@ -9,6 +9,7 @@ from hassette_wire import ScheduleStatus, ScheduleStatusReason
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.core.telemetry.insert_params import (
     EXECUTION_INSERT_SQL,
     execution_insert_params,
@@ -438,7 +439,7 @@ class TelemetryRepository:
             await db.execute(sql, params)
 
             await db.commit()
-        except Exception:
+        except Exception:  # any failure rolls back, then re-raises to the caller
             await db.rollback()
             raise
 
@@ -485,7 +486,7 @@ class TelemetryRepository:
                 },
             )
             await db.commit()
-        except Exception:
+        except STORAGE_ERRORS:
             LOGGER.warning(
                 "Dropped blocking_events row (DB write failed) — tier=%s app=%s primitive=%s",
                 event.tier,
@@ -510,7 +511,7 @@ class TelemetryRepository:
             params_list = [execution_insert_params(r) for r in records]
             await db.executemany(EXECUTION_INSERT_SQL, params_list)
             await db.commit()
-        except Exception:
+        except Exception:  # any failure rolls back, then re-raises to the caller
             await db.rollback()
             raise
 
@@ -543,7 +544,7 @@ class TelemetryRepository:
                     dropped += 1
 
             await db.commit()
-        except Exception:
+        except Exception:  # any failure rolls back, then re-raises to the caller
             await db.rollback()
             raise
 
