@@ -15,11 +15,10 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS, SESSION_FINALIZE_TIMEOUT_SECONDS
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
-from hassette.events import HassetteServiceEvent
-from hassette.exceptions import FatalError, ServeEndedError
+from hassette.exceptions import FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, request_shutdown, start
+from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, start
 from hassette.resources.operations import finalize_shutdown_report, shutdown_batch
 from hassette.resources.shutdown_deadline import deadline_in, elapsed_since, tighten_shutdown_deadline
 from hassette.resources.teardown import (
@@ -59,6 +58,7 @@ from .loop_watchdog import LoopWatchdog
 from .pipeline_counters import PipelineCounters
 from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
+from .service_failure import route_service_failure
 from .session_manager import SessionManager
 from .startup_tasks import run_startup_tasks
 from .state_proxy import StateProxy
@@ -168,8 +168,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self._init_order: list[type[Resource]] = []
         self._init_waves: list[list[type[Resource]]] = []
 
-        # Fatal-exit observability: set by escalate_service_failure() or startup-failure branches.
-        # When set, run_forever() raises FatalError after teardown instead of returning normally.
+        # Set by escalate_service_failure() or a startup failure; run_forever() then raises FatalError after teardown.
         self._fatal_shutdown_reason: str | None = None
 
         # Work a deadline owner walked away from during this process's life (stage expiry, runtime
@@ -452,10 +451,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
         Returns True once the wave has started, and False after tearing down when a shutdown was
         requested mid-wave. A failed or timed-out wave raises ``FatalError`` (via ``_fail_startup()``).
 
-        A boot-time start failure is fatal whether or not the resource is required: the wave joins its
-        members' initialization attempts (spec 134 D1), so a failure fails startup at once and the
-        external supervisor restarts the process. A failure after the handoff to ``serve()`` is a
-        report instead (``report_service_failure()``).
+        A boot-time start failure is fatal whether or not the resource is required: the wave joins its members'
+        initialization attempts (spec 134 D1), so startup fails at once and the external supervisor restarts
+        the process. A failure after the handoff to ``serve()`` is a report (``report_service_failure()``).
         """
         if timeout is None:
             timeout = self.config.lifecycle.startup_timeout_seconds
@@ -510,84 +508,16 @@ class Hassette(HassetteAccessorsMixin, Resource):
         return self._fatal_shutdown_reason
 
     def record_fatal_reason(self, reason: str) -> None:
-        """Record why a fatal shutdown is happening, so the process exits non-zero.
+        """Record why a fatal shutdown is happening, so the process exits non-zero. The first reason wins.
 
-        Set synchronously at the decision site (before any teardown) so run_forever() observes it
-        independent of event dispatch. The first reason wins.
+        Set synchronously at the decision site, before any teardown, so run_forever() sees it without event dispatch.
         """
         if self._fatal_shutdown_reason is None:
             self._fatal_shutdown_reason = reason
 
     def report_service_failure(self, service: "Service", exc: BaseException) -> None:
-        """Route a service's failure after its handoff to ``serve()`` (spec 134 D8). Never awaits.
-
-        ``Service._serve_wrapper()`` calls this first at every failure exit, before its status
-        handlers await their telemetry sends, so a dead or stalled bus can't delay it. A required
-        service's failure ends the process (``escalate_service_failure()``); an optional one's leaves
-        the service dead in place, announced by one ERROR. A report arriving once shutdown was
-        requested, or once a fatal reason is latched, is logged and not escalated, so a clean stop
-        still exits 0.
-        """
-        if self.shutdown_event.is_set() or self._fatal_shutdown_reason is not None:
-            self.logger.error(
-                "%s '%s' failed after shutdown began or a fatal error was recorded, not escalating: %s: %s",
-                service.role,
-                service.class_name,
-                type(exc).__name__,
-                exc,
-            )
-            return
-        if service.required:
-            self.escalate_service_failure(service, exc)
-            return
-        serve_task = service._optional_serve_task()
-        serve_task_name = serve_task.get_name() if serve_task is not None else None
-        pending = [name for name in service.task_bucket.pending_task_names() if name != serve_task_name]
-        recovery = "a hassette restart" if service.parent is self else "reloading the app that owns it"
-        self.logger.error(
-            "Optional %s '%s' failed and stays down until %s brings it back (%s: %s); pending tasks: %s",
-            service.role,
-            service.unique_name,
-            recovery,
-            type(exc).__name__,
-            exc,
-            ", ".join(pending) or "none",
-        )
-
-    def escalate_service_failure(self, service: "Service", exc: BaseException) -> None:
-        """End the process for a required service's failure: the one fatal exit route (spec 134 D14).
-
-        Records the fatal reason in memory, requests shutdown so ``run_forever()`` owns the exit, and
-        emits CRASHED as telemetry without awaiting it, so neither the bus nor the database can delay
-        the exit. CRASHED here means "took the process down": the service's own status is still FAILED
-        unless it raised a ``FatalError``. Teardown's session finalize writes the reason to the session
-        record, best-effort.
-        """
-        if isinstance(exc, ServeEndedError):
-            reason = f"{service.role} '{service.class_name}' serve() ended without shutdown"
-        else:
-            reason = f"{service.role} '{service.class_name}' crashed: {type(exc).__name__}"
-        self.logger.error("%s, shutting down Hassette: %s", reason, exc)
-        self.record_fatal_reason(reason)
-        request_shutdown(self, reason)
-        event = HassetteServiceEvent.from_service_status(
-            resource_name=service.class_name,
-            role=service.role,
-            status=ResourceStatus.CRASHED,
-            previous_status=service.status,
-            exception=exc,
-        )
-        try:
-            self.task_bucket.spawn(self.send_crashed_event(event), name=f"hassette:crashed_event:{service.class_name}")
-        except Exception as spawn_exc:
-            self.logger.debug("Could not emit CRASHED for %s: %s", service.class_name, spawn_exc)
-
-    async def send_crashed_event(self, event: HassetteServiceEvent) -> None:
-        """Send a CRASHED telemetry event, best-effort: teardown may cancel it, and a failed send is not an error."""
-        try:
-            await self.send_event(event)
-        except Exception as exc:
-            self.logger.debug("CRASHED event for %s not sent: %s", event.payload.data.resource_name, exc)
+        """Route a post-handoff service failure, never awaiting (spec 134 D8); the seam harnesses replace."""
+        route_service_failure(self, service, exc)
 
     @property
     def force_terminated_work(self) -> tuple[str, ...]:

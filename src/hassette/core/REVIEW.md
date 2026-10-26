@@ -16,14 +16,14 @@ cache `STALE`?
 
 ## Failure Report Ordering
 `Service._serve_wrapper()` in `src/hassette/resources/service.py` must call
-`report_service_failure()` (in `src/hassette/core/core.py`) first at every failure exit after the
+`report_service_failure()` (in `src/hassette/core/core.py`, routed by `service_failure.py`) first at every failure exit after the
 handoff, before `handle_failed()`/`handle_crash()`, which await a bounded event channel. Does any
 exit (raise, `FatalError`, `ClosedResourceError`, unrequested return or cancellation) reach a status
 send first, or add an `await` ahead of the report? Does anything on the path from the report to
 `escalate_service_failure()` await, so a stalled bus or database could delay the process exit?
 
 ## Fatal Reason Before Shutdown
-`escalate_service_failure()` in `src/hassette/core/core.py` is the one fatal exit route. Does it
+`escalate_service_failure()` in `src/hassette/core/service_failure.py` is the one fatal exit route. Does it
 latch `_fatal_shutdown_reason` *before* requesting shutdown, and does any other code path request
 shutdown for a service failure without going through it? A path that requests shutdown first loses
 the reason, and a second route lets required and optional handling drift apart.
