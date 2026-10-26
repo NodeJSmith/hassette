@@ -58,6 +58,8 @@ stateDiagram-v2
     STOPPED --> [*]
 ```
 
+The diagram's `CRASHED` state is a resource status, and only a `FatalError` escaping `serve()` sets it. When a required service fails any other way, Hassette still emits a `CRASHED` status event, meaning the failure took the process down, but the service's own status stays `FAILED`.
+
 `NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution and child initialization. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` means `serve()` ended in failure. A required service in `FAILED` ends the process; an optional one stays `FAILED` until shutdown. `CRASHED` is set when a `FatalError` escapes `serve()`, and for a required service Hassette shuts down. Neither state is ever left by a restart.
 
 ## Readiness vs Running
