@@ -5048,9 +5048,7 @@
           "stopping",
           "stopped",
           "failed",
-          "crashed",
-          "exhausted_dead",
-          "exhausted_cooling"
+          "crashed"
         ],
         "title": "ResourceStatus",
         "description": "Enumeration for resource status."
@@ -5095,18 +5093,6 @@
             ],
             "title": "Ready Phase",
             "description": "Human-readable description of the current readiness phase, or None if not available."
-          },
-          "retry_at": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Retry At",
-            "description": "Unix timestamp when the next restart will be attempted (cooling state), or None."
           }
         },
         "type": "object",

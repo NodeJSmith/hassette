@@ -307,7 +307,6 @@ class TestResourceStatus:
             ResourceStatus.NOT_STARTED,
             ResourceStatus.STARTING,
             ResourceStatus.STOPPING,
-            ResourceStatus.EXHAUSTED_COOLING,
         ):
             assert minimal_app_instance(status=value).status == value
 

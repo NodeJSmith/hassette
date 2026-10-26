@@ -24,9 +24,10 @@ deduplication keep each cause to one occurrence?
 ## Terminal-State Guard Completeness
 `handle_failed()` in `src/hassette/resources/lifecycle.py` silently returns when
 the resource's status is already in `TERMINAL_STATUSES` from
-`src/hassette/types/enums.py`. Does `TERMINAL_STATUSES` include every status where
-a late failure should be dropped (`STOPPED`, `EXHAUSTED_DEAD`), or could a resource
-in `EXHAUSTED_COOLING` swallow a failure that should trigger a different outcome?
+`src/hassette/types/enums.py` (just `STOPPED`). Can a status write reach a service
+before `handle_failed()` records FAILED (for example a `handle_stop()` from a path
+that doesn't check `ended_unrequested()`), so the guard swallows the failure and the
+service ends STOPPED instead of FAILED?
 
 ## Implicit Task Creation After the Seal
 At exit the root's TaskBucket is sealed and is the loop's task-factory fallback, so

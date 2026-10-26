@@ -99,6 +99,9 @@ def wire_root_fields(hassette: MagicMock) -> None:
 
     hassette.children = []
 
+    # Service failure reports are synchronous; a no-op like the harness's.
+    hassette.report_service_failure = MagicMock(return_value=None)
+
 
 def wire_config(
     hassette: MagicMock,

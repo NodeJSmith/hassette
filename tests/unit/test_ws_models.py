@@ -25,7 +25,6 @@ from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPa
 from hassette.types.enums import ResourceRole
 
 TEST_TIMESTAMP = 1234567890.0
-TEST_RETRY_TIMESTAMP = TEST_TIMESTAMP + 300
 
 MESSAGE_ADAPTER = TypeAdapter(WsServerMessage)
 
@@ -258,71 +257,3 @@ class TestExecutionCompletedDataStatusIsClosedEnum:
         # Round-trip through the strict Pydantic wire model the frontend validates against.
         data = ExecutionCompletedData.model_validate(asdict(payload))
         assert data.status == status
-
-
-class TestServiceStatusDataRetryAt:
-    """Verify ServiceStatusData includes retry_at field for exhausted service states."""
-
-    def test_service_status_data_includes_retry_at(self) -> None:
-        """ServiceStatusData accepts retry_at as an optional float field."""
-        data = ServiceStatusData(
-            resource_name="my_service",
-            status="exhausted_cooling",
-            retry_at=TEST_TIMESTAMP,
-        )
-        assert data.retry_at == TEST_TIMESTAMP
-
-    def test_service_status_data_retry_at_defaults_to_none(self) -> None:
-        """retry_at defaults to None when not provided."""
-        data = ServiceStatusData(
-            resource_name="my_service",
-            status="running",
-        )
-        assert data.retry_at is None
-
-    def test_service_status_exhausted_dead_serialization(self) -> None:
-        """EXHAUSTED_DEAD status serializes correctly in WebSocket messages."""
-        msg = ServiceStatusWsMessage(
-            type="service_status",
-            data=ServiceStatusData(
-                resource_name="dead_service",
-                status="exhausted_dead",
-                retry_at=None,
-            ),
-            timestamp=TEST_TIMESTAMP,
-        )
-        dumped = msg.model_dump()
-        assert dumped["data"]["status"] == "exhausted_dead"
-        assert dumped["data"]["retry_at"] is None
-
-    def test_service_status_exhausted_cooling_with_retry_at(self) -> None:
-        """EXHAUSTED_COOLING includes retry_at timestamp in serialized output."""
-        msg = ServiceStatusWsMessage(
-            type="service_status",
-            data=ServiceStatusData(
-                resource_name="cooling_service",
-                status="exhausted_cooling",
-                retry_at=TEST_RETRY_TIMESTAMP,
-            ),
-            timestamp=TEST_TIMESTAMP,
-        )
-        dumped = msg.model_dump()
-        assert dumped["data"]["status"] == "exhausted_cooling"
-        assert dumped["data"]["retry_at"] == TEST_RETRY_TIMESTAMP
-
-    def test_service_status_data_mirrors_event_dataclass_retry_at(self) -> None:
-        """ServiceStatusData mirrors ServiceStatusPayload.retry_at field."""
-        dataclass_instance = ServiceStatusPayload(
-            resource_name="cooling_service",
-            role=ResourceRole.SERVICE,
-            status=ResourceStatus.EXHAUSTED_COOLING,
-            retry_at=TEST_RETRY_TIMESTAMP,
-            ready=False,
-            ready_phase=None,
-        )
-        serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
-        data = ServiceStatusData.model_validate(serialized)
-        assert data.status == ResourceStatus.EXHAUSTED_COOLING
-        assert data.retry_at == TEST_RETRY_TIMESTAMP
-        assert data.ready is False
-        assert data.ready_phase is None

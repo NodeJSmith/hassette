@@ -75,7 +75,7 @@ class LifecycleMixin(_LifecycleHostP):
     _init_task: asyncio.Task | None = None
     """The one resource-owned initialization attempt, including direct ``initialize()`` calls.
 
-    Authoritative: every initialization path (``start()``, direct ``initialize()``, ``restart()``)
+    Authoritative: every initialization path (``start()`` and a direct ``initialize()``)
     is tracked by this single task. Concurrent initialization callers join this task rather than
     each starting their own attempt.
     """

@@ -27,7 +27,7 @@ class TestRunForeverFatalOnCrash:
         stub_run_forever_collaborators(hassette_instance)
         hassette_instance.session_manager.cleanup_stale_once_listeners = AsyncMock()
 
-        # Set fatal reason then trigger shutdown — simulates what shutdown_if_crashed does
+        # Set fatal reason then trigger shutdown — simulates what escalate_service_failure does
         def trigger_fatal_shutdown(*_args, **_kwargs):
             hassette_instance.record_fatal_reason("BusService crashed: RuntimeError")
             hassette_instance.shutdown_event.set()
@@ -113,17 +113,15 @@ class TestSessionTelemetryOrdering:
 class TestFinalizePersistsFatalFailure:
     """finalize_session persists a failure status when a fatal reason is set.
 
-    Regression for the persistence race: on a real fatal crash, the async on_service_crashed
-    handler may not record the failure before finalize runs during teardown. finalize must use the
-    synchronously-set _fatal_shutdown_reason so the crash is not masked as a clean 'success'.
+    The fatal reason is latched in memory at the decision site, before teardown, so finalize reads it
+    and the crash is not masked as a clean 'success'.
     """
 
     async def test_finalize_writes_failure_when_fatal_reason_set(self, hassette_instance: Hassette):
-        """With a fatal reason set and no _session_error, finalize writes SESSION_STATUS_FAILURE."""
+        """With a fatal reason set, finalize writes SESSION_STATUS_FAILURE."""
         sm = hassette_instance.session_manager
         sm._session_id = 7  # coordinator-internal
-        sm._session_error = False  # coordinator-internal — the async CRASHED handler did NOT win the race
-        hassette_instance.record_fatal_reason("Service 'BusService' restart budget exhausted (PERMANENT)")
+        hassette_instance.record_fatal_reason("service 'BusService' crashed: RuntimeError")
 
         sm._database_service = Mock()  # coordinator-internal
         sm._database_service.db = AsyncMock()  # coordinator-internal
@@ -144,10 +142,9 @@ class TestFinalizePersistsFatalFailure:
         assert hassette_instance.fatal_shutdown_reason in params
 
     async def test_finalize_writes_success_when_no_fatal_reason(self, hassette_instance: Hassette):
-        """A clean shutdown (no fatal reason, no _session_error) still finalizes as 'success'."""
+        """A clean shutdown (no fatal reason) still finalizes as 'success'."""
         sm = hassette_instance.session_manager
         sm._session_id = 8  # coordinator-internal
-        sm._session_error = False  # coordinator-internal
         hassette_instance._fatal_shutdown_reason = None  # coordinator-internal — no public reset method exists
 
         sm._database_service = Mock()  # coordinator-internal

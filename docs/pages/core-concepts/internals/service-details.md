@@ -314,7 +314,7 @@ On a fresh database (`user_version = 0`), the runner sets `auto_vacuum = INCREME
 | `0` on existing file | Treat as unversioned legacy schema, delete and recreate |
 | Newer than expected head | Raise [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]; manual intervention required |
 
-`SchemaVersionError` is declared in `DatabaseService.restart_spec.fatal_error_names`, so a version-ahead database stops the process immediately rather than retrying.
+`SchemaVersionError` fails `DatabaseService` at startup, which is fatal for any service, so a version-ahead database stops the process immediately.
 
 ### Write Pipeline
 

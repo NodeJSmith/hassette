@@ -64,7 +64,6 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 `tests/support/helpers.py` — misc test helpers:
 
 - `create_listener(**kw)`, `make_task_bucket()`
-- `make_crashed_event(**kw)` — `HassetteServiceEvent` with CRASHED status for service-watcher/session tests
 - `emit_change_and_wait_for_app_status(hassette, changed_paths, *app_keys, status=RUNNING, timeout=...)` —
   the hot-reload arrange-and-await sequence: wire status listeners, emit a synthetic file-change event,
   wait for every named app under one `APP_STATUS_WAIT_SECONDS` deadline. Write the config/app-file

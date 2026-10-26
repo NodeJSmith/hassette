@@ -177,13 +177,13 @@ async def test_setter_applies_any_transition():
     assert resource._previous_status == ResourceStatus.RUNNING
 
 
-@pytest.mark.parametrize("terminal", [ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD])
+@pytest.mark.parametrize("terminal", [ResourceStatus.STOPPED])
 async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStatus):
     """handle_failed() on an already-terminal resource is a no-op.
 
     Regression for #1059. A late failure arriving after teardown completed — such as a
     submit-after-shutdown ``RuntimeError("cannot schedule new futures after shutdown")`` — must
-    not move a terminal resource (STOPPED, EXHAUSTED_DEAD) to FAILED, so handle_failed() leaves
+    not move a terminal resource (STOPPED) to FAILED, so handle_failed() leaves
     the status unchanged.
     """
     hassette = make_mock_hassette(sealed=False)

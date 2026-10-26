@@ -1,17 +1,19 @@
 """Unit tests for ``wait_for_wave``: a startup wave joins its members' initialization attempts and readiness.
 
-A wave is done when every attempt has finished and every member is ready. A failed attempt fails the wave at
-once, even when its resource already marked itself ready (spec 134 D1). Shutdown wins over every other outcome.
+A wave is done when every attempt has finished and every member is ready, or is an optional service whose serve
+task has ended (spec 134 D7). A failed attempt fails the wave at once, even when its resource already marked itself
+ready (spec 134 D1). Shutdown wins over every other outcome.
 """
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
 from hassette_wire import ResourceStatus
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
+from hassette.resources.service import Service
 from hassette.testing import wait_for
 from hassette.utils.service_utils import (
     WaveOutcome,
@@ -255,3 +257,60 @@ def test_describe_wave_failure_names_each_unfinished_member_and_the_timeout():
     assert describe_wave_failure(result, timeout=30.0) == (
         "startup failure: did not finish starting within 30.0s: WaveMember"
     )
+
+
+class OptionalWatcher(Service):
+    """Optional service that, like the file watchers, would mark ready inside serve()."""
+
+    required: ClassVar[bool] = False
+
+    async def serve(self) -> None:
+        await self.shutdown_event.wait()
+
+
+class RequiredLoop(Service):
+    required: ClassVar[bool] = True
+
+    async def serve(self) -> None:
+        await self.shutdown_event.wait()
+
+
+async def test_optional_member_whose_serve_ends_before_ready_settles_the_wave_promptly():
+    """An optional watcher whose serve() fails before marking ready doesn't hold boot to the timeout (spec 134 D7)."""
+    member = OptionalWatcher(make_mock_hassette(sealed=False))
+    serve_ended = asyncio.Event()
+
+    async def serve_until_released() -> None:
+        await serve_ended.wait()
+        raise RuntimeError("watcher failed")
+
+    member._serve_task = asyncio.create_task(serve_until_released())
+    wave = asyncio.create_task(run_wave({member: asyncio.create_task(finish())}, asyncio.Event()))
+    await asyncio.sleep(0)
+    assert not wave.done(), "the wave waits while the optional member's serve task is still running"
+
+    serve_ended.set()
+    result = await asyncio.wait_for(wave, timeout=1.0)
+
+    assert result.outcome is WaveOutcome.OK
+    assert member._serve_task.done()
+
+
+async def test_required_member_whose_serve_ends_before_ready_still_holds_the_wave():
+    """Only an optional member settles without readiness; a required one's serve failure is a fatal report instead."""
+    member = RequiredLoop(make_mock_hassette(sealed=False))
+    member._serve_task = asyncio.create_task(finish())
+
+    result = await run_wave({member: asyncio.create_task(finish())}, asyncio.Event(), timeout=SHORT_TIMEOUT)
+
+    assert result.outcome is WaveOutcome.TIMEOUT
+    assert result.resources == (member,)
+
+
+async def test_failed_attempt_of_optional_member_still_fails_the_wave():
+    """A boot-time start failure stays fatal for every member (spec 134 D1)."""
+    member = OptionalWatcher(make_mock_hassette(sealed=False))
+
+    result = await run_wave({member: asyncio.create_task(fail("init broke"))}, asyncio.Event())
+
+    assert result.outcome is WaveOutcome.FAILED

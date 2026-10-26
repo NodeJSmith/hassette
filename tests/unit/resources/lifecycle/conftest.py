@@ -5,7 +5,6 @@ from typing import TypeVar
 from unittest.mock import AsyncMock
 
 from hassette.resources.base import Resource
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
@@ -76,7 +75,7 @@ class SimpleParent(Resource):
 class SimpleService(Service):
     """Service that runs indefinitely until cancelled."""
 
-    restart_spec = RestartSpec()
+    required = False
 
     async def serve(self) -> None:
         await asyncio.Event().wait()  # block forever

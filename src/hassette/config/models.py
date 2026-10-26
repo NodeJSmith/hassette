@@ -234,9 +234,6 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     websocket: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the WebSocket service. Defaults to log_level."""
 
-    service_watcher: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
-    """Logging level for the service watcher. Defaults to log_level."""
-
     file_watcher: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the file watcher service. Defaults to log_level."""
 

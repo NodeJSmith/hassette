@@ -989,18 +989,6 @@
           "title": "Websocket",
           "type": "string"
         },
-        "service_watcher": {
-          "description": "Logging level for the service watcher. Defaults to log_level.",
-          "enum": [
-            "DEBUG",
-            "INFO",
-            "WARNING",
-            "ERROR",
-            "CRITICAL"
-          ],
-          "title": "Service Watcher",
-          "type": "string"
-        },
         "file_watcher": {
           "description": "Logging level for the file watcher service. Defaults to log_level.",
           "enum": [

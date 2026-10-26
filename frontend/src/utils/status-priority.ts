@@ -13,10 +13,8 @@ type StatusPriorityKey = ResourceStatus | AppStatus | "shutting_down";
 export const STATUS_PRIORITY: Readonly<Record<StatusPriorityKey, number>> = {
   failed: 0,
   crashed: 0,
-  exhausted_dead: 0,
   blocked: 1,
   degraded: 2,
-  exhausted_cooling: 3,
   starting: 4,
   running: 5,
   stopping: 6,

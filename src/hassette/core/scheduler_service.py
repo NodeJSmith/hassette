@@ -17,7 +17,6 @@ from hassette.exceptions import JobRemovedError, TaskBucketSealedError
 from hassette.execution_mode import release_and_drain
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
-from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.scheduler.job_queue import _ScheduledJobQueue
 from hassette.types.enums import Topic
@@ -40,7 +39,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     """Service that manages scheduled jobs."""
 
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService, SyncExecutorService, BusService]
-    restart_spec = CORE_PERMANENT_RESTART
+    required: ClassVar[bool] = True
 
     bus: Bus
     """Event bus for the ``APP_LOAD_COMPLETED`` listener that clears stale job timing."""

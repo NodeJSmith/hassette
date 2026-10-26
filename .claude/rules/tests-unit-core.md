@@ -7,7 +7,7 @@ paths:
 
 Fixtures below are defined in family-scoped `_fixtures_*.py` modules in this directory
 (`_fixtures_app_lifecycle.py`, `_fixtures_app_registry.py`, `_fixtures_command_executor.py`,
-`_fixtures_bus_scheduler.py`, `_fixtures_blocking_io.py`, `_fixtures_service_watcher.py`,
+`_fixtures_bus_scheduler.py`, `_fixtures_blocking_io.py`,
 `_fixtures_telemetry.py`, `_fixtures_websocket.py`) and re-exported from `conftest.py`. Import from
 `.conftest`.
 
@@ -50,9 +50,6 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 - `make_mock_cmd_listener(**kw)` — `MagicMock` Listener for `CommandExecutor` tests (side_effect, error_handler)
 - `make_execute_job_cmd(**kw)` — `MagicMock` spec'd to `ExecuteJob` for executor tests
 - `make_bus_service(**kw)`, `make_scheduler_service(**kw)` — service instances bypassing `Resource.__init__`
-- `make_watcher(hassette)`, `make_watcher_hassette(**kw)` — `ServiceWatcher` test setup
-- `FAST_COOLDOWN_SECONDS` — cooldown value for `RestartSpec` in tests where `cooldown_and_retry`'s sleep is expected to actually complete; shared by `test_service_watcher_coverage.py` and `test_service_watcher_exhausted.py`
-- `COOLDOWN_NEVER_REACHED_SECONDS` — cooldown value for `RestartSpec` in tests where restart admission is blocked before the sleep is ever reached — the number itself is irrelevant to timing, just large enough that a guard regression letting execution fall through would hang the test instead of passing by accident; shared by the same two files
 - `make_blocking_io_hassette(**kw)` — minimal mock Hassette for watchdog and monkeypatch guard tests
 - `make_marker_executor(**kw)` — mock executor with `ExecutionMarker` on `current_execution`
 - `assert_listener_count(db, listener_id, expected, message)` — assert the number of `listeners` rows with that id
@@ -65,7 +62,7 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 
 ## Key conventions
 
-- Service factories (`make_bus_service`, `make_scheduler_service`, `make_watcher`) bypass `__init__` via `__new__` — set every attribute the real `__init__` would set.
+- Service factories (`make_bus_service`, `make_scheduler_service`) bypass `__init__` via `__new__` — set every attribute the real `__init__` would set.
 - `# dup-ignore-start: pytest test function signature` markers precede most test functions in this
   directory's `test_telemetry_repository_*.py`, `test_manifest_repository.py`,
   `test_app_lifecycle_service.py`, `test_app_lifecycle_service_coverage.py`, and

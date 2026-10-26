@@ -23,7 +23,6 @@ from hassette.config.models import SYNC_EXECUTOR_JOIN_TIMEOUT_SECONDS
 from hassette.core.sync_executor import _SATURATION_PROBE_INTERVAL_SECS, SYNC_EXECUTOR_THREAD_NAME_PREFIX
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.resources.shutdown_deadline import clamp_to_shutdown_deadline
 
@@ -47,7 +46,7 @@ class SyncExecutorService(Service):
     """
 
     depends_on: ClassVar[list[type[Resource]]] = []
-    restart_spec = CORE_PERMANENT_RESTART
+    required: ClassVar[bool] = True
     shutdown_hook_timeout_applies: ClassVar[bool] = False
     """A foundation service: the root's foundation stage bounds its shutdown, and its join has a fixed cap."""
 

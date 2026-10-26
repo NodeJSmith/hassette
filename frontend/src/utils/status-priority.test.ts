@@ -10,9 +10,8 @@ describe("STATUS_PRIORITY", () => {
     expect(STATUS_PRIORITY["stopped"]).toBeLessThan(STATUS_PRIORITY["disabled"]);
   });
 
-  it("treats failed, crashed, and exhausted_dead as equal severity", () => {
+  it("treats failed and crashed as equal severity", () => {
     expect(STATUS_PRIORITY["failed"]).toBe(STATUS_PRIORITY["crashed"]);
-    expect(STATUS_PRIORITY["failed"]).toBe(STATUS_PRIORITY["exhausted_dead"]);
   });
 
   it("treats stopping and shutting_down as equal severity", () => {
@@ -28,10 +27,8 @@ describe("STATUS_PRIORITY", () => {
     const expected = [
       "failed",
       "crashed",
-      "exhausted_dead",
       "blocked",
       "degraded",
-      "exhausted_cooling",
       "starting",
       "running",
       "stopping",

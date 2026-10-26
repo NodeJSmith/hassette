@@ -27,10 +27,8 @@ from hassette.core.migration_runner import _collect_migrations, _read_user_versi
 from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.exceptions import SchemaVersionError, WriteQueueUnavailableError
 from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.resources.shutdown_deadline import clamp_to_shutdown_deadline
-from hassette.types.enums import RestartType
 from hassette.utils.aiosqlite_utils import (
     SQLITE_BUSY_TIMEOUT_MS,
     close_connection_pair,
@@ -95,12 +93,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
     cleanup of old execution records, and the database size failsafe.
     """
 
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=3,
-        budget_period_seconds=120,
-        fatal_error_names=("SchemaVersionError",),
-    )
+    required: ClassVar[bool] = True
 
     shutdown_hook_timeout_applies: ClassVar[bool] = False
     """A foundation service: the root's foundation stage bounds its shutdown, and its drain has a fixed cap."""

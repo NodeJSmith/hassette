@@ -218,7 +218,6 @@ class RuntimeQueryService(Resource):
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
-            retry_at=data.retry_at,
             ready=data.ready,
             ready_phase=data.ready_phase,
         )
@@ -364,7 +363,6 @@ class RuntimeQueryService(Resource):
                 name=child.class_name,
                 status=child.status,
                 ready_phase=getattr(child, "_ready_reason", None),
-                retry_at=getattr(child, "_retry_at", None),
             )
             for child in self.hassette.children
         ]

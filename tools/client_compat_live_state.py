@@ -70,23 +70,20 @@ SERVICE_CHILDREN = (
         class_name="WebsocketService",
         status=ResourceStatus.RUNNING,
         _ready_reason="connected",
-        _retry_at=None,
     ),
     SimpleNamespace(
         class_name="DatabaseService",
         status=ResourceStatus.FAILED,
         _ready_reason=None,
-        _retry_at=1_760_000_000.0,  # epoch seconds
     ),
     SimpleNamespace(
         class_name="StateProxy",
         status=ResourceStatus.STARTING,
         _ready_reason=None,
-        _retry_at=None,
     ),
 )
-"""The stub's framework children, which ``/api/health`` lists as services: a ready service, a failed one
-waiting to retry, and a starting resource, so every ``ServiceInfo`` field is set somewhere. They carry only the
+"""The stub's framework children, which ``/api/health`` lists as services: a ready service, a failed one,
+and a starting resource, so every ``ServiceInfo`` field is set somewhere. They carry only the
 attributes ``RuntimeQueryService.get_system_status`` reads."""
 
 FAILED_RUN_TRACEBACK = (

@@ -1,9 +1,11 @@
-"""Tests for Service._serve_wrapper handling of ClosedResourceError during shutdown."""
+"""Tests for how Service._serve_wrapper records serve()'s end and reports failures (spec 134 D8)."""
+
+from typing import ClassVar
 
 from anyio import ClosedResourceError
 from hassette_wire import ResourceStatus
 
-from hassette.resources.restart import RestartSpec
+from hassette.exceptions import ServeEndedError
 from hassette.resources.service import Service
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -11,7 +13,7 @@ from tests.support.mock_hassette import make_mock_hassette
 class ClosedResourceService(Service):
     """Service whose serve() raises ClosedResourceError (simulating stream closure)."""
 
-    restart_spec = RestartSpec()
+    required = False
 
     async def serve(self) -> None:
         raise ClosedResourceError()
@@ -53,3 +55,72 @@ class TestServeWrapperClosedResourceErrorOutsideShutdown:
         await svc._serve_wrapper()
 
         assert svc.status == ResourceStatus.FAILED
+
+    async def test_reports_the_failure(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
+
+        svc = ClosedResourceService(hassette, parent=hassette)
+
+        await svc._serve_wrapper()
+
+        hassette.report_service_failure.assert_called_once()
+        assert hassette.report_service_failure.call_args.args[0] is svc
+
+
+class _ReturningRequired(Service):
+    required: ClassVar[bool] = True
+
+    async def serve(self) -> None:
+        return
+
+
+class _ReturningOptional(Service):
+    required: ClassVar[bool] = False
+
+    async def serve(self) -> None:
+        return
+
+
+class TestServeReturnsWithoutShutdown:
+    async def test_required_service_return_is_a_reported_failure(self) -> None:
+        """A required service can't stop silently: an unrequested return is FAILED, not STOPPED."""
+        hassette = make_mock_hassette(sealed=False)
+        svc = _ReturningRequired(hassette, parent=hassette)
+
+        await svc._serve_wrapper()
+
+        assert svc.status == ResourceStatus.FAILED
+        hassette.report_service_failure.assert_called_once()
+        reported_service, reported_exc = hassette.report_service_failure.call_args.args
+        assert reported_service is svc
+        assert isinstance(reported_exc, ServeEndedError)
+
+    async def test_optional_service_return_is_a_quiet_stop(self) -> None:
+        """An optional service with nothing to do (no directories to watch) is STOPPED and not reported."""
+        hassette = make_mock_hassette(sealed=False)
+        svc = _ReturningOptional(hassette, parent=hassette)
+
+        await svc._serve_wrapper()
+
+        assert svc.status == ResourceStatus.STOPPED
+        hassette.report_service_failure.assert_not_called()
+
+    async def test_required_service_return_after_shutdown_requested_is_a_stop(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
+        hassette.shutdown_event.set()
+        svc = _ReturningRequired(hassette, parent=hassette)
+
+        await svc._serve_wrapper()
+
+        assert svc.status == ResourceStatus.STOPPED
+        hassette.report_service_failure.assert_not_called()
+
+    async def test_required_service_return_after_its_own_shutdown_request_is_a_stop(self) -> None:
+        hassette = make_mock_hassette(sealed=False)
+        svc = _ReturningRequired(hassette, parent=hassette)
+        svc.shutdown_event.set()
+
+        await svc._serve_wrapper()
+
+        assert svc.status == ResourceStatus.STOPPED
+        hassette.report_service_failure.assert_not_called()

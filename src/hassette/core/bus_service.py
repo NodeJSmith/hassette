@@ -26,7 +26,6 @@ from hassette.events.base import HassContext
 from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
-from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import Topic
@@ -57,7 +56,7 @@ class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
     depends_on: ClassVar[list[type["Resource"]]] = [DatabaseService, SyncExecutorService]
-    restart_spec = CORE_PERMANENT_RESTART
+    required: ClassVar[bool] = True
 
     stream: "MemoryObjectReceiveStream[AnyEvent]"
     """Stream to receive events from."""

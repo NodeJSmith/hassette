@@ -15,10 +15,8 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler import Scheduler
-from hassette.types.enums import RestartType
 from hassette.utils.net_utils import is_loopback_host
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.tokens import resolve_auth_token
@@ -44,11 +42,7 @@ class WebApiService(Service):
     """Runs the FastAPI/uvicorn server for the web API and healthcheck."""
 
     depends_on: ClassVar[list[type[Resource]]] = [RuntimeQueryService, TelemetryQueryService, SchedulerService]
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=3,
-        budget_period_seconds=60,
-    )
+    required: ClassVar[bool] = True
 
     host: str
     port: int
@@ -120,8 +114,8 @@ class WebApiService(Service):
                 web_api_config, self.hassette.config.data_dir, addon_runtime=is_addon_runtime()
             )
 
-            # Passing the current set carries last-known-good hostname resolutions across a
-            # ServiceWatcher restart; a hostname that doesn't resolve never fails startup.
+            # Passing the current set carries last-known-good hostname resolutions into a new
+            # initialization; a hostname that doesn't resolve never fails startup.
             self._trusted_proxies = await resolve_trusted_proxies(
                 web_api_config.trusted_proxies, previous=self._trusted_proxies
             )

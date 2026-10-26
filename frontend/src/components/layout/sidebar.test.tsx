@@ -441,29 +441,6 @@ describe("Sidebar — status groups", () => {
     expect(screen.queryByText("Failed App")).not.toBeNull();
   });
 
-  it("maps exhausted_dead to FAILING group", async () => {
-    withManifests([
-      createAppSummary({
-        app_key: "dead_app",
-        display_name: "Dead App",
-        status: "failed",
-        instance_count: 2,
-        instances: [
-          createInstance({ app_key: "dead_app", index: 0, status: "exhausted_dead" }),
-          createInstance({ app_key: "dead_app", index: 1, status: "running" }),
-        ],
-      }),
-    ]);
-    const { getByTestId } = renderWithAppState(<Sidebar />);
-    expect(await screen.findByText("FAILING")).toBeDefined();
-    expect(await screen.findByText("Dead App")).toBeDefined();
-    const appNav = getByTestId("app-nav");
-    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']")).map(
-      (el) => el.textContent,
-    );
-    expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(false);
-  });
-
   it("pressing Space on group header toggles collapse", async () => {
     const user = userEvent.setup();
     withManifests([createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);

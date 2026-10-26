@@ -29,9 +29,7 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.core.sync_executor import SyncExecutor
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.resources.base import Resource
-from hassette.resources.restart import RestartSpec
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
-from hassette.types.enums import RestartType
 from hassette.utils.service_utils import validate_dependency_graph
 from tests.unit.conftest import live_pool, make_service, make_sync_executor_config, make_sync_executor_hassette
 
@@ -40,15 +38,6 @@ class TestSyncExecutorServiceClassAttrs:
     def test_depends_on_is_empty(self) -> None:
         """SyncExecutorService is a leaf dependency — no DB or other service required."""
         assert SyncExecutorService.depends_on == []
-
-    def test_restart_spec_declared(self) -> None:
-        """restart_spec is declared directly on SyncExecutorService, not inherited."""
-        assert "restart_spec" in SyncExecutorService.__dict__
-        assert isinstance(SyncExecutorService.restart_spec, RestartSpec)
-
-    def test_restart_type_permanent(self) -> None:
-        """A long-lived executor matches the PERMANENT strategy of BusService/SchedulerService."""
-        assert SyncExecutorService.restart_spec.restart_type is RestartType.PERMANENT
 
     def test_bus_service_depends_on_sync_executor(self) -> None:
         """BusService declares SyncExecutorService in depends_on."""
@@ -67,8 +56,7 @@ class TestSyncExecutorServiceClassAttrs:
         assert AppHandler.depends_on == [AppBootstrapCoordinator]
 
 
-# SyncExecutorService's restart_spec is covered by the parametrized tests in
-# test_service_restart_specs.py (ALL_SERVICES now includes it) — no duplicate here.
+# SyncExecutorService's required declaration is covered by test_service_required.py.
 
 
 class TestExecutorConstruction:

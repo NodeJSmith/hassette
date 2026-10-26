@@ -1,4 +1,4 @@
-"""Unit tests for AppHandler readiness and bootstrap scheduling semantics.
+"""Unit tests for AppHandler readiness and bootstrap in serve().
 
 Uses the shared `app_handler`/`app_handler_mock_hassette` fixtures from conftest.py (also
 used by test_app_handler_facade.py).
@@ -7,11 +7,13 @@ used by test_app_handler_facade.py).
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_common import AppAdmissionMode
+from hassette.resources.lifecycle import mark_ready
+from hassette.testing import wait_for
 
 
 class TestAppHandlerReadiness:
@@ -24,20 +26,29 @@ class TestAppHandlerReadiness:
 
         assert not app_handler.is_ready()
 
-    async def test_ready_after_bootstrap_completes(self, app_handler: AppHandler) -> None:
-        """after_initialize schedules bootstrap and marks AppHandler ready immediately."""
+    async def test_ready_after_initialize_before_bootstrap(self, app_handler: AppHandler) -> None:
+        """after_initialize marks AppHandler ready; bootstrap runs later, in serve()."""
         app_handler.lifecycle.bootstrap_apps = AsyncMock()
 
         await app_handler.after_initialize()
-        assert app_handler._bootstrap_task is not None
-        await asyncio.wait_for(app_handler._bootstrap_task, timeout=1.0)
 
         assert app_handler.is_ready()
-        assert app_handler.has_bootstrapped() is True
+        app_handler.lifecycle.bootstrap_apps.assert_not_awaited()
+
+    async def test_serve_bootstraps_then_waits_for_shutdown(self, app_handler: AppHandler) -> None:
+        app_handler.lifecycle.bootstrap_apps = AsyncMock()
+
+        serve_task = asyncio.create_task(app_handler.serve())
+        await wait_for(app_handler.has_bootstrapped, desc="bootstrap completed")
+
+        assert not serve_task.done(), "serve() parks until shutdown after bootstrapping"
         app_handler.lifecycle.bootstrap_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
+        app_handler.shutdown_event.set()
+        await asyncio.wait_for(serve_task, timeout=1.0)
+
     async def test_ready_while_bootstrap_in_progress(self, app_handler: AppHandler) -> None:
-        """AppHandler becomes ready even while bootstrap is still waiting on release."""
+        """AppHandler stays ready while bootstrap is still waiting on release."""
         gate = asyncio.Event()
         started = asyncio.Event()
 
@@ -49,32 +60,35 @@ class TestAppHandlerReadiness:
         app_handler.lifecycle.bootstrap_apps = gated_bootstrap
 
         await app_handler.after_initialize()
-        await started.wait()
+        serve_task = asyncio.create_task(app_handler.serve())
+        await asyncio.wait_for(started.wait(), timeout=1.0)
 
         assert app_handler.is_ready(), "Should be ready while bootstrap is gated"
         assert app_handler.has_bootstrapped() is False
 
         gate.set()
-        assert app_handler._bootstrap_task is not None
-        await asyncio.wait_for(app_handler._bootstrap_task, timeout=1.0)
+        await wait_for(app_handler.has_bootstrapped, desc="bootstrap completed")
+        app_handler.shutdown_event.set()
+        await asyncio.wait_for(serve_task, timeout=1.0)
 
-        assert app_handler.has_bootstrapped() is True, "Should report bootstrapped after bootstrap completes"
-
-    async def test_bootstrap_error_is_confined_to_background_task(self, app_handler: AppHandler) -> None:
-        """Bootstrap failures happen on the background task, not the startup wave."""
+    async def test_failed_bootstrap_is_reported_as_this_required_service_failing(
+        self, app_handler: AppHandler, app_handler_mock_hassette: AsyncMock
+    ) -> None:
+        """A bootstrap failure ends serve(), so it reaches Hassette as an ordinary failure report (spec 134 D14)."""
+        error = RuntimeError("app init exploded")
 
         async def failing_bootstrap(*, admission_mode: AppAdmissionMode) -> None:
             assert admission_mode is AppAdmissionMode.WAIT_FOR_RELEASE
-            raise RuntimeError("app init exploded")
+            raise error
 
         app_handler.lifecycle.bootstrap_apps = failing_bootstrap
+        mark_ready(app_handler, reason="wired")
 
-        await app_handler.after_initialize()
+        await app_handler._serve_wrapper()
 
-        assert app_handler.is_ready()
-        assert app_handler._bootstrap_task is not None
-        with pytest.raises(RuntimeError, match="app init exploded"):
-            await app_handler._bootstrap_task
+        app_handler_mock_hassette.report_service_failure.assert_called_once_with(app_handler, error)
+        assert app_handler.status == ResourceStatus.FAILED
+        assert not app_handler.is_ready(), "a failed bootstrap clears readiness"
         assert app_handler.has_bootstrapped() is False
 
 

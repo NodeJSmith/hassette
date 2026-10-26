@@ -26,7 +26,6 @@ from hassette.bus.bus import Bus
 from hassette.exceptions import LifecycleReentryError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_failed, handle_starting
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.job_queue import _ScheduledJobQueue
 from hassette.scheduler.scheduler import Scheduler
@@ -65,7 +64,7 @@ class StatusCapturingChild(Resource):
 class SimpleServiceWithServeFlag(Service):
     """Service that sets a flag once serve() starts running."""
 
-    restart_spec = RestartSpec()
+    required = False
     serve_started: bool = False
 
     async def serve(self) -> None:

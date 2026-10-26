@@ -8,19 +8,13 @@ from watchfiles import awatch
 
 from hassette.events.hassette import HassetteFileWatcherEvent
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import RestartType
 
 
 class FileWatcherService(Service):
     """Background task to watch for file changes and reload apps."""
 
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.TEMPORARY,
-        budget_intensity=3,
-        budget_period_seconds=60,
-    )
+    required: ClassVar[bool] = False
 
     @property
     def config_log_level(self) -> LogLevel:

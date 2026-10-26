@@ -1,5 +1,4 @@
 import asyncio
-import warnings
 from abc import abstractmethod
 from contextlib import suppress
 from typing import Any, ClassVar
@@ -7,7 +6,7 @@ from typing import Any, ClassVar
 from anyio import ClosedResourceError
 from hassette_wire import ResourceStatus
 
-from hassette.exceptions import FatalError
+from hassette.exceptions import FatalError, ServeEndedError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import (
     handle_crash,
@@ -18,7 +17,6 @@ from hassette.resources.lifecycle import (
     mark_not_ready,
 )
 from hassette.resources.operations import run_hooks, shutdown_hook_report
-from hassette.resources.restart import RestartSpec
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 from hassette.types.enums import ResourceRole
@@ -31,8 +29,9 @@ class Service(Resource):
         initialize():
             before_initialize()  — overridable: wait for deps, prepare
             on_initialize()      — overridable: service-specific setup
-            → serve task spawned
             after_initialize()   — overridable: finalize
+            → children initialized
+            → serve task spawned (status becomes RUNNING once it starts)
 
         shutdown():
             before_shutdown()    — overridable: pre-stop signals
@@ -42,29 +41,30 @@ class Service(Resource):
 
     Subclasses MUST implement serve(). All six hooks are available.
 
-    Subclasses should declare ``restart_spec`` to specify their restart strategy::
+    Every concrete subclass declares ``required`` in its own body::
 
         class MyService(Service):
-            restart_spec = RestartSpec(restart_type=RestartType.PERMANENT)
+            required = False
 
-    Concrete subclasses that do not declare ``restart_spec`` will emit a warning at
-    class definition time, because silently inheriting the default profile can hide
-    incorrect production behavior.
+    A required service's ``serve()`` failure ends the process; an optional one's leaves the service
+    FAILED (CRASHED for a ``FatalError``) until hassette restarts, with one ERROR saying so. Only a
+    service whose parent is ``Hassette`` may be required: a service an app owns declares
+    ``required = False``. Nothing restarts a service in-process.
     """
 
     role: ClassVar[ResourceRole] = ResourceRole.SERVICE
 
-    restart_spec: ClassVar[RestartSpec] = RestartSpec()
-    """Restart strategy for this service. Declare on each concrete subclass."""
+    required: ClassVar[bool] = True
+    """Whether a ``serve()`` failure ends the process. Declare on each concrete subclass."""
 
     _serve_task: asyncio.Task | None = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        # Only warn for concrete classes. Since FinalMeta doesn't inherit from ABCMeta,
+        # Only enforce on concrete classes. Since FinalMeta doesn't inherit from ABCMeta,
         # __abstractmethods__ is not computed automatically. Instead, check for any
         # abstract methods declared directly on this class — if any exist, treat the
-        # class as abstract/intermediate and skip the warning.
+        # class as abstract/intermediate and skip the check.
         has_abstract_methods = any(
             getattr(v, "__isabstractmethod__", False)
             for v in cls.__dict__.values()
@@ -72,15 +72,27 @@ class Service(Resource):
         )
         if has_abstract_methods:
             return
-        # Only warn if restart_spec was not declared directly on this class.
-        if "restart_spec" not in cls.__dict__:
-            warnings.warn(
-                f"{cls.__name__} does not declare restart_spec. "
-                f"Inheriting the default RestartSpec() may silently use the wrong restart strategy. "
-                f"Declare restart_spec on {cls.__name__} explicitly.",
-                UserWarning,
-                stacklevel=2,
+        if "required" not in cls.__dict__:
+            raise TypeError(
+                f"{cls.__name__} must declare whether it is required: set `required = True` (its failure ends "
+                f"the process; framework services owned by Hassette only) or `required = False` in its class body."
             )
+
+    @classmethod
+    def validate_parent(cls, parent: Resource) -> None:
+        """Raise unless a required service's parent is ``Hassette``: only the root may end the process.
+
+        ``Hassette`` is the one resource whose ``hassette`` is itself, so that identity test finds the root.
+        """
+        if cls.required and parent is not parent.hassette:
+            raise ValueError(
+                f"{cls.__name__} is a required service and can only be a child of Hassette, not "
+                f"{parent.class_name}. A service owned by an app must declare `required = False`."
+            )
+
+    def optional_serve_task(self) -> "asyncio.Task[None] | None":
+        """This service's serve task if it is optional, else None."""
+        return None if self.required else self._serve_task
 
     def _force_terminal(self) -> None:
         """Override to also cancel the serve task."""
@@ -164,33 +176,62 @@ class Service(Resource):
         return merge_teardown_reports(*reports)
 
     async def _serve_wrapper(self) -> None:
+        """Run ``serve()`` and record how it ended.
+
+        Every failure exit reports to ``Hassette.report_service_failure()`` first, synchronously,
+        before the status handlers await their telemetry sends: a stalled event channel must not
+        delay the report that decides whether the process exits (spec 134 D8).
+
+        The status handlers are suppressed where their send can't be trusted to work: on cancellation,
+        so the cancellation is always re-raised, and on a closed stream, since the send would fail on
+        that same stream. Elsewhere a failing send surfaces on the serve task like any other error.
+        """
         try:
             await handle_running(self)
             await self.serve()
-            # Normal return → graceful stop path
-            await handle_stop(self)
         except asyncio.CancelledError:
-            # Cooperative shutdown
-            with suppress(Exception):
-                await handle_stop(self)
-            raise
-        except ClosedResourceError as exc:
-            if not self.hassette.shutdown_event.is_set():
-                self.lifecycle_logger.error("Serve() task raised ClosedResourceError outside shutdown")
+            if self.required and not self.stop_requested():
+                exc = ServeEndedError(f"{self.class_name}.serve() was cancelled without a shutdown request")
+                self.hassette.report_service_failure(self, exc)
                 with suppress(Exception):
                     await handle_failed(self, exc)
+            else:
+                with suppress(Exception):
+                    await handle_stop(self)
+            raise
+        except ClosedResourceError as exc:
+            if self.stop_requested():
+                with suppress(Exception):
+                    await handle_stop(self)
                 return
+            self.hassette.report_service_failure(self, exc)
+            self.lifecycle_logger.error("Serve() task raised ClosedResourceError outside shutdown")
             with suppress(Exception):
-                await handle_stop(self)
+                await handle_failed(self, exc)
         except FatalError as exc:
+            self.hassette.report_service_failure(self, exc)
             self.lifecycle_logger.error("Serve() task failed with fatal error: %s %s", type(exc).__name__, exc)
-            # Crash/failure path
             await handle_crash(self, exc)
-
         except Exception as exc:
+            self.hassette.report_service_failure(self, exc)
             self.lifecycle_logger.error("Serve() task failed: %s %s", type(exc).__name__, exc)
-            # Crash/failure path
             await handle_failed(self, exc)
+        else:
+            # A required service can't stop silently: returning unasked is a failure (spec 134 D8). An
+            # optional service that returns just has nothing left to do.
+            if self.required and not self.stop_requested():
+                exc = ServeEndedError(f"{self.class_name}.serve() returned without a shutdown request")
+                self.hassette.report_service_failure(self, exc)
+                await handle_failed(self, exc)
+                return
+            await handle_stop(self)
+
+    def stop_requested(self) -> bool:
+        """Whether something asked this service to stop: process shutdown, or this service's own shutdown.
+
+        A shutdown attempt sets the service's own shutdown event before it cancels the serve task.
+        """
+        return self.hassette.shutdown_event.is_set() or self.shutdown_event.is_set()
 
     def is_running(self) -> bool:
         """Return True while the ``serve()`` task exists and has not finished."""

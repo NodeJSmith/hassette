@@ -8,7 +8,6 @@ export interface MergedService {
   resource_name: string;
   status: ResourceStatus;
   ready_phase: string | null;
-  retry_at: number | null;
   exception: string | null;
 }
 
@@ -24,7 +23,6 @@ export function mergeServices(
       resource_name: httpEntry.name,
       status: httpEntry.status,
       ready_phase: httpEntry.ready_phase ?? null,
-      retry_at: httpEntry.retry_at ?? null,
       exception: null,
     });
   }
@@ -35,7 +33,6 @@ export function mergeServices(
       resource_name: name,
       status: wsEntry.status,
       ready_phase: wsEntry.ready_phase ?? null,
-      retry_at: wsEntry.retry_at ?? null,
       exception: wsEntry.exception ?? null,
     });
   }

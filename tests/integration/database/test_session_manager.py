@@ -1,19 +1,14 @@
 """Integration tests for SessionManager."""
 
-import asyncio
 import sqlite3
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.session_manager import SessionManager
-from hassette.testing import HassetteHarness, build_harness
-from hassette.types.enums import ResourceRole
-from tests.support.helpers import make_crashed_event
 
 
 @pytest.fixture
@@ -76,32 +71,6 @@ async def test_session_manager_marks_orphaned_sessions(
     assert row[1] == pytest.approx(heartbeat_ts, abs=1)
 
 
-async def test_session_manager_records_crash(session_manager: SessionManager, db_service: DatabaseService) -> None:
-    """on_service_crashed writes failure details to the session row."""
-    await session_manager.create_session()
-    session_id = session_manager.session_id
-
-    event = make_crashed_event(
-        resource_name="WebSocketService",
-        exception_type="ConnectionError",
-        exception="lost connection",
-        exception_traceback="Traceback (most recent call last):\n  ...",
-    )
-
-    await session_manager.on_service_crashed(event)
-
-    cursor = await db_service.db.execute(
-        "SELECT status, error_type, error_message, error_traceback FROM sessions WHERE id = ?",
-        (session_id,),
-    )
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == "failure"
-    assert row[1] == "ConnectionError"
-    assert row[2] == "lost connection"
-    assert row[3] == "Traceback (most recent call last):\n  ..."
-
-
 async def test_session_manager_finalizes_session(session_manager: SessionManager, db_service: DatabaseService) -> None:
     """finalize_session writes 'success' status and stopped_at when no crash occurred."""
     await session_manager.create_session()
@@ -121,31 +90,34 @@ async def test_session_manager_finalizes_session(session_manager: SessionManager
         conn.close()
 
 
+async def test_finalize_session_records_fatal_reason(
+    session_manager: SessionManager, db_service: DatabaseService, db_hassette: MagicMock
+) -> None:
+    """A fatal shutdown finalizes the session as 'failure' with the fatal reason as its error message."""
+    await session_manager.create_session()
+    session_id = session_manager.session_id
+    db_hassette.fatal_shutdown_reason = "service 'BusService' crashed: RuntimeError"
+
+    await session_manager.finalize_session()
+
+    conn = sqlite3.connect(db_service._db_path)
+    try:
+        row = conn.execute(
+            "SELECT status, stopped_at, error_message, error_type FROM sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row[0] == "failure"
+    assert row[1] is not None
+    assert row[2] == "service 'BusService' crashed: RuntimeError"
+    assert row[3] is None, "only the fatal reason is recorded; the traceback stays in the log"
+
+
 async def test_session_id_raises_before_create(session_manager: SessionManager) -> None:
     """session_id raises RuntimeError if accessed before create_session()."""
     with pytest.raises(RuntimeError, match="Session ID is not initialized"):
         _ = session_manager.session_id
-
-
-async def test_finalize_session_preserves_failure(session_manager: SessionManager, db_service: DatabaseService) -> None:
-    """finalize_session does not overwrite 'failure' status set by on_service_crashed."""
-    await session_manager.create_session()
-    session_id = session_manager.session_id
-
-    event = make_crashed_event()
-    await session_manager.on_service_crashed(event)
-
-    db_path = db_service._db_path
-    await session_manager.finalize_session()
-
-    conn = sqlite3.connect(db_path)
-    try:
-        row = conn.execute("SELECT status, stopped_at FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        assert row is not None
-        assert row[0] == "failure"  # NOT overwritten to "success"
-        assert row[1] is not None  # stopped_at IS set
-    finally:
-        conn.close()
 
 
 async def test_mark_orphaned_sessions_no_orphans(session_manager: SessionManager, db_service: DatabaseService) -> None:
@@ -156,30 +128,6 @@ async def test_mark_orphaned_sessions_no_orphans(session_manager: SessionManager
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == 0
-
-
-async def test_on_service_crashed_no_session(session_manager: SessionManager, db_service: DatabaseService) -> None:
-    """on_service_crashed returns early when no session has been created."""
-    event = make_crashed_event()
-    await session_manager.on_service_crashed(event)
-
-    cursor = await db_service.db.execute("SELECT count(*) FROM sessions")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 0
-
-
-async def test_on_service_crashed_db_not_initialized(db_hassette: MagicMock) -> None:
-    """on_service_crashed returns early when database is not initialized."""
-    db_service_mock = MagicMock()
-    db_service_mock.is_db_ready = False
-
-    sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
-    sm._session_id = 1  # pretend a session was created
-
-    event = make_crashed_event()
-    # Should not raise — logs warning and returns
-    await sm.on_service_crashed(event)
 
 
 async def test_finalize_session_no_session(session_manager: SessionManager) -> None:
@@ -198,18 +146,6 @@ async def test_finalize_session_db_not_initialized(db_hassette: MagicMock) -> No
 
     # Should not raise — logs warning and returns
     await sm.finalize_session()
-
-
-async def test_on_service_crashed_db_error(session_manager: SessionManager, db_service: DatabaseService) -> None:
-    """on_service_crashed handles sqlite3.Error during the UPDATE."""
-    await session_manager.create_session()
-
-    # Patch execute to raise on the crash UPDATE
-    db_service.db.execute = AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))
-
-    event = make_crashed_event()
-    # submit() awaits the result, but _do_on_service_crashed catches the exception internally
-    await session_manager.on_service_crashed(event)
 
 
 async def test_finalize_session_db_error(session_manager: SessionManager, db_service: DatabaseService) -> None:
@@ -407,76 +343,3 @@ async def test_crashed_session_once_listeners_eligible_after_orphan_mark(
     cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is None, "once=True listener from crashed-then-orphaned session must be cleaned up"
-
-
-def make_db_mock() -> MagicMock:
-    """Build a mock DatabaseService that properly awaits coroutines passed to submit().
-
-    on_service_crashed passes a coroutine to submit(); a plain AsyncMock accepts and
-    discards it, leaving the coroutine un-awaited and triggering a
-    PytestUnraisableExceptionWarning at GC time. This mock awaits whatever it receives.
-    """
-    db_mock = MagicMock()
-    db_mock.is_db_ready = True
-    db_mock.is_accepting_writes = True
-    db_mock.db = AsyncMock()
-
-    async def _submit(coro: object) -> None:
-        if asyncio.iscoroutine(coro):
-            await coro
-
-    db_mock.submit = AsyncMock(side_effect=_submit)
-    return db_mock
-
-
-@pytest.mark.parametrize(
-    ("role", "resource_name", "expect_error", "description"),
-    [
-        pytest.param(
-            ResourceRole.APP,
-            "MyBrokenApp",
-            False,
-            "APP-role crash must not mark the session as failed",
-            id="app_role_filtered",
-        ),
-        pytest.param(
-            ResourceRole.SERVICE,
-            "WebSocketService",
-            True,
-            "SERVICE-role crash must mark the session as failed",
-            id="service_role_passes",
-        ),
-    ],
-)
-async def test_crash_role_filter(
-    test_config_class: type[HassetteConfig],
-    unused_tcp_port_factory: "Callable[[], int]",
-    role: ResourceRole,
-    resource_name: str,
-    expect_error: bool,
-    description: str,
-) -> None:
-    """Regression test for #2153: only non-APP-role CRASHED events mark the session as failed.
-
-    Exercises the IS_NOT_APP_ROLE predicate through a real Bus dispatch (not a direct handler
-    call) — the existing fixture-based tests in this file call on_service_crashed directly and
-    would not catch a bug in the ``where=`` filter itself.
-    """
-    # Isolated harness: same skip_global_set / build_harness pattern as
-    # isolated_watcher() in test_service_watcher.py (see its docstring for why).
-    config = test_config_class(web_api={"port": unused_tcp_port_factory()})
-    harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
-    async with build_harness(harness.with_bus()) as harness:
-        hassette = harness.hassette
-
-        sm = SessionManager(hassette, database_service=make_db_mock(), parent=hassette)
-        sm._session_id = 1  # pretend a session was created
-        await sm.on_initialize()
-
-        await hassette.send_event(make_crashed_event(resource_name=resource_name, role=role))
-        await hassette.bus_service.await_dispatch_idle()
-
-        # Asserts on the in-memory flag rather than a DB row (the file's usual pattern)
-        # because this test uses a mock DB — the point is verifying the bus-level where=
-        # filter routes/blocks the event, not the persistence path.
-        assert sm._session_error is expect_error, description

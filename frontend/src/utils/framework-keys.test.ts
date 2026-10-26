@@ -4,7 +4,7 @@ import { frameworkDisplayLabel, frameworkDisplayName, isFrameworkKey } from "./f
 
 describe("isFrameworkKey", () => {
   it("matches __hassette__.<component> keys", () => {
-    expect(isFrameworkKey("__hassette__.service_watcher")).toBe(true);
+    expect(isFrameworkKey("__hassette__.scheduler_service")).toBe(true);
     expect(isFrameworkKey("__hassette__.app_handler")).toBe(true);
     expect(isFrameworkKey("__hassette__.core")).toBe(true);
   });
@@ -31,7 +31,7 @@ describe("isFrameworkKey", () => {
 
 describe("frameworkDisplayName", () => {
   it("extracts component slug from prefixed key", () => {
-    expect(frameworkDisplayName("__hassette__.service_watcher")).toBe("service_watcher");
+    expect(frameworkDisplayName("__hassette__.scheduler_service")).toBe("scheduler_service");
     expect(frameworkDisplayName("__hassette__.app_handler")).toBe("app_handler");
     expect(frameworkDisplayName("__hassette__.core")).toBe("core");
   });
@@ -43,13 +43,13 @@ describe("frameworkDisplayName", () => {
 
 describe("frameworkDisplayLabel", () => {
   it("title-cases component slug", () => {
-    expect(frameworkDisplayLabel("__hassette__.service_watcher")).toBe("Service Watcher");
+    expect(frameworkDisplayLabel("__hassette__.scheduler_service")).toBe("Scheduler Service");
     expect(frameworkDisplayLabel("__hassette__.app_handler")).toBe("App Handler");
     expect(frameworkDisplayLabel("__hassette__.core")).toBe("Core");
   });
 
   it("handles CamelCase component names", () => {
-    expect(frameworkDisplayLabel("__hassette__.ServiceWatcher")).toBe("Service Watcher");
+    expect(frameworkDisplayLabel("__hassette__.SchedulerService")).toBe("Scheduler Service");
     expect(frameworkDisplayLabel("__hassette__.AppHandler")).toBe("App Handler");
     expect(frameworkDisplayLabel("__hassette__.SessionManager")).toBe("Session Manager");
   });

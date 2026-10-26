@@ -1,20 +1,13 @@
 """SessionManager — owns all session lifecycle logic for Hassette."""
 
-import asyncio
 import time
 import typing
 from typing import ClassVar
 
-from hassette_wire import LogLevel, ResourceStatus
+from hassette_wire import LogLevel
 
-from hassette.bus import Bus
-from hassette.core.service_status_predicates import IS_NOT_APP_ROLE, SERVICE_STATUS_PATH
-from hassette.event_handling.accessors import get_path
-from hassette.event_handling.predicates import ValueIs
-from hassette.events import HassetteServiceEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types import Topic
 
 SESSION_STATUS_RUNNING = "running"
 SESSION_STATUS_SUCCESS = "success"
@@ -28,13 +21,11 @@ if typing.TYPE_CHECKING:
 
 
 class SessionManager(Resource):
-    """Manages session lifecycle: creation, orphan cleanup, crash recording, and finalization.
+    """Manages session lifecycle: creation, orphan cleanup, and finalization.
 
     This is a Resource (no background task). It extracts session CRUD logic that
     was previously inline on ``Hassette``.
     """
-
-    bus: Bus
 
     shutdown_hook_timeout_applies: ClassVar[bool] = False
     """A foundation service: the root's foundation stage bounds its shutdown."""
@@ -48,19 +39,10 @@ class SessionManager(Resource):
     ) -> None:
         super().__init__(hassette, parent=parent)
         self._database_service = database_service
-        self.bus = self.add_child(Bus)
         self._session_id: int | None = None
-        self._session_error: bool = False
-        self._session_lock = asyncio.Lock()
 
     async def on_initialize(self) -> None:
-        """Register crash listener and signal readiness."""
-        await self.bus.on(
-            topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
-            handler=self.on_service_crashed,
-            name="hassette.session_manager.on_service_crashed",
-            where=ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED) & IS_NOT_APP_ROLE,
-        )
+        """Signal readiness."""
         mark_ready(self, reason="SessionManager initialized")
 
     @property
@@ -97,32 +79,6 @@ class SessionManager(Resource):
         if self._session_id is not None:
             await self._database_service.submit(self._do_cleanup_once_listeners())
 
-    async def on_service_crashed(self, event: HassetteServiceEvent) -> None:
-        """Record a framework-owned (non-APP-role) service crash in the session row.
-
-        Called via Bus subscription when a non-APP-role resource reaches CRASHED status —
-        an app crashing does not mark the whole session as failed; see IS_NOT_APP_ROLE and #2153.
-        Sets ``_session_error`` so ``finalize_session()`` preserves the failure status.
-        Acquires ``_session_lock`` to coordinate with ``finalize_session()``.
-        """
-        async with self._session_lock:
-            data = event.payload.data
-            if self._session_id is None:
-                self.logger.warning("Cannot record crash — no active session")
-                return
-
-            if not self._database_service.is_db_ready:
-                self.logger.warning("Cannot record crash — database not initialized")
-                return
-
-            if not self._database_service.is_accepting_writes:
-                self.logger.warning("Cannot record crash — database write queue shut down")
-                return
-
-            self._session_error = True
-            self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
-            await self._database_service.submit(self._do_on_service_crashed(event))
-
     async def finalize_session(
         self,
         *,
@@ -130,31 +86,29 @@ class SessionManager(Resource):
     ) -> None:
         """Write final session status and drop counters before shutdown.
 
-        If ``_session_error`` is True, a CRASHED event already wrote failure
-        details — only set timestamps.  Otherwise write ``success``.
-        Acquires ``_session_lock`` to coordinate with ``on_service_crashed()``.
+        Writes ``failure`` with the fatal reason as ``error_message`` when a fatal shutdown was
+        recorded, otherwise ``success``.
 
         Args:
             drop_counters: (overflow, exhausted, shutdown) from CommandExecutor.
         """
-        async with self._session_lock:
-            if self._session_id is None:
-                return
+        if self._session_id is None:
+            return
 
-            if not self._database_service.is_db_ready:
-                self.logger.warning("Cannot finalize session — database not initialized")
-                return
+        if not self._database_service.is_db_ready:
+            self.logger.warning("Cannot finalize session — database not initialized")
+            return
 
-            await self._database_service.submit(self._do_finalize_session(drop_counters))
+        await self._database_service.submit(self._do_finalize_session(drop_counters))
 
     async def _do_mark_orphaned_sessions(self) -> None:
         """Execute the orphan-session UPDATE; called by the write-queue worker.
 
         Matches any session left with stopped_at IS NULL from a previous process run —
-        not just status='running'. A session that recorded a crash (status='failure') but never
-        reached finalize_session() before the process died is just as orphaned as one still
-        marked 'running'; both need stopped_at backfilled so downstream liveness checks (the
-        once=True listener cleanup's session join, in particular) treat them as ended. Only rows
+        not just status='running'. A session already marked 'failure' that never got its
+        stopped_at is just as orphaned as one still marked 'running'; both need stopped_at
+        backfilled so downstream liveness checks (the once=True listener cleanup's session join,
+        in particular) treat them as ended. Only rows
         still 'running' get their status overwritten to 'unknown' — a 'failure' row already
         recorded a real outcome and keeps it, gaining only the backfilled stopped_at.
         """
@@ -185,28 +139,6 @@ class SessionManager(Resource):
         if cursor.lastrowid is None:
             raise RuntimeError("INSERT INTO sessions returned no lastrowid")
         return cursor.lastrowid
-
-    async def _do_on_service_crashed(self, event: HassetteServiceEvent) -> None:
-        """Execute the crash UPDATE; called by the write-queue worker."""
-        data = event.payload.data
-        try:
-            now = time.time()
-            await self._database_service.db.execute(
-                "UPDATE sessions SET status = ?, last_heartbeat_at = ?,"
-                " error_type = ?, error_message = ?, error_traceback = ? WHERE id = ?",
-                (
-                    SESSION_STATUS_FAILURE,
-                    now,
-                    data.exception_type,
-                    data.exception,
-                    data.exception_traceback,
-                    self._session_id,
-                ),
-            )
-            await self._database_service.db.commit()
-        except Exception:
-            await self._database_service.db.rollback()
-            self.logger.exception("Failed to record service crash for session %d", self._session_id)
 
     async def _do_cleanup_once_listeners(self) -> None:
         """Delete stale once=True listeners from previous sessions.
@@ -289,19 +221,9 @@ class SessionManager(Resource):
         overflow, exhausted, shutdown = drop_counters
         try:
             now = time.time()
-            if self._session_error:
-                # CRASHED event already wrote failure details — just set timestamps + counters
-                await self._database_service.db.execute(
-                    "UPDATE sessions SET stopped_at = ?, last_heartbeat_at = ?,"
-                    " dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"
-                    " WHERE id = ?",
-                    (now, now, overflow, exhausted, shutdown, self._session_id),
-                )
-            elif self.hassette.fatal_shutdown_reason is not None:
-                # Fatal shutdown, but the async CRASHED handler did not record failure details before
-                # teardown (it races finalize and the bus/DB are tearing down). The fatal reason is set
-                # synchronously at the crash decision site, so persist a failure status here rather than
-                # masking the crash as a clean success.
+            if self.hassette.fatal_shutdown_reason is not None:
+                # The fatal reason is recorded in memory at the decision site, before any teardown, so
+                # it is already set by the time the foundation stage gets here.
                 await self._database_service.db.execute(
                     "UPDATE sessions SET status = ?, stopped_at = ?, last_heartbeat_at = ?,"
                     " error_message = ?, dropped_overflow = ?, dropped_exhausted = ?, dropped_shutdown = ?"

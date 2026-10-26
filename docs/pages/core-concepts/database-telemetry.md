@@ -16,10 +16,10 @@ Hassette records four types of data automatically, with no configuration require
 
 ### Source Tier
 
-Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are counted in the stats strip alongside app registrations. Framework errors appear in the unified Error Spotlight with a **Framework** badge and the component name, for example Service Watcher or App Handler. The Handler health grid shows only app-registered handlers. Framework components are excluded.
+Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are counted in the stats strip alongside app registrations. Framework errors appear in the unified Error Spotlight with a **Framework** badge and the component name, for example Bus Service or App Handler. The Handler health grid shows only app-registered handlers. Framework components are excluded.
 
 ??? note "Internal detail"
-    Framework handlers are stored with `source_tier='framework'` and an `app_key` of the form `__hassette__.<ClassName>`, built from the component's Python class name, for example `__hassette__.ServiceWatcher` or `__hassette__.Hassette`. The web UI reads this value to display the component name in the Framework badge. The Handler health grid filters out all framework keys; the stats strip and Error Spotlight include all tiers.
+    Framework handlers are stored with `source_tier='framework'` and an `app_key` of the form `__hassette__.<ClassName>`, built from the component's Python class name, for example `__hassette__.BusService` or `__hassette__.Hassette`. The web UI reads this value to display the component name in the Framework badge. The Handler health grid filters out all framework keys; the stats strip and Error Spotlight include all tiers.
 
 ## Configuration
 
@@ -100,7 +100,7 @@ Three commands and their API equivalents cover telemetry and system health.
 | `degraded` | 200 | Connected at least once, but not fully healthy: either disconnected now (e.g. HA restarting), or connected with app bootstrap not yet released. Check the [`websocket_connected` and `bootstrap_released` fields](../web-ui/health-endpoints.md#aggregate-status-apihealth) to tell which |
 | `starting` | 200 | Has not finished the initial connection yet |
 
-A fatal crash (a PERMANENT service exhausting its restart budget, or a startup failure) records a `failure` status to the current telemetry session before Hassette exits with a non-zero exit code. A clean operator shutdown (SIGTERM / `docker stop`) exits 0.
+A fatal crash (a required service failing after startup, or a startup failure) records a `failure` status to the current telemetry session before Hassette exits with a non-zero exit code. A clean operator shutdown (SIGTERM / `docker stop`) exits 0.
 
 For container restart automation, use `/api/health/live` or rely on the non-zero exit and a restart policy. Use `/api/health` for the human-readable aggregate view and use `/api/health/ready` for load-balancer routing. See [Configure Health Checks](../web-ui/health-endpoints.md) for the full reference.
 

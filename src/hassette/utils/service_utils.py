@@ -281,13 +281,18 @@ async def wait_for_wave(
     timeout: float,
     shutdown_event: asyncio.Event,
 ) -> WaveResult:
-    """Wait until every member's initialization attempt has finished and every member is ready.
+    """Wait until every member's initialization attempt has finished and every member has settled.
+
+    A member has settled when it is ready, or when it is an optional service whose serve task has
+    ended (failed, crashed, or returned early): an optional service may mark ready inside ``serve()``,
+    and its failure is reported, not fatal (spec 134 D7). Its serve task is watched as a wake source,
+    so the wave settles at once rather than at the timeout.
 
     Readiness alone doesn't prove an attempt finished: a resource can mark itself ready inside
     ``on_initialize()`` and still fail later in the same attempt (a child failing to initialize), so
     a failed attempt fails the wave at once, whatever its readiness. A normally returned attempt is
-    finished, not ready: the member still has to become ready before the wave is. Readiness is read
-    live, so a member that loses it mid-wave (a ``serve()`` failure) has to regain it.
+    finished, but the member still has to settle. Readiness is read live, so a member that loses it
+    mid-wave (a ``serve()`` failure) has to regain it, unless it is an optional one that settled.
 
     Shutdown wins over every other outcome, including a cancelled attempt, which counts as a failure
     only when no shutdown was requested. The attempts are never cancelled or awaited here, so a
@@ -325,7 +330,7 @@ async def wait_for_wave(
             unfinished = tuple(
                 member
                 for member, task in attempts.items()
-                if (task is not None and not task.done()) or not member.is_ready()
+                if (task is not None and not task.done()) or not member_settled(member)
             )
             if not unfinished:
                 return WaveResult(WaveOutcome.OK)
@@ -336,13 +341,29 @@ async def wait_for_wave(
                 waker = ready_wakers.get(member)
                 if not member.is_ready() and (waker is None or waker.done()):
                     ready_wakers[member] = asyncio.create_task(member.wait_ready())
-            watched = [task for task in (*attempt_tasks, shutdown_waker, *ready_wakers.values()) if not task.done()]
+            serve_tasks = [task for member in attempts if (task := member.optional_serve_task()) is not None]
+            watched = [
+                task
+                for task in (*attempt_tasks, *serve_tasks, shutdown_waker, *ready_wakers.values())
+                if not task.done()
+            ]
             await asyncio.wait(watched, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
     finally:
         wakers = [shutdown_waker, *ready_wakers.values()]
         for waker in wakers:
             waker.cancel()
         await asyncio.gather(*wakers, return_exceptions=True)
+
+
+def member_settled(member: "Resource") -> bool:
+    """Whether a member is ready, or is an optional service whose serve task ended.
+
+    Only meaningful once the member's attempt has finished; ``wait_for_wave()`` checks that first.
+    """
+    if member.is_ready():
+        return True
+    serve_task = member.optional_serve_task()
+    return serve_task is not None and serve_task.done()
 
 
 def attempt_failed(task: "asyncio.Task[None]") -> bool:

@@ -20,16 +20,14 @@ from hassette.bus.listeners import DurationConfig, HandlerInvoker, Listener, Lis
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent
-from hassette.events.base import HassettePayload
-from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
-from hassette.exceptions import RestartRefusedError, TaskBucketSealedError
+from hassette.events.hassette import HassetteFileWatcherEvent
+from hassette.exceptions import TaskBucketSealedError
 from hassette.execution_mode import run_through_guard
-from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._factories import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._factories import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import TEST_SOURCE_LOCATION
-from hassette.types.enums import ResourceRole, Topic
+from hassette.types.enums import Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
@@ -40,22 +38,8 @@ if TYPE_CHECKING:
     from hassette.bus.bus import Bus
     from hassette.events import HassStateDict
     from hassette.execution_mode import ExecutionModeGuard
-    from hassette.resources.service import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate
 
-PLACEHOLDER_SERVICE_NAME = "TestService"
-"""Stand-in resource_name for the service-lifecycle event factories below. Tests that don't
-assert on the name should take this default rather than inventing another placeholder."""
-
-PLACEHOLDER_APP_NAME = "TestApp"
-"""Stand-in resource_name for APP-role lifecycle events, the counterpart to
-``PLACEHOLDER_SERVICE_NAME``. Apps emit on the same status topic services do, so tests covering
-role filtering need a name that reads as an app rather than a service."""
-
-PLACEHOLDER_RESOURCE_NAME = "TestResource"
-"""Stand-in resource_name for RESOURCE-role lifecycle events. Plain ``Resource`` subclasses
-(``AppLifecycleService``, ``StateProxy``, ``AppHandler``) emit on the same status topic under a
-third role, which role-filtering tests must distinguish from both SERVICE and APP."""
 
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
@@ -285,66 +269,6 @@ async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path])
     """Emit a synthetic file-watcher event for the given paths."""
     event = HassetteFileWatcherEvent.from_paths(changed_file_paths=changed_paths)
     await hassette.send_event(event)
-
-
-def make_service_failed_event(
-    service: "Service",
-    exception: Exception | None = None,
-    previous_status: ResourceStatus | None = None,
-) -> HassetteServiceEvent:
-    """Create a HassetteServiceEvent with FAILED status for testing."""
-    return HassetteServiceEvent.from_service_status(
-        resource_name=service.class_name,
-        role=service.role,
-        status=ResourceStatus.FAILED,
-        previous_status=previous_status,
-        exception=exception or Exception("test"),
-    )
-
-
-def make_service_running_event(service: "Service") -> HassetteServiceEvent:
-    """Create a HassetteServiceEvent with RUNNING status for testing."""
-    return HassetteServiceEvent.from_service_status(
-        resource_name=service.class_name,
-        role=service.role,
-        status=ResourceStatus.RUNNING,
-    )
-
-
-def make_crashed_event(
-    resource_name: str = PLACEHOLDER_SERVICE_NAME,
-    exception_type: str | None = "RuntimeError",
-    exception: str | None = "something broke",
-    exception_traceback: str | None = "Traceback ...",
-    role: ResourceRole = ResourceRole.SERVICE,
-) -> HassetteServiceEvent:
-    """Build a CRASHED HassetteServiceEvent for testing.
-
-    ``role`` defaults to SERVICE; pass APP to build the kind of event the
-    IS_NOT_APP_ROLE predicate rejects (used by ServiceWatcher and SessionManager).
-    """
-    return HassetteServiceEvent(
-        topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
-        payload=HassettePayload(
-            data=ServiceStatusPayload(
-                resource_name=resource_name,
-                role=role,
-                status=ResourceStatus.CRASHED,
-                previous_status=ResourceStatus.FAILED,
-                exception=exception,
-                exception_type=exception_type,
-                exception_traceback=exception_traceback,
-                ready=False,
-                ready_phase=None,
-            ),
-        ),
-    )
-
-
-def make_unsafe_restart_refused_error(resource_name: str = PLACEHOLDER_SERVICE_NAME) -> RestartRefusedError:
-    """Build a RestartRefusedError carrying a real UNSAFE TeardownReport, for refusal tests."""
-    report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,), failed_operations=("shutdown_hooks",))
-    return RestartRefusedError(resource_name, report)
 
 
 async def wire_up_app_state_listener(

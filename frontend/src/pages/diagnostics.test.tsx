@@ -73,30 +73,14 @@ describe("DiagnosticsPage", () => {
       ),
     );
     const serviceStatus: Record<string, ServiceStatusEntry> = {
-      bus: createServiceStatusEntry({ resource_name: "bus", status: "exhausted_cooling", retry_at: null }),
+      bus: createServiceStatusEntry({ resource_name: "bus", status: "failed" }),
     };
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
       storeOverrides: { serviceStatus },
     });
     // WS status wins
     const statusEl = await findByTestId("diag-service-status-bus");
-    expect(statusEl.textContent).toBe("exhausted_cooling");
-  });
-
-  it("shows a cooling service with relative retry timestamp", async () => {
-    const futureRetryAt = Date.now() / 1000 + 180; // 3 minutes from now
-    server.use(
-      http.get("/api/health", () =>
-        HttpResponse.json(
-          createSystemStatus({
-            services: [createServiceInfo({ name: "db", status: "exhausted_cooling", retry_at: futureRetryAt })],
-          }),
-        ),
-      ),
-    );
-    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
-    const retryEl = await findByTestId("diag-service-retry-db");
-    expect(retryEl.textContent).toMatch(/retry in \d+m/);
+    expect(statusEl.textContent).toBe("failed");
   });
 
   it("shows stale indicator when WS is disconnected", async () => {

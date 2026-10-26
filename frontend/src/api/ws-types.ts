@@ -14,16 +14,7 @@ export type WsServerMessage =
 /**
  * Enumeration for resource status.
  */
-export type ResourceStatus =
-  | "not_started"
-  | "starting"
-  | "running"
-  | "stopping"
-  | "stopped"
-  | "failed"
-  | "crashed"
-  | "exhausted_dead"
-  | "exhausted_cooling";
+export type ResourceStatus = "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed";
 /**
  * How a handler invocation or job execution ended.
  */
@@ -120,14 +111,6 @@ export interface ServiceStatusData {
   exception?: string | null;
   exception_type?: string | null;
   exception_traceback?: string | null;
-  /**
-   * Unix timestamp when the next restart will be attempted.
-   *
-   * Populated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown
-   * and will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other
-   * statuses. The frontend uses this to display a live countdown timer.
-   */
-  retry_at?: number | null;
   /**
    * Whether the service had signalled readiness at the time of this status event.
    */

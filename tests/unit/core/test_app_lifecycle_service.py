@@ -237,18 +237,18 @@ class TestBootstrapApps:
         assert_load_completed_count(event_capture, 1)
         # dup-ignore-end
 
-    async def test_handles_crash(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
-        """Calls handle_crash and re-raises on exception."""
+    async def test_failure_propagates_without_changing_this_resource(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """A bootstrap failure re-raises to AppHandler.serve(), which reports it; this resource's status stays."""
         mock_registry.manifests = {"app_a": MagicMock()}
         lifecycle_service.resolve_only_apps = AsyncMock(side_effect=RuntimeError("crash"))
+        status_before = lifecycle_service.status
 
-        with patch("hassette.core.app_lifecycle_service.handle_crash") as mock_handle_crash:
-            with pytest.raises(RuntimeError, match="crash"):
-                await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+        with pytest.raises(RuntimeError, match="crash"):
+            await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
-            mock_handle_crash.assert_called_once()
-            assert mock_handle_crash.call_args[0][0] is lifecycle_service
-            assert isinstance(mock_handle_crash.call_args[0][1], RuntimeError)
+        assert lifecycle_service.status == status_before
 
 
 class TestStartApps:

@@ -4,15 +4,18 @@ from hassette.core.core import Hassette
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
+from hassette.resources.service import Service
 
 
 class HarnessHassette(Hassette):
     """Thin Hassette subclass for use in the test harness.
 
-    Overrides exactly two methods to make the harness lifecycle work:
+    Overrides exactly three methods to make the harness lifecycle work:
     - should_skip_dependency_check: prevents startup from blocking on unmet deps.
     - wait_for_ready: returns True immediately so services do not deadlock during
       harness-controlled startup.
+    - report_service_failure: a no-op, so a required service failing in a shared harness
+      never latches a fatal reason or requests shutdown for the tests that follow.
     """
 
     def should_skip_dependency_check(self) -> bool:
@@ -37,6 +40,9 @@ class HarnessHassette(Hassette):
         """
         return True
 
+    def report_service_failure(self, service: Service, exc: BaseException) -> None:
+        """Ignore the report: the service's own status (FAILED or CRASHED) still records the failure."""
+
 
 class HarnessStateProxy(StateProxy):
     """StateProxy that never installs the periodic poll job.
@@ -54,8 +60,7 @@ class HarnessEventStreamService(EventStreamService):
     """EventStreamService variant that suppresses close_streams() for test harness reuse.
 
     Module-scoped fixtures share a single HarnessHassette across many tests.  Some
-    test scenarios (e.g., ServiceWatcher max-restart exceeded) trigger
-    ``hassette.shutdown()``, which normally closes the anyio memory streams inside
+    test scenarios trigger ``hassette.shutdown()``, which normally closes the anyio memory streams inside
     ``EventStreamService``.  Closed streams cannot be reopened, so subsequent tests
     in the same module would receive ``ClosedResourceError`` on every ``send_event``
     call.

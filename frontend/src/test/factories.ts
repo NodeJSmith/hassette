@@ -375,7 +375,6 @@ export function createServiceInfo(overrides: Partial<ServiceInfo> = {}): Service
     name: "bus",
     status: "running",
     ready_phase: null,
-    retry_at: null,
     ...overrides,
   } satisfies ServiceInfo;
 }
@@ -387,7 +386,6 @@ export function createServiceStatusEntry(overrides: Partial<ServiceStatusEntry> 
     status: "running",
     previous_status: null,
     exception: null,
-    retry_at: null,
     ready: true,
     ready_phase: null,
     ...overrides,

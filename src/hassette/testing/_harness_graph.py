@@ -20,9 +20,6 @@ DEPENDENCIES: dict[str, set[str]] = {
     "app_handler": {"app_bootstrap_coordinator"},
     "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
-    # service_watcher removed: ServiceWatcher is a real framework service but has no
-    # harness starter — the harness does not instantiate it.  Removing it eliminates
-    # the ghost entry that caused STARTUP_ORDER to include a component with no starter.
 }
 # Maps harness component names to the corresponding real framework service class.
 # Used by the harness consistency test to verify DEPENDENCIES stays in sync with
@@ -33,9 +30,6 @@ DEPENDENCIES: dict[str, set[str]] = {
 #                      checks would be vacuous.  Omitting avoids false-positive drift.
 #   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
 #                      registry with no depends_on concept.
-#   "service_watcher"— Removed: ServiceWatcher has no harness starter; including it in
-#                      this map without a matching _starters entry created a ghost entry
-#                      that made the structural test impossible to satisfy.
 COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
     "sync_executor": SyncExecutorService,
     "bus": BusService,

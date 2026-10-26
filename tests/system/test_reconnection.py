@@ -71,18 +71,18 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
 async def test_restart_after_stable_connection_recovers_in_the_same_serve_task(
     ha_container: str, tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An HA restart that ends a long-lived connection is recovered in place, never via ServiceWatcher.
+    """An HA restart that ends a long-lived connection is recovered in place, never as a service failure.
 
     Acceptance test for design/specs/131-ha-restart-reconnect: a drop of a stable connection,
-    and the refused connections while HA restarts, are retried inside serve() and never reach
-    ServiceWatcher. The D8 reset window is shrunk so the connection counts as stable without
-    the test waiting 2 minutes.
+    and the refused connections while HA restarts, are retried inside serve() and never end it,
+    so the required WebsocketService is never reported as failed. The D8 reset window is shrunk
+    so the connection counts as stable without the test waiting 2 minutes.
 
     Sequence:
     1. Start Hassette, confirm it is connected, and hold the connection past the reset window.
     2. Restart the HA container.
     3. Wait for the disconnect, then the reconnect.
-    4. Assert the same serve() task is still running and ServiceWatcher never restarted the service.
+    4. Assert the same serve() task is still running and no fatal reason was recorded.
     5. Verify event delivery works (functional confirmation).
     """
     monkeypatch.setattr(reconnect_module, "STABLE_CONNECTION_SECONDS", STABLE_WINDOW_FOR_TEST_SECONDS)
@@ -90,11 +90,9 @@ async def test_restart_after_stable_connection_recovers_in_the_same_serve_task(
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         websocket_service = hassette.websocket_service
-        service_watcher = hassette._service_watcher  # pyright: ignore[reportPrivateUsage]
         bus = hassette.bus
 
         assert websocket_service.is_connected
-        assert service_watcher is not None
         serve_task = websocket_service._serve_task  # pyright: ignore[reportPrivateUsage]
         assert serve_task is not None
 
@@ -115,9 +113,7 @@ async def test_restart_after_stable_connection_recovers_in_the_same_serve_task(
 
         assert websocket_service._serve_task is serve_task  # pyright: ignore[reportPrivateUsage]
         assert not serve_task.done()
-        budget = service_watcher._budgets.get("WebsocketService:Service")  # pyright: ignore[reportPrivateUsage]
-        restart_count = budget.current_attempts() if budget else 0
-        assert restart_count == 0, f"ServiceWatcher restarted WebsocketService {restart_count} time(s)"
+        assert hassette.fatal_shutdown_reason is None
 
         received = await toggle_and_capture(bus, hassette.api, ENTITY, timeout=30.0)
         assert len(received) >= 1

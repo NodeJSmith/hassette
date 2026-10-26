@@ -1,62 +1,63 @@
-"""Unit tests for Service.__init_subclass__ restart_spec warning behavior."""
+"""Unit tests for Service.__init_subclass__'s `required` declaration rule (spec 134 D17)."""
 
-import warnings
 from abc import abstractmethod
 
 import pytest
 
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 
 
-class TestServiceSubclassWarning:
-    def test_service_subclass_without_restart_spec_warns(self) -> None:
-        """Subclass Service without declaring restart_spec triggers UserWarning."""
-        with pytest.warns(UserWarning, match="restart_spec"):
+def test_concrete_service_without_declaration_fails_at_class_definition() -> None:
+    with pytest.raises(TypeError, match="must declare whether it is required"):
 
-            class _NoSpec(Service):
-                async def serve(self) -> None:
-                    pass
-
-        assert _NoSpec.__name__ == "_NoSpec"
-
-    def test_service_subclass_with_restart_spec_no_warning(self) -> None:
-        """Subclass Service with restart_spec declared produces no warning."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", UserWarning)
-
-            class _WithSpec(Service):
-                restart_spec = RestartSpec()
-
-                async def serve(self) -> None:
-                    pass
-
-        assert _WithSpec.restart_spec == RestartSpec()
+        class _Undeclared(Service):  # pyright: ignore[reportUnusedClass]
+            async def serve(self) -> None:
+                pass
 
 
-class TestAbstractServiceNoWarning:
-    def test_abstract_service_subclass_no_warning(self) -> None:
-        """Abstract Service subclasses (with abstract methods) do not trigger the warning."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", UserWarning)
+def test_declaration_in_class_body_is_kept() -> None:
+    class _Required(Service):
+        required = True
 
-            class _AbstractService(Service):
-                @abstractmethod
-                async def serve(self) -> None:
-                    raise NotImplementedError
+        async def serve(self) -> None:
+            pass
 
-                @abstractmethod
-                async def abstract_method(self) -> None:
-                    raise NotImplementedError
+    class _Optional(Service):
+        required = False
 
-        # Concrete subclass of the abstract class DOES warn (no restart_spec)
-        with pytest.warns(UserWarning, match="restart_spec"):
+        async def serve(self) -> None:
+            pass
 
-            class _ConcreteSubclass(_AbstractService):
-                async def serve(self) -> None:
-                    pass
+    assert _Required.required is True
+    assert _Optional.required is False
 
-                async def abstract_method(self) -> None:
-                    pass
 
-        assert _ConcreteSubclass.__name__ == "_ConcreteSubclass"
+def test_abstract_intermediate_is_skipped_but_its_concrete_subclass_must_declare() -> None:
+    class _AbstractService(Service):
+        @abstractmethod
+        async def serve(self) -> None:
+            raise NotImplementedError
+
+    with pytest.raises(TypeError, match="must declare whether it is required"):
+
+        class _Concrete(_AbstractService):  # pyright: ignore[reportUnusedClass]
+            async def serve(self) -> None:
+                pass
+
+
+def test_subclass_of_concrete_service_must_redeclare() -> None:
+    class _Base(Service):
+        required = False
+
+        async def serve(self) -> None:
+            pass
+
+    with pytest.raises(TypeError, match="must declare whether it is required"):
+
+        class _Child(_Base):  # pyright: ignore[reportUnusedClass]
+            pass
+
+
+def test_service_base_defaults_to_required() -> None:
+    """An abstract-skipped intermediate that is instantiated anyway routes as required, the loud side."""
+    assert Service.required is True

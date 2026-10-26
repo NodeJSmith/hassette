@@ -33,7 +33,6 @@ from hassette.core.file_watcher import FileWatcherService
 from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService, _ScheduledJobQueue
-from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.session_manager import SessionManager
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
@@ -69,12 +68,10 @@ MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     RuntimeQueryService: ("on_initialize",),
     Scheduler: ("on_initialize",),
     SchedulerSyncFacade: ("on_initialize",),
-    ServiceWatcher: ("on_initialize",),
     SessionManager: ("on_initialize",),
     StateProxy: ("on_initialize",),
     TelemetryQueryService: ("on_initialize",),
     _ScheduledJobQueue: ("on_initialize",),
-    AppHandler: ("after_initialize",),
     StateManager: ("after_initialize",),
     TaskBucket: ("__init__",),
     # Service with a serve() loop: ready once the loop is running.
@@ -84,6 +81,7 @@ MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     SchedulerService: ("serve",),
     SyncExecutorService: ("serve",),
     # Services that deviate from the serve() rule (see resource-lifecycle.md).
+    AppHandler: ("after_initialize",),
     FileWatcherService: ("on_initialize", "serve"),
     WebApiService: ("on_initialize",),
     WebUiWatcherService: ("on_initialize", "serve"),

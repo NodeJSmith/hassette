@@ -5,7 +5,7 @@ This section covers Hassette's internal architecture for contributors and advanc
 Three pages make up the internals section:
 
 - **Architecture & Data Flow** (this page): event pipeline, service dependencies, component ownership
-- [Lifecycle & Supervision](lifecycle.md): state machines, readiness signaling, [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] restart logic
+- [Lifecycle & Supervision](lifecycle.md): state machines, readiness signaling, required vs optional services, fatal exit
 - [Per-Service Internals](service-details.md): bus routing, scheduler dispatch, database schema, state cache, web layer
 
 ## Event Pipeline
@@ -71,8 +71,8 @@ Outbound calls go through the per-app [Api][hassette.api.api.Api] handle, which 
 
 | Failure | Behavior |
 |---|---|
-| WS disconnect | `WebsocketService` reconnects in place with jittered backoff. `ServiceWatcher` is not involved, and an unreachable HA never exhausts a restart budget. See [WebSocket Reconnection](../../operating/index.md#websocket-reconnection). |
-| Auth failure | A rejected token gets 3 retries 60 s apart. The next rejection parks the connection in `ConnectionState.AUTH_FAILED`, and the process stays up. [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] is a `HassetteError`, not a `FatalError`. See [Rejected access token](../../operating/index.md#rejected-access-token). |
+| WS disconnect | `WebsocketService` reconnects in place with jittered backoff. An unreachable HA never fails the service. See [WebSocket Reconnection](../../operating/index.md#websocket-reconnection). |
+| Auth failure | A rejected token gets 3 retries 60 s apart. The next rejection parks the connection in `ConnectionState.AUTH_FAILED`, and the process stays up. [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] is a [`HassetteError`][hassette.exceptions.HassetteError], not a [`FatalError`][hassette.exceptions.FatalError]. See [Rejected access token](../../operating/index.md#rejected-access-token). |
 | Handler timeout | Logged; invocation recorded as timed-out. |
 | DB write failure | `CommandExecutor` retries up to 3 times, then drops the record with a counter increment. |
 
@@ -121,7 +121,6 @@ graph BT
 
     subgraph wave2["Wave 2"]
         SP[StateProxy]
-        SW[ServiceWatcher]
     end
 
     subgraph wave3["Wave 3"]
@@ -139,7 +138,6 @@ graph BT
     CMD --> DB
     LOG --> DB
     TQS --> DB
-    SW --> BUS
     SP --> API & BUS & SCHED
     ABC --> API & BUS & SCHED & SP & SYNC
     RQS --> BUS & SP & LOG
@@ -180,7 +178,6 @@ graph TD
         ApiResource
         StateProxy
         LoggingService
-        ServiceWatcher
     end
 
     subgraph web["Web Layer"]

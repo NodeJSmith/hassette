@@ -75,16 +75,10 @@ class ResourceStatus(StrEnum):
     """The resource has been stopped without errors."""
 
     FAILED = "failed"
-    """The resource has failed with a recoverable error."""
+    """The resource has failed. Nothing restarts it in-process."""
 
     CRASHED = "crashed"
-    """The resource has crashed unexpectedly and cannot recover."""
-
-    EXHAUSTED_DEAD = "exhausted_dead"
-    """The service's restart budget is exhausted with no further restarts (permanent end state)."""
-
-    EXHAUSTED_COOLING = "exhausted_cooling"
-    """The service's restart budget is exhausted and a long cooldown is in progress."""
+    """The resource has failed with a fatal error. Nothing restarts it in-process."""
 
 
 OpenResourceStatus = Annotated[ResourceStatus | UnknownValue, LenientValue("ResourceStatus")]

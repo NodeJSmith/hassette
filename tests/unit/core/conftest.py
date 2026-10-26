@@ -32,14 +32,6 @@ from ._fixtures_command_executor import (
     make_invocation,
     make_mock_cmd_listener,
 )
-from ._fixtures_service_watcher import (
-    COOLDOWN_NEVER_REACHED_SECONDS,
-    FAST_COOLDOWN_SECONDS,
-    DummyService,
-    TempService,
-    make_watcher,
-    make_watcher_hassette,
-)
 from ._fixtures_telemetry import (
     ONCE_LISTENER_NAME,
     TELEMETRY_TEST_DDL,
@@ -62,12 +54,8 @@ from ._fixtures_websocket import (
 )
 
 __all__ = [
-    "COOLDOWN_NEVER_REACHED_SECONDS",
-    "FAST_COOLDOWN_SECONDS",
     "ONCE_LISTENER_NAME",
     "TELEMETRY_TEST_DDL",
-    "DummyService",
-    "TempService",
     "app_handler",
     "app_handler_mock_hassette",
     "app_state_payloads",
@@ -94,8 +82,6 @@ __all__ = [
     "make_mock_app_instance",
     "make_mock_cmd_listener",
     "make_scheduler_service",
-    "make_watcher",
-    "make_watcher_hassette",
     "mock_app_instance",
     "mock_factory",
     "mock_hassette",

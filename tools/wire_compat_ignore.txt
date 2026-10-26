@@ -182,3 +182,13 @@ GET /api/health removed the required property `services/items/role` from the res
 GET /api/apps the response property `apps/items/auto_loaded` became optional for the status `200`
 GET /api/apps/{app_key} the response property `auto_loaded` became optional for the status `200`
 GET /api/telemetry/app-grid the response property `apps/items/app/auto_loaded` became optional for the status `200`
+
+# #3107: in-process service restarts removed; ResourceStatus loses exhausted_cooling and exhausted_dead (spec 134 D13).
+GET /api/apps removed the `exhausted_cooling` enum value from the `apps/items/instances/items/status` response property for the response status `200`
+GET /api/apps removed the `exhausted_dead` enum value from the `apps/items/instances/items/status` response property for the response status `200`
+GET /api/apps/{app_key} removed the `exhausted_cooling` enum value from the `instances/items/status` response property for the response status `200`
+GET /api/apps/{app_key} removed the `exhausted_dead` enum value from the `instances/items/status` response property for the response status `200`
+GET /api/health removed the `exhausted_cooling` enum value from the `services/items/status` response property for the response status `200`
+GET /api/health removed the `exhausted_dead` enum value from the `services/items/status` response property for the response status `200`
+GET /api/telemetry/app-grid removed the `exhausted_cooling` enum value from the `apps/items/app/instances/items/status` response property for the response status `200`
+GET /api/telemetry/app-grid removed the `exhausted_dead` enum value from the `apps/items/app/instances/items/status` response property for the response status `200`

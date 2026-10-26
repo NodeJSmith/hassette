@@ -149,10 +149,9 @@ describe("buildActionItems", () => {
 
   it("includes a crashed app (via live WS status) in stop-failing", () => {
     // isFailureStatus (shared with FailedAppsAlert) marks "crashed" as a failure status.
-    // Apps can't reach ResourceStatus.CRASHED today (only Service subclasses can, via
-    // restart_spec supervision — see status.ts's IS_FAILURE_STATUS comment), but the bulk
-    // command should still include one via the live overlay if that ever changes, since it
-    // routes through the same shared predicate as FailedAppsAlert rather than its own list.
+    // Apps don't normally report ResourceStatus.CRASHED, but the bulk command should still
+    // include one via the live overlay, since it routes through the same shared predicate as
+    // FailedAppsAlert rather than its own list.
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
     const manifests = [createAppSummary({ app_key: "crashed_app", status: "running", in_current_config: true })];
     const liveStatuses: Record<string, AppStatusEntry> = {

@@ -468,7 +468,6 @@ describe("useWebSocket", () => {
           exception: null,
           exception_type: null,
           exception_traceback: null,
-          retry_at: null,
           ready: true,
           ready_phase: "Connected and authenticated",
         },
@@ -496,7 +495,6 @@ describe("useWebSocket", () => {
           exception: null,
           exception_type: null,
           exception_traceback: null,
-          retry_at: null,
         },
         timestamp: 1000,
       });
@@ -522,7 +520,6 @@ describe("useWebSocket", () => {
           exception: null,
           exception_type: null,
           exception_traceback: null,
-          retry_at: null,
           ready: false,
           ready_phase: "Connecting...",
         },
