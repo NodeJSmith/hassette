@@ -62,7 +62,7 @@ class TestInputBooleanModels:
         assert params.model_dump(exclude_unset=True) == {}
 
     def test_update_ignores_extra_fields(self):
-        params = UpdateInputBooleanParams(**{"unknown_future_field": 1})
+        params = UpdateInputBooleanParams.model_validate({"unknown_future_field": 1})
         assert "unknown_future_field" not in params.model_dump()
 
     def test_create_exclude_unset_omits_untouched_fields(self):
@@ -77,7 +77,7 @@ class TestInputBooleanModels:
     def test_create_rejects_unknown_fields(self):
         """Create*Params has extra='forbid' — misspelled kwargs raise ValidationError."""
         with pytest.raises(ValidationError):
-            CreateInputBooleanParams(name="x", inital=True)
+            CreateInputBooleanParams(name="x", inital=True)  # pyright: ignore[reportCallIssue]
 
 
 class TestInputNumberModels:
@@ -100,7 +100,7 @@ class TestInputNumberModels:
         assert UpdateInputNumberParams().model_dump(exclude_unset=True) == {}
 
     def test_update_ignores_extra_fields(self):
-        params = UpdateInputNumberParams(**{"unknown_future_field": 1})
+        params = UpdateInputNumberParams.model_validate({"unknown_future_field": 1})
         assert "unknown_future_field" not in params.model_dump()
 
     def test_create_exclude_unset_omits_untouched_fields(self):
@@ -110,7 +110,7 @@ class TestInputNumberModels:
     def test_create_rejects_unknown_fields(self):
         """Create*Params has extra='forbid' — misspelled kwargs raise ValidationError."""
         with pytest.raises(ValidationError):
-            CreateInputNumberParams(name="x", min=0, max=10, mini=0)
+            CreateInputNumberParams(name="x", min=0, max=10, mini=0)  # pyright: ignore[reportCallIssue]
 
 
 class TestInputTextModels:
@@ -124,7 +124,7 @@ class TestInputTextModels:
         assert UpdateInputTextParams().model_dump(exclude_unset=True) == {}
 
     def test_update_ignores_extra_fields(self):
-        params = UpdateInputTextParams(**{"unknown_future_field": 1})
+        params = UpdateInputTextParams.model_validate({"unknown_future_field": 1})
         assert "unknown_future_field" not in params.model_dump()
 
     def test_create_exclude_unset_omits_untouched_fields(self):
@@ -134,7 +134,7 @@ class TestInputTextModels:
     def test_create_rejects_unknown_fields(self):
         """Create*Params has extra='forbid' — misspelled kwargs raise ValidationError."""
         with pytest.raises(ValidationError):
-            CreateInputTextParams(name="x", maximum=100)
+            CreateInputTextParams(name="x", maximum=100)  # pyright: ignore[reportCallIssue]
 
 
 class TestInputSelectModels:
@@ -155,7 +155,7 @@ class TestInputSelectModels:
         assert UpdateInputSelectParams().model_dump(exclude_unset=True) == {}
 
     def test_update_ignores_extra_fields(self):
-        params = UpdateInputSelectParams(**{"unknown_future_field": 1})
+        params = UpdateInputSelectParams.model_validate({"unknown_future_field": 1})
         assert "unknown_future_field" not in params.model_dump()
 
     def test_create_exclude_unset_omits_untouched_fields(self):
@@ -164,12 +164,12 @@ class TestInputSelectModels:
 
     def test_create_requires_options(self):
         with pytest.raises(ValidationError):
-            CreateInputSelectParams(name="x")
+            CreateInputSelectParams(name="x")  # pyright: ignore[reportCallIssue]
 
     def test_create_rejects_unknown_fields(self):
         """Create*Params has extra='forbid' — misspelled kwargs raise ValidationError."""
         with pytest.raises(ValidationError):
-            CreateInputSelectParams(name="x", optionss=["a"])
+            CreateInputSelectParams(name="x", optionss=["a"])  # pyright: ignore[reportCallIssue]
 
 
 class TestInputDatetimeModels:
@@ -191,7 +191,7 @@ class TestInputDatetimeModels:
         assert UpdateInputDatetimeParams().model_dump(exclude_unset=True) == {}
 
     def test_update_ignores_extra_fields(self):
-        params = UpdateInputDatetimeParams(**{"unknown_future_field": 1})
+        params = UpdateInputDatetimeParams.model_validate({"unknown_future_field": 1})
         assert "unknown_future_field" not in params.model_dump()
 
     def test_create_exclude_unset_omits_untouched_fields(self):
@@ -209,7 +209,7 @@ class TestInputDatetimeModels:
     def test_create_rejects_unknown_fields(self):
         """Create*Params has extra='forbid' — misspelled kwargs raise ValidationError."""
         with pytest.raises(ValidationError):
-            CreateInputDatetimeParams(name="x", hasdate=True)
+            CreateInputDatetimeParams(name="x", hasdate=True)  # pyright: ignore[reportCallIssue]
 
 
 class TestInputButtonModels:
@@ -229,7 +229,7 @@ class TestInputButtonModels:
     def test_create_rejects_unknown_fields(self):
         """Create*Params has extra='forbid' — misspelled kwargs raise ValidationError."""
         with pytest.raises(ValidationError):
-            CreateInputButtonParams(name="Press", unknown_field="x")
+            CreateInputButtonParams(name="Press", unknown_field="x")  # pyright: ignore[reportCallIssue]
 
 
 class TestCounterModels:
@@ -252,7 +252,7 @@ class TestCounterModels:
         assert UpdateCounterParams().model_dump(exclude_unset=True) == {}
 
     def test_update_ignores_extra_fields(self):
-        params = UpdateCounterParams(**{"unknown_future_field": 1})
+        params = UpdateCounterParams.model_validate({"unknown_future_field": 1})
         assert "unknown_future_field" not in params.model_dump()
 
     def test_create_exclude_unset_omits_untouched_fields(self):
@@ -271,7 +271,7 @@ class TestCounterModels:
         common misspelling that must be rejected.
         """
         with pytest.raises(ValidationError):
-            CreateCounterParams(name="x", min=0)
+            CreateCounterParams(name="x", min=0)  # pyright: ignore[reportCallIssue]
 
 
 class TestTimerModels:
@@ -292,7 +292,7 @@ class TestTimerModels:
         assert UpdateTimerParams().model_dump(exclude_unset=True) == {}
 
     def test_update_ignores_extra_fields(self):
-        params = UpdateTimerParams(**{"unknown_future_field": 1})
+        params = UpdateTimerParams.model_validate({"unknown_future_field": 1})
         assert "unknown_future_field" not in params.model_dump()
 
     def test_create_accepts_duration_hhmmss(self):
@@ -303,7 +303,7 @@ class TestTimerModels:
     def test_create_rejects_unknown_fields(self):
         """Create*Params has extra='forbid' — misspelled kwargs raise ValidationError."""
         with pytest.raises(ValidationError):
-            CreateTimerParams(name="x", duraton="00:01:00")
+            CreateTimerParams(name="x", duraton="00:01:00")  # pyright: ignore[reportCallIssue]
 
 
 class TestCounterState:

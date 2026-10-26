@@ -9,13 +9,15 @@ from types import SimpleNamespace
 
 from hassette.const import ANY_VALUE
 from hassette.event_handling.predicates import ServiceDataWhere
-from hassette.events import AnyEvent, Event
+from hassette.events import CallServiceEvent
 
 
-def make_event(service_data: dict[str, typing.Any]) -> AnyEvent:  # factory-local: SimpleNamespace with service_data
+def make_event(
+    service_data: dict[str, typing.Any],
+) -> CallServiceEvent:  # factory-local: SimpleNamespace with service_data
     """Create a mock CallServiceEvent for testing."""
     payload = SimpleNamespace(data=SimpleNamespace(service_data=service_data))
-    return typing.cast("Event", SimpleNamespace(payload=payload))
+    return typing.cast("CallServiceEvent", SimpleNamespace(payload=payload))
 
 
 def test_service_data_where_not_provided_requires_presence() -> None:

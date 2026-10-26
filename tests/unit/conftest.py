@@ -11,12 +11,12 @@ import sys
 import threading
 import time
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from io import StringIO
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -146,7 +146,6 @@ def make_api() -> Api:
     api = Api.__new__(Api)
     api.hassette = hassette_mock
     api._unique_name = "test_api"
-    api._error_handler = None
     api.logger = logging.getLogger("hassette.test")
 
     api.parent = make_mock_parent()
@@ -160,6 +159,18 @@ def make_api() -> Api:
     api.entity_exists = AsyncMock(return_value=False)
 
     return api
+
+
+def as_async_mock(method: object) -> AsyncMock:
+    """Return an Api method that ``make_api()`` (or the test) replaced with an ``AsyncMock``, typed as one."""
+    return cast("AsyncMock", method)
+
+
+def awaited_kwargs(method: object) -> Mapping[str, Any]:
+    """Return the keyword arguments of the last await of an ``AsyncMock``-stubbed Api method."""
+    mock = as_async_mock(method)
+    assert mock.await_args is not None, "expected the stubbed method to have been awaited"
+    return mock.await_args.kwargs
 
 
 def make_domain_entity(
@@ -265,7 +276,7 @@ class LoggingPipelineFixture:
 
 
 @pytest.fixture
-def logging_pipeline() -> "LoggingPipelineFixture":  # pyright: ignore[reportReturnType]
+def logging_pipeline() -> Iterator["LoggingPipelineFixture"]:
     """Local logging pipeline for unit tests — no module globals.
 
     Constructs a self-contained QueueListener + stream/capture handlers, wires them
@@ -319,7 +330,7 @@ def logging_pipeline() -> "LoggingPipelineFixture":  # pyright: ignore[reportRet
         logger=logger,
     )
 
-    yield fixture_obj  # pyright: ignore[reportReturnType]
+    yield fixture_obj
 
     listener.stop()
     logger.removeHandler(queue_handler)

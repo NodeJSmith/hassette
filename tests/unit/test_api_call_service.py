@@ -16,7 +16,7 @@ import pytest
 
 from hassette.exceptions import FailedMessageError
 from hassette.models.services import ServiceResponse
-from tests.unit.conftest import make_api
+from tests.unit.conftest import as_async_mock, awaited_kwargs, make_api
 
 
 @pytest.fixture(autouse=True)
@@ -31,8 +31,8 @@ async def test_call_service_defaults_to_fire_and_forget() -> None:
     result = await api.call_service("counter", "increment", target={"entity_id": "counter.motion"})
 
     assert result is None
-    api.ws_send_and_wait.assert_not_awaited()
-    payload = api.ws_send_json.await_args.kwargs
+    as_async_mock(api.ws_send_and_wait).assert_not_awaited()
+    payload = awaited_kwargs(api.ws_send_json)
     assert payload["type"] == "call_service"
     assert payload["domain"] == "counter"
     assert payload["service"] == "increment"
@@ -49,8 +49,8 @@ async def test_call_service_wait_for_ack_waits_without_requesting_response() -> 
     result = await api.call_service("counter", "increment", target={"entity_id": "counter.motion"}, wait_for_ack=True)
 
     assert result is None
-    api.ws_send_json.assert_not_awaited()
-    payload = api.ws_send_and_wait.await_args.kwargs
+    as_async_mock(api.ws_send_json).assert_not_awaited()
+    payload = awaited_kwargs(api.ws_send_and_wait)
     assert payload["type"] == "call_service"
     assert payload["return_response"] is False
 
@@ -65,7 +65,7 @@ async def test_call_service_wait_for_ack_does_not_retry_on_timeout() -> None:
 
     await api.call_service("counter", "increment", target={"entity_id": "counter.motion"}, wait_for_ack=True)
 
-    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+    assert awaited_kwargs(api.ws_send_and_wait)["retry_on_timeout"] is False
 
 
 async def test_call_service_wait_for_ack_surfaces_ha_errors() -> None:
@@ -88,8 +88,8 @@ async def test_call_service_return_response_still_parses_response() -> None:
     result = await api.call_service("calendar", "get_events", return_response=True, wait_for_ack=True)
 
     assert isinstance(result, ServiceResponse)
-    api.ws_send_json.assert_not_awaited()
-    kwargs = api.ws_send_and_wait.await_args.kwargs
+    as_async_mock(api.ws_send_json).assert_not_awaited()
+    kwargs = awaited_kwargs(api.ws_send_and_wait)
     assert kwargs["return_response"] is True
     assert kwargs["retry_on_timeout"] is False
 
@@ -105,7 +105,7 @@ async def test_call_service_return_response_alone_does_not_retry_on_timeout() ->
 
     await api.call_service("weather", "get_forecasts", return_response=True)
 
-    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+    assert awaited_kwargs(api.ws_send_and_wait)["retry_on_timeout"] is False
 
 
 async def test_call_service_sends_mixed_mapping_target_as_plain_dict() -> None:
@@ -115,6 +115,6 @@ async def test_call_service_sends_mixed_mapping_target_as_plain_dict() -> None:
 
     await api.call_service("light", "turn_on", target=target)
 
-    sent = api.ws_send_json.await_args.kwargs["target"]
+    sent = awaited_kwargs(api.ws_send_json)["target"]
     assert type(sent) is dict
     assert sent == {"entity_id": "light.porch", "area_id": ["kitchen", "hall"]}

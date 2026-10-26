@@ -35,13 +35,13 @@ from hassette.testing import create_state_change_event
 from tests.support.helpers import create_attr_change_event
 
 if typing.TYPE_CHECKING:
-    from hassette.events import AnyEvent, Event
+    from hassette.events import CallServiceEvent
 
 
-def make_call_service_event(service_data: dict) -> "AnyEvent":
+def make_call_service_event(service_data: dict) -> "CallServiceEvent":
     """Build a minimal fake CallServiceEvent-shaped object for ServiceDataWhere tests."""
     payload = SimpleNamespace(data=SimpleNamespace(service_data=service_data))
-    return typing.cast("Event", SimpleNamespace(payload=payload))
+    return typing.cast("CallServiceEvent", SimpleNamespace(payload=payload))
 
 
 def my_predicate(_value: object) -> bool:
@@ -69,8 +69,8 @@ def test_compare_value_literal_equality() -> None:
 
 def test_compare_value_callable_condition() -> None:
     """compare_value calls a callable condition and returns its bool result."""
-    assert compare_value(75, lambda v: v > 50) is True
-    assert compare_value(25, lambda v: v > 50) is False
+    assert compare_value(75, lambda v: isinstance(v, int) and v > 50) is True
+    assert compare_value(25, lambda v: isinstance(v, int) and v > 50) is False
 
 
 def test_compare_value_rejects_async_predicate() -> None:
@@ -307,7 +307,7 @@ def test_value_is_with_any_value_condition_always_true() -> None:
 
     predicate = ValueIs(source=tracking_source, condition=ANY_VALUE)
 
-    assert predicate("anything") is True
+    assert predicate("anything") is True  # pyright: ignore[reportArgumentType]
     assert calls == []  # source was never called — short-circuited
 
 
