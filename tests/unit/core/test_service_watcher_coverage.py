@@ -343,6 +343,48 @@ class TestGetService:
         assert watcher.get_service("DummyService", ResourceRole.SERVICE) is None
 
 
+def make_failed_event_from(dummy: DummyService, previous_status: ResourceStatus) -> HassetteServiceEvent:
+    """Build a FAILED event for ``dummy`` carrying the status it failed from."""
+    return HassetteServiceEvent.from_service_status(
+        resource_name=dummy.class_name,
+        role=dummy.role,
+        status=ResourceStatus.FAILED,
+        previous_status=previous_status,
+        exception=RuntimeError("boom"),
+    )
+
+
+class TestRestartServiceInitFailures:
+    """An initialization failure (STARTING -> FAILED) belongs to the attempt's caller, not the watcher."""
+
+    async def test_drops_failure_from_starting(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        dummy._status = ResourceStatus.FAILED
+        hassette.children = [dummy]
+
+        await watcher.restart_service(make_failed_event_from(dummy, ResourceStatus.STARTING))
+
+        watcher.task_bucket.spawn.assert_not_called()
+        key = watcher.service_key(dummy.class_name, dummy.role)
+        assert key not in watcher._restarting
+        assert key not in watcher._budgets
+
+    async def test_restarts_failure_from_running(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        dummy._status = ResourceStatus.FAILED
+        hassette.children = [dummy]
+        watcher.task_bucket.spawn = Mock(side_effect=lambda coro, **_kw: coro.close())
+
+        await watcher.restart_service(make_failed_event_from(dummy, ResourceStatus.RUNNING))
+
+        watcher.task_bucket.spawn.assert_called_once()
+        assert watcher.service_key(dummy.class_name, dummy.role) in watcher._restarting
+
+
 class TestRestartServiceNoServiceFound:
     async def test_returns_early_without_side_effects(self) -> None:
         """restart_service for a resource_name with no matching child is a no-op."""
