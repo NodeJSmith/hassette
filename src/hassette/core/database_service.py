@@ -24,6 +24,7 @@ from hassette.core.database_write_queue import (
     run_write_queue_worker,
 )
 from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
+from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.exceptions import SchemaVersionError, WriteQueueUnavailableError
 from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
@@ -360,7 +361,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                     )
                 await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
-        except Exception:
+        except STORAGE_ERRORS:
             self.logger.exception("Error draining write queue during shutdown")
         finally:
             if self._db_worker_task is not None:
@@ -524,14 +525,14 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             # thread; interrupt it so the rollback isn't queued behind it.
             try:
                 await self.db.interrupt()
-            except Exception:
+            except STORAGE_ERRORS:
                 self.logger.exception("Interrupting the startup cleanup catch-up statement failed")
             await safe_rollback(self.db, self, "startup cleanup catch-up")
             self.logger.warning(
                 "Startup cleanup catch-up exceeded its %.1fs budget; the hourly cleanup loop will pick up the rest",
                 budget,
             )
-        except Exception:
+        except STORAGE_ERRORS:
             # A failure can leave a retention batch between its BEGIN and commit; roll back so the
             # write worker doesn't inherit an open transaction. Earlier batches stay committed.
             await safe_rollback(self.db, self, "startup cleanup catch-up")
@@ -655,7 +656,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             await db.execute(SQL_BEGIN)
             await db.executemany(_LOG_INSERT_SQL, records)
             await db.commit()
-        except Exception:
+        except Exception:  # broad on purpose: rolls back, then re-raises whatever failed
             await safe_rollback(db, self, "log record insert")
             raise
 

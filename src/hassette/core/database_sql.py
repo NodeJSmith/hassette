@@ -7,6 +7,8 @@ from typing import Protocol
 
 import aiosqlite
 
+from hassette.core.telemetry.helpers import STORAGE_ERRORS
+
 SQL_BEGIN = "BEGIN"
 
 CLEANUP_PROGRESS_LOG_INTERVAL = 10
@@ -45,7 +47,7 @@ async def safe_rollback(db: aiosqlite.Connection, owner: LoggerOwner, context: s
     """
     try:
         await db.rollback()
-    except Exception:
+    except STORAGE_ERRORS:
         owner.logger.exception("Rollback also failed for %s — write connection state is now unknown", context)
 
 

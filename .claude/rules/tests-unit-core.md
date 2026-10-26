@@ -16,7 +16,7 @@ its own `mock_hassette` (database/lifecycle-config overrides for `DatabaseServic
 would collide with the differently-configured `mock_hassette` `_fixtures_app_lifecycle.py` already
 re-exports under the same name — merging both into `conftest.py`'s flat namespace would silently
 shadow one or the other. `test_database_service.py`, `test_database_service_toctou_regression.py`,
-`test_database_service_retention.py`, and `test_database_heartbeat_progress.py` import `mock_hassette`/`service`/`initialized_service_with_worker` directly from
+`test_database_service_retention.py`, `test_database_heartbeat_progress.py`, and `test_database_storage_error_handlers.py` import `mock_hassette`/`service`/`initialized_service_with_worker` directly from
 `._fixtures_database_service` instead.
 
 `_fixtures_retention.py` (in-memory telemetry `db`, `mock_hassette_for_db`, `retention_service`, plus the

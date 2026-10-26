@@ -5,8 +5,8 @@ Not re-exported from ``conftest.py`` like this directory's other ``_fixtures_*.p
 ``_fixtures_app_lifecycle.py`` (sealed=False, dev_mode=True, no database/lifecycle overrides),
 and importing a second fixture under the same name into that flat namespace would silently
 shadow it for the rest of the directory. Consumers import directly from this module instead:
-``test_database_service.py``, ``test_database_service_toctou_regression.py`` and
-``test_database_heartbeat_progress.py``.
+``test_database_service.py``, ``test_database_service_toctou_regression.py``,
+``test_database_heartbeat_progress.py`` and ``test_database_storage_error_handlers.py``.
 """
 
 import asyncio
@@ -60,8 +60,11 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
     async def fake_connect(*_args: object, **_kwargs: object) -> AsyncMock:
         return mock_conn
 
+    # The startup cleanup catch-up only catches storage errors; against this mock connection its
+    # size arithmetic raises TypeError, so it is stubbed out rather than left to fail.
     with (
         patch.object(service, "run_migrations"),
+        patch.object(service, "catch_up_cleanup_at_startup", AsyncMock()),
         patch("hassette.core.database_service.connect_daemon", side_effect=fake_connect),
     ):
         await service.on_initialize()
