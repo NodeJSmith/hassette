@@ -2,7 +2,7 @@
 
 import asyncio
 import uuid
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,10 +19,17 @@ from .conftest import make_execute_job_cmd, make_executor, make_mock_cmd_listene
 
 async def drain_tasks(executor: CommandExecutor) -> None:
     """Allow all spawned error handler tasks to complete."""
-    tasks = executor._spawned_tasks
+    tasks: list[asyncio.Task[Any]] = executor._spawned_tasks  # pyright: ignore[reportAttributeAccessIssue]  # set by make_executor()
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
         tasks.clear()
+
+
+def pop_enqueued_record(executor: CommandExecutor) -> ExecutionRecord:
+    """Pop the next queued write and narrow it to the ExecutionRecord a fresh execution enqueues."""
+    record = executor._write_queue.get_nowait()
+    assert isinstance(record, ExecutionRecord)
+    return record
 
 
 def is_valid_uuid4(value: str) -> bool:
@@ -64,7 +71,7 @@ class TestExecutionIdContextVar:
         assert is_valid_uuid7(value)
 
         # The enqueued record must have the same execution_id
-        record = executor._write_queue.get_nowait()
+        record = pop_enqueued_record(executor)
         assert record.execution_id == value
 
     async def test_execution_id_none_after_handler_execution(self) -> None:
@@ -128,7 +135,7 @@ class TestExecutionIdContextVar:
         assert is_valid_uuid7(value)
 
         # Enqueued record must have the same execution_id
-        record = executor._write_queue.get_nowait()
+        record = pop_enqueued_record(executor)
         assert record.execution_id == value
 
     async def test_execution_id_none_after_job_execution(self) -> None:
@@ -194,7 +201,7 @@ async def execute_handler_and_get_record(executor: CommandExecutor, event: Any, 
     """
     cmd = make_invoke_handler_cmd(event=event, **cmd_kwargs)
     await executor.execute_handler(cmd)
-    return executor._write_queue.get_nowait()
+    return pop_enqueued_record(executor)
 
 
 class TestHandlerRecordTriggerFields:
@@ -242,6 +249,7 @@ class TestHandlerRecordTriggerFields:
         record = await execute_handler_and_get_record(executor, event)
 
         assert record.trigger_context_id == event.payload.event_id
+        assert record.trigger_context_id is not None
         assert is_valid_uuid4(record.trigger_context_id)
 
     async def test_synthetic_event_nulls_trigger_context_id(self) -> None:
@@ -271,7 +279,7 @@ class TestJobRecordFields:
 
         await executor.execute_job(cmd)
 
-        record = executor._write_queue.get_nowait()
+        record = pop_enqueued_record(executor)
         assert record.execution_id is not None
         assert is_valid_uuid7(record.execution_id)
         # Unified ExecutionRecord carries trigger fields for all kinds; they are None for jobs.
@@ -306,7 +314,7 @@ class TestBindExecutionContextPrecomputedInstanceName:
             assert marker.app_key == "my_app"
             assert marker.instance_name == "my_instance"
             assert marker.instance_index == 0
-            executor.hassette.app_handler.get.assert_not_called()
+            cast("MagicMock", executor.hassette).app_handler.get.assert_not_called()
         finally:
             executor.unbind_execution_context(token)
 
@@ -331,7 +339,7 @@ class TestBindExecutionContextPrecomputedInstanceName:
             assert marker is not None
             assert marker.app_key is None
             assert marker.instance_name is None
-            executor.hassette.app_handler.get.assert_not_called()
+            cast("MagicMock", executor.hassette).app_handler.get.assert_not_called()
         finally:
             executor.unbind_execution_context(token)
 
@@ -358,7 +366,7 @@ class TestBindExecutionContextPrecomputedInstanceName:
             await executor.execute_handler(cmd)
 
         assert captured == ["precomputed_instance"]
-        executor.hassette.app_handler.get.assert_not_called()
+        cast("MagicMock", executor.hassette).app_handler.get.assert_not_called()
 
     async def test_execute_job_passes_precomputed_instance_name(self) -> None:
         """execute_job reads instance_name from job and forwards it to bind."""
@@ -380,7 +388,7 @@ class TestBindExecutionContextPrecomputedInstanceName:
             await executor.execute_job(cmd)
 
         assert captured == ["precomputed_job_instance"]
-        executor.hassette.app_handler.get.assert_not_called()
+        cast("MagicMock", executor.hassette).app_handler.get.assert_not_called()
 
 
 class TestErrorHandlerExecutionIdInheritance:

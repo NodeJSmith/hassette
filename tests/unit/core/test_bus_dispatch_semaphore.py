@@ -60,7 +60,7 @@ async def test_dispatch_bounds_concurrent_handlers() -> None:
             running -= 1
             completed += 1
 
-    svc._dispatch = blocking_dispatch
+    svc._dispatch = blocking_dispatch  # pyright: ignore[reportAttributeAccessIssue]
 
     dispatch_task = asyncio.create_task(svc.dispatch("test.topic", make_mock_event()))
 
@@ -94,7 +94,7 @@ async def test_dispatch_under_limit_runs_all_without_blocking() -> None:
         nonlocal seen
         seen += 1
 
-    svc._dispatch = counting_dispatch
+    svc._dispatch = counting_dispatch  # pyright: ignore[reportAttributeAccessIssue]
 
     await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
@@ -111,7 +111,7 @@ async def test_slot_released_when_handler_raises() -> None:
     async def failing_dispatch(_route, _event, _listener) -> None:
         raise RuntimeError("handler boom")
 
-    svc._dispatch = failing_dispatch
+    svc._dispatch = failing_dispatch  # pyright: ignore[reportAttributeAccessIssue]
 
     await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
@@ -137,7 +137,7 @@ async def test_slot_released_when_handler_cancelled() -> None:
     async def hanging_dispatch(_route, _event, _listener) -> None:
         await gate.wait()  # never set — tasks are cancelled instead
 
-    svc._dispatch = hanging_dispatch
+    svc._dispatch = hanging_dispatch  # pyright: ignore[reportAttributeAccessIssue]
 
     await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     assert svc._dispatch_semaphore.locked()  # both slots held by the hanging handlers
@@ -194,7 +194,7 @@ async def test_drop_newest_skips_handler_when_saturated() -> None:
         nonlocal handler_invoked
         handler_invoked = True
 
-    svc._dispatch = spy_dispatch
+    svc._dispatch = spy_dispatch  # pyright: ignore[reportAttributeAccessIssue]
 
     await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
 
@@ -238,7 +238,7 @@ async def test_drop_newest_dispatches_normally_when_not_saturated() -> None:
         nonlocal dispatched
         dispatched += 1
 
-    svc._dispatch = counting_dispatch
+    svc._dispatch = counting_dispatch  # pyright: ignore[reportAttributeAccessIssue]
 
     await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
     await svc.await_dispatch_idle(timeout=TEST_TIMEOUT)
@@ -262,7 +262,7 @@ async def test_block_listener_blocks_then_runs_under_saturation() -> None:
     async def notifying_dispatch(_route, _event, _listener) -> None:
         dispatched.set()
 
-    svc._dispatch = notifying_dispatch
+    svc._dispatch = notifying_dispatch  # pyright: ignore[reportAttributeAccessIssue]
 
     # warn_dispatch_saturated() fires immediately before the blocking acquire() in the BLOCK path,
     # with no await in between — use it as a deterministic signal that dispatch has reached the

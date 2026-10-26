@@ -15,7 +15,7 @@ import asyncio
 import contextlib
 import time
 from collections.abc import Coroutine
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -208,7 +208,7 @@ async def test_emit_completion_events_no_warning_for_owned_records() -> None:
     await execution_pipeline.emit_completion_events(executor, [owned])
 
     assert executor._last_unowned_warn_ts is None
-    executor.hassette.send_event.assert_awaited_once()
+    cast("MagicMock", executor.hassette).send_event.assert_awaited_once()
 
 
 async def test_emit_completion_events_no_warning_for_framework_tier_empty_app_key() -> None:

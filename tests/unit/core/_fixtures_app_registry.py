@@ -1,8 +1,12 @@
 """AppRegistry mock factories for tests/unit/core/."""
 
 from types import SimpleNamespace
+from typing import cast
 
 from hassette_wire import ResourceStatus
+
+from hassette import App, AppConfig
+from hassette.config.classes import AppManifest
 
 
 def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output
@@ -11,9 +15,9 @@ def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegi
     autostart: bool = True,
     app_config: dict | list[dict] | None = None,
     description: str | None = None,
-) -> SimpleNamespace:
+) -> AppManifest:
     """Build a minimal AppManifest-like object for the registry."""
-    return SimpleNamespace(
+    manifest = SimpleNamespace(
         app_key=app_key,
         class_name=f"{app_key.title().replace('_', '')}",
         display_name=app_key.replace("_", " ").title(),
@@ -23,17 +27,19 @@ def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegi
         autostart=autostart,
         app_config=app_config if app_config is not None else {"instance_name": app_key},
     )
+    return cast("AppManifest", manifest)
 
 
 def make_app_instance(  # factory-local: SimpleNamespace App stand-in for AppRegistry tests
     app_key: str, index: int = 0
-) -> SimpleNamespace:
+) -> App[AppConfig]:
     """Build a minimal App-like object for the registry."""
     class_name = app_key.title().replace("_", "")
     instance_name = app_key if index == 0 else f"{app_key}_{index}"
-    return SimpleNamespace(
+    app = SimpleNamespace(
         app_config=SimpleNamespace(instance_name=instance_name),
         class_name=class_name,
         status=ResourceStatus.RUNNING,
         unique_name=f"{class_name}.{instance_name}",
     )
+    return cast("App[AppConfig]", app)
