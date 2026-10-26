@@ -11,13 +11,13 @@ import queue
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import datetime
 from io import StringIO
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 import structlog
+from whenever import SYSTEM_TZ, PlainDateTime
 
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.logging_ import (
@@ -35,8 +35,10 @@ STDLIB_LOGGER_NAME = "hassette.apps.example_stdlib"
 NATIVE_LOGGER_NAME = "hassette.apps.example_native"
 # A local in the frame that logs an exception; console tracebacks must not print it.
 HELD_LOCAL_VALUE = "local-value-not-for-logs"
-# A creation time long past, so a timestamp taken from the clock at render time can't match it.
-PAST_CREATED = datetime(2020, 1, 2, 3, 4, 5, 500000).timestamp()
+# A local creation time long past, so a timestamp taken from the clock at render time can't match it.
+PAST_CREATED = (
+    PlainDateTime(2020, 1, 2, 3, 4, 5, nanosecond=500_000_000).assume_tz(SYSTEM_TZ).timestamp(unit="nanosecond") / 1e9
+)
 
 
 @contextmanager
