@@ -10,8 +10,9 @@ Pulls failed GitHub Actions runs for the given workflow(s) over the lookback
 window, downloads each failed job's log, and extracts pytest FAILED lines.
 Failures are grouped by test id; anything appearing 2+ times across
 independent runs is flagged as recurring and worth a look. Already-tracked
-flakes are read from scripts/known_flakes.yaml so they're reported as known
-instead of resurfacing every scan.
+flakes are read from open issues labeled `topic:flaky-test`, whose titles
+start with `Fix flaky <test name>`, so they're reported as known instead of
+resurfacing every scan.
 
 Job failures with no pytest FAILED line in their log (network hiccups,
 artifact-permission errors, and other GitHub Actions infra noise) are
@@ -26,17 +27,21 @@ import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, NamedTuple
 
 import cyclopts
-import yaml
 from whenever import Instant
 
 app = cyclopts.App(help=__doc__)
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-KNOWN_FLAKES_PATH = REPO_ROOT / "scripts" / "known_flakes.yaml"
+FLAKY_TEST_LABEL = "topic:flaky-test"
+
+# Flaky-test issue titles start with "Fix flaky <test name>", where the name is
+# a bare test function or `Class::method` (see .claude/reference/github-workflow.md,
+# "Flaky tests").
+FLAKY_TITLE_RE = re.compile(r"^Fix flaky (\S+)")
+
+GH_ISSUE_LIST_LIMIT = 200
 
 # Backlog steps that report known debt on main (see .claude/reference/github-workflow.md,
 # "PR checks") -- not test flakiness, skip entirely.
@@ -112,7 +117,7 @@ class Occurrence:
 class KnownFlake(NamedTuple):
     pattern: re.Pattern[str]
     issue: int
-    note: str
+    title: str
 
 
 def latest_occurrence(occurrences: list[Occurrence]) -> Occurrence:
@@ -142,14 +147,53 @@ def gh_json(*args: str) -> Any | None:
     return json.loads(result.stdout)
 
 
-def load_known_flakes() -> list[KnownFlake]:
-    if not KNOWN_FLAKES_PATH.exists():
+def known_flake_from_issue(number: int, title: str) -> KnownFlake | None:
+    """Build a KnownFlake from a flaky-test issue, or None if its title doesn't fit the pattern.
+
+    The test name must sit at a node-id boundary in the pytest test id -- after
+    `::` and before `::`, a `[` parametrize suffix, or the end -- so `test_foo`
+    doesn't match `test_foo_bar` or a `test_foo.py` file path.
+    """
+    match = FLAKY_TITLE_RE.match(title)
+    if match is None:
+        return None
+    pattern = re.compile(rf"::{re.escape(match.group(1))}(?=$|::|\[)")
+    return KnownFlake(pattern, number, title)
+
+
+def fetch_tracked_flakes() -> list[KnownFlake]:
+    """Read already-tracked flakes from open issues labeled FLAKY_TEST_LABEL."""
+    issues = gh_json(
+        "issue",
+        "list",
+        "--label",
+        FLAKY_TEST_LABEL,
+        "--state",
+        "open",
+        "--limit",
+        str(GH_ISSUE_LIST_LIMIT),
+        "--json",
+        "number,title",
+    )
+    if issues is None:
+        print(
+            f"warning: could not list {FLAKY_TEST_LABEL} issues -- every flake will be reported as unknown",
+            file=sys.stderr,
+        )
         return []
-    data = yaml.safe_load(KNOWN_FLAKES_PATH.read_text()) or {}
-    return [
-        KnownFlake(re.compile(entry["pattern"]), entry["issue"], entry.get("note", "").strip())
-        for entry in data.get("flakes", [])
-    ]
+
+    known: list[KnownFlake] = []
+    for issue in issues:
+        flake = known_flake_from_issue(issue["number"], issue["title"])
+        if flake is None:
+            print(
+                f"warning: #{issue['number']} is labeled {FLAKY_TEST_LABEL} but its title doesn't start with "
+                f"'Fix flaky <test name>', so no failure can match it",
+                file=sys.stderr,
+            )
+            continue
+        known.append(flake)
+    return known
 
 
 def list_failed_runs(workflow: str, since_date: str) -> list[dict]:
@@ -303,8 +347,8 @@ def render_report(
             print(f"  {len(occurrences)}x -- {verdict}")
             print(f"  branches: {', '.join(branches)}")
             print(f"  latest error: {latest_occurrence(occurrences).error[:TEST_ERROR_TRUNCATE_LEN]}")
-            if match and match.note:
-                print(f"  note: {match.note}")
+            if match:
+                print(f"  issue: {match.title}")
             print()
 
     if infra_failures:
@@ -326,7 +370,7 @@ def main(*, days: int = 7, workflow: list[str] | None = None) -> None:
     workflows = workflow if workflow else ["Tests", "E2E Tests"]
     lookback_start = Instant.now().subtract(hours=24 * days)
     since_date = lookback_start.to_stdlib().date().isoformat()
-    known = load_known_flakes()
+    known = fetch_tracked_flakes()
 
     test_failures: dict[str, list[Occurrence]] = defaultdict(list)
     infra_failures: dict[str, list[Occurrence]] = defaultdict(list)
