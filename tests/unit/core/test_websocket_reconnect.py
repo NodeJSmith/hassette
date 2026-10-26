@@ -11,6 +11,7 @@ from unittest.mock import Mock
 
 import aiohttp
 import pytest
+from aiohttp.client_reqrep import ConnectionKey
 from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
 
@@ -46,8 +47,8 @@ def handshake_error(status: int, headers: dict[str, str] | None = None) -> aioht
     )
 
 
-def connection_key() -> aiohttp.client_reqrep.ConnectionKey:
-    return aiohttp.client_reqrep.ConnectionKey("ha.invalid", 8123, False, None, None, None, None)
+def connection_key() -> ConnectionKey:
+    return ConnectionKey("ha.invalid", 8123, False, True, None, None, None)
 
 
 def certificate_error() -> aiohttp.ClientConnectorCertificateError:

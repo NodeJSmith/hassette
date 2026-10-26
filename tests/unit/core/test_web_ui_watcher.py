@@ -1,6 +1,7 @@
 """Unit tests for WebUiWatcherService."""
 
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -70,7 +71,7 @@ async def test_serve_waits_on_shutdown_when_disabled(watcher: WebUiWatcherServic
     # Set shutdown immediately so serve() returns
     watcher.shutdown_event.set()
     await watcher.serve()
-    watcher.hassette.runtime_query_service.broadcast.assert_not_called()
+    cast("MagicMock", watcher.hassette.runtime_query_service).broadcast.assert_not_called()
 
 
 async def test_serve_returns_early_when_no_watch_dirs(watcher: WebUiWatcherService) -> None:
@@ -81,5 +82,5 @@ async def test_serve_returns_early_when_no_watch_dirs(watcher: WebUiWatcherServi
         [Path("/nonexistent/static"), Path("/nonexistent/templates")],
     ):
         await watcher.serve()
-    watcher.logger.warning.assert_called_once()
-    watcher.hassette.runtime_query_service.broadcast.assert_not_called()
+    cast("MagicMock", watcher.logger).warning.assert_called_once()
+    cast("MagicMock", watcher.hassette.runtime_query_service).broadcast.assert_not_called()

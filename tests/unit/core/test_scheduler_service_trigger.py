@@ -15,6 +15,7 @@ Tests cover:
 """
 
 import asyncio
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -54,7 +55,7 @@ class TestRunJobTriggerMode:
 
         cmd = await run_job_and_get_cmd(svc, job, trigger_mode="manual")
 
-        svc._executor.execute.assert_called_once()
+        cast("MagicMock", svc._executor).execute.assert_called_once()
         assert cmd.trigger_mode == "manual"
 
     async def test_run_job_defaults_trigger_mode_to_none(self) -> None:
@@ -170,10 +171,10 @@ class TestSubmitJob:
         assert result is None, "submit_job() must return None synchronously"
         await asyncio.wait_for(spawned[0], timeout=1)
 
-        svc._executor.execute.assert_called_once()
+        cast("MagicMock", svc._executor).execute.assert_called_once()
         # Extracted inline rather than via run_job_and_get_cmd: the dispatch under test came from
         # submit_job()'s spawned task, already awaited above, not from a direct run_job() call.
-        cmd = svc._executor.execute.call_args[0][0]
+        cmd = cast("MagicMock", svc._executor).execute.call_args[0][0]
         assert isinstance(cmd, ExecuteJob)
         assert cmd.trigger_mode == "manual", "manual submission must record trigger_mode='manual' telemetry"
 
@@ -185,7 +186,7 @@ class TestSubmitJob:
         with pytest.raises(JobRemovedError):
             svc.submit_job(job)
 
-        svc._executor.execute.assert_not_called()
+        cast("MagicMock", svc._executor).execute.assert_not_called()
 
     async def test_submit_job_raises_for_stale_handle(self) -> None:
         """submit_job() raises JobRemovedError when the registry slot holds a different object.
@@ -202,7 +203,7 @@ class TestSubmitJob:
         with pytest.raises(JobRemovedError):
             svc.submit_job(stale_job)
 
-        svc._executor.execute.assert_not_called()
+        cast("MagicMock", svc._executor).execute.assert_not_called()
 
     async def test_submit_job_propagates_sealed_bucket_rejection(self) -> None:
         """A sealed bucket rejects the manual invocation, and submit_job() lets that surface.
@@ -219,7 +220,7 @@ class TestSubmitJob:
             svc.submit_job(job)
 
         svc.task_bucket.spawn.assert_called_once()
-        svc._executor.execute.assert_not_called()
+        cast("MagicMock", svc._executor).execute.assert_not_called()
 
     async def test_submit_job_bypasses_predicate(self) -> None:
         """Manual submission never evaluates the job's predicate."""
@@ -233,7 +234,7 @@ class TestSubmitJob:
         await asyncio.wait_for(spawned[0], timeout=1)
 
         predicate.assert_not_called()
-        svc._executor.execute.assert_called_once()
+        cast("MagicMock", svc._executor).execute.assert_called_once()
 
     async def test_submit_job_does_not_mutate_schedule(self) -> None:
         """Manual submission never changes the job's automatic schedule state."""

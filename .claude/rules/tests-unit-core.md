@@ -43,6 +43,7 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 - `make_app_instance(app_key, index=0)` — `SimpleNamespace` App stand-in for `AppRegistry` tests; shared by the same two files
 - `stub_refused_attempts(websocket_service, *, failures)` — make `run_connection` raise `ConnectionRefusedError` `failures` times, then return so `serve()` ends; returns the `AsyncMock` (assert `await_count` for the attempt total)
 - `run_cleanup(websocket_service)` — run `WebsocketService.cleanup()` with the parent `Service.cleanup` stubbed out; `cleanup_disconnected(websocket_service)` does the same after detaching `_ws`, `_session`, and `_recv_task`
+- `last_sent_msg_id(websocket_service)` — the `id` of the last frame sent through a `send_json` stubbed with `AsyncMock`; asserts it was awaited, so callers needn't narrow `await_args`
 - `make_executor(**kw)` — real `CommandExecutor` with dependencies mocked out
 - `init_executor(queue_max=10)` — real `CommandExecutor` set up for write-pipeline tests (bounded queue, capacity-warning config, real `ready_event`); shared by `test_command_executor_pipeline_queue.py`, `test_command_executor_pipeline_persist.py`, `test_command_executor_pipeline_serve.py`
 - `make_invocation(**kw)` — `ExecutionRecord` for a handler execution, defaults tuned for the write-pipeline tests above

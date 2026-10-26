@@ -1,7 +1,7 @@
 """Tests for SchedulerService.run_job() effective timeout resolution."""
 
-from typing import Any
-from unittest.mock import AsyncMock
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock
 
 from hassette.commands import ExecuteJob
 from hassette.core.scheduler_service import SchedulerService
@@ -24,7 +24,7 @@ async def run_job_and_get_cmd(svc: SchedulerService, job: Any, **run_job_kwargs:
     """
     await svc.run_job(job, **run_job_kwargs)
 
-    cmd = svc._executor.execute.call_args[0][0]
+    cmd = cast("MagicMock", svc._executor).execute.call_args[0][0]
     assert isinstance(cmd, ExecuteJob)
     return cmd
 

@@ -14,6 +14,7 @@ class TestSendEventAfterStreamsClosed:
         h = Hassette(test_config)
         h.wire_services()
         try:
+            assert h._bus_service is not None
             assert h._event_stream_service is not None
             await h._bus_service.stream.aclose()
             await h._event_stream_service.close_streams()
