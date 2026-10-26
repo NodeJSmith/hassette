@@ -39,7 +39,7 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.testing import wait_for
 from hassette.utils.service_utils import WaveOutcome, WaveResult, topological_sort, validate_dependency_graph
-from tests.support.run_forever import WAVE_OK, stub_run_forever_collaborators
+from tests.support.run_forever import WAVE_OK, run_forever_expecting_fatal, stub_run_forever_collaborators
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -227,8 +227,7 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
     assert stubs.shutdown is not None
     stubs.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
 
-    with patch("hassette.core.core.start"), pytest.raises(FatalError):
-        await hassette_instance.run_forever()
+    await run_forever_expecting_fatal(hassette_instance)
 
     stubs.mark_orphaned_sessions.assert_awaited_once()
     stubs.create_session.assert_not_awaited()
@@ -242,8 +241,7 @@ async def test_run_forever_fails_startup_when_wave_times_out(hassette_instance: 
     assert stubs.shutdown is not None
     stubs.wait_for_wave.side_effect = [WAVE_OK, WaveResult(WaveOutcome.TIMEOUT, (hassette_instance.bus_service,))]
 
-    with patch("hassette.core.core.start"), pytest.raises(FatalError):
-        await hassette_instance.run_forever()
+    await run_forever_expecting_fatal(hassette_instance)
 
     assert stubs.wait_for_wave.await_count == 2
     stubs.shutdown.assert_awaited_once()
@@ -256,8 +254,7 @@ async def test_run_forever_fails_startup_when_wave_attempt_fails(hassette_instan
     failed = WaveResult(WaveOutcome.FAILED, (hassette_instance.bus_service,), (RuntimeError("stream closed"),))
     stubs.wait_for_wave.side_effect = [WAVE_OK, failed]
 
-    with patch("hassette.core.core.start"), pytest.raises(FatalError):
-        await hassette_instance.run_forever()
+    await run_forever_expecting_fatal(hassette_instance)
 
     assert hassette_instance.fatal_shutdown_reason == (
         "startup failure: failed to initialize: BusService (RuntimeError: stream closed)"
@@ -282,8 +279,7 @@ async def test_run_forever_fails_startup_when_database_wave_fails(hassette_insta
     stubs = stub_run_forever_collaborators(hassette_instance)
     stubs.wait_for_wave.return_value = WaveResult(WaveOutcome.FAILED, (hassette_instance.database_service,), (None,))
 
-    with patch("hassette.core.core.start"), pytest.raises(FatalError):
-        await hassette_instance.run_forever()
+    await run_forever_expecting_fatal(hassette_instance)
 
     assert (
         hassette_instance.fatal_shutdown_reason == "startup failure: failed to initialize: DatabaseService (cancelled)"

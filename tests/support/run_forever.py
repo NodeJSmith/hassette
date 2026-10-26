@@ -1,9 +1,12 @@
 """Stubs for driving a real ``Hassette`` instance through ``run_forever()`` in integration tests."""
 
 from dataclasses import dataclass
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from hassette.core.core import Hassette
+from hassette.exceptions import FatalError
 from hassette.utils.service_utils import WaveOutcome, WaveResult
 
 WAVE_OK = WaveResult(WaveOutcome.OK)
@@ -50,3 +53,9 @@ def stub_run_forever_collaborators(hassette: Hassette, *, stub_shutdown: bool = 
     if stubs.shutdown is not None:
         hassette.shutdown = stubs.shutdown  # pyright: ignore[reportAttributeAccessIssue]
     return stubs
+
+
+async def run_forever_expecting_fatal(hassette: Hassette) -> None:
+    """Run ``run_forever()`` with ``start()`` patched out and assert it raises ``FatalError``."""
+    with patch("hassette.core.core.start"), pytest.raises(FatalError):
+        await hassette.run_forever()
