@@ -34,8 +34,9 @@ class TestListenerOptionsConstruction:
             ("priority", 5, 5),
         ],
     )
-    def test_set_field(self, field: str, value: Any, expected: object) -> None:
-        opts = ListenerOptions(**{field: value})
+    def test_set_field(self, field: str, value: bool | float, expected: object) -> None:
+        kwargs: dict[str, Any] = {field: value}
+        opts = ListenerOptions(**kwargs)
         assert getattr(opts, field) == expected
 
     def test_has_slots(self) -> None:
@@ -55,9 +56,10 @@ class TestListenerOptionsValidation:
             ("timeout", -1.0),
         ],
     )
-    def test_rate_limit_and_timeout_must_be_positive(self, field: str, invalid_value: Any) -> None:
+    def test_rate_limit_and_timeout_must_be_positive(self, field: str, invalid_value: float) -> None:
+        kwargs: dict[str, Any] = {field: invalid_value}
         with pytest.raises(ValueError, match=field):
-            ListenerOptions(**{field: invalid_value})
+            ListenerOptions(**kwargs)
 
     @pytest.mark.parametrize(
         ("field", "valid_value"),
@@ -67,8 +69,9 @@ class TestListenerOptionsValidation:
             ("timeout", 10.0),
         ],
     )
-    def test_positive_values_accepted(self, field: str, valid_value: Any) -> None:
-        opts = ListenerOptions(**{field: valid_value})
+    def test_positive_values_accepted(self, field: str, valid_value: float) -> None:
+        kwargs: dict[str, Any] = {field: valid_value}
+        opts = ListenerOptions(**kwargs)
         assert getattr(opts, field) == valid_value
 
     def test_debounce_and_throttle_mutually_exclusive(self) -> None:
