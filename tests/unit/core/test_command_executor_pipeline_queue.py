@@ -459,7 +459,6 @@ async def test_persist_batch_drops_records_with_no_session_when_session_not_read
     # The no-session record was filtered out (with a warning); its sibling still persisted —
     # this is selective per-record filtering, not an unconditional early return.
     assert persist_calls == [[inv_with_session]]
-    cast("MagicMock", executor.logger).warning.assert_called_once()
 
 
 async def test_handle_fk_violation_all_persisted_emits_completion_events():

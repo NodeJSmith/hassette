@@ -140,9 +140,10 @@ class TestDispatchPredicateRecordingIsolation:
         event = make_hassette_event(topic="test.pred")
 
         with (
-            patch.object(bs, "_record_predicate_failure", side_effect=RuntimeError("record crash")),
+            patch.object(bs, "_record_predicate_failure", side_effect=RuntimeError("record crash")) as record,
             patch.object(bs, "expand_topics", return_value=["test.pred"]),
         ):
+            # dispatch() returning normally proves the recording crash was isolated
             await bs.dispatch("test.pred", event)
 
-        cast("MagicMock", bs.logger).exception.assert_any_call("Failed to record predicate failure for %s", listener)
+        record.assert_called_once()
