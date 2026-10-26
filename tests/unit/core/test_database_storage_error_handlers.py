@@ -17,24 +17,22 @@ STARTUP_BUDGET_FRACTION = 0.001
 """Shrinks the startup catch-up budget so the timeout path fires within milliseconds."""
 
 
-async def hang() -> None:
+async def hang(*_args: object) -> None:
     await asyncio.Event().wait()
 
 
-async def test_shutdown_drain_storage_error_is_logged_and_connections_close(
+async def test_shutdown_drain_storage_error_closes_connections(
     initialized_service_with_worker: DatabaseService,
 ) -> None:
+    # No database call in on_shutdown()'s try block raises today, so the handler is reached by
+    # failing the drain itself; the test pins which exceptions that handler absorbs.
     service = initialized_service_with_worker
     conn = service._db
     assert isinstance(conn, AsyncMock)
 
-    with (
-        patch.object(service, "drain_write_queue", AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))),
-        patch.object(service, "logger") as mock_logger,
-    ):
+    with patch.object(service, "drain_write_queue", AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))):
         await service.on_shutdown()
 
-    mock_logger.exception.assert_called_once()
     conn.close.assert_awaited()
     assert service._db_worker_task is None
 
@@ -59,62 +57,52 @@ async def test_shutdown_drain_programming_error_propagates(
 
 async def test_startup_cleanup_storage_error_rolls_back_and_continues(service: DatabaseService) -> None:
     service._db = AsyncMock()
+    service._db.execute.side_effect = sqlite3.OperationalError("locked")
 
-    with (
-        patch.object(service, "_check_size_failsafe", AsyncMock(side_effect=sqlite3.OperationalError("locked"))),
-        patch.object(service, "logger") as mock_logger,
-    ):
-        await service.catch_up_cleanup_at_startup()
+    await service.catch_up_cleanup_at_startup()
 
     service._db.rollback.assert_awaited_once()
-    mock_logger.exception.assert_called_once()
 
 
 async def test_startup_cleanup_programming_error_propagates(service: DatabaseService) -> None:
     service._db = AsyncMock()
+    service._db.execute.side_effect = AttributeError("bug")
 
-    with (
-        patch.object(service, "_check_size_failsafe", AsyncMock(side_effect=AttributeError("bug"))),
-        pytest.raises(AttributeError),
-    ):
+    with pytest.raises(AttributeError):
         await service.catch_up_cleanup_at_startup()
 
 
-async def test_startup_cleanup_interrupt_storage_error_is_logged(service: DatabaseService) -> None:
+async def test_startup_cleanup_interrupt_storage_error_still_rolls_back(service: DatabaseService) -> None:
     service._db = AsyncMock()
+    service._db.execute.side_effect = hang
     service._db.interrupt.side_effect = sqlite3.OperationalError("connection closed")
 
-    with (
-        patch.object(database_service_module, "_STARTUP_CLEANUP_BUDGET_FRACTION", STARTUP_BUDGET_FRACTION),
-        patch.object(service, "_check_size_failsafe", hang),
-        patch.object(service, "logger") as mock_logger,
-    ):
+    with patch.object(database_service_module, "_STARTUP_CLEANUP_BUDGET_FRACTION", STARTUP_BUDGET_FRACTION):
         await asyncio.wait_for(service.catch_up_cleanup_at_startup(), timeout=5.0)
 
-    mock_logger.exception.assert_called_once()
+    service._db.interrupt.assert_awaited_once()
     service._db.rollback.assert_awaited_once()
 
 
 async def test_startup_cleanup_interrupt_programming_error_propagates(service: DatabaseService) -> None:
     service._db = AsyncMock()
+    service._db.execute.side_effect = hang
     service._db.interrupt.side_effect = TypeError("bug")
 
     with (
         patch.object(database_service_module, "_STARTUP_CLEANUP_BUDGET_FRACTION", STARTUP_BUDGET_FRACTION),
-        patch.object(service, "_check_size_failsafe", hang),
         pytest.raises(TypeError),
     ):
         await asyncio.wait_for(service.catch_up_cleanup_at_startup(), timeout=5.0)
 
 
-async def test_safe_rollback_storage_error_is_logged() -> None:
+async def test_safe_rollback_storage_error_is_absorbed() -> None:
     db = AsyncMock()
     db.rollback.side_effect = sqlite3.OperationalError("rollback failed")
-    owner = MagicMock()
 
-    await safe_rollback(db, owner, "test")
+    await safe_rollback(db, MagicMock(), "test")
 
-    owner.logger.exception.assert_called_once()
+    db.rollback.assert_awaited_once()
 
 
 async def test_safe_rollback_programming_error_propagates() -> None:

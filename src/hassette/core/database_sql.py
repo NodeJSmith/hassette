@@ -33,7 +33,10 @@ class LoggerOwner(Protocol):
 
 
 async def safe_rollback(db: aiosqlite.Connection, owner: LoggerOwner, context: str) -> None:
-    """Roll back a transaction, logging (not raising) if the rollback itself fails.
+    """Roll back a transaction, logging (not raising) if the rollback fails with a storage error.
+
+    Only ``STORAGE_ERRORS`` from the rollback are logged and absorbed; any other exception
+    propagates, since it points to a bug rather than a failed database.
 
     Callers remain responsible for handling the original exception (re-raising, logging,
     etc.) after this returns -- this only guards the rollback attempt itself. ``owner.logger``

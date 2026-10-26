@@ -45,8 +45,13 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
 
     Does NOT call on_shutdown — leaves worker task and connection management to the test.
     """
+    # Every query reads as an empty database (each PRAGMA returns 0, each DELETE removes 0 rows), so
+    # the startup cleanup catch-up in on_initialize() runs for real and finds nothing to do.
+    cursor = AsyncMock()
+    cursor.fetchone = AsyncMock(return_value=(0,))
+    cursor.rowcount = 0
     mock_conn = AsyncMock()
-    mock_conn.execute = AsyncMock()
+    mock_conn.execute = AsyncMock(return_value=cursor)
     mock_conn.commit = AsyncMock()
     mock_conn.close = AsyncMock()
     # stop() is aiosqlite's *synchronous* counterpart to close() (see stop_connection_sync()) --
@@ -60,11 +65,8 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
     async def fake_connect(*_args: object, **_kwargs: object) -> AsyncMock:
         return mock_conn
 
-    # The startup cleanup catch-up only catches storage errors; against this mock connection its
-    # size arithmetic raises TypeError, so it is stubbed out rather than left to fail.
     with (
         patch.object(service, "run_migrations"),
-        patch.object(service, "catch_up_cleanup_at_startup", AsyncMock()),
         patch("hassette.core.database_service.connect_daemon", side_effect=fake_connect),
     ):
         await service.on_initialize()
