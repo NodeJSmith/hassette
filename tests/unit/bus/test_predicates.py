@@ -423,7 +423,7 @@ def test_value_is_summarize_literal_condition() -> None:
 
 def test_value_is_summarize_callable_condition() -> None:
     """ValueIs.summarize() returns 'custom condition from <source>' for callable conditions."""
-    pred = ValueIs(source=get_state_value_new, condition=lambda v: v > 50)
+    pred = ValueIs(source=get_state_value_new, condition=lambda v: isinstance(v, int) and v > 50)
     result = pred.summarize()
     assert result.startswith("custom condition from")
     assert "get_state_value_new" in result
@@ -482,7 +482,7 @@ def test_predicate_summarize_golden_state_comparison() -> None:
 
 
 def test_predicate_summarize_golden_state_comparison_with_comparison() -> None:
-    assert StateComparison(condition=Comparison(">", 50)).summarize() == "state > 50"
+    assert StateComparison(condition=Comparison(">", 50)).summarize() == "state > 50"  # pyright: ignore[reportArgumentType]
 
 
 @pytest.mark.parametrize(
@@ -509,7 +509,7 @@ def test_predicate_summarize_golden_attr_comparison() -> None:
 
 
 def test_predicate_summarize_golden_attr_comparison_with_comparison() -> None:
-    pred = AttrComparison(attr_name="brightness", condition=Comparison(">=", 200))
+    pred = AttrComparison(attr_name="brightness", condition=Comparison(">=", 200))  # pyright: ignore[reportArgumentType]
     assert pred.summarize() == "attr brightness >= 200"
 
 
@@ -520,7 +520,7 @@ def test_predicate_summarize_golden_value_is_literal() -> None:
 
 def test_predicate_summarize_golden_value_is_callable() -> None:
     """ValueIs with callable condition — exact format: 'custom condition from <source>'."""
-    pred = ValueIs(source=get_state_value_new, condition=lambda v: v > 50)
+    pred = ValueIs(source=get_state_value_new, condition=lambda v: isinstance(v, int) and v > 50)
     assert pred.summarize() == "custom condition from get_state_value_new"
 
 
@@ -590,7 +590,7 @@ def test_predicate_summarize_golden_service_data_where() -> None:
 
 def test_predicate_summarize_golden_service_data_where_callable_condition() -> None:
     """ServiceDataWhere with callable condition uses callable_name() — not memory address."""
-    pred = ServiceDataWhere(spec={"brightness": lambda v: v > 100, "entity_id": "light.kitchen"})
+    pred = ServiceDataWhere(spec={"brightness": lambda v: isinstance(v, int) and v > 100, "entity_id": "light.kitchen"})
     result = pred.summarize()
     assert "0x" not in result
     assert "brightness = <callable>" in result
@@ -664,7 +664,7 @@ def test_predicate_summarize_allof_with_attr_comparison_and_condition() -> None:
     pred = AllOf(
         predicates=(
             EntityMatches("light.office"),
-            AttrComparison(attr_name="brightness", condition=Comparison(">=", 200)),
+            AttrComparison(attr_name="brightness", condition=Comparison(">=", 200)),  # pyright: ignore[reportArgumentType]
         )
     )
     assert pred.summarize() == "(entity light.office and attr brightness >= 200)"

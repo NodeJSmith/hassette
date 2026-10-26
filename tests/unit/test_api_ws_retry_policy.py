@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from tests.unit.conftest import make_api
+from tests.unit.conftest import awaited_kwargs, make_api
 
 # Drains dropped handles after each test — see tests/unit/conftest.py.
 pytestmark = pytest.mark.usefixtures("drain_forgotten_await_handles")
@@ -20,7 +20,7 @@ async def test_fire_event_does_not_retry_on_timeout() -> None:
 
     await api.fire_event("doorbell_pressed", {"zone": "front"})
 
-    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+    assert awaited_kwargs(api.ws_send_and_wait)["retry_on_timeout"] is False
 
 
 @pytest.mark.parametrize(
@@ -33,4 +33,4 @@ async def test_reads_keep_retrying_default(method: str, return_value: object) ->
 
     await getattr(api, method)()
 
-    assert api.ws_send_and_wait.await_args.kwargs.get("retry_on_timeout", True) is True
+    assert awaited_kwargs(api.ws_send_and_wait).get("retry_on_timeout", True) is True

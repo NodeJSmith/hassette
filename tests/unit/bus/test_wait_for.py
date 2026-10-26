@@ -197,6 +197,7 @@ async def test_wait_for_listener_is_once_and_removed_after_firing(bus: "Bus") ->
         listener = registered[0]
         assert listener.invoker.once is True
 
+        assert bus.parent is not None
         key = (bus.parent.app_key, bus.parent.index, "once_check", "test.topic")
         assert key in bus._registered_listeners
 
@@ -466,6 +467,7 @@ async def test_dispatch_once_fire_removal_does_not_double_cancel(bus: "Bus") -> 
         for coro in spawned_coros:
             await coro
 
+        assert listener.db_id is not None
         assert cancelled_db_ids.count(listener.db_id) == 1, (
             "mark_listener_cancelled must be spawned exactly once per once-fire, not once "
             "from the real dispatch removal and again from wait_for's own cleanup"

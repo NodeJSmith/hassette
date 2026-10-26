@@ -1,5 +1,7 @@
 """Unit tests for ListenerOptions sub-struct."""
 
+from typing import Any
+
 import pytest
 
 from hassette.bus.listeners import ListenerOptions
@@ -32,7 +34,7 @@ class TestListenerOptionsConstruction:
             ("priority", 5, 5),
         ],
     )
-    def test_set_field(self, field: str, value: object, expected: object) -> None:
+    def test_set_field(self, field: str, value: Any, expected: object) -> None:
         opts = ListenerOptions(**{field: value})
         assert getattr(opts, field) == expected
 
@@ -53,7 +55,7 @@ class TestListenerOptionsValidation:
             ("timeout", -1.0),
         ],
     )
-    def test_rate_limit_and_timeout_must_be_positive(self, field: str, invalid_value: float) -> None:
+    def test_rate_limit_and_timeout_must_be_positive(self, field: str, invalid_value: Any) -> None:
         with pytest.raises(ValueError, match=field):
             ListenerOptions(**{field: invalid_value})
 
@@ -65,7 +67,7 @@ class TestListenerOptionsValidation:
             ("timeout", 10.0),
         ],
     )
-    def test_positive_values_accepted(self, field: str, valid_value: float) -> None:
+    def test_positive_values_accepted(self, field: str, valid_value: Any) -> None:
         opts = ListenerOptions(**{field: valid_value})
         assert getattr(opts, field) == valid_value
 
@@ -96,7 +98,7 @@ class TestListenerOptionsValidation:
     def test_invalid_mode_string_raises_value_error(self) -> None:
         """An unknown mode string raises ValueError listing the valid execution modes."""
         with pytest.raises(ValueError, match="bogus_mode") as exc_info:
-            ListenerOptions(mode="bogus_mode")
+            ListenerOptions(mode="bogus_mode")  # pyright: ignore[reportArgumentType]
         error_msg = str(exc_info.value)
         assert "single" in error_msg
         assert "restart" in error_msg
