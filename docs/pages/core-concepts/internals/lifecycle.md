@@ -12,9 +12,9 @@ Every concrete `Service` subclass declares `required` in its own class body. A c
 --8<-- "pages/core-concepts/snippets/internals_service_required.py"
 ```
 
-**Required** means Hassette cannot usefully run without the service. If its `serve()` fails after startup, or returns or is cancelled without anyone asking it to stop, the service ends `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]), and Hassette records the reason and shuts down. Hassette also emits a `CRASHED` status event for the service to mark the fatal exit, even when the service's own status is `FAILED`. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
+**Required** means Hassette cannot usefully run without the service. A required service fails when its `serve()` raises after startup, or returns or is cancelled without anyone asking it to stop. The service ends `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]), and Hassette records the reason and shuts down. Hassette also emits a `CRASHED` status event for the service to mark the fatal exit, even when the service's own status is `FAILED`. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
 
-**Optional** means Hassette keeps working without the service. If its `serve()` fails, the service stays `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) — dead in place. Nothing shuts it down or restarts it. Hassette logs one ERROR saying a Hassette restart brings it back, or, for a service owned by an app, that reloading the app does. A `serve()` that simply returns is not a failure: an optional service that returns ends as `STOPPED`.
+**Optional** means Hassette keeps working without the service. If its `serve()` fails, the service stays `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) — dead in place. Nothing shuts it down or restarts it. Hassette logs one ERROR. For a framework service, the message says a Hassette restart brings it back. For a service an app owns, it says reloading the app does. A `serve()` that simply returns is not a failure: an optional service that returns ends as `STOPPED`.
 
 Only a service whose parent is [`Hassette`][hassette.core.core.Hassette] itself can be required. A service is created by its parent's `add_child()`: `Hassette` adds the framework services, and an app adds its own with `self.add_child(MyWatcher)`. `add_child()` rejects a required service under any other parent, so a service an app owns must declare `required = False`. `Service` itself defaults to `required = True`, which is why a subclass must say which one it means.
 
@@ -23,7 +23,7 @@ Only a service whose parent is [`Hassette`][hassette.core.core.Hassette] itself 
 | [`BusService`][hassette.core.bus_service.BusService] | `True` | Core event dispatch |
 | [`SchedulerService`][hassette.core.scheduler_service.SchedulerService] | `True` | Core job execution |
 | `SyncExecutorService` | `True` | Thread pool behind synchronous handlers |
-| [`WebsocketService`][hassette.core.websocket_service.WebsocketService] | `True` | Home Assistant outages never reach this: `serve()` [reconnects in place](../../operating/index.md#websocket-reconnection). It covers failures inside Hassette, such as a crash in message handling |
+| [`WebsocketService`][hassette.core.websocket_service.WebsocketService] | `True` | Home Assistant outages never reach this, since `serve()` [reconnects in place](../../operating/index.md#websocket-reconnection). The flag covers failures inside Hassette, such as a crash in message handling |
 | [`DatabaseService`][hassette.core.database_service.DatabaseService] | `True` | Telemetry and session storage |
 | [`CommandExecutor`][hassette.core.command_executor.CommandExecutor] | `True` | Persists handler and job execution records |
 | [`WebApiService`][hassette.core.web_api_service.WebApiService] | `True` | HTTP API and UI. It also serves the CLI and `/api/health/live`, so a live process with a dead API would leave automations running with no way to observe them |
@@ -31,14 +31,14 @@ Only a service whose parent is [`Hassette`][hassette.core.core.Hassette] itself 
 | `FileWatcherService` | `False` | Config hot-reload |
 | `WebUiWatcherService` | `False` | Web UI live-reload |
 
-A failed start at boot is fatal for any service, required or not: Hassette exits and names each failed service with its error. A startup wave doesn't wait on an optional service whose `serve()` has already ended.
+A failed start at boot is fatal for any service, required or not. Hassette exits and names each failed service with its error. A startup wave doesn't wait on an optional service whose `serve()` has already ended.
 
 !!! warning
-    Run Hassette under a restart policy: the Home Assistant add-on Watchdog, a Docker `restart:` policy, or a systemd `Restart=on-failure` unit. Nothing restarts a crashed service inside the process, so without one a fatal exit leaves Hassette down. See [Fatal exit](../../web-ui/health-endpoints.md#fatal-exit) for policy examples.
+    Nothing restarts a crashed service inside the process, so a fatal exit leaves Hassette down unless a restart policy supervises it: the Home Assistant add-on Watchdog, a Docker `restart:` policy, or a systemd `Restart=on-failure` unit. See [Fatal exit](../../web-ui/health-endpoints.md#fatal-exit) for policy examples.
 
 ### Where the fatal reason goes
 
-The fatal reason is logged and ends up in your supervisor's log: `docker logs`, the add-on log, or `journalctl`. Hassette doesn't read it back at startup, so after a crash loop that log is where you look for why. The telemetry session record keeps the reason as `error_message` only; the traceback stays in the log.
+The fatal reason is logged and lands in the supervisor's log: `docker logs`, the add-on log, or `journalctl`. Hassette doesn't read it back at startup, so after a crash loop that log holds the cause. The telemetry session record keeps the reason as `error_message` only; the traceback stays in the log.
 
 ## Resource State Machine
 
@@ -81,7 +81,7 @@ A wave finishes when every member has completed initialization and signaled read
 
 A failed initialization fails startup immediately. Hassette exits and names each failed service with its error. Startup never retries a failed initialization in-process; the process supervisor restarts Hassette instead.
 
-[`startup_timeout_seconds`](../../operating/index.md#startup-and-shutdown-timeouts) in `[hassette.lifecycle]` bounds each whole wave; the `DatabaseService` wave also gets `migration_timeout_seconds` in `[hassette.database]` on top, so a slow migration isn't cut off. A wave that runs past the timeout fails startup the same way. The log lists each unfinished service, its children's statuses, and the line its initialization is waiting on.
+[`startup_timeout_seconds`](../../operating/index.md#startup-and-shutdown-timeouts) in `[hassette.lifecycle]` bounds each whole wave. The `DatabaseService` wave also gets `migration_timeout_seconds` in `[hassette.database]` on top, so a slow migration isn't cut off. A wave that runs past the timeout fails startup the same way. The log lists each unfinished service, its children's statuses, and the line its initialization is waiting on.
 
 Shutdown runs in reverse order. Services that depended on others stop first. A service in `STOPPING` waits for its children to reach terminal states before completing.
 
