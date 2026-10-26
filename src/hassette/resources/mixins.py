@@ -80,6 +80,13 @@ class LifecycleMixin(_LifecycleHostP):
     each starting their own attempt.
     """
 
+    _logged_failure: BaseException | None = None
+    """The exception the most recent ``handle_failed()`` call logged with its traceback.
+
+    The initialization coordinator's exception observer compares the task's exception against this
+    by identity, so it only demotes a failure ``handle_failed()`` has already reported.
+    """
+
     _pending_start_task: asyncio.Task | None = None
     """``start()``'s own joiner task. Stays set for the entire duration of the joiner's
     ``initialize()`` call -- including the full run of ``_init_task`` once ``coordinate_initialize()``

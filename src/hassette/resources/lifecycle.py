@@ -334,6 +334,7 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
         str(exception),
         exc_info=exception,
     )
+    resource._logged_failure = exception
     resource.status = ResourceStatus.FAILED
     mark_not_ready(resource, "Failed")
     event = create_service_status_event(
@@ -542,17 +543,17 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
         # same failure (see #1826). Every other resource (services, framework internals) has no
         # such outer logger, so it keeps ERROR.
         init_log_level = logging.DEBUG if resource.role == ResourceRole.APP else logging.ERROR
-        # A FAILED status at completion means handle_failed() ran during this attempt
-        # (handle_starting() reset the status to STARTING first) and already logged the
-        # traceback -- see run_hooks() and _initialize_body() -- so this observer drops to DEBUG.
-        # Body failures that bypass handle_failed() (a child's initialize(), a status-event send)
-        # are still logged here at init_log_level.
+        # When the coordinator's exception is the one handle_failed() logged with its traceback
+        # (see run_hooks() and _initialize_body()), this observer drops to DEBUG. Any other
+        # exception -- a body failure that bypasses handle_failed() (a child's initialize(), a
+        # status-event send), or handle_failed()'s own send_event() raising after it logged the
+        # original failure -- is still logged here at init_log_level.
         _install_exception_observer(
             resource,
             init_task,
             "initialization coordinator",
             log_level=init_log_level,
-            already_logged=lambda _exc: resource.status == ResourceStatus.FAILED,
+            already_logged=lambda exc: exc is resource._logged_failure,
         )
         resource._init_task = init_task
 
