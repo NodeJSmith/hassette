@@ -219,7 +219,7 @@ async def flush_queue(executor: "CommandExecutor") -> None:
 
     try:
         await persist_batch(executor, records, shutdown=True)
-    except Exception:
+    except Exception:  # broad: best-effort shutdown flush must not abort shutdown; count the drop and return
         drop_count = len(records)
         executor._dropped_shutdown += drop_count
         executor.logger.error(
@@ -299,7 +299,7 @@ async def persist_batch(
             exc,
         )
 
-    except Exception as exc:
+    except Exception as exc:  # broad: last-resort guard so an unknown DB error can't escape into the writer loop
         # Unknown error — drop and log at ERROR
         drop_count = len(records)
         executor.logger.error(
@@ -419,7 +419,7 @@ async def handle_fk_violation(
             await emit_completion_events(executor, records)
     except TimeoutError as exc:
         await retry_or_drop(executor, records, retry_count, exc, shutdown=shutdown)
-    except Exception as exc:
+    except Exception as exc:  # broad: the row-by-row fallback is the last resort; count the drop rather than raise
         drop_count = len(records)
         executor._dropped_exhausted += drop_count
         executor.logger.error(
@@ -476,5 +476,5 @@ async def emit_completion_events(
                 thread_leaked=record.thread_leaked,
             )
             await executor.hassette.send_event(exec_event)
-    except Exception:
+    except Exception:  # broad: completion events are best-effort; records are already persisted, so never raise
         executor.logger.debug("Failed to emit completion events — ignoring", exc_info=True)

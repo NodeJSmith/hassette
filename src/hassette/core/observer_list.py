@@ -44,5 +44,5 @@ class ObserverList(Generic[T]):
         for observer in self._observers:
             try:
                 await observer(*args)
-            except Exception:
+            except Exception:  # broad: one failing observer must not stop later ones; log and move to the next
                 self._logger.exception("%s observer failed", self._label)
