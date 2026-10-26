@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 
 import pytest
@@ -25,6 +26,7 @@ from tests.support.web_manifest_helpers import make_app_instance_info, make_mani
 from tests.support.web_mocks import create_mock_runtime_query_service
 
 WS_QUEUE_MAX = 256
+SUCCESS = ExecutionStatus.SUCCESS
 
 
 async def assert_flushed_single_message(
@@ -319,23 +321,21 @@ class TestUnwiredBootstrapCoordinator:
     method call on the accessed object.
     """
 
-    def test_get_system_status_tolerates_unwired_bootstrap_coordinator(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
-    ) -> None:
-        type(mock_hassette).app_bootstrap_coordinator = PropertyMock(side_effect=RuntimeError("not wired"))
+    def test_get_system_status_tolerates_unwired_bootstrap_coordinator(self, runtime: RuntimeQueryService) -> None:
+        type(runtime.hassette).app_bootstrap_coordinator = PropertyMock(side_effect=RuntimeError("not wired"))  # pyright: ignore[reportAttributeAccessIssue]
 
         status = runtime.get_system_status()
 
         assert status.bootstrap_released is False
 
     def test_collect_boot_issues_tolerates_unwired_bootstrap_coordinator(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock, tmp_path: Path
+        self, runtime: RuntimeQueryService, tmp_path: Path
     ) -> None:
         registry = AppRegistry()
         manifest = create_app_manifest("unwired", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
-        mock_hassette.app_handler.registry = registry
-        type(mock_hassette).app_bootstrap_coordinator = PropertyMock(side_effect=RuntimeError("not wired"))
+        runtime.hassette.app_handler.registry = registry
+        type(runtime.hassette).app_bootstrap_coordinator = PropertyMock(side_effect=RuntimeError("not wired"))  # pyright: ignore[reportAttributeAccessIssue]
 
         issues = runtime.collect_boot_issues()
 
@@ -349,12 +349,7 @@ class TestCompletionPayloadEnrichment:
         """app_key and instance_index from a handler execution are stored in the pending batch."""
         runtime.broadcast = AsyncMock()
         event = HassetteExecutionCompletedEvent.from_record(
-            kind="handler",
-            listener_id=42,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=5.0,
-            app_key="lights",
-            instance_index=1,
+            kind="handler", listener_id=42, status=SUCCESS, duration_ms=5.0, app_key="lights", instance_index=1
         )
         await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0].app_key == "lights"
@@ -366,7 +361,7 @@ class TestCompletionPayloadEnrichment:
         """app_key and instance_index from a job execution are stored in the pending batch."""
         runtime.broadcast = AsyncMock()
         event = HassetteExecutionCompletedEvent.from_record(
-            kind="job", job_id=99, status=ExecutionStatus.SUCCESS, duration_ms=8.0, app_key="climate", instance_index=2
+            kind="job", job_id=99, status=SUCCESS, duration_ms=8.0, app_key="climate", instance_index=2
         )
         await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0].app_key == "climate"
@@ -378,7 +373,7 @@ class TestCompletionPayloadEnrichment:
         """Events without app_key default to empty string and zero index."""
         runtime.broadcast = AsyncMock()
         event = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=999, status=ExecutionStatus.SUCCESS, duration_ms=5.0
+            kind="handler", listener_id=999, status=SUCCESS, duration_ms=5.0
         )
         await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0].app_key == ""
@@ -394,12 +389,7 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler",
-            listener_id=1,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=10.0,
-            app_key="my_app",
-            instance_index=0,
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app", instance_index=0
         )
         event2 = HassetteExecutionCompletedEvent.from_record(
             kind="handler",
@@ -432,20 +422,10 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
-            kind="job",
-            job_id=10,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=50.0,
-            app_key="scheduler_app",
-            instance_index=0,
+            kind="job", job_id=10, status=SUCCESS, duration_ms=50.0, app_key="scheduler_app", instance_index=0
         )
         event2 = HassetteExecutionCompletedEvent.from_record(
-            kind="job",
-            job_id=11,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=30.0,
-            app_key="scheduler_app",
-            instance_index=0,
+            kind="job", job_id=11, status=SUCCESS, duration_ms=30.0, app_key="scheduler_app", instance_index=0
         )
 
         await runtime.on_execution_completed(event1)
@@ -461,12 +441,7 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock()
 
         event = HassetteExecutionCompletedEvent.from_record(
-            kind="handler",
-            listener_id=3,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=1.0,
-            app_key="app",
-            instance_index=0,
+            kind="handler", listener_id=3, status=SUCCESS, duration_ms=1.0, app_key="app", instance_index=0
         )
         await runtime.on_execution_completed(event)
         assert len(runtime._pending_completions) == 1
@@ -486,15 +461,10 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         handler_event = HassetteExecutionCompletedEvent.from_record(
-            kind="handler",
-            listener_id=1,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=5.0,
-            app_key="my_app",
-            instance_index=0,
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=5.0, app_key="my_app", instance_index=0
         )
         job_event = HassetteExecutionCompletedEvent.from_record(
-            kind="job", job_id=10, status=ExecutionStatus.SUCCESS, duration_ms=8.0, app_key="my_app", instance_index=0
+            kind="job", job_id=10, status=SUCCESS, duration_ms=8.0, app_key="my_app", instance_index=0
         )
 
         await runtime.on_execution_completed(handler_event)
@@ -511,20 +481,10 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler",
-            listener_id=1,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=10.0,
-            app_key="my_app",
-            instance_index=0,
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app", instance_index=0
         )
         event2 = HassetteExecutionCompletedEvent.from_record(
-            kind="job",
-            job_id=10,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=50.0,
-            app_key="scheduler_app",
-            instance_index=0,
+            kind="job", job_id=10, status=SUCCESS, duration_ms=50.0, app_key="scheduler_app", instance_index=0
         )
         await runtime.on_execution_completed(event1)
         await runtime.on_execution_completed(event2)
@@ -543,28 +503,18 @@ class TestCompletionValidation:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         valid1 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler",
-            listener_id=1,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=10.0,
-            app_key="my_app",
-            instance_index=0,
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app", instance_index=0
         )
         malformed = HassetteExecutionCompletedEvent.from_record(
             kind="handler",
             listener_id=2,
-            status=ExecutionStatus.SUCCESS,
+            status=SUCCESS,
             duration_ms="not-a-number",  # pyright: ignore[reportArgumentType]
             app_key="my_app",
             instance_index=0,
         )
         valid2 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler",
-            listener_id=3,
-            status=ExecutionStatus.SUCCESS,
-            duration_ms=30.0,
-            app_key="my_app",
-            instance_index=0,
+            kind="handler", listener_id=3, status=SUCCESS, duration_ms=30.0, app_key="my_app", instance_index=0
         )
 
         await runtime.on_execution_completed(valid1)
@@ -609,11 +559,9 @@ class TestSystemStatus:
         for service in status.services:
             assert isinstance(service.status, ResourceStatus)
 
-    def test_get_system_status_reports_log_drop_counters_independently(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
-    ) -> None:
-        mock_hassette.get_log_queue_drops.return_value = 3
-        mock_hassette.get_db_write_queue_drops.return_value = 7
+    def test_get_system_status_reports_log_drop_counters_independently(self, runtime: RuntimeQueryService) -> None:
+        cast("AsyncMock", runtime.hassette).get_log_queue_drops.return_value = 3
+        cast("AsyncMock", runtime.hassette).get_db_write_queue_drops.return_value = 7
 
         status = runtime.get_system_status()
 
@@ -627,70 +575,60 @@ class TestSystemStatus:
         assert runtime.get_system_status().pending_wait_for_count == 5
 
     def test_system_status_pending_wait_for_count_zero_when_bus_service_unwired(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
+        self, runtime: RuntimeQueryService
     ) -> None:
         """An unwired BusService reports 0 instead of failing the whole health response."""
-        type(mock_hassette).bus_service = PropertyMock(side_effect=RuntimeError("BusService not wired"))
+        type(runtime.hassette).bus_service = PropertyMock(side_effect=RuntimeError("BusService not wired"))  # pyright: ignore[reportAttributeAccessIssue]
 
         assert runtime.get_system_status().pending_wait_for_count == 0
 
-    def test_system_status_ws_connected_reflects_readiness(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
-    ) -> None:
+    def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
         """ws_connected is False when websocket_service.is_connected returns False.
 
         This covers a reconnect in progress: status is RUNNING but the connection
         is not currently established (the WebSocket dropped and serve() is retrying).
         """
-        mock_hassette.websocket_service.is_connected = False
-        status = runtime.get_system_status()
-        assert status.websocket_connected is False
+        cast("AsyncMock", runtime.hassette).websocket_service.is_connected = False
+        assert runtime.get_system_status().websocket_connected is False
 
-    def test_system_status_ws_connected_true_when_ready(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
-    ) -> None:
+    def test_system_status_ws_connected_true_when_ready(self, runtime: RuntimeQueryService) -> None:
         """ws_connected is True when websocket_service.is_connected is True."""
-        mock_hassette.websocket_service.is_connected = True
-        status = runtime.get_system_status()
-        assert status.websocket_connected is True
+        cast("AsyncMock", runtime.hassette).websocket_service.is_connected = True
+        assert runtime.get_system_status().websocket_connected is True
 
-    def test_system_status_degraded_when_has_ever_connected_and_not_ready(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
-    ) -> None:
+    def test_system_status_degraded_when_has_ever_connected_and_not_ready(self, runtime: RuntimeQueryService) -> None:
         """Status is 'degraded' when latch is set and WS is not currently connected."""
-        mock_hassette.websocket_service.is_connected = False
-        mock_hassette.websocket_service.has_ever_connected = True
+        cast("AsyncMock", runtime.hassette).websocket_service.is_connected = False
+        cast("AsyncMock", runtime.hassette).websocket_service.has_ever_connected = True
         status = runtime.get_system_status()
         assert status.status == "degraded"
 
-    def test_system_status_starting_when_never_connected(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
-    ) -> None:
+    def test_system_status_starting_when_never_connected(self, runtime: RuntimeQueryService) -> None:
         """Status is 'starting' when the latch has never been set."""
-        mock_hassette.websocket_service.is_connected = False
-        mock_hassette.websocket_service.has_ever_connected = False
+        cast("AsyncMock", runtime.hassette).websocket_service.is_connected = False
+        cast("AsyncMock", runtime.hassette).websocket_service.has_ever_connected = False
         status = runtime.get_system_status()
         assert status.status == "starting"
 
-    def test_system_status_ok_when_ws_ready(self, runtime: RuntimeQueryService, mock_hassette: AsyncMock) -> None:
+    def test_system_status_ok_when_ws_ready(self, runtime: RuntimeQueryService) -> None:
         """Status is 'ok' when websocket_service.is_connected is True."""
-        mock_hassette.websocket_service.is_connected = True
-        mock_hassette.websocket_service.has_ever_connected = True
+        cast("AsyncMock", runtime.hassette).websocket_service.is_connected = True
+        cast("AsyncMock", runtime.hassette).websocket_service.has_ever_connected = True
         status = runtime.get_system_status()
         assert status.status == "ok"
         assert status.bootstrap_released is True
 
     def test_system_status_degraded_when_connected_but_bootstrap_not_released(
-        self, runtime: RuntimeQueryService, mock_hassette: AsyncMock
+        self, runtime: RuntimeQueryService
     ) -> None:
         """Status is 'degraded' (not 'ok') when WS is connected but app bootstrap hasn't released.
 
         Covers a permanently-failing state sync with a healthy WebSocket connection: without this
         check, get_system_status() would report "ok" forever while every app stays unbootstrapped.
         """
-        mock_hassette.websocket_service.is_connected = True
-        mock_hassette.websocket_service.has_ever_connected = True
-        mock_hassette.app_bootstrap_coordinator.is_released = Mock(return_value=False)
+        cast("AsyncMock", runtime.hassette).websocket_service.is_connected = True
+        cast("AsyncMock", runtime.hassette).websocket_service.has_ever_connected = True
+        runtime.hassette.app_bootstrap_coordinator.is_released = Mock(return_value=False)
 
         status = runtime.get_system_status()
 
