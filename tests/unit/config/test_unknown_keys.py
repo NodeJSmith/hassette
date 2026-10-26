@@ -349,7 +349,7 @@ class TestReload:
     def test_edited_dotenv_value_beats_its_stale_copy_in_os_environ(
         self, cfg: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """startup_tasks copies .env into os.environ; a reload must read the file, not that copy."""
+        """run_startup_tasks() copies .env into os.environ; a reload must read the file, not that copy."""
         live = load(cfg, dotenv="HASSETTE__VERIFY_SSL=true\n")
         monkeypatch.setenv("HASSETTE__VERIFY_SSL", "true")
         (cfg / ".env").write_text("HASSETTE__VERIFY_SSL=false\n", encoding="utf-8")

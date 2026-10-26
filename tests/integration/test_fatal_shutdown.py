@@ -13,12 +13,10 @@ Project rule: no log-capture tests. Assert on FatalError / return value / DB row
 import typing
 from unittest.mock import AsyncMock, Mock, patch
 
-import pytest
-
 from hassette import Hassette
 from hassette.core.session_manager import SESSION_STATUS_FAILURE, SESSION_STATUS_SUCCESS
-from hassette.exceptions import FatalError
-from tests.support.run_forever import stub_run_forever_collaborators
+from hassette.utils.service_utils import WaveOutcome, WaveResult
+from tests.support.run_forever import WAVE_OK, run_forever_expecting_fatal, stub_run_forever_collaborators
 
 
 class TestRunForeverFatalOnCrash:
@@ -36,8 +34,7 @@ class TestRunForeverFatalOnCrash:
 
         hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
 
-        with patch("hassette.core.core.start"), pytest.raises(FatalError):
-            await hassette_instance.run_forever()
+        await run_forever_expecting_fatal(hassette_instance)
 
     async def test_run_forever_returns_normally_on_clean_shutdown(self, hassette_instance: Hassette):
         """When no fatal reason is set, run_forever() returns normally (exit 0 path)."""
@@ -60,19 +57,17 @@ class TestRunForeverFatalOnCrash:
         stubs = stub_run_forever_collaborators(hassette_instance)
         stubs.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
 
-        with patch("hassette.core.core.start"), pytest.raises(FatalError):
-            await hassette_instance.run_forever()
+        await run_forever_expecting_fatal(hassette_instance)
 
         assert hassette_instance.fatal_shutdown_reason is not None
 
     async def test_run_forever_raises_fatal_on_resource_startup_failure(self, hassette_instance: Hassette):
         """Startup failure (resources not ready) branch raises FatalError."""
-        # DB wait succeeds, wave wait fails
+        # DB wave succeeds, the next wave times out
         stubs = stub_run_forever_collaborators(hassette_instance)
-        stubs.wait_for_ready.side_effect = [True, False]
+        stubs.wait_for_wave.side_effect = [WAVE_OK, WaveResult(WaveOutcome.TIMEOUT, (hassette_instance.bus_service,))]
 
-        with patch("hassette.core.core.start"), pytest.raises(FatalError):
-            await hassette_instance.run_forever()
+        await run_forever_expecting_fatal(hassette_instance)
 
         assert hassette_instance.fatal_shutdown_reason is not None
 
@@ -108,8 +103,7 @@ class TestSessionTelemetryOrdering:
 
         hassette_instance.session_manager.cleanup_stale_once_listeners.side_effect = trigger_fatal_shutdown
 
-        with patch("hassette.core.core.start"), pytest.raises(FatalError):
-            await hassette_instance.run_forever()
+        await run_forever_expecting_fatal(hassette_instance)
 
         assert finalize_calls == ["finalized"], (
             "finalize_session must be called (session persisted) before FatalError is raised"

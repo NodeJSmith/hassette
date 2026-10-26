@@ -9,7 +9,7 @@ from hassette_wire import ResourceStatus
 from hassette.events import HassetteServiceEvent
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.exceptions import RestartRefusedError
-from hassette.resources.lifecycle import request_shutdown
+from hassette.resources.lifecycle import create_service_status_event, request_shutdown
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.types.enums import ResourceRole, RestartType
@@ -42,6 +42,9 @@ class ServiceEscalationMixin:
     get_service: "Callable[[str, ResourceRole], Service | None]"
     log_if_admission_blocked: "Callable[[str | None, ResourceRole | None, str], bool]"
     shutdown_safe_sleep: "Callable[[float], Awaitable[bool]]"
+    begin_restart_episode: (
+        "Callable[[str, ResourceRole, str, RestartSpec, Service, ServiceStatusPayload], Awaitable[None]]"
+    )
 
     async def handle_restart_refused(self, name: str, role: ResourceRole, error: RestartRefusedError) -> None:
         """Escalate a typed restart refusal to one fatal outcome.
@@ -187,14 +190,19 @@ class ServiceEscalationMixin:
             return
 
         self.logger.info("%s '%s' cooldown complete, attempting restart", role, name)
-        # A failed cooldown attempt is retried by the FAILED event it produces, which starts a
-        # fresh episode against the budget reset above -- not by a loop here.
+        # A failed cooldown attempt starts a fresh episode against the budget reset above. Its own
+        # FAILED event comes from STARTING, which restart_service() leaves to the attempt's caller,
+        # so the failure is routed here rather than by the event.
         try:
             await restart(service)
         except RestartRefusedError as exc:
             await self.handle_restart_refused(name, role, exc)
         except Exception as exc:
             self.logger.error("%s '%s' restart after cooldown failed: %s", role, name, exc)
+            if self.log_if_admission_blocked(name, role, "failure routing after cooldown restart"):
+                return
+            status_payload = create_service_status_event(service, ResourceStatus.FAILED, exc).payload.data
+            await self.begin_restart_episode(name, role, key, spec, service, status_payload)
 
     async def route_unretryable_failure(
         self,

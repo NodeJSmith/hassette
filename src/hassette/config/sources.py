@@ -2,7 +2,7 @@
 
 `HassetteConfig.__init__` opens a `ConfigBuild` (see `hassette.config.build`) for the duration of
 construction. The sources it creates read process env from the build's snapshot (never the live `os.environ`, which
-``startup_tasks`` mutates), record the raw keys they read so the post-build checks see exactly the
+``run_startup_tasks()`` mutates), record the raw keys they read so the post-build checks see exactly the
 config's inputs, and anchor relative paths: values from a file are relative to that file's
 directory, values from the process env and init kwargs to the working directory.
 """

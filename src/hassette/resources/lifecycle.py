@@ -121,7 +121,7 @@ def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> No
     mark_not_ready(resource, reason or "shutdown requested")
 
 
-def start(resource: _LifecycleHostP) -> None:
+def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
     """Start the instance by spawning its coordinated ``initialize()`` front door in a task.
 
     Performs the same synchronous re-entry and restart-refusal checks the coordinator itself
@@ -152,6 +152,12 @@ def start(resource: _LifecycleHostP) -> None:
     starts (including from the correct future loop thread) and then crash on
     ``resource.hassette.loop`` (``RuntimeError: Event loop is not running``, since ``_loop`` and
     ``_loop_thread_id`` are set together).
+
+    Returns:
+        The task the current initialization attempt runs on, so a caller can join the attempt
+        without starting a new one: the joiner this call spawned, the one a previous call left
+        pending, or the in-flight ``_init_task``. Each raises the attempt's exception when it
+        fails. ``None`` only on cross-thread redispatch, where no task exists yet.
     """
     resource = typing.cast("LifecycleMixin", resource)
 
@@ -168,13 +174,13 @@ def start(resource: _LifecycleHostP) -> None:
                 )
 
         resource.hassette.loop.call_soon_threadsafe(_start_on_loop_thread)
-        return
+        return None
 
     reject_lifecycle_reentry(resource, "start")
 
     if resource._init_task is not None and not resource._init_task.done():
         resource.lifecycle_logger.debug("%s already started or running", resource.unique_name, stacklevel=2)
-        return
+        return resource._init_task
 
     # A second guard, not a duplicate of the one above: _init_task is only assigned once the
     # joiner below actually runs coordinate_initialize(), which can be a turn or more later.
@@ -183,7 +189,7 @@ def start(resource: _LifecycleHostP) -> None:
     # docstring for the shutdown-race this same field also closes.
     if resource._pending_start_task is not None and not resource._pending_start_task.done():
         resource.lifecycle_logger.debug("%s start already pending", resource.unique_name, stacklevel=2)
-        return
+        return resource._pending_start_task
 
     report = resource._teardown_report
     if report is not None and not report.is_restart_safe:
@@ -199,6 +205,7 @@ def start(resource: _LifecycleHostP) -> None:
             resource._pending_start_task = None
 
     joiner.add_done_callback(_clear_pending_start)
+    return joiner
 
 
 def cancel(resource: _LifecycleHostP) -> None:

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hassette.core.core import Hassette
+from hassette.core.startup_tasks import run_startup_tasks
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events import AnyEvent, HassStateDict, RawStateChangeEvent, create_event_from_hass
 from hassette.testing import HassetteHarness
@@ -273,7 +274,7 @@ def run_hassette_startup_tasks(config: "HassetteConfig") -> None:
     """Run Hassette's one-time startup tasks without wiring services.
 
     Creates a bare Hassette (no I/O side effects — only field init and logging
-    setup) and calls startup_tasks(). The instance is intentionally discarded;
-    wire_services() is not called.
+    setup) and calls run_startup_tasks() with its logger. The instance is intentionally
+    discarded; wire_services() is not called.
     """
-    Hassette(config).startup_tasks()
+    run_startup_tasks(config, Hassette(config).logger)

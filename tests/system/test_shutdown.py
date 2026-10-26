@@ -70,7 +70,11 @@ async def test_failed_service_cascade_triggers_fatal_shutdown(ha_container: str,
     """
 
     class _AlwaysFailingService(Service):
-        """A PERMANENT service that always fails on initialize — drives the exhaustion/crash path."""
+        """A PERMANENT service whose serve() always fails — drives the exhaustion/crash path.
+
+        It fails in serve(), not on_initialize(): a failure from STARTING belongs to the initialization
+        attempt's caller, so ServiceWatcher only restarts failures after the handoff (RUNNING -> FAILED).
+        """
 
         restart_spec: ClassVar[RestartSpec] = RestartSpec(
             restart_type=RestartType.PERMANENT,
@@ -78,11 +82,8 @@ async def test_failed_service_cascade_triggers_fatal_shutdown(ha_container: str,
             backoff_base_seconds=0.0,
         )
 
-        async def on_initialize(self) -> None:
-            raise RuntimeError("_AlwaysFailingService always fails")
-
         async def serve(self) -> None:
-            pass  # never reached
+            raise RuntimeError("_AlwaysFailingService always fails")
 
     config = make_system_config(ha_container, tmp_path)
     db_path = config.database.path or (config.data_dir / "hassette.db")
@@ -97,12 +98,12 @@ async def test_failed_service_cascade_triggers_fatal_shutdown(ha_container: str,
             failing_service = _AlwaysFailingService(hassette, parent=hassette)
             hassette.children.append(failing_service)
 
-            # Fail it for real: initialize() moves it to FAILED and emits the FAILED event on the bus.
-            # ServiceWatcher restarts once (budget_intensity=1), then exhausts the budget, records the
-            # fatal reason, emits CRASHED, and triggers shutdown. run_forever() unblocks and raises
-            # FatalError, which startup_context re-raises on context exit.
-            with pytest.raises(RuntimeError, match="always fails"):
-                await failing_service.initialize()
+            # Fail it for real: initialize() succeeds and spawns serve(), which raises, moving the service
+            # RUNNING -> FAILED and emitting the FAILED event on the bus. ServiceWatcher restarts once
+            # (budget_intensity=1), then exhausts the budget, records the fatal reason, emits CRASHED, and
+            # triggers shutdown. run_forever() unblocks and raises FatalError, which startup_context
+            # re-raises on context exit.
+            await failing_service.initialize()
 
             await wait_for(
                 hassette.shutdown_event.is_set,

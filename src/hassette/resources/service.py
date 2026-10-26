@@ -97,11 +97,11 @@ class Service(Resource):
         """Initialize the Service and propagate to children.
 
         NOTE: Unlike Resource._initialize_body(), this method returns while status is
-        still STARTING.  handle_running() is called by _serve_wrapper() when
-        serve() actually begins.  Children MUST NOT call
-        self.parent.wait_ready() during their on_initialize — this will deadlock
-        because the parent's readiness depends on serve() running, which cannot
-        start until child initialization completes.
+        still STARTING.  Spawning serve() is its last step, with no await after it,
+        so _serve_wrapper() sets RUNNING only after the whole body has completed:
+        a failure in the body belongs to the initialization attempt, and a serve()
+        failure never does.  Children and after_initialize() must not wait on this
+        Service's serve() or readiness — serve() cannot start until they return.
 
         Keep child propagation in sync with Resource._initialize_body().
         NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Resource.
@@ -116,12 +116,13 @@ class Service(Resource):
         if self.hassette.shutdown_event.is_set():
             mark_not_ready(self, "shutdown requested during dependency wait")
             return
-        await run_hooks(self, [self._framework_before_hooks, self.before_initialize, self.on_initialize])
-        self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
-        await run_hooks(self, [self.after_initialize])
+        await run_hooks(
+            self, [self._framework_before_hooks, self.before_initialize, self.on_initialize, self.after_initialize]
+        )
         for child in self.children:
             if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
                 await child.initialize()
+        self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
 
     async def _shutdown_body(self) -> TeardownReport:
         """NOTE: keep hook ordering in sync with Resource._shutdown_body()."""

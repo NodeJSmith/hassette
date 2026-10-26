@@ -38,8 +38,8 @@ from hassette.resources.restart import RestartSpec
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.testing import wait_for
-from hassette.utils.service_utils import topological_sort, validate_dependency_graph
-from tests.support.run_forever import stub_run_forever_collaborators
+from hassette.utils.service_utils import WaveOutcome, WaveResult, topological_sort, validate_dependency_graph
+from tests.support.run_forever import WAVE_OK, run_forever_expecting_fatal, stub_run_forever_collaborators
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -168,19 +168,19 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
         await wait_for(lambda: mock_start.called, desc="run_forever started")
         await task
 
-    # Phase 1: DB started first
-    mock_start.assert_any_call(hassette_instance.database_service)
+    # Phase 1: DB started first, alone
+    assert mock_start.call_args_list[0].args == (hassette_instance.database_service,)
     # Phase 2: remaining resources started after session creation (wave-by-wave)
     for child in hassette_instance.children:
         if child is not hassette_instance.database_service:
             mock_start.assert_any_call(child)
-    # wait_for_ready called: once for DB, then once per startup wave.
-    assert stubs.wait_for_ready.await_count >= 2
+    # The wave wait runs once for the DB's own wave, then once per startup wave. The DB wave's bound
+    # adds the migration budget to the startup budget.
+    assert stubs.wait_for_wave.await_count >= 2
+    first_wave_attempts, first_wave_timeout = stubs.wait_for_wave.await_args_list[0].args
+    assert list(first_wave_attempts) == [hassette_instance.database_service]
     config = hassette_instance.config
-    stubs.wait_for_ready.assert_any_await(
-        [hassette_instance.database_service],
-        timeout=config.lifecycle.startup_timeout_seconds + config.database.migration_timeout_seconds,
-    )
+    assert first_wave_timeout == config.lifecycle.startup_timeout_seconds + config.database.migration_timeout_seconds
     # Session created between phase 1 and phase 2
     stubs.mark_orphaned_sessions.assert_awaited_once()
     stubs.create_session.assert_awaited_once()
@@ -234,17 +234,17 @@ async def test_run_forever_waits_for_migration_longer_than_startup_timeout(hasse
     config.lifecycle = config.lifecycle.model_copy(update={"startup_timeout_seconds": 0.2})
     config.database = config.database.model_copy(update={"migration_timeout_seconds": 5})
 
-    real_wait_for_ready = hassette_instance.wait_for_ready
+    real_wait_for_wave = hassette_instance._wait_for_wave  # coordinator-internal
     stubs = stub_run_forever_collaborators(hassette_instance)
     assert stubs.shutdown is not None
     db = hassette_instance.database_service
 
-    async def wait_for_ready(resources: list[Resource], timeout: float | None = None) -> bool:
-        if resources == [db]:
-            return await real_wait_for_ready(resources, timeout=timeout)
-        return True
+    async def wait_for_wave(attempts: dict[Resource, asyncio.Task[None] | None], timeout: float) -> WaveResult:
+        if list(attempts) == [db]:
+            return await real_wait_for_wave(attempts, timeout)
+        return WAVE_OK
 
-    stubs.wait_for_ready.side_effect = wait_for_ready
+    stubs.wait_for_wave.side_effect = wait_for_wave
 
     async def mark_orphaned_sessions() -> None:
         # The real session manager needs an open database; fail the way it would if the
@@ -274,27 +274,64 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
     assert stubs.shutdown is not None
     stubs.mark_orphaned_sessions.side_effect = RuntimeError("db broke")
 
-    with patch("hassette.core.core.start"), pytest.raises(FatalError):
-        await hassette_instance.run_forever()
+    await run_forever_expecting_fatal(hassette_instance)
 
     stubs.mark_orphaned_sessions.assert_awaited_once()
     stubs.create_session.assert_not_awaited()
     stubs.shutdown.assert_awaited()
 
 
-async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
-    """run_forever triggers shutdown and raises FatalError when resources fail to become ready."""
-    # DB wait succeeds (True), all-children wait fails (False)
+async def test_run_forever_fails_startup_when_wave_times_out(hassette_instance: Hassette) -> None:
+    """run_forever triggers shutdown and raises FatalError when a startup wave times out."""
+    # DB wave succeeds, the next wave times out
     stubs = stub_run_forever_collaborators(hassette_instance)
     assert stubs.shutdown is not None
-    stubs.wait_for_ready.side_effect = [True, False]
+    stubs.wait_for_wave.side_effect = [WAVE_OK, WaveResult(WaveOutcome.TIMEOUT, (hassette_instance.bus_service,))]
 
-    with patch("hassette.core.core.start"), pytest.raises(FatalError):
-        await hassette_instance.run_forever()
+    await run_forever_expecting_fatal(hassette_instance)
 
-    assert stubs.wait_for_ready.await_count == 2
+    assert stubs.wait_for_wave.await_count == 2
     stubs.shutdown.assert_awaited_once()
     assert hassette_instance.ready_event.is_set(), "Ready event was not set"
+
+
+async def test_run_forever_fails_startup_when_wave_attempt_fails(hassette_instance: Hassette) -> None:
+    """A failed initialization attempt in a startup wave is fatal and names the resource."""
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    failed = WaveResult(WaveOutcome.FAILED, (hassette_instance.bus_service,), (RuntimeError("stream closed"),))
+    stubs.wait_for_wave.side_effect = [WAVE_OK, failed]
+
+    await run_forever_expecting_fatal(hassette_instance)
+
+    assert hassette_instance.fatal_shutdown_reason == (
+        "startup failure: failed to initialize: BusService (RuntimeError: stream closed)"
+    )
+
+
+async def test_run_forever_exits_cleanly_on_shutdown_during_wave(hassette_instance: Hassette) -> None:
+    """A shutdown requested while a wave is starting tears down without a fatal reason."""
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    assert stubs.shutdown is not None
+    stubs.wait_for_wave.side_effect = [WAVE_OK, WaveResult(WaveOutcome.SHUTDOWN)]
+
+    with patch("hassette.core.core.start"):
+        await hassette_instance.run_forever()
+
+    assert hassette_instance.fatal_shutdown_reason is None
+    stubs.shutdown.assert_awaited_once()
+
+
+async def test_run_forever_fails_startup_when_database_wave_fails(hassette_instance: Hassette) -> None:
+    """The database service's own wave failing is fatal before session tracking starts."""
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    stubs.wait_for_wave.return_value = WaveResult(WaveOutcome.FAILED, (hassette_instance.database_service,), (None,))
+
+    await run_forever_expecting_fatal(hassette_instance)
+
+    assert (
+        hassette_instance.fatal_shutdown_reason == "startup failure: failed to initialize: DatabaseService (cancelled)"
+    )
+    stubs.mark_orphaned_sessions.assert_not_awaited()
 
 
 async def test_run_forever_cleans_up_detectors_when_db_start_fails(hassette_instance: Hassette) -> None:

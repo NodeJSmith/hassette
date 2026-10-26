@@ -278,26 +278,6 @@ class TestCooldownAndRetry:
 
             mock_restart.assert_not_called()
 
-    async def test_restart_exception_after_cooldown_is_caught(self) -> None:
-        """A service.restart() failure after cooldown is logged, not propagated."""
-        hassette = make_watcher_hassette()
-        watcher = make_watcher(hassette)
-        dummy = DummyService(hassette)
-        hassette.children = [dummy]
-
-        spec = RestartSpec(
-            restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
-        )
-        key = watcher.service_key(dummy.class_name, dummy.role)
-
-        with patch(
-            "hassette.core.service_watcher_escalation.restart", side_effect=RuntimeError("restart blew up")
-        ) as mock_restart:
-            # Should not raise even though restart() failed.
-            await watcher.cooldown_and_retry(dummy.class_name, dummy.role, key, spec)
-
-            mock_restart.assert_awaited_once_with(dummy)
-
     async def test_skips_restart_when_service_gone_after_cooldown(self) -> None:
         """If the service disappears during cooldown, restart is skipped without error."""
         hassette = make_watcher_hassette()
@@ -341,6 +321,40 @@ class TestGetService:
         hassette.children = [not_a_service]
 
         assert watcher.get_service("DummyService", ResourceRole.SERVICE) is None
+
+
+class TestRestartServiceInitFailures:
+    """An initialization failure (STARTING -> FAILED) belongs to the attempt's caller, not the watcher."""
+
+    async def test_drops_failure_from_starting(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        dummy._status = ResourceStatus.FAILED
+        hassette.children = [dummy]
+        spawn = Mock(side_effect=lambda coro, **_kw: coro.close())
+        watcher.task_bucket.spawn = spawn
+
+        await watcher.restart_service(make_service_failed_event(dummy, previous_status=ResourceStatus.STARTING))
+
+        spawn.assert_not_called()
+        key = watcher.service_key(dummy.class_name, dummy.role)
+        assert key not in watcher._restarting
+        assert key not in watcher._budgets
+
+    async def test_restarts_failure_from_running(self) -> None:
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+        dummy = DummyService(hassette)
+        dummy._status = ResourceStatus.FAILED
+        hassette.children = [dummy]
+        spawn = Mock(side_effect=lambda coro, **_kw: coro.close())
+        watcher.task_bucket.spawn = spawn
+
+        await watcher.restart_service(make_service_failed_event(dummy, previous_status=ResourceStatus.RUNNING))
+
+        spawn.assert_called_once()
+        assert watcher.service_key(dummy.class_name, dummy.role) in watcher._restarting
 
 
 class TestRestartServiceNoServiceFound:

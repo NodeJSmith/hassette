@@ -5,7 +5,10 @@ Verifies:
 - Empty children: returns immediately without error
 - Timeout: raises TimeoutError with diagnostic listing
 - Shutdown during wait: raises TimeoutError
+- Failed child initialization: raises at once, chained from the child's exception
 """
+
+import asyncio
 
 import pytest
 
@@ -29,6 +32,14 @@ class ReadyOnInit(Resource):
         mark_ready(self, "initialized")
 
 
+class FailsOnInit(Resource):
+    """Child whose initialization raises after it already marked itself ready."""
+
+    async def on_initialize(self) -> None:
+        mark_ready(self, "initialized")
+        raise ValueError("bad config")
+
+
 class NeverReady(Resource):
     """Child that never signals readiness."""
 
@@ -36,9 +47,12 @@ class NeverReady(Resource):
         pass
 
 
-async def test_all_children_become_ready():
-    hassette = make_mock_hassette(sealed=False)
-    parent = Parent(hassette)
+@pytest.fixture
+def parent() -> Parent:
+    return Parent(make_mock_hassette(sealed=False))
+
+
+async def test_all_children_become_ready(parent: Parent):
     parent.add_child(ReadyOnInit)
     parent.add_child(ReadyOnInit)
 
@@ -47,18 +61,13 @@ async def test_all_children_become_ready():
     assert all(c.is_ready() for c in parent.children)
 
 
-async def test_empty_children_is_noop():
-    hassette = make_mock_hassette(sealed=False)
-    parent = Parent(hassette)
-
+async def test_empty_children_is_noop(parent: Parent):
     await start_children_and_wait(parent, timeout=1.0)
 
     assert parent.children == []
 
 
-async def test_timeout_raises_with_diagnostics():
-    hassette = make_mock_hassette(sealed=False)
-    parent = Parent(hassette)
+async def test_timeout_raises_with_diagnostics(parent: Parent):
     parent.add_child(ReadyOnInit)
     parent.add_child(NeverReady)
 
@@ -66,12 +75,20 @@ async def test_timeout_raises_with_diagnostics():
         await start_children_and_wait(parent, timeout=0.1)
 
 
-async def test_shutdown_during_wait_raises():
-    hassette = make_mock_hassette(sealed=False)
-    parent = Parent(hassette)
+async def test_shutdown_during_wait_raises(parent: Parent):
     parent.add_child(NeverReady)
 
-    hassette.shutdown_event.set()
+    parent.hassette.shutdown_event.set()
 
     with pytest.raises(TimeoutError, match="shutdown during wait"):
         await start_children_and_wait(parent, timeout=1.0)
+
+
+async def test_failed_child_raises_without_waiting_for_timeout(parent: Parent):
+    parent.add_child(ReadyOnInit)
+    parent.add_child(FailsOnInit)
+
+    with pytest.raises(RuntimeError, match=r"failed to initialize: FailsOnInit \(ValueError: bad config\)") as exc_info:
+        await asyncio.wait_for(start_children_and_wait(parent, timeout=60.0), timeout=5.0)
+
+    assert isinstance(exc_info.value.__cause__, ValueError)

@@ -4,7 +4,6 @@ import typing
 from contextlib import suppress
 from typing import Any
 
-from dotenv import load_dotenv
 from hassette_wire import ResourceStatus
 
 import hassette.utils.date_utils as date_utils
@@ -16,7 +15,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS, SESSION_FINALIZE_TIMEOUT_SECONDS
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
-from hassette.exceptions import AppPrecheckFailedError, FatalError
+from hassette.exceptions import FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, start
@@ -30,8 +29,17 @@ from hassette.resources.teardown import (
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.utils.app_utils import app_startup_warnings, run_apps_pre_check
-from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
+from hassette.utils.service_utils import (
+    WaveOutcome,
+    WaveResult,
+    describe_wave_failure,
+    describe_wave_members,
+    topological_levels,
+    topological_sort,
+    validate_dependency_graph,
+    wait_for_ready,
+    wait_for_wave,
+)
 from hassette.utils.version_utils import get_version
 
 from .api_resource import ApiResource
@@ -52,6 +60,7 @@ from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
 from .service_watcher import ServiceWatcher
 from .session_manager import SessionManager
+from .startup_tasks import run_startup_tasks
 from .state_proxy import StateProxy
 from .sync_executor import SyncExecutor
 from .sync_executor_service import SyncExecutorService
@@ -171,43 +180,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # Tier 1 loop-responsiveness watchdog — installed in run_forever(), torn down in before_shutdown().
         self._loop_watchdog: LoopWatchdog | None = None
 
-    def startup_tasks(self) -> None:
-        """Perform one-time startup tasks.
-
-        These were originally on the `HassetteConfig` class but we do not want these called
-        when the config is reloaded, only on initial startup.
-        """
-        # one time startup tasks
-        if self.config.import_dot_env_files:
-            for env_file in self.config.env_files:
-                if env_file.exists():
-                    self.logger.debug("Loading environment variables from %s", env_file)
-                    load_dotenv(env_file)
-
-        self.config.set_validated_app_manifests()
-
-        config_files = sorted(self.config.toml_files | self.config.env_files)
-        self.logger.info("Config files read: %s", ", ".join(map(str, config_files)) or "none", stacklevel=3)
-
-        self.logger.info("Apps directory: %s", self.config.apps.directory, stacklevel=3)
-        for warning in app_startup_warnings(self.config.apps, config_files=config_files, cwd=self.config.locations.cwd):
-            self.logger.warning(warning, stacklevel=3)
-
-        active_apps = [app for app in self.config.apps.manifests.values() if app.enabled]
-        self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
-
-        inactive_apps = [app for app in self.config.apps.manifests.values() if not app.enabled]
-        if inactive_apps:
-            self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
-
-        try:
-            run_apps_pre_check(self.config)
-        except AppPrecheckFailedError:
-            if not self.config.allow_startup_if_app_precheck_fails:
-                self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
-                raise
-            self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
-
     def wire_services(self) -> None:
         """Register context variables, wire all services, and validate the dependency graph.
 
@@ -227,7 +199,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         context.set_global_hassette(self)
         context.set_global_hassette_config(self.config)
 
-        self.startup_tasks()
+        run_startup_tasks(self.config, self.logger)
 
         self._sync_executor_service = self.add_child(SyncExecutorService)
 
@@ -405,83 +377,53 @@ class Hassette(HassetteAccessorsMixin, Resource):
                 executor=self._command_executor,
             )
 
-        # on_initialize() and database_service.start() run AFTER the watchdog + Tier 2 guard are
-        # installed but BEFORE the managed startup try below. A raise here would otherwise skip
-        # before_shutdown(), leaking the watchdog daemon thread and the process-global monkeypatches
-        # into the process. Route any failure through shutdown() so both detectors are torn down.
+        # on_initialize() runs AFTER the watchdog + Tier 2 guard are installed but BEFORE the
+        # managed startup below. A raise here would otherwise skip before_shutdown(), leaking the
+        # watchdog daemon thread and the process-global monkeypatches into the process. Route any
+        # failure through shutdown() so both detectors are torn down.
         try:
             await self.on_initialize()
-
-            # Phase 1: Start database and create session before anything else.
-            # This guarantees a valid session_id exists before any handler can fire.
-            start(self.database_service)
         except Exception:
             self.logger.exception("Startup failed during initialization")
-            self.record_fatal_reason("startup failure: initialization raised before service startup")
-            await self.shutdown()
-            self._raise_if_fatal_shutdown()
+            await self._fail_startup("startup failure: initialization raised before service startup")
             return
 
-        # The database phase runs migrations under their own, longer bound, so it waits for the
-        # migration budget on top of the normal startup budget (which covers the rest of its
-        # initialization). Bounding it by startup_timeout_seconds alone would let a short startup
-        # timeout cut every slow migration off, and a supervisor restart would re-run it forever.
+        self.logger.debug("Waiting for resources to initialize...")
+
+        # The database service starts as a wave of its own, and session tracking is created as soon
+        # as it is up: this guarantees a valid session_id exists before any handler can fire.
+        # Its wave runs migrations under their own, longer bound, so it waits for the migration
+        # budget on top of the normal startup budget (which covers the rest of its initialization).
+        # Bounding it by startup_timeout_seconds alone would let a short startup timeout cut every
+        # slow migration off, and a supervisor restart would re-run it forever.
         db_startup_timeout = (
             self.config.lifecycle.startup_timeout_seconds + self.config.database.migration_timeout_seconds
         )
+        if not await self._start_wave([self.database_service], db_startup_timeout):
+            return
         try:
-            await self.wait_for_ready([self.database_service], timeout=db_startup_timeout)
-            if self._session_manager is None:
-                raise service_not_wired_error("SessionManager")
-            await self._session_manager.mark_orphaned_sessions()
-            await self._session_manager.create_session()
+            await self.session_manager.mark_orphaned_sessions()
+            await self.session_manager.create_session()
         except Exception:
             self.logger.exception("Failed to initialize session tracking")
-            self.record_fatal_reason("startup failure: session tracking initialization failed")
-            await self.shutdown()
-            self._raise_if_fatal_shutdown()
+            await self._fail_startup("startup failure: session tracking initialization failed")
             return
-
-        # Phase 2: Start remaining children wave-by-wave.  Each wave's deps
-        # are guaranteed ready before the wave begins, so _auto_wait_dependencies
-        # returns immediately (kept as defense-in-depth for restarts).
-        self.logger.debug("Waiting for resources to initialize...")
         self.ready_event.set()
-        type_to_instance = {type(c): c for c in self.children}
-        already_started: set[int] = {id(self.database_service)}
 
+        # Each later wave's deps are ready before it begins, so _auto_wait_dependencies returns
+        # immediately (kept as defense-in-depth for restarts).
+        type_to_instance = {type(c): c for c in self.children}
         for wave_types in self._init_waves:
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
-            wave = [c for c in wave if id(c) not in already_started]
-            if not wave:
-                continue
-            for child in wave:
-                start(child)
-            started = await self.wait_for_ready(wave, timeout=self.config.lifecycle.startup_timeout_seconds)
-            if not started:
-                if self.shutdown_event.is_set():
-                    # Shutdown was requested while this wave was still starting — that is a
-                    # shutdown, not a resource startup failure.  It happens when a clean/operator
-                    # shutdown (or a crash that already recorded its reason) lands before the later
-                    # waves finish, including the common case where a caller stops the instance
-                    # right after readiness is signalled.  Route to teardown; _raise_if_fatal_shutdown
-                    # raises only when a fatal reason was recorded, so a clean shutdown exits 0.
-                    await self.shutdown()
-                    self._raise_if_fatal_shutdown()
-                    return
-                not_ready = [r.class_name for r in wave if not r.is_ready()]
-                self.logger.error("The following resources failed to start: %s", ", ".join(not_ready))
-                self.logger.error("Not all resources started successfully, shutting down")
-                self.record_fatal_reason(f"startup failure: required resources did not start: {', '.join(not_ready)}")
-                await self.shutdown()
-                self._raise_if_fatal_shutdown()
+            wave = [c for c in wave if c is not self.database_service]
+            if wave and not await self._start_wave(wave):
                 return
 
         # Clean up stale once=True listeners from previous sessions. Safe to run here
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
         # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that
         # has current-session invocations still in the write queue.
-        await self._session_manager.cleanup_stale_once_listeners()
+        await self.session_manager.cleanup_stale_once_listeners()
 
         # does not take into consideration if apps failed to load, but those errors would have been logged already
         self.logger.info("All services started successfully.")
@@ -501,6 +443,65 @@ class Hassette(HassetteAccessorsMixin, Resource):
             await self.shutdown()
 
         self.logger.info("Hassette stopped.")
+        self._raise_if_fatal_shutdown()
+
+    async def _start_wave(self, wave: list[Resource], timeout: float | None = None) -> bool:
+        """Start one startup wave and wait for it, for ``timeout`` seconds.
+
+        ``timeout`` defaults to ``lifecycle.startup_timeout_seconds``.
+
+        Returns True once the wave has started, and False after tearing down when a shutdown was
+        requested mid-wave. A failed or timed-out wave raises ``FatalError`` (via ``_fail_startup()``).
+
+        A boot-time start failure is fatal whatever the resource's restart spec: the wave joins its
+        members' initialization attempts (spec 134 D1), so a failure fails startup at once and the
+        external supervisor restarts the process. ``ServiceWatcher`` leaves those failures to the wave.
+        """
+        if timeout is None:
+            timeout = self.config.lifecycle.startup_timeout_seconds
+        # run_forever() runs on the loop thread, so start() always returns the attempt's task here.
+        attempts: dict[Resource, asyncio.Task[None] | None] = {}
+        for member in wave:
+            try:
+                attempts[member] = start(member)
+            except Exception:
+                self.logger.exception("Failed to start %s", member.class_name)
+                await self._fail_startup(f"startup failure: could not start: {member.class_name}")
+                return False
+
+        result = await self._wait_for_wave(attempts, timeout)
+        if result.outcome is WaveOutcome.OK:
+            return True
+        if result.outcome is WaveOutcome.SHUTDOWN:
+            # Shutdown was requested while this wave was still starting — that is a shutdown, not a
+            # resource startup failure. It happens when a clean/operator shutdown (or a crash that
+            # already recorded its reason) lands before the later waves finish, including the common
+            # case where a caller stops the instance right after readiness is signalled.
+            # _raise_if_fatal_shutdown raises only when a fatal reason was recorded, so a clean
+            # shutdown exits 0.
+            await self.shutdown()
+            self._raise_if_fatal_shutdown()
+            return False
+
+        # The attempt's own exception observer already logged a FAILED wave's traceback at ERROR; the
+        # reason carries each cause so the exit message and session record name it too.
+        reason = describe_wave_failure(result, timeout)
+        self.logger.error("%s, shutting down\n%s", reason, describe_wave_members(result.resources))
+        await self._fail_startup(reason)
+        return False
+
+    async def _wait_for_wave(self, attempts: dict[Resource, asyncio.Task[None] | None], timeout: float) -> WaveResult:
+        """Wait for one startup wave; see ``wait_for_wave()``. A method so tests can stub the wait."""
+        return await wait_for_wave(attempts, timeout=timeout, shutdown_event=self.shutdown_event)
+
+    async def _fail_startup(self, reason: str) -> None:
+        """Record a fatal startup reason, tear down, and raise ``FatalError``.
+
+        Callers still ``return`` after it: ``_raise_if_fatal_shutdown()`` raises because a reason
+        was just recorded, but nothing types that.
+        """
+        self.record_fatal_reason(reason)
+        await self.shutdown()
         self._raise_if_fatal_shutdown()
 
     @property

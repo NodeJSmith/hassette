@@ -290,12 +290,14 @@ async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path])
 def make_service_failed_event(
     service: "Service",
     exception: Exception | None = None,
+    previous_status: ResourceStatus | None = None,
 ) -> HassetteServiceEvent:
     """Create a HassetteServiceEvent with FAILED status for testing."""
     return HassetteServiceEvent.from_service_status(
         resource_name=service.class_name,
         role=service.role,
         status=ResourceStatus.FAILED,
+        previous_status=previous_status,
         exception=exception or Exception("test"),
     )
 

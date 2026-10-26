@@ -179,8 +179,8 @@ async def test_init_propagation_runs_before_handle_running():
     assert parent.status == ResourceStatus.RUNNING
 
 
-async def test_service_init_propagation_after_serve_spawn():
-    """Service child init runs after serve task is spawned."""
+async def test_service_init_propagation_before_serve_spawn():
+    """Service child init runs before the serve task is spawned (spec 134 D7)."""
     hassette = make_mock_hassette(sealed=False)
     parent_svc = SimpleServiceWithServeFlag(hassette)
 
@@ -189,18 +189,18 @@ async def test_service_init_propagation_after_serve_spawn():
     await parent_svc.initialize()
     await wait_for_running(parent_svc)
 
-    assert child.parent_serve_task_exists is True, "Child should see serve task during init"
+    assert child.parent_serve_task_exists is False, "serve() must start only after child initialization"
 
     # Cleanup
     await parent_svc.shutdown()
 
 
 async def test_service_status_is_starting_before_serve_task_runs():
-    """Service._initialize_body() spawns the serve task with status still STARTING.
+    """Service._initialize_body() runs with status still STARTING, up to spawning the serve task.
 
     Unlike Resource._initialize_body() which calls handle_running() at the end,
-    Service defers handle_running() to _serve_wrapper(). This is intentional:
-    Services are ready when serve() actually starts, not when the initialize body returns.
+    Service defers handle_running() to _serve_wrapper(), whose task the body spawns as its
+    last step (spec 134 D7): RUNNING lands only after the whole body has completed.
 
     ``initialize()`` itself is now the coordinator front door: it runs ``_initialize_body()``
     in its own owned ``_init_task`` (every initialization path, including a direct
@@ -221,12 +221,12 @@ async def test_service_status_is_starting_before_serve_task_runs():
     async def _capture_before_serve_spawn() -> None:
         statuses_during_body.append(svc.status)
 
-    svc.after_initialize = _capture_before_serve_spawn  # runs after serve task spawn, before body returns
+    svc.after_initialize = _capture_before_serve_spawn  # the body's last hook, before serve is spawned
 
     await svc.initialize()
 
     assert statuses_during_body == [ResourceStatus.STARTING], (
-        f"Service body should still be STARTING right after spawning serve(), got {statuses_during_body}"
+        f"Service body should still be STARTING before spawning serve(), got {statuses_during_body}"
     )
 
     # Cleanup

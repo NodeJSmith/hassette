@@ -40,7 +40,10 @@ repeated Codex finding.
 ## Restart Episode Ownership
 `execute_restart()` in `src/hassette/core/service_watcher.py` holds a service's
 `_restarting` key for its whole restart episode, and `restart_service()` drops
-FAILED events for services no longer in FAILED. Does every path that retries,
+FAILED events for services no longer in FAILED and for failures from STARTING.
+A failure from STARTING belongs to the attempt's caller, so does every caller
+that starts an attempt (the startup wave in `core.py`, `attempt_restart()`,
+`cooldown_and_retry()`) route its own failure? Does every path that retries,
 exhausts, or changes a supervised service's status keep the key held until the
 service has left FAILED, so a FAILED event delivered during an `await` cannot
 start a second episode or run `handle_exhaustion()` twice? Does anything other

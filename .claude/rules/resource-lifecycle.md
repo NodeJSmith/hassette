@@ -37,6 +37,12 @@ Resources that deviate from these rules, and why:
 - **`WebUiWatcherService`** — `on_initialize()` when hot reload is disabled (then parks `serve()`), `serve()` when enabled.
 - **`FileWatcherService`** — `on_initialize()` when `watch_files` is disabled (then parks `serve()` on `shutdown_event`), `serve()` when enabled.
 
+## Start order and who owns a start failure
+
+`Service._initialize_body()` spawns the serve task as its last step, after `after_initialize()` and child initialization, so RUNNING means the whole body completed (spec 134 D1, D7). A Service's children and `after_initialize()` must not wait on that Service's `serve()` or readiness: serve can't start until they return, so the wait hangs the attempt. At boot that surfaces as the wave timing out.
+
+A failure from STARTING belongs to the attempt's caller: at boot, `Hassette._start_wave()`, which joins each member's attempt (the task `start()` returns) and its readiness through `wait_for_wave()` and fails startup on any failure; mid-restart, `attempt_restart()`. `ServiceWatcher.restart_service()` drops STARTING→FAILED events and restarts only failures after the handoff (RUNNING→FAILED).
+
 ## Teardown reports
 
 Every successful `Resource`/`Service` shutdown attempt returns an immutable `TeardownReport` (`teardown.py`), and `resource.teardown_report` exposes the current unconsumed one. When the coordinator itself raises outside the shutdown body (observing a pending initializer, requesting shutdown), it stores that report before re-raising instead of returning it — `await resource.shutdown()` raises in that case, so read `resource.teardown_report` after catching the exception to see the same evidence a normal completion would have returned.

@@ -15,7 +15,7 @@ from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, r
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound, tighten_shutdown_deadline
 from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
 from hassette.types.enums import ResourceRole
-from hassette.utils.service_utils import wait_for_ready
+from hassette.utils.service_utils import WaveOutcome, describe_children, describe_wave_causes, wait_for_wave
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -33,37 +33,42 @@ if typing.TYPE_CHECKING:
 
 
 async def start_children_and_wait(resource: "Resource", timeout: float | None = None) -> None:
-    """Start all children concurrently and block until they are ready.
+    """Start all children concurrently and block until each has initialized and is ready.
 
     All children are started simultaneously — ``depends_on`` ordering is
     not enforced. Use ``Hassette.run_forever()`` for wave-based startup.
+    Like a startup wave there, the wait joins each child's initialization
+    attempt, so a failed child fails the wait at once.
 
     Args:
         resource: The resource whose children should be started.
-        timeout: Seconds to wait for readiness. ``None`` uses
+        timeout: Seconds to wait for initialization and readiness. ``None`` uses
             ``config.startup_timeout_seconds``.
 
     Raises:
+        RuntimeError: If any child's initialization fails; chained from the
+            first failure.
         TimeoutError: If any child is not ready within the timeout or
             if shutdown is requested during the wait.
     """
     if not resource.children:
         return
 
-    for child in resource.children:
-        start(child)
+    attempts = {child: start(child) for child in resource.children}
 
     effective_timeout = timeout if timeout is not None else resource.hassette.config.lifecycle.startup_timeout_seconds
-    ready = await wait_for_ready(
-        resource.children, timeout=effective_timeout, shutdown_event=resource.hassette.shutdown_event
-    )
-    if not ready:
-        child_statuses = ", ".join(f"{c.class_name}({c.status.value})" for c in resource.children)
-        if resource.hassette.shutdown_event.is_set():
-            reason = f"shutdown during wait after {effective_timeout}s; child statuses: {child_statuses}"
-        else:
-            reason = f"timed out after {effective_timeout}s; child statuses: {child_statuses}"
-        raise TimeoutError(f"Children of {resource.class_name} did not become ready: {reason}")
+    result = await wait_for_wave(attempts, timeout=effective_timeout, shutdown_event=resource.hassette.shutdown_event)
+    if result.outcome is WaveOutcome.OK:
+        return
+    child_statuses = describe_children(resource)
+    if result.outcome is WaveOutcome.FAILED:
+        causes = describe_wave_causes(result)
+        raise RuntimeError(f"Children of {resource.class_name} failed to initialize: {causes}") from result.errors[0]
+    if result.outcome is WaveOutcome.SHUTDOWN:
+        reason = f"shutdown during wait after {effective_timeout}s; child statuses: {child_statuses}"
+    else:
+        reason = f"timed out after {effective_timeout}s; child statuses: {child_statuses}"
+    raise TimeoutError(f"Children of {resource.class_name} did not become ready: {reason}")
 
 
 async def restart(resource: "Resource") -> None:
