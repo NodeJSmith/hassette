@@ -35,7 +35,7 @@ def make_filter(
 
 
 def make_no_payload_event() -> AnyEvent:
-    return Event(topic="hass.state_changed", payload=None)
+    return Event(topic="hass.state_changed", payload=None)  # pyright: ignore[reportArgumentType]
 
 
 @dataclass(slots=True, frozen=True)
