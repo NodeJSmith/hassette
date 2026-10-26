@@ -129,6 +129,8 @@ class LoggingService(Resource):
             # logger emitted them.
             self.capture_handler.set_min_notify_level(persistence_level)
         except Exception:
+            # Persistence is optional: any failure here must not abort the logging pipeline, so log it
+            # and continue console + capture only.
             self.logger.exception("Failed to create persistence handler — logs will not be persisted")
             self.persistence_handler = None
             # Nothing will be persisted, so no hint could ever be followed by a successful fetch.
@@ -177,6 +179,7 @@ class LoggingService(Resource):
                     _QUEUE_LISTENER_STOP_TIMEOUT_SECONDS,
                 )
             except Exception:
+                # Shutdown must continue to close the persistence handler below, whatever stop() raised.
                 self.logger.warning("QueueListener.stop() raised an exception during shutdown", exc_info=True)
 
         if self.persistence_handler is not None:

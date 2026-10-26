@@ -420,6 +420,8 @@ def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExec
                 _make_method_wrapper(label, original, loop_thread_id, hassette, executor),
             )
     except Exception:
+        # Broad on purpose: any failure mid-install must not leave the process half-patched.
+        # It re-raises, so nothing is swallowed.
         uninstall()  # restore whatever was already patched, then re-raise
         raise
     return True
