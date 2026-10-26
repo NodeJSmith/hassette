@@ -98,7 +98,8 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     0 disables the size failsafe."""
 
     migration_timeout_seconds: int = Field(default=120, ge=10)
-    """Maximum seconds to wait for SQL schema migrations to complete at startup."""
+    """Maximum seconds to wait for SQL schema migrations to complete at startup. The database startup
+    phase waits this long on top of ``lifecycle.startup_timeout_seconds``."""
 
     write_queue_max: int = Field(default=2000, ge=1)
     """Maximum pending coroutines in the DatabaseService write queue. Bounds memory growth

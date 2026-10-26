@@ -240,7 +240,12 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 
         self.logger.debug("Running database migrations for %s", self._db_path)
         timeout = self.hassette.config.database.migration_timeout_seconds
-        await asyncio.wait_for(asyncio.to_thread(self.run_migrations), timeout=timeout)
+        try:
+            await asyncio.wait_for(asyncio.to_thread(self.run_migrations), timeout=timeout)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"Database migrations did not finish within {timeout}s (database.migration_timeout_seconds)"
+            ) from exc
 
         self._db = await connect_daemon(self._db_path, isolation_level=None)
         self._db.row_factory = aiosqlite.Row

@@ -165,7 +165,7 @@ Hassette starts its internal components — database, WebSocket connection, bus,
 
 | Field | Default | Caps |
 |---|---|---|
-| `startup_timeout_seconds` | 30s | Each startup wave. Must be ≥ `app_startup_timeout_seconds`, since app readiness is part of a wave. |
+| `startup_timeout_seconds` | 30s | Each startup wave. Must be ≥ `app_startup_timeout_seconds`, since app readiness is part of a wave. The database wave also gets `database.migration_timeout_seconds` on top, so a slow migration isn't cut short. |
 | `app_startup_timeout_seconds` | 20s | A single app's `on_initialize`. A slow app times out individually without failing the whole wave budget. |
 | `shutdown_timeout_seconds` | 10s | Each shutdown hook: an app's `before_shutdown`, `on_shutdown` and `after_shutdown`, and each framework component's. |
 | `total_shutdown_timeout_seconds` | 45s | The entire shutdown. Must be more than the foundation stage's fixed 20 seconds. |
