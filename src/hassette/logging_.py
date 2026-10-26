@@ -27,6 +27,7 @@ from hassette.logging_processors import (
     extract_record_fields,
     persisted_exc_text,
     persisted_message,
+    record_timestamper,
     resolve_exc_info,
     stack_info_to_stack,
     structlog_event_dict,
@@ -680,18 +681,21 @@ def enable_basic_logging(
 
     use_json = not out.isatty() if log_format == "auto" else log_format == "json"
 
+    # The compact format is read live on narrow screens, where the date is noise.
+    timestamp_fmt = "%H:%M:%S" if log_format == "compact" else "iso"
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        # The compact format is read live on narrow screens, where the date is noise.
-        structlog.processors.TimeStamper(fmt="%H:%M:%S" if log_format == "compact" else "iso", utc=False),
-        add_execution_id,
     ]
 
     structlog.configure(
         processors=[
             *shared_processors,
+            # Stamps the current time, which is the caller's time only in the native chain. A stdlib record is
+            # stamped from its own creation time instead (see foreign_pre_chain below).
+            structlog.processors.TimeStamper(fmt=timestamp_fmt, utc=False),
+            add_execution_id,
             # Native chain only: it runs in the caller's frame, and the formatter runs on the log queue's
             # listener thread in Phase 2. Stdlib records capture their stack and exception at creation;
             # stack_info_to_stack moves the stack to the same ``stack`` key.
@@ -713,7 +717,8 @@ def enable_basic_logging(
         output_processors = [console_identity, console_renderer(compact=False)]
 
     formatter = structlog.stdlib.ProcessorFormatter(
-        foreign_pre_chain=shared_processors,
+        # Runs on the log queue's listener thread in Phase 2, so the time comes from the record, not the clock.
+        foreign_pre_chain=[*shared_processors, record_timestamper(timestamp_fmt), add_execution_id],
         processors=[
             extract_record_fields,
             stack_info_to_stack,
