@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import aiosqlite
 import pytest
+from hassette_wire import ExecutionStatus
 
 import hassette.core.telemetry.repository as telemetry_repository_module
 from hassette.core.execution_record import ExecutionRecord
@@ -78,7 +79,7 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=10.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
     )
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([handler_rec, job_rec])
@@ -120,7 +121,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=5.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
     )
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
@@ -129,6 +130,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
+    assert row is not None
     assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
@@ -152,7 +154,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=10.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
     )
 
     dropped = await telemetry_repo.persist_execution_batch_with_fk_fallback([record])
@@ -161,6 +163,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
+    assert row is not None
     assert row[0] == 0, "Row should be dropped — null FK violates CHECK constraint"
 
 
@@ -180,7 +183,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=5.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
     )
 
     original_execute = telemetry_db.execute
@@ -218,7 +221,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=10.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
     )
 
     original_execute = telemetry_db.execute
@@ -264,7 +267,7 @@ async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=5.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
     )
 
     original_execute = telemetry_db.execute
@@ -305,6 +308,7 @@ async def test_persist_execution_batch_rollback_on_exception(
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
+    assert row is not None
     assert row[0] == 0, "No rows should be committed after rollback"
 
 
@@ -340,6 +344,7 @@ async def test_insert_blocking_event_drops_row_on_storage_error(
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM blocking_events")
     row = await cursor.fetchone()
+    assert row is not None
     assert row[0] == 0
 
 

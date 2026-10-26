@@ -311,6 +311,7 @@ async def test_once_true_upserts_by_name_topic(
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM listeners WHERE name = ?", (ONCE_LISTENER_NAME,))
     row = await cursor.fetchone()
+    assert row is not None
     assert row["count"] == 1, "Upsert should produce a single row, not two inserts"
 
 

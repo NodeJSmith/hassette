@@ -5,6 +5,7 @@ set_connection_state() validation, and the transitions serve() and cleanup() wri
 """
 
 import asyncio
+from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -166,7 +167,7 @@ class TestConnectionStateLogging:
 class TestStartupUrlLogging:
     async def test_initialize_logs_both_resolved_urls(self, websocket_service: WebsocketService) -> None:
         """Both URLs are reported before any connection attempt, so a wrong base_url path is visible on failure."""
-        websocket_service.hassette.rest_url = "http://supervisor/core/api/"
+        cast("AsyncMock", websocket_service.hassette).rest_url = "http://supervisor/core/api/"
         websocket_service.logger = Mock()
 
         await websocket_service.on_initialize()

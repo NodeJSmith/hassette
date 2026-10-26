@@ -55,6 +55,7 @@ from ._fixtures_telemetry import (
 )
 from ._fixtures_websocket import (
     cleanup_disconnected,
+    last_sent_msg_id,
     run_cleanup,
     stub_refused_attempts,
     websocket_service,
@@ -80,6 +81,7 @@ __all__ = [
     "init_executor",
     "insert_committed_execution",
     "insert_new_session",
+    "last_sent_msg_id",
     "lifecycle_service",
     "make_app_instance",
     "make_blocking_io_hassette",

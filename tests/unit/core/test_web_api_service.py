@@ -5,12 +5,13 @@ import ipaddress
 import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient
 
+from hassette.config.models import WebApiConfig
 from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.web_api_service import WebApiService
@@ -24,7 +25,7 @@ from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
 def _make_web_api_service(
     unused_tcp_port_factory, tmp_path, *, logging: dict[str, Any] | None = None, **web_api_overrides: Any
 ) -> WebApiService:
-    web_api_config = {"port": unused_tcp_port_factory(), **web_api_overrides}
+    web_api_config = WebApiConfig(port=unused_tcp_port_factory(), **web_api_overrides)
     logging_kwargs: dict[str, Any] = {} if logging is None else {"logging": logging}
     config = HassetteTestConfig(web_api=web_api_config, data_dir=tmp_path, **logging_kwargs)
     hassette = Hassette(config)
@@ -197,7 +198,7 @@ class TestTrustedProxyRefreshScheduling:
 
         await service.on_initialize()
 
-        mock_scheduler = service.scheduler
+        mock_scheduler = cast("MagicMock", service.scheduler)
         mock_scheduler.run_every.assert_awaited_once()
         call = mock_scheduler.run_every.call_args
         assert call.args[0] == service._refresh_trusted_proxies
@@ -226,7 +227,7 @@ class TestTrustedProxyRefreshScheduling:
 
         assert service.is_ready()
         assert service._trusted_proxies.hostname_entries["caddy"] == frozenset()
-        service.scheduler.run_every.assert_awaited_once()
+        cast("MagicMock", service.scheduler).run_every.assert_awaited_once()
 
     async def test_reinitialize_during_dns_outage_keeps_previous_resolution(
         self, unused_tcp_port_factory, tmp_path
@@ -281,7 +282,7 @@ class TestTokenResolution:
         assert service._resolved_auth_token is None
         assert not (tmp_path / TOKEN_FILENAME).exists()
         assert service._trusted_proxies is EMPTY_TRUSTED_PROXY_SET
-        service.scheduler.run_every.assert_not_awaited()
+        cast("MagicMock", service.scheduler).run_every.assert_not_awaited()
 
 
 class TestSchedulerServiceDependency:

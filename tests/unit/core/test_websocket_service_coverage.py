@@ -12,6 +12,7 @@ branches, and a handful of one-line property delegations.
 import asyncio
 import logging
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -26,7 +27,7 @@ from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_con
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
-from .conftest import cleanup_disconnected, run_cleanup
+from .conftest import cleanup_disconnected, last_sent_msg_id, run_cleanup
 
 SECRET_VALUE = "hunter2-do-not-log"
 
@@ -110,7 +111,7 @@ class TestSendAndWaitCallerProvidedId:
         result = await websocket_service.send_and_wait(type="subscribe_events", id=99)
 
         assert result == {"ok": True}
-        sent_id = websocket_service.send_json.await_args.kwargs["id"]
+        sent_id = last_sent_msg_id(websocket_service)
         assert sent_id == 99
 
 
@@ -239,7 +240,7 @@ class TestCleanup:
 
         assert websocket_service._recv_task is None
         assert recv_task.cancelled()
-        fake_ws.close.assert_awaited_once()
+        cast("MagicMock", fake_ws).close.assert_awaited_once()
         fake_session.close.assert_awaited_once()
 
     async def test_cleanup_unsubscribe_loop_actually_reaches_the_socket(
@@ -266,11 +267,13 @@ class TestCleanup:
 
         await run_cleanup(websocket_service)
 
-        assert fake_ws.send_json.await_count == 2, (
+        assert cast("MagicMock", fake_ws).send_json.await_count == 2, (
             "expected send_json to actually reach the websocket for each subscription, not be "
             "swallowed by the send-ready gate closing too early"
         )
-        sent_subscriptions = {call.args[0]["subscription"] for call in fake_ws.send_json.await_args_list}
+        sent_subscriptions = {
+            call.args[0]["subscription"] for call in cast("MagicMock", fake_ws).send_json.await_args_list
+        }
         assert sent_subscriptions == {1, 2}
 
 
@@ -430,13 +433,11 @@ class TestDispatchSuppressesErrors:
         self, websocket_service: WebsocketService
     ) -> None:
         """dispatch() does not propagate exceptions raised while handling an 'event' message."""
+        failing_dispatch = AsyncMock(side_effect=RuntimeError("boom"))
+        with patch.object(websocket_service, "dispatch_hass_event", failing_dispatch):
+            await websocket_service.dispatch({"type": "event", "event": {}})  # must not raise
 
-        async def failing_dispatch_hass_event(_data):
-            raise RuntimeError("boom")
-
-        websocket_service.dispatch_hass_event = failing_dispatch_hass_event
-
-        await websocket_service.dispatch({"type": "event", "event": {}})  # must not raise
+        failing_dispatch.assert_awaited_once()
 
     async def test_dispatch_failure_log_omits_message_payload(self, websocket_service: WebsocketService) -> None:
         """dispatch()'s failure log names the message type, id, and exception type, never payload values.

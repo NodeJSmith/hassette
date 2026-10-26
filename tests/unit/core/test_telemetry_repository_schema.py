@@ -10,6 +10,7 @@ import time
 
 import aiosqlite
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.reconcile_sql import build_delete_query, build_retire_query
@@ -42,7 +43,7 @@ async def test_persist_execution_batch_inserts_handler_records(
             session_id=telemetry_session_id,
             execution_start_ts=now + 1,
             duration_ms=10.0,
-            status="error",
+            status=ExecutionStatus.ERROR,
             error_type="ValueError",
             error_message="oops",
             error_traceback="Traceback...",
@@ -55,7 +56,7 @@ async def test_persist_execution_batch_inserts_handler_records(
         "SELECT status, duration_ms, kind FROM executions WHERE listener_id = ? ORDER BY execution_start_ts",
         (listener_id,),
     )
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert len(rows) == 2
     assert rows[0]["status"] == "success"
     assert rows[0]["kind"] == "handler"
@@ -82,7 +83,7 @@ async def test_persist_execution_batch_inserts_job_records(
             session_id=telemetry_session_id,
             execution_start_ts=now,
             duration_ms=20.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
         ),
     ]
 
@@ -96,7 +97,7 @@ async def test_persist_execution_batch_inserts_job_records(
         "SELECT status, job_id, kind FROM executions WHERE job_id = ?",
         (job_id,),
     )
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert len(rows) == 1
     assert rows[0]["status"] == "success"
     assert rows[0]["job_id"] == job_id
@@ -113,6 +114,7 @@ async def test_persist_execution_batch_handles_empty_list(
 
     cursor = await telemetry_db.execute("SELECT COUNT(*) AS count FROM executions")
     row = await cursor.fetchone()
+    assert row is not None
     assert row["count"] == 0
 
 
@@ -137,14 +139,14 @@ async def test_persist_execution_batch_unified(
             session_id=telemetry_session_id,
             execution_start_ts=now + 1,
             duration_ms=15.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
         ),
     ]
 
     await telemetry_repo.persist_execution_batch(records)
 
     cursor = await telemetry_db.execute("SELECT kind, listener_id, job_id FROM executions ORDER BY execution_start_ts")
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert len(rows) == 2
     assert rows[0]["kind"] == "handler"
     assert rows[0]["listener_id"] == listener_id
@@ -157,7 +159,7 @@ async def test_persist_execution_batch_unified(
 async def test_schema_has_name_column(telemetry_db: aiosqlite.Connection) -> None:
     """Listeners table includes the name column (NOT NULL in unified schema)."""
     cursor = await telemetry_db.execute("PRAGMA table_info(listeners)")
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     column_names = [row["name"] for row in rows]
     assert "name" in column_names
 
@@ -165,12 +167,12 @@ async def test_schema_has_name_column(telemetry_db: aiosqlite.Connection) -> Non
 async def test_schema_has_retired_at_column(telemetry_db: aiosqlite.Connection) -> None:
     """Both listeners and scheduled_jobs have a retired_at column."""
     cursor = await telemetry_db.execute("PRAGMA table_info(listeners)")
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     listener_columns = [row["name"] for row in rows]
     assert "retired_at" in listener_columns
 
     cursor = await telemetry_db.execute("PRAGMA table_info(scheduled_jobs)")
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     job_columns = [row["name"] for row in rows]
     assert "retired_at" in job_columns
 
@@ -192,11 +194,11 @@ async def test_unique_index_enforced(telemetry_db: aiosqlite.Connection) -> None
 async def test_active_views_exist(telemetry_db: aiosqlite.Connection) -> None:
     """SELECT * FROM active_listeners and active_scheduled_jobs succeeds."""
     cursor = await telemetry_db.execute("SELECT * FROM active_listeners")
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert rows == []
 
     cursor = await telemetry_db.execute("SELECT * FROM active_scheduled_jobs")
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
     assert rows == []
 
 

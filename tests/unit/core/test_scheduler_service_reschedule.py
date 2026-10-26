@@ -17,7 +17,7 @@ Tests cover:
 
 import asyncio
 import inspect
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -90,12 +90,12 @@ class TestRescheduleNoneRemovesJob:
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # reset call counts after construction
-        svc._job_queue.add.reset_mock()
+        cast("MagicMock", svc._job_queue).add.reset_mock()
 
         await svc.dispatch_and_log(job)
 
-        svc._job_queue.remove_job.assert_called_once_with(job)
-        svc._job_queue.add.assert_not_called()
+        cast("MagicMock", svc._job_queue).remove_job.assert_called_once_with(job)
+        cast("MagicMock", svc._job_queue).add.assert_not_called()
         assert job.schedule_status is ScheduleStatus.COMPLETED
         assert job.schedule_status_reason is None
         assert job.next_run is None
@@ -109,7 +109,7 @@ class TestRescheduleNoneRemovesJob:
         assert job.schedule_status is ScheduleStatus.COMPLETED
         trig.next_run_time.assert_called_once()
         # The current due fire still runs even though the job completed.
-        svc.run_job_with_guard.assert_called_once()
+        cast("AsyncMock", svc.run_job_with_guard).assert_called_once()
 
 
 class TestRescheduleExceptionRemovesJob:
@@ -120,14 +120,14 @@ class TestRescheduleExceptionRemovesJob:
         svc = make_scheduler_service()
         _trig, job = await dispatch_with_trigger(svc, next_raises=RuntimeError("bad trigger"))
 
-        svc._job_queue.remove_job.assert_called_once_with(job)
+        cast("MagicMock", svc._job_queue).remove_job.assert_called_once_with(job)
         assert job.schedule_status is ScheduleStatus.COMPLETED
         assert job.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
-        svc.logger.exception.assert_called_once()
-        svc.run_job_with_guard.assert_called_once()
+        cast("MagicMock", svc.logger).exception.assert_called_once()
+        cast("AsyncMock", svc.run_job_with_guard).assert_called_once()
 
         # Verify the log message contains db_id, callable name, trigger repr context
-        call_args = svc.logger.exception.call_args
+        call_args = cast("MagicMock", svc.logger).exception.call_args
         log_msg = call_args[0][0]
         assert "db_id" in log_msg
         assert "callable" in log_msg
@@ -154,8 +154,8 @@ class TestRescheduleRecurring:
         await svc.dispatch_and_log(job)
 
         # Job should have been re-enqueued (not removed)
-        svc._job_queue.remove_job.assert_not_called()
-        svc._job_queue.add.assert_called_once_with(job)
+        cast("MagicMock", svc._job_queue).remove_job.assert_not_called()
+        cast("MagicMock", svc._job_queue).add.assert_called_once_with(job)
 
         # next_run should be updated
         assert job.next_run != original_run
@@ -189,6 +189,7 @@ class TestJitter:
         assert job.next_run == future_time.round("second")
 
         # sort_index[0] should be > job.next_run.timestamp(unit="nanosecond") due to jitter
+        assert job.next_run is not None
         expected_min_nanos = job.next_run.timestamp(unit="nanosecond")
         actual_sort_nanos = job.sort_index[0]
         assert actual_sort_nanos > expected_min_nanos, (
@@ -202,6 +203,7 @@ class TestJitter:
 
         _trig, job = await dispatch_with_trigger(svc, next_returns=future_time, jitter=None)
 
+        assert job.next_run is not None
         assert job.sort_index[0] == job.next_run.timestamp(unit="nanosecond")
 
     async def test_fire_at_defaults_to_next_run_without_jitter(self) -> None:
@@ -326,7 +328,7 @@ class TestEnqueueThenRegisterUsesProtocol:
             captured_registrations.append(reg)
             return 42  # fake db_id
 
-        svc._executor.register_job = _fake_register_job
+        cast("MagicMock", svc._executor).register_job = _fake_register_job
 
         trigger = Every(hours=1)
         now = date_utils.now()
@@ -386,6 +388,7 @@ class TestEnqueueThenRegisterUsesProtocol:
         assert reg.trigger_detail is None
 
         # Added to the live registry, independent of heap membership.
+        assert job.db_id is not None
         assert svc._jobs_by_id[job.db_id] is job
         # Never touches the heap — only SCHEDULED jobs are enqueued.
         svc._job_queue.add.assert_not_called()
@@ -453,15 +456,16 @@ class TestNonFutureGuard:
         _trig, job = await dispatch_with_trigger(svc, next_returns=past_time)
 
         # Job should be re-enqueued (not removed — trigger didn't return None)
-        svc._job_queue.remove_job.assert_not_called()
-        svc._job_queue.add.assert_called_once_with(job)
+        cast("MagicMock", svc._job_queue).remove_job.assert_not_called()
+        cast("MagicMock", svc._job_queue).add.assert_called_once_with(job)
 
         # next_run should have been advanced past now
+        assert job.next_run is not None
         assert (job.next_run - date_utils.now()).total("seconds") > 0, (
             f"Expected next_run to be future, got delta={job.next_run - date_utils.now()}"
         )
         # A warning must have been logged
-        svc.logger.warning.assert_called_once()
+        cast("MagicMock", svc.logger).warning.assert_called_once()
 
 
 class TestAddJobDbFailure:
@@ -477,7 +481,7 @@ class TestAddJobDbFailure:
         async def _failing_register_job(_reg):
             raise RuntimeError("DB unavailable")
 
-        svc._executor.register_job = _failing_register_job
+        cast("MagicMock", svc._executor).register_job = _failing_register_job
 
         trigger = Every(hours=1)
         job = Job(
@@ -493,7 +497,7 @@ class TestAddJobDbFailure:
             await svc.add_job(job)
 
         # Job must NOT be enqueued when registration fails
-        svc._job_queue.add.assert_not_called()
+        cast("MagicMock", svc._job_queue).add.assert_not_called()
 
 
 class TestBehindScheduleWarning:
@@ -533,15 +537,15 @@ class TestBehindScheduleWarning:
         with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=base_time):
             await svc.run_job(job)
 
-        svc.logger.warning.assert_not_called()
+        cast("MagicMock", svc.logger).warning.assert_not_called()
 
         # Case 2: run_job called 90s after fire_at (> 60s threshold) — warning expected
-        svc.logger.warning.reset_mock()
+        cast("MagicMock", svc.logger).warning.reset_mock()
         late_time = base_time.add(seconds=90)
         with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=late_time):
             await svc.run_job(job)
 
-        svc.logger.warning.assert_called_once()
+        cast("MagicMock", svc.logger).warning.assert_called_once()
 
     async def test_manual_trigger_mode_skips_lag_calculation_even_with_pending_fire_at(self) -> None:
         """A manually-submitted job with a concrete (pending automatic) fire_at must not
@@ -568,15 +572,15 @@ class TestBehindScheduleWarning:
         with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=late_time):
             await svc.run_job(job, trigger_mode="manual")
 
-        svc.logger.warning.assert_not_called()
+        cast("MagicMock", svc.logger).warning.assert_not_called()
 
         # Sanity check: the same fire_at with trigger_mode=None (automatic) DOES warn —
         # confirms the gate is on trigger_mode, not a change to the underlying calculation.
-        svc.logger.warning.reset_mock()
+        cast("MagicMock", svc.logger).warning.reset_mock()
         with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=late_time):
             await svc.run_job(job, trigger_mode=None)
 
-        svc.logger.warning.assert_called_once()
+        cast("MagicMock", svc.logger).warning.assert_called_once()
 
 
 class TestPersistScheduleStatus:
@@ -595,7 +599,7 @@ class TestPersistScheduleStatus:
         assert job.next_run is not None
         assert job.fire_at is not None
         assert job.next_run <= job.fire_at <= job.next_run.add(seconds=30)
-        svc._executor.mark_job_status.assert_awaited_once_with(
+        cast("MagicMock", svc._executor).mark_job_status.assert_awaited_once_with(
             42,
             "scheduled",
             None,
@@ -608,21 +612,25 @@ class TestPersistScheduleStatus:
         svc = make_scheduler_service()
         await dispatch_with_trigger(svc, next_returns=None, db_id=42, jitter=30.0)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", None, **CLEARED_TIMING)
+        cast("MagicMock", svc._executor).mark_job_status.assert_awaited_once_with(
+            42, "completed", None, **CLEARED_TIMING
+        )
 
     async def test_dispatch_trigger_error_branch_clears_timing(self) -> None:
         svc = make_scheduler_service()
         await dispatch_with_trigger(svc, next_raises=RuntimeError("bad trigger"), db_id=42, jitter=30.0)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(42, "completed", "trigger_error", **CLEARED_TIMING)
+        cast("MagicMock", svc._executor).mark_job_status.assert_awaited_once_with(
+            42, "completed", "trigger_error", **CLEARED_TIMING
+        )
 
     async def test_dispatch_waiting_branch_clears_timing(self) -> None:
         svc = make_scheduler_service()
         _trig, job = await dispatch_with_trigger(svc, next_returns=WAITING, db_id=42, jitter=30.0)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(42, "waiting", None, **CLEARED_TIMING)
+        cast("MagicMock", svc._executor).mark_job_status.assert_awaited_once_with(42, "waiting", None, **CLEARED_TIMING)
         assert job.schedule_status is ScheduleStatus.WAITING
-        svc._job_queue.remove_job.assert_called_once_with(job)
+        cast("MagicMock", svc._job_queue).remove_job.assert_called_once_with(job)
 
     async def test_reschedule_job_scheduled_to_waiting_clears_timing(self) -> None:
         svc = make_scheduler_service()
@@ -631,7 +639,7 @@ class TestPersistScheduleStatus:
 
         await svc.reschedule_job(job, WAITING)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(7, "waiting", None, **CLEARED_TIMING)
+        cast("MagicMock", svc._executor).mark_job_status.assert_awaited_once_with(7, "waiting", None, **CLEARED_TIMING)
 
     async def test_reschedule_job_waiting_transition_clears_timing(self) -> None:
         svc = make_scheduler_service()
@@ -640,7 +648,7 @@ class TestPersistScheduleStatus:
 
         await svc.reschedule_job(job, WAITING)
 
-        svc._executor.mark_job_status.assert_awaited_once_with(7, "waiting", None, **CLEARED_TIMING)
+        cast("MagicMock", svc._executor).mark_job_status.assert_awaited_once_with(7, "waiting", None, **CLEARED_TIMING)
 
     async def test_reschedule_job_scheduled_transition_persists_timing(self) -> None:
         svc = make_scheduler_service()
@@ -652,7 +660,7 @@ class TestPersistScheduleStatus:
 
         assert job.next_run is not None
         assert job.fire_at is not None
-        svc._executor.mark_job_status.assert_awaited_once_with(
+        cast("MagicMock", svc._executor).mark_job_status.assert_awaited_once_with(
             7,
             "scheduled",
             None,

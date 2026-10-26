@@ -8,6 +8,7 @@ guards, cooldown abort/failure paths, and service lookup.
 """
 
 import asyncio
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -72,8 +73,10 @@ class TestRegisterInternalEventListeners:
 
         await watcher.register_internal_event_listeners()
 
-        assert watcher.bus.on.await_count == 5
-        registered_by_name = {call.kwargs["name"]: call.kwargs for call in watcher.bus.on.await_args_list}
+        assert cast("MagicMock", watcher.bus).on.await_count == 5
+        registered_by_name = {
+            call.kwargs["name"]: call.kwargs for call in cast("MagicMock", watcher.bus).on.await_args_list
+        }
 
         topic = str(Topic.HASSETTE_EVENT_SERVICE_STATUS)
         expected_names = {
@@ -118,7 +121,9 @@ class TestRegisterInternalEventListeners:
         watcher = make_watcher(hassette)
 
         await watcher.register_internal_event_listeners()
-        registered_by_name = {call.kwargs["name"]: call.kwargs for call in watcher.bus.on.await_args_list}
+        registered_by_name = {
+            call.kwargs["name"]: call.kwargs for call in cast("MagicMock", watcher.bus).on.await_args_list
+        }
 
         where = registered_by_name[handler_name]["where"]
         service_event = HassetteServiceEvent.from_service_status(

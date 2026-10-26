@@ -11,6 +11,7 @@ propagation on the ``hassette`` logger, which would blind caplog.
 """
 
 import asyncio
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -27,7 +28,10 @@ from hassette.exceptions import (
 )
 from hassette.testing._ws_mocks import build_fake_ws
 
-from .conftest import cleanup_disconnected, run_cleanup
+from .conftest import cleanup_disconnected, last_sent_msg_id, run_cleanup
+
+if TYPE_CHECKING:
+    from types import SimpleNamespace
 
 # Both paths that fail pending sends when a connection goes away: reconnect and full shutdown.
 TEARDOWNS = [
@@ -62,7 +66,7 @@ async def _timed_out_write(websocket_service: WebsocketService, **data) -> int:
     """Send a non-retried command that times out; return the msg id it went out under."""
     with pytest.raises(ResponseTimeoutError):
         await websocket_service.send_and_wait(retry_on_timeout=False, **data)
-    return websocket_service.send_json.await_args.kwargs["id"]
+    return last_sent_msg_id(websocket_service)
 
 
 class TestResponseTimeout:
@@ -75,7 +79,7 @@ class TestResponseTimeout:
         with pytest.raises(ResponseTimeoutError) as exc_info:
             await websocket_service.send_and_wait(type="fire_event", event_type="doorbell", retry_on_timeout=False)
 
-        assert websocket_service.send_json.await_count == 1
+        assert cast("AsyncMock", websocket_service.send_json).await_count == 1
         exc = exc_info.value
         assert isinstance(exc, OutcomeUnknownError)
         assert isinstance(exc, FailedMessageError)
@@ -95,7 +99,7 @@ class TestResponseTimeout:
         ):
             await websocket_service.send_and_wait(type="get_states")
 
-        assert websocket_service.send_json.await_count == attempts
+        assert cast("AsyncMock", websocket_service.send_json).await_count == attempts
 
     async def test_message_names_type_id_and_timeout_without_payload_values(
         self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
@@ -108,7 +112,7 @@ class TestResponseTimeout:
                 type="input_text/create", name="WiFi", initial="hunter2", retry_on_timeout=False
             )
 
-        msg_id = websocket_service.send_json.await_args.kwargs["id"]
+        msg_id = last_sent_msg_id(websocket_service)
         msg = str(exc_info.value)
         assert "input_text/create" in msg
         assert str(msg_id) in msg
@@ -146,7 +150,7 @@ class TestResponseLost:
         with pytest.raises(ResponseLostError) as exc_info:
             await websocket_service.send_and_wait(type="get_states")
 
-        assert websocket_service.send_json.await_count == 1
+        assert cast("AsyncMock", websocket_service.send_json).await_count == 1
         exc = exc_info.value
         assert isinstance(exc, OutcomeUnknownError)
         assert isinstance(exc, RetryableConnectionClosedError)
@@ -186,8 +190,9 @@ class TestResponseLost:
         fake_ws = build_fake_ws(is_closed=False)
 
         async def close_with_own_code(**_) -> None:
-            fake_ws.closed = True
-            fake_ws.close_code = 1000
+            stub = cast("SimpleNamespace", fake_ws)  # build_fake_ws returns a SimpleNamespace stand-in
+            stub.closed = True
+            stub.close_code = 1000
 
         fake_ws.close = AsyncMock(side_effect=close_with_own_code)
         websocket_service._ws = fake_ws
@@ -214,7 +219,7 @@ class TestResponseLost:
             await websocket_service.send_and_wait(type="fire_event", event_type="doorbell", retry_on_timeout=False)
 
         websocket_service.logger.warning.assert_called_once()
-        msg_id = websocket_service.send_json.await_args.kwargs["id"]
+        msg_id = last_sent_msg_id(websocket_service)
         rendered = _rendered(websocket_service.logger.warning.call_args)
         assert "fire_event" in rendered
         assert str(msg_id) in rendered
@@ -295,7 +300,7 @@ class TestLateReplyToTimedOutWrite:
             websocket_service.send_and_wait(type="fire_event", event_type="doorbell", retry_on_timeout=False)
         )
         await asyncio.wait_for(sent.wait(), timeout=1)
-        msg_id = websocket_service.send_json.await_args.kwargs["id"]
+        msg_id = last_sent_msg_id(websocket_service)
 
         task.cancel()
         with pytest.raises(asyncio.CancelledError):

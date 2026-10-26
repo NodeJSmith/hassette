@@ -1,5 +1,6 @@
 """WebsocketService fixtures for tests/unit/core/."""
 
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -41,3 +42,10 @@ def stub_refused_attempts(websocket_service: WebsocketService, *, failures: int)
     run_connection = AsyncMock(side_effect=[*(ConnectionRefusedError("refused") for _ in range(failures)), None])
     websocket_service.run_connection = run_connection  # pyright: ignore[reportAttributeAccessIssue]
     return run_connection
+
+
+def last_sent_msg_id(websocket_service: WebsocketService) -> int:
+    """Return the ``id`` of the last frame sent through a ``send_json`` stubbed with ``AsyncMock``."""
+    call = cast("AsyncMock", websocket_service.send_json).await_args
+    assert call is not None, "send_json was never awaited"
+    return call.kwargs["id"]
