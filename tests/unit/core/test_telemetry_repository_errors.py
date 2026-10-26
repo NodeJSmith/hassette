@@ -13,6 +13,7 @@ import pytest
 import hassette.core.telemetry.repository as telemetry_repository_module
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
+from hassette.schemas.log_models import BlockingEvent
 from tests.support.factories import (
     DEFAULT_TEST_APP_KEY,
     make_execution_record,
@@ -305,6 +306,57 @@ async def test_persist_execution_batch_rollback_on_exception(
     cursor = await telemetry_db.execute("SELECT COUNT(*) FROM executions")
     row = await cursor.fetchone()
     assert row[0] == 0, "No rows should be committed after rollback"
+
+
+def make_blocking_event() -> BlockingEvent:  # factory-local: no shared BlockingEvent factory
+    return BlockingEvent(
+        session_id=None,
+        app_key=DEFAULT_TEST_APP_KEY,
+        instance_name=None,
+        instance_index=0,
+        execution_id=None,
+        tier="watchdog",
+        primitive=None,
+        source_location=None,
+        stall_duration_ms=200.0,
+        detected_ts=time.time(),
+        source_tier="app",
+        reason="attributed",
+        frames=[],
+    )
+
+
+async def test_insert_blocking_event_drops_row_on_storage_error(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """insert_blocking_event() drops the row instead of raising when the DB write fails."""
+
+    async def failing_execute(_sql, _params=None):
+        raise sqlite3.OperationalError("database is locked")
+
+    with patch.object(telemetry_db, "execute", side_effect=failing_execute):
+        await telemetry_repo.insert_blocking_event(make_blocking_event())
+
+    cursor = await telemetry_db.execute("SELECT COUNT(*) FROM blocking_events")
+    row = await cursor.fetchone()
+    assert row[0] == 0
+
+
+async def test_insert_blocking_event_propagates_programming_errors(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+) -> None:
+    """insert_blocking_event() lets a non-storage error propagate rather than dropping it silently."""
+
+    async def failing_execute(_sql, _params=None):
+        raise RuntimeError("programming error")
+
+    with (
+        patch.object(telemetry_db, "execute", side_effect=failing_execute),
+        pytest.raises(RuntimeError, match="programming error"),
+    ):
+        await telemetry_repo.insert_blocking_event(make_blocking_event())
 
 
 async def test_on_conflict_target_matches_index(telemetry_db: aiosqlite.Connection) -> None:
