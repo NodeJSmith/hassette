@@ -12,11 +12,11 @@ Every concrete `Service` subclass declares `required` in its own class body. A c
 --8<-- "pages/core-concepts/snippets/internals_service_required.py"
 ```
 
-**Required** means Hassette cannot usefully run without the service. If its `serve()` fails after startup, or returns or is cancelled without anyone asking it to stop, Hassette records the reason, emits a `CRASHED` status event, and shuts down. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
+**Required** means Hassette cannot usefully run without the service. If its `serve()` fails after startup, or returns or is cancelled without anyone asking it to stop, the service ends `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]), and Hassette records the reason and shuts down. Hassette also emits a `CRASHED` status event for the service to mark the fatal exit, even when the service's own status is `FAILED`. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
 
 **Optional** means Hassette keeps working without the service. If its `serve()` fails, the service stays `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) — dead in place. Nothing shuts it down or restarts it. Hassette logs one ERROR saying a Hassette restart brings it back, or, for a service owned by an app, that reloading the app does. A `serve()` that simply returns is not a failure: an optional service that returns ends as `STOPPED`.
 
-Only a service whose parent is [`Hassette`][hassette.core.core.Hassette] itself can be required. `add_child()` rejects a required service under any other parent, so a service an app owns must declare `required = False`. `Service` itself defaults to `required = True`, which is why a subclass must say which one it means.
+Only a service whose parent is [`Hassette`][hassette.core.core.Hassette] itself can be required. A service is created by its parent's `add_child()`: `Hassette` adds the framework services, and an app adds its own with `self.add_child(MyWatcher)`. `add_child()` rejects a required service under any other parent, so a service an app owns must declare `required = False`. `Service` itself defaults to `required = True`, which is why a subclass must say which one it means.
 
 | Service | `required` | Notes |
 |---|---|---|

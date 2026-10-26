@@ -70,7 +70,7 @@ The response body also includes `bootstrap_released` (bool): whether `AppBootstr
 
 ## Fatal exit
 
-A fatal failure causes Hassette to exit with code `1`. Fatal failures include a required service failing after startup, a fatal error, or a startup failure. Hassette logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL and records a `failure` status to the telemetry session before exiting. Nothing restarts services inside the process, so run Hassette under a restart policy; the reason stays in your supervisor's log (`docker logs`, the add-on log, or the journal).
+A fatal failure causes Hassette to exit with code `1`. Fatal failures include a [required service](../core-concepts/internals/lifecycle.md#required-and-optional-services) failing after startup, a fatal error, or a startup failure. An app failing never ends the process. Hassette logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL and records a `failure` status to the telemetry session before exiting. Nothing restarts services inside the process, so run Hassette under a restart policy; the reason stays in your supervisor's log (`docker logs`, the add-on log, or the journal).
 
 A clean operator shutdown (SIGTERM / `docker stop`) exits with code `0`.
 

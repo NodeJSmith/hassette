@@ -105,7 +105,7 @@ graph BT
         DB[DatabaseService]
     end
 
-    subgraph wave0["Wave 0 — No Dependencies"]
+    subgraph wave0["Wave 0 — No Dependencies, After the Database"]
         SYNC[SyncExecutorService]
         API[ApiResource]
         WS[WebsocketService]
