@@ -367,6 +367,8 @@ class LoopWatchdog:
         try:
             frames = sys._current_frames()
         except Exception:
+            # Runs on the daemon thread; a failed frame read must not kill stall detection, so the
+            # stall is still reported, just without a stack.
             return ()
         frame = frames.get(self._loop_thread_id)
         if frame is None:
