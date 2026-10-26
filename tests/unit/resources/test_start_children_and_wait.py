@@ -5,7 +5,10 @@ Verifies:
 - Empty children: returns immediately without error
 - Timeout: raises TimeoutError with diagnostic listing
 - Shutdown during wait: raises TimeoutError
+- Failed child initialization: raises at once, chained from the child's exception
 """
+
+import asyncio
 
 import pytest
 
@@ -27,6 +30,14 @@ class ReadyOnInit(Resource):
 
     async def on_initialize(self) -> None:
         mark_ready(self, "initialized")
+
+
+class FailsOnInit(Resource):
+    """Child whose initialization raises after it already marked itself ready."""
+
+    async def on_initialize(self) -> None:
+        mark_ready(self, "initialized")
+        raise ValueError("bad config")
 
 
 class NeverReady(Resource):
@@ -75,3 +86,15 @@ async def test_shutdown_during_wait_raises():
 
     with pytest.raises(TimeoutError, match="shutdown during wait"):
         await start_children_and_wait(parent, timeout=1.0)
+
+
+async def test_failed_child_raises_without_waiting_for_timeout():
+    hassette = make_mock_hassette(sealed=False)
+    parent = Parent(hassette)
+    parent.add_child(ReadyOnInit)
+    parent.add_child(FailsOnInit)
+
+    with pytest.raises(RuntimeError, match=r"failed to initialize: FailsOnInit \(ValueError: bad config\)") as exc_info:
+        await asyncio.wait_for(start_children_and_wait(parent, timeout=60.0), timeout=5.0)
+
+    assert isinstance(exc_info.value.__cause__, ValueError)

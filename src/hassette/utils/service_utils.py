@@ -1,10 +1,18 @@
 import asyncio
 import logging
 import typing
+from dataclasses import dataclass
 from enum import Enum, auto
+from pathlib import Path
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
     from hassette.resources.base import Resource
+
+
+ASYNCIO_DIR = str(Path(asyncio.__file__).parent)
+"""asyncio's package directory; frames from it are skipped when locating where a task waits."""
 
 
 class Color(Enum):
@@ -243,3 +251,153 @@ async def wait_for_ready(
             if not task.done():
                 task.cancel()
         await asyncio.gather(wait_task, shutdown_task, return_exceptions=True)
+
+
+class WaveOutcome(Enum):
+    """How a startup wave ended; see ``wait_for_wave()``."""
+
+    OK = auto()
+    SHUTDOWN = auto()
+    FAILED = auto()
+    TIMEOUT = auto()
+
+
+@dataclass(frozen=True)
+class WaveResult:
+    """A startup wave's outcome, with the members that caused it.
+
+    ``resources`` holds the members whose attempt failed (``FAILED``) or that never finished and
+    became ready (``TIMEOUT``), and is empty for ``OK`` and ``SHUTDOWN``. For ``FAILED``, ``errors``
+    holds each of those members' exceptions in the same order, ``None`` for a cancelled attempt.
+    """
+
+    outcome: WaveOutcome
+    resources: "tuple[Resource, ...]" = ()
+    errors: "tuple[BaseException | None, ...]" = ()
+
+
+async def wait_for_wave(
+    attempts: "Mapping[Resource, asyncio.Task[None] | None]",
+    timeout: float,
+    shutdown_event: asyncio.Event,
+) -> WaveResult:
+    """Wait until every member's initialization attempt has finished and every member is ready.
+
+    Readiness alone doesn't prove an attempt finished: a resource can mark itself ready inside
+    ``on_initialize()`` and still fail later in the same attempt (a child failing to initialize), so
+    a failed attempt fails the wave at once, whatever its readiness. A normally returned attempt is
+    finished, not ready: the member still has to become ready before the wave is. Readiness is read
+    live, so a member that loses it mid-wave (a ``serve()`` failure) has to regain it.
+
+    Shutdown wins over every other outcome, including a cancelled attempt, which counts as a failure
+    only when no shutdown was requested. The attempts are never cancelled or awaited here, so a
+    shutdown doesn't wait for an attempt that hangs; the attempt's own exception observer is what
+    logs its failure.
+
+    Args:
+        attempts: Each member mapped to the task its initialization attempt runs on (from
+            ``start()``), or ``None`` when there is no attempt to join.
+        timeout: Seconds the whole wave may take, the attempts and readiness together.
+        shutdown_event: Ends the wait with ``SHUTDOWN`` once set.
+
+    Returns:
+        The outcome, with the failed members and their exceptions (``FAILED``) or the unfinished
+        members (``TIMEOUT``).
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    attempt_tasks = [task for task in attempts.values() if task is not None]
+    # Wake-up sources only, never read: shutdown, and each not-ready member becoming ready. The
+    # checks at the top of the loop read the state directly.
+    shutdown_waker = asyncio.create_task(shutdown_event.wait())
+    ready_wakers: dict[Resource, asyncio.Task[None]] = {}
+    try:
+        while True:
+            if shutdown_event.is_set():
+                return WaveResult(WaveOutcome.SHUTDOWN)
+            failed = [(member, task) for member, task in attempts.items() if task is not None and attempt_failed(task)]
+            if failed:
+                return WaveResult(
+                    WaveOutcome.FAILED,
+                    tuple(member for member, _ in failed),
+                    tuple(None if task.cancelled() else task.exception() for _, task in failed),
+                )
+            unfinished = tuple(
+                member
+                for member, task in attempts.items()
+                if (task is not None and not task.done()) or not member.is_ready()
+            )
+            if not unfinished:
+                return WaveResult(WaveOutcome.OK)
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                return WaveResult(WaveOutcome.TIMEOUT, unfinished)
+            for member in attempts:
+                waker = ready_wakers.get(member)
+                if not member.is_ready() and (waker is None or waker.done()):
+                    ready_wakers[member] = asyncio.create_task(member.wait_ready())
+            watched = [task for task in (*attempt_tasks, shutdown_waker, *ready_wakers.values()) if not task.done()]
+            await asyncio.wait(watched, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        wakers = [shutdown_waker, *ready_wakers.values()]
+        for waker in wakers:
+            waker.cancel()
+        await asyncio.gather(*wakers, return_exceptions=True)
+
+
+def attempt_failed(task: "asyncio.Task[None]") -> bool:
+    """Return True when an initialization attempt's task ended in an exception or a cancellation."""
+    if not task.done():
+        return False
+    # cancelled() first: exception() raises CancelledError on a cancelled task.
+    return task.cancelled() or task.exception() is not None
+
+
+def describe_children(resource: "Resource") -> str:
+    """Return ``resource``'s children as ``Name(status)`` pairs, or ``"none"``."""
+    return ", ".join(f"{c.class_name}({c.status.value})" for c in resource.children) or "none"
+
+
+def describe_error(error: BaseException | None) -> str:
+    """Return ``Type: message`` for a failed attempt's exception, or ``cancelled`` for a cancelled one."""
+    if error is None:
+        return "cancelled"
+    return f"{type(error).__name__}: {error}" if str(error) else type(error).__name__
+
+
+def describe_wave_members(resources: "Sequence[Resource]") -> str:
+    """Describe each resource for a failed wave's log, one per line.
+
+    The resource a wave names is not always the one to fix: a parent whose child hangs in
+    initialization never finishes either, so the children's statuses point at the one stuck in
+    STARTING, and a still-running initialization names the line it is waiting on.
+    """
+    lines = []
+    for resource in resources:
+        line = (
+            f"  {resource.class_name}: status={resource.status.value}, ready={resource.is_ready()}, "
+            f"ready_reason={resource._ready_reason!r}, children: {describe_children(resource)}"
+        )
+        init_task = resource._init_task
+        if init_task is not None and not init_task.done():
+            line += f", initialization waiting at {awaiting_location(init_task)}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def awaiting_location(task: "asyncio.Task[typing.Any]") -> str:
+    """Return ``file:line in function`` for the innermost await a suspended task is blocked on.
+
+    ``Task.get_stack()`` returns only the outermost frame of a suspended coroutine, so this follows
+    the ``cr_await`` chain down to the coroutine that is actually waiting, skipping asyncio's own
+    frames (an ``Event.wait()`` says nothing about who is waiting).
+    """
+    coro: typing.Any = task.get_coro()
+    frame = None
+    while coro is not None and getattr(coro, "cr_frame", None) is not None:
+        if not coro.cr_frame.f_code.co_filename.startswith(ASYNCIO_DIR):
+            frame = coro.cr_frame
+        coro = getattr(coro, "cr_await", None)
+    if frame is None:
+        return "an unknown point"
+    return f"{frame.f_code.co_filename}:{frame.f_lineno} in {frame.f_code.co_name}"

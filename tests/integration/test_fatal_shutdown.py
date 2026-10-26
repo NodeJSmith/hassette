@@ -18,7 +18,8 @@ import pytest
 from hassette import Hassette
 from hassette.core.session_manager import SESSION_STATUS_FAILURE, SESSION_STATUS_SUCCESS
 from hassette.exceptions import FatalError
-from tests.support.run_forever import stub_run_forever_collaborators
+from hassette.utils.service_utils import WaveOutcome, WaveResult
+from tests.support.run_forever import WAVE_OK, stub_run_forever_collaborators
 
 
 class TestRunForeverFatalOnCrash:
@@ -67,9 +68,9 @@ class TestRunForeverFatalOnCrash:
 
     async def test_run_forever_raises_fatal_on_resource_startup_failure(self, hassette_instance: Hassette):
         """Startup failure (resources not ready) branch raises FatalError."""
-        # DB wait succeeds, wave wait fails
+        # DB wave succeeds, the next wave times out
         stubs = stub_run_forever_collaborators(hassette_instance)
-        stubs.wait_for_ready.side_effect = [True, False]
+        stubs.wait_for_wave.side_effect = [WAVE_OK, WaveResult(WaveOutcome.TIMEOUT, (hassette_instance.bus_service,))]
 
         with patch("hassette.core.core.start"), pytest.raises(FatalError):
             await hassette_instance.run_forever()

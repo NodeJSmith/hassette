@@ -232,6 +232,13 @@ class ServiceWatcher(ServiceEscalationMixin, Resource):
 
         key = self.service_key(name, role)
 
+        # A failure from STARTING is an initialization attempt's own failure: the attempt's caller owns it
+        # (the startup wave at boot, attempt_restart() mid-episode). Only a failure after the handoff to
+        # serve() (RUNNING -> FAILED) is the watcher's to restart.
+        if status_payload.previous_status == ResourceStatus.STARTING:
+            self.logger.debug("%s '%s' failed during initialization, leaving it to the attempt's caller", role, name)
+            return
+
         # Resolve the service and its restart_spec
         service = self.get_service(name, role)
         if service is None:
@@ -264,6 +271,22 @@ class ServiceWatcher(ServiceEscalationMixin, Resource):
             )
             return
 
+        await self.begin_restart_episode(name, role, key, spec, service, status_payload)
+
+    async def begin_restart_episode(
+        self,
+        name: str,
+        role: ResourceRole,
+        key: str,
+        spec: RestartSpec,
+        service: Service,
+        status_payload: ServiceStatusPayload,
+    ) -> None:
+        """Route a failure that no running episode owns: fatal/non-retryable, exhausted, or a new episode.
+
+        Called for a FAILED event the watcher acts on, and by cooldown_and_retry() for its own failed
+        restart, whose FAILED event (from STARTING) restart_service() drops.
+        """
         # Steps 2-3: fatal and non-retryable errors skip the restart entirely
         if await self.route_unretryable_failure(name, role, key, spec, status_payload):
             return

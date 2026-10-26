@@ -192,3 +192,38 @@ async def test_cooldown_and_retry_proceeds_when_not_admission_blocked():
     mock_restart.assert_awaited_once_with(service)
     budget.evict_expired()
     assert len(budget._timestamps) == 0, "budget should have been reset when admission is not blocked"
+
+
+async def test_failed_restart_after_cooldown_starts_a_new_episode():
+    """A restart that fails after cooldown starts a fresh restart episode against the reset budget.
+
+    The attempt's own FAILED event comes from STARTING, which restart_service() leaves to the
+    attempt's caller, so cooldown_and_retry() has to route the failure itself.
+    """
+    hassette = make_watcher_hassette()
+    service = DummyService(hassette)
+    service._status = ResourceStatus.EXHAUSTED_COOLING
+    hassette.children = [service]
+
+    watcher = make_watcher(hassette)
+    spawned: list[str] = []
+
+    def _record_spawn(coro, *, name: str):
+        spawned.append(name)
+        coro.close()
+
+    watcher.task_bucket.spawn = MagicMock(side_effect=_record_spawn)
+    spec = RestartSpec(
+        restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
+    )
+    key = f"{service.class_name}:{service.role}"
+
+    with patch(
+        "hassette.core.service_watcher_escalation.restart",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("still broken"),
+    ):
+        await watcher.cooldown_and_retry(name=service.class_name, role=service.role, key=key, spec=spec)
+
+    assert spawned == [f"service_watcher:restart:{key}"], "the failed cooldown restart must start a new episode"
+    assert key in watcher._restarting

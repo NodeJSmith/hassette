@@ -734,7 +734,7 @@
       "properties": {
         "startup_timeout_seconds": {
           "default": 30,
-          "description": "Length of time to wait for each wave of Hassette resources to start before giving up.\nMust be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap.",
+          "description": "Length of time each wave of Hassette resources may take to initialize and become ready before startup fails.\nMust be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap.",
           "title": "Startup Timeout Seconds",
           "type": "integer"
         },

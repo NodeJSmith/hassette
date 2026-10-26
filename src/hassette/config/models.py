@@ -328,7 +328,7 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     """Startup, shutdown, and per-operation timeout settings for the resource lifecycle."""
 
     startup_timeout_seconds: int = Field(default=30)
-    """Length of time to wait for each wave of Hassette resources to start before giving up.
+    """Length of time each wave of Hassette resources may take to initialize and become ready before startup fails.
     Must be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap."""
 
     app_startup_timeout_seconds: int = Field(default=20)

@@ -11,17 +11,6 @@ from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import wait_for_running
 
 
-class SpawnOrderChild(Resource):
-    """Child that records whether its parent's serve task existed while it initialized."""
-
-    parent_serve_spawned_during_init: bool | None = None
-
-    async def on_initialize(self) -> None:
-        parent = self.parent
-        assert isinstance(parent, Service)
-        self.parent_serve_spawned_during_init = parent._serve_task is not None
-
-
 class SpawnOrderService(Service):
     """Service that records whether its serve task existed while after_initialize ran."""
 
@@ -53,17 +42,6 @@ async def test_serve_not_spawned_until_after_initialize_completes():
     await wait_for_running(svc)
 
     assert svc.serve_spawned_during_after_initialize is False, "serve must start after after_initialize()"
-    await svc.shutdown()
-
-
-async def test_serve_not_spawned_until_children_initialized():
-    svc = SpawnOrderService(make_mock_hassette(sealed=False))
-    child = svc.add_child(SpawnOrderChild)
-
-    await svc.initialize()
-    await wait_for_running(svc)
-
-    assert child.parent_serve_spawned_during_init is False, "serve must start after child initialization"
     await svc.shutdown()
 
 
