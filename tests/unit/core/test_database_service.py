@@ -560,7 +560,7 @@ async def test_on_shutdown_closes_remaining_items_when_join_interrupted(
     service: DatabaseService,
 ) -> None:
     """When queue.join() is interrupted, remaining coroutines are closed in finally."""
-    queue: asyncio.Queue[tuple[object, asyncio.Future[object] | None]] = asyncio.Queue(maxsize=100)
+    queue: asyncio.Queue[_WriteQueueItem] = asyncio.Queue(maxsize=100)
     service._db_write_queue = queue
 
     async def noop_coro() -> None:

@@ -5,6 +5,7 @@ Covers ``DurationHoldManager.hold_matches`` (reached via the duration-fire reche
 """
 
 import asyncio
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette_wire import ExecutionStatus
@@ -16,6 +17,9 @@ from hassette.testing import make_state_dict
 from tests.support.helpers import create_listener
 from tests.unit.core._fixtures_bus_scheduler import make_bus_service
 
+if TYPE_CHECKING:
+    from hassette.events import HassStateDict
+
 ENTITY_ID = "light.kitchen"
 TOPIC = f"hass.event.state_changed.{ENTITY_ID}"
 
@@ -23,10 +27,15 @@ TOPIC = f"hass.event.state_changed.{ENTITY_ID}"
 def make_service_with_state() -> BusService:
     """BusService whose duration-hold manager reads an 'on' state and records via the real path."""
     svc = make_bus_service()
-    svc.hassette.try_session_id.return_value = 7
+    cast("MagicMock", svc.hassette).try_session_id.return_value = 7
     svc._executor.invoke_error_handler = AsyncMock()
-    svc._duration_hold.state_reader = lambda _entity_id: make_state_dict(ENTITY_ID, "on")
+    svc._duration_hold.state_reader = lambda _entity_id: cast("HassStateDict", make_state_dict(ENTITY_ID, "on"))
     return svc
+
+
+def executor_mock(svc: BusService) -> MagicMock:
+    """``make_bus_service`` replaces the executor with a ``MagicMock``; expose it as one for assertions."""
+    return cast("MagicMock", svc._executor)
 
 
 def raising_predicate(_event: object) -> bool:
@@ -37,7 +46,7 @@ async def on_error(_ctx: BusErrorContext) -> None:
     pass
 
 
-def make_registered_listener(db_id: int, **kwargs: object) -> Listener:
+def make_registered_listener(db_id: int, **kwargs: Any) -> Listener:
     """Listener on ``TOPIC``/``ENTITY_ID`` with a DB id, so telemetry records can be attributed."""
     listener = create_listener(topic=TOPIC, entity_id=ENTITY_ID, **kwargs)
     listener.mark_registered(db_id)
@@ -45,8 +54,8 @@ def make_registered_listener(db_id: int, **kwargs: object) -> Listener:
 
 
 def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> None:
-    svc._executor.enqueue_record.assert_called_once()
-    record = svc._executor.enqueue_record.call_args[0][0]
+    executor_mock(svc).enqueue_record.assert_called_once()
+    record = executor_mock(svc).enqueue_record.call_args[0][0]
     assert record.kind == "handler"
     assert record.status is ExecutionStatus.ERROR
     assert record.error_type == "ValueError"
@@ -54,14 +63,14 @@ def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> Non
     assert record.listener_id == listener.db_id
     assert record.session_id == 7
 
-    svc._executor.invoke_error_handler.assert_awaited_once()
-    handler, ctx = svc._executor.invoke_error_handler.await_args[0]
+    executor_mock(svc).invoke_error_handler.assert_awaited_once()
+    handler, ctx = executor_mock(svc).invoke_error_handler.await_args[0]
     assert handler is on_error
     assert isinstance(ctx, BusErrorContext)
     assert isinstance(ctx.exception, ValueError)
     assert ctx.topic == TOPIC
     assert ctx.execution_id == record.execution_id
-    svc._executor.execute.assert_not_called()
+    executor_mock(svc).execute.assert_not_called()
 
 
 async def test_raising_hold_predicate_on_duration_fire_is_recorded_and_routed() -> None:
@@ -114,8 +123,8 @@ async def test_synthetic_event_build_failure_is_log_only() -> None:
     await svc._duration_hold.immediate_fire_task(listener)
     await asyncio.sleep(0)
 
-    svc._executor.enqueue_record.assert_not_called()
-    svc._executor.invoke_error_handler.assert_not_called()
+    executor_mock(svc).enqueue_record.assert_not_called()
+    executor_mock(svc).invoke_error_handler.assert_not_called()
 
 
 async def test_post_predicate_failure_on_immediate_fire_is_log_only() -> None:
@@ -131,5 +140,5 @@ async def test_post_predicate_failure_on_immediate_fire_is_log_only() -> None:
     await svc._duration_hold.immediate_fire_task(listener)
     await asyncio.sleep(0)
 
-    svc._executor.enqueue_record.assert_not_called()
-    svc._executor.invoke_error_handler.assert_not_called()
+    executor_mock(svc).enqueue_record.assert_not_called()
+    executor_mock(svc).invoke_error_handler.assert_not_called()

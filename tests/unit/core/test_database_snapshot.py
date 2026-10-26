@@ -43,8 +43,10 @@ def query_one(path: Path, sql: str) -> object:
         conn.close()
 
 
-def row_count(path: Path) -> object:
-    return query_one(path, "SELECT count(*) FROM t")
+def row_count(path: Path) -> int:
+    count = query_one(path, "SELECT count(*) FROM t")
+    assert isinstance(count, int)
+    return count
 
 
 def integrity(path: Path) -> object:

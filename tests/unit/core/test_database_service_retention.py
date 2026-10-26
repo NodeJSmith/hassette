@@ -132,7 +132,7 @@ def test_retention_days_getter_for_blocking_events(mock_hassette: MagicMock) -> 
 def test_retention_target_is_frozen() -> None:
     target = _RETENTION_TABLES[0]
     with pytest.raises(dataclasses.FrozenInstanceError):
-        target.table = "mutated"  # pyright: ignore[reportGeneralTypeIssues]
+        target.table = "mutated"  # pyright: ignore[reportAttributeAccessIssue]
 
 
 @pytest.fixture
