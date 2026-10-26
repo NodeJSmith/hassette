@@ -43,7 +43,7 @@ class TestBusErrorContextConstruction:
         ctx = make_bus_error_context()
 
         with pytest.raises(Exception, match="cannot assign to field"):  # FrozenInstanceError (dataclasses internal)
-            ctx.topic = "other_topic"  # pyright: ignore[reportGeneralIssues]
+            ctx.topic = "other_topic"  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_bus_error_context_traceback_always_populated(self) -> None:
         """Traceback is always a non-empty string, regardless of exception type."""

@@ -36,9 +36,10 @@ async def hassette_with_bus(
 @pytest.fixture
 def bus(hassette_with_bus: "Hassette") -> "Bus":
     """Return the Bus resource with a mock parent that has an app_key."""
-    bus = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
+    bus = hassette_with_bus._bus
+    assert bus is not None, "hassette_with_bus was built without a Bus"
     bus.parent = make_mock_parent(app_key="test_app", index=0, source_tier="app")
-    return bus  # pyright: ignore[reportReturnType]
+    return bus
 
 
 @contextlib.contextmanager
@@ -61,6 +62,7 @@ def mock_add_listener(bus: "Bus") -> Generator[Mock]:
 
 def listener_key(bus: "Bus", *, name: str = "my_listener", topic: str = "test.topic") -> tuple[str, int, str, str]:
     """Return the natural key `bus._registered_listeners` stores a listener under."""
+    assert bus.parent is not None
     return (bus.parent.app_key, bus.parent.index, name, topic)
 
 
@@ -88,9 +90,9 @@ def capture_bus_spawns(
         return MagicMock()
 
     if add_listener is not None:
-        service.add_listener = add_listener
+        service.add_listener = add_listener  # pyright: ignore[reportAttributeAccessIssue]
     if mark_listener_cancelled is not None:
-        service.mark_listener_cancelled = mark_listener_cancelled
+        service.mark_listener_cancelled = mark_listener_cancelled  # pyright: ignore[reportAttributeAccessIssue]
     service.task_bucket.spawn = capture_spawn
     try:
         yield spawned

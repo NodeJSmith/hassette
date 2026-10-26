@@ -8,7 +8,8 @@ Tests:
 """
 
 import typing
-from unittest.mock import Mock
+from typing import cast
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -111,11 +112,12 @@ async def test_listener_inherits_parent_source_tier(bus: "Bus") -> None:
 
 async def test_listener_inherits_parent_instance_index(bus: "Bus") -> None:
     """Bus.on() sets listener.instance_index from self.parent.index."""
-    bus.parent.index = 3
+    parent = cast("MagicMock", bus.parent)
+    parent.index = 3
     with mock_add_listener(bus):
         sub = await bus.on(topic="test.index", handler=handler_a, name="test_index")
         assert sub.listener.identity.instance_index == 3
-    bus.parent.index = 0
+    parent.index = 0
 
 
 async def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassette") -> None:
@@ -138,10 +140,11 @@ def test_bus_requires_parent() -> None:
 
 async def test_source_tier_check_rejects_invalid_value(bus: "Bus") -> None:
     """Bus.on() raises ValueError for invalid source_tier values."""
-    bus.parent.source_tier = "invalid"
+    parent = cast("MagicMock", bus.parent)
+    parent.source_tier = "invalid"
     with mock_add_listener(bus), pytest.raises(ValueError, match="Invalid source_tier"):
         await bus.on(topic="test.invalid", handler=handler_a, name="test_invalid")
-    bus.parent.source_tier = "app"
+    parent.source_tier = "app"
 
 
 async def test_registered_listeners_cleared_on_reinit(bus: "Bus") -> None:
