@@ -69,9 +69,6 @@ class HassetteHarness:
         self.unused_tcp_port = unused_tcp_port
         self._components: set[str] = set()
 
-        if not config.strict_lifecycle:
-            config.strict_lifecycle = True
-
         self.logger = logging.getLogger("hassette")
         # HarnessHassette.__init__ calls enable_basic_logging() which sets propagate=False and clears handlers.
         # We restore propagate=True afterwards so pytest's caplog fixture can capture hassette log records.

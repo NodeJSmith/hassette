@@ -146,12 +146,6 @@
           "description": "Default TTL for cache entries in seconds. None means entries persist indefinitely.",
           "title": "Default Cache Ttl"
         },
-        "strict_lifecycle": {
-          "default": false,
-          "description": "Enable strict startup registry validation.\n\nWhen True, registry validation issues found at startup raise RegistryValidationError.\nWhen False (default), they log WARNING instead. Invalid WebSocket ConnectionState\ntransitions always log WARNING, regardless of this setting.\nThe test harness sets this to True by default.",
-          "title": "Strict Lifecycle",
-          "type": "boolean"
-        },
         "asyncio_debug_mode": {
           "default": false,
           "description": "Whether to enable asyncio debug mode.",

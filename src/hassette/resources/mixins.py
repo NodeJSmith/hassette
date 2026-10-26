@@ -27,7 +27,6 @@ class _LifecycleConfigP(Protocol):
 
 
 class _HassetteConfigP(Protocol):
-    strict_lifecycle: bool
     lifecycle: _LifecycleConfigP
 
 

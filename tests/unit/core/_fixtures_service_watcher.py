@@ -39,11 +39,10 @@ class TempService(Service):
     serve = block_until_cancelled  # bound as instance method via the descriptor protocol
 
 
-def make_watcher_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
+def make_watcher_hassette() -> AsyncMock:
     """Minimal Hassette stub for ServiceWatcher unit tests."""
     hassette = make_mock_hassette(
         sealed=False,
-        strict_lifecycle=strict_lifecycle,
         lifecycle={"shutdown_timeout_seconds": 1, "task_cancellation_timeout_seconds": 1},
     )
     hassette.send_event = AsyncMock()
