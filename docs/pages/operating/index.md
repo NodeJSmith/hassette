@@ -111,7 +111,7 @@ Job error (job_db_id=<id>, exec=<execution_id>)
 <traceback>
 ```
 
-Registered error handlers on subscriptions or scheduled jobs fire after Hassette logs the exception. They are the right place for alerting integrations, recovery logic, or additional context recording. The error handler itself is subject to a timeout (`lifecycle.error_handler_timeout_seconds`, default 5s) and is not re-raised if it raises.
+Registered error handlers on subscriptions or scheduled jobs fire after Hassette logs the exception. `bus.on_error()` and `scheduler.on_error()` register an app-wide handler, and `on_error=` sets one per subscription or job. [Bus error handling](../core-concepts/bus/methods.md#error-handling) and [scheduler error handling](../core-concepts/scheduler/management.md#handle-errors) cover both forms. Error handlers are the right place for alerting integrations, recovery logic, or additional context recording. The error handler itself is subject to a timeout (`lifecycle.error_handler_timeout_seconds`, default 5s) and is not re-raised if it raises.
 
 ## Timeouts
 
@@ -180,7 +180,7 @@ Shutdown runs in two stages:
 1. **Stop stage.** Apps and every framework component except the database and the worker threads stop here. Apps stop concurrently, so a slow app never shortens another app's hooks. The stage gets `total_shutdown_timeout_seconds` minus the foundation stage's budget: 25 seconds by default.
 2. **Foundation stage.** The session record is finalized, the database drains and closes, and the worker threads join. This stage has a fixed 20-second budget (`FOUNDATION_SHUTDOWN_BUDGET_SECONDS`) and runs even when the stop stage ran out of time.
 
-Last, Hassette writes the [shutdown snapshot](../getting-started/addon/operating.md#backups), if one is configured. Nothing bounds the snapshot copy.
+Last, Hassette writes the shutdown snapshot: a consistent single-file copy of the telemetry database. It is written only when [`database.shutdown_snapshot_path`](../core-concepts/database-telemetry.md#configuration) is set. The Home Assistant add-on sets it for [backups](../getting-started/addon/operating.md#backups); Docker and pip installs write none unless configured. Nothing bounds the snapshot copy.
 
 Each hook gets `shutdown_timeout_seconds`, or less when its stage has less time left. A hook that outlives its bound is cancelled. `AppSync`'s shutdown hooks (`before_shutdown_sync`, `on_shutdown_sync`, `after_shutdown_sync`) share the worker-thread pool, so when more of them run at once than there are workers, the wait for a thread counts against each hook's bound. When a stage runs out of time, Hassette stops waiting: it force-terminates whatever hasn't finished and logs one ERROR naming each component.
 
@@ -189,7 +189,7 @@ Stopping or reloading a single app at runtime gets the same limit as the stop st
 When Hassette force-terminated work at any point, or worker threads survived the join, `hassette run` exits as soon as shutdown finishes. It logs one ERROR naming what was left, and doesn't wait for that work. A process supervisor would otherwise have to kill it. An exit whose only problem is abandoned work still exits 0.
 
 !!! warning "Give your supervisor more time than Hassette needs"
-    Set your supervisor's stop grace period above `total_shutdown_timeout_seconds` plus time for the snapshot. The Docker compose example uses 60 seconds for the 45-second default. A shorter grace period kills Hassette mid-shutdown, which can skip the session record and leave the previous snapshot in place.
+    Set your supervisor's stop grace period above `total_shutdown_timeout_seconds` plus time for the snapshot. For Docker, that setting is `stop_grace_period`, and the [compose example](../getting-started/docker/index.md#step-2-create-docker-composeyml) sets it to 60 seconds. A shorter grace period kills Hassette mid-shutdown, which can skip the session record and leave the previous snapshot in place.
 
 !!! warning "Upgrading from the old shutdown settings"
     `app_shutdown_timeout_seconds`, `resource_shutdown_timeout_seconds` and `sync_executor_shutdown_timeout_seconds` no longer exist. A config that still sets one fails to load, and Hassette won't start until you remove it. Use `shutdown_timeout_seconds` for the per-hook bound.
