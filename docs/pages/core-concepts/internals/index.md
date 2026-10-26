@@ -90,7 +90,7 @@ Services declare startup dependencies as a class-level `ClassVar`. The framework
 
 ### Wave-Based Ordering
 
-The dependency graph partitions into topological levels. All services in a wave start concurrently. The framework waits for every service in a wave to signal readiness before advancing. Shutdown runs in reverse wave order.
+The dependency graph partitions into topological levels. `DatabaseService` starts first, as a wave of its own, so session tracking exists before any other service runs. All services in a wave start concurrently. The framework waits for every service in a wave to finish initializing and signal readiness before advancing. Shutdown runs in reverse wave order.
 
 A `ValueError` with the full cycle path raises from `wire_services()` if the dependency graph contains a cycle.
 
@@ -99,10 +99,13 @@ A `ValueError` with the full cycle path raises from `wire_services()` if the dep
 ```mermaid
 graph BT
     accTitle: Service Dependency Graph
-    accDescr: Wave-based startup order, wave 0 at the top
+    accDescr: Wave-based startup order, DatabaseService alone at the top, then wave 0
+
+    subgraph dbwave["Starts First, Alone"]
+        DB[DatabaseService]
+    end
 
     subgraph wave0["Wave 0 — No Dependencies"]
-        DB[DatabaseService]
         SYNC[SyncExecutorService]
         API[ApiResource]
         WS[WebsocketService]
@@ -143,6 +146,7 @@ graph BT
     AH --> ABC
     WEB --> RQS & TQS & SCHED
 
+    style dbwave fill:#f0f6ff,stroke:#6688cc
     style wave0 fill:#e8f0ff,stroke:#6688cc
     style wave1 fill:#dde8f8,stroke:#6688cc
     style wave2 fill:#d0e0f0,stroke:#6688cc
