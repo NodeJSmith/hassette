@@ -14,7 +14,7 @@ export function isFrameworkKey(appKey: string | null | undefined): boolean {
 
 /**
  * Returns the component slug from a framework key.
- * `__hassette__.service_watcher` → `service_watcher`
+ * `__hassette__.scheduler_service` → `scheduler_service`
  * `__hassette__` → `framework` (legacy bare-key path — new telemetry rows use prefixed keys)
  */
 export function frameworkDisplayName(appKey: string): string {
@@ -24,8 +24,8 @@ export function frameworkDisplayName(appKey: string): string {
 
 /**
  * Returns a human-readable label for a framework key.
- * `__hassette__.service_watcher` → `Service Watcher`
- * `__hassette__.ServiceWatcher` → `Service Watcher`
+ * `__hassette__.scheduler_service` → `Scheduler Service`
+ * `__hassette__.SchedulerService` → `Scheduler Service`
  * `__hassette__` → `Framework`
  */
 export function frameworkDisplayLabel(appKey: string): string {

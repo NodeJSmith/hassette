@@ -3,14 +3,11 @@ not in on_initialize/on_shutdown, so subclasses can freely override hooks.
 """
 
 import asyncio
-import warnings
 
 import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.base import FinalMeta
-from hassette.resources.operations import restart
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import wait_for
 from tests.support.helpers import block_until_cancelled
@@ -22,7 +19,7 @@ from tests.unit.resources.lifecycle.conftest import make_running_simple_service
 class ServiceWithCustomHooks(Service):
     """Service that overrides on_initialize and on_shutdown without calling super()."""
 
-    restart_spec = RestartSpec()
+    required = False
     init_called: bool = False
     shutdown_called: bool = False
 
@@ -40,7 +37,7 @@ class ServiceWithCustomHooks(Service):
 class ServiceWithOrderTracking(Service):
     """Tracks the order of lifecycle events."""
 
-    restart_spec = RestartSpec()
+    required = False
     order: list[str]
 
     async def serve(self) -> None:
@@ -136,16 +133,16 @@ def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
     key = f"{__name__}._BadSubclass"
     FinalMeta.LOADED_CLASSES.discard(key)
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        with pytest.raises(CannotOverrideFinalError):
+    with pytest.raises(CannotOverrideFinalError):
 
-            class _BadSubclass(Service):  # pyright: ignore[reportUnusedClass]
-                async def serve(self) -> None:
-                    pass
+        class _BadSubclass(Service):  # pyright: ignore[reportUnusedClass]
+            required = False
 
-                async def initialize(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
-                    pass
+            async def serve(self) -> None:
+                pass
+
+            async def initialize(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+                pass
 
 
 def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
@@ -153,16 +150,16 @@ def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
     key = f"{__name__}._BadSubclass2"
     FinalMeta.LOADED_CLASSES.discard(key)
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        with pytest.raises(CannotOverrideFinalError):
+    with pytest.raises(CannotOverrideFinalError):
 
-            class _BadSubclass2(Service):  # pyright: ignore[reportUnusedClass]
-                async def serve(self) -> None:
-                    pass
+        class _BadSubclass2(Service):  # pyright: ignore[reportUnusedClass]
+            required = False
 
-                async def shutdown(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
-                    pass
+            async def serve(self) -> None:
+                pass
+
+            async def shutdown(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+                pass
 
 
 async def test_simple_service_completes_full_lifecycle():
@@ -178,20 +175,21 @@ async def test_simple_service_completes_full_lifecycle():
     assert report.is_restart_safe is True, "cooperative teardown must remain restart-safe"
 
 
-async def test_clean_teardown_still_permits_same_instance_restart():
-    """A restart-safe report from cooperative Service teardown continues to authorize
-    same-instance restart via the existing ``restart()`` round trip: the serve() task is
-    replaced with a fresh one and the service returns to RUNNING.
+async def test_clean_teardown_still_permits_same_instance_reinitialization():
+    """A restart-safe report from cooperative Service teardown authorizes a same-instance
+    shutdown-then-initialize round trip: the serve() task is replaced with a fresh one and the
+    service returns to RUNNING.
     """
     svc = await make_running_simple_service()
     old_task = svc._serve_task
     assert old_task is not None
 
-    await restart(svc)
+    await svc.shutdown()
+    await svc.initialize()
     await wait_for_running(svc)
 
     assert svc._serve_task is not None
-    assert svc._serve_task is not old_task, "restart() must spawn a fresh serve() task"
+    assert svc._serve_task is not old_task, "re-initializing must spawn a fresh serve() task"
     assert not svc._serve_task.done()
     assert svc.teardown_report is None, "an accepted new initialization consumes the prior SAFE report"
 

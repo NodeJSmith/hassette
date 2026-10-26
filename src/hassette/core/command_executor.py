@@ -30,11 +30,9 @@ from hassette.error_context import ErrorContext
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.schemas.log_models import BlockingEvent
-from hassette.types.enums import RestartType
 from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
@@ -119,11 +117,7 @@ class CommandExecutor(Service):
     """
 
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=3,
-        budget_period_seconds=120,
-    )
+    required: ClassVar[bool] = True
 
     _write_queue: asyncio.Queue[ExecutionRecord | RetryableBatch]
     """Bounded queue of execution records pending DB persistence."""

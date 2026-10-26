@@ -36,9 +36,7 @@ type StatusGroupKey = AppStatus | ResourceStatus | "shutting_down";
 const STATUS_TO_GROUP = {
   failed: "err",
   crashed: "err",
-  exhausted_dead: "err",
   blocked: "blocked",
-  exhausted_cooling: "warn",
   stopping: "warn",
   shutting_down: "warn",
   degraded: "warn",

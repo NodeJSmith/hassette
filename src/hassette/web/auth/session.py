@@ -105,7 +105,7 @@ def mint_session_cookie(resolved_token: str) -> str:
     The value is HMAC-derived — keyed by ``resolved_token`` itself, so no new secret material is
     introduced — over a random session id plus the current time as the embedded issuance
     timestamp. Stateless: there is no server-side session table, so a minted cookie stays valid
-    across ``WebApiService``'s ``RestartType.TRANSIENT`` restarts.
+    across process restarts for as long as the token is unchanged.
 
     Args:
         resolved_token: The web API's resolved bearer-token/session-cookie credential. Every call

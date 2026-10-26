@@ -486,9 +486,8 @@ class HassetteHarness:
         self.hassette._sync_executor_service = self.hassette.add_child(SyncExecutorService)
 
     async def _start_bus(self) -> None:
-        # Use HarnessEventStreamService so that test-initiated hassette.shutdown() calls
-        # (e.g., ServiceWatcher max-restart exceeded) do not close the anyio streams and
-        # break subsequent tests sharing this module-scoped fixture.
+        # Use HarnessEventStreamService so that test-initiated hassette.shutdown() calls do not
+        # close the anyio streams and break subsequent tests sharing this module-scoped fixture.
         self.hassette._event_stream_service = self.hassette.add_child(HarnessEventStreamService)
 
         async def _stub_execute(cmd: Any) -> None:

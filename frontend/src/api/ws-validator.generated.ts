@@ -162,17 +162,7 @@ const schema11 = {
     },
     ResourceStatus: {
       description: "Enumeration for resource status.",
-      enum: [
-        "not_started",
-        "starting",
-        "running",
-        "stopping",
-        "stopped",
-        "failed",
-        "crashed",
-        "exhausted_dead",
-        "exhausted_cooling",
-      ],
+      enum: ["not_started", "starting", "running", "stopping", "stopped", "failed", "crashed"],
       title: "ResourceStatus",
       type: "string",
     },
@@ -189,13 +179,6 @@ const schema11 = {
           anyOf: [{ type: "string" }, { type: "null" }],
           default: null,
           title: "Exception Traceback",
-        },
-        retry_at: {
-          anyOf: [{ type: "number" }, { type: "null" }],
-          default: null,
-          description:
-            "Unix timestamp when the next restart will be attempted.\n\nPopulated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown\nand will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other\nstatuses. The frontend uses this to display a live countdown timer.",
-          title: "Retry At",
         },
         ready: {
           default: false,
@@ -279,17 +262,7 @@ const schema13 = {
 };
 const schema14 = {
   description: "Enumeration for resource status.",
-  enum: [
-    "not_started",
-    "starting",
-    "running",
-    "stopping",
-    "stopped",
-    "failed",
-    "crashed",
-    "exhausted_dead",
-    "exhausted_cooling",
-  ],
+  enum: ["not_started", "starting", "running", "stopping", "stopped", "failed", "crashed"],
   title: "ResourceStatus",
   type: "string",
 };
@@ -376,9 +349,7 @@ function validate12(data, { instancePath = "", parentData, parentDataProperty, r
                 data2 === "stopping" ||
                 data2 === "stopped" ||
                 data2 === "failed" ||
-                data2 === "crashed" ||
-                data2 === "exhausted_dead" ||
-                data2 === "exhausted_cooling"
+                data2 === "crashed"
               )) {
                 validate12.errors = [
                   {
@@ -424,9 +395,7 @@ function validate12(data, { instancePath = "", parentData, parentDataProperty, r
                   data3 === "stopping" ||
                   data3 === "stopped" ||
                   data3 === "failed" ||
-                  data3 === "crashed" ||
-                  data3 === "exhausted_dead" ||
-                  data3 === "exhausted_cooling"
+                  data3 === "crashed"
                 )) {
                   const err1 = {
                     instancePath: instancePath + "/previous_status",
@@ -1398,13 +1367,6 @@ const schema21 = {
     exception: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception" },
     exception_type: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception Type" },
     exception_traceback: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception Traceback" },
-    retry_at: {
-      anyOf: [{ type: "number" }, { type: "null" }],
-      default: null,
-      description:
-        "Unix timestamp when the next restart will be attempted.\n\nPopulated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown\nand will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other\nstatuses. The frontend uses this to display a live countdown timer.",
-      title: "Retry At",
-    },
     ready: {
       default: false,
       description: "Whether the service had signalled readiness at the time of this status event.",
@@ -1484,9 +1446,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
               data1 === "stopping" ||
               data1 === "stopped" ||
               data1 === "failed" ||
-              data1 === "crashed" ||
-              data1 === "exhausted_dead" ||
-              data1 === "exhausted_cooling"
+              data1 === "crashed"
             )) {
               validate17.errors = [
                 {
@@ -1532,9 +1492,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                 data2 === "stopping" ||
                 data2 === "stopped" ||
                 data2 === "failed" ||
-                data2 === "crashed" ||
-                data2 === "exhausted_dead" ||
-                data2 === "exhausted_cooling"
+                data2 === "crashed"
               )) {
                 const err1 = {
                   instancePath: instancePath + "/previous_status",
@@ -1825,172 +1783,97 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.retry_at !== undefined) {
-                      let data6 = data.retry_at;
+                    if (data.ready !== undefined) {
                       const _errs31 = errors;
-                      const _errs32 = errors;
-                      let valid7 = false;
-                      const _errs33 = errors;
-                      if (!(typeof data6 == "number")) {
-                        const err13 = {
-                          instancePath: instancePath + "/retry_at",
-                          schemaPath: "#/properties/retry_at/anyOf/0/type",
-                          keyword: "type",
-                          params: { type: "number" },
-                          message: "must be number",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err13];
-                        } else {
-                          vErrors.push(err13);
-                        }
-                        errors++;
-                      }
-                      var _valid4 = _errs33 === errors;
-                      valid7 = valid7 || _valid4;
-                      if (!valid7) {
-                        const _errs35 = errors;
-                        if (data6 !== null) {
-                          const err14 = {
-                            instancePath: instancePath + "/retry_at",
-                            schemaPath: "#/properties/retry_at/anyOf/1/type",
+                      if (typeof data.ready !== "boolean") {
+                        validate17.errors = [
+                          {
+                            instancePath: instancePath + "/ready",
+                            schemaPath: "#/properties/ready/type",
                             keyword: "type",
-                            params: { type: "null" },
-                            message: "must be null",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err14];
-                          } else {
-                            vErrors.push(err14);
-                          }
-                          errors++;
-                        }
-                        var _valid4 = _errs35 === errors;
-                        valid7 = valid7 || _valid4;
-                      }
-                      if (!valid7) {
-                        const err15 = {
-                          instancePath: instancePath + "/retry_at",
-                          schemaPath: "#/properties/retry_at/anyOf",
-                          keyword: "anyOf",
-                          params: {},
-                          message: "must match a schema in anyOf",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err15];
-                        } else {
-                          vErrors.push(err15);
-                        }
-                        errors++;
-                        validate17.errors = vErrors;
+                            params: { type: "boolean" },
+                            message: "must be boolean",
+                          },
+                        ];
                         return false;
-                      } else {
-                        errors = _errs32;
-                        if (vErrors !== null) {
-                          if (_errs32) {
-                            vErrors.length = _errs32;
-                          } else {
-                            vErrors = null;
-                          }
-                        }
                       }
                       var valid0 = _errs31 === errors;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.ready !== undefined) {
-                        const _errs37 = errors;
-                        if (typeof data.ready !== "boolean") {
-                          validate17.errors = [
-                            {
-                              instancePath: instancePath + "/ready",
-                              schemaPath: "#/properties/ready/type",
-                              keyword: "type",
-                              params: { type: "boolean" },
-                              message: "must be boolean",
-                            },
-                          ];
-                          return false;
+                      if (data.ready_phase !== undefined) {
+                        let data7 = data.ready_phase;
+                        const _errs33 = errors;
+                        const _errs34 = errors;
+                        let valid7 = false;
+                        const _errs35 = errors;
+                        if (typeof data7 !== "string") {
+                          const err13 = {
+                            instancePath: instancePath + "/ready_phase",
+                            schemaPath: "#/properties/ready_phase/anyOf/0/type",
+                            keyword: "type",
+                            params: { type: "string" },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err13];
+                          } else {
+                            vErrors.push(err13);
+                          }
+                          errors++;
                         }
-                        var valid0 = _errs37 === errors;
+                        var _valid4 = _errs35 === errors;
+                        valid7 = valid7 || _valid4;
+                        if (!valid7) {
+                          const _errs37 = errors;
+                          if (data7 !== null) {
+                            const err14 = {
+                              instancePath: instancePath + "/ready_phase",
+                              schemaPath: "#/properties/ready_phase/anyOf/1/type",
+                              keyword: "type",
+                              params: { type: "null" },
+                              message: "must be null",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err14];
+                            } else {
+                              vErrors.push(err14);
+                            }
+                            errors++;
+                          }
+                          var _valid4 = _errs37 === errors;
+                          valid7 = valid7 || _valid4;
+                        }
+                        if (!valid7) {
+                          const err15 = {
+                            instancePath: instancePath + "/ready_phase",
+                            schemaPath: "#/properties/ready_phase/anyOf",
+                            keyword: "anyOf",
+                            params: {},
+                            message: "must match a schema in anyOf",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err15];
+                          } else {
+                            vErrors.push(err15);
+                          }
+                          errors++;
+                          validate17.errors = vErrors;
+                          return false;
+                        } else {
+                          errors = _errs34;
+                          if (vErrors !== null) {
+                            if (_errs34) {
+                              vErrors.length = _errs34;
+                            } else {
+                              vErrors = null;
+                            }
+                          }
+                        }
+                        var valid0 = _errs33 === errors;
                       } else {
                         var valid0 = true;
-                      }
-                      if (valid0) {
-                        if (data.ready_phase !== undefined) {
-                          let data8 = data.ready_phase;
-                          const _errs39 = errors;
-                          const _errs40 = errors;
-                          let valid8 = false;
-                          const _errs41 = errors;
-                          if (typeof data8 !== "string") {
-                            const err16 = {
-                              instancePath: instancePath + "/ready_phase",
-                              schemaPath: "#/properties/ready_phase/anyOf/0/type",
-                              keyword: "type",
-                              params: { type: "string" },
-                              message: "must be string",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err16];
-                            } else {
-                              vErrors.push(err16);
-                            }
-                            errors++;
-                          }
-                          var _valid5 = _errs41 === errors;
-                          valid8 = valid8 || _valid5;
-                          if (!valid8) {
-                            const _errs43 = errors;
-                            if (data8 !== null) {
-                              const err17 = {
-                                instancePath: instancePath + "/ready_phase",
-                                schemaPath: "#/properties/ready_phase/anyOf/1/type",
-                                keyword: "type",
-                                params: { type: "null" },
-                                message: "must be null",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err17];
-                              } else {
-                                vErrors.push(err17);
-                              }
-                              errors++;
-                            }
-                            var _valid5 = _errs43 === errors;
-                            valid8 = valid8 || _valid5;
-                          }
-                          if (!valid8) {
-                            const err18 = {
-                              instancePath: instancePath + "/ready_phase",
-                              schemaPath: "#/properties/ready_phase/anyOf",
-                              keyword: "anyOf",
-                              params: {},
-                              message: "must match a schema in anyOf",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err18];
-                            } else {
-                              vErrors.push(err18);
-                            }
-                            errors++;
-                            validate17.errors = vErrors;
-                            return false;
-                          } else {
-                            errors = _errs40;
-                            if (vErrors !== null) {
-                              if (_errs40) {
-                                vErrors.length = _errs40;
-                              } else {
-                                vErrors = null;
-                              }
-                            }
-                          }
-                          var valid0 = _errs39 === errors;
-                        } else {
-                          var valid0 = true;
-                        }
                       }
                     }
                   }

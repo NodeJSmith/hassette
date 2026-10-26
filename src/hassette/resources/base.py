@@ -36,7 +36,7 @@ from hassette.resources.teardown import (
     TeardownReport,
     merge_teardown_reports,
 )
-from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
+from hassette.types.enums import ResourceRole
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX
 
 from .mixins import LifecycleMixin
@@ -286,6 +286,17 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         return self.hassette.config.logging.log_level
 
+    @classmethod
+    def _validate_parent(cls, parent: "Resource") -> None:
+        """Raise when ``parent`` may not own this class; ``add_child()`` calls it. Any parent owns a plain resource."""
+
+    def _optional_serve_task(self) -> "asyncio.Task[None] | None":
+        """The serve task of an optional service; None for every other resource.
+
+        A startup wave treats a member whose optional serve task has ended as settled (spec 134 D7).
+        """
+        return None
+
     def add_child(self, child_class: type[_ResourceT], **kwargs: Any) -> _ResourceT:
         """Create and add a child resource to this resource.
 
@@ -298,6 +309,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if "parent" in kwargs:
             raise ValueError("Cannot specify 'parent' argument when adding a child resource; it is set automatically.")
+        child_class._validate_parent(self)
 
         inst = child_class(hassette=self.hassette, parent=self, **kwargs)
         self.children.append(inst)
@@ -413,17 +425,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         ):
             self._shutdown_task.cancel()
         self.task_bucket.cancel_all_sync()
-        if self._status in TERMINAL_STATUSES:
-            # Don't silently clobber a status this resource already reached on its own (e.g.
-            # EXHAUSTED_DEAD from the confirmed-quiescent restart-refusal path) -- overwriting it
-            # to STOPPED here would erase that evidence with no trace for post-incident triage.
-            self.lifecycle_logger.debug(
-                "%s: force-terminal called but status is already terminal (%s) -- leaving unchanged",
-                self.unique_name,
-                self._status.value,
-            )
-        else:
-            self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
+        self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
         mark_not_ready(self, "shutdown timed out")
         for child in self.children:
             child._force_terminal()
@@ -552,8 +554,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Coordinator front door: joins or creates the resource's one owned initialization attempt.
 
         This method itself never runs class-specific initialization work — see
-        ``_initialize_body()``, which every initialization attempt (direct calls, ``start()``'s
-        spawned joiner, and ``restart()``) ultimately runs exactly once per attempt. See
+        ``_initialize_body()``, which every initialization attempt (direct calls and ``start()``'s
+        spawned joiner) ultimately runs exactly once per attempt. See
         ``coordinate_initialize()`` in ``hassette.resources.lifecycle`` for the full admission
         sequence (re-entry rejection, joining an active shutdown, restart refusal, task
         ownership).

@@ -7,7 +7,6 @@ import pytest
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_failed as real_handle_failed
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from tests.support.factories import wire_dependent_resource
 from tests.support.mock_hassette import make_mock_hassette
@@ -80,7 +79,7 @@ class _ResourceWithNoDeps(Resource):
 
 
 class _ServiceWithDepA(Service):
-    restart_spec = RestartSpec()
+    required = False
     depends_on: ClassVar[list[type[Resource]]] = [_SimpleDepA]
 
     async def serve(self) -> None:

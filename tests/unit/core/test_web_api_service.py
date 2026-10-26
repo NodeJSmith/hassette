@@ -232,7 +232,7 @@ class TestTrustedProxyRefreshScheduling:
     async def test_reinitialize_during_dns_outage_keeps_previous_resolution(
         self, unused_tcp_port_factory, tmp_path
     ) -> None:
-        """A ServiceWatcher restart re-runs on_initialize(); it must not discard last-known-good."""
+        """A second on_initialize() must not discard the last-known-good resolution."""
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1", trusted_proxies=("caddy",))
         with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
             await service.on_initialize()
@@ -294,10 +294,9 @@ class TestSchedulerChildLifecycle:
     """Regression coverage for the Scheduler child being created exactly once, in __init__,
     rather than on every on_initialize() call.
 
-    WebApiService.restart_spec is RestartType.TRANSIENT, so on_initialize() runs again on
-    every restart (restart() = shutdown() + initialize(), not re-construction). Resource
-    children are only ever reset in __init__ — nothing evicts an entry on shutdown — so if
-    add_child(Scheduler) ran inside on_initialize() instead, each restart would append a new
+    A same-instance shutdown() + initialize() runs on_initialize() again without re-construction.
+    Resource children are only ever reset in __init__ — nothing evicts an entry on shutdown — so if
+    add_child(Scheduler) ran inside on_initialize() instead, each re-initialization would append a new
     Scheduler child without removing the stale, already-shut-down one.
     """
 
@@ -315,7 +314,7 @@ class TestSchedulerChildLifecycle:
         children_after_construction = list(service.children)
 
         await service.on_initialize()
-        await service.on_initialize()  # simulate restart()'s second initialize() call
+        await service.on_initialize()  # simulate a second initialize() on the same instance
 
         assert service.scheduler is first_scheduler
         assert service.children == children_after_construction

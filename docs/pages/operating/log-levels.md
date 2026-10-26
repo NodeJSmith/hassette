@@ -169,7 +169,6 @@ A `[hassette.logging]` field can set the level of several loggers. Each Hassette
 | `app_handler` | `hassette.AppHandler`, `hassette.AppHandler.AppLifecycleService`, `hassette.AppBootstrapCoordinator` |
 | `web_api` | `hassette.WebApiService`, `hassette.RuntimeQueryService`, `hassette.TelemetryQueryService` |
 | `websocket` | `hassette.WebsocketService` |
-| `service_watcher` | `hassette.ServiceWatcher` |
 | `file_watcher` | `hassette.FileWatcherService`, `hassette.WebUiWatcherService` |
 | `command_executor` | `hassette.CommandExecutor` |
 | `state_proxy` | `hassette.StateProxy`, `hassette.StateManager` |

@@ -30,12 +30,6 @@ export const IS_FAILURE_STATUS = {
   starting: false,
   stopping: false,
   crashed: true,
-  // These two are only reachable via restart_spec exhaustion supervision, which today applies
-  // to Service subclasses only — App extends Resource directly and never carries restart_spec,
-  // so these values are correct by construction, not by design. If restart_spec supervision is
-  // ever extended to App, revisit whether these should be `true` for app-level failure reporting.
-  exhausted_dead: false,
-  exhausted_cooling: false,
 } satisfies Record<AppStatus | ResourceStatus, boolean>;
 
 export function isFailureStatus(status: AppStatus | ResourceStatus): boolean {
@@ -62,8 +56,6 @@ export const CAN_START: Record<ActionButtonStatusKey, boolean> = {
   starting: false,
   stopping: false,
   crashed: false,
-  exhausted_dead: false,
-  exhausted_cooling: false,
   unknown: false,
 } satisfies Record<ActionButtonStatusKey, boolean>;
 
@@ -83,8 +75,6 @@ export const CAN_STOP: Record<ActionButtonStatusKey, boolean> = {
   starting: false,
   stopping: false,
   crashed: false,
-  exhausted_dead: false,
-  exhausted_cooling: false,
   unknown: false,
 } satisfies Record<ActionButtonStatusKey, boolean>;
 
@@ -126,9 +116,6 @@ const APP_STATUS_MAP: Record<StatusMapKey, StatusVariant> = {
   starting: "neutral",
   stopping: "neutral",
   shutting_down: "neutral",
-  // Service exhaustion statuses
-  exhausted_dead: "danger", // Permanent failure — budget exhausted, no further restarts
-  exhausted_cooling: "warning", // Long cooldown in progress — will retry after cooldown period
   success: "success",
   failure: "danger",
   unknown: "neutral",
@@ -177,12 +164,10 @@ const STATUS_KIND_MAP: Record<StatusKindMapKey, StatusKind> = {
   starting: "ok",
   failed: "err",
   crashed: "err",
-  exhausted_dead: "err",
   blocked: "warn",
   degraded: "warn",
   stopping: "warn",
   shutting_down: "warn",
-  exhausted_cooling: "warn",
   stopped: "mute",
   disabled: "mute",
   not_started: "mute",

@@ -174,15 +174,15 @@ async def test_reconciliation_preserves_framework_actors(
         (
             "__hassette__",
             0,
-            "service_watcher.restart_service",
+            "runtime_query_service.on_service_status",
             "hassette.event.service_status",
             None,
             None,
             0,
             0,
-            "service_watcher.py:1",
+            "runtime_query_service.py:1",
             "framework",
-            "hassette.service_watcher.restart_service",
+            "hassette.rqs.on_service_status",
         ),
     )
     fw_row = await cursor.fetchone()

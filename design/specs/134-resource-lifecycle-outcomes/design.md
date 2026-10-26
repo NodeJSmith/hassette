@@ -25,18 +25,21 @@ Areas and where each new piece lives:
 
 - **Service start handoff** — `Service`'s initialization body and serve wrapper. A service is RUNNING only after `initialize()` (hooks and
   children) has completed.
-- **Service supervision** — `ServiceWatcher`, which receives failure reports (D8) and routes them
-  (D2, D17); `ServiceEscalationMixin` goes (D14) and the restart machinery with it (D18).
+- **Service supervision** — one report-routing method on `Hassette`, which receives failure reports
+  (D8) and routes them (D2, D17). `ServiceWatcher` is deleted: with no restarts, bus listeners or
+  readiness tracking left, routing was all it did. `ServiceEscalationMixin` goes (D14) and the restart
+  machinery with it (D18).
 - **Fatal escalation** — one fatal-exit function on `Hassette`, beside its in-memory fatal-reason
   latch (D14).
 - **Required/optional declaration** — a class-level declaration on each `Service`, replacing
-  `restart_spec` (D17); `ServiceWatcher` reads it when routing a report.
+  `restart_spec` (D17); `Hassette`'s report routing reads it, and `add_child` rejects a required
+  Service whose parent isn't `Hassette`.
 - **Dead bus** — `BusService` closes the event streams whenever it fails, in its init body or its
   serve (D9). A serve failure then arrives as a D8 report; an init failure is a boot failure (D1). The
   bus is required (D17), so either way the process exits through D14 or failed startup. After bus
   death, no producer blocks (D9).
-- **Supervisor hook** — on `Hassette`, registered by `ServiceWatcher` at construction. Lifecycle code
-  reports post-handoff serve failures to it (D8).
+- **Failure report** — `Service`'s serve wrapper reports post-handoff serve failures to `Hassette`'s
+  report routing (D8).
 - **Shutdown deadlines** (D19) — the stop and foundation stages, and the names of the foundation
   services, on `Hassette`'s root shutdown; the entry deadline on `AppLifecycleService`'s instance
   operations, which on expiry also has the instance's `Bus` and `Scheduler` registrations removed by
@@ -81,13 +84,15 @@ Out of scope:
 - **Failure handling:** loud. A required framework service escalates to process exit; a broken app
   stops only itself; no in-process service restarts (D17).
 - **Compatibility:** break freely (pre-V1). Changes to `hassette-wire` enums or published payloads go
-  through the client-compat ignore list with changelog and migration notes, because hassette-wire
+  through the compat ignore lists (which one, per the Breakdown's "Applies to all") with changelog and
+  migration notes, because hassette-wire
   and hassette-client are released packages.
 - **Scope:** minimal per concern. The deliverable is a milestone of high-level issues, not one build.
 - **Rollout:** ship outright. The endpoint contract change and its minimal frontend change land in the
   same release as the app-state changes.
 - **Hardening:** project defaults, plus one raised requirement: every new needs-restart or dead-in-place
-  state is visible as a status and one ERROR log naming the cause. No silent states.
+  state is visible as a status and one ERROR log naming the outcome and the cause, on top of whatever
+  logged the underlying failure. No silent states.
 - **Concurrency:** the existing per-app-key lock is the one serial owner per app instance. No new
   global locks.
 - **Altitude:** milestone; the issues are picked up one at a time, after refactors that move the code
@@ -117,9 +122,11 @@ because initialization is shielded and a shutdown requested mid-wave must not wa
 records the fatal reason with the failed services' names without logging the exception again, since
 the initialization task's observer already logged it at ERROR. No boot-wave initialization body
 waits on Home Assistant or on a later wave (the HA connection lives in `WebsocketService.serve()`,
-app bootstrap runs in a spawned task, and only top-level services declare `depends_on`), so the join
-can't stall a wave that readiness would have let through. This is a behavior change. Today a FAILED event from a boot failure in a post-watcher wave reaches
-`restart_service()` and gets retried. It is accepted, because a wave that isn't ready is already fatal
+app bootstrap runs after the handoff, in background work today and in `AppHandler.serve()` from issue 4,
+and only top-level services declare `depends_on`), so the join
+can't stall a wave that readiness would have let through. This is a behavior change. Before this
+decision shipped (#3106), a FAILED event from a boot failure in a post-watcher wave reached
+`restart_service()` and got retried. It is accepted, because a wave that isn't ready is already fatal
 today, so a retry only ever helped if it won inside the wave timeout.
 **Pick the status quo instead if** a service genuinely needs to look RUNNING while its children
 start. None was found.
@@ -133,9 +140,14 @@ start. None was found.
 **Recommendation:** the outcome follows whether the service is required (D17). A required service's
 failure escalates to process exit through D14, and the external supervisor restarts the process. An
 optional service ends dead in place: nothing shuts it down or restarts it, so its status stays
-FAILED (CRASHED if it raised `FatalError`) until process shutdown begins, and it logs one ERROR naming its
-bucket's pending tasks and saying a hassette restart brings it back (Posture: no silent states). No
-in-process reconstruction.
+FAILED (CRASHED if it raised `FatalError`) until process shutdown begins, and it logs one new ERROR (beyond the serve failure's own logs) naming its
+bucket's pending tasks (excluding the reporting serve task itself, which is still running when it
+reports) and saying a hassette restart brings it back (Posture: no silent states). No
+in-process reconstruction. An app-owned optional Service (D17) is the one exception to that lifetime:
+its app's stop or reload shuts it down as a child and a reload recreates it, so its ERROR says
+reloading the app brings it back. An optional service whose `serve()` returns without failing
+(the web UI watcher with no directories to watch) is not a failure: it is STOPPED, and its own log
+is the only signal (D8's unrequested-return rule is for required services only).
 **Pick root-exit for everything instead if** an optional service with live leftover work is judged more
 dangerous than a process restart.
 **Reversibility:** easy
@@ -218,7 +230,7 @@ handoff. The handoff is the initialization body completing.
 |---|---|---|---|
 | Change | Spawn the serve task after `after_initialize()` and child init; `_serve_wrapper()` still sets RUNNING when serve starts | Spawn serve where it is; `_initialize_body()` sets RUNNING after children; `_serve_wrapper()` no longer does | Spawn serve where it is; a serve failure before init returns is handed to the init attempt to raise, not to `handle_failed()` |
 | Can serve fail mid-attempt? | No. Spawning the serve task is the body's last step, with no await after it, so serve's first step runs after the body has completed: every serve failure is post-handoff and reported (D8), and every body failure is the attempt's | Yes: serve runs, but status stays STARTING. Its failure still goes through `handle_failed()` unless also rerouted | Yes, but it is owned by the attempt |
-| Services affected | Any service whose children or `after_initialize()` need serve already running. Per Assumed, no `Service` overrides `after_initialize()`, and neither Service with children waits on the parent's serve | None by timing | None by timing |
+| Services affected | Any service whose children or `after_initialize()` need serve already running. None, per Assumed: no Service's `after_initialize()` or children wait on its serve | None by timing | None by timing |
 | Code | Reorder plus doc update; the docstring's deadlock warning becomes a rule: a Service's children and `after_initialize()` must not wait on the parent's `serve()` or readiness. It goes into the resource-lifecycle rule file, and a Service whose child or `after_initialize()` waits on the parent's serve fails visibly instead of deadlocking | Two transition sites to keep in sync | New cross-task failure handoff |
 | Matches prior art | trio/OTP: init completes, then the loop runs | systemd `notify`: running ≠ started | trio's pre-`started()` exception routing |
 
@@ -226,25 +238,39 @@ handoff. The handoff is the initialization body completing.
 and the scan found no service that needs serve running before its children. Behavior to pin: a serve
 failure never surfaces from the attempt; D1's boot fail-fast covers failures of the body itself. Once
 D8's report exists, a serve failure at boot follows D2 like any other: a required service exits
-through D14 and an optional one ends dead in place.
+through D14 and an optional one ends dead in place. For that to hold, a startup wave treats an
+optional member whose initialization attempt succeeded and whose serve task has since ended (FAILED,
+CRASHED, or STOPPED by an early return) as settled, instead of waiting on its readiness until the wave
+timeout fails startup: an optional watcher marks ready inside `serve()`, so one whose `serve()` ends
+first never becomes ready. The wave watches each Service member's serve task as a wake source beside
+readiness and the attempts, so it settles at once rather than at the timeout. The rule lives in
+`wait_for_wave`, so both the startup waves and `start_children_and_wait` (the harness's path) get it,
+and it reads the serve task and the declaration through an internal hook rather than the private
+serve-task attribute. The hook, like `add_child`'s required-parent check, is defined on `Resource` and
+overridden by `Service`, the shape of the existing `_force_terminal` hook: the wave helpers and `Resource`
+sit below `Service` in the import graph, so neither can name it. A failed attempt stays
+fatal for every member (D1), and a required member's serve failure is D14's. The wave's "a member that
+loses readiness mid-wave has to regain it" rule no longer applies to a settled optional member.
+Behavior to pin: an optional watcher whose `serve()` raises before marking ready leaves boot
+completing promptly, with the watcher FAILED and its one ERROR.
 **Pick B instead if** the audit finds a service whose child initialization needs its serve loop
 draining work. **Pick C instead if** that same need shows up and B's double-path proves unworkable.
-**Reversibility:** easy (local to `Service`)
-**Ratified:** Chose starting `serve()` last over moving the RUNNING transition or routing early serve failures, to remove the mid-attempt window instead of guarding it, accepting a readiness-timing audit of every service.
+**Reversibility:** easy (local to `Service` and its two `Resource` hooks)
+**Ratified:** Chose starting `serve()` last over moving the RUNNING transition or routing early serve failures, to remove the mid-attempt window instead of guarding it, accepting a readiness-timing audit of every service. At the pre-build comb for issue 4 (2026-10-26), chose letting a wave settle on a failed optional member over keeping the wave strict, so "optional" holds at boot too. At the ship-time challenge for issue 4 (2026-10-26), chose underscore-prefixed hooks on `Resource` that `Service` overrides over public hooks or moving both checks off `Resource`, to keep the base-class contract visibly framework-internal without duck typing around the import cycle, accepting two service-only hooks on the base class.
 
-### D8: How does `ServiceWatcher` learn that a service failed?
+### D8: How does the supervisor learn that a service failed?
 
 **Deciding factor:** detection outside the supervised channel (OTP links, systemd SIGCHLD/watchdog). A
 bus-delivered failure is what makes a dead bus undetectable and what gives one failure two signals.
 
-| | A: Keep bus FAILED events, add a bus-death hook | B: Direct report to the watcher for every service; bus events become telemetry only |
+| | A: Keep bus FAILED events, add a bus-death hook | B: Direct report to the supervisor for every service; bus events become telemetry only |
 |---|---|---|
 | Signals per failure | Two (attempt result and bus event), so failure ownership still has to be inferred | One: a failed attempt raises; a post-handoff serve failure is reported once, directly |
 | Dead bus | Needs a special out-of-band hook (done-callback on the bus serve task, registered by `Hassette`) | Reported like any other service failure, then routed fatal by D3 |
 | What it deletes | Nothing | The watcher's internal bus listeners, `reconcile_after_bus_recovery()`, `on_bus_service_running()`, the stale-status check, and the `_restarting` set with its step-order guards |
-| Coupling | Unchanged | Lifecycle code reports to a supervisor hook on `Hassette` (the watcher registers itself); resources gain one call-out |
+| Coupling | Unchanged | Lifecycle code reports to a routing method on `Hassette`; resources gain one call-out |
 | User-visible | Unchanged | `on_hassette_service_failed` etc. keep firing as telemetry; only the watcher stops consuming them |
-| #3036 size | Full state machine still needed to arbitrate two channels | Smaller: one channel, and with D17 the watcher only routes a report by whether the service is required |
+| #3036 size | Full state machine still needed to arbitrate two channels | Smaller: one channel, and with D17 the supervisor only routes a report by whether the service is required, so the watcher goes |
 
 **Recommendation:** B, because it removes the cause of the double handling instead of arbitrating it,
 and it solves dead-bus detection with no special case.
@@ -262,23 +288,47 @@ and telemetry:
 - the watcher's `on_bus_service_running` / `reconcile_after_bus_recovery` → deleted (D3: no
   in-process bus recovery);
 - `SessionManager`'s CRASHED listener → deleted; teardown's session finalize records the outcome (D14).
+  What only it used goes with it: `SessionManager`'s `Bus` child, its stored session error and the
+  finalize branch that writes it, leaving finalize's fatal-reason branch.
+- `AppLifecycleService`'s own `handle_crash` on a failed bootstrap → deleted: bootstrap moves into
+  `AppHandler.serve()` (D17), so its failure is an ordinary report against `AppHandler`.
+
+With all of these gone, `ServiceWatcher` has nothing left but routing, so it is deleted and the routing
+lives on `Hassette` (Recipient below). Its `logging.service_watcher` config key goes with it, with a
+changelog migration note (a config that still sets it stops at load, per Assumed).
 
 **Report contract.**
-- **Report site.** A dedicated report function, called only from `_serve_wrapper()` after the
-  handoff. `handle_failed()` and `handle_crash()` stay status and telemetry. Pre-handoff init failures
-  and swallowed shutdown-hook failures are never reports.
-- **Recipient.** The watcher no longer depends on the bus, so its supervisor hook is registered on
-  `Hassette` at construction, before any startup wave runs. A report with no registered supervisor
-  logs ERROR and escalates fatal for a required service. The test harness, which has no watcher, opts
-  out explicitly.
-- **After shutdown starts.** A report arriving after shutdown has been requested, or after a fatal
-  reason is already latched, is logged at ERROR and not escalated, so a clean stop still exits 0.
-- **Unrequested return.** For a required service, `serve()` returning while shutdown hasn't been
-  requested is a failure report, so a silently stopped bus or scheduler can't happen (Posture: no
-  silent states).
+- **Report site.** A dedicated, synchronous report function, called only from `_serve_wrapper()`
+  after the handoff, at every failure exit: a raised exception, a `FatalError`, a `ClosedResourceError`
+  outside shutdown, and a required service's unrequested return or cancellation (reported, and passed
+  to `handle_failed()`, as a new framework exception carrying a reason
+  saying `serve()` ended without shutdown). It is the first thing the wrapper does on that exit, before
+  `handle_failed()` or `handle_crash()`: those await `send_event()` on a bounded channel with no
+  timeout, so reporting after them would let a stalled bus delay the very failure meant to be detected
+  without it (D3). It never awaits, so nothing can move the service to STOPPED before `handle_failed()`
+  writes FAILED (whose terminal guard would otherwise swallow it).
+  `handle_failed()` and `handle_crash()` stay status and telemetry. Pre-handoff init failures and
+  swallowed shutdown-hook failures are never reports. Behavior to pin: a non-bus required service
+  failing while the event channel is full and undrained still requests shutdown.
+- **Recipient.** A report-routing method on `Hassette`, in place from construction, so no startup wave
+  can run before it. It routes by the service's declaration (D17): required → D14's escalation
+  function, optional → the one ERROR of D2. The test harness's `Hassette` overrides it to a no-op, so a
+  required-service failure under a shared harness never latches a fatal reason or requests shutdown;
+  harness reset clears nothing extra. The test suite's mock `Hassette` (a sealed `AsyncMock`) gets a
+  synchronous no-op for it too, set in `make_mock_hassette` whether or not the mock is sealed (sealed,
+  the call raises on an unconfigured attribute; unsealed, it returns an unawaited coroutine), and the
+  same for the separate web-test `Hassette` stub.
+  The harness docstrings that count its overrides or cite watcher restart tests are updated.
+- **After shutdown starts.** "Shutdown requested" means the process-level `Hassette.shutdown_event`,
+  not the reporting resource's own. A report arriving after it is set, or after a fatal reason is
+  already latched, is logged at ERROR and not escalated, so a clean stop still exits 0.
+- **Unrequested return.** For a required service, `serve()` returning, or its serve task being
+  cancelled, while `Hassette.shutdown_event` isn't set is a failure report, so a silently stopped bus
+  or scheduler can't happen (Posture: no silent states). The service's status becomes FAILED, not the
+  STOPPED the wrapper writes for a requested return.
 
 **Reversibility:** hard (changes how supervision is wired; partial rollback re-introduces the guards)
-**Ratified:** Chose direct reporting with bus events as telemetry over keeping bus-delivered FAILED events plus a bus-death hook, to give each failure one signal and make bus death an ordinary report, accepting one supervisor call-out from lifecycle code to `Hassette`. The acting-consumer inventory and report contract (dedicated report site, registration at construction, loud undelivered reports) were added at the sketch challenge (Findings 1, 2, 4, 5, 7, 12). At re-challenge 2 (Finding 10), added that post-shutdown reports are logged, not escalated, replacing the deleted watcher admission check.
+**Ratified:** Chose direct reporting with bus events as telemetry over keeping bus-delivered FAILED events plus a bus-death hook, to give each failure one signal and make bus death an ordinary report, accepting one supervisor call-out from lifecycle code to `Hassette`. The acting-consumer inventory and report contract (dedicated report site, registration at construction, loud undelivered reports) were added at the sketch challenge (Findings 1, 2, 4, 5, 7, 12); registration and undelivered reports were later superseded by the pre-build comb's routing on `Hassette`. At re-challenge 2 (Finding 10), added that post-shutdown reports are logged, not escalated, replacing the deleted watcher admission check. At the pre-build comb for issue 4 (2026-10-26): chose deleting `ServiceWatcher` and routing on `Hassette` over keeping a slim watcher, so the required/optional routing exists once; fixed the report to run before the awaited telemetry sends; pinned the process-level shutdown event and the harness override.
 
 ### D9: How do event sends behave once the bus is dead?
 
@@ -343,7 +393,7 @@ and must not make every registry reader exclude it.
 | Shape | e.g. a new `NEEDS_RESTART` value | `(app_key, index) → reason and pending task names`, beside the live instances | `InstanceEntry` gains a phase |
 | Survives stop/unregister | Only if the registry keeps the entry anyway | Yes | Yes |
 | Live registry readers | Every `ResourceStatus` consumer handles an app-only value | Untouched | Each one must exclude tombstones |
-| Wire change | `ResourceStatus` enum plus a `client_compat` entry | `AppInstanceInfo` gains a needs-restart flag and reason; the snapshot includes flagged unregistered instances | Same as B |
+| Wire change | `ResourceStatus` enum plus compat entries (Breakdown, "Applies to all") | `AppInstanceInfo` gains a needs-restart flag and reason; the snapshot includes flagged unregistered instances | Same as B |
 | Matches HA | — | Per-entry state with `require_restart` | — |
 
 **Recommendation:** B, because it holds app-only state where the gate and the UI can read it without
@@ -411,7 +461,7 @@ today a resource's status mixes its own lifecycle with its supervisor's decision
 |---|---|---|
 | Needed under D17 | Yes: nothing restarts, so there are no episodes, budgets or cooldowns to track | Only with in-process restarts |
 | What FAILED means | Final: nothing retries it, for every service (D2 gives its lifetime) | "Failed, maybe retrying"; the marker says which |
-| Wire and UI | Two values leave `ResourceStatus` (hassette-wire); `retry_at` leaves the service payload; the frontend drops their mapping (diagnostics service row, sidebar groups, status utils) | Same removal, plus a dead flag and reason |
+| Wire and UI | Two values leave `ResourceStatus` (hassette-wire); `retry_at` leaves all three service payloads (the internal `ServiceStatusPayload`, the WS `ServiceStatusData` and the HTTP `ServiceInfo`); the frontend drops their mapping (diagnostics service row, sidebar groups, status utils, and the hand-written WS types) | Same removal, plus a dead flag and reason |
 | Terminal guard | `handle_failed()`'s terminal guard stays; a shutdown still ends STOPPED, which means only that orchestration finished, and outcomes live in the `TeardownReport`, the `AppRegistry` failure entry (D5) or the un-shut-down service's own status (D2); `_force_terminal()` loses its terminal-status preservation (D18) | The guard and `_force_terminal()` consult the DEAD marker |
 
 **Recommendation:** N, because D17 removes everything a supervision record would track.
@@ -428,10 +478,12 @@ neither the event bus nor the database. Peers (systemd, Docker, Kubernetes, HA c
 reason in the exit status and the log, never with blocking I/O before shutdown. Today PERMANENT
 exhaustion calls `hassette.shutdown()` inline and restart refusal calls `request_shutdown()`.
 
-**Recommendation:** one escalation function on `Hassette`, beside its existing fatal-reason latch, so
-the watcher and the no-supervisor path (D8) both reach it; `ServiceEscalationMixin` goes:
+**Recommendation:** one escalation function on `Hassette`, beside its existing fatal-reason latch and
+called by its report routing (D8); `ServiceEscalationMixin` goes:
 1. record the fatal reason in memory (first reason wins); it sets the exit code and the CRITICAL
-   fatal-error line;
+   fatal-error line. The reason keeps today's shape, naming the service and the exception type
+   (or, for an unrequested return, that `serve()` ended without shutdown), now built here instead
+   of in the watcher's CRASHED listener;
 2. call `request_shutdown()`;
 3. emit CRASHED as telemetry without awaiting it, so a full or dead channel never delays shutdown.
    The emit runs as a best-effort task in `Hassette`'s own bucket that logs a failed send at DEBUG;
@@ -443,14 +495,24 @@ Nothing on this path awaits the database. Teardown's existing session finalize w
 to the session record, best-effort. `SessionManager`'s CRASHED listener is deleted, since finalize
 already records the outcome.
 
-Failure reports from required services (D2, D3), `FatalError`s raised by required services (a serve
-failure carrying one arrives through the D8 report; one from an init body at boot is D1's), and
-undelivered reports from required services (D8) all use it. A `FatalError` from an optional service
+Failure reports from required services (D2, D3) and `FatalError`s raised by required services (a
+serve failure carrying one arrives through the D8 report; one from an init body at boot is D1's) use
+it. A failed app bootstrap reaches it the same way: bootstrap runs in `AppHandler.serve()` and
+`AppHandler` is required (D17), so the failure is an ordinary report rather than a second caller of
+this function. Today bootstrap runs as detached background work whose crash exits the process only
+through the watcher's CRASHED listener, which D8 deletes. It is a framework failure, not an app
+failure, so D4 doesn't apply.
+
+Two side effects are accepted. A required service that fails (FAILED) still gets a CRASHED telemetry
+event from step 3 while the process exits, so the event and the status briefly disagree. And deleting
+`SessionManager`'s CRASHED listener removes the only writer of the session row's `error_type` and
+`error_traceback`; finalize writes the fatal reason as `error_message` only, and the traceback stays
+in the log the external supervisor retains. A `FatalError` from an optional service
 ends it dead in place like any other failure (D2). With no restarts, `fatal_error_names` has nothing to route around and
 goes (D18).
 **Pick keep-both instead if** an inline shutdown is needed somewhere for ordering. None found.
 **Reversibility:** easy
-**Ratified:** Chose one escalation function on `Hassette` that records the fatal reason in memory, calls `request_shutdown()` immediately and emits CRASHED without awaiting it over keeping inline `shutdown()` or writing the session record before shutdown, to let `run_forever()` own every fatal exit with no bus or database dependency, accepting that the session record gets the reason only if teardown's finalize reaches the database, the deletion of `SessionManager`'s CRASHED listener, and a duplicate CRASHED event when a required service's `FatalError` already emitted one (narrow re-challenge, Finding 4), and that a fatal report landing just after the last startup wave is ready can be preceded by the "Hassette is running" log line, with the exit code and reason still correct (Finding 7). Reframed at re-challenge 1 after D17; the direct session write was dropped at re-challenge 2 (Findings 1, 3) to match peers.
+**Ratified:** Chose one escalation function on `Hassette` that records the fatal reason in memory, calls `request_shutdown()` immediately and emits CRASHED without awaiting it over keeping inline `shutdown()` or writing the session record before shutdown, to let `run_forever()` own every fatal exit with no bus or database dependency, accepting that the session record gets the reason only if teardown's finalize reaches the database, the deletion of `SessionManager`'s CRASHED listener, and a duplicate CRASHED event when a required service's `FatalError` already emitted one (narrow re-challenge, Finding 4), and that a fatal report landing just after the last startup wave is ready can be preceded by the "Hassette is running" log line, with the exit code and reason still correct (Finding 7). Reframed at re-challenge 1 after D17; the direct session write was dropped at re-challenge 2 (Findings 1, 3) to match peers. At the pre-build comb for issue 4 (2026-10-26), chose keeping a failed app bootstrap fatal over making it app-scoped, since it is a framework failure, and then routing it through the ordinary report by making `AppHandler` a required Service over a direct call into this function, so the harness override and the post-shutdown guard apply without a second guarded entry point.
 
 ### D15: What do app lifecycle actions return, and how do the routes map it?
 
@@ -466,7 +528,7 @@ synchronous, refuses with a 4xx and returns `require_restart`.
 | HTTP mapping | Worst outcome wins: any failed or newly flagged instance gives 500, otherwise any refused (needs restart, app key busy) gives 409, otherwise 200. The body always lists every instance's outcome and names each instance that needs a hassette restart. A stop whose hook timed out is failed with the reason "timed out", whether or not work is still pending; pending work additionally flags it needs-restart (D5) | 200 instead of 202; refusal codes added |
 | Frontend | Minimal: accept 200, show the refusal or failure message and restart-required text | Same |
 | Error bodies | A 409 or 500 from an app action is a `ProblemDetail` (RFC 9457) carrying an optional `outcomes` extension member with the per-instance list; the needs-restart refusal gets its own `ProblemCode` | Unchanged |
-| Wire | `ActionResponse` keeps `app_key`, `action` and `instance_index` and gains the outcomes alongside; `ProblemDetail` gains `outcomes`; OpenAPI and types regenerated, `client_compat` entry | Same |
+| Wire | `ActionResponse` keeps `app_key`, `action` and `instance_index` and gains the outcomes alongside; `ProblemDetail` gains `outcomes`; OpenAPI and types regenerated, compat entries (Breakdown, "Applies to all") | Same |
 
 **Recommendation:** A, because it fixes misattribution and invisible stop failures at the source, and
 it is the outcome contract the needs-restart flag needs anyway.
@@ -496,7 +558,7 @@ inside this work than after it.
 
 **Deciding factor:** whether a mid-run crash of a required service is common enough to justify a
 supervisor inside the process, when every other fatal path (D1 boot failure, D3 bus death) already
-relies on an external one. The routine failure, losing Home Assistant, never reaches the watcher:
+relies on an external one. The routine failure, losing Home Assistant, never reaches the supervisor:
 `WebsocketService` reconnects in place and its `serve()` doesn't exit on HA-side failures. Any other
 failure of a required service, whatever its cause, is rare enough that a process restart is an
 acceptable price. That includes `DatabaseService` raising on persistent heartbeat failure, an
@@ -507,20 +569,48 @@ same way until it is fixed, which the required-DB direction (#2695) already acce
 |---|---|---|
 | Required service crashes mid-run | D14 fatal exit; the external supervisor restarts the process | Backoff, budget and cooldown, then exit when exhausted |
 | Optional service crashes | Dead in place with one ERROR (D2) | Restarted per its spec |
-| Machinery | Removes `RestartBudget`, backoff, cooldown, same-object service restart, and most of the watcher | Keeps all of it |
+| Machinery | Removes `RestartBudget`, backoff, cooldown, same-object service restart, and the watcher (D8) | Keeps all of it |
 | `RestartSpec` / `RestartType` | Replaced by one required/optional declaration per service | Unchanged |
 | Cost of a transient crash | Every app re-initializes with the process | Only that service restarts |
 | Bare `hassette run` without a restart policy | The process stays down after a crash; the docs require a restart policy, as D1 and D3 already assume | Survives in-process |
 | Matches | HA core under the Supervisor; systemd/k8s process supervision | OTP, which has a VM to make it cheap |
 
 Classification: required are `BusService`, `SchedulerService`, `SyncExecutorService`,
-`WebsocketService`, `DatabaseService`, `CommandExecutor` and `WebApiService`. `WebApiService` is
+`WebsocketService`, `DatabaseService`, `CommandExecutor`, `WebApiService` and `AppHandler`.
+`AppHandler` becomes a `Service` whose `serve()` runs app bootstrap and then waits for shutdown
+(`after_initialize()` keeps marking it ready, so the boot wave doesn't wait on Home Assistant); a
+failed bootstrap leaves hassette with no apps, so it is fatal (D14). `WebApiService` is
 required because it is the control plane: the CLI and the UI talk to it, and it serves the liveness
 probe (`/api/health/live`), so a live process with a dead API would leave automations running with no
 way to observe or control them. Optional are the two file watchers (`FileWatcherService`,
 `WebUiWatcherService`); losing one only disables hot reload. A `Service` subclass that doesn't declare
 required or optional fails at class definition, replacing today's missing-`restart_spec` warning
 (Posture: loud failure).
+
+The declaration is one boolean `ClassVar` on `Service` named `required` (public API: the migration
+note, the docs and user Services use it), enforced in `__init_subclass__` by today's
+`restart_spec` rule: classes with abstract methods are skipped, and a concrete class must declare it
+in its own body, so a subclass of a concrete service redeclares it. `Service` itself defaults it to
+`True`, so an abstract-skipped intermediate that is instantiated anyway (`FinalMeta` doesn't enforce
+abc) routes as required, the loud side, instead of failing the routing read. Plain `Resource`s are
+untouched.
+"Required" means "its failure ends the process", which only a framework service owned by `Hassette` may
+claim: `add_child` raises when a required Service's parent isn't `Hassette`. That is a guard on
+`add_child` only; a Service constructed directly (as unit-test fixtures do) bypasses it.
+
+`AppHandler` as a Service: `serve()` calls `AppHandler.bootstrap_apps()`, which stays the one
+bootstrap entry point (it keeps `has_bootstrapped()` in step, and harness reset calls it directly),
+then parks on `AppHandler`'s own shutdown event; `_bootstrap_task` goes. Marking ready in
+`after_initialize()` rather than in `serve()` is a deliberate deviation from the resource-lifecycle
+rule file's readiness rule (bootstrap waits on Home Assistant, which no boot wave may), recorded in
+that file's deviations list and the mark-ready timing test's categories. A failed bootstrap now clears
+`AppHandler`'s readiness through `handle_failed()`; in production the report's shutdown ends the wave
+first, while under the harness's no-op routing a bootstrap failure during harness start surfaces as
+that start timing out. `bootstrap_apps()` keeps its own exception log and re-raise; only its
+`handle_crash` call goes. hassette doesn't
+document user-defined Services as a feature, but `RestartSpec`, `restart_spec` and the restart docs
+were public, so the change ships with a changelog migration note saying what replaced them and that an
+app-owned Service must declare itself optional.
 
 The same-object re-initialization guard (`RestartRefusedError` raised by the coordinator after an
 unsafe teardown) stays as an invariant of "one attempt per resource", though nothing triggers it in
@@ -532,7 +622,7 @@ already exits, and it removes the largest mechanism this milestone would otherwi
 restarting every app is disruptive, or users commonly run without a restart policy.
 **Reversibility:** hard (restart machinery could return behind D8's report, but D13's wire removal
 would need reversing)
-**Ratified:** Chose no in-process service restart, with `WebApiService` required as the control plane, over keeping watcher restarts, to delete the restart machinery and give every service failure one outcome, accepting that a transient crash of any required service restarts every app, that a persistent environmental database fault crash-loops until fixed (as the required-DB direction, #2695, already implies), that hassette must run under a restart policy, and that on the HA add-on, where Watchdog is opt-in, Supervisor stops restarting after 10 attempts in 30 minutes, leaving automations stopped under a persistent fault until the user starts the add-on (re-challenge 2, Finding 13). Added at the sketch re-challenge from an inventory of built lifecycle machinery.
+**Ratified:** Chose no in-process service restart, with `WebApiService` required as the control plane, over keeping watcher restarts, to delete the restart machinery and give every service failure one outcome, accepting that a transient crash of any required service restarts every app, that a persistent environmental database fault crash-loops until fixed (as the required-DB direction, #2695, already implies), that hassette must run under a restart policy, and that on the HA add-on, where Watchdog is opt-in, Supervisor stops restarting after 10 attempts in 30 minutes, leaving automations stopped under a persistent fault until the user starts the add-on (re-challenge 2, Finding 13). Added at the sketch re-challenge from an inventory of built lifecycle machinery. At the pre-build comb for issue 4 (2026-10-26), chose rejecting a required app-owned Service at `add_child` over silently treating it as optional, to make the change loud for anyone running their own Services; and added `AppHandler` to the required set as a Service whose `serve()` runs app bootstrap, since bootstrap was already serve-shaped work and this lets its failure take the ordinary report path.
 
 ### D18: What already-built lifecycle machinery does the milestone remove?
 
@@ -547,7 +637,7 @@ prior-art brief's peers.
 |---|---|---|
 | The app layer's own stop timeout, `cleanup_failed_instance()` and its cleanup-timeout setting | When the app timeout fires before the coordinator's, no `TeardownReport` exists for D5 to read; the hand-rolled cleanup never seals the bucket or shuts down children | The app init deadline stays the one bound on an app's init; on expiry, or on any failed init, the instance is shut down (D10), which cancels the init, skips user shutdown hooks, and returns the `TeardownReport` D5 reads. App and resource shutdown timeouts become one setting |
 | `strict_lifecycle`, the `ResourceStatus` transition table, setter validation and its error type, and the setting's other readers (issue 2) | Production only warns, and the table has caused failures (#1071) | Nothing; #2697 is done by deletion |
-| Restart machinery: `RestartBudget`, `RestartSpec` and `RestartType` as a whole (D17), same-object service `restart()`, the watcher's admission checks, `fatal_error_names`, `log_service_event`, and the watcher's `Bus` child and bus dependency | D17 | One required/optional declaration per service |
+| Restart machinery: `RestartBudget`, `RestartSpec` and `RestartType` as a whole (D17), same-object service `restart()` and the generic restart front door in the resource operations module, the watcher's admission checks, `fatal_error_names`, `log_service_event`, and `ServiceWatcher` itself (its `Bus` child, bus dependency and `logging.service_watcher` key with it) | D17 | One required/optional declaration per service, routed by `Hassette` (D8) |
 | `_force_terminal()`'s terminal-status preservation | Exists only for `EXHAUSTED_*` (D13) | — |
 | Restart safety meaning "any recorded cause" | A raised or timed-out hook, body or cleanup was cancelled and has ended | One predicate, "work may still be running", read by D5, D12 and the coordinator's re-init guard (kept as a cheap invariant, D17). It is true when the report's `pending_tasks` is non-empty, when it records `INITIALIZATION_TASK_PENDING` (which carries no task name), when the evidence is incomplete (`FORCED_TERMINAL`, `COORDINATOR_FAILED`), or when a child's report satisfies the same predicate. Coverage: the instance's own tasks and its children's (including its `Bus`, so non-parallel handlers). Not covered: sync worker threads (an `AppSync` hook or sync handler on a `SyncExecutorService` thread keeps running after its awaiting coroutine is cancelled, and the executor keeps no per-resource owner for it), and parallel-mode handlers and scheduler jobs, which run in `BusService`'s and `SchedulerService`'s buckets; which resource owns a handler's task is #1715's question, left out by D16. At process exit, executor threads that survive the foundation stage's join trigger D19's hard exit instead. Every other cause is diagnostic only: raised or timed-out hooks, bodies and cleanups, and `SERVE_TASK_PENDING`/`TASKS_PENDING`, whose task names are already in `pending_tasks` |
 | The shutdown budget allocation (shared hooks pool, margins, floors, per-wave division) | No peer splits shutdown time this way; it has caused #1809 and #2248; it shortchanges `on_shutdown` against the documented timeout (Assumed) | Operation-owned deadlines (D19) |
@@ -679,12 +769,15 @@ caller's; none was found, and B's nested sums are what caused #1809 and #2248.
 
 ## Assumed
 
-- No `Service` subclass overrides `after_initialize()`. The only overrides are on `StateManager`,
-  `AppHandler` and `App`, none of them Services. Evidence: a search for `after_initialize`
-  definitions in the `hassette` package.
+- The only `after_initialize()` overrides are on `StateManager`, `AppHandler` and `App`. Until issue 4
+  none of them is a Service; issue 4 makes `AppHandler` one (D17), and its override then only marks it
+  ready, waiting on nothing. Evidence: a search for `after_initialize` definitions in the `hassette`
+  package; `AppHandler.after_initialize()`.
 - The only `Service` subclasses with children are `WebApiService` (`Scheduler`) and `SchedulerService`
-  (`_ScheduledJobQueue`). `RuntimeQueryService` and `ServiceWatcher` own a `Bus` but are plain
-  `Resource`s. Evidence: their `add_child` calls and base classes.
+  (`Bus`, `_ScheduledJobQueue`), joined in issue 4 by `AppHandler` (`Bus`, `AppLifecycleService`, whose
+  initializer only marks it ready). `RuntimeQueryService` owns a `Bus` but is a plain `Resource`;
+  `SessionManager` and `ServiceWatcher` do too until issue 4 removes both buses (D8). Evidence: their
+  `add_child` calls and base classes.
 - With defaults, the shutdown budget gives an app's three shutdown hooks a shared 2.5s, while the
   operating docs say `app_shutdown_timeout_seconds` (10s) caps a single app's `on_shutdown`. Evidence:
   `compute_shutdown_budget` evaluated with the default settings; the operating docs page's shutdown
@@ -703,10 +796,11 @@ caller's; none was found, and B's nested sums are what caused #1809 and #2248.
   add-on with Watchdog enabled (limits in D17), a Docker restart policy, or a systemd unit. D1, D3 and D17 depend on it. Evidence:
   the add-on's health check; the Docker getting-started compose snippet's restart policy.
 - Only top-level services (children of `Hassette`) declare `depends_on`, no boot-wave initialization
-  body waits on Home Assistant, and neither Service with children waits on its parent's serve. D1's
+  body waits on Home Assistant, and no child of a Service in the inventory above waits on its parent's
+  serve (each child's initializer only marks ready or wires itself). D1's
   wave join and D7's ordering depend on it. Evidence: the `depends_on` declarations across the core
-  package; the HA connection living in `WebsocketService.serve()`; the `Scheduler` and
-  `_ScheduledJobQueue` initializers.
+  package; the HA connection living in `WebsocketService.serve()`; the `Scheduler`,
+  `_ScheduledJobQueue` and `AppLifecycleService` initializers.
 - Every required service's `serve()` returns only after shutdown is requested: most loop until their
   own shutdown event is set (a disabled web API included), `WebsocketService` exits only by raising,
   and `BusService` also ends when its event stream closes, which happens only at shutdown or in D9's
@@ -726,7 +820,7 @@ caller's; none was found, and B's nested sums are what caused #1809 and #2248.
 - An unsafe `TeardownReport` already blocks re-initializing the same object (`RestartRefusedError`).
   Apps avoid it because reload builds a new object. Evidence: rule file section "Teardown reports".
 - `WebsocketService` reconnects to Home Assistant in place; its `serve()` does not exit on HA-side
-  failures, so losing HA never reaches the watcher. Evidence: `WebsocketService.serve()` docstring.
+  failures, so losing HA never reaches the supervisor. Evidence: `WebsocketService.serve()` docstring.
 - The CLI and the web UI reach a running instance only through `WebApiService`, which also serves the
   liveness probe the add-on's health check calls. Evidence: the CLI client; the add-on Dockerfile.
 - `SyncExecutor` tracks only a global outstanding-submission count (for saturation warnings) and a
@@ -744,7 +838,7 @@ caller's; none was found, and B's nested sums are what caused #1809 and #2248.
 
 **Done when:**
 - a service failure after startup has exactly one outcome: a required service exits the process with a
-  nonzero exit code and a CRITICAL line naming the reason, an optional one is FAILED (CRASHED for `FatalError`) with one ERROR; nothing restarts a service
+  nonzero exit code and a CRITICAL line naming the reason, an optional one is FAILED (CRASHED for `FatalError`) with one dead-in-place ERROR; nothing restarts a service
   in-process, and `ResourceStatus` has no `EXHAUSTED_*` values;
 - a failure report arriving after shutdown was requested doesn't escalate, so a clean stop exits 0, and
   a required service whose `serve()` returns unrequested counts as failed;
@@ -769,7 +863,11 @@ caller's; none was found, and B's nested sums are what caused #1809 and #2248.
 
 Applies to all: D4 (an app failure never takes down the process or its siblings), the Posture's
 "no silent states" rule, and its compatibility rule: an issue that changes a `hassette-wire` enum or a
-published payload (4, 6, 8) adds its `client_compat` ignore entries, changelog and migration notes.
+published payload (4, 6, 8) adds the compat ignore entries its checks actually fail on, plus changelog
+and migration notes. A removed response enum value or property fails the OpenAPI diff
+(`tools/wire_compat_ignore.txt`); `client_compat` (`tools/client_compat_ignore.txt`) fails only when a
+released client can't parse the new responses, and a stale entry there fails the check, so don't add
+one pre-emptively.
 
 1. **Put shutdown deadlines on operations and stages**: replace the shutdown budget allocation with
    D19's operation-owned deadlines: the two exit stages, the enforced entry deadline on runtime
@@ -796,13 +894,40 @@ published payload (4, 6, 8) adds its `client_compat` ignore entries, changelog a
    initialization attempts (and the database service's phase before them) before its readiness wait. Implements: D1, D7. After: none.
    Issue: #3106
 4. **Report service failures directly and stop restarting services in-process**: the direct report and
-   its contract, required/optional classification replacing restart specs (an undeclared Service fails at class definition), dead-in-place optional
-   services, one fatal escalation path, removal of restart budgets, backoff, cooldown, `fatal_error_names`, `EXHAUSTED_*`
-   (wire and frontend mapping), the watcher's bus dependency, `ServiceEscalationMixin` and `SessionManager`'s
-   CRASHED listener; a failed optional service is left un-shut-down. Docs: the service supervision
-   page, plus the fatal-exit sentences on the health endpoints and database telemetry pages, the
-   lifecycle internals and service details pages' restart-spec and `EXHAUSTED_*` material, replaced by
-   the required/optional declaration a custom `Service` author must make. Implements: D2, D8, D13, D14, D17, D18
+   its contract (reported before the telemetry sends, routed by `Hassette`, overridden by the harness),
+   required/optional classification replacing restart specs (an undeclared Service fails at class
+   definition; a required Service under a non-`Hassette` parent is rejected at `add_child`), dead-in-place
+   optional services, startup waves that settle on an optional member whose serve ended, by failing
+   or returning early (D7), report-routing no-ops on the harness and the test mocks (D8), one fatal
+   escalation path,
+   `AppHandler` as a required Service running app bootstrap in `serve()`, removal of restart budgets,
+   backoff, cooldown, the generic restart front door,
+   `fatal_error_names`, `EXHAUSTED_*` and `retry_at` (wire and frontend mapping), `ServiceWatcher` and
+   its `logging.service_watcher` key (committed config schema and frontend framework-keys included),
+   `ServiceEscalationMixin`, and `SessionManager`'s CRASHED listener with its `Bus` and stored session
+   error; OpenAPI, WS schema and frontend types regenerated; a failed optional service is left
+   un-shut-down. Changelog migration notes for `RestartSpec` / `restart_spec` replaced by `required`
+   (an app-owned Service must declare itself optional) and the removed logging key; changelog entries
+   for the behavior changes: any non-app CRASHED no longer exits by itself (a `FatalError` from an
+   optional service ends it dead in place), and session rows no longer get
+   `error_type`/`error_traceback`. Stale references to the deleted classes go too: the docs
+   reference-page generator and xref-coverage checker, `core/REVIEW.md`'s watcher questions, the
+   database telemetry page's example app key, the status-predicates module, `Hassette`'s watcher slot,
+   the known-flakes list, the client-compat live-state fixture's `_retry_at` seeding, the adversarial
+   seed scenario's watcher rows, `resources/REVIEW.md`'s `EXHAUSTED_*` questions, the `FatalError` and
+   `RestartRefusedError` docstrings, harness and fixture comments citing watcher behavior,
+   `SessionManager`'s session lock (which only coordinated with the deleted listener), and the
+   `Service` docstring (whose step order also predates D7). Docs: the Lifecycle & Supervision page
+   (`internals/lifecycle.md`: its restart-spec, watcher and `EXHAUSTED_*` material, replaced by
+   required vs optional, fatal exit, dead-in-place, that hassette must run under a restart policy, and
+   where that supervisor keeps the previous run's fatal reason), plus the
+   fatal-exit sentences on the health endpoints and database telemetry pages, the internals overview
+   (its `ServiceWatcher` API cross-reference, which breaks the docs build once the class is gone, and its
+   startup diagrams), the service details page's restart-spec and `EXHAUSTED_*` material and
+   restart-spec snippet, the web UI diagnostics page's cooldown text and the log-levels
+   page's watcher key, replaced by the required/optional declaration a custom `Service` author must
+   make; the resource-lifecycle, core-startup and unit-test rule files and the config log-level
+   convention design note. Implements: D2, D8, D13, D14, D17, D18
    (restart machinery, terminal-status preservation), and D7's boot outcome for serve failures.
    After: 2, 3. Issue: #3107
 5. **Shut down cleanly when the bus dies**: route bus death through issue 4's fatal path, have the bus

@@ -39,7 +39,7 @@ Referenced in SQL constraints and in Python guards throughout the codebase.
 All non-SQL usages should reference this constant or use ``is_framework_key()``."""
 
 FRAMEWORK_APP_KEY_PREFIX = "__hassette__."
-"""Prefix for component-specific framework keys (e.g. ``'__hassette__.service_watcher'``).
+"""Prefix for component-specific framework keys (e.g. ``'__hassette__.scheduler_service'``).
 
 The trailing dot distinguishes the prefix from the bare sentinel so that
 ``'__hassette__other'`` is never mistakenly treated as a framework key.
@@ -92,8 +92,8 @@ def is_framework_key(app_key: str | None) -> bool:
 def framework_display_name(app_key: str) -> str:
     """Return a human-readable display name for a framework app key.
 
-    For prefixed keys (e.g. ``'__hassette__.service_watcher'``) returns the
-    component slug (``'service_watcher'``).  For the bare legacy key
+    For prefixed keys (e.g. ``'__hassette__.scheduler_service'``) returns the
+    component slug (``'scheduler_service'``).  For the bare legacy key
     ``'__hassette__'`` returns ``'framework'``.
 
     Args:

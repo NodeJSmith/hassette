@@ -1,4 +1,4 @@
-"""System tests for real OS-level SIGINT shutdown behavior.
+"""System tests for real OS-level SIGINT/SIGTERM shutdown behavior.
 
 Unlike the rest of the system suite, these tests spawn ``hassette run`` as a real subprocess
 rather than driving ``Hassette`` in-process via ``startup_context`` — the whole point is to
@@ -128,12 +128,17 @@ def _cleanup(proc: subprocess.Popen[str], reader: threading.Thread) -> None:
         proc.stdout.close()
 
 
-def test_sigint_exits_promptly_on_healthy_instance(ha_container: str, tmp_path: Path) -> None:
-    """A single Ctrl+C on a healthy, idle instance exits in a few seconds, not a 30s hang.
+@pytest.mark.parametrize("sig", [signal.SIGINT, signal.SIGTERM], ids=["sigint", "sigterm"])
+def test_single_signal_exits_promptly_on_healthy_instance(
+    ha_container: str, tmp_path: Path, sig: signal.Signals
+) -> None:
+    """A single Ctrl+C or ``docker stop`` on a healthy, idle instance exits 0 in a few seconds.
 
     Regression test for audit finding F1: SIGINT used to fall through to asyncio's default
     disorderly-cancellation path and burn the full ``total_shutdown_timeout_seconds`` with zero
-    hassette output before exiting.
+    hassette output before exiting. SIGTERM pins that uvicorn's own SIGTERM handler, installed
+    while it serves, doesn't keep hassette's from requesting shutdown first: otherwise the web API
+    service's return reads as an unrequested stop of a required service and the process exits 1.
     """
     proc, base_url = _spawn_hassette(tmp_path, ha_container)
     marker_seen = threading.Event()
@@ -143,15 +148,15 @@ def test_sigint_exits_promptly_on_healthy_instance(ha_container: str, tmp_path: 
         _wait_ready(base_url, timeout=READY_TIMEOUT)
 
         start = time.monotonic()
-        proc.send_signal(signal.SIGINT)
+        proc.send_signal(sig)
         try:
             proc.wait(timeout=GRACEFUL_EXIT_TIMEOUT)
         except subprocess.TimeoutExpired:
-            pytest.fail(f"hassette did not exit within {GRACEFUL_EXIT_TIMEOUT}s of a single SIGINT")
+            pytest.fail(f"hassette did not exit within {GRACEFUL_EXIT_TIMEOUT}s of a single {sig.name}")
         elapsed = time.monotonic() - start
 
         assert elapsed < GRACEFUL_EXIT_TIMEOUT, (
-            f"SIGINT shutdown took {elapsed:.1f}s — expected a graceful exit well under {GRACEFUL_EXIT_TIMEOUT}s"
+            f"{sig.name} shutdown took {elapsed:.1f}s — expected a graceful exit well under {GRACEFUL_EXIT_TIMEOUT}s"
         )
         assert proc.returncode == 0, f"expected a clean exit, got returncode={proc.returncode}"
     finally:

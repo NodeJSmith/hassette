@@ -274,28 +274,8 @@ async def test_force_terminal_reaches_grandchild_under_already_reported_child():
     assert grandchild.status == ResourceStatus.STOPPED
 
 
-async def test_force_terminal_does_not_clobber_already_terminal_status():
-    """`_force_terminal()` must not silently overwrite a status the resource already reached on
-    its own (e.g. EXHAUSTED_DEAD from a restart-refusal path) with STOPPED. Before this fix, the
-    unconditional `self._status = ResourceStatus.STOPPED` bypassed the setter's transition
-    validation and would erase that evidence with no trace -- EXHAUSTED_DEAD's only modeled
-    outbound transition is to STOPPING, never back to STOPPED, so this reversion could only
-    happen via this bypass.
-    """
-    hassette = make_mock_hassette(sealed=False)
-    resource = SimpleParent(hassette)
-    resource._status = ResourceStatus.EXHAUSTED_DEAD
-
-    resource._force_terminal()
-
-    assert resource.status == ResourceStatus.EXHAUSTED_DEAD
-
-
 async def test_force_terminal_still_sets_stopped_from_a_non_terminal_status():
-    """Companion to the guard test above: a resource NOT already in a terminal status is still
-    forced to STOPPED as before -- the guard only protects an existing terminal status, it does
-    not disable force-terminal's normal behavior.
-    """
+    """A resource that is not yet terminal is forced to STOPPED."""
     hassette = make_mock_hassette(sealed=False)
     resource = SimpleParent(hassette)
     assert resource.status == ResourceStatus.NOT_STARTED

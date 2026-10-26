@@ -119,8 +119,8 @@ async def test_protect_task_does_not_hide_explicit_spawn_from_its_own_bucket(buc
     """PROTECT_TASK must not blind a bucket to work explicitly spawned on it.
 
     Regression test: the task factory used to check PROTECT_TASK before CURRENT_BUCKET, so a
-    protected context (e.g. the test-harness ``watcher`` fixture in test_service_watcher.py)
-    made every task invisible to tracking -- including ones created via the bucket's own
+    protected context made every task invisible to tracking -- including ones created via the
+    bucket's own
     ``spawn()``, which explicitly claims CURRENT_BUCKET for the duration. That left
     explicitly-owned work untracked and uncancellable by its own bucket's cancel_all().
     PROTECT_TASK should only suppress tracking for *unclaimed* tasks that would otherwise fall

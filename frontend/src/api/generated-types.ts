@@ -1984,7 +1984,7 @@ export interface components {
          * @description Enumeration for resource status.
          * @enum {string}
          */
-        ResourceStatus: "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed" | "exhausted_dead" | "exhausted_cooling";
+        ResourceStatus: "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed";
         /**
          * ScheduleStatus
          * @description Whether a scheduled job will run again on its own.
@@ -2012,11 +2012,6 @@ export interface components {
              * @description Human-readable description of the current readiness phase, or None if not available.
              */
             ready_phase?: string | null;
-            /**
-             * Retry At
-             * @description Unix timestamp when the next restart will be attempted (cooling state), or None.
-             */
-            retry_at?: number | null;
         };
         /**
          * SessionRequest

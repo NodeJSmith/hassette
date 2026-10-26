@@ -22,7 +22,7 @@ from hassette.core.app_lifecycle_start_stop import AppStartStopMixin
 from hassette.events.hassette import HassetteSimpleEvent
 from hassette.exceptions import AppBootstrapNotReleasedError
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import handle_crash, mark_ready
+from hassette.resources.lifecycle import mark_ready
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
@@ -232,9 +232,8 @@ class AppLifecycleService(
                 await self.hassette.send_event(
                     HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),
                 )
-        except Exception as exc:
+        except Exception:
             self.logger.exception("Failed to initialize apps")
-            await handle_crash(self, exc)
             raise
 
     def should_autostart(self, app_key: str) -> bool:

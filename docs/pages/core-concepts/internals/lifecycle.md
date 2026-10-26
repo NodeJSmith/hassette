@@ -1,82 +1,44 @@
 # Resource Lifecycle & Supervision
 
-A [`Resource`][hassette.resources.base.Resource] is any component with a managed lifecycle — Hassette initializes and shuts it down in dependency order. A [`Service`][hassette.resources.service.Service] is a long-running background Resource. Unlike plain resources that initialize once, services can be restarted if they fail. Each service declares a restart policy that controls backoff timing, budget limits, and recovery-failure behavior. This page covers the supervision model, the [service state machine](#resource-state-machine), and readiness signaling.
+A [`Resource`][hassette.resources.base.Resource] is any component with a managed lifecycle — Hassette initializes and shuts it down in dependency order. A [`Service`][hassette.resources.service.Service] is a long-running background Resource whose `serve()` loop runs for the life of the process. Hassette never restarts a service in-process. Each service declares whether it is required, and that decides whether its failure ends the process or leaves the service dead in place. This page covers that model, the [service state machine](#resource-state-machine), and readiness signaling.
 
 This page belongs to the [internals section](index.md), written for contributors and advanced users such as authors of custom `Service` subclasses. App authors do not need it to build automations. [Apps — Lifecycle](../apps/lifecycle.md) covers the hooks an app implements.
 
-## What Happens When a Service Fails
+## Required and Optional Services
 
-When a `Service` raises an unhandled exception, Hassette transitions it to `FAILED` and emits a service status event. [`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] — an internal supervisor component with no user-facing API — receives that event and consults the service's `restart_spec` (a policy object declaring retry behavior) to decide what comes next.
-
-Supervision covers failures after a service has started. An initialization failure belongs to whatever started that attempt. At boot, the startup sequence owns it: startup fails and Hassette exits, whatever the service's `restart_spec`. The process supervisor (the add-on watchdog, a Docker restart policy, or a systemd unit) then restarts Hassette. [Wave Startup and Shutdown](#wave-startup-and-shutdown) covers that path. During a restart, `ServiceWatcher` owns the attempt and handles an initialization failure as described below.
-
-The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and, depending on `restart_type`, enter a long cooldown period (`TRANSIENT`), stop that service permanently while Hassette keeps running (`TEMPORARY`), or shut the system down entirely (`PERMANENT`).
-
-`ServiceWatcher` keeps one [`RestartBudget`][hassette.core.restart_budget.RestartBudget] per service. A `RestartBudget` caps how many restarts a service gets within a sliding time window. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets once a restart attempt fully succeeds: its `initialize()` returns and the service has signaled readiness with `mark_ready()`. A service that marks ready later, from `serve()`, resets when that signal arrives; `ServiceWatcher` waits up to the service's `startup_timeout_seconds` (default 30 s) for it. Readiness signaled mid-attempt does not reset the budget by itself, because the attempt can still fail; it counts only if the service is still ready when `initialize()` returns.
-
-## Restart Types
-
-[`RestartType`][hassette.types.enums.RestartType] controls what `ServiceWatcher` does when the restart budget is exhausted.
-
-**`PERMANENT`** means the service cannot be absent. When the budget runs out, `ServiceWatcher` emits a `CRASHED` status event for the service and calls `hassette.shutdown()`. The service's own status stays `FAILED` until shutdown moves it on. [`BusService`][hassette.core.bus_service.BusService] and [`SchedulerService`][hassette.core.scheduler_service.SchedulerService] — the shared services behind every app's `self.bus` and `self.scheduler` — use this type. Without them, no automations can run.
-
-**`TRANSIENT`** means the service can tolerate a long outage. When the budget runs out, the service enters `EXHAUSTED_COOLING`, waits for `cooldown_seconds`, resets the budget, and retries. If `max_cooldown_cycles` is set to a non-zero value, the service moves to `EXHAUSTED_DEAD` after that many failed cooldown cycles. [`WebsocketService`][hassette.core.websocket_service.WebsocketService], [`DatabaseService`][hassette.core.database_service.DatabaseService], and [`WebApiService`][hassette.core.web_api_service.WebApiService] use this type.
-
-**`TEMPORARY`** means the service is optional. When the budget runs out, the service transitions to `EXHAUSTED_DEAD` and stops permanently. Hassette continues running without it. `FileWatcherService` and `WebUiWatcherService` use this type. Losing live-reload capability does not impair automation execution.
-
-### Per-Service Restart Specs
-
-| Service | `restart_type` | `budget_intensity` | `budget_period_seconds` | Notes |
-|---|---|---|---|---|
-| `BusService` | `PERMANENT` | 2 | 30 | Core event dispatch |
-| `SchedulerService` | `PERMANENT` | 2 | 30 | Core job execution |
-| `WebsocketService` | `TRANSIENT` | 5 | 300 | `startup_timeout_seconds=60`; HA outages never reach this budget, since `serve()` [reconnects in place](../../operating/index.md#websocket-reconnection). It covers failures inside Hassette, such as a crash in message handling |
-| `DatabaseService` | `TRANSIENT` | 3 | 120 | `fatal_error_names=("SchemaVersionError",)` |
-| `WebApiService` | `TRANSIENT` | 3 | 60 | HTTP API and UI; a bind failure (port in use) raises `FatalError` |
-| `FileWatcherService` | `TEMPORARY` | 3 | 60 | Config hot-reload |
-| `WebUiWatcherService` | `TEMPORARY` | 3 | 60 | Web UI live-reload |
-
-## Restart Budget
-
-The budget uses a sliding window defined by two fields: `budget_intensity` (maximum restarts allowed) and `budget_period_seconds` (the window size in seconds). Timestamps older than `budget_period_seconds` are evicted before each check.
-
-When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `handle_exhaustion()`. Two mechanisms clear entries: they age out of the sliding window, and a restart that fully succeeds clears them all at once. Until then, every restart attempt records another entry via `record_restart()`, so repeated failed recoveries add up toward exhaustion.
-
-Backoff between restart attempts uses exponential growth: `backoff_base_seconds * (backoff_multiplier ** (attempt - 1))`, capped at `backoff_max_seconds`. The defaults produce delays of 2 s, 4 s, 8 s, and so on up to 60 s.
-
-One `FAILED` event starts a restart episode. When a restart attempt's `initialize()` raises a retryable error, the episode records the next attempt and backs off again. It ends when an attempt succeeds or the budget runs out. It also ends early on a fatal or non-retryable attempt error (routed by the same `fatal_error_names` and `non_retryable_error_names` as a `FAILED` event), a `RestartRefusedError`, blocked restart admission, or shutdown during backoff. While the episode runs, `ServiceWatcher` ignores further `FAILED` events for that service. It also drops a `FAILED` event for a service that is no longer `FAILED`, such as one that already recovered or entered cooldown.
-
-## Error Routing
-
-`ServiceWatcher` checks the exception type name before consulting the budget. Three routing layers apply, from least to most severe.
-
-**Normal errors.** The exception name appears in neither `fatal_error_names` nor `non_retryable_error_names`. The restart proceeds through the budget check and backoff sequence.
-
-**Non-retryable errors.** The exception name is in `non_retryable_error_names`. The restart is skipped entirely. `ServiceWatcher` calls `handle_exhaustion()` directly, as if the budget were already spent. This applies to configuration errors that cannot self-correct.
-
-**Fatal errors.** The exception name is in `fatal_error_names`. `ServiceWatcher` emits a `CRASHED` status event immediately and calls `hassette.shutdown()`, without attempting a restart. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted. [`FatalError`][hassette.exceptions.FatalError] subclasses take a separate path, independent of `fatal_error_names`. The `Service` base class catches them itself and moves the service straight to `CRASHED`. It never emits a `FAILED` event, so the routing above never sees them.
-
-## RestartSpec Reference
-
-[`RestartSpec`][hassette.resources.restart.RestartSpec] is a frozen dataclass. Attach it to a `Service` subclass as a class variable named `restart_spec`.
+Every concrete `Service` subclass declares `required` in its own class body. A class that leaves it out fails with a `TypeError` at class definition.
 
 ```python
---8<-- "pages/core-concepts/snippets/internals_restart_spec.py"
+--8<-- "pages/core-concepts/snippets/internals_service_required.py"
 ```
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `restart_type` | `RestartType` | `TRANSIENT` | Governs behavior when the restart budget is exhausted. |
-| `budget_intensity` | `int` | `5` | Maximum restarts allowed within `budget_period_seconds`. |
-| `budget_period_seconds` | `float` | `300.0` | Sliding window size in seconds. |
-| `backoff_base_seconds` | `float` | `2.0` | Starting delay for exponential backoff. |
-| `backoff_multiplier` | `float` | `2.0` | Factor applied on each successive restart attempt. |
-| `backoff_max_seconds` | `float` | `60.0` | Maximum backoff delay in seconds. |
-| `startup_timeout_seconds` | `float` | `30.0` | How long `ServiceWatcher` waits for `mark_ready()` after a restart. |
-| `cooldown_seconds` | `float` | `300.0` | Duration of the long-cooldown phase (`TRANSIENT` only). |
-| `max_cooldown_cycles` | `int` | `0` | Maximum cooldown cycles before `EXHAUSTED_DEAD`. `0` means infinite. |
-| `non_retryable_error_names` | `tuple[str, ...]` | `()` | Exception names that skip restart and go directly to exhaustion. |
-| `fatal_error_names` | `tuple[str, ...]` | `()` | Exception names that trigger immediate shutdown. |
+**Required** means Hassette cannot usefully run without the service. A required service fails when its `serve()` raises after startup, or returns or is cancelled without anyone asking it to stop. The service ends `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]), and Hassette records the reason and shuts down. Hassette also emits a `CRASHED` status event for the service to mark the fatal exit, even when the service's own status is `FAILED`. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
+
+**Optional** means Hassette keeps working without the service. If its `serve()` fails, the service stays `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) — dead in place. Nothing shuts it down or restarts it. Hassette logs one ERROR. For a framework service, the message says a Hassette restart brings it back. For a service an app owns, it says reloading the app does. A `serve()` that simply returns is not a failure: an optional service that returns ends as `STOPPED`.
+
+Only a service whose parent is [`Hassette`][hassette.core.core.Hassette] itself can be required. A service is created by its parent's `add_child()`: `Hassette` adds the framework services, and an app adds its own with `self.add_child(MyWatcher)`. `add_child()` rejects a required service under any other parent, so a service an app owns must declare `required = False`. `Service` itself defaults to `required = True`, which is why a subclass must say which one it means.
+
+| Service | `required` | Notes |
+|---|---|---|
+| [`BusService`][hassette.core.bus_service.BusService] | `True` | Core event dispatch |
+| [`SchedulerService`][hassette.core.scheduler_service.SchedulerService] | `True` | Core job execution |
+| `SyncExecutorService` | `True` | Thread pool behind synchronous handlers |
+| [`WebsocketService`][hassette.core.websocket_service.WebsocketService] | `True` | Home Assistant outages never reach this, since `serve()` [reconnects in place](../../operating/index.md#websocket-reconnection). The flag covers failures inside Hassette, such as a crash in message handling |
+| [`DatabaseService`][hassette.core.database_service.DatabaseService] | `True` | Telemetry and session storage |
+| [`CommandExecutor`][hassette.core.command_executor.CommandExecutor] | `True` | Persists handler and job execution records |
+| [`WebApiService`][hassette.core.web_api_service.WebApiService] | `True` | HTTP API and UI. It also serves the CLI and `/api/health/live`, so a live process with a dead API would leave automations running with no way to observe them |
+| `AppHandler` | `True` | Runs app bootstrap; a failed bootstrap would leave Hassette with no apps |
+| `FileWatcherService` | `False` | Config hot-reload |
+| `WebUiWatcherService` | `False` | Web UI live-reload |
+
+A failed start at boot is fatal for any service, required or not. Hassette exits and names each failed service with its error. A startup wave doesn't wait on an optional service whose `serve()` has already ended.
+
+!!! warning
+    Nothing restarts a crashed service inside the process, so a fatal exit leaves Hassette down unless a restart policy supervises it: the Home Assistant add-on Watchdog, a Docker `restart:` policy, or a systemd `Restart=on-failure` unit. See [Fatal exit](../../web-ui/health-endpoints.md#fatal-exit) for policy examples.
+
+### Where the fatal reason goes
+
+The fatal reason is logged and lands in the supervisor's log: `docker logs`, the add-on log, or `journalctl`. Hassette doesn't read it back at startup, so after a crash loop that log holds the cause. The telemetry session record keeps the reason as `error_message` only; the traceback stays in the log.
 
 ## Resource State Machine
 
@@ -90,18 +52,13 @@ stateDiagram-v2
     RUNNING --> STOPPING : shutdown()
     RUNNING --> FAILED : unhandled exception
     STOPPING --> STOPPED : clean exit
-    FAILED --> STARTING : ServiceWatcher restart
-    FAILED --> EXHAUSTED_COOLING : TRANSIENT budget exhausted
-    FAILED --> EXHAUSTED_DEAD : TEMPORARY budget exhausted
     RUNNING --> CRASHED : FatalError raised from serve()
-    EXHAUSTED_COOLING --> STARTING : cooldown complete, budget reset
-    EXHAUSTED_COOLING --> EXHAUSTED_DEAD : max_cooldown_cycles exceeded
     CRASHED --> [*]
-    EXHAUSTED_DEAD --> [*]
+    FAILED --> [*]
     STOPPED --> [*]
 ```
 
-`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution and child initialization. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` is a transient state. After startup, `ServiceWatcher` acts on it immediately and moves the service forward. A failure during startup ends the process instead. `CRASHED` is set when a `FatalError` escapes `serve()`, and Hassette shuts down. `EXHAUSTED_DEAD` is terminal: no recovery occurs. `EXHAUSTED_COOLING` is a waiting state. The service re-enters `STARTING` after the cooldown period completes.
+`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution and child initialization. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` means `serve()` ended in failure. A required service in `FAILED` ends the process; an optional one stays `FAILED` until shutdown. `CRASHED` is set when a `FatalError` escapes `serve()`, and for a required service Hassette shuts down. Neither state is ever left by a restart.
 
 ## Readiness vs Running
 
@@ -122,11 +79,11 @@ Hassette starts services in dependency order. `DatabaseService` starts first, on
 
 A wave finishes when every member has completed initialization and signaled readiness. Readiness alone isn't enough: `WebApiService` signals readiness inside `on_initialize()`, before its scheduler child initializes.
 
-A failed initialization fails startup immediately. Hassette exits and names each failed service with its error. Startup never retries a failed initialization in-process; the process supervisor restarts Hassette instead. A `serve()` failure during startup still goes to `ServiceWatcher` for restart.
+A failed initialization fails startup immediately. Hassette exits and names each failed service with its error. Startup never retries a failed initialization in-process; the process supervisor restarts Hassette instead.
 
-[`startup_timeout_seconds`](../../operating/index.md#startup-and-shutdown-timeouts) in `[hassette.lifecycle]` bounds each whole wave. The `RestartSpec` field of the same name is a separate setting that applies only to restarts. A wave that runs past the timeout fails startup the same way. The log lists each unfinished service, its children's statuses, and the line its initialization is waiting on.
+[`startup_timeout_seconds`](../../operating/index.md#startup-and-shutdown-timeouts) in `[hassette.lifecycle]` bounds each whole wave. The `DatabaseService` wave also gets `migration_timeout_seconds` in `[hassette.database]` on top, so a slow migration isn't cut off. A wave that runs past the timeout fails startup the same way. The log lists each unfinished service, its children's statuses, and the line its initialization is waiting on.
 
-Shutdown runs in reverse order. Services that depended on others stop first. A service in `STOPPING` waits for its children to reach terminal states before completing. `ServiceWatcher` depends on `BusService`, so it starts after `BusService` and shuts down before it.
+Shutdown runs in reverse order. Services that depended on others stop first. A service in `STOPPING` waits for its children to reach terminal states before completing.
 
 For the full dependency graph and startup wave diagram, see [Architecture & Data Flow](index.md).
 
@@ -184,7 +141,7 @@ point for framework code and embedding hosts.
 Each resource owns exactly one initialization task and one shutdown task at a time. Every caller
 joins that same task through `asyncio.shield()` instead of starting a second attempt; such a caller
 is called a *joiner*. Joiners include the background task `start()` spawns to run `initialize()`,
-a direct `await resource.initialize()`, `restart()`, and a second concurrent `shutdown()` call.
+a direct `await resource.initialize()`, and a second concurrent `shutdown()` call.
 Cancelling one caller's *wait* (for example, the caller's own task is cancelled) does not cancel
 the underlying attempt; the shared task keeps running for every other joiner. A repeated
 `shutdown()` call after the attempt has already completed returns the stored report without
@@ -197,19 +154,13 @@ resistant initializer that doesn't finish in time makes the resulting teardown r
 
 ### Restart refusal
 
-`restart()`, `start()`, and a direct `initialize()` call all check the stored report before doing
+`start()` and a direct `initialize()` call both check the stored report before doing
 anything else. A report with `is_restart_safe` `True` authorizes exactly one new attempt and is
-then cleared — normal restart behavior, backoff, and budgets are unaffected. A report with
-`is_restart_safe` `False` raises
+then cleared. A report with `is_restart_safe` `False` raises
 [`RestartRefusedError`][hassette.exceptions.RestartRefusedError], which carries the resource's name and the
 full report, and no initialization work starts. There is no in-process way to clear a
-restart-unsafe report on the same object — not through `restart()`, not through a test-reset helper.
+restart-unsafe report on the same object, not even a test-reset helper.
 Once shutdown fails to prove safety, that object is done recovering on its own.
-
-`ServiceWatcher` treats `RestartRefusedError` as a fatal outcome rather than an ordinary restart
-failure: it records a fatal reason, requests shutdown of the whole process directly (not only
-through event delivery), and makes one best-effort attempt to emit a `CRASHED` event. It does not
-retry, enter cooldown, or attempt another restart for that service.
 
 !!! warning
     Restart refusal cannot stop a coroutine or thread that ignores cancellation — Python
@@ -220,7 +171,7 @@ retry, enter cooldown, or attempt another restart for that service.
 
 ### Lifecycle re-entry
 
-A shutdown hook or initialization hook must not call `initialize()`, `start()`, `restart()`, or
+A shutdown hook or initialization hook must not call `initialize()`, `start()`, or
 `shutdown()` on the same resource — the hook is running *inside* the very coordinator or body task
 those calls would try to join or cancel. Every lifecycle front door checks for this before doing
 anything else and raises [`LifecycleReentryError`][hassette.exceptions.LifecycleReentryError] immediately. A
@@ -232,4 +183,4 @@ lifecycle.
 - [Architecture & Data Flow](index.md): event pipeline, service dependency graph, and component ownership
 - [Per-Service Internals](service-details.md): bus routing, scheduler dispatch, database schema, state cache, and web layer
 - [Apps — Lifecycle](../apps/lifecycle.md): the initialization and shutdown hooks an app implements
-- [Operating Hassette](../../operating/index.md#websocket-reconnection): how the WebSocket reconnects through Home Assistant restarts without involving `ServiceWatcher`
+- [Operating Hassette](../../operating/index.md#websocket-reconnection): how the WebSocket reconnects through Home Assistant restarts

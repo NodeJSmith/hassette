@@ -66,12 +66,11 @@ class TestRejectTreeIfActiveOrReported:
 class TestResetHassetteLifecycleOriginalChildren:
     async def test_original_children_restore_happens_before_validation(self) -> None:
         """Regression: original_children must be restored BEFORE tree validation runs, not
-        after -- a test that dynamically adds its own children (e.g. dummy services for a
-        restart-budget scenario) relies on reset_hassette_lifecycle() discarding them via
-        original_children. If validation ran first, a test-added child with a stored teardown
-        report (a completely normal outcome for a dummy service exercised through a real
-        restart/exhaustion cycle) would make reset_hassette_lifecycle() raise even though that
-        child is about to be dropped from the tree entirely and its state is therefore
+        after -- a test that dynamically adds its own children (e.g. dummy services) relies on
+        reset_hassette_lifecycle() discarding them via original_children. If validation ran first, a
+        test-added child with a stored teardown report (a completely normal outcome for a dummy service
+        that was shut down) would make reset_hassette_lifecycle() raise even though that child is about to
+        be dropped from the tree entirely and its state is therefore
         irrelevant to whether reset can proceed.
         """
         hassette = make_mock_hassette(sealed=False)
@@ -89,7 +88,7 @@ class TestResetHassetteLifecycleOriginalChildren:
         snapshot = list(hassette.children)
 
         # A test dynamically adds its own child with a completed (unsafe) teardown report --
-        # e.g. a dummy service that exhausted its restart budget during the test body.
+        # e.g. a dummy service whose teardown was forced during the test body.
         test_added_child = ConcreteResource(hassette)
         test_added_child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
         hassette.children.append(test_added_child)

@@ -15,25 +15,24 @@ DEFAULT_OVERLAP_MODE: ExecutionMode = ExecutionMode.SINGLE
 DEFAULT_BACKPRESSURE_POLICY: BackpressurePolicy = BackpressurePolicy.BLOCK
 """Default backpressure policy for registration/summary models when none is specified."""
 
-TERMINAL_STATUSES: frozenset[ResourceStatus] = frozenset({ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD})
+TERMINAL_STATUSES: frozenset[ResourceStatus] = frozenset({ResourceStatus.STOPPED})
 """Resource has reached an end state — shutdown can skip the STOPPING transition."""
 
 ACTIVE_STATUSES: frozenset[ResourceStatus] = frozenset(
     {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, ResourceStatus.RUNNING}
 )
-"""Resource is in normal lifecycle progression (not failed, stopped, or exhausted)."""
+"""Resource is in normal lifecycle progression (not failed or stopped)."""
 
 
 class ResourceRole(StrEnum):
     """The kind of framework component a resource is. Internal to the server; not part of the wire contract."""
 
     SERVICE = "service"
-    """A long-running framework service that is supervised and restarted on failure, such as the
-    Home Assistant connection or the database."""
+    """A long-running framework service with a ``serve()`` task, such as the Home Assistant connection or
+    the database. A required one's failure ends the process."""
 
     RESOURCE = "resource"
-    """A framework component that runs for the life of its owner but is not supervised or restarted
-    on its own."""
+    """A framework component that runs for the life of its owner, with no ``serve()`` task of its own."""
 
     APP = "app"
     """A user app instance."""
@@ -78,19 +77,6 @@ class BlockingIOBehavior(StrEnum):
     - **Tier 1 (loop watchdog)** is warn-after: the stall has already completed when the warning
       fires on the off-loop daemon thread. The daemon suppresses the escalation to stay alive, so
       ``ERROR`` cannot retroactively interrupt a Tier 1 stall — it only records and warns."""
-
-
-class RestartType(StrEnum):
-    """Enumeration for service restart strategies."""
-
-    PERMANENT = auto()
-    """The service is permanent and should always be restarted on failure."""
-
-    TRANSIENT = auto()
-    """The service is transient — restarts on failure but supports cooldown cycling."""
-
-    TEMPORARY = auto()
-    """The service is temporary — once its restart budget is exhausted, it stops permanently."""
 
 
 class Outcome(StrEnum):

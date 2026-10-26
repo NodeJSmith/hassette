@@ -16,7 +16,6 @@ from hassette.resources.lifecycle import (
 from hassette.resources.operations import (
     ordered_children_for_shutdown,
     register_task_bucket_factory,
-    restart,
     run_hooks,
     start_children_and_wait,
 )
@@ -37,7 +36,6 @@ __all__ = [
     "ordered_children_for_shutdown",
     "register_task_bucket_factory",
     "request_shutdown",
-    "restart",
     "run_hooks",
     "start",
     "start_children_and_wait",

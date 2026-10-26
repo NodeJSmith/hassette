@@ -30,7 +30,6 @@ from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.session_manager import SessionManager
 from hassette.core.state_proxy import StateProxy
 from hassette.core.telemetry.query_service import TelemetryQueryService
@@ -52,7 +51,6 @@ LOG_LEVEL_OVERRIDES = {
     "app_handler": "CRITICAL",
     "web_api": "DEBUG",
     "websocket": "WARNING",
-    "service_watcher": "ERROR",
     "file_watcher": "CRITICAL",
     "task_bucket": "DEBUG",
     "command_executor": "WARNING",
@@ -71,7 +69,6 @@ OVERRIDE_CASES = [
     (AppHandler, "app_handler"),
     (WebApiService, "web_api"),
     (WebsocketService, "websocket"),
-    (ServiceWatcher, "service_watcher"),
     (FileWatcherService, "file_watcher"),
     (TaskBucket, "task_bucket"),
     (CommandExecutor, "command_executor"),

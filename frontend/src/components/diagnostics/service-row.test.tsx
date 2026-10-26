@@ -13,7 +13,6 @@ function makeService(overrides: Partial<MergedService> = {}): MergedService {
     resource_name: "bus",
     status: "failed",
     ready_phase: null,
-    retry_at: null,
     exception: null,
     ...overrides,
   };

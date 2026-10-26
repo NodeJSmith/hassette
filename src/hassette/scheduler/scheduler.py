@@ -161,7 +161,7 @@ class Scheduler(Resource):
         one-shot job after it fires or when a job is dequeued via remove_job. Also cancels
         the entity-watch subscription of an ``EntityTime`` job so it does not outlive the job.
 
-        Identity-checked: a crash-restart cycle can leave an orphaned ``Job`` sharing a name
+        Identity-checked: a stale ``Job`` can share a name
         with a freshly re-registered live job (the upsert reuses the natural-key row), so an
         unconditional pop keyed on name alone could silently unregister the live job.
         """

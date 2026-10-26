@@ -31,8 +31,6 @@ class ServiceInfo(BaseModel):
     status: OpenResourceStatus
     ready_phase: str | None = None
     """Human-readable description of the current readiness phase, or None if not available."""
-    retry_at: float | None = None
-    """Unix timestamp when the next restart will be attempted (cooling state), or None."""
 
 
 class SystemStatusResponse(BaseModel):

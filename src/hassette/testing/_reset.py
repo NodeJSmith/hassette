@@ -184,8 +184,8 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
             cleared for test-fixture reuse.
         original_children: If provided, restore the children list to this snapshot before
             validating the tree -- so a test that dynamically added its own children (e.g.
-            dummy services for a restart-budget scenario) can still reset even if those
-            now-discarded children have an active shutdown task or a stored teardown report.
+            dummy services) can still reset even if those now-discarded children have an
+            active shutdown task or a stored teardown report.
 
     Raises:
         RuntimeError: If event streams were already closed by a full shutdown, or if the root
@@ -201,11 +201,11 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
 
     # Restore the children snapshot (if given) *before* validating the tree, not after -- a
     # test that dynamically added its own children (e.g. dummy services registered directly
-    # under `hassette` for a restart-budget scenario) is exactly what this snapshot exists to
-    # discard. Those children are about to be dropped from the tree entirely, so their own
-    # shutdown/report state is irrelevant to whether reset can proceed; validating before the
-    # restore would reject a reset the caller can perfectly well do, over state that is about
-    # to become unreachable anyway.
+    # under `hassette`) is exactly what this snapshot exists to discard. Those children are
+    # about to be dropped from the tree entirely, so their own shutdown/report state is
+    # irrelevant to whether reset can proceed; validating before the restore would reject a
+    # reset the caller can perfectly well do, over state that is about to become unreachable
+    # anyway.
     if original_children is not None:
         hassette.children[:] = original_children
 

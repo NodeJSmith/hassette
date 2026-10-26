@@ -38,10 +38,9 @@ from hassette.core.websocket_responses import PendingResponses
 from hassette.events import HassetteSimpleEvent, create_event_from_hass
 from hassette.exceptions import InvalidAuthError
 from hassette.resources.lifecycle import mark_ready, set_ready_reason
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types import Topic
-from hassette.types.enums import ConnectionState, RestartType
+from hassette.types.enums import ConnectionState
 from hassette.utils.service_utils import cancel_and_drain
 
 if typing.TYPE_CHECKING:
@@ -87,12 +86,7 @@ INVALID_TRANSITION_TRACE_LIMIT = 3
 
 
 class WebsocketService(WebsocketMessageIOMixin, Service):
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=5,
-        budget_period_seconds=300,
-        startup_timeout_seconds=60,
-    )
+    required: ClassVar[bool] = True
 
     url: str
     """WebSocket URL to connect to."""
@@ -310,9 +304,10 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         """Connect to Home Assistant and keep reconnecting in place until shutdown.
 
         This is the connection's only retry loop: no Home Assistant-side failure leaves it, so an
-        HA restart or outage never reaches ServiceWatcher. ``ReconnectPolicy`` classifies each
-        failure and paces the next attempt; a rejected token parks the loop instead. Only the
-        exceptions in ``PROPAGATED_EXCEPTIONS`` (and cancellation, at shutdown) escape.
+        HA restart or outage is never reported as this required service's failure.
+        ``ReconnectPolicy`` classifies each failure and paces the next attempt; a rejected token
+        parks the loop instead. Only the exceptions in ``PROPAGATED_EXCEPTIONS`` (and
+        cancellation, at shutdown) escape.
         """
         async with self._connect_lock:
             timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=TOTAL_TIMEOUT_SECONDS)

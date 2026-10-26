@@ -27,7 +27,7 @@ remove the heap entry?
 ## Removal Callback Identity Check
 `Scheduler._on_job_removed()` in `src/hassette/scheduler/scheduler.py`
 identity-checks `self._jobs_by_name.get(job.name) is job` before popping, to
-handle crash-restart orphans. Does the bus `_on_listener_removed()` in
+handle a stale job sharing its natural key. Does the bus `_on_listener_removed()` in
 `src/hassette/bus/bus.py` apply the same identity check, or does it pop
 unconditionally by natural key?
 

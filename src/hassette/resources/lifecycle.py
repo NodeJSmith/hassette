@@ -305,14 +305,12 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
         return
 
     if resource.status in TERMINAL_STATUSES:
-        # The resource already reached a terminal end-state: STOPPED (clean finish) or
-        # EXHAUSTED_DEAD (permanent restart-budget failure). A late error on an already-terminal
-        # resource must not move it to FAILED: it does not retroactively un-stop the resource.
+        # The resource already reached its terminal end-state, STOPPED. A late error on an
+        # already-terminal resource must not move it to FAILED: it does not retroactively un-stop it.
         # This happens during teardown when a submit-after-shutdown error ("cannot schedule new
         # futures after shutdown") surfaces on an already-stopped resource.
-        # Only terminal end-states are guarded. Non-terminal states (NOT_STARTED, STARTING,
-        # RUNNING, STOPPING, EXHAUSTED_COOLING) keep failing normally — a failure there is real,
-        # and callers do invoke handle_failed() on a not-yet-started resource.
+        # Every other state (NOT_STARTED, STARTING, RUNNING, STOPPING) keeps failing normally — a
+        # failure there is real, and callers do invoke handle_failed() on a not-yet-started resource.
         resource.lifecycle_logger.debug(
             "%s already terminal (%s); ignoring failure: %s - %s",
             resource.unique_name,
@@ -389,7 +387,7 @@ async def handle_crash(resource: _LifecycleHostP, exception: Exception) -> None:
         return
 
     resource.lifecycle_logger.error(
-        "%s crashed: %s - %s", resource.unique_name, type(exception).__name__, str(exception)
+        "%s crashed: %s - %s", resource.unique_name, type(exception).__name__, str(exception), exc_info=exception
     )
     resource.status = ResourceStatus.CRASHED
     mark_not_ready(resource, "Crashed")
@@ -407,7 +405,7 @@ def reject_lifecycle_reentry(resource: _LifecycleHostP, method_name: str) -> Non
 
     The active task is the resource's own initialization coordinator, shutdown coordinator, or shutdown body.
 
-    Every public front door (``initialize()``, ``start()``, ``restart()``, ``shutdown()``)
+    Every public front door (``initialize()``, ``start()``, ``shutdown()``)
     calls this first, before creating, joining, or cancelling any lifecycle task. A hook that
     calls back into its own owner's lifecycle orchestration cannot be joined or cancelled
     safely -- the calling task *is* the coordinator or body being awaited.
@@ -487,9 +485,9 @@ def _install_exception_observer(
 async def coordinate_initialize(resource: _LifecycleHostP) -> None:
     """Coordinator front door for ``initialize()``.
 
-    Every initialization path -- direct ``initialize()`` calls, ``start()``'s spawned joiner,
-    and ``restart()`` -- funnels through this function, so ``_init_task`` is authoritative for
-    every attempt. See the "Minimal lifecycle coordinator" section of
+    Every initialization path -- direct ``initialize()`` calls and ``start()``'s spawned
+    joiner -- funnels through this function, so ``_init_task`` is authoritative for every
+    attempt. See the "Minimal lifecycle coordinator" section of
     ``design/specs/105-teardown-restart-safety/design.md`` for the full admission sequence.
     """
     resource = typing.cast("LifecycleMixin", resource)

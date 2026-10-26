@@ -6,9 +6,7 @@ import { mergeServices } from "./merge-services";
 describe("mergeServices", () => {
   it("returns the HTTP seed when no WS updates have arrived", () => {
     const merged = mergeServices([createServiceInfo({ name: "bus" })], {});
-    expect(merged).toEqual([
-      { resource_name: "bus", status: "running", ready_phase: null, retry_at: null, exception: null },
-    ]);
+    expect(merged).toEqual([{ resource_name: "bus", status: "running", ready_phase: null, exception: null }]);
   });
 
   it("lets a live WS entry win over the HTTP seed for the same service", () => {
@@ -30,7 +28,7 @@ describe("mergeServices", () => {
         createServiceInfo({ name: "websocket" }),
         createServiceInfo({ name: "api" }),
         createServiceInfo({ name: "scheduler", status: "failed" }),
-        createServiceInfo({ name: "bus", status: "exhausted_cooling" }),
+        createServiceInfo({ name: "bus", status: "crashed" }),
       ],
       {},
     );
@@ -38,19 +36,18 @@ describe("mergeServices", () => {
   });
 
   it("normalizes absent optional fields to null", () => {
-    const merged = mergeServices([createServiceInfo({ ready_phase: undefined, retry_at: undefined })], {});
-    expect(merged[0]).toMatchObject({ ready_phase: null, retry_at: null, exception: null });
+    const merged = mergeServices([createServiceInfo({ ready_phase: undefined })], {});
+    expect(merged[0]).toMatchObject({ ready_phase: null, exception: null });
   });
 
   it("normalizes absent optional fields on the WS overlay too, not just the HTTP seed", () => {
     const merged = mergeServices([], {
       bus: createServiceStatusEntry({
         ready_phase: undefined,
-        retry_at: undefined,
         exception: undefined,
       }),
     });
-    expect(merged[0]).toMatchObject({ ready_phase: null, retry_at: null, exception: null });
+    expect(merged[0]).toMatchObject({ ready_phase: null, exception: null });
   });
 
   it("returns nothing when neither source reported a service", () => {

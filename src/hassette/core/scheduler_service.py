@@ -17,7 +17,6 @@ from hassette.exceptions import JobRemovedError, TaskBucketSealedError
 from hassette.execution_mode import release_and_drain
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
-from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
 from hassette.scheduler.job_queue import _ScheduledJobQueue
 from hassette.types.enums import Topic
@@ -40,7 +39,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     """Service that manages scheduled jobs."""
 
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService, SyncExecutorService, BusService]
-    restart_spec = CORE_PERMANENT_RESTART
+    required: ClassVar[bool] = True
 
     bus: Bus
     """Event bus for the ``APP_LOAD_COMPLETED`` listener that clears stale job timing."""
@@ -64,7 +63,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     """Service-level live registry: the authority for live runtime existence and O(1) API
     lookup, independent of heap membership. Populated only after persistence assigns
     ``db_id`` (see ``add_job()``); mutated only through identity-checked helpers
-    (``deregister_job()``) since a crash-restart cycle can leave an orphaned ``Job`` sharing
+    (``deregister_job()``) since a stale ``Job`` can share
     a ``db_id`` with a freshly re-registered live job (the upsert reuses the natural-key row).
     """
 
@@ -440,7 +439,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         """Identity-checked removal of ``job`` from the live registry (``_jobs_by_id``).
 
         No-op when ``job`` has no ``db_id`` yet, or when the registry slot for its ``db_id``
-        holds a different object — a crash-restart cycle can leave an orphaned ``Job`` sharing
+        holds a different object — a stale ``Job`` can share
         a ``db_id`` with a freshly re-registered live job (the upsert reuses the natural-key
         row), so an unconditional pop keyed on ``db_id`` alone could silently unregister the
         live job.
@@ -507,7 +506,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         """Submit one manual invocation of ``job``. Fire-and-observe: returns immediately.
 
         Confirms ``job.db_id`` still maps to the same live object in ``_jobs_by_id`` — an
-        identity check, not just a key lookup, for the same crash-restart orphan-collision
+        identity check, not just a key lookup, for the same stale-``Job`` collision
         reason ``deregister_job()`` documents — then spawns
         ``run_job_with_guard(job, trigger_mode="manual")`` on this service's ``task_bucket``.
 

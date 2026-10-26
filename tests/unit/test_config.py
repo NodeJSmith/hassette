@@ -21,7 +21,6 @@ SERVICE_LOG_LEVEL_ATTRS = (
     "app_handler",
     "web_api",
     "websocket",
-    "service_watcher",
     "file_watcher",
     "task_bucket",
     "command_executor",

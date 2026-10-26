@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { useRelativeTime } from "../../hooks/use-relative-time";
 import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
@@ -13,11 +12,9 @@ interface ServiceRowProps {
   service: MergedService;
 }
 
-/** Status, ready-phase, and retry annotations — a plainly running service shows none of them. */
+/** Status and ready-phase annotations — a plainly running service shows none of them. */
 function ServiceRowMeta({ service }: ServiceRowProps) {
-  const retryAtLabel = useRelativeTime(service.retry_at);
   const isRunning = service.status === "running";
-  const isCooling = service.status === "exhausted_cooling";
 
   return (
     <>
@@ -35,14 +32,6 @@ function ServiceRowMeta({ service }: ServiceRowProps) {
           data-testid={`diag-service-phase-${service.resource_name}`}
         >
           {service.ready_phase}
-        </span>
-      )}
-      {isCooling && service.retry_at !== null && (
-        <span
-          className="font-mono text-[length:var(--text-mono-sm)] text-[var(--status-warning)]"
-          data-testid={`diag-service-retry-${service.resource_name}`}
-        >
-          retry {retryAtLabel}
         </span>
       )}
     </>

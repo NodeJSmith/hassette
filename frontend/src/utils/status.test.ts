@@ -26,14 +26,6 @@ describe("statusToVariant", () => {
     expect(statusToVariant("degraded")).toBe("warning");
   });
 
-  it("maps exhausted_dead to danger variant", () => {
-    expect(statusToVariant("exhausted_dead")).toBe("danger");
-  });
-
-  it("maps exhausted_cooling to warning variant", () => {
-    expect(statusToVariant("exhausted_cooling")).toBe("warning");
-  });
-
   it("returns neutral for unknown status", () => {
     // @ts-expect-error — validates that statusToVariant still rejects arbitrary strings.
     expect(statusToVariant("exploding")).toBe("neutral");

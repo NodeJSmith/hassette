@@ -117,8 +117,7 @@ class TestConnectionStateLogging:
 
     The quickstart points a new user at the "Connected to Home Assistant" line to confirm their
     URL and token work, which makes these messages behavior rather than incidental logging.
-    Logger is mocked rather than captured via caplog, matching the convention in
-    test_service_watcher_coverage.py.
+    Logger is mocked rather than captured via caplog (no log-capture tests).
     """
 
     async def test_first_connection_logs_connected_with_url(self, websocket_service: WebsocketService) -> None:

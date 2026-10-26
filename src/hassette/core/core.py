@@ -58,7 +58,7 @@ from .loop_watchdog import LoopWatchdog
 from .pipeline_counters import PipelineCounters
 from .runtime_query_service import RuntimeQueryService
 from .scheduler_service import SchedulerService
-from .service_watcher import ServiceWatcher
+from .service_failure import route_service_failure
 from .session_manager import SessionManager
 from .startup_tasks import run_startup_tasks
 from .state_proxy import StateProxy
@@ -73,6 +73,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Iterable
 
     from hassette.events import AnyEvent
+    from hassette.resources.service import Service
 
 NO_DROP_COUNTERS = (0, 0, 0)
 """The session's drop counters (overflow, exhausted, shutdown) when the command executor can't report them."""
@@ -114,7 +115,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # TaskBucket is constructed (super().__init__() constructs Hassette's own bucket).
         # A plain class (no Resource/Service base) — see hassette.core.sync_executor.
         # The pool is not created here — SyncExecutorService.on_initialize() calls
-        # rebuild_pool() on both first start and restart-in-place.
+        # rebuild_pool() on every initialization.
         self._sync_executor = SyncExecutor()
         self.sync_executor = self._sync_executor
 
@@ -144,7 +145,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self._bus_service: BusService | None = None
         self._scheduler_service: SchedulerService | None = None
         self._session_manager: SessionManager | None = None
-        self._service_watcher: ServiceWatcher | None = None
         self._websocket_service: WebsocketService | None = None
         self._file_watcher: FileWatcherService | None = None
         self._web_ui_watcher: WebUiWatcherService | None = None
@@ -168,8 +168,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self._init_order: list[type[Resource]] = []
         self._init_waves: list[list[type[Resource]]] = []
 
-        # Fatal-exit observability: set by shutdown_if_crashed or startup-failure branches.
-        # When set, run_forever() raises FatalError after teardown instead of returning normally.
+        # Set by escalate_service_failure() or a startup failure; run_forever() then raises FatalError after teardown.
         self._fatal_shutdown_reason: str | None = None
 
         # Work a deadline owner walked away from during this process's life (stage expiry, runtime
@@ -215,7 +214,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         # Resources below have Bus/Scheduler children — must come after _bus_service/_scheduler_service
         self._session_manager = self.add_child(SessionManager, database_service=self._database_service)
-        self._service_watcher = self.add_child(ServiceWatcher)
         self._websocket_service = self.add_child(WebsocketService)
         self._file_watcher = self.add_child(FileWatcherService)
         self._web_ui_watcher = self.add_child(WebUiWatcherService)
@@ -411,7 +409,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self.ready_event.set()
 
         # Each later wave's deps are ready before it begins, so _auto_wait_dependencies returns
-        # immediately (kept as defense-in-depth for restarts).
+        # immediately.
         type_to_instance = {type(c): c for c in self.children}
         for wave_types in self._init_waves:
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
@@ -453,9 +451,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
         Returns True once the wave has started, and False after tearing down when a shutdown was
         requested mid-wave. A failed or timed-out wave raises ``FatalError`` (via ``_fail_startup()``).
 
-        A boot-time start failure is fatal whatever the resource's restart spec: the wave joins its
-        members' initialization attempts (spec 134 D1), so a failure fails startup at once and the
-        external supervisor restarts the process. ``ServiceWatcher`` leaves those failures to the wave.
+        A boot-time start failure is fatal whether or not the resource is required: the wave joins its members'
+        initialization attempts (spec 134 D1), so startup fails at once and the external supervisor restarts
+        the process. A failure after the handoff to ``serve()`` is a report (``report_service_failure()``).
         """
         if timeout is None:
             timeout = self.config.lifecycle.startup_timeout_seconds
@@ -510,14 +508,16 @@ class Hassette(HassetteAccessorsMixin, Resource):
         return self._fatal_shutdown_reason
 
     def record_fatal_reason(self, reason: str) -> None:
-        """Record why a fatal shutdown is happening, so the process exits non-zero.
+        """Record why a fatal shutdown is happening, so the process exits non-zero. The first reason wins.
 
-        Set synchronously at the crash decision site (before any teardown) so run_forever()
-        observes it independent of async event dispatch. The first reason wins — the universal
-        crash handler does not overwrite a more specific reason from the exhaustion/fatal-error path.
+        Set synchronously at the decision site, before any teardown, so run_forever() sees it without event dispatch.
         """
         if self._fatal_shutdown_reason is None:
             self._fatal_shutdown_reason = reason
+
+    def report_service_failure(self, service: "Service", exc: BaseException) -> None:
+        """Route a post-handoff service failure, never awaiting (spec 134 D8); the seam harnesses replace."""
+        route_service_failure(self, service, exc)
 
     @property
     def force_terminated_work(self) -> tuple[str, ...]:

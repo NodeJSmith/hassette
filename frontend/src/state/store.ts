@@ -49,7 +49,6 @@ export interface ServiceStatusEntry {
   status: ResourceStatus;
   previous_status?: ResourceStatus | null;
   exception?: string | null;
-  retry_at: number | null;
   /** Whether the service has called mark_ready(). False during startup phases. */
   ready: boolean;
   /** Human-readable description of the current readiness or startup phase, or null if not available. */

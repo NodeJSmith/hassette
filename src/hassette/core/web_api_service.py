@@ -15,10 +15,8 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler import Scheduler
-from hassette.types.enums import RestartType
 from hassette.utils.net_utils import is_loopback_host
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.tokens import resolve_auth_token
@@ -44,11 +42,7 @@ class WebApiService(Service):
     """Runs the FastAPI/uvicorn server for the web API and healthcheck."""
 
     depends_on: ClassVar[list[type[Resource]]] = [RuntimeQueryService, TelemetryQueryService, SchedulerService]
-    restart_spec: ClassVar[RestartSpec] = RestartSpec(
-        restart_type=RestartType.TRANSIENT,
-        budget_intensity=3,
-        budget_period_seconds=60,
-    )
+    required: ClassVar[bool] = True
 
     host: str
     port: int
@@ -120,8 +114,8 @@ class WebApiService(Service):
                 web_api_config, self.hassette.config.data_dir, addon_runtime=is_addon_runtime()
             )
 
-            # Passing the current set carries last-known-good hostname resolutions across a
-            # ServiceWatcher restart; a hostname that doesn't resolve never fails startup.
+            # Passing the current set carries last-known-good hostname resolutions into a new
+            # initialization; a hostname that doesn't resolve never fails startup.
             self._trusted_proxies = await resolve_trusted_proxies(
                 web_api_config.trusted_proxies, previous=self._trusted_proxies
             )
@@ -150,7 +144,7 @@ class WebApiService(Service):
         stale for the life of the running server. Once ``serve()`` has built ``self._app``, this
         also writes the refreshed set through to ``self._app.state.trusted_proxies`` so a request
         against the already-serving app observes the refresh immediately, not just a future
-        restart.
+        initialization.
         """
         refreshed = await refresh_trusted_proxies(self._trusted_proxies)
         self._trusted_proxies = refreshed
@@ -209,9 +203,8 @@ class WebApiService(Service):
         except SystemExit as exc:
             # uvicorn's Server.startup() logs the bind OSError and calls sys.exit(1) when it can't
             # bind host:port — its only sys.exit. Left alone, SystemExit escapes the serve task and
-            # ends the process with no teardown. A bind failure is fatal rather than TRANSIENT-
-            # restartable: the usual cause is another instance holding the port, which a restart
-            # inside the budget window won't clear, and a bad host/port never self-corrects.
+            # ends the process with no teardown. A bind failure is fatal: the usual cause is another
+            # instance holding the port, and a bad host/port never self-corrects.
             raise FatalError(
                 f"Web API could not bind to {self.host}:{self.port} — is the port already in use "
                 "(another hassette instance running?) or the host not a local address?"

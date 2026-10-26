@@ -24,7 +24,6 @@ from hassette.core.file_watcher import FileWatcherService
 from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.session_manager import SessionManager
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
@@ -34,7 +33,6 @@ from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
-from hassette.resources.restart import RestartSpec
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.testing import wait_for
@@ -63,7 +61,6 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
         BusService,
         SchedulerService,
         SessionManager,
-        ServiceWatcher,
         WebsocketService,
         FileWatcherService,
         WebUiWatcherService,
@@ -404,62 +401,6 @@ def test_before_shutdown_contains_no_logging_cleanup() -> None:
     )
 
 
-async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: Hassette) -> None:
-    """on_service_crashed and finalize_session on SessionManager coordinate via _session_lock.
-
-    Verifies that concurrent crash recording and session finalization don't
-    interleave — the lock forces one to complete before the other starts.
-    """
-    sm = hassette_instance.session_manager
-    sm._session_id = 42  # coordinator-internal
-    sm._session_error = False  # coordinator-internal
-
-    call_order: list[str] = []
-    crash_holding_lock = asyncio.Event()
-    crash_may_release = asyncio.Event()
-
-    async def slow_crash(_event: typing.Any) -> None:
-        """Simulate crash handler that holds the lock while doing slow work."""
-        async with sm._session_lock:  # coordinator-internal
-            call_order.append("crash_acquired")
-            crash_holding_lock.set()
-            await crash_may_release.wait()  # hold lock until test says release
-            call_order.append("crash_released")
-
-    sm._database_service = Mock()  # coordinator-internal
-    sm._database_service.db = AsyncMock()  # coordinator-internal
-
-    submit_calls: list[str] = []
-
-    async def tracking_submit(coro: typing.Any) -> None:
-        """Track when finalize's submit actually executes, then consume the coroutine."""
-        submit_calls.append("submit")
-        await coro
-
-    sm._database_service.submit = tracking_submit  # coordinator-internal
-
-    crash_event = Mock()
-
-    # Start crash first, wait for it to hold the lock
-    crash_task = asyncio.create_task(slow_crash(crash_event))
-    await crash_holding_lock.wait()
-
-    # Start finalize — it should block on the lock
-    finalize_task = asyncio.create_task(sm.finalize_session())
-    await asyncio.sleep(0.01)  # give finalize a chance to acquire lock
-
-    # Finalize should NOT have called submit yet (crash holds the lock)
-    assert submit_calls == [], f"Finalize ran while crash held the lock: {submit_calls}"
-
-    # Release the crash lock
-    crash_may_release.set()
-    await asyncio.gather(crash_task, finalize_task)
-
-    # Now finalize should have completed
-    assert submit_calls == ["submit"], f"Finalize should have called submit after crash released: {submit_calls}"
-    assert call_order == ["crash_acquired", "crash_released"]
-
-
 def test_init_order_has_no_cycles(hassette_instance: Hassette) -> None:
     """topological_sort completes without raising for the real service graph."""
     all_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
@@ -481,7 +422,7 @@ def test_graph_validation_catches_missing_type() -> None:
     class _StubService(DatabaseService):
         """Stub that declares a dependency on the unregistered _GhostDep."""
 
-        restart_spec = RestartSpec()
+        required = False
         depends_on: ClassVar[list[type[Resource]]] = [_GhostDep]
 
     with pytest.raises(ValueError, match="_GhostDep"):

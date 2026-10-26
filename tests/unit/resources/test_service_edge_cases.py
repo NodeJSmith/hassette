@@ -24,8 +24,6 @@ from hassette_wire import ResourceStatus
 from hassette.exceptions import FatalError, RestartRefusedError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
-from hassette.resources.operations import restart
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.resources.shutdown_deadline import deadline_in
 from hassette.resources.teardown import TeardownCause
@@ -65,7 +63,7 @@ class _DepType(Resource):
 
 
 class ServiceWithDep(Service):
-    restart_spec = RestartSpec()
+    required = False
     depends_on: ClassVar[list[type[Resource]]] = [_DepType]
 
     async def serve(self) -> None:
@@ -80,7 +78,7 @@ class InitCountingChild(Resource):
 
 
 class FatalErrorService(Service):
-    restart_spec = RestartSpec()
+    required = False
 
     async def serve(self) -> None:
         raise FatalError("fatal boom")
@@ -94,7 +92,7 @@ class ResistantService(Service):
     it never leaks past the end of the test — call it, then cancel and await the raw task.
     """
 
-    restart_spec = RestartSpec()
+    required = False
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -311,7 +309,7 @@ class UnresponsiveService(Service):
     ``try/except``) to actually terminate it.
     """
 
-    restart_spec = RestartSpec()
+    required = False
 
     async def before_shutdown(self) -> None:
         await asyncio.sleep(SLOW_BEFORE_SHUTDOWN_SECONDS)
@@ -370,7 +368,7 @@ class TestServiceResistantServeNeverReplaced:
     initialization path and never spawn a replacement ``serve()`` task.
     """
 
-    async def test_shutdown_refuses_restart_and_never_spawns_replacement(self) -> None:
+    async def test_shutdown_refuses_reinitialize_and_never_spawns_replacement(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
         hassette.config.lifecycle.task_cancellation_timeout_seconds = SHORT_TASK_CANCEL_TIMEOUT_SECONDS
@@ -386,9 +384,6 @@ class TestServiceResistantServeNeverReplaced:
             report = await asyncio.wait_for(svc.shutdown(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
             assert report.is_restart_safe is False
             assert svc.teardown_report is report
-
-            with pytest.raises(RestartRefusedError):
-                await restart(svc)
 
             with pytest.raises(RestartRefusedError):
                 start(svc)
@@ -409,7 +404,7 @@ class SlowServeService(Service):
     consuming most of the shutdown deadline before on_shutdown/after_shutdown run.
     """
 
-    restart_spec = RestartSpec()
+    required = False
 
     async def serve(self) -> None:
         try:

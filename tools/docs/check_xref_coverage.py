@@ -56,7 +56,6 @@ XREF_MAP = {
     "FailedMessageError": "hassette.exceptions.FailedMessageError",
     "RetryableConnectionClosedError": "hassette.exceptions.RetryableConnectionClosedError",
     # Internals (for internals/operating docs)
-    "ServiceWatcher": "hassette.core.service_watcher.ServiceWatcher",
     "WebsocketService": "hassette.core.websocket_service.WebsocketService",
     "BusService": "hassette.core.bus_service.BusService",
     "DatabaseService": "hassette.core.database_service.DatabaseService",
@@ -66,8 +65,6 @@ XREF_MAP = {
     "EventStreamService": "hassette.core.event_stream_service.EventStreamService",
     "CommandExecutor": "hassette.core.command_executor.CommandExecutor",
     "ApiResource": "hassette.core.api_resource.ApiResource",
-    "RestartSpec": "hassette.resources.restart.RestartSpec",
-    "RestartType": "hassette.types.enums.RestartType",
     "ResourceStatus": "hassette.ResourceStatus",
     "Hassette": "hassette.core.core.Hassette",
     # Error contexts

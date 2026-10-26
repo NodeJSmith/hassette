@@ -302,7 +302,7 @@ class TestWebApiPortInUse:
         status, stopped_at, error_message = rows[0]
         assert status == SESSION_STATUS_FAILURE
         assert stopped_at is not None
-        assert f"127.0.0.1:{port}" in error_message
+        assert "WebApiService" in error_message, "the fatal reason names the failed service"
 
 
 class TestInitialStateSyncBeforeApps:

@@ -220,7 +220,7 @@ class TestDequeueJobRegistryRemoval:
     async def test_dequeue_job_registry_removal_is_identity_checked(self) -> None:
         """dequeue_job must not remove a different live job sharing the same db_id.
 
-        Mirrors the crash-restart orphan-collision scenario deregister_job() guards
+        Mirrors the stale-Job collision scenario deregister_job() guards
         against: an orphaned Job sharing a db_id with a freshly re-registered live Job.
         """
         svc = make_dequeue_service()

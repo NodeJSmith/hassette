@@ -7,7 +7,7 @@ from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, framework_display_nam
 class TestIsFrameworkKey:
     def test_is_framework_key_prefixed(self) -> None:
         """Keys starting with __hassette__. prefix are framework keys."""
-        assert is_framework_key("__hassette__.service_watcher") is True
+        assert is_framework_key("__hassette__.scheduler_service") is True
 
     def test_is_framework_key_bare(self) -> None:
         """The legacy bare key __hassette__ is a framework key."""
@@ -46,7 +46,7 @@ class TestIsFrameworkKey:
 class TestFrameworkDisplayName:
     def test_framework_display_name_prefixed(self) -> None:
         """Prefixed keys return the slug after the prefix."""
-        assert framework_display_name("__hassette__.service_watcher") == "service_watcher"
+        assert framework_display_name("__hassette__.scheduler_service") == "scheduler_service"
 
     def test_framework_display_name_bare(self) -> None:
         """Bare __hassette__ key returns 'framework'."""

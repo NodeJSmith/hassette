@@ -18,8 +18,8 @@ __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and
     "LifecycleReentryError", "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError",
     "RegistryNotReadyError", "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError",
     "ResponseTimeoutError", "RestartRefusedError", "RetryableConnectionClosedError", "SchedulerNameRequiredError",
-    "SchemaVersionError", "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "StateRegistryError",
-    "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
+    "SchemaVersionError", "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "ServeEndedError",
+    "StateRegistryError", "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
     "UnableToConvertAnnotatedStateError", "UnableToConvertStateError", "UnableToConvertValueError",
     "UndefinedUserConfigError", "WriteQueueUnavailableError",
 ]  # fmt: skip
@@ -71,7 +71,15 @@ class HassetteError(Exception):
 class FatalError(HassetteError):
     """Custom exception to indicate a fatal error in the application.
 
-    Exceptions that indicate that the service should not be restarted should inherit from this class.
+    A service whose ``serve()`` raises one ends CRASHED instead of FAILED; whether that ends the
+    process follows the service's ``required`` declaration, like any other serve failure.
+    """
+
+
+class ServeEndedError(HassetteError):
+    """A required service's ``serve()`` returned, or its serve task was cancelled, without a shutdown request.
+
+    Reported as that service's failure, so a required service can't stop silently.
     """
 
 
@@ -105,8 +113,8 @@ class SchemaVersionError(HassetteError):
     """Raised when the on-disk database schema version is ahead of the code's expected head.
 
     This indicates the database was created by a newer binary, so the service must not auto-delete
-    it; manual intervention is required. Listed in ``DatabaseService.restart_spec.fatal_error_names``
-    so the ServiceWatcher triggers immediate shutdown (FAILED path) rather than retrying.
+    it; manual intervention is required. ``DatabaseService`` is a required service, so this ends the
+    process like any other of its failures.
     """
 
 
@@ -208,10 +216,9 @@ class AuthTokenWriteError(HassetteError):
     """Raised when a freshly generated web API auth token could not be persisted to disk.
 
     Deliberately a plain :class:`HassetteError`, not :class:`FatalError` — an auth failure
-    must not crash or block-restart ``WebApiService``. Startup fails loudly here rather than
-    silently falling back to an ephemeral in-memory token: every ``WebApiService`` restart
-    (it is ``RestartType.TRANSIENT``) would otherwise mint a fresh token and invalidate
-    whatever credential the operator was just given.
+    must not crash ``WebApiService``. Startup fails loudly here rather than silently falling back
+    to an ephemeral in-memory token: every process restart would otherwise mint a fresh token and
+    invalidate whatever credential the operator was just given.
 
     Attributes:
         path: The token file path that could not be written.
@@ -597,7 +604,7 @@ class RestartRefusedError(FatalError):
     """Raised when a lifecycle front door refuses a new attempt after teardown proved restart-unsafe.
 
     Carries the resource identity and the exact stored ``TeardownReport`` (``is_restart_safe`` is
-    always ``False`` whenever this exception is raised) so ``ServiceWatcher`` and any other caller can inspect why
+    always ``False`` whenever this exception is raised) so a caller can inspect why
     restart was refused without re-deriving evidence from logs. The message lists the report's
     causes and any populated bounded detail fields (failed operations, pending tasks, affected
     resources) so existing exception logging remains useful on its own. Inherits ``FatalError``
@@ -632,7 +639,7 @@ class RestartRefusedError(FatalError):
 class LifecycleReentryError(HassetteError):
     """Raised when a lifecycle front door is invoked from the resource's own active lifecycle code.
 
-    The front doors are ``initialize()``, ``start()``, ``restart()``, and ``shutdown()``; the
+    The front doors are ``initialize()``, ``start()``, and ``shutdown()``; the
     guarded callers are the resource's own active initialization coordinator, shutdown
     coordinator, or shutdown body.
 

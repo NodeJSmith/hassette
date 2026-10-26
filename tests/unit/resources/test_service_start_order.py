@@ -4,7 +4,6 @@ import pytest
 from hassette_wire import ResourceStatus
 
 from hassette.resources.base import Resource
-from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from tests.support.helpers import block_until_cancelled
 from tests.support.mock_hassette import make_mock_hassette
@@ -14,7 +13,7 @@ from tests.unit.resources.conftest import wait_for_running
 class SpawnOrderService(Service):
     """Service that records whether its serve task existed while after_initialize ran."""
 
-    restart_spec = RestartSpec()
+    required = False
     serve = block_until_cancelled  # bound as instance method via the descriptor protocol
     serve_spawned_during_after_initialize: bool | None = None
 
@@ -23,7 +22,7 @@ class SpawnOrderService(Service):
 
 
 class FailingAfterInitializeService(Service):
-    restart_spec = RestartSpec()
+    required = False
     serve = block_until_cancelled  # bound as instance method via the descriptor protocol
 
     async def after_initialize(self) -> None:

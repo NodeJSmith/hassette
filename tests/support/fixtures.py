@@ -35,14 +35,12 @@ async def _start_module_harness(harness: HassetteHarness, request: pytest.Fixtur
     same reason documented in full in ``tests/integration/conftest.py::hassette_instance``:
     pytest-asyncio resumes a ``yield``-based async-generator fixture's teardown by creating
     a brand-new Task on the shared (session-scoped) event loop. If a test running against
-    this harness triggers a real ``hassette.shutdown()`` (e.g. ServiceWatcher exhausting a
-    PERMANENT service's restart budget in ``tests/integration/service_watcher/test_exhaustion.py``),
-    the loop's task factory -- installed by ``HassetteHarness.start()`` and still pointing
-    at this harness's now-sealed root TaskBucket -- rejects that very Task-creation call
-    before ``HassetteHarness.stop()`` (which itself correctly restores the previous task
-    factory in its own ``finally`` block) ever gets a chance to run. Because that loop is
-    shared for the rest of the pytest-xdist worker's session, every later test on the
-    worker then fails the same way, regardless of which module it lives in.
+    this harness triggers a real ``hassette.shutdown()``, the loop's task factory -- installed by
+    ``HassetteHarness.start()`` and still pointing at this harness's now-sealed root TaskBucket --
+    rejects that very Task-creation call before ``HassetteHarness.stop()`` (which itself correctly
+    restores the previous task factory in its own ``finally`` block) ever gets a chance to run.
+    Because that loop is shared for the rest of the pytest-xdist worker's session, every later
+    test on the worker then fails the same way, regardless of which module it lives in.
 
     A synchronous ``request.addfinalizer()`` callback sidesteps this: it restores the task
     factory that ``HassetteHarness.start()`` saved (``harness._previous_task_factory``)

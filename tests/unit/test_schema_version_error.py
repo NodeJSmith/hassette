@@ -21,9 +21,8 @@ class TestSchemaVersionErrorType:
     def test_schema_version_error_is_not_fatal_error(self) -> None:
         """SchemaVersionError must NOT be a FatalError subclass.
 
-        It is listed in fatal_error_names on DatabaseService.restart_spec,
-        which means the watcher matches it by name. It should reach the FAILED
-        path (handled), not the CRASHED path (FatalError subclass).
+        Raised by the required DatabaseService, it ends the process either way; as a plain error
+        the service ends FAILED, not CRASHED (the FatalError path).
         """
         assert not issubclass(SchemaVersionError, FatalError)
 

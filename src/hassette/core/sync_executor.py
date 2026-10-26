@@ -10,7 +10,7 @@ SyncExecutor is a plain class (no Resource/Service base), following the Router
 constructed during Hassette.__init__() before the Resource lifecycle starts, so every
 TaskBucket holds a SyncExecutor reference from birth. The pool is not created at
 construction — rebuild_pool() is the sole pool constructor, called by
-SyncExecutorService.on_initialize() on both first start and restart-in-place.
+SyncExecutorService.on_initialize() on both first start and re-initialization.
 
 SyncExecutorService (hassette.core.sync_executor_service) wraps this capability for
 lifecycle concerns: on_initialize() creates the pool via rebuild_pool(), serve() runs
@@ -95,7 +95,7 @@ class SyncExecutor:
     Resource lifecycle starts, so every ``TaskBucket`` holds a ``SyncExecutor`` reference from birth.
 
     The pool is not created at construction — ``rebuild_pool()`` is the sole pool constructor,
-    called by ``SyncExecutorService.on_initialize()`` on both first start and restart-in-place;
+    called by ``SyncExecutorService.on_initialize()`` on both first start and re-initialization;
     until then ``submit()`` raises. ``shutdown_pool()`` tears the pool down within a budgeted
     timeout.
     """
@@ -135,7 +135,7 @@ class SyncExecutor:
         """Create a fresh thread pool and reset saturation state.
 
         Sole pool constructor — called by ``SyncExecutorService.on_initialize()`` on both
-        first start and restart-in-place. Does not shut down any existing pool; the caller
+        first start and re-initialization. Does not shut down any existing pool; the caller
         always calls ``shutdown_pool()`` before re-initializing on restart.
 
         Args:

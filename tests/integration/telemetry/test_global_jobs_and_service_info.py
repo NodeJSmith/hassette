@@ -4,7 +4,7 @@ Covers:
 - get_job_summary() returns jobs from multiple apps when app_key is None
 - GET /api/scheduler/jobs enriches with live heap data when available
 - GET /api/scheduler/jobs returns DB-only data on scheduler failure (degraded)
-- ServiceInfo includes ready_phase, retry_at when available
+- ServiceInfo includes ready_phase when available
 """
 
 import time
@@ -36,8 +36,6 @@ from .helpers import (
     insert_job,
     only_row,
 )
-
-STUB_TIMESTAMP = 1_700_000_000.0
 
 
 class TestGetJobSummaryGlobal:
@@ -386,40 +384,29 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
 
 
 class TestServiceInfoExtension:
-    def test_service_info_has_ready_phase_retry_at(self) -> None:
-        """ServiceInfo has ready_phase, retry_at fields."""
-        service_info = ServiceInfo(
-            name="WebSocketService",
-            status="running",
-            ready_phase="connected",
-            retry_at=STUB_TIMESTAMP,
-        )
+    def test_service_info_has_ready_phase(self) -> None:
+        service_info = ServiceInfo(name="WebSocketService", status="running", ready_phase="connected")
         assert service_info.ready_phase == "connected"
-        assert service_info.retry_at == STUB_TIMESTAMP
 
     def test_service_info_defaults(self) -> None:
-        """ServiceInfo defaults ready_phase/retry_at to None when omitted."""
+        """ServiceInfo defaults ready_phase to None when omitted."""
         service_info = ServiceInfo(name="SomeService", status="running")
         assert service_info.ready_phase is None
-        assert service_info.retry_at is None
 
     def test_get_system_status_populates_service_info_fields(self) -> None:
-        """get_system_status() populates ready_phase, retry_at on ServiceInfo objects.
+        """get_system_status() reports each service's status and ready phase.
 
-        Covers both a service with a ready phase and no pending retry, and a second cooling-down
-        service with a retry timestamp and no ready phase.
+        Covers a running service with a ready phase and a failed one without.
         """
         mock_child = MagicMock()
         mock_child.class_name = "WebSocketService"
         mock_child.status = ResourceStatus.RUNNING
         mock_child._ready_reason = "connected to HA"
-        mock_child._retry_at = None
 
-        mock_cooling_child = MagicMock()
-        mock_cooling_child.class_name = "DatabaseService"
-        mock_cooling_child.status = ResourceStatus.EXHAUSTED_COOLING
-        mock_cooling_child._ready_reason = None
-        mock_cooling_child._retry_at = 1700001000.0
+        mock_failed_child = MagicMock()
+        mock_failed_child.class_name = "DatabaseService"
+        mock_failed_child.status = ResourceStatus.FAILED
+        mock_failed_child._ready_reason = None
 
         mock_hassette = MagicMock()
         mock_hassette.websocket_service = mock_child
@@ -427,7 +414,7 @@ class TestServiceInfoExtension:
         mock_hassette._websocket_service = mock_child
         mock_hassette.state_proxy.states = {}
         mock_hassette.state_proxy.is_ready.return_value = True
-        mock_hassette.children = [mock_child, mock_cooling_child]
+        mock_hassette.children = [mock_child, mock_failed_child]
         mock_hassette.app_handler.registry.get_full_snapshot.return_value = MagicMock(manifests=[])
         mock_hassette.app_handler.get_status_snapshot.return_value = MagicMock(total_count=0)
 
@@ -441,10 +428,9 @@ class TestServiceInfoExtension:
         assert len(result.services) == 2
         ws_svc = next(s for s in result.services if s.name == "WebSocketService")
         assert ws_svc.ready_phase == "connected to HA"
-        assert ws_svc.retry_at is None
 
         db_svc = next(s for s in result.services if s.name == "DatabaseService")
-        assert db_svc.retry_at == 1700001000.0
+        assert db_svc.status == ResourceStatus.FAILED
         assert db_svc.ready_phase is None
 
 
@@ -457,7 +443,6 @@ class TestHealthEndpointServiceInfoFields:
         mock_child.class_name = "WebSocketService"
         mock_child.status = ResourceStatus.RUNNING
         mock_child._ready_reason = "connected"
-        mock_child._retry_at = None
 
         mock_hassette_scheduler.children = [mock_child]
 

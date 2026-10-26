@@ -42,7 +42,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.testing",  # AppTestHarness, RecordingApi, event factories, etc.
         # Tier C: autoref targets in narrative docs
         "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, HassetteForgottenAwaitWarning
-        # ForgottenAwaitBehavior, RestartType, and other framework enums (plus the wire contract
+        # ForgottenAwaitBehavior and other framework enums (plus the wire contract
         # enums appended via EXTRA_PAGE_IDENTIFIERS below)
         "hassette.types.enums",
         "hassette.state_manager.state_manager",  # StateManager, DomainStates
@@ -58,9 +58,6 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.scheduler.error_context",  # SchedulerErrorContext referenced in scheduler docs
         "hassette.types",  # Public type aliases: HandlerType, Predicate, ChangeType, TriggerProtocol, etc.
         "hassette.types.types",  # Type definitions for handler, predicate, trigger, and change types
-        "hassette.resources.restart",  # RestartSpec referenced in lifecycle docs
-        "hassette.core.service_watcher",  # ServiceWatcher referenced in internals/operating docs
-        "hassette.core.restart_budget",  # RestartBudget referenced in lifecycle docs
         "hassette.core.websocket_service",  # WebsocketService referenced in internals/operating docs
         "hassette.core.bus_service",  # BusService referenced in internals docs
         "hassette.core.scheduler_service",  # SchedulerService referenced in internals docs

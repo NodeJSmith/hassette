@@ -192,25 +192,25 @@ def scenario_adversarial(ctx: SeedContext) -> None:
 
     # -- Framework component: framework-tier listener, job, executions, and logs. Seeded last so
     # every "first row" lookup (tools/client_compat_live_state.py's read_seed_ids) still lands on an app.
-    framework_key = f"{FRAMEWORK_APP_KEY_PREFIX}ServiceWatcher"
+    framework_key = f"{FRAMEWORK_APP_KEY_PREFIX}RuntimeQueryService"
     base = 3 * APP_TIME_SPACING_SECONDS
     listener_id = seed_listener(
         ctx,
         app_key=framework_key,
-        handler_method="ServiceWatcher.on_service_status",
+        handler_method="RuntimeQueryService.on_service_status",
         topic="hassette.event.service_status",
-        name="service_watcher_status",
-        source_location="hassette/core/service_watcher.py:80",
+        name="runtime_query_service_status",
+        source_location="hassette/core/runtime_query_service.py:80",
         source_tier="framework",
     )
     job_id = seed_job(
         ctx,
         app_key=framework_key,
-        job_name="service_watcher_health_sweep",
-        handler_method="ServiceWatcher.health_sweep",
+        job_name="runtime_query_service_health_sweep",
+        handler_method="RuntimeQueryService.health_sweep",
         trigger_type="interval",
         trigger_label="every 5 minutes",
-        source_location="hassette/core/service_watcher.py:120",
+        source_location="hassette/core/runtime_query_service.py:120",
         source_tier="framework",
     )
     seed_executions(
@@ -241,7 +241,7 @@ def scenario_adversarial(ctx: SeedContext) -> None:
             seq=seq + i,
             timestamp=ts(base + i * 60.0),
             level="INFO",
-            logger_name="hassette.core.service_watcher",
+            logger_name="hassette.core.runtime_query_service",
             message=f"service status sweep #{i + 1}",
             author="framework",
         )

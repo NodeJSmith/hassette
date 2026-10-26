@@ -59,6 +59,7 @@ def make_mock_hassette(
 
         - ``.config``: real :class:`~hassette.config.config.HassetteConfig` instance
         - ``.ready_event``, ``.shutdown_event``: :class:`asyncio.Event` instances
+        - ``.report_service_failure``: :class:`~unittest.mock.Mock`, a synchronous no-op
         - ``.event_streams_closed``: ``False``
         - ``.loop_thread_id``: current thread ident
         - ``.loop``: running event loop (or ``None`` if ``set_loop=False``)
@@ -113,6 +114,10 @@ def make_mock_hassette(
     # name (read path) and the backing field.
     hassette._fatal_shutdown_reason = None
     hassette.fatal_shutdown_reason = None
+
+    # Service failure reports — a synchronous no-op, like the harness's. Sealed, an unconfigured
+    # attribute raises; unsealed, AsyncMock would return an unawaited coroutine.
+    hassette.report_service_failure = Mock(return_value=None)
 
     # Event stream state
     hassette.event_streams_closed = False

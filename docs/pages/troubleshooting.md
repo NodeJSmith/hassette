@@ -294,4 +294,4 @@ For container startup failures, dependency installation, health check failures, 
 
 **[`HassetteError`][hassette.exceptions.HassetteError]** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
 
-**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses include `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`, `ServerUrlError` (and its subclasses), `CredentialResolutionError`, and `RestartRefusedError`.
+**`FatalError`** Extends `HassetteError`. Marks a failure the raising component can't recover from. Raised during startup, it stops Hassette. Raised by a service's `serve()`, it leaves the service `CRASHED`, and Hassette exits if that service is required. Subclasses include `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`, `ServerUrlError` (and its subclasses), `CredentialResolutionError`, and `RestartRefusedError`.

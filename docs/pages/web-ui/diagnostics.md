@@ -26,9 +26,8 @@ The services panel lists every internal service (Bus, Scheduler, Api, DatabaseSe
 and the rest) as a compact grid. A healthy service shows only its name and a green dot —
 status text appears when there is something to say.
 
-Services that are not running sort to the top and span the full row, showing their status,
-readiness phase, and — for a service in cooldown after repeated failures — when the
-supervisor will retry. A failed service with a captured exception gets a "show exception"
+Services that are not running sort to the top and span the full row, showing their status and
+readiness phase. A failed service with a captured exception gets a "show exception"
 toggle that expands the full traceback inline.
 
 Service states update live over the WebSocket connection. When the connection drops, a

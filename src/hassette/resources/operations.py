@@ -2,7 +2,7 @@
 
 These functions replace methods that previously lived on ``Resource``. They accept the resource
 as their first argument instead of being bound methods, so structural operations are invoked as
-``restart(resource)`` instead of ``resource.restart()``.
+``start_children_and_wait(resource)`` instead of ``resource.start_children_and_wait()``.
 """
 
 import asyncio
@@ -10,8 +10,7 @@ import logging
 import typing
 from contextlib import suppress
 
-from hassette.exceptions import RestartRefusedError
-from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, reject_lifecycle_reentry, start
+from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, start
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound, tighten_shutdown_deadline
 from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
 from hassette.types.enums import ResourceRole
@@ -69,23 +68,6 @@ async def start_children_and_wait(resource: "Resource", timeout: float | None = 
     else:
         reason = f"timed out after {effective_timeout}s; child statuses: {child_statuses}"
     raise TimeoutError(f"Children of {resource.class_name} did not become ready: {reason}")
-
-
-async def restart(resource: "Resource") -> None:
-    """Restart the instance by shutting it down and re-initializing it.
-
-    Requires the shutdown attempt to prove ``is_restart_safe`` before initializing — a report
-    with ``is_restart_safe`` ``False`` raises ``RestartRefusedError`` without starting a new
-    attempt. The direct-``initialize()`` refusal check remains the authoritative gate (callers
-    can bypass ``restart()`` entirely); this check exists so ``restart()`` fails fast with a
-    clear message instead of relying on ``initialize()`` to raise the same error one call later.
-    """
-    reject_lifecycle_reentry(resource, "restart")
-    resource.lifecycle_logger.debug("Restarting '%s' %s", resource.class_name, resource.role)
-    report = await resource.shutdown()
-    if not report.is_restart_safe:
-        raise RestartRefusedError(resource.unique_name, report)
-    await resource.initialize()
 
 
 def register_task_bucket_factory(factory: "Callable[[Hassette, Resource], TaskBucket]") -> None:

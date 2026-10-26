@@ -82,7 +82,6 @@ describe("useAppStore", () => {
             status: "running",
             previous_status: null,
             exception: null,
-            retry_at: null,
             ready: true,
             ready_phase: null,
           },
@@ -108,7 +107,6 @@ describe("useAppStore", () => {
             status: "running",
             previous_status: null,
             exception: null,
-            retry_at: null,
             ready: true,
             ready_phase: null,
           },
@@ -245,7 +243,6 @@ describe("useAppStore", () => {
         status: "running",
         previous_status: null,
         exception: null,
-        retry_at: null,
         ready: true,
         ready_phase: null,
       });

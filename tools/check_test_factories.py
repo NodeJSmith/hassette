@@ -94,7 +94,6 @@ SHARED_FACTORIES = {
     "make_execution": "tests.support.web_telemetry_helpers",
     "make_log_entry": "tests.support.web_telemetry_helpers",
     "make_logs_by_execution_response": "tests.support.web_telemetry_helpers",
-    "make_crashed_event": "tests.support.helpers",
     "make_task_bucket": "tests.support.helpers",
     "async_noop": "tests.support.helpers",
     "noop": "tests.support.helpers",

@@ -14,13 +14,19 @@ a one-time latch that never re-closes. Does every caller of `is_released()` or
 connection generation but `src/hassette/core/state_proxy.py` has since marked the
 cache `STALE`?
 
-## Fatal Shutdown Recording
-Does every fatal-outcome path in `ServiceWatcher` (`handle_restart_refused`,
-`handle_exhaustion`, and the fatal-error check in `route_unretryable_failure` in
-`src/hassette/core/service_watcher_escalation.py`; `shutdown_if_crashed` in
-`src/hassette/core/service_watcher.py`) record `fatal_shutdown_reason` *before*
-triggering shutdown (via `request_shutdown()` or `hassette.shutdown()`)? A path
-that triggers shutdown first loses the reason.
+## Failure Report Ordering
+`Service._serve_wrapper()` in `src/hassette/resources/service.py` must call
+`report_service_failure()` (in `src/hassette/core/core.py`, routed by `service_failure.py`) first at every failure exit after the
+handoff, before `handle_failed()`/`handle_crash()`, which await a bounded event channel. Does any
+exit (raise, `FatalError`, `ClosedResourceError`, unrequested return or cancellation) reach a status
+send first, or add an `await` ahead of the report? Does anything on the path from the report to
+`escalate_service_failure()` await, so a stalled bus or database could delay the process exit?
+
+## Fatal Reason Before Shutdown
+`escalate_service_failure()` in `src/hassette/core/service_failure.py` is the one fatal exit route. Does it
+latch `_fatal_shutdown_reason` *before* requesting shutdown, and does any other code path request
+shutdown for a service failure without going through it? A path that requests shutdown first loses
+the reason, and a second route lets required and optional handling drift apart.
 
 ## Shutdown Deadlines
 Shutdown deadlines are owned by operations (`src/hassette/resources/shutdown_deadline.py`): the
@@ -36,25 +42,6 @@ multiple tiers or tables in sequence, does each tier get the same commit isolati
 error handling, and budget accounting? A failure in one tier that corrupts state for
 the next, or an empty tier that silently consumes the deletion budget, has been a
 repeated Codex finding.
-
-## Restart Episode Ownership
-`execute_restart()` in `src/hassette/core/service_watcher.py` holds a service's
-`_restarting` key for its whole restart episode, and `restart_service()` drops
-FAILED events for services no longer in FAILED and for failures from STARTING.
-A failure from STARTING belongs to the attempt's caller, so does every caller
-that starts an attempt (the startup wave in `core.py`, `attempt_restart()`,
-`cooldown_and_retry()`) route its own failure? Does every path that retries,
-exhausts, or changes a supervised service's status keep the key held until the
-service has left FAILED, so a FAILED event delivered during an `await` cannot
-start a second episode or run `handle_exhaustion()` twice? Does anything other
-than the episode itself release the key or reset the budget while the episode
-holds it (readiness can arrive mid-attempt, before `initialize()` returns)?
-
-## Bus Recovery Reconciliation
-After `BusService` restarts, `reconcile_after_bus_recovery()` in
-`src/hassette/core/service_watcher.py` scans for FAILED services with no budget
-entry. Does it also cover services that failed *and were restarted* during the blind
-window but now have an incorrect budget entry?
 
 ## Recv-Task Detach Before Cancel
 `_handle_recv_task_done` in `src/hassette/core/websocket_service.py` treats any

@@ -156,7 +156,6 @@ export function useWebSocket(): void {
               status: msg.data.status,
               previous_status: msg.data.previous_status,
               exception: msg.data.exception,
-              retry_at: msg.data.retry_at ?? null,
               ready: msg.data.ready ?? false,
               ready_phase: msg.data.ready_phase ?? null,
             });

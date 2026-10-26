@@ -26,13 +26,14 @@ from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
 from hassette.core.pipeline_counters import PipelineCounter
-from hassette.core.service_status_predicates import IS_NOT_APP_ROLE
 from hassette.core.state_proxy import StateProxy
+from hassette.event_handling import predicates as P
+from hassette.event_handling.accessors import get_path
 from hassette.events import AnyEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo
-from hassette.types.enums import Topic
+from hassette.types.enums import ResourceRole, Topic
 from hassette.utils import get_version
 
 if TYPE_CHECKING:
@@ -53,6 +54,22 @@ SEVERITY_WARN: Final = "warn"
 SEVERITY_ERR: Final = "err"
 
 WS_EVENT_CONNECTIVITY: Final = "connectivity"
+
+SERVICE_ROLE_PATH = "payload.data.role"
+
+IS_NOT_APP_ROLE = ~P.ValueIs(source=get_path(SERVICE_ROLE_PATH), condition=ResourceRole.APP)
+"""Excludes APP-role resources from a service-status subscription.
+
+Every ``Resource`` emits ``HASSETTE_EVENT_SERVICE_STATUS`` through the shared lifecycle
+machinery, so an app's status transitions land on the same topic the framework's own do. This
+keeps app transitions out of the web UI's framework-services stream, where apps (keyed by class
+name, not instance) would collide; app status reaches the UI through ``app_status_changed``
+instead.
+
+Excludes APP rather than admitting SERVICE only, and the difference matters: several framework
+resources are plain ``Resource`` subclasses (RESOURCE role), not ``Service``, and a SERVICE-only
+filter would swallow their events. Negating APP also fails open on a missing or malformed role.
+"""
 
 
 class RuntimeQueryService(Resource):
@@ -218,7 +235,6 @@ class RuntimeQueryService(Resource):
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
-            retry_at=data.retry_at,
             ready=data.ready,
             ready_phase=data.ready_phase,
         )
@@ -364,7 +380,6 @@ class RuntimeQueryService(Resource):
                 name=child.class_name,
                 status=child.status,
                 ready_phase=getattr(child, "_ready_reason", None),
-                retry_at=getattr(child, "_retry_at", None),
             )
             for child in self.hassette.children
         ]
