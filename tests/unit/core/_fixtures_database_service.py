@@ -5,8 +5,8 @@ Not re-exported from ``conftest.py`` like this directory's other ``_fixtures_*.p
 ``_fixtures_app_lifecycle.py`` (sealed=False, dev_mode=True, no database/lifecycle overrides),
 and importing a second fixture under the same name into that flat namespace would silently
 shadow it for the rest of the directory. Consumers import directly from this module instead:
-``test_database_service.py``, ``test_database_service_toctou_regression.py`` and
-``test_database_heartbeat_progress.py``.
+``test_database_service.py``, ``test_database_service_toctou_regression.py``,
+``test_database_heartbeat_progress.py`` and ``test_database_storage_error_handlers.py``.
 """
 
 import asyncio
@@ -45,8 +45,13 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
 
     Does NOT call on_shutdown — leaves worker task and connection management to the test.
     """
+    # Every query reads as an empty database (each PRAGMA returns 0, each DELETE removes 0 rows), so
+    # the startup cleanup catch-up in on_initialize() runs for real and finds nothing to do.
+    cursor = AsyncMock()
+    cursor.fetchone = AsyncMock(return_value=(0,))
+    cursor.rowcount = 0
     mock_conn = AsyncMock()
-    mock_conn.execute = AsyncMock()
+    mock_conn.execute = AsyncMock(return_value=cursor)
     mock_conn.commit = AsyncMock()
     mock_conn.close = AsyncMock()
     # stop() is aiosqlite's *synchronous* counterpart to close() (see stop_connection_sync()) --

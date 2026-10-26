@@ -63,7 +63,7 @@ async def run_write_queue_worker(service: "DatabaseService") -> None:
             if future is not None and not future.done():
                 future.cancel()
             raise
-        except Exception as exc:
+        except Exception as exc:  # broad on purpose: runs caller-supplied coroutines, whose errors belong to the caller
             if future is not None and not future.done():
                 future.set_exception(exc)
             else:
