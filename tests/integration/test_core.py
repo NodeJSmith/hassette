@@ -176,8 +176,10 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
             mock_start.assert_any_call(child)
     # wait_for_ready called: once for DB, then once per startup wave.
     assert stubs.wait_for_ready.await_count >= 2
+    config = hassette_instance.config
     stubs.wait_for_ready.assert_any_await(
-        [hassette_instance.database_service], timeout=hassette_instance.config.lifecycle.startup_timeout_seconds
+        [hassette_instance.database_service],
+        timeout=config.lifecycle.startup_timeout_seconds + config.database.migration_timeout_seconds,
     )
     # Session created between phase 1 and phase 2
     stubs.mark_orphaned_sessions.assert_awaited_once()
@@ -219,6 +221,51 @@ async def test_run_forever_restores_prior_task_factory_on_shutdown(hassette_inst
     assert loop.get_task_factory() is sentinel_factory, (
         "shutdown should have restored the factory that was installed before run_forever()"
     )
+
+
+async def test_run_forever_waits_for_migration_longer_than_startup_timeout(hassette_instance: Hassette) -> None:
+    """A database migration that outlasts startup_timeout_seconds but finishes within
+    migration_timeout_seconds does not fail startup (#3502).
+
+    Uses a prod-like ratio: the startup timeout is far shorter than the migration timeout, and
+    the database becomes ready after the startup timeout has elapsed.
+    """
+    config = hassette_instance.config
+    config.lifecycle = config.lifecycle.model_copy(update={"startup_timeout_seconds": 0.2})
+    config.database = config.database.model_copy(update={"migration_timeout_seconds": 5})
+
+    real_wait_for_ready = hassette_instance.wait_for_ready
+    stubs = stub_run_forever_collaborators(hassette_instance)
+    assert stubs.shutdown is not None
+    db = hassette_instance.database_service
+
+    async def wait_for_ready(resources: list[Resource], timeout: float | None = None) -> bool:
+        if resources == [db]:
+            return await real_wait_for_ready(resources, timeout=timeout)
+        return True
+
+    stubs.wait_for_ready.side_effect = wait_for_ready
+
+    async def mark_orphaned_sessions() -> None:
+        # The real session manager needs an open database; fail the way it would if the
+        # database phase gave up before the migration finished.
+        if not db.is_ready():
+            raise RuntimeError("database not ready")
+
+    stubs.mark_orphaned_sessions.side_effect = mark_orphaned_sessions
+
+    def fake_start(resource: Resource) -> None:
+        # Slow migration: the database only becomes ready after the startup timeout has passed.
+        if resource is db:
+            asyncio.get_running_loop().call_later(0.6, db.ready_event.set)
+
+    with patch("hassette.core.core.start", side_effect=fake_start):
+        task = asyncio.create_task(hassette_instance.run_forever())
+        await wait_for(lambda: hassette_instance.ready_event.is_set(), timeout=5, desc="database phase finished")
+        hassette_instance.shutdown_event.set()
+        await task
+
+    stubs.create_session.assert_awaited_once()
 
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:

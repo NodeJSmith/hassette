@@ -422,8 +422,15 @@ class Hassette(HassetteAccessorsMixin, Resource):
             self._raise_if_fatal_shutdown()
             return
 
+        # The database phase runs migrations under their own, longer bound, so it waits for the
+        # migration budget on top of the normal startup budget (which covers the rest of its
+        # initialization). Bounding it by startup_timeout_seconds alone would let a short startup
+        # timeout cut every slow migration off, and a supervisor restart would re-run it forever.
+        db_startup_timeout = (
+            self.config.lifecycle.startup_timeout_seconds + self.config.database.migration_timeout_seconds
+        )
         try:
-            await self.wait_for_ready([self.database_service], timeout=self.config.lifecycle.startup_timeout_seconds)
+            await self.wait_for_ready([self.database_service], timeout=db_startup_timeout)
             if self._session_manager is None:
                 raise service_not_wired_error("SessionManager")
             await self._session_manager.mark_orphaned_sessions()
