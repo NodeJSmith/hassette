@@ -480,7 +480,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         await self._fail_startup(reason)
         return False
 
-    async def _wait_for_wave(self, attempts: "dict[Resource, asyncio.Task[None] | None]", timeout: float) -> WaveResult:
+    async def _wait_for_wave(self, attempts: dict[Resource, asyncio.Task[None] | None], timeout: float) -> WaveResult:
         """Wait for one startup wave; see ``wait_for_wave()``. A method so tests can stub the wait."""
         return await wait_for_wave(attempts, timeout=timeout, shutdown_event=self.shutdown_event)
 

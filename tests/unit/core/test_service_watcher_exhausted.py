@@ -208,11 +208,11 @@ async def test_failed_restart_after_cooldown_starts_a_new_episode():
     watcher = make_watcher(hassette)
     spawned: list[str] = []
 
-    def _record_spawn(coro, *, name: str):
+    def record_spawn(coro, *, name: str):
         spawned.append(name)
         coro.close()
 
-    watcher.task_bucket.spawn = MagicMock(side_effect=_record_spawn)
+    watcher.task_bucket.spawn = MagicMock(side_effect=record_spawn)
     spec = RestartSpec(
         restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
     )

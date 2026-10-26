@@ -62,7 +62,6 @@ async def test_all_children_become_ready(parent: Parent):
 
 
 async def test_empty_children_is_noop(parent: Parent):
-
     await start_children_and_wait(parent, timeout=1.0)
 
     assert parent.children == []

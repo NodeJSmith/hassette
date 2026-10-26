@@ -15,7 +15,7 @@ from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, r
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound, tighten_shutdown_deadline
 from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
 from hassette.types.enums import ResourceRole
-from hassette.utils.service_utils import WaveOutcome, describe_children, describe_error, wait_for_wave
+from hassette.utils.service_utils import WaveOutcome, describe_children, describe_wave_causes, wait_for_wave
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -62,10 +62,7 @@ async def start_children_and_wait(resource: "Resource", timeout: float | None = 
         return
     child_statuses = describe_children(resource)
     if result.outcome is WaveOutcome.FAILED:
-        causes = ", ".join(
-            f"{child.class_name} ({describe_error(error)})"
-            for child, error in zip(result.resources, result.errors, strict=True)
-        )
+        causes = describe_wave_causes(result)
         raise RuntimeError(f"Children of {resource.class_name} failed to initialize: {causes}") from result.errors[0]
     if result.outcome is WaveOutcome.SHUTDOWN:
         reason = f"shutdown during wait after {effective_timeout}s; child statuses: {child_statuses}"

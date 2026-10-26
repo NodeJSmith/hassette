@@ -42,7 +42,9 @@ class ServiceEscalationMixin:
     get_service: "Callable[[str, ResourceRole], Service | None]"
     log_if_admission_blocked: "Callable[[str | None, ResourceRole | None, str], bool]"
     shutdown_safe_sleep: "Callable[[float], Awaitable[bool]]"
-    begin_restart_episode: "Callable[..., Awaitable[None]]"
+    begin_restart_episode: (
+        "Callable[[str, ResourceRole, str, RestartSpec, Service, ServiceStatusPayload], Awaitable[None]]"
+    )
 
     async def handle_restart_refused(self, name: str, role: ResourceRole, error: RestartRefusedError) -> None:
         """Escalate a typed restart refusal to one fatal outcome.
