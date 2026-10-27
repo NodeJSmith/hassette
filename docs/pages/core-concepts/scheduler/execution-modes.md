@@ -129,10 +129,14 @@ The job then becomes `completed` and stays live — it is not removed. See
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_execution_modes.py:one_shot_mode"
 ```
 
-`mode=` never affects the automatic fire, since only one occurs. It
-still governs [manual submissions](#manual-submission) through
-`job.submit()` or Run Now, the same as on any other job. That includes a
-manual submission that overlaps the pending automatic fire.
+Only one automatic fire occurs, so automatic occurrences never overlap
+each other. `mode=` still governs overlap with
+[manual submissions](#manual-submission) through `job.submit()` or Run
+Now, the same as on any other job, in both directions. If a manual
+submission is still running when the one-shot becomes due, the automatic
+fire goes through the same guard: `single` suppresses it (so the only
+automatic invocation never runs), `queued` delays it until the manual
+run finishes, and `restart` cancels the manual run in its favor.
 
 ## Manual Submission
 
