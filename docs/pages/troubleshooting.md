@@ -4,7 +4,7 @@
 
 **Token not accepted.** Set `HASSETTE__TOKEN` in your `.env` file or environment. The value must be a long-lived access token from Home Assistant's profile page. See [Authentication](getting-started/ha_token.md).
 
-**Connection refused or timeout.** Hassette keeps retrying every few seconds and logs an ERROR every 5 minutes until the first connection succeeds. Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme (`http://`) and port explicitly — `homeassistant.local` without the scheme raises [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup. Use `http://homeassistant.local:8123` instead.
+**Connection refused or timeout.** Hassette keeps retrying every few seconds and logs an ERROR every 5 minutes until the first connection succeeds. Check `base_url` in the `[hassette]` table of `hassette.toml`, not a sub-table like `[hassette.web_api]`. The default is `http://127.0.0.1:8123`. See [Home Assistant URL](core-concepts/configuration/index.md#home-assistant-url). Include the scheme (`http://`) and port explicitly — `homeassistant.local` without the scheme raises [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup. Use `http://homeassistant.local:8123` instead.
 
 **Extra path in `base_url`.** The `Cannot reach Home Assistant at ...` error names a URL with a path before `/api/websocket`, such as `ws://ha.local:8123/lovelace/0/api/websocket`. Hassette keeps any path in `base_url` and puts it in front of `/api/`, so a URL copied from the browser never reaches Home Assistant's API. Set `base_url` to the address alone, `http://ha.local:8123`. Keep a path only when a reverse proxy (a web server in front of Home Assistant) serves it under that path, as in `https://example.com/ha`. The `Home Assistant URLs:` line at startup shows the REST and WebSocket URLs Hassette builds.
 
@@ -98,7 +98,7 @@ await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="ki
 
 **Stored-on-self limitation:** When the un-awaited handle is stored on `self` (e.g. `self.sub = self.bus.on_state_change(...)`), it lives for the app's lifetime. The warning fires at app *shutdown*, not at registration. This is a weaker guarantee than the bare-drop case. [Enable Pyright](#enabling-pyright) for the earliest possible signal.
 
-**`"error"` mode cannot crash the process:** On its own, `forgotten_await_behavior = "error"` behaves exactly like `"warn"`. The warning becomes a raised exception only when Python's warning filters escalate it (`-W error`, or `warnings.filterwarnings("error")`). Even then, detection happens in Python's garbage collector finalizer (`__del__`), so the exception is swallowed by the runtime and printed as `Exception ignored in: ...`. The traceback is visible; the process does not stop. Use [Pyright](#enabling-pyright) if you need a hard build-time failure.
+**`"error"` mode cannot crash the process:** The `forgotten_await_behavior` setting lives in the `[hassette]` table, and each app can override it. It accepts `"ignore"`, `"warn"`, or `"error"`, and an unset value behaves as `"warn"`. See [Developer Settings](core-concepts/configuration/index.md#developer-settings). On its own, `"error"` behaves exactly like `"warn"`. The warning becomes a raised exception only when Python's warning filters escalate it (`-W error`, or `warnings.filterwarnings("error")`). Even then, detection happens in Python's garbage collector finalizer (`__del__`), so the exception is swallowed by the runtime and printed as `Exception ignored in: ...`. The traceback is visible; the process does not stop. Use [Pyright](#enabling-pyright) if you need a hard build-time failure.
 
 **Importing the warning class:** To use `HassetteForgottenAwaitWarning` in `pytest.warns` or `warnings.filterwarnings`, import it from:
 
@@ -126,9 +126,12 @@ The Hassette project's own `pyrightconfig.json` already sets `reportUnusedCorout
 
 `basic` mode already enables `reportUnusedCoroutine`, so the last line is redundant if you use `basic` mode — but making it explicit ensures the rule stays active even if the mode changes later.
 
-Run Pyright with:
+`venvPath` and `venv` point Pyright at a `.venv` directory in the project root, which `uv sync` creates. Change both values when the virtual environment lives elsewhere.
+
+Add Pyright as a dev dependency, then run it:
 
 ```bash
+uv add --dev pyright
 uv run pyright
 # or, if installed globally:
 pyright
@@ -232,7 +235,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Connection
 
-**`InvalidAuthError`** Extends `HassetteError`. Home Assistant rejected the token. App code never sees it from the WebSocket. Hassette retries 3 times, 60 seconds apart. Then it stays up and stops connecting. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
+**`InvalidAuthError`** Extends `HassetteError`. Home Assistant rejected the token. Hassette handles it internally on the WebSocket connection and never raises it into app code. Hassette retries 3 times, 60 seconds apart. Then it stays up and stops connecting. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
 
 **`BaseUrlRequiredError`** `base_url` is missing entirely. Set it in `hassette.toml`.
 
