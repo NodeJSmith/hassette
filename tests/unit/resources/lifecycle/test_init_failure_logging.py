@@ -14,6 +14,7 @@ from hassette_wire import ResourceStatus
 
 from hassette.resources.lifecycle import start
 from hassette.testing import wait_for
+from hassette.types.enums import ResourceRole
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource
@@ -26,8 +27,17 @@ class FailingInitResource(ConcreteResource):
         raise RuntimeError("init boom")
 
 
-def make_failing_resource() -> FailingInitResource:
-    resource = FailingInitResource(hassette=make_mock_hassette(sealed=False))
+class FailingInitAppRoleResource(FailingInitResource):
+    """App-role resource whose ``on_initialize()`` always raises.
+
+    ``run_hooks()`` and the coordinator observer log an app-role failure at DEBUG, leaving ERROR to the caller.
+    """
+
+    role = ResourceRole.APP
+
+
+def make_failing_resource(cls: type[FailingInitResource] = FailingInitResource) -> FailingInitResource:
+    resource = cls(hassette=make_mock_hassette(sealed=False))
     resource.lifecycle_logger.setLevel(logging.DEBUG)
     return resource
 
@@ -122,3 +132,24 @@ async def test_observer_keeps_error_when_handle_failed_raises_a_different_except
     errors = [r for r in caplog.records if r.name == resource.lifecycle_logger.name and r.levelno >= logging.ERROR]
     logged = [r.exc_info[1] for r in errors if r.exc_info is not None]
     assert [str(exc) for exc in logged] == ["dependency boom", "event boom"], [r.getMessage() for r in errors]
+
+
+async def test_start_failure_of_app_role_resource_logs_one_error(caplog: pytest.LogCaptureFixture) -> None:
+    """``start(app)`` outside ``initialize_instances()`` (e.g. ``AppTestHarness``) has no outer logger.
+
+    ``handle_failed()`` and the coordinator observer log an app-role failure at DEBUG, so nothing has
+    logged it at ERROR when the start joiner re-raises it: the joiner's observer must keep ERROR.
+    """
+    resource = make_failing_resource(FailingInitAppRoleResource)
+
+    with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
+        start(resource)
+        await wait_for(lambda: resource._pending_start_task is None, desc="start joiner settled")
+        await asyncio.sleep(0)
+
+    assert resource.status == ResourceStatus.FAILED
+    errors = [r for r in lifecycle_records(caplog, resource) if r.levelno >= logging.ERROR]
+    assert len(errors) == 1, [r.getMessage() for r in errors]
+    assert "start joiner" in errors[0].getMessage()
+    assert errors[0].exc_info is not None
+    assert str(errors[0].exc_info[1]) == "init boom"
