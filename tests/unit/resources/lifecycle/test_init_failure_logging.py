@@ -1,9 +1,10 @@
-"""Tests for how many ERROR records a failed non-app initialization produces.
+"""Tests for how many ERROR records a failed initialization produces.
 
 A non-app resource whose ``on_initialize()`` raises must surface that exception at ERROR exactly
 once (``handle_failed()``'s "<resource> failed" record, with the traceback). The initialization
 coordinator's exception observer and ``start()``'s joiner observer see the same exception object
-and log it at DEBUG instead (#3501).
+and log it at DEBUG instead (#3501). An app-role resource's inner layers log at DEBUG, so when it is
+started directly the joiner's observer carries the one ERROR.
 """
 
 import asyncio
@@ -30,7 +31,8 @@ class FailingInitResource(ConcreteResource):
 class FailingInitAppRoleResource(FailingInitResource):
     """App-role resource whose ``on_initialize()`` always raises.
 
-    ``run_hooks()`` and the coordinator observer log an app-role failure at DEBUG, leaving ERROR to the caller.
+    ``run_hooks()`` passes DEBUG to ``handle_failed()`` and the coordinator observer logs at DEBUG for an
+    app-role failure, so neither records it and an outer layer has to log the ERROR.
     """
 
     role = ResourceRole.APP
@@ -145,7 +147,7 @@ async def test_start_failure_of_app_role_resource_logs_one_error(caplog: pytest.
     with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
         start(resource)
         await wait_for(lambda: resource._pending_start_task is None, desc="start joiner settled")
-        await asyncio.sleep(0)
+        await asyncio.sleep(0)  # the joiner's observer is a done callback that may not have run yet
 
     assert resource.status == ResourceStatus.FAILED
     errors = [r for r in lifecycle_records(caplog, resource) if r.levelno >= logging.ERROR]

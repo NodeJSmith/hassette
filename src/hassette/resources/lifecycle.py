@@ -33,7 +33,7 @@ from hassette.resources.teardown import (
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
+    from collections.abc import Coroutine
 
 
 def create_service_status_event(
@@ -197,12 +197,12 @@ def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
 
     resource.lifecycle_logger.debug("%s starting", resource.unique_name)
     joiner = create_lifecycle_task(resource.initialize(), name="resource:resource_initialize")
-    # The joiner usually just re-raises the coordinator's own exception (via asyncio.shield), which
-    # the coordinator's observer has already logged; only exceptions raised before or outside the
-    # coordinator (e.g. a RestartRefusedError from coordinate_initialize()) are new here.
-    _install_exception_observer(
-        resource, joiner, "start joiner", already_logged=lambda exc: _is_init_task_exception(resource, exc)
-    )
+    # The joiner usually re-raises the coordinator's own exception (via asyncio.shield), so its
+    # observer logs that at DEBUG once _last_error_logged holds it. For an app-role resource the
+    # inner layers log at DEBUG and record nothing, so with no initialize_instances() around this
+    # start() the joiner's ERROR is the only one. Exceptions raised before the coordinator task
+    # exists (a RestartRefusedError from coordinate_initialize()) also surface only here.
+    _install_exception_observer(resource, joiner, "start joiner")
     resource._pending_start_task = joiner
 
     def _clear_pending_start(task: asyncio.Task) -> None:
@@ -302,7 +302,9 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
             ``hassette.resources.operations``, which demotes this for app-role resources during
             initialization (``AppLifecycleService.initialize_instances()`` is that outer layer)
             but leaves it at ERROR for every other resource, since those have no other logger
-            for an initialization failure.
+            for an initialization failure. Only an ERROR-or-higher log is recorded in
+            ``_last_error_logged``, so a demoted failure is still logged at ERROR by a later
+            exception observer when no outer layer exists.
     """
     resource = typing.cast("LifecycleMixin", resource)
     if resource.status == ResourceStatus.FAILED:
@@ -334,7 +336,8 @@ async def handle_failed(resource: _LifecycleHostP, exception: BaseException, *, 
         str(exception),
         exc_info=exception,
     )
-    resource._logged_failure = exception
+    if log_level >= logging.ERROR:
+        resource._last_error_logged = exception
     resource.status = ResourceStatus.FAILED
     mark_not_ready(resource, "Failed")
     event = create_service_status_event(
@@ -456,7 +459,6 @@ def _install_exception_observer(
     label: str,
     *,
     log_level: int = logging.ERROR,
-    already_logged: "Callable[[BaseException], bool] | None" = None,
 ) -> None:
     """Attach a done callback that retrieves and logs any exception the task raised.
 
@@ -464,18 +466,20 @@ def _install_exception_observer(
     external joiner cancels its own wait -- an unretrieved task exception would otherwise
     surface as an "exception was never retrieved" warning with no other observer.
 
+    The first lifecycle log of an exception at ERROR records it in ``_last_error_logged``
+    (``handle_failed()`` or one of these observers). An observer whose task raised that same
+    exception object logs it at DEBUG instead, so each failure carries one ERROR traceback however
+    many tasks re-raise it.
+
     Args:
         resource: The resource that owns the observed task.
         task: The lifecycle task to observe.
         label: Human-readable name for the task, used in the log message.
         log_level: Level for the "unhandled exception" log below. Defaults to ERROR.
             ``coordinate_initialize()`` passes ``logging.DEBUG`` for app-role resources -- their
-            initialization exception is also caught and logged at ERROR by
-            ``AppLifecycleService.initialize_instances()``, the outer, decision-owning layer for
-            apps. Every other resource keeps ERROR here since it has no other logger.
-        already_logged: Optional predicate; when it returns True for the task's exception, that
-            exception has already been logged at ``log_level`` elsewhere, so this observer logs it
-            at DEBUG instead of repeating the traceback.
+            initialization exception is logged at ERROR by an outer layer:
+            ``AppLifecycleService.initialize_instances()``, or ``start()``'s joiner observer when
+            the app is started directly. Every other resource keeps ERROR here.
     """
     resource = typing.cast("LifecycleMixin", resource)
 
@@ -484,7 +488,9 @@ def _install_exception_observer(
             return
         exc = t.exception()
         if exc is not None:
-            level = logging.DEBUG if already_logged is not None and already_logged(exc) else log_level
+            level = logging.DEBUG if exc is resource._last_error_logged else log_level
+            if level >= logging.ERROR:
+                resource._last_error_logged = exc
             resource.lifecycle_logger.log(
                 level,
                 "%s: %s task %r finished with an unhandled exception",
@@ -495,12 +501,6 @@ def _install_exception_observer(
             )
 
     task.add_done_callback(_observe)
-
-
-def _is_init_task_exception(resource: "LifecycleMixin", exc: BaseException) -> bool:
-    """Whether ``exc`` is the exception the resource's current initialization coordinator raised."""
-    init_task = resource._init_task
-    return init_task is not None and init_task.done() and not init_task.cancelled() and init_task.exception() is exc
 
 
 async def coordinate_initialize(resource: _LifecycleHostP) -> None:
@@ -537,24 +537,15 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
         init_task = create_lifecycle_task(
             resource._initialize_body(), name=f"resource:initialize:{resource.unique_name}"
         )
-        # App-role resources have an outer, decision-owning catch for this same exception --
-        # AppLifecycleService.initialize_instances()'s `await inst.initialize()` -- that already
-        # logs it at ERROR. Demoting here avoids a second stacked ERROR traceback for the exact
-        # same failure (see #1826). Every other resource (services, framework internals) has no
-        # such outer logger, so it keeps ERROR.
+        # A new attempt raises new exception objects, so the previous attempt's record can go.
+        resource._last_error_logged = None
+        # App-role resources have an outer layer that logs this same exception at ERROR --
+        # AppLifecycleService.initialize_instances()'s `await inst.initialize()`, or start()'s
+        # joiner observer when the app is started directly. Demoting here avoids a second stacked
+        # ERROR traceback for the exact same failure (see #1826). Every other resource (services,
+        # framework internals) has no such outer logger, so it keeps ERROR.
         init_log_level = logging.DEBUG if resource.role == ResourceRole.APP else logging.ERROR
-        # When the coordinator's exception is the one handle_failed() logged with its traceback
-        # (see run_hooks() and _initialize_body()), this observer drops to DEBUG. Any other
-        # exception -- a body failure that bypasses handle_failed() (a child's initialize(), a
-        # status-event send), or handle_failed()'s own send_event() raising after it logged the
-        # original failure -- is still logged here at init_log_level.
-        _install_exception_observer(
-            resource,
-            init_task,
-            "initialization coordinator",
-            log_level=init_log_level,
-            already_logged=lambda exc: exc is resource._logged_failure,
-        )
+        _install_exception_observer(resource, init_task, "initialization coordinator", log_level=init_log_level)
         resource._init_task = init_task
 
     await asyncio.shield(init_task)
