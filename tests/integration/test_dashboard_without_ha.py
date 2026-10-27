@@ -36,7 +36,12 @@ from hassette.exceptions import FatalError
 from hassette.testing import make_light_state_dict, wait_for
 from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
-from tests.support.bare_hassette import WEBAPI_READY_TIMEOUT, running_bare_hassette, teardown_bare_hassette
+from tests.support.bare_hassette import (
+    WEBAPI_READY_TIMEOUT,
+    running_bare_hassette,
+    teardown_bare_hassette,
+    wait_for_web_api_ready,
+)
 from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
 
 STARTUP_EVENT_TIMEOUT = 5
@@ -67,11 +72,7 @@ async def _running_hassette_without_ha(
 ) -> AsyncIterator[Hassette]:
     """Boot a real Hassette instance whose WebsocketService never connects (see ``wire_hassette_without_ha``)."""
     async with running_bare_hassette(tmp_path, unused_tcp_port_factory(), **web_api_overrides) as (hassette, _):
-        await wait_for(
-            lambda: hassette._web_api_service is not None and hassette._web_api_service.is_ready(),
-            timeout=WEBAPI_READY_TIMEOUT,
-            desc="WebApiService ready",
-        )
+        await wait_for_web_api_ready(hassette)
         yield hassette
 
 
@@ -211,7 +212,7 @@ class TestInitialStateSyncBeforeApps:
         hassette = Hassette(config)
         loop = asyncio.get_running_loop()
         previous_task_factory = loop.get_task_factory()
-        # See _running_hassette_without_ha's comment above for why capturing our own Token here
+        # See wire_hassette_without_ha in tests/support/bare_hassette.py for why capturing our own Token here
         # (instead of relying on wire_services()'s internal, unexposed set_global_hassette() call)
         # is both necessary and valid in this plain-coroutine test body.
         instance_token = hassette_context.set_global_hassette(hassette)

@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 from hassette import Hassette
 from hassette import context as hassette_context
 from hassette.config.models import AppsConfig, WebApiConfig
+from hassette.testing import wait_for
 from tests.support.helpers import cleanup_hassette_streams
 
 WEBAPI_READY_TIMEOUT = 10.0
@@ -151,3 +152,12 @@ async def running_bare_hassette(
         await teardown_bare_hassette(
             hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
         )
+
+
+async def wait_for_web_api_ready(hassette: Hassette) -> None:
+    """Wait until a bare Hassette's web API is ready, which is after every startup wave has started."""
+    await wait_for(
+        lambda: hassette._web_api_service is not None and hassette._web_api_service.is_ready(),  # coordinator-internal
+        timeout=WEBAPI_READY_TIMEOUT,
+        desc="WebApiService ready",
+    )

@@ -71,8 +71,7 @@ class HarnessEventStreamService(EventStreamService):
 
     So a drain-loop exit under the harness (``BusService.close_event_streams()``) closes only the
     bus's own receive clone: after a bus death, sends keep going into an undrained channel instead of
-    being dropped. Tests of
-    dead-bus behavior use a real ``Hassette``.
+    being dropped. Dead-bus tests use a real ``Hassette``.
     """
 
     async def close_streams(self) -> None:

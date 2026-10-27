@@ -296,9 +296,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
         if self.event_streams_closed:
             self.logger.debug("send_event dropped: streams closed (topic=%s)", event.topic)
             return
+        # the check above can't cover a send that was already waiting on a full channel when the streams closed
         try:
             await self._event_stream_service.send_event(event)
-        # the check above can't cover a send that was already waiting on a full channel when the streams closed
         except (ClosedResourceError, BrokenResourceError):
             self.logger.debug("send_event dropped: streams closed while sending (topic=%s)", event.topic)
 

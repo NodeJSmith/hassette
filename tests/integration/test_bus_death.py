@@ -18,12 +18,15 @@ from hassette import Hassette
 from hassette.config.models import LifecycleConfig
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
-from hassette.testing import wait_for
-from tests.support.bare_hassette import WEBAPI_READY_TIMEOUT, running_bare_hassette
+from tests.support.bare_hassette import running_bare_hassette, wait_for_web_api_ready
 from tests.support.helpers import fill_event_channel
 
 EXIT_TIMEOUT_SECONDS = 90.0
 """Outer bound on the whole exit; well past the default 45s total shutdown, so a force-terminated exit still ends."""
+
+
+BOOT_STARTUP_TIMEOUT_SECONDS = 1
+"""Short startup wave timeout, so a bus whose init never finishes fails boot quickly."""
 
 
 def walk_resources(root: Resource) -> Iterator[Resource]:
@@ -52,11 +55,7 @@ class TestBusDeathAfterStartup:
     ) -> None:
         """A bus serve task cancelled without a shutdown request ends the process cleanly."""
         async with running_bare_hassette(tmp_path, unused_tcp_port_factory()) as (hassette, run_task):
-            await wait_for(
-                lambda: hassette._web_api_service is not None and hassette._web_api_service.is_ready(),
-                timeout=WEBAPI_READY_TIMEOUT,
-                desc="WebApiService ready",
-            )
+            await wait_for_web_api_ready(hassette)
             serve_task = hassette.bus_service._serve_task  # coordinator-internal
             assert serve_task is not None
             # No await between the cancel and the fill: the bus can't drain anything before it dies.
@@ -93,7 +92,7 @@ class TestBusDeathAtBoot:
             tmp_path,
             unused_tcp_port_factory(),
             prepare=break_bus_init,
-            config_overrides={"lifecycle": LifecycleConfig(startup_timeout_seconds=1)},
+            config_overrides={"lifecycle": LifecycleConfig(startup_timeout_seconds=BOOT_STARTUP_TIMEOUT_SECONDS)},
         ) as (hassette, run_task):
             try:
                 await run_until_fatal(run_task)
