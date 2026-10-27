@@ -40,6 +40,12 @@ A failed start at boot is fatal for any service, required or not. Hassette exits
 
 The fatal reason is logged and lands in the supervisor's log: `docker logs`, the add-on log, or `journalctl`. Hassette doesn't read it back at startup, so after a crash loop that log holds the cause. The telemetry session record keeps the reason as `error_message` only; the traceback stays in the log.
 
+### When the event bus dies
+
+`BusService` is required, so its failure takes the same fatal exit as any other required service. Its death also means nothing drains the event channel any more. Before the failure is reported, the bus closes that channel and logs `Event bus is down; event sends are dropped from now on` at WARNING. From then on, every event sent is dropped instead of waiting for room, including a send that was already waiting when the bus died. The shutdown's own status events are dropped too and never reach a listener, but every resource still moves to `STOPPED`, so shutdown finishes instead of hanging.
+
+The same applies at boot. When startup fails before the bus has started serving, Hassette closes the channel before it tears down.
+
 ## Resource State Machine
 
 Every [Resource][hassette.resources.base.Resource] and `Service` tracks its status as a [`ResourceStatus`][hassette.ResourceStatus] value.

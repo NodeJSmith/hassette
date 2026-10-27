@@ -115,22 +115,17 @@ class TestShutdownBodySwallowsHandleStopException:
         assert report.is_restart_safe is False
         assert "cleanup" in report.failed_operations
 
-    async def test_skips_handle_stop_when_event_streams_already_closed(self) -> None:
-        """When event streams are already closed, the shutdown body skips handle_stop()."""
+    async def test_reaches_stopped_when_event_streams_already_closed(self) -> None:
+        """With the event streams closed (a dead bus), the shutdown body still moves the resource to STOPPED."""
         hassette = make_mock_hassette(sealed=False)
         hassette.event_streams_closed = True
         resource = ConcreteResource(hassette=hassette)
         await resource.initialize()
-        resource._status = ResourceStatus.RUNNING  # handle_stop() would otherwise flip this to STOPPED
+        resource._status = ResourceStatus.RUNNING  # coordinator-internal: start RUNNING so the move to STOPPED shows
 
-        # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
-        # method — patch it at the call site (base.py) rather than reassigning an instance
-        # attribute, since _shutdown_body()'s post-hook stage calls the free function directly.
-        with patch("hassette.resources.base.handle_stop") as mock_handle_stop:
-            await resource._shutdown_body()
+        await resource._shutdown_body()
 
-            mock_handle_stop.assert_not_called()
-        assert resource.status == ResourceStatus.RUNNING, "status must be untouched by the skipped STOPPED event"
+        assert resource.status == ResourceStatus.STOPPED
 
 
 class TestEmitReadinessEventSwallowsException:

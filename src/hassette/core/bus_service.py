@@ -695,24 +695,47 @@ class BusService(Service):
                 break
 
     async def serve(self) -> None:
-        """Worker loop that processes events from the stream."""
-        async with self.stream:
-            mark_ready(self, reason="Stream opened")
-            async for event in self.stream:
-                if self.shutdown_event.is_set():
-                    active_timers = self._duration_hold.duration_timers_active
-                    if active_timers > 0:
-                        self.logger.info(
-                            "Shutdown: %d active duration timer(s) will be cancelled",
-                            active_timers,
-                        )
-                    self.logger.debug("Hassette is shutting down, exiting bus loop")
-                    mark_not_ready(self, reason="Hassette is shutting down")
-                    break
-                try:
-                    await self.dispatch(str(event.topic), event)
-                except Exception as exc:
-                    self.logger.exception("Error processing event: %s", exc)
+        """Worker loop that processes events from the stream.
+
+        Any exit without a shutdown request closes the event streams before the serve wrapper reports
+        the failure (spec 134 D9), so no producer blocks on a channel nothing drains.
+        """
+        try:
+            async with self.stream:
+                mark_ready(self, reason="Stream opened")
+                async for event in self.stream:
+                    if self.shutdown_event.is_set():
+                        active_timers = self._duration_hold.duration_timers_active
+                        if active_timers > 0:
+                            self.logger.info(
+                                "Shutdown: %d active duration timer(s) will be cancelled",
+                                active_timers,
+                            )
+                        self.logger.debug("Hassette is shutting down, exiting bus loop")
+                        mark_not_ready(self, reason="Hassette is shutting down")
+                        break
+                    try:
+                        await self.dispatch(str(event.topic), event)
+                    except Exception as exc:
+                        self.logger.exception("Error processing event: %s", exc)
+        finally:
+            if not self.stop_requested():
+                await self.close_event_streams()
+
+    async def close_event_streams(self) -> None:
+        """Close this bus's receive clone and the channel's own streams, waking every blocked sender.
+
+        It lives on the bus rather than on ``EventStreamService`` because a sender blocked on a full
+        channel is released only once every receive stream is closed, and only the bus holds this
+        clone. From then on every send is dropped, the shutdown's own status events included. anyio's
+        memory-stream closes complete without yielding, so this runs to completion on a cancelled task.
+        Idempotent; it warns only on the call that actually closes the streams.
+        """
+        already_closed = self.hassette.event_streams_closed
+        self.stream.close()
+        await self.hassette.event_stream_service.close_streams()
+        if not already_closed and self.hassette.event_streams_closed:
+            self.logger.warning("Event bus is down; event sends are dropped from now on")
 
 
 def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:

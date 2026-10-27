@@ -4,6 +4,7 @@ import typing
 from contextlib import suppress
 from typing import Any
 
+from anyio import BrokenResourceError, ClosedResourceError
 from hassette_wire import ResourceStatus
 
 import hassette.utils.date_utils as date_utils
@@ -285,13 +286,21 @@ class Hassette(HassetteAccessorsMixin, Resource):
         return context.get_hassette()
 
     async def send_event(self, event: "AnyEvent") -> None:
-        """Send an event to the event bus."""
+        """Send an event to the event bus, dropping it once the event streams are closed.
+
+        A send already waiting on a full channel when the streams close is released and dropped too
+        (spec 134 D9).
+        """
         if self._event_stream_service is None:
             raise service_not_wired_error("EventStreamService")
         if self.event_streams_closed:
             self.logger.debug("send_event dropped: streams closed (topic=%s)", event.topic)
             return
-        await self._event_stream_service.send_event(event)
+        try:
+            await self._event_stream_service.send_event(event)
+        # the check above can't cover a send that was already waiting on a full channel when the streams closed
+        except (ClosedResourceError, BrokenResourceError):
+            self.logger.debug("send_event dropped: streams closed while sending (topic=%s)", event.topic)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
         """Block until all dependent resources are ready or shutdown is requested.
@@ -497,8 +506,14 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         Callers still ``return`` after it: ``_raise_if_fatal_shutdown()`` raises because a reason
         was just recorded, but nothing types that.
+
+        A bus that isn't RUNNING (it never started serving, or its serve already ended) will never drain
+        the event channel, so its streams are closed before teardown, letting no teardown send block on
+        it (spec 134 D9). A running bus keeps draining through teardown, so its streams stay open.
         """
         self.record_fatal_reason(reason)
+        if self._bus_service is not None and self._bus_service.status != ResourceStatus.RUNNING:
+            await self._bus_service.close_event_streams()
         await self.shutdown()
         self._raise_if_fatal_shutdown()
 

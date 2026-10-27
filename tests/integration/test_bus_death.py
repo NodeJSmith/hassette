@@ -9,17 +9,18 @@ teardown until a shutdown deadline force-terminates it. A clean bus-death exit t
 import asyncio
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Literal
 
 import pytest
-from anyio import WouldBlock
+from hassette_wire import ResourceStatus
 
 from hassette import Hassette
+from hassette.config.models import LifecycleConfig
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
 from hassette.testing import wait_for
-from hassette.types.enums import ResourceStatus
 from tests.support.bare_hassette import WEBAPI_READY_TIMEOUT, teardown_bare_hassette, wire_hassette_without_ha
-from tests.support.factories import make_hassette_event
+from tests.support.helpers import fill_event_channel
 
 EXIT_TIMEOUT_SECONDS = 90.0
 """Outer bound on the whole exit; well past the default 45s total shutdown, so a force-terminated exit still ends."""
@@ -29,16 +30,6 @@ def walk_resources(root: Resource) -> Iterator[Resource]:
     for child in root.children:
         yield child
         yield from walk_resources(child)
-
-
-def fill_event_channel(hassette: Hassette) -> None:
-    """Queue events until the channel's buffer is full, without waiting for a receiver."""
-    send_stream = hassette.event_stream_service._send_stream  # coordinator-internal
-    while True:
-        try:
-            send_stream.send_nowait(make_hassette_event())
-        except WouldBlock:
-            return
 
 
 def assert_clean_fatal_teardown(hassette: Hassette) -> None:
@@ -89,23 +80,25 @@ class TestBusDeathAfterStartup:
 class TestBusDeathAtBoot:
     @pytest.mark.parametrize("failure", ["raises", "hangs"])
     async def test_bus_init_failure_exits_without_hanging(
-        self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int], failure: str
+        self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int], failure: Literal["raises", "hangs"]
     ) -> None:
         """A bus that never reaches serve() at boot (init raised, or timed out) still tears down cleanly."""
         loop = asyncio.get_running_loop()
         previous_task_factory = loop.get_task_factory()
         hassette, never_connects, instance_token = wire_hassette_without_ha(
-            tmp_path, unused_tcp_port_factory(), config_overrides={"lifecycle": {"startup_timeout_seconds": 1}}
+            tmp_path,
+            unused_tcp_port_factory(),
+            config_overrides={"lifecycle": LifecycleConfig(startup_timeout_seconds=1)},
         )
         never_ready = asyncio.Event()
 
-        async def failing_before_initialize() -> None:
+        async def broken_before_initialize() -> None:
             fill_event_channel(hassette)
             if failure == "raises":
                 raise RuntimeError("bus init failed in test")
             await never_ready.wait()
 
-        hassette.bus_service.before_initialize = failing_before_initialize  # pyright: ignore[reportAttributeAccessIssue]
+        hassette.bus_service.before_initialize = broken_before_initialize  # pyright: ignore[reportAttributeAccessIssue]
         run_task = asyncio.create_task(hassette.run_forever())
         try:
             await run_until_fatal(run_task)

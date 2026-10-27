@@ -524,13 +524,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if children_report.is_restart_safe:
             await self._on_children_stopped()
 
-        if not self.hassette.event_streams_closed:
-            try:
-                await handle_stop(self)
-            except Exception as exc:
-                self.lifecycle_logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
-        else:
-            self.lifecycle_logger.debug("Skipping STOPPED event as event streams are closed")
+        # Runs with closed streams too: the transition still happens and only its event is dropped (spec 134 D9).
+        try:
+            await handle_stop(self)
+        except Exception as exc:
+            self.lifecycle_logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
 
         return merge_teardown_reports(*reports)
 
