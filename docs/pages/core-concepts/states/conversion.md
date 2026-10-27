@@ -94,7 +94,9 @@ effect at class definition time.
     `Literal` domain overrides a built-in with no warning.
     `self.state_registry.resolve(domain="sensor")` confirms which class is registered.
 
-All subsequent state events for `sensor` entities produce `CustomSensorState` instances.
+`try_convert_state` and domain views like `self.states.sensor` now produce `CustomSensorState` instances.
+Dependency injection converts to the annotated class, so `D.StateNew[states.SensorState]` still yields a plain `SensorState`.
+A handler that needs the custom attributes annotates `CustomSensorState` directly.
 
 For classes that can't declare a `Literal` domain — built dynamically, or registered conditionally at runtime — [`register_state_converter`][hassette.conversion.register_state_converter] registers a class with the registry explicitly. It is the imperative equivalent of the `Literal`-based auto-registration.
 
