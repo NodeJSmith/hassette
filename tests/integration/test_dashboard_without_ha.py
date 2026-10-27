@@ -36,7 +36,7 @@ from hassette.exceptions import FatalError
 from hassette.testing import make_light_state_dict, wait_for
 from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
-from tests.support.bare_hassette import WEBAPI_READY_TIMEOUT, teardown_bare_hassette, wire_hassette_without_ha
+from tests.support.bare_hassette import WEBAPI_READY_TIMEOUT, running_bare_hassette, teardown_bare_hassette
 from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
 
 STARTUP_EVENT_TIMEOUT = 5
@@ -66,25 +66,13 @@ async def _running_hassette_without_ha(
     tmp_path: Path, unused_tcp_port_factory: Callable[[], int], **web_api_overrides: Any
 ) -> AsyncIterator[Hassette]:
     """Boot a real Hassette instance whose WebsocketService never connects (see ``wire_hassette_without_ha``)."""
-    loop = asyncio.get_running_loop()
-    previous_task_factory = loop.get_task_factory()
-    hassette, never_connects, instance_token = wire_hassette_without_ha(
-        tmp_path, unused_tcp_port_factory(), **web_api_overrides
-    )
-
-    run_task = asyncio.create_task(hassette.run_forever())
-    try:
+    async with running_bare_hassette(tmp_path, unused_tcp_port_factory(), **web_api_overrides) as (hassette, _):
         await wait_for(
             lambda: hassette._web_api_service is not None and hassette._web_api_service.is_ready(),
             timeout=WEBAPI_READY_TIMEOUT,
             desc="WebApiService ready",
         )
         yield hassette
-    finally:
-        never_connects.set()
-        await teardown_bare_hassette(
-            hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
-        )
 
 
 class TestDashboardWithoutHA:
@@ -174,23 +162,14 @@ class TestWebApiPortInUse:
         session row must be finalized as 'failure' rather than left 'running'.
         """
         port = unused_tcp_port_factory()
-        loop = asyncio.get_running_loop()
-        previous_task_factory = loop.get_task_factory()
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as holder:
             holder.bind(("127.0.0.1", port))
             holder.listen()
 
-            hassette, never_connects, instance_token = wire_hassette_without_ha(tmp_path, port)
-            run_task = asyncio.create_task(hassette.run_forever())
-            try:
+            async with running_bare_hassette(tmp_path, port) as (hassette, run_task):
                 with pytest.raises(FatalError):
                     await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
-            finally:
-                never_connects.set()
-                await teardown_bare_hassette(
-                    hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
-                )
 
         with contextlib.closing(sqlite3.connect(hassette.database_service.resolve_db_path())) as conn:
             rows = conn.execute("SELECT status, stopped_at, error_message FROM sessions").fetchall()

@@ -2,7 +2,7 @@
 
 import asyncio
 import contextlib
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
@@ -120,3 +120,34 @@ def wire_hassette_without_ha(
     hassette.websocket_service.serve = hang_serve  # pyright: ignore[reportAttributeAccessIssue]
     hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("HA unreachable in test"))
     return hassette, never_connects, instance_token
+
+
+@contextlib.asynccontextmanager
+async def running_bare_hassette(
+    tmp_path: Path,
+    port: int,
+    *,
+    prepare: Callable[[Hassette], None] | None = None,
+    config_overrides: Mapping[str, Any] | None = None,
+    **web_api_overrides: Any,
+) -> AsyncIterator[tuple[Hassette, "asyncio.Task[None]"]]:
+    """Wire a Hassette without HA (``wire_hassette_without_ha``), start ``run_forever()``, and tear it down on exit.
+
+    ``prepare`` runs on the wired instance before ``run_forever()`` starts, to patch collaborators.
+    Yields the instance and its ``run_forever()`` task.
+    """
+    loop = asyncio.get_running_loop()
+    previous_task_factory = loop.get_task_factory()
+    hassette, never_connects, instance_token = wire_hassette_without_ha(
+        tmp_path, port, config_overrides=config_overrides, **web_api_overrides
+    )
+    if prepare is not None:
+        prepare(hassette)
+    run_task = asyncio.create_task(hassette.run_forever())
+    try:
+        yield hassette, run_task
+    finally:
+        never_connects.set()
+        await teardown_bare_hassette(
+            hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
+        )
