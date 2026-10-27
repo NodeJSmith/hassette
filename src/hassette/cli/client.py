@@ -153,7 +153,7 @@ class HassetteCLIClient:
 
         Shared by :meth:`get` and :meth:`post` — the only difference between the two verbs
         is what happens to the response afterward (status/503 handling, deserialization
-        target), not how connection failures become a ``SystemExit``. :meth:`_try_fetch_instances`
+        target), not how connection failures become a ``SystemExit``. :meth:`try_fetch_app_list`
         is the one intentional exception: it needs failures to return ``None`` rather than exit,
         so it calls ``self._client`` directly instead of going through this method.
         """
@@ -341,16 +341,12 @@ class HassetteCLIClient:
         app_list = self.get(APPS_PATH, AppListResponse)
         return _filter_instances(app_list, app_key)
 
-    def _try_fetch_instances(self, app_key: str) -> list[AppInstance] | None:
-        """Best-effort variant of :meth:`_fetch_instances` that never exits the process.
+    def try_fetch_app_list(self) -> AppListResponse | None:
+        """Best-effort ``GET /api/apps`` that never exits the process.
 
-        ``/api/apps`` returns a 503 ``telemetry_unavailable`` problem when the
-        telemetry DB is unavailable. Resolving a numeric ``--instance`` selector to its
-        canonical name is a purely cosmetic lookup — the mutating start/stop/reload
-        action it supports has no telemetry dependency of its own — so a telemetry
-        outage must not block that action. Use this instead of :meth:`_fetch_instances`
-        wherever the caller has a numeric-index fallback available; any failure here
-        (network error, non-2xx status, unparseable body) returns ``None`` rather than
+        ``/api/apps`` returns a 503 ``telemetry_unavailable`` problem when the telemetry DB is
+        unavailable. Callers use this for lookups that must not block the command they support:
+        any failure (network error, non-2xx status, unparseable body) returns ``None`` rather than
         calling ``sys.exit``.
         """
         try:
@@ -362,11 +358,20 @@ class HassetteCLIClient:
             return None
 
         try:
-            app_list = parse_wire(AppListResponse, response.json())
+            return parse_wire(AppListResponse, response.json())
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError):
             return None
 
-        return _filter_instances(app_list, app_key)
+    def _try_fetch_instances(self, app_key: str) -> list[AppInstance] | None:
+        """Best-effort variant of :meth:`_fetch_instances`, built on :meth:`try_fetch_app_list`.
+
+        Resolving a numeric ``--instance`` selector to its canonical name is a purely cosmetic
+        lookup, and the mutating start/stop/reload action it supports has no telemetry dependency
+        of its own, so a telemetry outage must not block that action. Use this instead of
+        :meth:`_fetch_instances` wherever the caller has a numeric-index fallback available.
+        """
+        app_list = self.try_fetch_app_list()
+        return None if app_list is None else _filter_instances(app_list, app_key)
 
     def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstance]) -> NoReturn:
         names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"

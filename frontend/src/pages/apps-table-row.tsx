@@ -1,6 +1,7 @@
 import { type MouseEvent as ReactMouseEvent, useState } from "react";
 import { Link } from "wouter";
 
+import type { NeedsRestart } from "@/api/ws-types";
 import { ActionButtons, getStableInstanceRef } from "@/components/shared/action-buttons";
 import { AppLink } from "@/components/shared/app-link";
 import { IconChevron } from "@/components/shared/icons";
@@ -11,7 +12,15 @@ import { Button } from "@/components/ui/button";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { cn } from "@/lib/utils";
 import type { AppStatusEntry } from "@/state/store";
-import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus, totalRuns } from "@/utils/app-data";
+import {
+  appLiveStatus,
+  appNeedsRestartCount,
+  type AppRow,
+  instanceLiveError,
+  instanceLiveNeedsRestart,
+  instanceLiveStatus,
+  totalRuns,
+} from "@/utils/app-data";
 import { appDetailPath } from "@/utils/app-routes";
 import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "@/utils/constants";
 import { EMPTY_PLACEHOLDER, formatTimestamp, pluralize } from "@/utils/format";
@@ -26,6 +35,25 @@ function BlockingBadge({ appKey, count }: { appKey: string; count: number }) {
       <Link href={appDetailPath(appKey, "overview")} title={label} aria-label={label} data-testid="blocking-badge">
         {count} blocking
       </Link>
+    </Badge>
+  );
+}
+
+/** Says the instance (or how many of the app's instances) need a hassette restart; the reason is the tooltip. */
+function NeedsRestartBadge({ count, flag }: { count: number; flag?: NeedsRestart | null }) {
+  const label = flag
+    ? `Needs a hassette restart: ${flag.reason}`
+    : `${pluralize(count, "instance")} need a hassette restart: work from a teardown may still be running`;
+  return (
+    <Badge
+      variant="danger"
+      size="sm"
+      className="ml-1"
+      title={label}
+      aria-label={label}
+      data-testid="needs-restart-badge"
+    >
+      {count > 1 ? `${count} need restart` : "needs restart"}
     </Badge>
   );
 }
@@ -56,6 +84,11 @@ export function AppTableRow({
   const isMulti = app.instance_count > 1;
   const isDimmed = INACTIVE_STATUSES.has(status);
   const runs = totalRuns(app);
+  const restartCount = appNeedsRestartCount(appStatuses, app);
+  // A single-instance app has no instance row, so its own flag (and reason) goes on the app row.
+  const singleFlag = isMulti
+    ? null
+    : app.instances[0] && instanceLiveNeedsRestart(appStatuses, app.app_key, app.instances[0]);
 
   return (
     <>
@@ -115,6 +148,7 @@ export function AppTableRow({
           <Badge variant={statusToVariant(status)} size="sm" data-testid="status-pill">
             {status}
           </Badge>
+          {restartCount > 0 && <NeedsRestartBadge count={restartCount} flag={singleFlag} />}
           {/* An uncomputed count (null) shows no badge: the badge only ever reports a positive count. */}
           {app.blocking_event_count !== null && app.blocking_event_count > 0 && (
             <BlockingBadge appKey={app.app_key} count={app.blocking_event_count} />
@@ -195,6 +229,7 @@ export function AppTableRow({
           const instStatus = instanceLiveStatus(appStatuses, app.app_key, inst);
           const instErrorMessage = instanceLiveError(appStatuses, app.app_key, inst);
           const instKind = statusToKind(instStatus);
+          const instNeedsRestart = instanceLiveNeedsRestart(appStatuses, app.app_key, inst);
           // A blocked parent's not-yet-tracked instances still report a synthetic "stopped"
           // status (see build_manifest_info()) so they stay addressable in the table — but
           // that makes CAN_START key off "stopped" and show a Start button for an app the
@@ -238,6 +273,7 @@ export function AppTableRow({
                 <Badge variant={statusToVariant(instStatus)} size="sm">
                   {instStatus}
                 </Badge>
+                {instNeedsRestart && <NeedsRestartBadge count={1} flag={instNeedsRestart} />}
               </td>
               <td
                 className={cn("max-w-[200px] cursor-default whitespace-nowrap max-sidebar:hidden", compact && "hidden")}

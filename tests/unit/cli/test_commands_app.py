@@ -88,6 +88,20 @@ class TestCmdApp:
         assert "running" in output
         assert str(INVOCATIONS_SENTINEL) in output
 
+    def test_restart_column_shows_count_only_when_flagged(self, cli_client_factory: CLIClientFactory) -> None:
+        """The Restart column shows a flagged app's count and stays blank for an app with none."""
+        flagged = make_app_summary(app_key="stuck_app", status=AppStatus.FAILED).model_copy(
+            update={"needs_restart_count": 7}
+        )
+        entries = [make_app_grid_entry(app=flagged), make_app_grid_entry(app=make_app_summary(app_key="ok_app"))]
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body(entries))])
+        output = runner.stdout(client, cmd_app)
+        assert "Restart" in output
+        [stuck_line] = [line for line in output.splitlines() if "stuck_app" in line]
+        [ok_line] = [line for line in output.splitlines() if "ok_app" in line]
+        assert " 7 " in stuck_line
+        assert " 0 " not in ok_line
+
     def test_json_mode_outputs_app_activity_rows(self, cli_client_factory: CLIClientFactory) -> None:
         """App --json outputs the grid rows as a JSON array of {app, activity}."""
         entry = make_app_grid_entry(app=make_app_summary(app_key="my_app"))
@@ -164,8 +178,8 @@ class TestCmdApp:
         assert {c.field for c in APP_LIST_COLUMNS if resolve_path(row, c.field) is None} == set()
 
     def test_app_list_columns_count_is_compact(self) -> None:
-        """APP_LIST_COLUMNS uses at most 8 columns for readability."""
-        assert len(APP_LIST_COLUMNS) <= 8
+        """APP_LIST_COLUMNS uses at most 9 columns for readability."""
+        assert len(APP_LIST_COLUMNS) <= 9
 
     def test_status_is_colored_on_a_terminal_and_plain_when_piped(self, cli_client_factory: CLIClientFactory) -> None:
         entry = make_app_grid_entry(app=make_app_summary(app_key="my_app", status=AppStatus.FAILED))

@@ -482,6 +482,32 @@ describe("useWebSocket", () => {
     expect(entry.status).toBe("running");
   });
 
+  it("maps app_status_changed needs_restart into appStatus state", () => {
+    const { ws } = renderConnectedWebSocketHook();
+    const flag = { reason: "1 task still pending", pending_tasks: ["MyApp.poll"], flagged_at: 1000 };
+
+    act(() => {
+      ws.simulateMessage({
+        type: "app_status_changed",
+        data: {
+          app_key: "my_app",
+          index: 0,
+          status: "failed",
+          previous_status: "stopping",
+          instance_name: "MyApp[0]",
+          class_name: "MyApp",
+          exception: null,
+          exception_type: null,
+          exception_traceback: null,
+          needs_restart: flag,
+        },
+        timestamp: 1000,
+      });
+    });
+
+    expect(useAppStore.getState().appStatus["my_app:0"]?.needs_restart).toEqual(flag);
+  });
+
   it("defaults ready to false and ready_phase to null for pre-schema events", () => {
     const { ws } = renderConnectedWebSocketHook();
 

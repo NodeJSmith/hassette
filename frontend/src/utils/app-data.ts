@@ -6,6 +6,7 @@ import type {
   AppStatus,
   ResourceStatus,
 } from "@/api/endpoints";
+import type { NeedsRestart } from "@/api/ws-types";
 import { type AppStatusEntry, appStatusKey } from "@/state/store";
 import type { SortState } from "@/utils/sort";
 
@@ -178,6 +179,27 @@ export function instanceLiveError(
 ): string | null | undefined {
   const entry = appStatuses[appStatusKey(appKey, inst.index)];
   return entry ? entry.exception : inst.error_message;
+}
+
+/** Resolve the live needs-restart flag for a single instance. As with `instanceLiveError`, a seen
+ *  WS `app_status_changed` event is authoritative for its index; otherwise the cached row's flag is. */
+export function instanceLiveNeedsRestart(
+  appStatuses: Record<string, AppStatusEntry>,
+  appKey: string,
+  inst: { index: number; needs_restart?: NeedsRestart | null },
+): NeedsRestart | null {
+  const entry = appStatuses[appStatusKey(appKey, inst.index)];
+  return (entry ? entry.needs_restart : inst.needs_restart) ?? null;
+}
+
+/** How many of an app's instances need a hassette restart, counting live WS flags over the cached rows.
+ *  Never below the server's `needs_restart_count`, which also covers indices the row doesn't list. */
+export function appNeedsRestartCount(
+  appStatuses: Record<string, AppStatusEntry>,
+  row: Pick<AppRow, "app_key" | "instances" | "needs_restart_count">,
+): number {
+  const live = row.instances.filter((inst) => instanceLiveNeedsRestart(appStatuses, row.app_key, inst) !== null).length;
+  return Math.max(live, row.needs_restart_count ?? 0);
 }
 
 function hasError(row: AppRow): boolean {

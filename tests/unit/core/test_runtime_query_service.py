@@ -288,7 +288,7 @@ class TestConcurrentAppHandlerTeardown:
     async def test_on_app_state_changed_is_idempotent_when_registry_entry_is_gone(
         self, runtime: RuntimeQueryService
     ) -> None:
-        """Broadcasting an app-state event reads only the event payload, never the registry."""
+        """Broadcasting an app-state event for an index the registry no longer holds still sends it, unflagged."""
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
         runtime.hassette.app_handler.registry = AppRegistry()  # already cleared by teardown
@@ -308,6 +308,41 @@ class TestConcurrentAppHandlerTeardown:
 
         assert len(broadcast_calls) == 1
         assert broadcast_calls[0]["data"]["app_key"] == "gone_app"
+        assert broadcast_calls[0]["data"]["needs_restart"] is None
+
+    async def test_on_app_state_changed_carries_needs_restart_from_registry(self, runtime: RuntimeQueryService) -> None:
+        """The WS event carries the registry's needs-restart record, which the bus payload doesn't have."""
+        broadcast_calls: list[dict] = []
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+        registry = AppRegistry()
+        registry.flag_needs_restart(
+            "stuck_app",
+            0,
+            instance_name="StuckApp[0]",
+            class_name="StuckApp",
+            reason="1 task still pending",
+            pending_tasks=["StuckApp.poll"],
+        )
+        runtime.hassette.app_handler.registry = registry
+
+        event = MagicMock()
+        event.payload.data.app_key = "stuck_app"
+        event.payload.data.index = 0
+        event.payload.data.status = ResourceStatus.FAILED
+        event.payload.data.previous_status = ResourceStatus.STOPPING
+        event.payload.data.instance_name = "StuckApp[0]"
+        event.payload.data.class_name = "StuckApp"
+        event.payload.data.exception = None
+        event.payload.data.exception_type = None
+        event.payload.data.exception_traceback = None
+
+        await runtime.on_app_state_changed(event)
+
+        [msg] = broadcast_calls
+        flag = msg["data"]["needs_restart"]
+        assert flag["reason"] == "1 task still pending"
+        assert flag["pending_tasks"] == ["StuckApp.poll"]
+        assert isinstance(flag["flagged_at"], float)
 
 
 class TestUnwiredBootstrapCoordinator:
