@@ -4,7 +4,6 @@ from hassette.scheduler import Job
 
 class TemperatureApp(App[AppConfig]):
     async def on_initialize(self):
-        # --8<-- [start:where_job]
         await self.scheduler.run_every(
             self.check_entity,
             minutes=5,
@@ -12,7 +11,6 @@ class TemperatureApp(App[AppConfig]):
             kwargs={"entity_id": "sensor.temperature"},
             where=self.entity_enabled,
         )
-        # --8<-- [end:where_job]
 
     def entity_enabled(self, job: Job) -> bool:
         return job.kwargs["entity_id"] != "sensor.disabled"

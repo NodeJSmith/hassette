@@ -159,7 +159,7 @@ Shared parameters apply.
 | `group` | `str \| None` | `None` | Group name for bulk management. |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job. |
-| `mode` | `ExecutionMode \| str \| None` | `None` | Overlap behavior for concurrent submissions. Same values and tier-aware default as `schedule()`. |
+| `mode` | `ExecutionMode \| str \| None` | `None` | Overlap behavior for concurrent submissions. Same values and default as the shared [`mode`](#parameters-every-method-accepts) parameter. |
 | `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. |
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. |
 | `args` | `tuple \| None` | `None` | Positional arguments passed to the handler on every submission. |
@@ -186,6 +186,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 | `jitter` | `float \| None` | `None` | Random offset in seconds added to each run. See [Job Management](management.md) for jitter. |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler.job_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job, regardless of the global default. |
+| `mode` | `ExecutionMode \| str \| None` | `None` | Overlap behavior when a run becomes due while the previous one is still running: `"single"`, `"restart"`, `"queued"`, or `"parallel"`. `None` resolves to `"single"` for app jobs. See [Execution Modes](execution-modes.md). |
 | `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. Overrides the app-level handler set via `scheduler.on_error()`. Invoked on any exception except `CancelledError`. |
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple \| None` | `None` | Positional arguments passed to the handler at call time. |
@@ -203,7 +204,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 A predicate that needs the job must use a named function with a `Job` type annotation — lambdas cannot carry annotations and are always called with zero arguments.
 
 ```python
---8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py:where_job"
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_job_arg.py"
 ```
 
 A sequence of predicates collapses into a single combinator that ANDs every member together. Each member keeps the single-predicate contract — a `Job`-annotated member receives the job. Unannotated members are called with zero arguments.
@@ -250,5 +251,6 @@ Job names must be unique within an app instance. Registering a second job with a
 ## See Also
 
 - [Triggers](triggers.md): built-in trigger types, `TriggerProtocol`, and writing custom triggers
+- [Execution Modes](execution-modes.md): the four `mode` values, the tier-aware default, and overlap behavior
 - [Job Management](management.md): removing, inspecting, grouping, jitter, error handling, and schedule status for live jobs
 - [Scheduler Overview](index.md): getting started with the scheduler
