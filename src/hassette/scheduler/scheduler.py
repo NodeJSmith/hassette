@@ -382,7 +382,7 @@ class Scheduler(Resource):
         ``hassette.testing._reset.reset_scheduler`` between tests) need it to stay wired so future
         ``add_job``/``remove_job`` calls keep ``_jobs_by_name``/``_jobs_by_group`` in sync.
         A caller that is discarding this scheduler for good (``on_shutdown``,
-        ``AppLifecycleService.cleanup_failed_instance``) must call
+        ``AppLifecycleService.remove_instance_registrations``) must call
         ``scheduler_service.deregister_removal_callback(self.owner_id)`` itself afterward.
         """
         jobs = list(self._jobs_by_name.values())

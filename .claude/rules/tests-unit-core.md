@@ -30,6 +30,7 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 - `mock_hassette` — `make_mock_hassette()` wired for `AppLifecycleService` tests
 - `mock_registry`, `mock_factory`, `mock_manifest`, `mock_app_instance` — mocked collaborators for lifecycle tests
 - `lifecycle_service` — `AppLifecycleService` built from the mocks above
+- `real_registry_service` — `AppLifecycleService` over a real `AppRegistry` (mocked hassette and factory), for tests of registry state such as stop ordering and needs-restart records
 - `telemetry_db`, `telemetry_repo`, `telemetry_session_id` — SQLite-backed telemetry test chain
 - `websocket_service` — `WebsocketService` on a mocked hassette stub
 

@@ -211,13 +211,16 @@ class TestReloadApp:
         mock_factory: MagicMock,
     ) -> None:
         """Stops the existing instances (via the unlocked body) then starts new ones."""
-        mock_registry.unregister_app = Mock(return_value=None)
+        running = MagicMock()
+        mock_registry.tracked_indices = Mock(return_value={0})
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_running_apps = Mock(return_value={})
+        # The stop sees the running instance; the start afterwards sees none left.
+        mock_registry.get_running_apps = Mock(side_effect=[{0: running}, {}])
+        lifecycle_service.shutdown_instances = AsyncMock()
 
         await lifecycle_service.reload_app("test_app")
 
-        mock_registry.unregister_app.assert_called_once_with("test_app")
+        lifecycle_service.shutdown_instances.assert_awaited_once_with({0: running})
         mock_factory.create_instances.assert_called_once()
 
     async def test_stops_but_does_not_restart_blocked_app(
@@ -235,15 +238,17 @@ class TestReloadApp:
         PR) rather than silently swallowing it — the stop side-effect is real and worth
         keeping, but the caller must still see that the restart was refused.
         """
-        mock_registry.unregister_app = Mock(return_value=None)
+        running = MagicMock()
+        mock_registry.tracked_indices = Mock(return_value={0})
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_running_apps = Mock(return_value={})
+        mock_registry.get_running_apps = Mock(side_effect=[{0: running}, {}])
         mock_registry.is_blocked = Mock(return_value=True)
+        lifecycle_service.shutdown_instances = AsyncMock()
 
         with pytest.raises(AppBlockedError):
             await lifecycle_service.reload_app("test_app")
 
-        mock_registry.unregister_app.assert_called_once_with("test_app")
+        lifecycle_service.shutdown_instances.assert_awaited_once_with({0: running})
         mock_factory.create_instances.assert_not_called()
 
 
@@ -354,16 +359,12 @@ class TestApplyChangesPerInstanceRestart:
         mock_factory.load_class = Mock(return_value=MagicMock())
         mock_registry.get_manifest = Mock(return_value=new_manifest)
         mock_registry.get_failed_instance_infos = Mock(return_value={})
-        mock_registry.get = Mock(return_value=None)
 
         app1 = MagicMock()
-
-        def unregister_side_effect(_app_key: str, index: int | None = None) -> dict[int, object] | None:
-            if index == 1:
-                return {1: app1}
-            return None
-
-        mock_registry.unregister_app = Mock(side_effect=unregister_side_effect)
+        # The stop finds the old instance at index 1; after create_single_instance (mocked) nothing is
+        # registered there, so the create path sees None.
+        lookups = iter([app1])
+        mock_registry.get = Mock(side_effect=lambda _app_key, index=0: next(lookups, None) if index == 1 else None)
 
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
         lifecycle_service.shutdown_instance = AsyncMock()
@@ -372,8 +373,7 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        # Only index 1 was ever unregistered/stopped — index 0 is never touched.
-        mock_registry.unregister_app.assert_called_once_with("app_a", 1)
+        # Only index 1 was ever stopped — index 0 is never touched.
         lifecycle_service.shutdown_instance.assert_called_once_with(app1, 1, deadline=None)
 
         # Only index 1 was ever (re)created.

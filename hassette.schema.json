@@ -751,12 +751,6 @@
           "title": "Shutdown Timeout Seconds",
           "type": "number"
         },
-        "failed_instance_cleanup_timeout_seconds": {
-          "default": 5,
-          "description": "Seconds to wait for listener/job cleanup after an app instance fails to initialize or its stop times out.",
-          "title": "Failed Instance Cleanup Timeout Seconds",
-          "type": "integer"
-        },
         "total_shutdown_timeout_seconds": {
           "default": 45,
           "description": "Maximum wall-clock seconds for the whole Hassette shutdown. The foundation stage (database and\nworker threads) keeps a fixed budget; everything else stops within the rest, and so does each runtime\napp stop or reload. Your supervisor's stop grace period must exceed this.",

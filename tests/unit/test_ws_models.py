@@ -38,8 +38,9 @@ class TestAppStatusChangedDataMatchesDataclass:
     """Verify AppStatusChangedData mirrors events.hassette.AppStateChangePayload."""
 
     def test_field_names_match(self) -> None:
+        # `needs_restart` is added to the WS event from AppRegistry when it is sent; the bus payload doesn't carry it.
         dataclass_fields = {f.name for f in dataclasses.fields(AppStateChangePayload)}
-        assert dataclass_fields == set(AppStatusChangedData.model_fields)
+        assert dataclass_fields == set(AppStatusChangedData.model_fields) - {"needs_restart"}
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = AppStateChangePayload(

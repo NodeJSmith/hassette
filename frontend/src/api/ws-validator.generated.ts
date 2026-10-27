@@ -28,6 +28,7 @@ const schema11 = {
           default: null,
           title: "Exception Traceback",
         },
+        needs_restart: { anyOf: [{ $ref: "#/$defs/NeedsRestart" }, { type: "null" }], default: null },
       },
       required: ["app_key", "index", "status"],
       title: "AppStatusChangedData",
@@ -160,6 +161,33 @@ const schema11 = {
       title: "LogHintWsMessage",
       type: "object",
     },
+    NeedsRestart: {
+      description:
+        "Why an app instance needs a hassette restart: a teardown left work that may still be running.\n\nPython can't stop a coroutine that ignores cancellation, so the only recovery is restarting hassette. Until\nthen the instance reports ``failed``. Nested in ``AppInstance`` and in the ``app_status_changed`` WS event.",
+      properties: {
+        reason: {
+          description:
+            "What the teardown left behind, such as the tasks still pending or why its evidence is incomplete.",
+          title: "Reason",
+          type: "string",
+        },
+        pending_tasks: {
+          description:
+            "Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the\ninstance was force-terminated, or its shutdown raised).",
+          items: { type: "string" },
+          title: "Pending Tasks",
+          type: "array",
+        },
+        flagged_at: {
+          description: "When the instance was flagged, in epoch seconds. The first flag stands until restart.",
+          title: "Flagged At",
+          type: "number",
+        },
+      },
+      required: ["reason", "flagged_at"],
+      title: "NeedsRestart",
+      type: "object",
+    },
     ResourceStatus: {
       description: "Enumeration for resource status.",
       enum: ["not_started", "starting", "running", "stopping", "stopped", "failed", "crashed"],
@@ -220,7 +248,7 @@ const schema11 = {
     { $ref: "#/$defs/AppsChangedWsMessage" },
   ],
 };
-const schema29 = {
+const schema30 = {
   description:
     "New log records exist; refetch them over HTTP.\n\nCarries no records. Sent only to clients that subscribed to logs.",
   properties: {
@@ -255,6 +283,7 @@ const schema13 = {
     exception: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception" },
     exception_type: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception Type" },
     exception_traceback: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception Traceback" },
+    needs_restart: { anyOf: [{ $ref: "#/$defs/NeedsRestart" }, { type: "null" }], default: null },
   },
   required: ["app_key", "index", "status"],
   title: "AppStatusChangedData",
@@ -265,6 +294,32 @@ const schema14 = {
   enum: ["not_started", "starting", "running", "stopping", "stopped", "failed", "crashed"],
   title: "ResourceStatus",
   type: "string",
+};
+const schema16 = {
+  description:
+    "Why an app instance needs a hassette restart: a teardown left work that may still be running.\n\nPython can't stop a coroutine that ignores cancellation, so the only recovery is restarting hassette. Until\nthen the instance reports ``failed``. Nested in ``AppInstance`` and in the ``app_status_changed`` WS event.",
+  properties: {
+    reason: {
+      description: "What the teardown left behind, such as the tasks still pending or why its evidence is incomplete.",
+      title: "Reason",
+      type: "string",
+    },
+    pending_tasks: {
+      description:
+        "Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the\ninstance was force-terminated, or its shutdown raised).",
+      items: { type: "string" },
+      title: "Pending Tasks",
+      type: "array",
+    },
+    flagged_at: {
+      description: "When the instance was flagged, in epoch seconds. The first flag stands until restart.",
+      title: "Flagged At",
+      type: "number",
+    },
+  },
+  required: ["reason", "flagged_at"],
+  title: "NeedsRestart",
+  type: "object",
 };
 function validate12(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
@@ -833,6 +888,200 @@ function validate12(data, { instancePath = "", parentData, parentDataProperty, r
                         } else {
                           var valid0 = true;
                         }
+                        if (valid0) {
+                          if (data.needs_restart !== undefined) {
+                            let data9 = data.needs_restart;
+                            const _errs45 = errors;
+                            const _errs46 = errors;
+                            let valid9 = false;
+                            const _errs47 = errors;
+                            const _errs48 = errors;
+                            if (errors === _errs48) {
+                              if (data9 && typeof data9 == "object" && !Array.isArray(data9)) {
+                                let missing1;
+                                if (
+                                  (data9.reason === undefined && (missing1 = "reason")) ||
+                                  (data9.flagged_at === undefined && (missing1 = "flagged_at"))
+                                ) {
+                                  const err19 = {
+                                    instancePath: instancePath + "/needs_restart",
+                                    schemaPath: "#/$defs/NeedsRestart/required",
+                                    keyword: "required",
+                                    params: { missingProperty: missing1 },
+                                    message: "must have required property '" + missing1 + "'",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err19];
+                                  } else {
+                                    vErrors.push(err19);
+                                  }
+                                  errors++;
+                                } else {
+                                  if (data9.reason !== undefined) {
+                                    const _errs50 = errors;
+                                    if (typeof data9.reason !== "string") {
+                                      const err20 = {
+                                        instancePath: instancePath + "/needs_restart/reason",
+                                        schemaPath: "#/$defs/NeedsRestart/properties/reason/type",
+                                        keyword: "type",
+                                        params: { type: "string" },
+                                        message: "must be string",
+                                      };
+                                      if (vErrors === null) {
+                                        vErrors = [err20];
+                                      } else {
+                                        vErrors.push(err20);
+                                      }
+                                      errors++;
+                                    }
+                                    var valid11 = _errs50 === errors;
+                                  } else {
+                                    var valid11 = true;
+                                  }
+                                  if (valid11) {
+                                    if (data9.pending_tasks !== undefined) {
+                                      let data11 = data9.pending_tasks;
+                                      const _errs52 = errors;
+                                      if (errors === _errs52) {
+                                        if (Array.isArray(data11)) {
+                                          var valid12 = true;
+                                          const len0 = data11.length;
+                                          for (let i0 = 0; i0 < len0; i0++) {
+                                            const _errs54 = errors;
+                                            if (typeof data11[i0] !== "string") {
+                                              const err21 = {
+                                                instancePath: instancePath + "/needs_restart/pending_tasks/" + i0,
+                                                schemaPath: "#/$defs/NeedsRestart/properties/pending_tasks/items/type",
+                                                keyword: "type",
+                                                params: { type: "string" },
+                                                message: "must be string",
+                                              };
+                                              if (vErrors === null) {
+                                                vErrors = [err21];
+                                              } else {
+                                                vErrors.push(err21);
+                                              }
+                                              errors++;
+                                            }
+                                            var valid12 = _errs54 === errors;
+                                            if (!valid12) {
+                                              break;
+                                            }
+                                          }
+                                        } else {
+                                          const err22 = {
+                                            instancePath: instancePath + "/needs_restart/pending_tasks",
+                                            schemaPath: "#/$defs/NeedsRestart/properties/pending_tasks/type",
+                                            keyword: "type",
+                                            params: { type: "array" },
+                                            message: "must be array",
+                                          };
+                                          if (vErrors === null) {
+                                            vErrors = [err22];
+                                          } else {
+                                            vErrors.push(err22);
+                                          }
+                                          errors++;
+                                        }
+                                      }
+                                      var valid11 = _errs52 === errors;
+                                    } else {
+                                      var valid11 = true;
+                                    }
+                                    if (valid11) {
+                                      if (data9.flagged_at !== undefined) {
+                                        const _errs56 = errors;
+                                        if (!(typeof data9.flagged_at == "number")) {
+                                          const err23 = {
+                                            instancePath: instancePath + "/needs_restart/flagged_at",
+                                            schemaPath: "#/$defs/NeedsRestart/properties/flagged_at/type",
+                                            keyword: "type",
+                                            params: { type: "number" },
+                                            message: "must be number",
+                                          };
+                                          if (vErrors === null) {
+                                            vErrors = [err23];
+                                          } else {
+                                            vErrors.push(err23);
+                                          }
+                                          errors++;
+                                        }
+                                        var valid11 = _errs56 === errors;
+                                      } else {
+                                        var valid11 = true;
+                                      }
+                                    }
+                                  }
+                                }
+                              } else {
+                                const err24 = {
+                                  instancePath: instancePath + "/needs_restart",
+                                  schemaPath: "#/$defs/NeedsRestart/type",
+                                  keyword: "type",
+                                  params: { type: "object" },
+                                  message: "must be object",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err24];
+                                } else {
+                                  vErrors.push(err24);
+                                }
+                                errors++;
+                              }
+                            }
+                            var _valid6 = _errs47 === errors;
+                            valid9 = valid9 || _valid6;
+                            if (!valid9) {
+                              const _errs58 = errors;
+                              if (data9 !== null) {
+                                const err25 = {
+                                  instancePath: instancePath + "/needs_restart",
+                                  schemaPath: "#/properties/needs_restart/anyOf/1/type",
+                                  keyword: "type",
+                                  params: { type: "null" },
+                                  message: "must be null",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err25];
+                                } else {
+                                  vErrors.push(err25);
+                                }
+                                errors++;
+                              }
+                              var _valid6 = _errs58 === errors;
+                              valid9 = valid9 || _valid6;
+                            }
+                            if (!valid9) {
+                              const err26 = {
+                                instancePath: instancePath + "/needs_restart",
+                                schemaPath: "#/properties/needs_restart/anyOf",
+                                keyword: "anyOf",
+                                params: {},
+                                message: "must match a schema in anyOf",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err26];
+                              } else {
+                                vErrors.push(err26);
+                              }
+                              errors++;
+                              validate12.errors = vErrors;
+                              return false;
+                            } else {
+                              errors = _errs46;
+                              if (vErrors !== null) {
+                                if (_errs46) {
+                                  vErrors.length = _errs46;
+                                } else {
+                                  vErrors = null;
+                                }
+                              }
+                            }
+                            var valid0 = _errs45 === errors;
+                          } else {
+                            var valid0 = true;
+                          }
+                        }
                       }
                     }
                   }
@@ -955,7 +1204,7 @@ function validate11(data, { instancePath = "", parentData, parentDataProperty, r
   validate11.errors = vErrors;
   return errors === 0;
 }
-const schema16 = {
+const schema17 = {
   description: "Envelope for ``ConnectedData``.",
   properties: {
     type: { const: "connected", title: "Type", type: "string" },
@@ -966,7 +1215,7 @@ const schema16 = {
   title: "ConnectedWsMessage",
   type: "object",
 };
-const schema17 = {
+const schema18 = {
   description:
     "Server state sent once, as the first message after a WebSocket connection opens.\n\n``version`` is the server's hassette version; a client can compare it with its own to detect an upgrade.",
   properties: {
@@ -1191,7 +1440,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
   validate14.errors = vErrors;
   return errors === 0;
 }
-const schema18 = {
+const schema19 = {
   description: "Envelope for ``ConnectivityData``.",
   properties: {
     type: { const: "connectivity", title: "Type", type: "string" },
@@ -1202,7 +1451,7 @@ const schema18 = {
   title: "ConnectivityWsMessage",
   type: "object",
 };
-const schema19 = {
+const schema20 = {
   description: "Payload for a Home Assistant WebSocket connectivity event.",
   properties: { connected: { title: "Connected", type: "boolean" } },
   required: ["connected"],
@@ -1346,7 +1595,7 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
   validate15.errors = vErrors;
   return errors === 0;
 }
-const schema20 = {
+const schema21 = {
   description: "Envelope for ``ServiceStatusData``.",
   properties: {
     type: { const: "service_status", title: "Type", type: "string" },
@@ -1357,7 +1606,7 @@ const schema20 = {
   title: "ServiceStatusWsMessage",
   type: "object",
 };
-const schema21 = {
+const schema22 = {
   description:
     "A framework service changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
   properties: {
@@ -1996,7 +2245,7 @@ function validate16(data, { instancePath = "", parentData, parentDataProperty, r
   validate16.errors = vErrors;
   return errors === 0;
 }
-const schema24 = {
+const schema25 = {
   description: "Envelope for a batch of ``ExecutionCompletedData``.",
   properties: {
     type: { const: "execution_completed", title: "Type", type: "string" },
@@ -2012,7 +2261,7 @@ const schema24 = {
   title: "ExecutionCompletedWsMessage",
   type: "object",
 };
-const schema25 = {
+const schema26 = {
   description:
     "Payload for execution_completed WebSocket messages.\n\n``kind`` discriminates handler invocations from job executions.\n``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.",
   properties: {
@@ -2030,7 +2279,7 @@ const schema25 = {
   title: "ExecutionCompletedData",
   type: "object",
 };
-const schema26 = {
+const schema27 = {
   description: "How a handler invocation or job execution ended.",
   enum: ["success", "error", "cancelled", "timed_out", "skipped"],
   title: "ExecutionStatus",
@@ -2081,7 +2330,7 @@ function validate20(data, { instancePath = "", parentData, parentDataProperty, r
                 instancePath: instancePath + "/kind",
                 schemaPath: "#/properties/kind/enum",
                 keyword: "enum",
-                params: { allowedValues: schema25.properties.kind.enum },
+                params: { allowedValues: schema26.properties.kind.enum },
                 message: "must be equal to one of the allowed values",
               },
             ];
@@ -2158,7 +2407,7 @@ function validate20(data, { instancePath = "", parentData, parentDataProperty, r
                       instancePath: instancePath + "/status",
                       schemaPath: "#/$defs/ExecutionStatus/enum",
                       keyword: "enum",
-                      params: { allowedValues: schema26.enum },
+                      params: { allowedValues: schema27.enum },
                       message: "must be equal to one of the allowed values",
                     },
                   ];
@@ -2575,7 +2824,7 @@ function validate19(data, { instancePath = "", parentData, parentDataProperty, r
   validate19.errors = vErrors;
   return errors === 0;
 }
-const schema27 = {
+const schema28 = {
   description: "Envelope for ``AppsChangedData``.",
   properties: {
     type: { const: "apps_changed", title: "Type", type: "string" },
@@ -2586,7 +2835,7 @@ const schema27 = {
   title: "AppsChangedWsMessage",
   type: "object",
 };
-const schema28 = {
+const schema29 = {
   description:
     'Payload for an app-list refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "app status may be\nstale, refetch" rather than inspect the payload.',
   properties: {},

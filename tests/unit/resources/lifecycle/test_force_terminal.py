@@ -30,7 +30,7 @@ from tests.support.factories import make_app, make_scheduled_job
 from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 
-from .conftest import HangingChild, ShutdownCounter, SimpleParent, make_running_simple_service
+from .conftest import HangingChild, PendingTaskChild, ShutdownCounter, SimpleParent, make_running_simple_service
 
 
 async def test_scheduler_on_shutdown_dequeues_all_jobs():
@@ -330,8 +330,22 @@ async def test_on_children_stopped_called_on_clean_shutdown():
     assert child.shutdown_completed is True
 
 
-async def test_on_children_stopped_skipped_on_timeout():
-    """_on_children_stopped() is NOT called when child shutdown times out."""
+async def test_on_children_stopped_skipped_when_child_work_may_still_run():
+    """_on_children_stopped() is NOT called when a child's report says its work may still be running."""
+    hassette = make_mock_hassette(sealed=False)
+
+    parent = HookTrackingParent(hassette)
+    parent.add_child(PendingTaskChild)
+
+    await parent.initialize()
+
+    await parent.shutdown()
+
+    assert parent.hook_called is False, "_on_children_stopped should NOT be called while child work may run"
+
+
+async def test_on_children_stopped_called_after_a_child_hook_timed_out():
+    """A child hook cut off at its bound has ended, so _on_children_stopped() still runs."""
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
@@ -340,9 +354,10 @@ async def test_on_children_stopped_skipped_on_timeout():
 
     await parent.initialize()
 
-    await parent.shutdown()
+    report = await parent.shutdown()
 
-    assert parent.hook_called is False, "_on_children_stopped should NOT be called on timeout"
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert parent.hook_called is True, "a timed-out child hook that ended must not block _on_children_stopped"
 
 
 async def test_cleanup_timeout_fires_on_hung_cleanup():

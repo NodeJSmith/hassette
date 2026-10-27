@@ -35,6 +35,7 @@ from .conftest import (
     ErrorChild,
     HangingChild,
     OrderTrackingChild,
+    PendingTaskChild,
     ShutdownCounter,
     SimpleParent,
     SimpleService,
@@ -536,11 +537,32 @@ async def test_resistant_hook_holds_shutdown_until_the_owner_force_terminates():
 
 
 async def test_shutdown_children_records_child_restart_unsafe_without_raising():
-    """A child whose own ``shutdown()`` call returns a report with ``is_restart_safe`` ``False``
-    (without raising -- ``ErrorChild`` fails inside ``on_shutdown()``, which ``run_hooks(...,
-    continue_on_error=True)`` catches and turns into a ``SHUTDOWN_HOOK_FAILED`` report rather
-    than an exception) makes the parent's aggregated report ``is_restart_safe`` ``False`` too,
-    merging the child's own cause and recording ``CHILD_RESTART_UNSAFE`` with the child's identity.
+    """A child whose own ``shutdown()`` returns a restart-unsafe report (work still pending) without
+    raising makes the parent's aggregated report restart-unsafe too, merging the child's own evidence
+    and recording ``CHILD_RESTART_UNSAFE`` with the child's identity.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    parent = SimpleParent(hassette)
+    child = parent.add_child(PendingTaskChild)
+
+    await parent.initialize()
+    await child.initialize()
+
+    report = await parent.shutdown()
+
+    child_report = child.teardown_report
+    assert child_report is not None
+    assert child_report.is_restart_safe is False
+
+    assert report.is_restart_safe is False
+    assert TeardownCause.CHILD_RESTART_UNSAFE in report.causes
+    assert "stuck-task" in report.pending_tasks, "child's own evidence must be merged into the parent"
+    assert child.unique_name in report.affected_resources
+
+
+async def test_shutdown_children_keeps_a_child_hook_failure_diagnostic():
+    """A child whose ``on_shutdown()`` raised but finished leaves nothing running: its report carries
+    ``SHUTDOWN_HOOK_FAILED`` as a diagnostic, and neither it nor the parent's report is restart-unsafe.
     """
     hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
@@ -551,15 +573,9 @@ async def test_shutdown_children_records_child_restart_unsafe_without_raising():
 
     report = await parent.shutdown()
 
-    child_report = child.teardown_report
-    assert child_report is not None
-    assert child_report.is_restart_safe is False
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED in child_report.causes
-
-    assert report.is_restart_safe is False
-    assert TeardownCause.CHILD_RESTART_UNSAFE in report.causes
     assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, "child's own cause must be merged into the parent"
-    assert child.unique_name in report.affected_resources
+    assert TeardownCause.CHILD_RESTART_UNSAFE not in report.causes
+    assert report.is_restart_safe is True
 
 
 async def test_shutdown_children_records_child_shutdown_failed_and_continues_siblings():
@@ -685,7 +701,8 @@ async def test_slow_cleanup_is_cut_at_its_cap_and_children_still_shut_down():
     report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
     elapsed = loop.time() - start_time
 
-    assert report.is_restart_safe is False, "the cut-off cleanup and the hanging child must produce an unsafe report"
+    assert TeardownCause.CLEANUP_TIMED_OUT in report.causes
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes, "the hanging child's hook timeout is merged in"
     assert elapsed < 3.0, f"cleanup ran past its cap ({elapsed:.2f}s)"
     assert hanging.shutdown_completed is True
 
@@ -883,3 +900,53 @@ async def test_hooks_share_the_deadline_once_it_is_closer_than_their_bounds():
 
     assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
     assert elapsed < 3.0, f"hooks ran past the 0.3s deadline ({elapsed:.2f}s)"
+
+
+class HookRecordingParent(Resource):
+    """Parent that records which of its own shutdown hooks and framework stages ran."""
+
+    def __init__(self, hassette) -> None:
+        super().__init__(hassette)
+        self.ran: list[str] = []
+
+    async def before_shutdown(self) -> None:
+        self.ran.append("before_shutdown")
+
+    async def on_shutdown(self) -> None:
+        self.ran.append("on_shutdown")
+
+    async def after_shutdown(self) -> None:
+        self.ran.append("after_shutdown")
+
+    async def cleanup(self) -> None:
+        self.ran.append("cleanup")
+
+
+async def test_skipping_own_shutdown_hooks_keeps_framework_stages_and_children():
+    """With the skip set, the resource's own hooks don't run, but cleanup() and its children's shutdown
+    (including the children's own hooks) still do.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    parent = HookRecordingParent(hassette)
+    child = parent.add_child(ShutdownCounter)
+    await parent.initialize()
+
+    lifecycle.skip_own_shutdown_hooks(parent)
+    await parent.shutdown()
+
+    assert parent.ran == ["cleanup"]
+    assert child.shutdown_count == 1, "the skip is not propagated to children"
+
+
+async def test_hook_skip_resets_with_the_next_accepted_initialization():
+    """The skip is per-attempt state: a new initialization after a clean teardown clears it."""
+    hassette = make_mock_hassette(sealed=False)
+    resource = HookRecordingParent(hassette)
+    await resource.initialize()
+    lifecycle.skip_own_shutdown_hooks(resource)
+    await resource.shutdown()
+
+    await resource.initialize()
+    await resource.shutdown()
+
+    assert resource.ran == ["cleanup", "before_shutdown", "on_shutdown", "after_shutdown", "cleanup"]

@@ -2,6 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from hassette_wire.apps import NeedsRestart
 from hassette_wire.enums import OpenExecutionStatus, OpenResourceStatus
 from hassette_wire.literals import OpenExecutionKind
 
@@ -21,6 +22,9 @@ class AppStatusChangedData(BaseModel):
     exception: str | None = None
     exception_type: str | None = None
     exception_traceback: str | None = None
+    needs_restart: NeedsRestart | None = None
+    """Set when the instance is flagged needs-restart, so a client can show it with the status. Read from the
+    server's registry when the event is sent, not from the status change itself."""
 
 
 class ConnectivityData(BaseModel):

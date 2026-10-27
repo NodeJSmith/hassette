@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from logging import Logger
 
 from hassette.core.app_lifecycle_common import (
+    FAILED,
     NOT_STARTED,
     STOPPED,
     AppAdmissionMode,
@@ -15,6 +16,7 @@ from hassette.exceptions import (
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
+from hassette.resources.lifecycle import skip_own_shutdown_hooks
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -40,7 +42,7 @@ class AppStartStopMixin:
     _get_app_key_lock: Callable[[str], "AppKeyLock"]
     _resolve_manifest: Callable[[str], "AppManifest | None"]
     initialize_instances: Callable[..., Awaitable[None]]
-    cleanup_failed_instance: Callable[..., Awaitable[None]]
+    shutdown_instance: "Callable[..., Awaitable[TeardownReport | None]]"
     shutdown_instances: "Callable[..., Awaitable[TeardownReport]]"
 
     async def start_app(
@@ -109,9 +111,9 @@ class AppStartStopMixin:
         # or not class-loading itself fails, and so pruned entries can be reported as STOPPED —
         # unregister_app()-style silent discarding leaves the WS status cache for that index
         # stuck on FAILED forever (see _stop_app_unlocked for the same problem on the stop side).
-        # A no-op on the reload_app() path: _stop_app_unlocked() already popped every entry for
-        # app_key (running and failed alike) before this runs, so there's nothing left to prune.
-        # This only ever does real work for a standalone start_app() call.
+        # A no-op on the reload_app() path: _stop_app_unlocked() already removed every failed entry
+        # for app_key before this runs, so there's nothing left to prune. This only ever does real
+        # work for a standalone start_app() call.
         valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
         await self._emit_stopped_events(self.registry.prune_stale_failed_indices(app_key, valid_index_count))
 
@@ -159,17 +161,19 @@ class AppStartStopMixin:
             await self.initialize_instances(app_key, instances, app_manifest, only_indices=created_indices)
 
     async def _emit_stopped_events(self, infos: "dict[int, AppInstanceInfo]") -> None:
-        """Emit a STOPPED event for each given failed-entry snapshot.
+        """Emit a STOPPED event for each given failed-entry snapshot, or FAILED for a flagged one.
 
         Shared by ``_start_app_unlocked`` (entries pruned for being outside the current config's
-        range) and ``_stop_app_unlocked`` (entries silently discarded by ``unregister_app``) —
-        both remove a failed entry from the registry without an App object to build an event
-        from, and both need the WS status cache to learn the entry is gone rather than staying
-        stuck on FAILED forever.
+        range) and the stop paths (failed entries discarded with no teardown to run) — both
+        remove a failed entry from the registry without an App object to build an event from,
+        and both need the WS status cache to learn the entry is gone rather than staying stuck on
+        FAILED forever. An index flagged needs-restart keeps reporting FAILED until restart, so its
+        event says FAILED rather than STOPPED.
         """
         for info in infos.values():
+            status = FAILED if info.needs_restart is not None else STOPPED
             await self.hassette.send_event(
-                HassetteAppStateEvent.from_instance_info(info, status=STOPPED, previous_status=info.status)
+                HassetteAppStateEvent.from_instance_info(info, status=status, previous_status=info.status)
             )
 
     async def stop_app(self, app_key: str) -> None:
@@ -182,31 +186,27 @@ class AppStartStopMixin:
             await self._stop_app_unlocked(app_key)
 
     async def _stop_app_unlocked(self, app_key: str) -> None:
-        """Unregister and shut down all instances for a given app key.
+        """Shut down all instances for a given app key.
 
         Caller must hold ``self._get_app_key_lock(app_key)``. Extracted from ``stop_app`` so
         ``reload_app`` can acquire the app-key lock once and call both the stop and start bodies
         without deadlocking on the non-reentrant ``asyncio.Lock``.
 
-        ``registry.unregister_app`` distinguishes "no entries existed at all" (``None``) from
-        "entries existed but none were running" (``{}`` — e.g. an app with only failed
-        instances). Only the former is actually "not found"; the latter is a normal cleanup of
-        failed-only entries and doesn't warrant a misleading "not found" warning.
+        Only an app key with nothing tracked (no entry, no needs-restart record) is "not found".
 
-        ``unregister_app`` discards failed entries silently (it only returns the running ones),
-        so without emitting something for them here, the WS status cache for those indices never
-        learns the app stopped — it just keeps whatever FAILED status it last cached, indefinitely.
-        Snapshotting them before the discard and emitting STOPPED closes that gap the same way
-        ``_start_app_unlocked`` closes the equivalent gap for newly-recorded failures.
+        Running instances stay registered through their teardown: ``shutdown_instance`` unregisters
+        each one itself, between its teardown and its outcome, so readers never see a STOPPED
+        placeholder while ``on_shutdown`` still runs. Indices holding only a failure entry have no
+        teardown; they are discarded per index up front with a STOPPED event (FAILED when flagged
+        needs-restart), so the WS status cache doesn't keep a stale FAILED for them indefinitely.
         """
         try:
-            failed_infos = self.registry.get_failed_instance_infos(app_key)
-            instances = self.registry.unregister_app(app_key)
-            if instances is None:
+            if not self.registry.tracked_indices(app_key):
                 self.logger.warning("Cannot stop app %s, not found", app_key)
                 return
 
-            await self._emit_stopped_events(failed_infos)
+            instances = self.registry.get_running_apps(app_key)
+            await self._discard_failed_indices(app_key, set(self.registry.tracked_indices(app_key)) - set(instances))
 
             if not instances:
                 self.logger.debug("Cleared failed entries for app %s; no running instances to shut down", app_key)
@@ -215,6 +215,17 @@ class AppStartStopMixin:
             await self.shutdown_instances(instances)
         except Exception:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
+
+    async def _discard_failed_indices(self, app_key: str, indices: set[int]) -> None:
+        """Discard the failure entries at ``indices`` (none of them running) and emit their events.
+
+        A needs-restart record at one of them is kept, so its event says FAILED (``_emit_stopped_events``).
+        """
+        failed_infos = self.registry.get_failed_instance_infos(app_key)
+        discarded = {index: info for index, info in failed_infos.items() if index in indices}
+        for index in discarded:
+            self.registry.unregister_app(app_key, index)
+        await self._emit_stopped_events(discarded)
 
     async def reload_app(
         self,
@@ -327,48 +338,55 @@ class AppStartStopMixin:
         config_dict = app_configs[index]
         self.factory.create_single_instance(app_key, app_manifest, index, config_dict, app_class)
 
+        # Set just before initialize_instances() is called: an exception before it means the
+        # instance never started, so its own shutdown hooks must not run.
+        init_started = False
         try:
-            if await self._emit_failure_event_if_present(app_key, index):
-                return
-
             inst = self.registry.get(app_key, index)
             if inst is None:
+                # create_single_instance() recorded a failure instead of registering an instance.
+                await self._emit_failure_event_if_present(app_key, index)
                 return
 
             await self.hassette.send_event(HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED))
+            init_started = True
             await self.initialize_instances(app_key, {index: inst}, app_manifest, instance_index=index)
-        except Exception:
+        except Exception as exc:
             phantom = self.registry.get(app_key, index)
             if phantom is not None:
-                await self.cleanup_failed_instance(phantom)
-            self.registry.unregister_app(app_key, index)
-            self.registry.record_failure(app_key, index, Exception(f"Post-registration failure for {app_key}[{index}]"))
-            await self._emit_failure_event_if_present(app_key, index)
+                # Still registered: the instance either initialized and then something after it
+                # raised (reconciliation), or never started. Either way it goes through shutdown,
+                # under the entry deadline, and is flagged if its work may still be running.
+                if not init_started:
+                    skip_own_shutdown_hooks(phantom)
+                await self.shutdown_instance(phantom, index, cause=exc)
+            else:
+                self.registry.record_failure(
+                    app_key, index, Exception(f"Post-registration failure for {app_key}[{index}]")
+                )
+                await self._emit_failure_event_if_present(app_key, index)
             raise
 
     async def _stop_instance_unlocked(self, app_key: str, index: int) -> None:
-        """Unregister and shut down a single instance at ``index``, if one exists.
+        """Shut down a single instance at ``index``, if one exists.
 
-        Caller must hold ``self._get_app_key_lock(app_key)``. Scopes failed-entry capture to
-        the target index only (not the app-key-wide ``get_failed_instance_infos``), mirroring
-        ``_stop_app_unlocked``'s discarded-failed-entry handling but for one instance instead
-        of the whole app key — so restarting one instance never emits a STOPPED event for an
-        unrelated sibling's failed entry.
+        Caller must hold ``self._get_app_key_lock(app_key)``. Scoped to the target index only,
+        mirroring ``_stop_app_unlocked`` but for one instance instead of the whole app key — so
+        restarting one instance never emits a STOPPED event for an unrelated sibling's failed
+        entry. A running instance stays registered until ``shutdown_instance`` unregisters it
+        after its teardown; an index holding only a failure entry is discarded up front.
 
         Wraps its body in try/except, mirroring ``_stop_app_unlocked`` — this keeps the
         unguarded public ``stop_instance()`` (and ``_reload_instance_unlocked``, which calls
         this before creating the replacement) from letting a shutdown failure escape uncaught.
         """
         try:
-            failed_infos = self.registry.get_failed_instance_infos(app_key)
-            target_failed_info = failed_infos.get(index)
-            instances = self.registry.unregister_app(app_key, index)
+            inst = self.registry.get(app_key, index)
+            if inst is None:
+                await self._discard_failed_indices(app_key, {index})
+                return
 
-            if target_failed_info is not None:
-                await self._emit_stopped_events({index: target_failed_info})
-
-            if instances:
-                await self.shutdown_instances(instances)
+            await self.shutdown_instances({index: inst})
         except Exception:
             self.logger.error("Failed to stop instance %d of app %s:\n%s", index, app_key, get_short_traceback())
 

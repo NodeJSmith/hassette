@@ -13,9 +13,10 @@ from hassette_wire import ResourceStatus
 
 from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.resources.teardown import TeardownReport
-from hassette.testing import EventCapture
+from hassette.testing import EventCapture, wait_for
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
 
@@ -383,112 +384,142 @@ class TestStartAppStaleManifestRace:
         mock_factory.create_instances.assert_not_called()
 
 
+def register_mock_instance(registry: AppRegistry, app_key: str, index: int) -> AsyncMock:
+    """Register a mock app instance at ``(app_key, index)`` in a real registry and return it."""
+    inst = make_mock_app_instance(instance_name=f"{app_key}.{index}")
+    inst.app_key = app_key
+    inst.status = ResourceStatus.RUNNING
+    registry.register_app(app_key, index, inst)
+    return inst
+
+
 class TestStopApp:
-    async def test_unregisters_and_shuts_down(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    async def test_shuts_down_and_unregisters(self, real_registry_service: AppLifecycleService) -> None:
+        """Shuts down the app's instances and leaves nothing registered."""
+        registry = real_registry_service.registry
+        inst = register_mock_instance(registry, "test_app", 0)
+
+        await real_registry_service.stop_app("test_app")
+
+        inst.shutdown.assert_awaited_once()
+        assert registry.tracked_indices("test_app") == set()
+
+    async def test_instance_stays_registered_until_its_teardown_finishes(
+        self, real_registry_service: AppLifecycleService
     ) -> None:
-        """Unregisters app and shuts down its instances."""
-        app1 = make_mock_app_instance()
-        app1.status = ResourceStatus.RUNNING
-        instances = {0: app1}
-        mock_registry.unregister_app = Mock(return_value=instances)
+        """While ``on_shutdown`` runs, readers see the instance itself, not a STOPPED placeholder."""
+        registry = real_registry_service.registry
+        inst = register_mock_instance(registry, "test_app", 0)
+        seen_during_teardown: list[object] = []
 
-        await lifecycle_service.stop_app("test_app")
+        async def teardown() -> TeardownReport:
+            seen_during_teardown.append(registry.get("test_app", 0))
+            return TeardownReport()
 
-        mock_registry.unregister_app.assert_called_once_with("test_app")
-        app1.shutdown.assert_called_once()
+        inst.shutdown = AsyncMock(side_effect=teardown)
 
-    async def test_warns_if_not_found(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-    ) -> None:
-        """Returns early without shutting down any instances when app is not found."""
-        mock_registry.unregister_app = Mock(return_value=None)
+        await real_registry_service.stop_app("test_app")
 
-        await lifecycle_service.stop_app("missing_app")
+        assert seen_during_teardown == [inst]
+        assert registry.get("test_app", 0) is None
 
-        mock_registry.unregister_app.assert_called_once_with("missing_app")
+    async def test_warns_if_not_found(self, real_registry_service: AppLifecycleService) -> None:
+        """An app key with nothing tracked is "not found" and shuts nothing down."""
+        real_registry_service.shutdown_instances = AsyncMock()
+
+        await real_registry_service.stop_app("missing_app")
+
+        real_registry_service.shutdown_instances.assert_not_called()
 
     async def test_no_shutdown_when_only_failed_entries_existed(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
+        self, real_registry_service: AppLifecycleService
     ) -> None:
-        """unregister_app returning {} (entries existed but none were running, e.g. a
-        failed-only app) is not treated as "not found" and does not call shutdown_instances.
-        """
-        mock_registry.unregister_app = Mock(return_value={})
-        lifecycle_service.shutdown_instances = AsyncMock()
+        """A failed-only app is not "not found": its entries are discarded and nothing is shut down."""
+        registry = real_registry_service.registry
+        registry.record_failure("failed_only_app", 0, ValueError("bad config"))
+        real_registry_service.shutdown_instances = AsyncMock()
 
-        await lifecycle_service.stop_app("failed_only_app")
+        await real_registry_service.stop_app("failed_only_app")
 
-        mock_registry.unregister_app.assert_called_once_with("failed_only_app")
-        lifecycle_service.shutdown_instances.assert_not_called()
+        real_registry_service.shutdown_instances.assert_not_called()
+        assert registry.tracked_indices("failed_only_app") == set()
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
     # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_emits_stopped_event_for_discarded_failed_entries(
         self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
+        real_registry_service: AppLifecycleService,
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
-        """unregister_app() discards failed entries silently — it only returns the running
-        ones. Without emitting something for them, the WS status cache for those indices never
-        learns the app stopped and stays on FAILED/degraded forever, even for a mixed-status app
-        where the running instances stopped cleanly and correctly emitted their own events.
+        """A discarded failed entry gets a STOPPED event, so the WS status cache doesn't stay on FAILED
+        forever, even for a mixed-status app whose running instances emit their own events.
         """
         event_capture.install(mock_hassette)
-        failed_info = make_app_instance_info(
-            app_key="mixed_app",
-            index=1,
-            instance_name="mixed_app.1",
-            class_name="MixedApp",
-            status=ResourceStatus.FAILED,
-            error=ValueError("bad config"),
-            error_message="bad config",
-            error_traceback="Traceback...",
-        )
-        mock_registry.get_failed_instance_infos = Mock(return_value={1: failed_info})
-        mock_registry.unregister_app = Mock(return_value={})
+        registry = real_registry_service.registry
+        register_mock_instance(registry, "mixed_app", 0)
+        registry.record_failure("mixed_app", 1, ValueError("bad config"))
 
-        await lifecycle_service.stop_app("mixed_app")
+        await real_registry_service.stop_app("mixed_app")
 
-        stopped_payloads = app_state_payloads(event_capture, ResourceStatus.STOPPED)
+        stopped_payloads = [p for p in app_state_payloads(event_capture, ResourceStatus.STOPPED) if p.index == 1]
         assert len(stopped_payloads) == 1
-        payload = stopped_payloads[0]
-        assert payload.app_key == "mixed_app"
-        assert payload.index == 1
-        assert payload.previous_status == ResourceStatus.FAILED
+        assert stopped_payloads[0].app_key == "mixed_app"
+        assert stopped_payloads[0].previous_status == ResourceStatus.FAILED
         # dup-ignore-end
 
-    async def test_captures_failed_infos_before_unregister_discards_them(
+    async def test_flagged_index_emits_failed_not_stopped_and_stays_flagged(
         self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
+        real_registry_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        event_capture: EventCapture,
     ) -> None:
-        """get_failed_instance_infos() must be called before unregister_app() — the latter is
-        what discards the failed entries, so calling get_failed_instance_infos() afterward would
-        always see an already-empty registry and silently emit nothing.
+        """A stop discards a flagged index's failure entry, but it keeps reporting FAILED until restart."""
+        event_capture.install(mock_hassette)
+        registry = real_registry_service.registry
+        registry.record_failure("test_app", 0, TimeoutError("stop timed out"))
+        registry.flag_needs_restart(
+            "test_app", 0, instance_name="test_app.0", class_name="TestApp", reason="work still running"
+        )
+
+        await real_registry_service.stop_app("test_app")
+
+        assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
+        failed = app_state_payloads(event_capture, ResourceStatus.FAILED)
+        assert [p.index for p in failed] == [0]
+        info = registry.resolve_instance_info("test_app", 0)
+        assert info is not None
+        assert info.status == ResourceStatus.FAILED
+        assert info.needs_restart is not None
+
+
+class TestExitReachesInFlightStops:
+    async def test_shutdown_all_joins_a_runtime_stop_still_in_flight(
+        self, real_registry_service: AppLifecycleService
+    ) -> None:
+        """A runtime stop keeps its instance registered until the teardown ends, so process exit reaches it
+        and joins its shutdown attempt instead of leaving it unrecorded.
         """
-        call_order: list[str] = []
+        registry = real_registry_service.registry
+        inst = register_mock_instance(registry, "test_app", 0)
+        entered = asyncio.Event()
+        release = asyncio.Event()
 
-        def _record_get_failed_instance_infos(_key: str) -> dict[int, object]:
-            call_order.append("get_failed_instance_infos")
-            return {}
+        async def slow_teardown() -> TeardownReport:
+            entered.set()
+            await release.wait()
+            return TeardownReport()
 
-        def _record_unregister_app(_key: str) -> dict[int, object]:
-            call_order.append("unregister_app")
-            return {}
+        inst.shutdown = AsyncMock(side_effect=slow_teardown)
+        runtime_stop = asyncio.create_task(real_registry_service.stop_app("test_app"))
+        await asyncio.wait_for(entered.wait(), timeout=5)
 
-        mock_registry.get_failed_instance_infos = Mock(side_effect=_record_get_failed_instance_infos)
-        mock_registry.unregister_app = Mock(side_effect=_record_unregister_app)
+        exit_stop = asyncio.create_task(real_registry_service.shutdown_all())
+        await wait_for(lambda: inst.shutdown.await_count == 2, desc="exit joined the in-flight stop")
+        release.set()
+        await asyncio.wait_for(asyncio.gather(runtime_stop, exit_stop), timeout=5)
 
-        await lifecycle_service.stop_app("test_app")
-
-        assert call_order == ["get_failed_instance_infos", "unregister_app"]
+        assert registry.tracked_indices("test_app") == set()
 
 
 class TestShutdownInstanceLogContext:

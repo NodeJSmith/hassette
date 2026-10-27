@@ -114,11 +114,6 @@ class AppLifecycleService(
         return self.hassette.config.lifecycle.total_shutdown_timeout_seconds - FOUNDATION_SHUTDOWN_BUDGET_SECONDS
 
     @property
-    def cleanup_timeout(self) -> int:
-        """Timeout in seconds for cleaning up a failed app instance's listeners and jobs."""
-        return self.hassette.config.lifecycle.failed_instance_cleanup_timeout_seconds
-
-    @property
     def bootstrap_coordinator(self) -> "AppBootstrapCoordinator":
         """The coordinator that gates app admission until initial bootstrap is released."""
         return self.hassette.app_bootstrap_coordinator

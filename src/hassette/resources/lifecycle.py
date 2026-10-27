@@ -121,6 +121,15 @@ def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> No
     mark_not_ready(resource, reason or "shutdown requested")
 
 
+def skip_own_shutdown_hooks(resource: _LifecycleHostP) -> None:
+    """Make the next shutdown attempt skip ``resource``'s own shutdown hooks (not its children's).
+
+    Called by the operation's owner before ``shutdown()``; see ``LifecycleMixin._skip_own_shutdown_hooks``.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    resource._skip_own_shutdown_hooks = True
+
+
 def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
     """Start the instance by spawning its coordinated ``initialize()`` front door in a task.
 
@@ -532,6 +541,7 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
             resource._teardown_report = None
             resource._shutdown_task = None
             resource._shutdown_deadline = None
+            resource._skip_own_shutdown_hooks = False
             resource.task_bucket.reopen()
             resource.shutdown_event.clear()
         init_task = create_lifecycle_task(

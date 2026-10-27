@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 from hassette.resources.base import Resource
 from hassette.resources.service import Service
+from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
@@ -16,6 +17,7 @@ __all__ = [
     "ErrorChild",
     "HangingChild",
     "OrderTrackingChild",
+    "PendingTaskChild",
     "ShutdownCounter",
     "SimpleParent",
     "SimpleService",
@@ -56,6 +58,18 @@ class OrderTrackingChild(Resource):
 
     async def on_shutdown(self) -> None:
         shutdown_order.append(self.unique_name)
+
+
+class PendingTaskChild(Resource):
+    """Resource whose teardown reports a task still pending, so its report is restart-unsafe.
+
+    Stands in for a child whose own work outlived its shutdown without making a test hold a task that
+    ignores cancellation.
+    """
+
+    async def _shutdown_body(self) -> TeardownReport:
+        report = await super()._shutdown_body()
+        return add_teardown_evidence(report, causes=(TeardownCause.TASKS_PENDING,), pending_tasks=("stuck-task",))
 
 
 class ErrorChild(Resource):

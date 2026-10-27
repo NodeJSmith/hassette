@@ -23,11 +23,12 @@ from hassette_wire import (
     ConnectedData,
     ListenerKind,
     ListenerSummary,
+    NeedsRestart,
     ReadinessResponse,
     SystemStatusResponse,
 )
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, NeedsRestartInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import Topic
@@ -46,10 +47,20 @@ def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     """Convert a single ``AppInstanceInfo`` to ``AppInstance``.
 
     Every ``AppInstance`` field has a same-named attribute on ``AppInstanceInfo``, so
-    ``from_attributes`` copies them directly. The source's extra ``error``
-    attribute is ignored.
+    ``from_attributes`` copies them directly, except ``needs_restart``, whose timestamp is converted by
+    ``needs_restart_from``. The source's extra ``error`` attribute is ignored.
     """
-    return AppInstance.model_validate(instance, from_attributes=True)
+    fields = {name: getattr(instance, name) for name in AppInstance.model_fields if name != "needs_restart"}
+    return AppInstance(**fields, needs_restart=needs_restart_from(instance.needs_restart))
+
+
+def needs_restart_from(info: NeedsRestartInfo | None) -> NeedsRestart | None:
+    """Convert a ``NeedsRestartInfo`` to the wire ``NeedsRestart``, with ``flagged_at`` in epoch seconds."""
+    if info is None:
+        return None
+    return NeedsRestart(
+        reason=info.reason, pending_tasks=list(info.pending_tasks), flagged_at=info.flagged_at.timestamp()
+    )
 
 
 def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
@@ -74,6 +85,7 @@ def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
         error_message=manifest.error_message,
         error_traceback=manifest.error_traceback,
         in_current_config=manifest.in_current_config,
+        needs_restart_count=manifest.needs_restart_count,
     )
     # dup-ignore-end
 

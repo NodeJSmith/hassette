@@ -601,10 +601,11 @@ class UnableToConvertValueError(HassetteError):
 
 
 class RestartRefusedError(FatalError):
-    """Raised when a lifecycle front door refuses a new attempt after teardown proved restart-unsafe.
+    """Raised when a lifecycle front door refuses a new attempt because work from the last teardown may still run.
 
     Carries the resource identity and the exact stored ``TeardownReport`` (``is_restart_safe`` is
-    always ``False`` whenever this exception is raised) so a caller can inspect why
+    always ``False`` whenever this exception is raised: a task was still pending, or the evidence is
+    incomplete) so a caller can inspect why
     restart was refused without re-deriving evidence from logs. The message lists the report's
     causes and any populated bounded detail fields (failed operations, pending tasks, affected
     resources) so existing exception logging remains useful on its own. Inherits ``FatalError``

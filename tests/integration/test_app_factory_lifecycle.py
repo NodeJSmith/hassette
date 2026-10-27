@@ -524,6 +524,32 @@ class TestAppLifecycleServiceIntegration:
         assert len(app_registry.all_apps()) == 0
 
 
+class TestFailedInitShutdown:
+    """A failed init goes through shutdown: framework cleanup runs, the app's own shutdown hooks don't."""
+
+    async def test_failed_init_leaves_no_listeners_or_jobs_and_skips_on_shutdown(
+        self,
+        hassette_with_app_handler: "HassetteHarness",
+        app_factory: AppFactory,
+        app_lifecycle: AppLifecycleService,
+        app_registry: AppRegistry,
+    ):
+        manifest = make_manifest("registers_then_fails", "registers_then_fails_app.py", "RegistersThenFailsApp")
+        instances = await bring_up_app(app_factory, app_lifecycle, app_registry, manifest)
+        inst = instances[0]
+        hassette = hassette_with_app_handler.hassette
+
+        assert hassette.bus_service.get_listeners_by_owner(inst.bus.owner_id) == []
+        jobs = await hassette.scheduler_service.get_all_jobs()
+        assert [job for job in jobs if job.owner_id == inst.scheduler.owner_id] == []
+        assert getattr(inst, "shutdown_called", None) is False, "an app whose init failed must not run on_shutdown"
+
+        info = app_registry.resolve_instance_info("registers_then_fails", 0)
+        assert info is not None
+        assert info.status == ResourceStatus.FAILED
+        assert info.needs_restart is None, "a failed init whose work ended stays reloadable"
+
+
 class TestFullIntegrationFlow:
     """Full integration flow tests for Factory → Lifecycle pipeline."""
 

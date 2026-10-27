@@ -721,11 +721,11 @@ class Hassette(HassetteAccessorsMixin, Resource):
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.
 
-        Called by _finalize_shutdown() after all children have shut down cleanly.
+        Called by the post-hook shutdown stage when the children's aggregated report is restart-safe.
         handle_stop() runs before close_streams(), so the root's STOPPED event is
         delivered if the bus is still draining; once the bus's loop has ended it is dropped.
 
-        On the timeout path, this hook is skipped — Hassette.shutdown()'s finally
+        When a child's work may still be running, this hook is skipped — Hassette.shutdown()'s finally
         block handles both handle_stop() and close_streams() as a fallback.
         """
         await super()._on_children_stopped()

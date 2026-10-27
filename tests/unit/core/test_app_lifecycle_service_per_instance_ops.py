@@ -15,7 +15,7 @@ from hassette.exceptions import AppBlockedError
 from hassette.testing import EventCapture, wait_for
 from tests.support.web_manifest_helpers import make_app_instance_info
 
-from .conftest import app_state_payloads, assert_acquires_app_key_lock_once
+from .conftest import app_state_payloads, assert_acquires_app_key_lock_once, make_mock_app_instance
 
 
 class TestReloadInstanceEvents:
@@ -65,22 +65,20 @@ class TestReloadInstanceEvents:
 
 
 class TestStopInstanceFailure:
-    async def test_unregister_failure_does_not_raise(
+    async def test_registry_lookup_failure_does_not_raise(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
-        """An exception from registry.unregister_app is caught and logged, not propagated.
+        """An exception from the registry lookup is caught and logged, not propagated.
 
-        Mirrors TestStopAppFailure.test_unregister_failure_does_not_raise
-        (test_app_lifecycle_service_coverage.py) but for the per-instance path — proves
-        _stop_instance_unlocked's try/except containment (added in the previous fixer pass)
-        actually works.
+        Mirrors TestStopAppFailure (test_app_lifecycle_service_coverage.py) but for the
+        per-instance path — proves _stop_instance_unlocked's try/except containment works.
         """
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.unregister_app = Mock(side_effect=RuntimeError("registry corrupted"))
+        mock_registry.get = Mock(side_effect=RuntimeError("registry corrupted"))
         lifecycle_service.shutdown_instances = AsyncMock()
 
         await lifecycle_service.stop_instance("test_app", 0)  # must not raise
@@ -96,20 +94,20 @@ class TestStopInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
-        """stop_instance unregisters and shuts down the running instance at the target
-        index only.
+        """stop_instance shuts down the running instance at the target index only, leaving its
+        unregistration to shutdown_instance (after the teardown).
         """
         mock_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_failed_instance_infos = Mock(return_value={})
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         app1 = MagicMock()
-        mock_registry.unregister_app = Mock(return_value={1: app1})
+        mock_registry.get = Mock(side_effect=lambda _key, index=0: app1 if index == 1 else None)
         lifecycle_service.shutdown_instances = AsyncMock()
 
         await lifecycle_service.stop_instance("test_app", 1)
 
-        mock_registry.unregister_app.assert_called_once_with("test_app", 1)
+        mock_registry.unregister_app.assert_not_called()
         lifecycle_service.shutdown_instances.assert_called_once_with({1: app1})
 
     async def test_out_of_range_index_skips_cleanly(
@@ -147,12 +145,11 @@ class TestStopInstanceBehavior:
         mock_registry.get_failed_instance_infos = Mock(return_value={})
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         orphan = MagicMock()
-        mock_registry.unregister_app = Mock(return_value={2: orphan})
+        mock_registry.get = Mock(side_effect=lambda _key, index=0: orphan if index == 2 else None)
         lifecycle_service.shutdown_instances = AsyncMock()
 
         await lifecycle_service.stop_instance("test_app", 2)
 
-        mock_registry.unregister_app.assert_called_once_with("test_app", 2)
         lifecycle_service.shutdown_instances.assert_called_once_with({2: orphan})
 
     async def test_succeeds_without_admission_check_before_bootstrap_release(
@@ -462,7 +459,7 @@ class TestCreateInstanceUnlockedSynchronousFailure:
 
 
 class TestCreateInstanceUnlockedPostRegistrationFailure:
-    async def test_send_event_failure_after_registration_unregisters_and_records_failure(
+    async def test_never_started_phantom_is_shut_down_with_its_own_hooks_skipped(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
@@ -470,31 +467,82 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
     ) -> None:
-        """If send_event raises after create_single_instance has already registered the app
-        in the registry, the compensating handler must unregister the phantom entry and record
-        a failure — otherwise the registry permanently reports a "running" instance that was
-        never initialized.
+        """If send_event raises after create_single_instance registered the app but before its
+        initialization started, the phantom is shut down with the exception as its cause and its
+        own shutdown hooks skipped — an app that never initialized must not run ``on_shutdown``.
         """
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         mock_factory.load_class = Mock(return_value=MagicMock())
 
-        mock_registry.get_failed_instance_infos = Mock(return_value={})
-
-        mock_inst = MagicMock()
+        mock_inst = make_mock_app_instance()
+        mock_inst._skip_own_shutdown_hooks = False
         mock_registry.get = Mock(return_value=mock_inst)
 
-        mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus failure"))
-        lifecycle_service.cleanup_failed_instance = AsyncMock()
+        failure = RuntimeError("event bus failure")
+        mock_hassette.send_event = AsyncMock(side_effect=failure)
+        lifecycle_service.shutdown_instance = AsyncMock()
 
         with pytest.raises(RuntimeError, match="event bus failure"):
             await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
 
-        lifecycle_service.cleanup_failed_instance.assert_called_once_with(mock_inst)
-        mock_registry.unregister_app.assert_called_once_with("test_app", 0)
+        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure)
+        assert mock_inst._skip_own_shutdown_hooks is True
+
+    async def test_initialized_phantom_is_shut_down_with_its_own_hooks(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """An app that initialized before something after it raised (reconciliation) gets its
+        ``on_shutdown``: the phantom is shut down with the cause, without the hook skip.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_factory.load_class = Mock(return_value=MagicMock())
+
+        mock_inst = make_mock_app_instance()
+        mock_inst._skip_own_shutdown_hooks = False
+        mock_registry.get = Mock(return_value=mock_inst)
+
+        failure = RuntimeError("reconcile failed")
+        lifecycle_service.initialize_instances = AsyncMock(side_effect=failure)
+        lifecycle_service.shutdown_instance = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="reconcile failed"):
+            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+
+        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure)
+        assert mock_inst._skip_own_shutdown_hooks is False
+
+    async def test_phantom_already_gone_records_a_post_registration_failure(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """When nothing is registered at the index any more, there is nothing to shut down; the
+        failure is recorded so the index doesn't silently look stopped.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        mock_factory.load_class = Mock(return_value=MagicMock())
+
+        mock_inst = make_mock_app_instance()
+        lookups = iter([mock_inst])
+        mock_registry.get = Mock(side_effect=lambda _key, _index=0: next(lookups, None))
+        lifecycle_service.initialize_instances = AsyncMock(side_effect=RuntimeError("reconcile failed"))
+        lifecycle_service.shutdown_instance = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="reconcile failed"):
+            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+
+        lifecycle_service.shutdown_instance.assert_not_called()
         mock_registry.record_failure.assert_called_once()
-        assert mock_registry.record_failure.call_args.args[0] == "test_app"
-        assert mock_registry.record_failure.call_args.args[1] == 0
+        assert mock_registry.record_failure.call_args.args[:2] == ("test_app", 0)
 
 
 class TestReloadInstanceUnlockedGuards:
@@ -609,8 +657,8 @@ class TestStopInstanceUnlockedShutdownFailure:
         mock_manifest: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """An exception raised by shutdown_instances() (as opposed to unregister_app, already
-        covered by TestStopInstanceFailure.test_unregister_failure_does_not_raise) is also
+        """An exception raised by shutdown_instances() (as opposed to the registry lookup, already
+        covered by TestStopInstanceFailure.test_registry_lookup_failure_does_not_raise) is also
         caught and logged by the same try/except in _stop_instance_unlocked.
         """
         mock_manifest.app_config = [{"instance_name": "a"}]
@@ -618,7 +666,7 @@ class TestStopInstanceUnlockedShutdownFailure:
         mock_registry.get_failed_instance_infos = Mock(return_value={})
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         app1 = MagicMock()
-        mock_registry.unregister_app = Mock(return_value={0: app1})
+        mock_registry.get = Mock(return_value=app1)
         lifecycle_service.shutdown_instances = AsyncMock(side_effect=RuntimeError("shutdown blew up"))
 
         await lifecycle_service.stop_instance("test_app", 0)  # must not raise

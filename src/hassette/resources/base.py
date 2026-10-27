@@ -533,11 +533,13 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         return merge_teardown_reports(*reports)
 
     async def _on_children_stopped(self) -> None:
-        """Called after children shut down cleanly, before this resource's STOPPED event.
+        """Called after children shut down, before this resource's STOPPED event.
 
-        Only runs on the success path — skipped when child propagation times out
-        (the timeout handler force-patches children and the caller handles fallback
-        teardown, e.g., Hassette's finally block calls close_streams()).
+        Runs when the children's aggregated report is restart-safe, meaning no child's work may still
+        be running. A child hook that raised or timed out and has ended doesn't block it. Skipped when a
+        child left work pending or its evidence is incomplete (it was force-terminated, or its
+        ``shutdown()`` raised); the caller handles fallback teardown then, e.g. Hassette's finally
+        block calls close_streams().
 
         Override to run logic that must happen after children are shut down but
         before the parent emits its own STOPPED event. Default is a no-op.
@@ -627,14 +629,21 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Class-specific shutdown work, run exactly once per coordinated attempt.
 
         NOTE: keep hook ordering in sync with Service._shutdown_body().
+
+        Skips the resource's own shutdown hooks when its owner set ``_skip_own_shutdown_hooks`` for this
+        attempt; the post-hook stage runs either way.
         """
-        hook_errors = await run_hooks(
-            self,
-            [self.before_shutdown, self.on_shutdown, self.after_shutdown],
-            continue_on_error=True,
-            shutdown_bound=True,
-        )
-        hook_report = shutdown_hook_report(hook_errors, "shutdown_hooks")
+        if self._skip_own_shutdown_hooks:
+            self.lifecycle_logger.debug("%s: skipping own shutdown hooks for this attempt", self.unique_name)
+            hook_report = TeardownReport()
+        else:
+            hook_errors = await run_hooks(
+                self,
+                [self.before_shutdown, self.on_shutdown, self.after_shutdown],
+                continue_on_error=True,
+                shutdown_bound=True,
+            )
+            hook_report = shutdown_hook_report(hook_errors, "shutdown_hooks")
         tail_report = await self._run_post_hook_shutdown_stage()
         return merge_teardown_reports(hook_report, tail_report)
 

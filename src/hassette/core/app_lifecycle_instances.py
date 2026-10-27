@@ -1,4 +1,4 @@
-"""AppInstanceLifecycleMixin — per-instance initialization, cleanup, shutdown, and state-event emission."""
+"""AppInstanceLifecycleMixin — per-instance initialization, shutdown, needs-restart flagging, and state events."""
 
 import asyncio
 import typing
@@ -20,7 +20,7 @@ from hassette.core.app_lifecycle_common import (
     STOPPING,
 )
 from hassette.events.hassette import HassetteAppStateEvent
-from hassette.resources.lifecycle import create_lifecycle_task, mark_ready
+from hassette.resources.lifecycle import create_lifecycle_task, mark_ready, skip_own_shutdown_hooks
 from hassette.resources.shutdown_deadline import deadline_in, tighten_shutdown_deadline
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 from hassette.utils.exception_utils import get_short_traceback
@@ -33,9 +33,13 @@ if typing.TYPE_CHECKING:
 
 T = typing.TypeVar("T")
 
+WALK_AWAY_CLEANUP_TIMEOUT_SECONDS = 5.0
+"""Bound on removing a walked-away instance's listeners and jobs, so a wedged database worker can't hold the
+app-key lock. A fixed framework cap, like the drain cap and the executor join."""
+
 
 class AppInstanceLifecycleMixin:
-    """Per-instance initialization, cleanup, shutdown, and state-event emission for ``AppLifecycleService``."""
+    """Per-instance initialization, shutdown, needs-restart flagging, and state events for ``AppLifecycleService``."""
 
     # Provided by the AppLifecycleService host (its own body, Resource, or a sibling mixin);
     # declared here for type narrowing within the mixin.
@@ -44,7 +48,6 @@ class AppInstanceLifecycleMixin:
     registry: "AppRegistry"
     startup_timeout: int
     entry_deadline_seconds: float
-    cleanup_timeout: int
     reconcile_app_registrations: Callable[..., Awaitable[None]]
 
     async def initialize_instances(
@@ -57,9 +60,10 @@ class AppInstanceLifecycleMixin:
     ) -> None:
         """Initialize instances for an app key.
 
-        Records failures directly to the registry. After all instances are
-        initialized, awaits pending DB registrations and runs post-ready
-        reconciliation to retire stale rows from previous sessions.
+        An instance whose initialization fails or times out is shut down under its entry deadline with its
+        own shutdown hooks skipped, recorded FAILED, and flagged needs-restart if work may still be running
+        (``shutdown_instance``). After all instances are initialized, awaits pending DB registrations and
+        runs post-ready reconciliation to retire stale rows from previous sessions.
 
         Args:
             app_key: The app key
@@ -84,37 +88,7 @@ class AppInstanceLifecycleMixin:
                 instance_index=idx,
             )
             try:
-                with anyio.fail_after(self.startup_timeout):
-                    await inst.initialize()
-                    mark_ready(inst, reason="initialized")
-                self.logger.debug(
-                    "App '%s' (%s) initialized successfully",
-                    inst.app_config.instance_name,
-                    class_name,
-                )
-                await self.emit_app_state_change(inst, status=RUNNING, previous_status=STARTING)
-            except TimeoutError as exc:
-                self.logger.error(
-                    "Timed out while starting app '%s' (%s):\n%s",
-                    inst.app_config.instance_name,
-                    class_name,
-                    get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
-                )
-                inst.status = STOPPED
-                await self.cleanup_failed_instance(inst)
-                self.registry.record_failure(app_key, idx, exc)
-                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=exc)
-            except Exception as exc:
-                self.logger.error(
-                    "Failed to start app '%s' (%s):\n%s",
-                    inst.app_config.instance_name,
-                    class_name,
-                    get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
-                )
-                inst.status = STOPPED
-                await self.cleanup_failed_instance(inst)
-                self.registry.record_failure(app_key, idx, exc)
-                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=exc)
+                await self.initialize_instance(inst, idx, class_name)
             finally:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -122,35 +96,52 @@ class AppInstanceLifecycleMixin:
         # Runs after the instance loop to ensure all registrations are complete.
         await self.reconcile_app_registrations(app_key, instances, instance_index=instance_index)
 
-    async def cleanup_failed_instance(self, inst: "App[AppConfig]") -> None:
-        """Remove bus listeners and scheduler jobs registered by an instance that failed to initialize.
+    async def initialize_instance(self, inst: "App[AppConfig]", index: int, class_name: str) -> None:
+        """Initialize one instance; on failure or timeout, shut it down as a failed init.
 
-        Bounded by a short timeout so a broken cleanup path cannot turn an init failure into a hang.
-        Must run before record_failure, which pops the instance from the registry — after that point,
-        the normal shutdown path can never reach these registrations.
+        The ``try`` covers only the initialization itself. The RUNNING event is sent after it, and a failure
+        to send it is a telemetry failure, not an app failure: it is logged and the app keeps running.
         """
         try:
-            with anyio.fail_after(self.cleanup_timeout):
-                await self.remove_instance_registrations(inst)
-                try:
-                    await inst.cache.close()
-                except Exception:
-                    self.logger.warning(
-                        "Cache cleanup failed for instance '%s'",
-                        inst.app_config.instance_name,
-                        exc_info=True,
-                    )
-        except TimeoutError:
-            self.logger.warning(
-                "Cleanup timed out for failed instance '%s' — some listeners or jobs may leak until restart",
+            with anyio.fail_after(self.startup_timeout):
+                await inst.initialize()
+                mark_ready(inst, reason="initialized")
+        except TimeoutError as exc:
+            self.logger.error(
+                "Timed out while starting app '%s' (%s):\n%s",
                 inst.app_config.instance_name,
+                class_name,
+                get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
+            )
+            skip_own_shutdown_hooks(inst)
+            await self.shutdown_instance(inst, index, cause=exc)
+            return
+        except Exception as exc:
+            self.logger.error(
+                "Failed to start app '%s' (%s):\n%s",
+                inst.app_config.instance_name,
+                class_name,
+                get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
+            )
+            skip_own_shutdown_hooks(inst)
+            await self.shutdown_instance(inst, index, cause=exc)
+            return
+
+        self.logger.debug("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
+        try:
+            await self.emit_app_state_change(inst, status=RUNNING, previous_status=STARTING)
+        except Exception:
+            self.logger.exception(
+                "Failed to send the RUNNING event for app '%s' (%s); the app keeps running",
+                inst.app_config.instance_name,
+                class_name,
             )
 
     async def remove_instance_registrations(self, inst: "App[AppConfig]") -> None:
         """Remove an instance's bus listeners and scheduler jobs by owner, running no user hook.
 
-        Shared by failed-init cleanup and an entry-deadline walk-away: both leave an instance whose own
-        ``Bus`` and ``Scheduler`` teardown never ran, so nothing else would remove these.
+        Used by an entry-deadline walk-away, which leaves an instance whose own ``Bus`` and ``Scheduler``
+        teardown never finished, so nothing else would remove these.
         """
         try:
             inst.bus.remove_all_listeners()
@@ -177,16 +168,37 @@ class AppInstanceLifecycleMixin:
             self.logger.warning("Job cleanup failed for instance '%s'", inst.app_config.instance_name, exc_info=True)
 
     async def shutdown_instance(
-        self, inst: "App[AppConfig]", instance_index: int, *, deadline: float | None = None
+        self,
+        inst: "App[AppConfig]",
+        instance_index: int,
+        *,
+        deadline: float | None = None,
+        cause: Exception | None = None,
     ) -> TeardownReport | None:
-        """Stop a single app instance under its entry deadline.
+        """Shut down a single app instance under its entry deadline and record the outcome.
 
-        The stop leg gets ``entry_deadline_seconds`` from now, shortened to ``deadline`` when the caller
+        The teardown gets ``entry_deadline_seconds`` from now, shortened to ``deadline`` when the caller
         has one (process exit passes what is left of its stop stage). When the deadline passes, this walks
-        away: the instance is force-terminated and its listeners and jobs are removed by owner. A stop
-        whose hook timed out, or that this walked away from, is reported FAILED with a "timed out" reason
-        and an ``AppRegistry`` failure entry; any other completed stop is STOPPED.
+        away: the instance is force-terminated and its listeners and jobs are removed by owner.
 
+        The instance stays registered until its teardown has finished, so readers see its own STOPPING
+        rather than a STOPPED placeholder. It is unregistered after that and before the outcome is
+        recorded, because recording a failure writes the entry an earlier unregister would discard.
+
+        Outcomes:
+
+        - ``cause`` given (a failed init, or a failure after registration): FAILED with ``cause`` recorded,
+          ``previous_status`` STARTING, since no STOPPING event was sent.
+        - A stop whose report says work may still be running (``TeardownReport.is_restart_safe`` is
+          ``False``: a walk-away, pending tasks, a raised shutdown): FAILED, a failure entry, and one ERROR
+          naming what is left and saying to restart hassette.
+        - A stop whose hook timed out but left nothing running: FAILED with a "timed out" reason; reloadable.
+        - Any other stop: STOPPED.
+
+        In every FAILED outcome, an instance whose work may still run is flagged needs-restart in
+        ``AppRegistry`` before the event is sent. The first flag at an index stands until restart.
+
+        The caller sets ``skip_own_shutdown_hooks`` beforehand when the app's own hooks must not run.
         App identity is bound to the log context for the duration of the stop, so every record emitted
         during ``on_shutdown`` carries it.
 
@@ -211,39 +223,119 @@ class AppInstanceLifecycleMixin:
                 report = await self.walk_away_from_instance(inst, task)
             else:
                 report = task.result()
-            timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
-
+            self.registry.unregister_app(inst.app_key, instance_index)
             friendly_time = precisedelta(timer() - start_time, minimum_unit="milliseconds")
-            if not timed_out:
+
+            if cause is not None:
+                self.record_failed_init(inst, instance_index, cause, report, force_terminated, friendly_time)
+                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=cause)
+                return report
+
+            timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+            if report.is_restart_safe and not timed_out:
                 self.logger.debug(
                     "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
                 )
                 await self.emit_app_state_change(inst, status=STOPPED, previous_status=STOPPING)
                 return report
 
-            exc = TimeoutError(f"stop of app '{inst.app_config.instance_name}' timed out after {friendly_time}")
-            if report.pending_tasks:
-                left = f"still pending: {', '.join(report.pending_tasks)}"
-            elif force_terminated:
-                left = f"force-terminated {inst.unique_name}; its evidence is incomplete, so work may still be running"
-            else:
-                left = "nothing still pending"
-            self.logger.error(
-                "Stop of app '%s' (%s) timed out after %s; %s",
-                inst.app_config.instance_name,
-                inst.class_name,
-                friendly_time,
-                left,
-            )
-            self.registry.record_failure(inst.app_key, instance_index, exc)
+            exc = self.record_failed_stop(inst, instance_index, report, force_terminated, friendly_time)
             await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=exc)
             return report
         except Exception as exc:
             self.logger.error("Failed to stop app '%s':\n%s", inst.app_config.instance_name, get_short_traceback())
-            await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=exc)
+            # The coordinator stores a COORDINATOR_FAILED report before re-raising, so this is normally a
+            # needs-restart outcome too; with no report at all, nothing proves the instance's work ended.
+            self.registry.unregister_app(inst.app_key, instance_index)
+            failure = cause or exc
+            self.registry.record_failure(inst.app_key, instance_index, failure)
+            report = inst.teardown_report
+            if report is None or not report.is_restart_safe:
+                left = describe_left_running(report or TeardownReport(), inst, force_terminated=False)
+                self.flag_needs_restart(inst, instance_index, f"shutdown raised; {left}", report)
+            previous = STARTING if cause is not None else STOPPING
+            await self.emit_app_state_change(inst, status=FAILED, previous_status=previous, exception=failure)
             return None
         finally:
             structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+
+    def record_failed_init(
+        self,
+        inst: "App[AppConfig]",
+        instance_index: int,
+        cause: Exception,
+        report: TeardownReport,
+        force_terminated: bool,
+        friendly_time: str,
+    ) -> None:
+        """Record a failed init's outcome: the failure entry, and a needs-restart flag if work may still run.
+
+        Runs synchronously right after the unregister. The init failure itself was already logged at
+        ERROR by its caller; a needs-restart flag gets its own ERROR.
+        """
+        self.registry.record_failure(inst.app_key, instance_index, cause)
+        if report.is_restart_safe:
+            self.logger.debug(
+                "Shut down app '%s' (%s) after its failed start in %s",
+                inst.app_config.instance_name,
+                inst.class_name,
+                friendly_time,
+            )
+            return
+        left = describe_left_running(report, inst, force_terminated=force_terminated)
+        reason = f"failed to start, and {left}"
+        self.logger.error(
+            "App '%s' (%s) %s; restart hassette to recover", inst.app_config.instance_name, inst.class_name, reason
+        )
+        self.flag_needs_restart(inst, instance_index, reason, report)
+
+    def record_failed_stop(
+        self,
+        inst: "App[AppConfig]",
+        instance_index: int,
+        report: TeardownReport,
+        force_terminated: bool,
+        friendly_time: str,
+    ) -> Exception:
+        """Record a stop that timed out or left work running: one ERROR, a failure entry, and maybe a flag.
+
+        Returns:
+            The exception recorded as the instance's failure.
+        """
+        name = inst.app_config.instance_name
+        timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+        if report.is_restart_safe:
+            exc: Exception = TimeoutError(f"stop of app '{name}' timed out after {friendly_time}")
+            self.logger.error(
+                "Stop of app '%s' (%s) timed out after %s; nothing still pending", name, inst.class_name, friendly_time
+            )
+            self.registry.record_failure(inst.app_key, instance_index, exc)
+            return exc
+
+        left = describe_left_running(report, inst, force_terminated=force_terminated)
+        if timed_out:
+            reason = f"stop timed out after {friendly_time}; {left}"
+            exc = TimeoutError(f"stop of app '{name}' timed out after {friendly_time}; {left}")
+        else:
+            reason = f"stopped, but {left}"
+            exc = RuntimeError(f"app '{name}' stopped, but {left}")
+        self.logger.error("App '%s' (%s) %s; restart hassette to recover", name, inst.class_name, reason)
+        self.registry.record_failure(inst.app_key, instance_index, exc)
+        self.flag_needs_restart(inst, instance_index, reason, report)
+        return exc
+
+    def flag_needs_restart(
+        self, inst: "App[AppConfig]", instance_index: int, reason: str, report: TeardownReport | None
+    ) -> None:
+        """Write the instance's needs-restart record; the first record at an index stands."""
+        self.registry.flag_needs_restart(
+            inst.app_key,
+            instance_index,
+            instance_name=inst.app_config.instance_name,
+            class_name=inst.class_name,
+            reason=reason,
+            pending_tasks=report.pending_tasks if report is not None else (),
+        )
 
     async def walk_away_from_instance(
         self, inst: "App[AppConfig]", task: "asyncio.Task[TeardownReport]"
@@ -251,14 +343,14 @@ class AppInstanceLifecycleMixin:
         """Stop waiting on an instance whose stop outlived its entry deadline.
 
         Force-terminates it (which cancels its shutdown coordinator), removes its listeners and jobs by
-        owner (bounded by ``cleanup_timeout``, as failed-init cleanup is), and records it as force-terminated
+        owner (bounded by ``WALK_AWAY_CLEANUP_TIMEOUT_SECONDS``), and records it as force-terminated
         work for the process's hard exit. Returns the evidence force-termination left, which is incomplete
         (``FORCED_TERMINAL``).
         """
         inst._force_terminal()
         task.cancel()
         try:
-            with anyio.fail_after(self.cleanup_timeout):
+            with anyio.fail_after(WALK_AWAY_CLEANUP_TIMEOUT_SECONDS):
                 await self.remove_instance_registrations(inst)
         except TimeoutError:
             self.logger.warning(
@@ -299,6 +391,10 @@ class AppInstanceLifecycleMixin:
         Called from ``AppHandler``'s child stage at process exit, with what is left of its stop stage as
         ``deadline``, so no app's hooks are cut short by other apps' hooks. ``AppSync`` hooks share the
         sync executor's threads, so past its worker count the wait for a thread counts against their bound.
+
+        A runtime stop already in flight is still registered (``shutdown_instance`` unregisters after the
+        teardown), so it is reached here too: this joins its single shielded shutdown attempt under the
+        tighter deadline, and both owners handle the report.
         """
         self.logger.debug("Shutting down all apps")
         instances = [
@@ -325,6 +421,15 @@ class AppInstanceLifecycleMixin:
             app=app, status=status, previous_status=previous_status, exception=exception
         )
         await self.hassette.send_event(event)
+
+
+def describe_left_running(report: TeardownReport, inst: "App[AppConfig]", *, force_terminated: bool) -> str:
+    """Say what a restart-unsafe teardown may have left running, for a needs-restart ERROR and reason."""
+    if report.pending_tasks:
+        return f"work is still running: {', '.join(report.pending_tasks)}"
+    if force_terminated:
+        return f"{inst.unique_name} was force-terminated; its evidence is incomplete, so work may still be running"
+    return "its teardown evidence is incomplete, so work may still be running"
 
 
 async def gather_all(coros: Iterable[Coroutine[typing.Any, typing.Any, T]], *, name: str) -> list[T]:

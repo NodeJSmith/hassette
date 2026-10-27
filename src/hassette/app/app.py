@@ -278,7 +278,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         Deliberately does not catch a ``self.cache.close()`` failure -- letting it propagate
         is what lets ``_run_post_hook_shutdown_stage()``'s existing catch-all record
         ``TeardownCause.CLEANUP_FAILED`` (it already logs the exception there). Swallowing it
-        here would report a restart-safe teardown for a cache that never confirmed it closed.
+        here would leave no evidence in the teardown report that the cache never confirmed it closed.
         """
         await super().cleanup()
         await self.cache.close()

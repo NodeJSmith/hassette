@@ -49,6 +49,7 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     instances: [],
     error_message: null,
     in_current_config: true,
+    needs_restart_count: 0,
     stats: createAppActivityStats({
       total_invocations: 100,
       total_executions: 50,

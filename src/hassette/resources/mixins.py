@@ -141,6 +141,17 @@ class LifecycleMixin(_LifecycleHostP):
     previous attempt.
     """
 
+    _skip_own_shutdown_hooks: bool = False
+    """Whether the current shutdown attempt skips this resource's own ``before_shutdown``/``on_shutdown``/
+    ``after_shutdown``.
+
+    Attempt state like ``_shutdown_deadline``: set by the operation's owner before it calls ``shutdown()``
+    (``AppLifecycleService``, for an app instance whose initialization failed or never started) and reset
+    with it. ``Resource._shutdown_body`` reads it; the framework stages after the hooks (task-bucket
+    cancellation, ``cleanup()``, child shutdown) still run. Not propagated to children, so an app's
+    ``Bus`` and ``Scheduler`` still remove its listeners and jobs. ``Service._shutdown_body`` ignores it.
+    """
+
     shutdown_hook_timeout_applies: typing.ClassVar[bool] = True
     """Whether ``shutdown_timeout_seconds`` bounds this resource's shutdown hooks.
 
@@ -167,6 +178,7 @@ class LifecycleMixin(_LifecycleHostP):
         self._shutdown_body_task = None
         self._teardown_report = None
         self._shutdown_deadline = None
+        self._skip_own_shutdown_hooks = False
 
     @property
     def shutting_down(self) -> bool:

@@ -6,6 +6,24 @@ from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
 from hassette_wire.literals import OpenAcceptedStatus, OpenAppAction
 
 
+class NeedsRestart(BaseModel):
+    """Why an app instance needs a hassette restart: a teardown left work that may still be running.
+
+    Python can't stop a coroutine that ignores cancellation, so the only recovery is restarting hassette. Until
+    then the instance reports ``failed``. Nested in ``AppInstance`` and in the ``app_status_changed`` WS event.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    reason: str
+    """What the teardown left behind, such as the tasks still pending or why its evidence is incomplete."""
+    pending_tasks: list[str] = Field(default_factory=list)
+    """Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the
+    instance was force-terminated, or its shutdown raised)."""
+    flagged_at: float
+    """When the instance was flagged, in epoch seconds. The first flag stands until restart."""
+
+
 class AppInstance(BaseModel):
     """One configured instance of an app and its lifecycle status.
 
@@ -28,6 +46,9 @@ class AppInstance(BaseModel):
     """False for an instance still tracked at an index outside the app's configured range, such as one left
     running after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``
     and ``reload`` return 404."""
+    needs_restart: NeedsRestart | None = None
+    """Set when a teardown of this instance left work that may still be running. ``status`` is then ``failed``
+    until hassette restarts."""
 
 
 class AppSummary(BaseModel):
@@ -66,6 +87,8 @@ class AppSummary(BaseModel):
     in_current_config: bool = True
     """True if the app is present in the currently-loaded config; False for an app known only from recorded
     history, such as one removed from the config."""
+    needs_restart_count: int = 0
+    """Number of ``instances`` flagged ``needs_restart``. Nonzero means hassette must restart to recover them."""
 
 
 class AppListResponse(BaseModel):

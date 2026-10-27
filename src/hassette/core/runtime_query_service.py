@@ -35,6 +35,7 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils import get_version
+from hassette.web.mappers import needs_restart_from
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -210,8 +211,13 @@ class RuntimeQueryService(Resource):
         await self.broadcast_envelope(event_type, payload.model_dump())
 
     async def on_app_state_changed(self, event: AnyEvent) -> None:
-        """Convert an app status change event to ``AppStatusChangedData`` and broadcast it to WS clients."""
+        """Convert an app status change event to ``AppStatusChangedData`` and broadcast it to WS clients.
+
+        ``needs_restart`` isn't on the bus event: it is read here from ``AppRegistry.resolve_instance_info``, so
+        no emit site can drop it, and is set when the instance is flagged.
+        """
         data = event.payload.data
+        resolved = self.hassette.app_handler.registry.resolve_instance_info(data.app_key, data.index)
         payload = AppStatusChangedData(
             app_key=data.app_key,
             index=data.index,
@@ -222,6 +228,7 @@ class RuntimeQueryService(Resource):
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
+            needs_restart=needs_restart_from(resolved.needs_restart) if resolved is not None else None,
         )
         await self.build_and_broadcast("app_status_changed", payload)
 
