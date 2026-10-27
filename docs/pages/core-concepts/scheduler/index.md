@@ -62,6 +62,8 @@ A manual-only job is still a fully live registration: it shows up in `list_jobs(
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_register_manual.py:submit"
 ```
 
+`submit()` is synchronous, unlike the scheduling methods. It queues the run and returns `None` immediately, so the call takes no `await`.
+
 Use `register()` for maintenance routines, on-demand reports, or any job that should carry a name, group, and telemetry history without ever firing by itself. [Job Management](management.md#schedule-status) covers the full set of schedule statuses a job can carry.
 
 ## Conditional Execution
@@ -82,7 +84,9 @@ See [Scheduling Methods](methods.md#conditional-execution-with-where) for the fu
 
 ## Verify It's Working
 
-Run `hassette job` to see all scheduled jobs for your running instance, where `<key>` is the app identifier from [`hassette.toml`](../configuration/index.md) (e.g., `delay_app`). Run `hassette log --app <key> --since 5m` to see job execution output.
+`hassette job` lists every scheduled job on the running instance. Each name passed as `name=` (for example `turn_off_light`) appears in its output.
+
+`hassette log --app <key> --since 5m` shows job execution output. `<key>` is the app identifier from [`hassette.toml`](../configuration/index.md) (for example `delay_app`).
 
 ## Next Steps
 
