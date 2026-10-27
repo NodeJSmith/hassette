@@ -9,16 +9,19 @@ started directly the joiner's observer carries the one ERROR.
 
 import asyncio
 import logging
+from typing import ClassVar
 
 import pytest
 from hassette_wire import ResourceStatus
 
+from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceRole
 from tests.support.mock_hassette import make_mock_hassette
+from tests.unit.resources.conftest import build_hassette
 
-from .conftest import ConcreteResource
+from .conftest import ConcreteResource, ShutdownCounter
 
 
 class FailingInitResource(ConcreteResource):
@@ -107,21 +110,22 @@ async def test_observer_keeps_error_when_handle_failed_never_ran(caplog: pytest.
     assert errors[0].exc_info is not None
 
 
+class MissingDependencyResource(ConcreteResource):
+    """Declares a dependency that no ``Hassette`` child satisfies, so the dependency wait raises."""
+
+    depends_on: ClassVar[list[type[Resource]]] = [ShutdownCounter]
+
+
 async def test_observer_keeps_error_when_handle_failed_raises_a_different_exception(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """``handle_failed()`` logs the dependency failure, then its own status-event send raises.
 
     The coordinator propagates that second exception, which nothing has logged yet, so the
     observer must keep it at ERROR even though the resource ended the attempt in FAILED.
     """
-    resource = ConcreteResource(hassette=make_mock_hassette(sealed=False))
+    resource = MissingDependencyResource(hassette=build_hassette())
     resource.lifecycle_logger.setLevel(logging.DEBUG)
-
-    async def failing_dependency_wait() -> None:
-        raise RuntimeError("dependency boom")
-
-    monkeypatch.setattr(resource, "_auto_wait_dependencies", failing_dependency_wait)
     # handle_starting()'s status event succeeds; handle_failed()'s raises.
     resource.hassette.send_event.side_effect = [None, RuntimeError("event boom")]  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -133,7 +137,9 @@ async def test_observer_keeps_error_when_handle_failed_raises_a_different_except
     assert resource.status == ResourceStatus.FAILED
     errors = [r for r in caplog.records if r.name == resource.lifecycle_logger.name and r.levelno >= logging.ERROR]
     logged = [r.exc_info[1] for r in errors if r.exc_info is not None]
-    assert [str(exc) for exc in logged] == ["dependency boom", "event boom"], [r.getMessage() for r in errors]
+    assert [type(exc).__name__ for exc in logged] == ["RuntimeError", "RuntimeError"]
+    assert "no matching child" in str(logged[0])
+    assert str(logged[1]) == "event boom", [r.getMessage() for r in errors]
 
 
 async def test_start_failure_of_app_role_resource_logs_one_error(caplog: pytest.LogCaptureFixture) -> None:
