@@ -68,6 +68,10 @@ class HarnessEventStreamService(EventStreamService):
     lifetime of the harness.  Explicit stream teardown is handled by
     ``HassetteHarness.stop()``, which calls ``_close_streams_now()`` directly —
     the only code path that should close streams in test context.
+
+    So a drain-loop exit under the harness (``BusService.close_event_streams()``) closes only the
+    bus's own receive clone: after a bus death, sends keep going into an undrained channel instead of
+    being dropped. Dead-bus tests use a real ``Hassette``.
     """
 
     async def close_streams(self) -> None:

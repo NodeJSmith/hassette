@@ -37,6 +37,8 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.testing import wait_for
 from hassette.utils.service_utils import WaveOutcome, WaveResult, topological_sort, validate_dependency_graph
+from tests.support.factories import make_hassette_event
+from tests.support.helpers import fill_event_channel
 from tests.support.run_forever import WAVE_OK, run_forever_expecting_fatal, stub_run_forever_collaborators
 
 if typing.TYPE_CHECKING:
@@ -87,6 +89,45 @@ async def test_event_streams_closed_reflects_state(hassette_instance: Hassette) 
     await hassette_instance.event_stream_service.close_streams()
     await asyncio.sleep(0)  # allow state to propagate
     assert hassette_instance.event_streams_closed is True, "Streams should close after aclose"
+
+
+async def test_send_blocked_on_full_channel_is_dropped_when_bus_closes_streams(hassette_instance: Hassette) -> None:
+    """A send waiting on a full channel returns, dropping its event, once the bus closes the streams."""
+    send_stream = hassette_instance.event_stream_service._send_stream  # coordinator-internal: blocked-send count
+    fill_event_channel(hassette_instance)
+    blocked_send = asyncio.create_task(hassette_instance.send_event(make_hassette_event()))
+    await wait_for(lambda: send_stream.statistics().tasks_waiting_send == 1, desc="send blocked on full channel")
+
+    await hassette_instance.bus_service.close_event_streams()
+
+    await asyncio.wait_for(blocked_send, timeout=1)
+    assert hassette_instance.event_streams_closed is True
+
+
+async def test_failed_startup_close_leaves_a_draining_bus_streams_open(hassette_instance: Hassette) -> None:
+    """The boot-time close skips a bus whose drain loop is running, so its teardown telemetry still arrives."""
+    bus = hassette_instance.bus_service
+    bus._draining = True  # coordinator-internal: stands in for a running drain loop
+    await bus.close_streams_unless_draining()
+    assert hassette_instance.event_streams_closed is False
+
+    bus._draining = False  # coordinator-internal: the loop has ended
+    await bus.close_streams_unless_draining()
+    assert hassette_instance.event_streams_closed is True
+
+
+async def test_bus_drain_loop_closes_streams_on_a_requested_stop(hassette_instance: Hassette) -> None:
+    """Every drain-loop exit closes the streams, a requested stop included: nothing would deliver a later event."""
+    bus = hassette_instance.bus_service
+    serve_task = asyncio.create_task(bus.serve())
+    await wait_for(lambda: bus._draining, desc="bus drain loop running")  # coordinator-internal
+
+    hassette_instance.shutdown_event.set()  # a requested stop: process shutdown, not a bus failure
+    bus.shutdown_event.set()
+    await hassette_instance.send_event(make_hassette_event())  # the loop checks for shutdown per event
+
+    await asyncio.wait_for(serve_task, timeout=1)
+    assert hassette_instance.event_streams_closed is True
 
 
 def test_loop_property_raises_when_not_started(hassette_instance: Hassette) -> None:

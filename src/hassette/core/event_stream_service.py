@@ -45,7 +45,12 @@ class EventStreamService(Resource):
         return self._receive_stream
 
     async def send_event(self, event: "AnyEvent") -> None:
-        """Send an event to the bus via the memory channel."""
+        """Send an event to the bus via the memory channel.
+
+        Raises:
+            ClosedResourceError: The streams are already closed.
+            BrokenResourceError: The streams closed while this send waited on a full channel.
+        """
         await self._send_stream.send(event)
 
     @property

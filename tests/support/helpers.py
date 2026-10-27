@@ -29,6 +29,7 @@ from hassette.testing._factories import create_service_registered_event as creat
 from hassette.testing.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
+from tests.support.factories import make_hassette_event
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -583,13 +584,24 @@ def create_listener(
 async def cleanup_hassette_streams(instance: Hassette) -> None:
     """Close event streams and the bus service's cloned receive stream.
 
-    Both underlying close operations are idempotent, so no pre-check is needed —
+    The test-teardown twin of ``BusService.close_event_streams()``, tolerating a half-wired instance
+    and logging nothing. Both underlying close operations are idempotent, so no pre-check is needed —
     suppress(Exception) alone handles the not-yet-wired and already-closed cases.
     """
     with suppress(Exception):
         await instance.event_stream_service.close_streams()
     with suppress(Exception):
         await instance.bus_service.stream.aclose()
+
+
+def fill_event_channel(instance: Hassette) -> None:
+    """Queue events until the event channel's buffer is full, without waiting for a receiver."""
+    send_stream = instance.event_stream_service._send_stream  # coordinator-internal: no public non-blocking send
+    while True:
+        try:
+            send_stream.send_nowait(make_hassette_event())
+        except anyio.WouldBlock:
+            return
 
 
 def last_json_record(stream: StringIO) -> dict[str, Any]:

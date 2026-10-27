@@ -91,6 +91,8 @@ class BusService(Service):
             hassette.config.lifecycle.max_concurrent_dispatches
         )
         self._last_saturation_warn_ts: float = 0.0
+        # True only while serve()'s drain loop runs; the bus's own answer to "will anything drain the channel?"
+        self._draining: bool = False
 
         # Pending `Bus.wait_for` calls across every Bus; one awaited inside a handler holds a dispatch slot.
         self.pending_wait_for_count: int = 0
@@ -695,24 +697,58 @@ class BusService(Service):
                 break
 
     async def serve(self) -> None:
-        """Worker loop that processes events from the stream."""
-        async with self.stream:
-            mark_ready(self, reason="Stream opened")
-            async for event in self.stream:
-                if self.shutdown_event.is_set():
-                    active_timers = self._duration_hold.duration_timers_active
-                    if active_timers > 0:
-                        self.logger.info(
-                            "Shutdown: %d active duration timer(s) will be cancelled",
-                            active_timers,
-                        )
-                    self.logger.debug("Hassette is shutting down, exiting bus loop")
-                    mark_not_ready(self, reason="Hassette is shutting down")
-                    break
-                try:
-                    await self.dispatch(str(event.topic), event)
-                except Exception as exc:
-                    self.logger.exception("Error processing event: %s", exc)
+        """Worker loop that processes events from the stream.
+
+        Every exit closes the event streams before the serve wrapper reports (spec 134 D9): once this
+        loop ends nothing can ever deliver another event, so a later send is dropped instead of waiting
+        on a channel nothing drains.
+        """
+        try:
+            async with self.stream:
+                mark_ready(self, reason="Stream opened")
+                self._draining = True
+                async for event in self.stream:
+                    if self.shutdown_event.is_set():
+                        active_timers = self._duration_hold.duration_timers_active
+                        if active_timers > 0:
+                            self.logger.info(
+                                "Shutdown: %d active duration timer(s) will be cancelled",
+                                active_timers,
+                            )
+                        self.logger.debug("Hassette is shutting down, exiting bus loop")
+                        mark_not_ready(self, reason="Hassette is shutting down")
+                        break
+                    try:
+                        await self.dispatch(str(event.topic), event)
+                    except Exception as exc:
+                        self.logger.exception("Error processing event: %s", exc)
+        finally:
+            self._draining = False
+            if not self.stop_requested():
+                self.logger.warning("Event bus stopped unexpectedly; event sends are dropped from now on")
+            await self.close_event_streams()
+
+    async def close_streams_unless_draining(self) -> None:
+        """Close the event streams if this bus's drain loop isn't running, for failed startup (spec 134 D9).
+
+        A bus that never entered its loop, or already left it, will never drain the channel again.
+        """
+        if self._draining:
+            return
+        self.logger.debug("Event bus is not draining; closing the event channel before teardown")
+        await self.close_event_streams()
+
+    async def close_event_streams(self) -> None:
+        """Close this bus's receive clone and the channel's own streams, waking every blocked sender.
+
+        It lives on the bus rather than on ``EventStreamService`` because a sender blocked on a full
+        channel is released only once every receive stream is closed, and only the bus holds this
+        clone. From then on every send is dropped, the shutdown's own status events included. anyio's
+        memory-stream closes complete without yielding, so this runs to completion on a cancelled task.
+        Idempotent.
+        """
+        self.stream.close()
+        await self.hassette.event_stream_service.close_streams()
 
 
 def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:

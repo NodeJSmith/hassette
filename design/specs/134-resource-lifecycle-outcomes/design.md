@@ -34,8 +34,9 @@ Areas and where each new piece lives:
 - **Required/optional declaration** — a class-level declaration on each `Service`, replacing
   `restart_spec` (D17); `Hassette`'s report routing reads it, and `add_child` rejects a required
   Service whose parent isn't `Hassette`.
-- **Dead bus** — `BusService` closes the event streams whenever it fails, in its init body or its
-  serve (D9). A serve failure then arrives as a D8 report; an init failure is a boot failure (D1). The
+- **Dead bus** — `BusService` closes the event streams whenever its drain loop ends, and failed
+  startup has it close them unless the loop is running (D9). A serve failure then arrives as a D8
+  report; an init failure is a boot failure (D1). The
   bus is required (D17), so either way the process exits through D14 or failed startup. After bus
   death, no producer blocks (D9).
 - **Failure report** — `Service`'s serve wrapper reports post-handoff serve failures to `Hassette`'s
@@ -343,10 +344,14 @@ underlying channel send has no timeout. A dead consumer plus a full channel woul
 | Code | Reuses `close_streams()` and the closed check | New timeout config or constant | New flag plus the same blocked-sender gap |
 
 **Recommendation:** A, because it reuses the existing closed-stream path and is the only option that
-also releases a sender already blocked on a full channel. `BusService`, which owns the channel, closes
-the streams in its own failure paths: before it reports a serve failure (D8), so D14's CRASHED emit is
-dropped instead of blocking, and when its init body fails at boot, so failed-startup teardown can't
-fill a channel nobody drains. Other fatal exits leave the streams open and keep their shutdown telemetry. A dead bus does not release blocked senders
+also releases a sender already blocked on a full channel. `BusService`, which owns the channel and is
+the only component that knows whether it is draining, closes the streams whenever its drain loop ends:
+before it reports a serve failure (D8), so D14's CRASHED emit is dropped instead of blocking, and on a
+requested stop too, since nothing can deliver an event after the loop ends. At boot, failed startup asks
+the bus to close the streams unless its drain loop is running, so failed-startup teardown can't fill a
+channel nobody drains. A bus init failure's own FAILED send is awaited before any bus code sees the
+error, which is why this close is driven from failed startup, not from the bus's init path. Other fatal
+exits keep their shutdown telemetry for as long as the bus drains. A dead bus does not release blocked senders
 by itself: `BusService` holds a clone of the receive stream, and `EventStreamService` keeps the
 original open. Behavior to pin:
 - after bus death, no producer blocks and events are dropped. `Hassette.send_event()` already drops on
@@ -359,7 +364,7 @@ original open. Behavior to pin:
 **Pick C instead if** never: it leaves already-blocked senders blocked, which A and B both release.
 That is out of scope under the posture.
 **Reversibility:** easy
-**Ratified:** Chose closing the event streams on bus death over per-send timeouts or a bus-dead flag, to release every blocked producer through the existing closed-stream drop, accepting that a wedged-but-alive bus stays out of scope. At the sketch challenge (Finding 10), chose letting `handle_stop()` run with closed streams over accepting skipped STOPPED transitions. At the re-challenge comb, chose `BusService` closing its own streams before reporting over D14 closing them for every fatal exit, keeping shutdown telemetry for other fatal exits at the cost of one bus-owned cleanup step.
+**Ratified:** Chose closing the event streams on bus death over per-send timeouts or a bus-dead flag, to release every blocked producer through the existing closed-stream drop, accepting that a wedged-but-alive bus stays out of scope. At the sketch challenge (Finding 10), chose letting `handle_stop()` run with closed streams over accepting skipped STOPPED transitions. At the re-challenge comb, chose `BusService` closing its own streams before reporting over D14 closing them for every fatal exit, keeping shutdown telemetry for other fatal exits at the cost of one bus-owned cleanup step. At the ship-time challenge for issue 5 (2026-10-27): chose a bus-owned trigger (close whenever the drain loop ends; failed startup closes unless the loop is running) over keying the close on the bus's status or on whether a stop was requested, since both guessed at the bus's state, accepting that a bus init failure with a full channel exits only after the startup timeout, and that a peer failing in the tick before a starting bus enters its loop closes that bus's streams and logs a misleading serve failure.
 
 ### D10: Is a timed-out app initializer cancelled?
 
@@ -931,7 +936,8 @@ one pre-emptively.
    (restart machinery, terminal-status preservation), and D7's boot outcome for serve failures.
    After: 2, 3. Issue: #3107
 5. **Shut down cleanly when the bus dies**: route bus death through issue 4's fatal path, have the bus
-   close the event streams on any failure (init or serve) so no producer blocks, have direct
+   close the event streams whenever its drain loop ends, and at failed startup unless it is draining
+   (D9's amendment), so no producer blocks, have direct
    `EventStreamService.send_event()` callers handle the closed-stream error, and let status transitions
    run with closed streams.
    Implements: D3, D9. After: 4. Issue: #3108
