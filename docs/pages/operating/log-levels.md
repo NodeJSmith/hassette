@@ -31,7 +31,7 @@ Hassette applies `[hassette.logging]` once, at startup, so an edit there takes e
 --8<-- "pages/operating/snippets/basic_example.toml"
 ```
 
-Setting `log_level = "DEBUG"` at the top level raises verbosity for every service at once. Per-service fields let you override specific services up or down without touching the rest.
+Setting the global `log_level = "DEBUG"` in `[hassette.logging]` raises verbosity for every service at once. Per-service fields let you override specific services up or down without touching the rest.
 
 ## Debug Flags
 
@@ -113,7 +113,7 @@ Each app sets its own log level with `log_level` in that app's `config`.
 --8<-- "pages/operating/snippets/per_app_log_level.toml"
 ```
 
-`<key>` in `[hassette.apps.<key>]` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` inherit `logging.apps`, which in turn defaults to the global `log_level`.
+`<key>` in `[hassette.apps.<key>]` is the app's section name in `hassette.toml`, the same key `hassette app` lists. Apps without an explicit `log_level` inherit `logging.apps`, which in turn defaults to the global `log_level`. Setting `apps = "WARNING"` under `[hassette.logging]` makes `WARNING` the default for every app.
 
 An app's `log_level` covers the lines its own code writes: `self.logger` and any logger created under it with `self.logger.getChild(...)`. Lines Hassette writes about the app come from framework loggers, which follow framework levels by default:
 
