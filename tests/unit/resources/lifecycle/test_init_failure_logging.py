@@ -1,0 +1,163 @@
+"""Tests for how many ERROR records a failed initialization produces.
+
+A non-app resource whose ``on_initialize()`` raises must surface that exception at ERROR exactly
+once (``handle_failed()``'s "<resource> failed" record, with the traceback). The initialization
+coordinator's exception observer and ``start()``'s joiner observer see the same exception object
+and log it at DEBUG instead (#3501). An app-role resource's inner layers log at DEBUG, so when it is
+started directly the joiner's observer carries the one ERROR.
+"""
+
+import asyncio
+import logging
+from typing import ClassVar
+
+import pytest
+from hassette_wire import ResourceStatus
+
+from hassette.resources.base import Resource
+from hassette.resources.lifecycle import start
+from hassette.testing import wait_for
+from hassette.types.enums import ResourceRole
+from tests.support.mock_hassette import make_mock_hassette
+from tests.unit.resources.conftest import build_hassette
+
+from .conftest import ConcreteResource, ShutdownCounter
+
+
+class FailingInitResource(ConcreteResource):
+    """Resource whose ``on_initialize()`` always raises."""
+
+    async def on_initialize(self) -> None:
+        raise RuntimeError("init boom")
+
+
+class FailingInitAppRoleResource(FailingInitResource):
+    """App-role resource whose ``on_initialize()`` always raises.
+
+    ``run_hooks()`` passes DEBUG to ``handle_failed()`` and the coordinator observer logs at DEBUG for an
+    app-role failure, so neither records it and an outer layer has to log the ERROR.
+    """
+
+    role = ResourceRole.APP
+
+
+def make_failing_resource(cls: type[FailingInitResource] = FailingInitResource) -> FailingInitResource:
+    resource = cls(hassette=make_mock_hassette(sealed=False))
+    resource.lifecycle_logger.setLevel(logging.DEBUG)
+    return resource
+
+
+def lifecycle_records(caplog: pytest.LogCaptureFixture, resource: ConcreteResource) -> list[logging.LogRecord]:
+    return [record for record in caplog.records if record.name == resource.lifecycle_logger.name]
+
+
+def assert_single_error_traceback(records: list[logging.LogRecord]) -> None:
+    errors = [record for record in records if record.levelno >= logging.ERROR]
+    assert len(errors) == 1, f"expected one ERROR record, got {[r.getMessage() for r in errors]}"
+    assert "init boom" in errors[0].getMessage()
+    assert errors[0].exc_info is not None, "the surviving ERROR record must carry the traceback"
+
+    debug_messages = [record.getMessage() for record in records if record.levelno == logging.DEBUG]
+    assert any("unhandled exception" in message for message in debug_messages), (
+        "the observer log should be demoted to DEBUG, not removed"
+    )
+
+
+async def test_direct_initialize_failure_logs_one_error(caplog: pytest.LogCaptureFixture) -> None:
+    resource = make_failing_resource()
+
+    with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
+        with pytest.raises(RuntimeError, match="init boom"):
+            await resource.initialize()
+        await asyncio.sleep(0)  # let the coordinator's done callbacks run
+
+    assert resource.status == ResourceStatus.FAILED
+    assert_single_error_traceback(lifecycle_records(caplog, resource))
+
+
+async def test_start_failure_logs_one_error(caplog: pytest.LogCaptureFixture) -> None:
+    resource = make_failing_resource()
+
+    with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
+        start(resource)
+        await wait_for(lambda: resource._pending_start_task is None, desc="start joiner settled")
+        await asyncio.sleep(0)
+
+    assert resource.status == ResourceStatus.FAILED
+    records = lifecycle_records(caplog, resource)
+    assert_single_error_traceback(records)
+    assert any("start joiner" in r.getMessage() for r in records if r.levelno == logging.DEBUG), (
+        "the start joiner's observer should log the re-raised exception at DEBUG"
+    )
+
+
+async def test_observer_keeps_error_when_handle_failed_never_ran(caplog: pytest.LogCaptureFixture) -> None:
+    """A body failure outside ``handle_failed()`` still reaches ERROR through the coordinator observer."""
+    resource = ConcreteResource(hassette=make_mock_hassette(sealed=False))
+    resource.lifecycle_logger.setLevel(logging.DEBUG)
+    # handle_starting()'s status event succeeds; handle_running()'s raises -- a body failure
+    # that never goes through handle_failed().
+    resource.hassette.send_event.side_effect = [None, RuntimeError("init boom")]  # pyright: ignore[reportAttributeAccessIssue]
+
+    with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
+        with pytest.raises(RuntimeError, match="init boom"):
+            await resource.initialize()
+        await asyncio.sleep(0)
+
+    errors = [r for r in caplog.records if r.name == resource.lifecycle_logger.name and r.levelno >= logging.ERROR]
+    assert len(errors) == 1, [r.getMessage() for r in errors]
+    assert "unhandled exception" in errors[0].getMessage()
+    assert errors[0].exc_info is not None
+
+
+class MissingDependencyResource(ConcreteResource):
+    """Declares a dependency that no ``Hassette`` child satisfies, so the dependency wait raises."""
+
+    depends_on: ClassVar[list[type[Resource]]] = [ShutdownCounter]
+
+
+async def test_observer_keeps_error_when_handle_failed_raises_a_different_exception(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``handle_failed()`` logs the dependency failure, then its own status-event send raises.
+
+    The coordinator propagates that second exception, which nothing has logged yet, so the
+    observer must keep it at ERROR even though the resource ended the attempt in FAILED.
+    """
+    resource = MissingDependencyResource(hassette=build_hassette())
+    resource.lifecycle_logger.setLevel(logging.DEBUG)
+    # handle_starting()'s status event succeeds; handle_failed()'s raises.
+    resource.hassette.send_event.side_effect = [None, RuntimeError("event boom")]  # pyright: ignore[reportAttributeAccessIssue]
+
+    with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
+        with pytest.raises(RuntimeError, match="event boom"):
+            await resource.initialize()
+        await asyncio.sleep(0)
+
+    assert resource.status == ResourceStatus.FAILED
+    errors = [r for r in caplog.records if r.name == resource.lifecycle_logger.name and r.levelno >= logging.ERROR]
+    logged = [r.exc_info[1] for r in errors if r.exc_info is not None]
+    assert [type(exc).__name__ for exc in logged] == ["RuntimeError", "RuntimeError"]
+    assert "no matching child" in str(logged[0])
+    assert str(logged[1]) == "event boom", [r.getMessage() for r in errors]
+
+
+async def test_start_failure_of_app_role_resource_logs_one_error(caplog: pytest.LogCaptureFixture) -> None:
+    """``start(app)`` outside ``initialize_instances()`` (e.g. ``AppTestHarness``) has no outer logger.
+
+    ``handle_failed()`` and the coordinator observer log an app-role failure at DEBUG, so nothing has
+    logged it at ERROR when the start joiner re-raises it: the joiner's observer must keep ERROR.
+    """
+    resource = make_failing_resource(FailingInitAppRoleResource)
+
+    with caplog.at_level(logging.DEBUG, logger=resource.lifecycle_logger.name):
+        start(resource)
+        await wait_for(lambda: resource._pending_start_task is None, desc="start joiner settled")
+        await asyncio.sleep(0)  # the joiner's observer is a done callback that may not have run yet
+
+    assert resource.status == ResourceStatus.FAILED
+    errors = [r for r in lifecycle_records(caplog, resource) if r.levelno >= logging.ERROR]
+    assert len(errors) == 1, [r.getMessage() for r in errors]
+    assert "start joiner" in errors[0].getMessage()
+    assert errors[0].exc_info is not None
+    assert str(errors[0].exc_info[1]) == "init boom"

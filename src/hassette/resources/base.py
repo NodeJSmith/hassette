@@ -569,6 +569,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.lifecycle_logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await handle_starting(self)
 
+        # Only Exception: a CancelledError here comes from cancel() or shutdown(), which own that
+        # outcome, so the attempt is intentionally not marked FAILED or logged as a failure.
         try:
             await self._auto_wait_dependencies()
         except Exception as exc:

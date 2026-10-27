@@ -80,6 +80,20 @@ class LifecycleMixin(_LifecycleHostP):
     each starting their own attempt.
     """
 
+    _last_error_logged: BaseException | None = None
+    """The exception the lifecycle most recently logged at ERROR with its traceback.
+
+    Set by ``handle_failed()`` and by the lifecycle tasks' exception observers, only when they log at
+    ERROR; cleared when a new initialization attempt starts. An observer whose task raised this same
+    object logs it at DEBUG instead (see ``_install_exception_observer()``). That dedupes an
+    initialization failure across ``handle_failed()``, the coordinator's observer, and ``start()``'s
+    joiner observer: the coordinator's observer is registered on ``_init_task`` before the joiner's
+    ``asyncio.shield()`` and so always runs first. It covers only these lifecycle logs, not
+    ``AppLifecycleService.initialize_instances()``'s own ERROR, and remembers one exception: a
+    different ERROR log on the same resource between two observers of one failure lets the second
+    log it again.
+    """
+
     _pending_start_task: asyncio.Task | None = None
     """``start()``'s own joiner task. Stays set for the entire duration of the joiner's
     ``initialize()`` call -- including the full run of ``_init_task`` once ``coordinate_initialize()``
