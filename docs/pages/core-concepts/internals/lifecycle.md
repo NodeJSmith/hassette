@@ -85,7 +85,7 @@ A service enters `RUNNING` just before its `serve()` loop begins. Hassette start
 
 Hassette starts services in dependency order. `DatabaseService` starts first, on its own, so session tracking exists before anything else runs. Services with no `depends_on` start next. Services that declare `depends_on` start after all their dependencies have signaled readiness. Services at the same dependency depth start concurrently as one wave.
 
-A wave finishes when every member has completed initialization and signaled readiness. Readiness alone isn't enough: `WebApiService` signals readiness inside `on_initialize()`, before its scheduler child initializes.
+A wave finishes when every member has completed initialization and signaled readiness. Readiness alone isn't enough. `WebApiService` owns a `Scheduler` child that runs the web layer's periodic jobs. It signals readiness inside `on_initialize()`, before that child finishes initializing.
 
 A failed initialization fails startup immediately. Hassette exits and names each failed service with its error. Startup never retries a failed initialization in-process; the process supervisor restarts Hassette instead.
 
@@ -129,13 +129,16 @@ would have returned.
 
 ### Inspecting a report
 
-Python callers read the report two ways:
+Python callers read the report two ways. The
+[`TeardownReport`][hassette.resources.teardown.TeardownReport] reference lists its fields, such as
+`causes` and `pending_tasks`, and [`TeardownCause`][hassette.resources.teardown.TeardownCause] lists
+every cause value.
 
 - The **return value** of `await resource.shutdown()` — the exact report from that call.
-- The **`teardown_report` property** — the current unconsumed report, or `None` if no shutdown
-  attempt has completed yet (or a prior restart-safe report was already consumed by a new
-  initialization). Prefer the return value when history matters; `teardown_report` only reflects
-  the current state.
+- The **`teardown_report` property** — the current unconsumed report, or `None`. A report is
+  *consumed* when the resource initializes again: a restart-safe report is cleared at that point.
+  The property is also `None` before any shutdown attempt completes. Prefer the return value when
+  history matters; `teardown_report` only reflects the current state.
 
 ```python
 --8<-- "pages/core-concepts/snippets/internals_teardown_report_inspect.py"
