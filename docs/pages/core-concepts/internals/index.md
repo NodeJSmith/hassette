@@ -49,7 +49,7 @@ flowchart TD
     end
 
     HA_IN --> WS
-    WS -. "state_changed<br/>(priority 100)" .-> SP
+    BS -. "state_changed<br/>(priority 100)" .-> SP
     CE --> Handler
     SP -. "self.states.*" .-> Handler
     Handler --> AR & WSOut
@@ -63,7 +63,7 @@ flowchart TD
     style outbound fill:#fff0e8,stroke:#cc8844
 ```
 
-[`StateProxy`][hassette.core.state_proxy.StateProxy] holds a priority-100 subscription to `state_changed` events. Its cache updates before any app handler sees the event. `self.states.*` always reflects the current state at handler invocation time.
+[`StateProxy`][hassette.core.state_proxy.StateProxy] holds a priority-100 subscription to `state_changed` events. Matching listeners run in priority order, highest first, and the default priority is 0. `StateProxy` therefore updates its cache before any app handler sees the event. `self.states.*` always reflects the current state at handler invocation time. [Fan-out order](../bus/backpressure.md#fan-out-order-affects-which-listener-drops) covers the full ordering rule.
 
 Outbound calls go through the per-app [Api][hassette.api.api.Api] handle, which delegates to shared framework services: single-entity reads use [`ApiResource`][hassette.core.api_resource.ApiResource] over REST, while service calls and bulk state reads use `WebsocketService` over WebSocket.
 
@@ -225,4 +225,4 @@ Per-app handles are thin wrappers around the shared services. When an app shuts 
 
 ## EventStreamService: Constructor-Time Dependency
 
-`EventStreamService` has no `depends_on` because its streams are created synchronously in `__init__`, before the lifecycle begins. The `Hassette` root registers `EventStreamService` before `BusService`, ensuring the receive stream exists when `BusService` is constructed. This ordering is structural, not declared through `depends_on`.
+`EventStreamService` has no `depends_on` because its streams are created synchronously in `__init__`, before the lifecycle begins. [Lifecycle & Supervision](lifecycle.md) defines the lifecycle and its startup order. The `Hassette` root registers `EventStreamService` before `BusService`, ensuring the receive stream exists when `BusService` is constructed. This ordering is structural, not declared through `depends_on`.
