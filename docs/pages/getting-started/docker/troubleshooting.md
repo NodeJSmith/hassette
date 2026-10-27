@@ -39,7 +39,7 @@ HASSETTE__TOKEN=your_long_lived_token_here
 
 **Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when HA runs as a container on the same Docker network (for example, in the same compose file); otherwise use your HA instance's IP address. Match the scheme to the URL you use for HA in your browser — `http://` or `https://`. Using `https://` when HA serves plain HTTP causes a connection failure.
 
-**Network not reachable.** If the URL looks correct, test the connection from inside the container (substitute the same token value from your `config/.env`):
+**Network not reachable.** If the URL looks correct, test the connection from inside the container (substitute your `HASSETTE__BASE_URL` and token values from your `config/.env`):
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-curl-ha.sh"
@@ -57,9 +57,9 @@ Hassette reports a successful connection in the logs, but your apps never initia
 --8<-- "pages/getting-started/docker/snippets/ts-ls-apps.sh"
 ```
 
-If this returns an empty directory or an error, check that your apps are in `./config/apps` on the host and that `compose.yml` mounts `./config:/config`.
+If this returns an empty directory or an error, check that your apps are in `./config/apps` on the host and that `docker-compose.yml` mounts `./config:/config`.
 
-If your compose file still mounts `./apps:/apps` from an earlier version, Hassette ignores that directory, and startup warns that `/config/apps` doesn't exist or holds no apps. Move the files into `./config/apps/` and remove the `./apps:/apps` line. To keep the separate mount instead, add `HASSETTE__APPS__DIRECTORY: /apps` to the compose `environment:` block.
+If your compose file still mounts `./apps:/apps` from an earlier version, Hassette ignores that directory, and startup warns that `/config/apps` doesn't exist or holds no apps. Move the files into `./config/apps/` and remove the `./apps:/apps` line. To keep the separate mount instead, add `- HASSETTE__APPS__DIRECTORY=/apps` to the compose `environment:` block.
 
 **Syntax error in an app file.** A Python syntax error prevents that app from loading. Scan the logs for errors:
 
@@ -73,11 +73,10 @@ Look for a `SyntaxError` or `ImportError` with a file path. Fix the error in tha
 
 Your app imports a third-party package, but Hassette reports an `ImportError` at startup.
 
-The container's start script, not Hassette, installs from `requirements.txt`, and only when `HASSETTE_DOCKER_INSTALL_DEPS=1` is set in the compose `environment:` block. The name has a single underscore after `HASSETTE` because the start script reads it, while the double-underscore `HASSETTE__` namespace belongs to Hassette settings. Check your `compose.yml`:
+The container's start script, not Hassette, installs from `requirements.txt`, and only when `HASSETTE_DOCKER_INSTALL_DEPS=1` is set in the compose `environment:` block. The name has a single underscore after `HASSETTE` because the start script reads it, while the double-underscore `HASSETTE__` namespace belongs to Hassette settings. Check your `docker-compose.yml`:
 
 ```yaml
-environment:
-  HASSETTE_DOCKER_INSTALL_DEPS: "1"
+--8<-- "pages/getting-started/docker/snippets/ts-install-deps-env.yml"
 ```
 
 If the variable is set, confirm `requirements.txt` is readable inside the container. The start script scans the config directory and the apps directory, so `./config/requirements.txt` is the one place to put it:
@@ -98,7 +97,7 @@ If you see no install output, `HASSETTE_DOCKER_INSTALL_DEPS` was not picked up. 
 
 You navigate to `http://your-host:8126` and get a connection refused error.
 
-The port is not published unless your `compose.yml` includes a `ports:` mapping for the Hassette service:
+The port is not published unless your `docker-compose.yml` includes a `ports:` mapping for the Hassette service:
 
 ```yaml
 services:
@@ -109,13 +108,13 @@ services:
 
 If the port is listed but you still get connection refused, check the bind address. `"127.0.0.1:8126:8126"` only accepts connections from the host machine itself. Use `"8126:8126"` to accept connections from other devices on your network, like your phone.
 
-After updating `compose.yml`, run `docker compose up -d` to apply the change.
+After updating `docker-compose.yml`, run `docker compose up -d` to apply the change.
 
 ## Changes to Apps Don't Take Effect
 
 You edit an app file on disk, but Hassette continues running the old version.
 
-The file watcher is off in production mode by default. Restart the container to pick up your changes:
+Automatic reloads are blocked in production mode by default. Restart the container to pick up your changes:
 
 ```bash
 docker compose restart hassette
@@ -153,7 +152,7 @@ To pin a token of your own choosing instead of the generated one, set `HASSETTE_
 
 **Symptom:** Hassette keeps restarting in a loop whenever Home Assistant restarts or goes offline, even though Hassette itself is healthy.
 
-**Cause:** Your `compose.yml` has a `healthcheck:` section (or an autoheal tool such as `willfarrell/autoheal`) pointed at `/api/health/ready`. If you have no `healthcheck:` configured, this section doesn't apply to you. That endpoint returns HTTP 503 when Hassette cannot reach Home Assistant, which looks unhealthy to Docker and triggers a restart. The container is marked unhealthy during every HA outage, including routine HA restarts, so autoheal keeps killing and restarting Hassette unnecessarily.
+**Cause:** Your `docker-compose.yml` has a `healthcheck:` section (or an autoheal tool such as `willfarrell/autoheal`) pointed at `/api/health/ready`. If you have no `healthcheck:` configured, this section doesn't apply to you. That endpoint returns HTTP 503 when Hassette cannot reach Home Assistant, which looks unhealthy to Docker and triggers a restart. The container is marked unhealthy during every HA outage, including routine HA restarts, so autoheal keeps killing and restarting Hassette unnecessarily.
 
 **Fix:** Point your healthcheck at `/api/health/live` instead. The liveness endpoint returns 200 whenever the Hassette event loop can respond, regardless of Home Assistant connectivity. Only a true process failure — Hassette itself crashed or stopped responding — makes a liveness probe fail.
 
@@ -168,6 +167,6 @@ If a reverse proxy or load balancer needs to know when Hassette is fully connect
 If none of the above resolved your issue:
 
 - Search [GitHub Issues](https://github.com/NodeJSmith/hassette/issues) for your error message. Someone may have hit the same thing.
-- Open a new issue with your `docker compose logs hassette` output and your `compose.yml` (redact your token).
+- Open a new issue with your `docker compose logs hassette` output and your `docker-compose.yml` (redact your token).
 
 For problems not specific to Docker (app logic, bus subscriptions, scheduler behavior), see the main [Troubleshooting](../../troubleshooting.md) page.
