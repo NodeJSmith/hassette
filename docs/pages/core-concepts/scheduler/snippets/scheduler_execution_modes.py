@@ -40,10 +40,15 @@ class RefreshApp(App[AppConfig]):
         # If the next tick arrives before this finishes,
         # the in-flight run is cancelled and a fresh one starts.
         self.logger.info("Refreshing report")
-        await self.api.call_service(
-            "script", "turn_on",
-            entity_id="script.generate_report",
-        )
+        try:
+            await self.api.turn_on("input_boolean.report_refreshing")
+            await self.api.call_service(
+                "script", "turn_on",
+                entity_id="script.generate_report",
+            )
+        finally:
+            # Runs on completion and on cancellation alike.
+            await self.api.turn_off("input_boolean.report_refreshing")
 # --8<-- [end:restart]
 
 
@@ -110,13 +115,14 @@ class IntroApp(App[AppConfig]):
         pass
 
 
-# One-shot: mode= accepted, no overlap effect
+# One-shot: mode= governs overlap with manual submissions
 
 # --8<-- [start:one_shot_mode]
 class CleanupApp(App[AppConfig]):
     async def on_initialize(self):
-        # mode= is accepted on run_in for API uniformity.
-        # It has no overlap effect — a one-shot never re-fires.
+        # The automatic fire happens once, so it never overlaps itself.
+        # mode= governs manual submissions (job.submit(), Run Now),
+        # including one still running when the automatic fire is due.
         await self.scheduler.run_in(
             self.cleanup,
             delay=60,

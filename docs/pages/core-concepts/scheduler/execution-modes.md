@@ -53,10 +53,14 @@ then starts a fresh one.
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_execution_modes.py:restart"
 ```
 
-The cancelled invocation receives `CancelledError` at its next `await`.
-Making jobs cancellation-safe is the author's responsibility. The framework
-cancels the task; `try/finally` runs cleanup as the cancellation propagates.
-Suppressing the `CancelledError` keeps the task alive and defeats the restart.
+The cancelled invocation receives `asyncio.CancelledError` at its next
+`await`. The framework cancels the task but performs no cleanup of its own.
+In the example above, the `finally` block runs as the cancellation
+propagates, so the helper flag resets on every exit path.
+
+A job that catches `asyncio.CancelledError` stays alive and defeats the
+restart. A bare `except:` or `except BaseException:` catches it too. A
+handler that must catch it re-raises it after cleanup.
 
 `restart` is the right choice for "latest wins" patterns: a report
 refresh where only the most recent run matters, or a cache reload where
@@ -117,16 +121,22 @@ An explicit `mode=` always overrides the tier default.
 
 ## One-Shot Jobs
 
-`mode=` is accepted on one-shot schedules (`run_in` and `run_once`) for
-API uniformity. It has no overlap effect — a one-shot fires once and is
-removed, so no overlap is possible.
+A one-shot schedule (`run_in` or `run_once`) fires automatically once.
+The job then becomes `completed` and stays live — it is not removed. See
+[Schedule status](management.md#schedule-status).
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_execution_modes.py:one_shot_mode"
 ```
 
-The value passed is stored on the job and appears in the jobs API
-response, but it never triggers guard logic.
+Only one automatic fire occurs, so automatic occurrences never overlap
+each other. `mode=` still governs overlap with
+[manual submissions](#manual-submission) through `job.submit()` or Run
+Now, the same as on any other job, in both directions. If a manual
+submission is still running when the one-shot becomes due, the automatic
+fire goes through the same guard: `single` suppresses it (so the only
+automatic invocation never runs), `queued` delays it until the manual
+run finishes, and `restart` cancels the manual run in its favor.
 
 ## Manual Submission
 
@@ -146,8 +156,8 @@ Each job with a non-`parallel` mode tracks two live counters:
 - **Dropped** — ticks discarded by `queued` when the queue was at its
   cap.
 
-These counts appear in the [monitoring UI's Jobs view](../../web-ui/index.md)
-when non-zero, alongside the job's mode. They are live-only diagnostics
+These counts appear on the [Handlers page](../../web-ui/debug-handler.md#using-the-handlers-page)
+(sidebar > Handlers) when non-zero, alongside the job's mode. They are live-only diagnostics
 — held in memory, reset to zero when the process restarts, never
 persisted to the database.
 
@@ -165,8 +175,9 @@ failures.
 
 A `restart` job working as designed shows a high cancelled count and a 100%
 success rate. Cancellation is the intended outcome, so it never counts
-against the success rate. The cancelled column appears in the Handlers table
-for both jobs and event handlers.
+against the success rate. The cancelled column appears on the
+[Handlers page](../../web-ui/debug-handler.md#using-the-handlers-page)
+(sidebar > Handlers) for both jobs and event handlers.
 
 ![Cancelled column in the monitoring UI handlers and jobs table](../../../_static/web_ui_handlers_cancelled.png)
 
