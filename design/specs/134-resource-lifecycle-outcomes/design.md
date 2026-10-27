@@ -965,3 +965,14 @@ Housekeeping outside the issues (D16, D18), done: #1222 closed as obsolete; #172
 coordinator and shutdown-body splits; separate issues outside the milestone: #3112 (`_pending_start_task`
 machinery), #3113 (remaining duplicate guards), #3114 (`TaskBucket` subclassing `Resource`). Milestone:
 *Resource Lifecycle*; the overlapping originals closed as superseded. Follow-up filed into the milestone so it isn't lost (removable later): #3395, replacing `TeardownReport`'s evidence tree with a small outcome (result, what is still running, reason).
+
+## Addendum
+
+**2026-10-27 — implementation decisions for item 6 (#3109).** The issue was combed against the code before building. These were decided with the user and are backed by `design/research/2026-10-27-needs-restart-flag/prior-art.md`:
+
+- **D18: the skip of shutdown hooks after a failed init stays apps-only, as a per-attempt flag.** `AppLifecycleService` sets the flag on the failed-init shutdown attempt. It is not propagated to children, so the never-initialized `Bus`/`Scheduler` still run `on_shutdown` and remove the app's listeners and jobs. A general Resource rule ("hooks only after init completed", HA/OTP's shape) was rejected for two reasons. Children initialize after the user hooks, so the rule would need a careful definition to keep their cleanup. It would also skip framework services' `on_shutdown` after a partial init, which HA only gets away with by having integrations register `async_on_unload` callbacks. HA's rule covers integrations, which are user code, and `App` is the equivalent boundary here.
+- **D5/D11: status is sticky FAILED.** A flagged instance reports FAILED until restart, including after a stop that discards its failure entry. The record stores the instance and class name, so orphaned rows render (HA `FAILED_UNLOAD`, systemd `failed`).
+- **D18: `is_restart_safe` is redefined in place as "work may still be running".** There is no second predicate. `CHILD_SHUTDOWN_FAILED` and `CHILD_SHUTDOWN_TIMED_OUT` count as incomplete evidence. `CHILD_RESTART_UNSAFE` means a child's report satisfies the predicate.
+- **D11: the wire field is `needs_restart: NeedsRestart | None` (`reason`, `pending_tasks`, `flagged_at`).** It is on `AppInstance` and carried on `app_status_changed` (HA sends the full entry on each event).
+- **D11: CLI.** `hassette app` gets a needs-restart count column. `hassette status` gets a section listing flagged instances.
+- **D18: walk-away cleanup bound.** Removing `failed_instance_cleanup_timeout_seconds` leaves `walk_away_from_instance`'s listener and job cleanup bounded by a fixed module constant instead.
