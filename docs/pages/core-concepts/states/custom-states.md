@@ -42,9 +42,11 @@ Each base class determines the Python type of `value` on the resulting state obj
 --8<-- "pages/core-concepts/states/snippets/custom-states/bool_base_state.py"
 ```
 
-### `DateTimeBaseState`: `ZonedDateTime`, `PlainDateTime`, or `Date` value
+### `DateTimeBaseState`: `ZonedDateTime` value
 
 [`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] declares a datetime `value_type`. The conversion pipeline parses the raw state string into a [`whenever`](https://whenever.readthedocs.io/) datetime type (`from whenever import ZonedDateTime` — Hassette's date/time library). Every string format Home Assistant sends (offset-aware, naive, or date-only) becomes a `ZonedDateTime`; naive and date-only strings assume the configured timezone.
+
+The `value` annotation is `ZonedDateTime | PlainDateTime | Date | None`, but converted states only hold `ZonedDateTime` or `None`. An `isinstance(state.value, ZonedDateTime)` check narrows the type for the type checker.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/datetime_base_state.py"
@@ -82,7 +84,7 @@ Fields on the attributes class are optional by default when typed with `| None`.
 
 ### Via `self.states[CustomStateClass]`
 
-`self.states[RedditState]` returns a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection typed to `RedditState`. Iteration yields `(entity_id, state)` pairs where each `state` is a fully converted `RedditState` instance.
+`self.states[RedditState]` returns a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection typed to `RedditState`. `.items()` yields `(entity_id, state)` pairs where each `state` is a fully converted `RedditState` instance. Iterating the collection directly yields entity IDs, like a dict.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/via_get_states.py"
