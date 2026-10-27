@@ -1,5 +1,8 @@
 from hassette import App, AppConfig, D, states
+# --8<-- [start:lookup-imports]
 from hassette.exceptions import EntityNotInViewError
+
+# --8<-- [end:lookup-imports]
 
 
 class SensorShapeApp(App[AppConfig]):
