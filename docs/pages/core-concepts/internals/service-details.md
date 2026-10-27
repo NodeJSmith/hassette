@@ -131,7 +131,7 @@ flowchart TD
 
 1. Calls `_ScheduledJobQueue.pop_due_and_peek_next(now)`: pops all jobs whose dispatch time (`fire_at`) is at or before `now` and returns the next scheduled time.
 2. Spawns a `TaskBucket` task for each due job via [`CommandExecutor`][hassette.core.command_executor.CommandExecutor].
-3. Sleeps until the next job's `fire_at` time, capped at `MAX_SLEEP_SECONDS`.
+3. Sleeps until the next job's `fire_at` time, capped at `MAX_SLEEP_SECONDS` (defined in `src/hassette/core/scheduler_service.py`).
 
 When no jobs are queued, the loop sleeps for `MAX_SLEEP_SECONDS`. The `kick()` method interrupts the sleep immediately. It fires whenever a job is enqueued or a queued job is removed. The loop then sees schedule changes without waiting out the previous sleep.
 
@@ -150,7 +150,7 @@ When no jobs are queued, the loop sleeps for `MAX_SLEEP_SECONDS`. The `kick()` m
 
 ### Missed-Job Handling
 
-`SchedulerService` does not make up missed executions while it is running. A job whose dispatch time (`fire_at`) passed while the scheduler loop was blocked or paused in-process fires once on the next `pop_due_and_peek_next` call, not multiple times for the skipped interval. Scheduled jobs live in the in-memory heap and are not rehydrated from telemetry after a process restart. `Every` triggers call `advance_past(now)` to advance `next_run` past the current time, so the job schedules forward from now rather than from its originally missed time.
+`SchedulerService` does not make up missed executions while it is running. A job whose dispatch time (`fire_at`) passed while the scheduler loop was blocked or paused in-process fires once on the next `pop_due_and_peek_next` call, not multiple times for the skipped interval. Scheduled jobs live in the in-memory heap and are not rehydrated from telemetry after a process restart. After a job fires, the scheduler calls the trigger's `next_run_time(previous_run, current_time)`. The recurring built-in triggers (`Every`, `Daily`, `Cron`) return a time strictly after `current_time`. `Every` steps forward by whole intervals. The job schedules forward from now rather than from its originally missed time.
 
 ### Jitter and Job Groups
 
@@ -202,7 +202,7 @@ flowchart TD
 
 `StateProxy` declares `depends_on: [ApiResource, BusService, SchedulerService]`. WebSocket lifecycle readiness is decoupled from the Home Assistant connection, so `StateProxy` starts its initial cache load from the connection itself, not from its dependencies.
 
-First, `subscribe_to_events()` registers a bus subscription on `Topic.HASS_EVENT_STATE_CHANGED` at priority 100. Priority 100 means `StateProxy`'s handler updates the cache before any user handler sees the event. App handlers always observe current state.
+First, `subscribe_to_events()` registers a bus subscription on `Topic.HASS_EVENT_STATE_CHANGED` at priority 100. Priority 100 means `StateProxy`'s handler updates the cache before any user handler sees the event. App handlers always observe current state. The same call also registers WebSocket connect and disconnect observers, so `StateProxy` hears about every new connection.
 
 Second, a background bootstrap task runs a synchronization pass if the WebSocket is already connected. Otherwise the connected observer `StateProxy` registered in the first step starts the pass when the connection arrives. The pass fetches all entity states via `get_states_raw()` and builds a candidate states dict from the result. It applies the `state_changed` events that arrived during the fetch on top of that candidate, so older fetched data never overwrites them. Then it replaces the `states` dict with the candidate. A periodic `run_every` job calls `load_cache()` at `state_proxy_poll_interval_seconds` intervals, which requests the same synchronization to recover from any missed events.
 
@@ -324,7 +324,7 @@ A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and 
 
 ### Synchronous Registration
 
-`BusService` and `SchedulerService` declare `depends_on: [DatabaseService, SyncExecutorService]` (and `AppHandler` depends on it through `AppBootstrapCoordinator`). The database is ready before any listener or job registration runs, and the dedicated sync-handler executor outlives Bus, Scheduler, and the App lifecycle hooks so it is torn down only after them at shutdown. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. `Scheduler` methods behave identically.
+`BusService` declares `depends_on: [DatabaseService, SyncExecutorService]`. `SchedulerService` declares the same two plus `BusService`, and `AppHandler` depends on `DatabaseService` through `AppBootstrapCoordinator`. The database is ready before any listener or job registration runs, and the dedicated sync-handler executor outlives Bus, Scheduler, and the App lifecycle hooks so it is torn down only after them at shutdown. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. `Scheduler` methods behave identically.
 
 ### Retention
 
