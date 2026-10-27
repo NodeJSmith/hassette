@@ -176,7 +176,10 @@ The classifier that decides membership ports Home Assistant's own numeric-detect
 `.get()` and `[]` diverge on a narrowed accessor the same way they do everywhere else in `DomainStates`, with one addition: a non-member entity is a distinct case from a missing one.
 
 ```python
---8<-- "pages/core-concepts/states/snippets/sensor_shapes.py:lookup"
+--8<--
+pages/core-concepts/states/snippets/sensor_shapes.py:lookup-imports
+pages/core-concepts/states/snippets/sensor_shapes.py:lookup
+--8<--
 ```
 
 `.get()` returns `None` for an entity that exists but isn't a shape-view member — `EntityNotInViewError` subclasses `KeyError`, and `Mapping.get()` is implemented by catching `KeyError`. Direct `[]` access raises `EntityNotInViewError` instead, naming the entity, its actual `device_class`, and the shape the accessor expected. Iteration skips non-members silently; a conversion failure — metadata matches the shape but the value fails to parse — is additionally logged at `debug`.
