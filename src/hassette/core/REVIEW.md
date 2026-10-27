@@ -22,6 +22,13 @@ exit (raise, `FatalError`, `ClosedResourceError`, unrequested return or cancella
 send first, or add an `await` ahead of the report? Does anything on the path from the report to
 `escalate_service_failure()` await, so a stalled bus or database could delay the process exit?
 
+## Who Closes the Event Streams
+Only `BusService` knows whether the event channel is still drained: its drain loop closes the streams
+on every exit, and `Hassette._fail_startup()` asks it via `close_streams_unless_draining()`. Does new
+code close the streams, or decide whether to, from the bus's status, `stop_requested()`, or another
+stand-in for "is the bus draining"? Does a new direct `EventStreamService.send_event()` caller handle
+`ClosedResourceError`/`BrokenResourceError` the way `Hassette.send_event()` does?
+
 ## Fatal Reason Before Shutdown
 `escalate_service_failure()` in `src/hassette/core/service_failure.py` is the one fatal exit route. Does it
 latch `_fatal_shutdown_reason` *before* requesting shutdown, and does any other code path request
