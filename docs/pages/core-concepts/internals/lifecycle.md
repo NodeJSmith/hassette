@@ -42,9 +42,9 @@ The fatal reason is logged and lands in the supervisor's log: `docker logs`, the
 
 ### When the event bus dies
 
-`BusService` is required, so its failure takes the same fatal exit as any other required service. Its death also means nothing drains the event channel any more. Before the failure is reported, the bus closes that channel and logs `Event bus is down; event sends are dropped from now on` at WARNING. From then on, every event sent is dropped instead of waiting for room, including a send that was already waiting when the bus died. The shutdown's own status events are dropped too and never reach a listener, but every resource still moves to `STOPPED`, so shutdown finishes instead of hanging.
+`BusService` is required, so its failure takes the same fatal exit as any other required service. Its death also means nothing drains the event channel any more. Before the failure is reported, the bus closes that channel and logs `Event bus stopped unexpectedly; event sends are dropped from now on` at WARNING. From then on, every event sent is dropped instead of waiting for room, including a send that was already waiting when the bus died. The shutdown's own status events are dropped too and never reach a listener, but every resource still moves to `STOPPED`, so shutdown finishes instead of hanging.
 
-The same applies at boot. When startup fails before the bus has started serving, Hassette closes the channel before it tears down.
+The bus closes the channel whenever it stops draining, a clean shutdown included, since nothing could deliver a later event. At boot, a failed startup has the bus close the channel before teardown unless the bus is already draining it.
 
 ## Resource State Machine
 

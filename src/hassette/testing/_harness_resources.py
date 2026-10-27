@@ -69,8 +69,9 @@ class HarnessEventStreamService(EventStreamService):
     ``HassetteHarness.stop()``, which calls ``_close_streams_now()`` directly —
     the only code path that should close streams in test context.
 
-    So a bus death under the harness (``BusService.close_event_streams()``) closes only the bus's
-    own receive clone: sends keep going into an undrained channel instead of being dropped. Tests of
+    So a drain-loop exit under the harness (``BusService.close_event_streams()``) closes only the
+    bus's own receive clone: after a bus death, sends keep going into an undrained channel instead of
+    being dropped. Tests of
     dead-bus behavior use a real ``Hassette``.
     """
 

@@ -82,7 +82,11 @@ class TestBusDeathAtBoot:
     async def test_bus_init_failure_exits_without_hanging(
         self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int], failure: Literal["raises", "hangs"]
     ) -> None:
-        """A bus that never reaches serve() at boot (init raised, or timed out) still tears down cleanly."""
+        """A bus that never reaches serve() at boot still tears down cleanly.
+
+        With the channel full, both cases exit through the startup wave's timeout: a raising hook's
+        FAILED send blocks before the failure reaches the wave, which is an accepted limitation.
+        """
         loop = asyncio.get_running_loop()
         previous_task_factory = loop.get_task_factory()
         hassette, never_connects, instance_token = wire_hassette_without_ha(

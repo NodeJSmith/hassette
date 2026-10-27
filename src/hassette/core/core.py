@@ -507,13 +507,13 @@ class Hassette(HassetteAccessorsMixin, Resource):
         Callers still ``return`` after it: ``_raise_if_fatal_shutdown()`` raises because a reason
         was just recorded, but nothing types that.
 
-        A bus that isn't RUNNING (it never started serving, or its serve already ended) will never drain
-        the event channel, so its streams are closed before teardown, letting no teardown send block on
-        it (spec 134 D9). A running bus keeps draining through teardown, so its streams stay open.
+        The bus closes the event streams before teardown unless its drain loop is running, so no
+        teardown send blocks on a channel nothing will drain (spec 134 D9). A draining bus keeps them
+        open, and the shutdown's telemetry reaches it.
         """
         self.record_fatal_reason(reason)
-        if self._bus_service is not None and self._bus_service.status != ResourceStatus.RUNNING:
-            await self._bus_service.close_event_streams()
+        if self._bus_service is not None:
+            await self._bus_service.close_streams_unless_draining()
         await self.shutdown()
         self._raise_if_fatal_shutdown()
 
@@ -722,8 +722,8 @@ class Hassette(HassetteAccessorsMixin, Resource):
         """Emit Hassette's own STOPPED event, then close event streams.
 
         Called by _finalize_shutdown() after all children have shut down cleanly.
-        handle_stop() must run before close_streams() so Hassette's STOPPED event
-        is delivered while streams are still open.
+        handle_stop() runs before close_streams(), so the root's STOPPED event is
+        delivered if the bus is still draining; once the bus's loop has ended it is dropped.
 
         On the timeout path, this hook is skipped — Hassette.shutdown()'s finally
         block handles both handle_stop() and close_streams() as a fallback.
@@ -761,10 +761,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
                 # call in run_forever() -- a plain callable/None argument is flagged there too.
                 self._loop.set_task_factory(self._previous_task_factory)  # pyright: ignore[reportArgumentType]
 
-            # Emit Hassette's own STOPPED event while streams are still open,
-            # then close streams and set terminal status. Guarded by event_streams_closed
-            # so the clean path (which already closed streams via _on_children_stopped())
-            # does not double-close or double-emit.
+            # Fallback for a shutdown body that raised before its own handle_stop(): otherwise the root is
+            # already STOPPED and handle_stop() is a no-op. The event_streams_closed check only skips a
+            # send that would be dropped anyway; the status is set directly below either way.
             if not self.event_streams_closed:
                 with suppress(Exception):
                     await handle_stop(self)

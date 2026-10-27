@@ -104,6 +104,32 @@ async def test_send_blocked_on_full_channel_is_dropped_when_bus_closes_streams(h
     assert hassette_instance.event_streams_closed is True
 
 
+async def test_failed_startup_close_leaves_a_draining_bus_streams_open(hassette_instance: Hassette) -> None:
+    """The boot-time close skips a bus whose drain loop is running, so its teardown telemetry still arrives."""
+    bus = hassette_instance.bus_service
+    bus._draining = True  # coordinator-internal: stands in for a running drain loop
+    await bus.close_streams_unless_draining()
+    assert hassette_instance.event_streams_closed is False
+
+    bus._draining = False  # coordinator-internal: the loop has ended
+    await bus.close_streams_unless_draining()
+    assert hassette_instance.event_streams_closed is True
+
+
+async def test_bus_drain_loop_closes_streams_on_a_requested_stop(hassette_instance: Hassette) -> None:
+    """Every drain-loop exit closes the streams, a requested stop included: nothing would deliver a later event."""
+    bus = hassette_instance.bus_service
+    serve_task = asyncio.create_task(bus.serve())
+    await wait_for(lambda: bus._draining, desc="bus drain loop running")  # coordinator-internal
+
+    hassette_instance.shutdown_event.set()  # a requested stop: process shutdown, not a bus failure
+    bus.shutdown_event.set()
+    await hassette_instance.send_event(make_hassette_event())  # the loop checks for shutdown per event
+
+    await asyncio.wait_for(serve_task, timeout=1)
+    assert hassette_instance.event_streams_closed is True
+
+
 def test_loop_property_raises_when_not_started(hassette_instance: Hassette) -> None:
     """Loop property raises when Hassette is not running."""
     with pytest.raises(RuntimeError):
