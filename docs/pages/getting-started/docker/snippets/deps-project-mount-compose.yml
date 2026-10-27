@@ -1,14 +1,12 @@
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:latest-py3.13
-    environment:
-      HASSETTE__APPS__DIRECTORY: /apps/src/mypkg
+    # ...the rest of the Docker Setup service, unchanged...
     volumes:
       - ./config:/config
-      - ./myproject:/apps
       - data:/data
       - uv_cache:/uv_cache
-
-volumes:
-  uv_cache:
-  data:
+      - ./myproject:/apps # add this line
+    environment:
+      - HASSETTE__LOGGING__LOG_LEVEL=info
+      - TZ=America/New_York
+      - HASSETTE__APPS__DIRECTORY=/apps/src/mypkg # add this line

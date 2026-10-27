@@ -1,13 +1,7 @@
 services:
   hassette:
-    image: ghcr.io/nodejsmith/hassette:latest-py3.13
+    # ...the rest of the Docker Setup service, unchanged...
     environment:
-      HASSETTE_DOCKER_INSTALL_DEPS: "1"
-    volumes:
-      - ./config:/config
-      - data:/data
-      - uv_cache:/uv_cache
-
-volumes:
-  uv_cache:
-  data:
+      - HASSETTE__LOGGING__LOG_LEVEL=info
+      - TZ=America/New_York
+      - HASSETTE_DOCKER_INSTALL_DEPS=1 # add this line

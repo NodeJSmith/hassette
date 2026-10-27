@@ -14,7 +14,9 @@ Place this file at `config/requirements.txt` on your host. That maps to
 `/config/requirements.txt` inside the container. Hassette also finds a
 `requirements.txt` inside your apps directory.
 
-Add `HASSETTE_DOCKER_INSTALL_DEPS: "1"` to your compose file:
+Add `- HASSETTE_DOCKER_INSTALL_DEPS=1` to the `environment:` list in the
+compose file from [Docker Setup](index.md). The excerpt below shows only
+that list, with the new entry last:
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/deps-install-deps-env.yml"
@@ -54,11 +56,7 @@ uv lock
 ```
 
 Your compose file stays the same as the [Docker Setup](index.md) page. No extra
-environment variables are needed:
-
-```yaml
---8<-- "pages/getting-started/docker/snippets/deps-pyproject-compose.yml"
-```
+environment variables are needed.
 
 On startup, Hassette looks for the project directory: the nearest
 directory at or above your apps directory that contains a
@@ -69,7 +67,7 @@ automatically. `HASSETTE_DOCKER_INSTALL_DEPS` is not needed.
 The walk-up supports a project mounted outside the config directory. Mount
 the project at `/apps` and point the apps directory inside it with
 `HASSETTE__APPS__DIRECTORY=/apps/src/mypkg`; Hassette finds the project at
-`/apps`:
+`/apps`. Add the two marked lines to the Docker Setup compose file:
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/deps-project-mount-compose.yml"
