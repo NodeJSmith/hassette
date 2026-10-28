@@ -17,7 +17,10 @@ TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 MULTI_INSTANCE_APP_KEY = "multi_instance"
 
 
-def multi_instance_manifest(app_config: list[dict]) -> AppManifest:
+def multi_instance_manifest(app_config: list[dict] | None = None) -> AppManifest:
+    """The ``multi_instance`` test app's manifest; two instances, ``alpha`` and ``beta``, unless given a config."""
+    if app_config is None:
+        app_config = [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
     return AppManifest(
         app_key=MULTI_INSTANCE_APP_KEY,
         filename="multi_instance_app.py",
@@ -54,9 +57,7 @@ class TestReloadLockAndNeedsRestartGate:
         the wait would recreate the stopped instance.
         """
         app_key = MULTI_INSTANCE_APP_KEY
-        manifest = multi_instance_manifest(
-            [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
-        )
+        manifest = multi_instance_manifest()
         manifest.autostart = False
         lifecycle.set_apps_configs({app_key: manifest})
         await lifecycle.start_app(app_key)
@@ -90,13 +91,7 @@ class TestReloadLockAndNeedsRestartGate:
         needs-restart record.
         """
         app_key = MULTI_INSTANCE_APP_KEY
-        lifecycle.set_apps_configs(
-            {
-                app_key: multi_instance_manifest(
-                    [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
-                )
-            }
-        )
+        lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         await lifecycle.start_app(app_key)
 
         original_config = deepcopy(lifecycle.registry.manifests)
@@ -138,13 +133,7 @@ class TestReloadLockAndNeedsRestartGate:
         The reload's create goes through ``AppFactory.create_instances``.
         """
         app_key = MULTI_INSTANCE_APP_KEY
-        lifecycle.set_apps_configs(
-            {
-                app_key: multi_instance_manifest(
-                    [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
-                )
-            }
-        )
+        lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         await lifecycle.start_app(app_key)
         await lifecycle.stop_instance(app_key, 0)
         lifecycle.registry.flag_needs_restart(
@@ -170,13 +159,7 @@ class TestReloadLockAndNeedsRestartGate:
     ) -> None:
         """A start with nothing left to create logs one refusal per index and leaves both flags in place."""
         app_key = MULTI_INSTANCE_APP_KEY
-        lifecycle.set_apps_configs(
-            {
-                app_key: multi_instance_manifest(
-                    [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
-                )
-            }
-        )
+        lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         for idx, name in enumerate(("alpha", "beta")):
             lifecycle.registry.flag_needs_restart(
                 app_key, idx, instance_name=name, class_name="MultiInstanceApp", reason="work still running"
