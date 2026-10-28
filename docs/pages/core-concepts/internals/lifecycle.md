@@ -109,7 +109,8 @@ and new work in the same process at once.
 Every completed `shutdown()` call returns a [`TeardownReport`][hassette.resources.teardown.TeardownReport] — an
 immutable record of what shutdown actually observed. A report carries zero or more
 [`TeardownCause`][hassette.resources.teardown.TeardownCause] values (a failed hook, a timed-out child, tasks still
-pending, and so on). Its `is_restart_safe` property derives directly from those causes:
+pending, and so on) and the names of any tasks still pending. Its `is_restart_safe` property derives from
+those pending tasks and causes:
 
 ```python
 --8<-- "pages/core-concepts/snippets/internals_teardown_report.py"
