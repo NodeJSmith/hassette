@@ -479,3 +479,30 @@ class TestRemoveJobsPartialFailure:
         assert list(svc._job_queue._queue) == []
         assert all(job._dequeued for job in jobs)
         assert svc._executor.mark_job_removed.await_count == len(jobs)
+
+    async def test_a_stalled_persistence_write_cancelled_mid_removal_still_cancels_every_invocation(self) -> None:
+        """A ``removed_at`` write that stalls until the caller's shutdown-hook timeout cancels the removal
+        must not leave a later job's invocation running: invocations end before any write is awaited.
+        """
+        svc = make_dequeue_service()
+        jobs = [make_scheduled_job(name="first", db_id=7), make_scheduled_job(name="second", db_id=8)]
+        write_started = asyncio.Event()
+
+        async def run_forever() -> None:
+            await asyncio.Event().wait()
+
+        async def stalled_write(_db_id: int) -> None:
+            write_started.set()
+            await run_forever()
+
+        invocation = asyncio.create_task(run_forever())
+        jobs[1].guard.current_task = invocation
+
+        svc._executor.mark_job_removed = AsyncMock(side_effect=stalled_write)
+
+        removal = asyncio.create_task(svc._remove_jobs(jobs))
+        await write_started.wait()
+        removal.cancel()
+        await asyncio.gather(removal, return_exceptions=True)
+
+        assert invocation.cancelled(), "the second job's invocation outlived the interrupted removal"
