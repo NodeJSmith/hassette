@@ -21,6 +21,7 @@ from .conftest import app_state_payloads, make_mock_app_instance
 
 
 class TestCreateInstanceUnlockedSynchronousFailure:
+    # dup-ignore-start: pytest test function signature
     async def test_returns_early_without_initializing_when_create_single_instance_fails_synchronously(
         self,
         lifecycle_service: AppLifecycleService,
@@ -30,6 +31,7 @@ class TestCreateInstanceUnlockedSynchronousFailure:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """create_single_instance() can register a failure synchronously (e.g. a config
         validation error at instance-creation time, not a class-load error) without raising.
         _create_instance_unlocked must notice that nothing was registered, emit the
@@ -64,6 +66,7 @@ class TestCreateInstanceUnlockedSynchronousFailure:
 
 
 class TestCreateInstanceUnlockedPostRegistrationFailure:
+    # dup-ignore-start: pytest test function signature
     async def test_never_started_phantom_is_shut_down_with_its_own_hooks_skipped(
         self,
         lifecycle_service: AppLifecycleService,
@@ -72,6 +75,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_manifest: MagicMock,
         mock_hassette: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """If send_event raises after create_single_instance registered the app but before its
         initialization started, the phantom is shut down with the exception as its cause and its
         own shutdown hooks skipped — an app that never initialized must not run ``on_shutdown``.

@@ -20,6 +20,7 @@ from .conftest import app_state_payloads, assert_acquires_app_key_lock_once
 
 
 class TestReloadInstanceEvents:
+    # dup-ignore-start: pytest test function signature
     async def test_reload_instance_emits_state_event_scoped_to_failed_index(
         self,
         lifecycle_service: AppLifecycleService,
@@ -29,6 +30,7 @@ class TestReloadInstanceEvents:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """Per-instance reload emits a HassetteAppStateEvent with the correct
         instance identity (app_key, index, instance_name) for the target index only.
         """

@@ -56,6 +56,13 @@ class AliasChoicesConfig(AppConfig):
     off_delay: int = Field(default=30, validation_alias=AliasChoices("delay", AliasPath("timing", 0)))
 
 
+def create_instance(factory: AppFactory, manifest: Mock, config: dict, config_cls: type[AppConfig]) -> None:
+    """Create instance 0 of ``test_app`` from ``config`` with an app class whose config class is ``config_cls``."""
+    factory.create_single_instance(
+        "test_app", manifest, 0, config, as_app_class(make_app_class(config_cls)), outcomes=AnyIndexOutcomes()
+    )
+
+
 @pytest.mark.parametrize(
     ("config_cls", "expected", "absent"),
     [
@@ -114,14 +121,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "log_lebel": "INFO"}
 
         with pytest.warns(UserWarning, match="'log_lebel' \\(did you mean 'log_level'\\?\\)"):
-            factory.create_single_instance(
-                "test_app",
-                mock_manifest,
-                0,
-                config,
-                as_app_class(make_app_class(OverrideOnlyConfig)),
-                outcomes=AnyIndexOutcomes(),
-            )
+            create_instance(factory, mock_manifest, config, OverrideOnlyConfig)
 
         mock_registry.register_app.assert_called_once()
 
@@ -133,14 +133,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "off_dealy": 5}
 
         with pytest.warns(UserWarning, match="'off_dealy' \\(did you mean 'off_delay'\\?\\)"):
-            factory.create_single_instance(
-                "test_app",
-                mock_manifest,
-                0,
-                config,
-                as_app_class(make_app_class(config_cls)),
-                outcomes=AnyIndexOutcomes(),
-            )
+            create_instance(factory, mock_manifest, config, config_cls)
 
         mock_registry.register_app.assert_called_once()
 
@@ -151,14 +144,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "zzz": 5}
 
         with pytest.warns(UserWarning, match="'zzz'") as record:
-            factory.create_single_instance(
-                "test_app",
-                mock_manifest,
-                0,
-                config,
-                as_app_class(make_app_class(MotionLightConfig)),
-                outcomes=AnyIndexOutcomes(),
-            )
+            create_instance(factory, mock_manifest, config, MotionLightConfig)
 
         assert "did you mean" not in str(record[0].message)
         mock_registry.register_app.assert_called_once()
@@ -168,14 +154,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "off_delay": 5}
 
         with pytest.warns(UserWarning, match="Unrecognized configuration key") as record:
-            factory.create_single_instance(
-                "test_app",
-                mock_manifest,
-                0,
-                config,
-                as_app_class(make_app_class(AliasedDelayConfig)),
-                outcomes=AnyIndexOutcomes(),
-            )
+            create_instance(factory, mock_manifest, config, AliasedDelayConfig)
 
         assert "'off_delay' (did you mean 'delay'?)" in str(record[0].message)
 
@@ -186,14 +165,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "timing": []}
 
         with pytest.warns(UserWarning, match="'timing'") as record:
-            factory.create_single_instance(
-                "test_app",
-                mock_manifest,
-                0,
-                config,
-                as_app_class(make_app_class(AliasChoicesConfig)),
-                outcomes=AnyIndexOutcomes(),
-            )
+            create_instance(factory, mock_manifest, config, AliasChoicesConfig)
 
         msg = str(record[0].message)
         assert "did you mean" not in msg
@@ -206,14 +178,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         """The framework requires the literal instance_name key, so it never warns, even under an alias generator."""
         config = {"instance_name": "test_instance", "offDelay": 5}
 
-        factory.create_single_instance(
-            "test_app",
-            mock_manifest,
-            0,
-            config,
-            as_app_class(make_app_class(CamelCaseConfig)),
-            outcomes=AnyIndexOutcomes(),
-        )
+        create_instance(factory, mock_manifest, config, CamelCaseConfig)
 
         mock_registry.register_app.assert_called_once()
         mock_registry.record_failure.assert_not_called()
@@ -224,14 +189,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         """No warning when every key maps to a declared field (pytest escalates warnings to errors)."""
         config = {"instance_name": "test_instance", "off_delay": 5}
 
-        factory.create_single_instance(
-            "test_app",
-            mock_manifest,
-            0,
-            config,
-            as_app_class(make_app_class(MotionLightConfig)),
-            outcomes=AnyIndexOutcomes(),
-        )
+        create_instance(factory, mock_manifest, config, MotionLightConfig)
 
         mock_registry.register_app.assert_called_once()
         mock_registry.record_failure.assert_not_called()

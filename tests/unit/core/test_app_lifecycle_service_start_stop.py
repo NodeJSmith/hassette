@@ -213,6 +213,7 @@ class TestStartApp:
 
         assert call_order == ["prune", "create_instances"]
 
+    # dup-ignore-start: pytest test function signature
     async def test_emits_stopped_event_for_pruned_stale_failed_entries(
         self,
         lifecycle_service: AppLifecycleService,
@@ -221,6 +222,7 @@ class TestStartApp:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """Pruned entries must not be discarded silently — without a STOPPED event, the WS
         status cache for that index stays on FAILED forever, and if the config shrinks to a
         single remaining instance, appLiveStatus() falls back to reading exactly that stale
@@ -252,6 +254,7 @@ class TestStartApp:
         assert payload.previous_status == ResourceStatus.FAILED
         assert payload.exception is None  # STOPPED events don't carry the prior failure's exception info
 
+    # dup-ignore-start: pytest test function signature
     async def test_emits_state_event_for_pre_instantiation_failure(
         self,
         lifecycle_service: AppLifecycleService,
@@ -260,6 +263,7 @@ class TestStartApp:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """create_instances() records failures that occur before an App object exists (invalid
         instance_name, config validation, class load error) straight to the registry, with no
         App to build an app_status_changed event from. Without emitting one here, those failures
