@@ -116,7 +116,9 @@ class AppChangeReconcilerMixin:
                 # unless the lock is handed to `held` first, which then releases it after the restarts.
                 async with AsyncExitStack() as decision:
                     await decision.enter_async_context(self._get_app_key_lock(app_key))
-                    restart = self._decide_restart(app_key, changes, original_config, current_config)
+                    restart = self._decide_restart(
+                        app_key, original_config, current_config, reimport=app_key in changes.reimport_apps
+                    )
                     if restart is not None:
                         restarts.append(restart)
                         held.push_async_exit(decision.pop_all())
@@ -136,17 +138,19 @@ class AppChangeReconcilerMixin:
     def _decide_restart(
         self,
         app_key: str,
-        changes: ChangeSet,
         original_config: dict[str, "AppManifest"],
         current_config: dict[str, "AppManifest"],
+        *,
+        reimport: bool,
     ) -> "AppRestart | None":
-        """Decide what one key in ``reimport_apps`` or ``reload_apps`` needs: a restart, or None for nothing.
+        """Decide what one reimported or reloaded key needs: a restart, or None for nothing.
 
-        The two buckets are disjoint (``AppChangeDetector.detect_changes``). Caller must hold the key's lock.
+        ``reimport`` is True for a key in ``reimport_apps`` and False for one in ``reload_apps``; the two buckets
+        are disjoint (``AppChangeDetector.detect_changes``). Caller must hold the key's lock.
         """
         if not self._should_restart(app_key):
             return None
-        if app_key in changes.reimport_apps:
+        if reimport:
             return AppRestart(app_key, force_reload=True)
         return self._plan_reload(app_key, original_config, current_config)
 
