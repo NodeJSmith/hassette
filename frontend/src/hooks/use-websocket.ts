@@ -143,6 +143,7 @@ export function useWebSocket(): void {
               instance_name: msg.data.instance_name,
               class_name: msg.data.class_name,
               exception: msg.data.exception,
+              needs_restart: msg.data.needs_restart ?? null,
             });
             break;
 

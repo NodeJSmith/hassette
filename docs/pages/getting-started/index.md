@@ -84,11 +84,11 @@ hassette app
 ```
 
 ```console
-┏━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┓
-┃ App    ┃ Status  ┃ Display Name ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File    ┃
-┡━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━┩
-│ my_app │ running │ my_app       │ 1         │ 0              │ True    │ True      │ main.py │
-└────────┴─────────┴──────────────┴───────────┴────────────────┴─────────┴───────────┴─────────┘
+┏━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┓
+┃ App    ┃ Status  ┃ Display Name ┃ Instances ┃ Restart ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File    ┃
+┡━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━┩
+│ my_app │ running │ my_app       │ 1         │         │ 0              │ True    │ True      │ main.py │
+└────────┴─────────┴──────────────┴───────────┴─────────┴────────────────┴─────────┴───────────┴─────────┘
 ```
 
 `websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`. `Invocations/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.

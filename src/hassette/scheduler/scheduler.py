@@ -183,9 +183,9 @@ class Scheduler(Resource):
         mark_ready(self, reason="Scheduler initialized")
 
     async def on_shutdown(self) -> None:
-        """Remove every job this scheduler owns and stop receiving job-removal callbacks from the service."""
-        await self.remove_all_jobs()
+        """Stop receiving job-removal callbacks (``remove_all_jobs()`` clears what they sync), then remove every job."""
         self.scheduler_service.deregister_removal_callback(self.owner_id)
+        await self.remove_all_jobs()
 
     def on_error(self, handler: "SchedulerErrorHandlerType") -> None:
         """Register an app-level error handler for this scheduler.
@@ -382,8 +382,8 @@ class Scheduler(Resource):
         ``hassette.testing._reset.reset_scheduler`` between tests) need it to stay wired so future
         ``add_job``/``remove_job`` calls keep ``_jobs_by_name``/``_jobs_by_group`` in sync.
         A caller that is discarding this scheduler for good (``on_shutdown``,
-        ``AppLifecycleService.cleanup_failed_instance``) must call
-        ``scheduler_service.deregister_removal_callback(self.owner_id)`` itself afterward.
+        ``AppLifecycleService.remove_instance_registrations``) must call
+        ``scheduler_service.deregister_removal_callback(self.owner_id)`` itself, before or after.
         """
         jobs = list(self._jobs_by_name.values())
         self._jobs_by_name.clear()

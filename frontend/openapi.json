@@ -3212,6 +3212,17 @@
             "title": "In Current Config",
             "description": "False for an instance still tracked at an index outside the app's configured range, such as one left\nrunning after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``\nand ``reload`` return 404.",
             "default": true
+          },
+          "needs_restart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NeedsRestart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when a teardown of this instance left work that may still be running. ``status`` is then ``failed``\nuntil hassette restarts."
           }
         },
         "type": "object",
@@ -3405,6 +3416,12 @@
             "title": "In Current Config",
             "description": "True if the app is present in the currently-loaded config; False for an app known only from recorded\nhistory, such as one removed from the config.",
             "default": true
+          },
+          "needs_restart_count": {
+            "type": "integer",
+            "title": "Needs Restart Count",
+            "description": "Number of ``instances`` flagged ``needs_restart``. Nonzero means hassette must restart to recover them.",
+            "default": 0
           }
         },
         "type": "object",
@@ -4949,6 +4966,35 @@
         ],
         "title": "LogsByExecutionResponse",
         "description": "The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``."
+      },
+      "NeedsRestart": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "What the teardown left behind, such as the tasks still pending or why its evidence is incomplete."
+          },
+          "pending_tasks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pending Tasks",
+            "description": "Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the\ninstance was force-terminated, or its shutdown raised)."
+          },
+          "flagged_at": {
+            "type": "number",
+            "title": "Flagged At",
+            "description": "When the instance was flagged, in epoch seconds. The first flag stands until restart."
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason",
+          "flagged_at"
+        ],
+        "title": "NeedsRestart",
+        "description": "Why an app instance needs a hassette restart: a teardown left work that may still be running.\n\nPython can't stop a coroutine that ignores cancellation, so the only recovery is restarting hassette. Until\nthen the instance reports ``failed``. Nested in ``AppInstance`` and in the ``app_status_changed`` WS event."
       },
       "ProblemCode": {
         "type": "string",

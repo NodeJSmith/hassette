@@ -1042,6 +1042,11 @@ export interface components {
              * @default true
              */
             in_current_config: boolean;
+            /**
+             * @description Set when a teardown of this instance left work that may still be running. ``status`` is then ``failed``
+             *     until hassette restarts.
+             */
+            needs_restart?: components["schemas"]["NeedsRestart"] | null;
         };
         /**
          * AppListResponse
@@ -1142,6 +1147,12 @@ export interface components {
              * @default true
              */
             in_current_config: boolean;
+            /**
+             * Needs Restart Count
+             * @description Number of ``instances`` flagged ``needs_restart``. Nonzero means hassette must restart to recover them.
+             * @default 0
+             */
+            needs_restart_count: number;
         };
         /**
          * BackpressurePolicy
@@ -1926,6 +1937,31 @@ export interface components {
              *     its records may have been deleted, or it may never have logged.
              */
             retention_expired: boolean;
+        };
+        /**
+         * NeedsRestart
+         * @description Why an app instance needs a hassette restart: a teardown left work that may still be running.
+         *
+         *     Python can't stop a coroutine that ignores cancellation, so the only recovery is restarting hassette. Until
+         *     then the instance reports ``failed``. Nested in ``AppInstance`` and in the ``app_status_changed`` WS event.
+         */
+        NeedsRestart: {
+            /**
+             * Reason
+             * @description What the teardown left behind, such as the tasks still pending or why its evidence is incomplete.
+             */
+            reason: string;
+            /**
+             * Pending Tasks
+             * @description Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the
+             *     instance was force-terminated, or its shutdown raised).
+             */
+            pending_tasks?: string[];
+            /**
+             * Flagged At
+             * @description When the instance was flagged, in epoch seconds. The first flag stands until restart.
+             */
+            flagged_at: number;
         };
         /**
          * ProblemCode

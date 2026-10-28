@@ -88,6 +88,13 @@
         "overflow": "ellipsis"
       },
       {
+        "field": "app.needs_restart_count",
+        "formatter": "fmt_nonzero_count",
+        "header": "Restart",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
         "field": "activity.stats.total_invocations",
         "formatter": null,
         "header": "Invocations/1h",
@@ -603,6 +610,43 @@
         "formatter": null,
         "header": "Health",
         "max_width": 10,
+        "overflow": "ellipsis"
+      }
+    ],
+    "NEEDS_RESTART_COLUMNS": [
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App",
+        "max_width": 20,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "instance_name",
+        "formatter": null,
+        "header": "Instance",
+        "max_width": 22,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "needs_restart.reason",
+        "formatter": null,
+        "header": "Reason",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "needs_restart.pending_tasks",
+        "formatter": "fmt_names",
+        "header": "Pending Tasks",
+        "max_width": 30,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "needs_restart.flagged_at",
+        "formatter": "fmt_relative_time",
+        "header": "Flagged",
+        "max_width": 11,
         "overflow": "ellipsis"
       }
     ]

@@ -9,9 +9,33 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from hassette_wire import AppStatus, ResourceStatus
+from hassette_wire import AppStatus, NeedsRestart, ResourceStatus
+from whenever import ZonedDateTime
 
 APP_STATUS_KEYS = tuple(AppStatus)
+
+
+@dataclass(frozen=True)
+class NeedsRestartInfo:
+    """Why an app instance needs a hassette restart: a teardown left work that may still be running."""
+
+    reason: str
+    flagged_at: ZonedDateTime
+    pending_tasks: tuple[str, ...] = ()
+    """Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete
+    (the instance was force-terminated, or its shutdown raised)."""
+
+    def to_wire(self) -> NeedsRestart:
+        """The wire ``NeedsRestart``, with ``flagged_at`` in epoch seconds (sub-second precision kept).
+
+        Lives here rather than in ``web/mappers.py`` because both the REST mappers and the WS dispatcher
+        (``RuntimeQueryService``, in core) send it.
+        """
+        return NeedsRestart(
+            reason=self.reason,
+            pending_tasks=list(self.pending_tasks),
+            flagged_at=self.flagged_at.timestamp(unit="nanosecond") / 1e9,
+        )
 
 
 @dataclass(frozen=True)
@@ -31,6 +55,9 @@ class AppInstanceInfo:
     """False for an instance still tracked at an index outside the app's configured range, such as one left
     running after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``
     and ``reload`` return 404."""
+    needs_restart: NeedsRestartInfo | None = None
+    """Set when a teardown of this instance left work that may still be running. Such an instance reports
+    FAILED until hassette restarts."""
 
 
 @dataclass(frozen=True)
@@ -54,18 +81,19 @@ class AppStatusSnapshot:
         """Number of tracked app instances, whether running or failed."""
         return len(self.instances)
 
-    # "running" here means "has no recorded error", not "status == RUNNING" — a live instance's
-    # status can be STARTING/STOPPING/etc. and still count as running; error is None iff an App
-    # object exists for the entry (see AppRegistry.InstanceEntry), which is the real discriminant.
+    # "running" here means "has no recorded error and isn't flagged needs-restart", not "status ==
+    # RUNNING" — a live instance's status can be STARTING/STOPPING/etc. and still count as running;
+    # error is None iff an App object exists for the entry (see AppRegistry.InstanceEntry), and a
+    # flagged instance counts as failed whatever its entry holds (AppRegistry.resolve_instance_info).
     @property
     def running_count(self) -> int:
         """Number of running app instances."""
-        return sum(1 for i in self.instances if i.error is None)
+        return sum(1 for i in self.instances if not is_failed_info(i))
 
     @property
     def failed_count(self) -> int:
-        """Number of failed app instances."""
-        return sum(1 for i in self.instances if i.error is not None)
+        """Number of failed app instances, including ones flagged needs-restart."""
+        return sum(1 for i in self.instances if is_failed_info(i))
 
 
 @dataclass(frozen=True)
@@ -94,6 +122,8 @@ class AppManifestInfo:
     in_current_config: bool = True
     """True if the app is present in the currently-loaded config; False for an app known only from recorded
     history, such as one removed from the config."""
+    needs_restart_count: int = 0
+    """Number of ``instances`` flagged needs-restart."""
 
     def __post_init__(self) -> None:
         # Same defensive copy as AppStatusSnapshot.__post_init__.
@@ -121,6 +151,11 @@ class AppFullSnapshot:
         object.__setattr__(self, "status_counts", MappingProxyType(dict(self.status_counts)))
 
 
+def is_failed_info(info: AppInstanceInfo) -> bool:
+    """Whether an instance snapshot is failed: it has a recorded error or is flagged needs-restart."""
+    return info.error is not None or info.needs_restart is not None
+
+
 def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:
     """Count manifests by status.
 
@@ -144,5 +179,7 @@ __all__ = [
     "AppInstanceInfo",
     "AppManifestInfo",
     "AppStatusSnapshot",
+    "NeedsRestartInfo",
+    "is_failed_info",
     "tally_app_statuses",
 ]

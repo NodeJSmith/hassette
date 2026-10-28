@@ -1,7 +1,7 @@
 """Tests for hassette.resources.teardown -- immutable teardown safety evidence.
 
-Covers restart safety derivation from causes (immutable merges cannot remove negative
-evidence), RestartRefusedError retaining resource identity and the exact teardown report
+Covers restart safety derivation from pending tasks and causes (immutable merges cannot remove
+negative evidence), RestartRefusedError retaining resource identity and the exact teardown report
 with useful bounded details, and public importability of the teardown types and typed errors.
 """
 
@@ -11,7 +11,7 @@ import hassette.exceptions as exceptions_pkg
 import hassette.resources as resources_pkg
 from hassette.exceptions import FatalError, LifecycleReentryError, RestartRefusedError
 from hassette.resources import TeardownCause, TeardownReport
-from hassette.resources.teardown import add_teardown_evidence, merge_teardown_reports
+from hassette.resources.teardown import WORK_MAY_RUN_CAUSES, add_teardown_evidence, merge_teardown_reports
 
 
 class TestRestartSafetyDerivation:
@@ -20,10 +20,26 @@ class TestRestartSafetyDerivation:
 
         assert report.is_restart_safe is True
 
-    def test_report_with_any_cause_is_unsafe(self) -> None:
-        report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,))
+    @pytest.mark.parametrize("cause", sorted(WORK_MAY_RUN_CAUSES))
+    def test_report_with_work_may_run_cause_is_unsafe(self, cause: TeardownCause) -> None:
+        report = TeardownReport(causes=(cause,))
 
         assert report.is_restart_safe is False
+
+    @pytest.mark.parametrize("cause", sorted(set(TeardownCause) - WORK_MAY_RUN_CAUSES))
+    def test_report_with_only_a_diagnostic_cause_is_safe(self, cause: TeardownCause) -> None:
+        report = TeardownReport(causes=(cause,), failed_operations=("on_shutdown",))
+
+        assert report.is_restart_safe is True
+
+    def test_report_with_pending_tasks_is_unsafe_without_any_cause(self) -> None:
+        report = TeardownReport(pending_tasks=("app:worker",))
+
+        assert report.is_restart_safe is False
+
+    def test_child_shutdown_raised_or_timed_out_counts_as_incomplete_evidence(self) -> None:
+        assert TeardownCause.CHILD_SHUTDOWN_FAILED in WORK_MAY_RUN_CAUSES
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in WORK_MAY_RUN_CAUSES
 
     def test_is_restart_safe_cannot_be_set_independently_of_causes(self) -> None:
         # TeardownReport intentionally has no constructor parameter for is_restart_safe --
@@ -136,11 +152,11 @@ class TestAddTeardownEvidence:
     def test_add_evidence_cannot_remove_a_cause(self) -> None:
         # Simulates a later completion (e.g. a straggling shutdown-body task) adding more
         # evidence on top of an already-unsafe report. The original cause must survive.
-        report = TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_TIMED_OUT,))
+        report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
 
         updated = add_teardown_evidence(report, causes=[TeardownCause.SHUTDOWN_BODY_FAILED])
 
-        assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in updated.causes
+        assert TeardownCause.FORCED_TERMINAL in updated.causes
         assert updated.is_restart_safe is False
 
     def test_add_no_evidence_returns_equal_but_new_report(self) -> None:

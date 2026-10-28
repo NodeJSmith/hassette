@@ -109,16 +109,22 @@ and new work in the same process at once.
 Every completed `shutdown()` call returns a [`TeardownReport`][hassette.resources.teardown.TeardownReport] — an
 immutable record of what shutdown actually observed. A report carries zero or more
 [`TeardownCause`][hassette.resources.teardown.TeardownCause] values (a failed hook, a timed-out child, tasks still
-pending, and so on). Its `is_restart_safe` property derives directly from those causes:
+pending, and so on) and the names of any tasks still pending. Its `is_restart_safe` property derives from
+those pending tasks and causes:
 
 ```python
 --8<-- "pages/core-concepts/snippets/internals_teardown_report.py"
 ```
 
-`is_restart_safe` is `True` when every shutdown hook, cleanup step, tracked task, child resource,
-and (for `Service`) the `serve()` task completed with no negative evidence. It's `False` when at
-least one of those did not. There is no third state — a report can never claim restart-safe
-while also carrying causes, because `is_restart_safe` is computed, not stored.
+`is_restart_safe` answers one question: may work from this attempt still be running? It's `False`
+when a tracked task or the `serve()` task was still pending, when an initializer didn't finish
+being cancelled, when a child's teardown failed, timed out, or was itself restart-unsafe, or when
+the evidence is incomplete (the attempt was force-terminated, its coordinator failed, or its
+shutdown body raised or was cancelled before its later steps ran). A hook
+that raised or timed out and has since ended is still recorded in `causes`, but it leaves the
+report restart-safe: nothing from it is still running. Read `causes` for what went wrong and
+`is_restart_safe` for whether anything may still run. The property is computed from those fields,
+never stored, so the two can't disagree.
 
 An exception raised outside the shutdown body itself — while observing a pending initializer or
 requesting shutdown, for example — also counts as negative evidence. The shutdown coordinator (the
@@ -144,8 +150,10 @@ every cause value.
 --8<-- "pages/core-concepts/snippets/internals_teardown_report_inspect.py"
 ```
 
-There is no WebSocket, REST, or dashboard surface for this report — it is a Python-only inspection
-point for framework code and embedding hosts.
+The report itself has no WebSocket, REST, or dashboard surface; it is a Python-only inspection
+point for framework code and embedding hosts. For app instances, a restart-unsafe teardown is what
+sets the [needs-restart flag](../../operating/index.md#instances-that-need-a-restart) in the API,
+CLI, and web UI.
 
 ### Concurrent lifecycle calls join, they don't race
 

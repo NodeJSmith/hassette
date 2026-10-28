@@ -12,6 +12,7 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.core.app_registry import AppRegistry
 from hassette.resources.teardown import TeardownReport
 from hassette.testing import EventCapture
 from hassette.types import Topic
@@ -199,11 +200,14 @@ def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: 
     """Create a mock App instance with bus/scheduler stubs."""
     app = AsyncMock()
     app.app_config = MagicMock(instance_name=instance_name)
+    app.app_key = "test_app"
     app.status = ResourceStatus.NOT_STARTED
     app.class_name = class_name
     app.initialize = AsyncMock()
     app.shutdown = AsyncMock(return_value=TeardownReport())
     app._shutdown_deadline = None
+    app._skip_own_shutdown_hooks = False
+    app.teardown_report = None
     app.ready_event = asyncio.Event()
     app.logger = Mock()
     app.lifecycle_logger = Mock()
@@ -231,5 +235,17 @@ def lifecycle_service(
         patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
     ):
         service = AppLifecycleService(mock_hassette, parent=None, registry=mock_registry)
+    service.factory = mock_factory
+    return service
+
+
+@pytest.fixture
+def real_registry_service(mock_hassette: MagicMock, mock_factory: MagicMock) -> AppLifecycleService:
+    """An AppLifecycleService over a real ``AppRegistry`` (``service.registry``), for tests of registry state."""
+    with (
+        patch("hassette.core.app_lifecycle_service.AppFactory", return_value=mock_factory),
+        patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
+    ):
+        service = AppLifecycleService(mock_hassette, parent=None, registry=AppRegistry())
     service.factory = mock_factory
     return service

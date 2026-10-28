@@ -77,6 +77,7 @@ export function createAppSummary(overrides: Partial<AppSummary> = {}): AppSummar
     error_message: null,
     error_traceback: null,
     in_current_config: true,
+    needs_restart_count: 0,
     ...overrides,
   } satisfies AppSummary;
 }

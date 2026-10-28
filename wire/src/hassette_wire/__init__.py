@@ -42,6 +42,7 @@ from hassette_wire.apps import (
     AppListResponse,
     AppSource,
     AppSummary,
+    NeedsRestart,
 )
 from hassette_wire.auth import MAX_SESSION_TOKEN_LENGTH, SessionRequest, SessionResponse
 from hassette_wire.blocking import (
@@ -187,6 +188,7 @@ __all__ = [
     "LogLevelRequest",
     "LogLevelResponse",
     "LogsByExecutionResponse",
+    "NeedsRestart",
     "ProblemCode",
     "ProblemDetail",
     "QueryAuthor",

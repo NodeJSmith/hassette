@@ -336,9 +336,6 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     """Length of time each shutdown hook (an app's or a framework resource's ``on_shutdown`` and the hooks
     around it) may run before it is cancelled. A hook gets less when its stage has less time left."""
 
-    failed_instance_cleanup_timeout_seconds: int = Field(default=5)
-    """Seconds to wait for listener/job cleanup after an app instance fails to initialize or its stop times out."""
-
     total_shutdown_timeout_seconds: float = Field(default=45, gt=FOUNDATION_SHUTDOWN_BUDGET_SECONDS)
     """Maximum wall-clock seconds for the whole Hassette shutdown. The foundation stage (database and
     worker threads) keeps a fixed budget; everything else stops within the rest, and so does each runtime

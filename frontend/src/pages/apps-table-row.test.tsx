@@ -49,6 +49,7 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     instances: [],
     error_message: null,
     in_current_config: true,
+    needs_restart_count: 0,
     stats: createAppActivityStats({
       total_invocations: 100,
       total_executions: 50,
@@ -571,6 +572,82 @@ describe("AppTableRow", () => {
       const { getByTestId } = renderRow({ app, isExpanded: true });
       const row0 = getByTestId("instance-row-my_app-0");
       expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("running");
+    });
+  });
+  describe("needs-restart badge", () => {
+    const flag = { reason: "1 task still pending", pending_tasks: ["MyApp.poll"], flagged_at: 0 };
+
+    it("shows no badge when nothing is flagged", () => {
+      const app = createAppRow({ instances: [createInstance({ app_key: "my_app" })] });
+      const { queryByTestId } = renderRow({ app });
+      expect(queryByTestId("needs-restart-badge")).toBeNull();
+    });
+
+    it("puts a single-instance app's flag and reason on the app row", () => {
+      const app = createAppRow({
+        status: "failed",
+        instances: [createInstance({ app_key: "my_app", status: "failed", needs_restart: flag })],
+      });
+      const { getByTestId } = renderRow({ app });
+      const badge = within(getByTestId("app-row-my_app")).getByTestId("needs-restart-badge");
+      expect(badge.textContent).toBe("needs restart");
+      expect(badge.getAttribute("title")).toContain("1 task still pending");
+    });
+
+    it("shows the flag the moment a live WS status event carries it", () => {
+      const app = createAppRow({ instances: [createInstance({ app_key: "my_app" })] });
+      const appStatuses: Record<string, AppStatusEntry> = {
+        [appStatusKey("my_app", 0)]: { status: "failed", index: 0, needs_restart: flag },
+      };
+      const { getByTestId } = renderRow({ app, appStatuses });
+      expect(getByTestId("needs-restart-badge").getAttribute("title")).toContain("1 task still pending");
+    });
+
+    it("gives a multi-instance app row the reason when exactly one instance is flagged", () => {
+      const app = createAppRow({
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "my_app", index: 0, instance_name: "my_app[0]" }),
+          createInstance({
+            app_key: "my_app",
+            index: 1,
+            instance_name: "my_app[1]",
+            status: "failed",
+            needs_restart: flag,
+          }),
+        ],
+      });
+      const { getByTestId } = renderRow({ app });
+      const badge = within(getByTestId("app-row-my_app")).getByTestId("needs-restart-badge");
+      expect(badge.textContent).toBe("needs restart");
+      expect(badge.getAttribute("title")).toContain("1 task still pending");
+    });
+
+    it("counts flagged instances on a multi-instance app row and badges each flagged instance row", () => {
+      const app = createAppRow({
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "my_app", index: 0, instance_name: "my_app[0]" }),
+          createInstance({
+            app_key: "my_app",
+            index: 1,
+            instance_name: "my_app[1]",
+            status: "failed",
+            needs_restart: flag,
+          }),
+        ],
+      });
+      const appStatuses: Record<string, AppStatusEntry> = {
+        [appStatusKey("my_app", 0)]: { status: "failed", index: 0, needs_restart: flag },
+      };
+      const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
+      expect(within(getByTestId("app-row-my_app")).getByTestId("needs-restart-badge").textContent).toBe(
+        "2 need restart",
+      );
+      expect(within(getByTestId("instance-row-my_app-0")).queryByTestId("needs-restart-badge")).not.toBeNull();
+      expect(
+        within(getByTestId("instance-row-my_app-1")).getByTestId("needs-restart-badge").getAttribute("title"),
+      ).toContain("1 task still pending");
     });
   });
 });

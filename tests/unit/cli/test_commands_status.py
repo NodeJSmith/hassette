@@ -1,6 +1,6 @@
 """Unit tests for hassette status, telemetry, and dashboard commands."""
 
-from hassette_wire import AppStatus
+from hassette_wire import AppInstance, AppListResponse, AppStatus, NeedsRestart, ResourceStatus
 
 from hassette.cli.commands.status import (
     DASHBOARD_COLUMNS,
@@ -23,11 +23,33 @@ from tests.unit.cli.conftest import (
     PARTIAL_DATA_WARNING,
     CLIClientFactory,
     CommandRunner,
+    MockTransportBuilder,
     grid_body_with_null_parts,
     resolve_path,
 )
 
 runner = CommandRunner("hassette.cli.commands.status.make_client")
+
+
+def app_list_with_flag() -> dict:
+    """An /api/apps body with one flagged and one healthy instance."""
+    flagged = AppInstance(
+        app_key="stuck_app",
+        index=0,
+        instance_name="StuckApp[0]",
+        class_name="StuckApp",
+        status=ResourceStatus.FAILED,
+        needs_restart=NeedsRestart(reason="1 task still pending", pending_tasks=["StuckApp.poll"], flagged_at=0.0),
+    )
+    healthy = AppInstance(
+        app_key="ok_app", index=0, instance_name="OkApp[0]", class_name="OkApp", status=ResourceStatus.RUNNING
+    )
+    apps = [
+        make_app_summary(app_key="stuck_app", status=AppStatus.FAILED, instances=[flagged]),
+        make_app_summary(app_key="ok_app", instances=[healthy]),
+    ]
+    return AppListResponse(total=2, apps=apps).model_dump(mode="json")
+
 
 # cmd_status
 
@@ -71,6 +93,49 @@ class TestCmdStatus:
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         output = runner.stdout(client, cmd_status)
         assert "20 tracked instances" in output
+
+    def test_lists_instances_that_need_a_restart(self, cli_client_factory: CLIClientFactory) -> None:
+        """A flagged instance appears below the panel with its reason and pending tasks; a healthy one doesn't."""
+        status_data = make_system_status_response()
+        client = cli_client_factory.build_with_routes(
+            [("GET", "/api/health", 200, status_data.model_dump()), ("GET", "/api/apps", 200, app_list_with_flag())]
+        )
+        output = runner.stdout(client, cmd_status)
+        assert "1 app instance(s) need a hassette restart" in output
+        assert "StuckApp[0]" in output
+        assert "1 task still pending" in output
+        assert "StuckApp.poll" in output
+        assert "OkApp[0]" not in output
+
+    def test_no_restart_section_when_nothing_is_flagged(self, cli_client_factory: CLIClientFactory) -> None:
+        status_data = make_system_status_response()
+        apps = AppListResponse(total=1, apps=[make_app_summary()]).model_dump(mode="json")
+        client = cli_client_factory.build_with_routes(
+            [("GET", "/api/health", 200, status_data.model_dump()), ("GET", "/api/apps", 200, apps)]
+        )
+        assert "need a hassette restart" not in runner.stdout(client, cmd_status)
+
+    def test_unreadable_app_list_warns_instead_of_failing(self, cli_client_factory: CLIClientFactory) -> None:
+        """/api/apps answers 503 while telemetry is down; status still renders and says the check was skipped."""
+        status_data = make_system_status_response(version="0.2.0")
+        client = cli_client_factory.build_with_routes(
+            [("GET", "/api/health", 200, status_data.model_dump()), ("GET", "/api/apps", 503, {"detail": "down"})]
+        )
+        assert "0.2.0" in runner.stdout(client, cmd_status)
+        assert "could not read the app list" in runner.stderr(client, cmd_status)
+
+    def test_json_mode_stays_one_health_document(self, cli_client_factory: CLIClientFactory) -> None:
+        """--json never makes the app-list request, so stdout is exactly the health document."""
+        status_data = make_system_status_response()
+        builder = MockTransportBuilder()
+        builder.add("GET", "/api/health", 200, status_data.model_dump())
+        builder.add("GET", "/api/apps", 200, app_list_with_flag())
+        client = cli_client_factory.build(builder.build(), json_mode=True)
+
+        parsed = runner.json_output(client, cmd_status)
+
+        assert parsed["status"] == status_data.status
+        assert builder.captured_paths == ["/api/health"]
 
     def test_status_degraded_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Status command prints status body (not an error) when instance is 'degraded' (200)."""

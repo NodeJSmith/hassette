@@ -145,8 +145,7 @@ class AppHandler(Service):
 
         The root's stop-stage ERROR names only this handler, so the apps whose stop hadn't finished get
         their own ERROR here and are recorded as force-terminated work. A runtime stop or reload already in
-        flight has unregistered its instances, so this doesn't reach them; their own entry deadline bounds
-        them instead.
+        flight is reached too: its instances stay registered until their teardown finishes.
         """
         instances = [
             inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()

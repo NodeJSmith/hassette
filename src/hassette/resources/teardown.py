@@ -2,10 +2,11 @@
 
 A completed shutdown attempt is represented by a :class:`TeardownReport`. ``None`` (not an
 instance of this class) means "no completed teardown attempt" -- the resource has never shut
-down, or a shutdown attempt is still in progress. Because a completed report has only two final
-states, :attr:`TeardownReport.is_restart_safe` is derived from the report's recorded
-:class:`TeardownCause` values rather than stored separately, so a report can never claim
-restart-safe while also carrying negative evidence.
+down, or a shutdown attempt is still in progress. :attr:`TeardownReport.is_restart_safe` answers one
+question, "may work from this attempt still be running?", and is derived from the report's pending
+task names and recorded :class:`TeardownCause` values rather than stored separately, so a report can
+never claim restart-safe while also carrying evidence that work may still run. Every other cause is
+diagnostic: it records what went wrong in a teardown that has ended.
 
 This module defines only the data shape and pure, side-effect-free construction helpers. Lifecycle
 coordination -- creating and joining initialization/shutdown tasks, invoking shutdown bodies, and
@@ -25,9 +26,10 @@ T = TypeVar("T")
 class TeardownCause(StrEnum):
     """A concrete piece of negative evidence collected during a shutdown attempt.
 
-    Any non-empty set of causes on a :class:`TeardownReport` makes
-    :attr:`TeardownReport.is_restart_safe` ``False``. Once recorded, a cause is never removed
-    from a report; later evidence may only add to it (see :func:`add_teardown_evidence`).
+    Causes in :data:`WORK_MAY_RUN_CAUSES` make :attr:`TeardownReport.is_restart_safe` ``False``:
+    each means work may still be running, or that the evidence is incomplete and can't rule it out.
+    The rest are diagnostic only. Once recorded, a cause is never removed from a report; later
+    evidence may only add to it (see :func:`add_teardown_evidence`).
     """
 
     SHUTDOWN_HOOK_FAILED = auto()
@@ -38,7 +40,8 @@ class TeardownCause(StrEnum):
     ``SHUTDOWN_HOOK_FAILED`` so an outcome can say "timed out" rather than "raised"."""
 
     SHUTDOWN_BODY_FAILED = auto()
-    """The resource's shutdown body raised during the teardown attempt."""
+    """The resource's shutdown body raised or was cancelled, so its later stages (task cancellation, child
+    shutdown, cleanup) may not have run and nothing proves the attempt's work ended."""
 
     CLEANUP_FAILED = auto()
     """A resource's cleanup step raised during the teardown attempt."""
@@ -56,13 +59,14 @@ class TeardownCause(StrEnum):
     """The resource's serve task was still pending when the report was produced."""
 
     CHILD_SHUTDOWN_FAILED = auto()
-    """A child resource's shutdown attempt failed."""
+    """A child resource's ``shutdown()`` raised. The child's evidence is incomplete, so work may still run."""
 
     CHILD_SHUTDOWN_TIMED_OUT = auto()
-    """A child resource's shutdown attempt did not complete within its allotted timeout."""
+    """A child resource's shutdown attempt did not complete within its allotted timeout. Its evidence is
+    incomplete, so work may still run."""
 
     CHILD_RESTART_UNSAFE = auto()
-    """A child resource's own teardown report recorded ``is_restart_safe`` as ``False``."""
+    """A child resource's own teardown report has ``is_restart_safe`` ``False``: its work may still run."""
 
     FORCED_TERMINAL = auto()
     """The resource was forced into a terminal state without a normal teardown attempt completing."""
@@ -70,6 +74,23 @@ class TeardownCause(StrEnum):
     COORDINATOR_FAILED = auto()
     """The shutdown coordinator itself raised outside the shutdown body (e.g. while observing the
     active initializer or requesting shutdown), not the shutdown body task it dispatches."""
+
+
+WORK_MAY_RUN_CAUSES: frozenset[TeardownCause] = frozenset(
+    {
+        TeardownCause.INITIALIZATION_TASK_PENDING,
+        TeardownCause.FORCED_TERMINAL,
+        TeardownCause.COORDINATOR_FAILED,
+        TeardownCause.SHUTDOWN_BODY_FAILED,
+        TeardownCause.CHILD_SHUTDOWN_FAILED,
+        TeardownCause.CHILD_SHUTDOWN_TIMED_OUT,
+        TeardownCause.CHILD_RESTART_UNSAFE,
+    }
+)
+"""Causes that make a report restart-unsafe: an initializer still pending, incomplete evidence (including a
+shutdown body that ended abnormally, whose report replaces what its stages observed), or a child whose own
+report is restart-unsafe. ``TASKS_PENDING`` and ``SERVE_TASK_PENDING`` aren't listed because the
+tasks they name are already in ``pending_tasks``, which the predicate reads directly."""
 
 
 def _dedupe_preserve_order(*groups: Iterable[T]) -> tuple[T, ...]:
@@ -93,8 +114,8 @@ def _dedupe_preserve_order(*groups: Iterable[T]) -> tuple[T, ...]:
 class TeardownReport:
     """Immutable evidence collected during one completed shutdown attempt.
 
-    ``is_restart_safe`` is derived from ``causes`` rather than stored, so a report can never
-    claim restart-safe while also carrying negative evidence.
+    ``is_restart_safe`` is derived from ``pending_tasks`` and ``causes`` rather than stored, so a
+    report can never claim restart-safe while also carrying evidence that work may still run.
 
     ``failed_operations`` records bounded operation identities -- a hook's qualified name,
     ``"cleanup"``, a child's resource name -- never exception type, message, or traceback. Those
@@ -123,8 +144,14 @@ class TeardownReport:
 
     @property
     def is_restart_safe(self) -> bool:
-        """``True`` only when no causes were recorded; ``False`` otherwise."""
-        return not self.causes
+        """``False`` when work from this attempt may still be running; ``True`` otherwise.
+
+        Work may still run when a task was still pending, or when a cause in
+        :data:`WORK_MAY_RUN_CAUSES` was recorded. A report carrying only diagnostic causes (a hook
+        that raised or timed out and has ended, a failed cleanup) is restart-safe; a shutdown body that
+        raised or was cancelled is not.
+        """
+        return not self.pending_tasks and WORK_MAY_RUN_CAUSES.isdisjoint(self.causes)
 
 
 def merge_teardown_reports(*reports: TeardownReport) -> TeardownReport:

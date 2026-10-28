@@ -37,6 +37,7 @@ APP_LIST_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("app.status", "Status", max_width=10, style=cli_output.status_style),
     cli_output.Column("app.display_name", "Display Name", max_width=22),
     cli_output.Column("app.instance_count", "Instances", max_width=9),
+    cli_output.Column("app.needs_restart_count", "Restart", max_width=7, formatter=cli_formatters.fmt_nonzero_count),
     cli_output.Column(
         "activity.stats.total_invocations",
         f"Invocations/{APP_LIST_WINDOW_SECONDS // SECONDS_PER_HOUR}h",

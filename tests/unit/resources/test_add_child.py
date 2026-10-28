@@ -15,11 +15,10 @@ from hassette_wire import ResourceStatus
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import start
 from hassette.resources.service import Service
-from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource, wait_for_running
-from .lifecycle.conftest import HangingChild, SimpleParent
+from .lifecycle.conftest import PendingTaskChild, SimpleParent
 
 
 class TrackedResource(ConcreteResource):
@@ -107,27 +106,22 @@ class TestReinitializeAfterCleanTeardown:
         assert resource.shutdown_completed is False, "after re-initializing the resource should be live again"
 
 
-class TestReinitializeRefusedAfterChildTimeout:
-    """A child hook timeout that leaves the parent's stored report with ``is_restart_safe`` ``False`` must
-    refuse every same-instance initialization path -- ``start()`` and a direct ``initialize()`` call --
-    without running a second ``on_initialize()`` hook.
+class TestReinitializeRefusedAfterChildWorkLeftRunning:
+    """A child whose work may still be running leaves the parent's stored report with ``is_restart_safe``
+    ``False``, which must refuse every same-instance initialization path -- ``start()`` and a direct
+    ``initialize()`` call -- without running a second ``on_initialize()`` hook.
     """
 
     @staticmethod
     async def _make_unsafe_parent() -> SimpleParent:
-        """Build a parent whose only child hangs during shutdown, then shut it down.
-
-        The child's hook is cut off at its bound (``SHUTDOWN_HOOK_TIMED_OUT``), which makes the
-        parent's merged report restart-unsafe.
-        """
+        """Build a parent whose only child leaves a task pending at shutdown, then shut it down."""
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
 
         parent = SimpleParent(hassette)
-        hanging = parent.add_child(HangingChild)
+        pending = parent.add_child(PendingTaskChild)
 
         await parent.initialize()
-        await hanging.initialize()
+        await pending.initialize()
 
         report = await parent.shutdown()
         assert report.is_restart_safe is False

@@ -14,9 +14,12 @@ from hassette.schemas.app_snapshots import (
     AppInstanceInfo,
     AppManifestInfo,
     AppStatusSnapshot,
+    NeedsRestartInfo,
+    is_failed_info,
     tally_app_statuses,
 )
 from hassette.types.enums import BlockReason
+from hassette.utils import date_utils
 from hassette.utils.exception_utils import get_traceback_string
 
 if TYPE_CHECKING:
@@ -49,14 +52,31 @@ class InstanceEntry:
         return self.app is not None
 
 
+@dataclass(frozen=True)
+class NeedsRestartRecord:
+    """A needs-restart flag on one ``(app_key, index)``, kept outside the instance map.
+
+    Stores the instance and class name so the row still renders after its entry is unregistered or its
+    app leaves config.
+    """
+
+    instance_name: str
+    class_name: str
+    info: NeedsRestartInfo
+
+
 class AppRegistry:
     """Manages app instance state and provides queryable status interface.
 
     Single source of truth for app state with snapshot generation for web UI.
+
+    Per-index state has two parts: the instance entry (running or failed) and an optional needs-restart
+    record. ``resolve_instance_info`` is the one place they combine; every per-index reader goes through it.
     """
 
     def __init__(self) -> None:
         self._instances: dict[str, dict[int, InstanceEntry]] = defaultdict(dict)
+        self._needs_restart: dict[str, dict[int, NeedsRestartRecord]] = defaultdict(dict)
         self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
         self._only_apps: frozenset[str] = frozenset()
@@ -99,10 +119,88 @@ class AppRegistry:
             error_traceback=get_traceback_string(error) if error.__traceback__ else None,
         )
 
+    def flag_needs_restart(
+        self,
+        app_key: str,
+        index: int,
+        *,
+        instance_name: str,
+        class_name: str,
+        reason: str,
+        pending_tasks: Iterable[str] = (),
+    ) -> bool:
+        """Record that ``(app_key, index)`` needs a hassette restart because work may still be running.
+
+        The first record at an index stands until restart: a later flag at the same index is not merged
+        in, and returns ``False``. Survives ``unregister_app``, ``record_failure`` and config changes;
+        only ``clear_all`` (process exit, test reset) removes it.
+
+        Returns:
+            ``True`` when this call created the record.
+        """
+        records = self._needs_restart[app_key]
+        if index in records:
+            return False
+        records[index] = NeedsRestartRecord(
+            instance_name=instance_name,
+            class_name=class_name,
+            info=NeedsRestartInfo(reason=reason, pending_tasks=tuple(pending_tasks), flagged_at=date_utils.now()),
+        )
+        self.logger.debug("Flagged app '%s' index %d needs restart: %s", app_key, index, reason)
+        return True
+
+    def resolve_instance_info(
+        self, app_key: str, index: int, manifest: "AppManifest | None" = None
+    ) -> AppInstanceInfo | None:
+        """The effective snapshot of one ``(app_key, index)``, or ``None`` when nothing is tracked there.
+
+        The one place an instance entry and its needs-restart record combine. A record wins whatever the
+        entry says: the result is FAILED with ``needs_restart`` set, and when the entry holds no error
+        message the record's reason serves as it. Without a record, the result is the entry's.
+
+        ``manifest`` names and ranges the index; it defaults to the loaded manifest for ``app_key``.
+        """
+        manifest = manifest or self._manifests.get(app_key)
+        entry = self._instances.get(app_key, {}).get(index)
+        record = self._needs_restart.get(app_key, {}).get(index)
+        if record is None:
+            return self._info_from_entry(app_key, index, entry, manifest) if entry is not None else None
+
+        if entry is not None:
+            base = self._info_from_entry(app_key, index, entry, manifest)
+        else:
+            base = AppInstanceInfo(
+                app_key=app_key,
+                index=index,
+                instance_name=record.instance_name,
+                class_name=record.class_name,
+                status=ResourceStatus.FAILED,
+                in_current_config=self._index_in_current_config(index, manifest),
+            )
+        return replace(
+            base,
+            status=ResourceStatus.FAILED,
+            error_message=base.error_message or record.info.reason,
+            needs_restart=record.info,
+        )
+
+    def tracked_indices(self, app_key: str) -> set[int]:
+        """Indices with an instance entry or a needs-restart record for ``app_key``."""
+        return set(self._instances.get(app_key, {})) | set(self._needs_restart.get(app_key, {}))
+
+    def resolve_instance_infos(self, app_key: str, manifest: "AppManifest | None" = None) -> dict[int, AppInstanceInfo]:
+        """``resolve_instance_info`` for every tracked index of ``app_key``, in index order."""
+        return {
+            index: info
+            for index in sorted(self.tracked_indices(app_key))
+            if (info := self.resolve_instance_info(app_key, index, manifest)) is not None
+        }
+
     def prune_stale_failed_indices(self, app_key: str, valid_index_count: int) -> dict[int, AppInstanceInfo]:
         """Remove failed (non-running) entries at indices no longer present in the current config.
 
         Returns what was removed, resolved to ``AppInstanceInfo`` (same as ``get_failed_instance_infos``).
+        A needs-restart record at a pruned index is kept, so its resolved snapshot stays FAILED.
 
         Config can shrink (fewer configured instances) without the app going through a full
         reload — e.g. an ``autostart=false`` app that isn't auto-reconciled on a config change
@@ -120,11 +218,10 @@ class AppRegistry:
         entries = self._instances.get(app_key)
         if not entries:
             return {}
-        manifest = self._manifests.get(app_key)
         stale_indices = [
             index for index, entry in entries.items() if not entry.is_running and index >= valid_index_count
         ]
-        pruned = {index: self._info_from_entry(app_key, index, entries[index], manifest) for index in stale_indices}
+        pruned = {index: info for index in stale_indices if (info := self.resolve_instance_info(app_key, index))}
         for index in stale_indices:
             del entries[index]
         if not entries:
@@ -155,9 +252,10 @@ class AppRegistry:
         return app_key in self._blocked_apps
 
     def clear_all(self) -> None:
-        """Clear all apps and blocked apps."""
+        """Clear all apps, blocked apps, and needs-restart records (process exit and test reset only)."""
         self._instances.clear()
         self._blocked_apps.clear()
+        self._needs_restart.clear()
 
     def set_manifests(self, manifests: dict[str, "AppManifest"]) -> None:
         """Update the app manifests configuration."""
@@ -202,19 +300,20 @@ class AppRegistry:
         return self._instances.get(app_key, {}).copy()
 
     def get_failed_instance_infos(self, app_key: str) -> dict[int, AppInstanceInfo]:
-        """Get resolved AppInstanceInfo for failed (non-running) entries for an app key.
+        """Get resolved AppInstanceInfo for failed indices of an app key: failed entries and flagged indices.
 
         Used to emit a status-change event for failures recorded by ``AppFactory.create_instances()``
         before an ``App`` object existed to build the event from — reuses the same instance_name/
         class_name resolution as snapshot generation so the event matches what a subsequent fetch
         would show.
         """
-        manifest = self._manifests.get(app_key)
-        return {
-            index: self._info_from_entry(app_key, index, entry, manifest)
-            for index, entry in self._instances.get(app_key, {}).items()
-            if not entry.is_running
-        }
+        return {index: info for index, info in self.resolve_instance_infos(app_key).items() if is_failed_info(info)}
+
+    @staticmethod
+    def _index_in_current_config(index: int, manifest: "AppManifest | None") -> bool:
+        # Without a manifest there is no configured range to compare against; the app-level
+        # ``AppManifestInfo.in_current_config`` covers a wholly orphaned app.
+        return manifest is None or index < len(AppFactory.normalize_configs(manifest.app_config))
 
     def _resolve_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
         """Resolve the configured ``instance_name`` for an index with no live ``App`` object.
@@ -235,9 +334,7 @@ class AppRegistry:
     def _info_from_entry(
         self, app_key: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None
     ) -> AppInstanceInfo:
-        # Without a manifest there is no configured range to compare against; the app-level
-        # ``AppManifestInfo.in_current_config`` covers a wholly orphaned app.
-        in_current_config = manifest is None or index < len(AppFactory.normalize_configs(manifest.app_config))
+        in_current_config = self._index_in_current_config(index, manifest)
         if (app := entry.app) is not None:
             return AppInstanceInfo(
                 app_key=app_key,
@@ -264,12 +361,9 @@ class AppRegistry:
 
     def get_snapshot(self) -> AppStatusSnapshot:
         """Generate immutable status snapshot for web UI."""
-        instances: list[AppInstanceInfo] = []
-
-        for app_key, entries in self._instances.items():
-            manifest = self._manifests.get(app_key)
-            for index, entry in entries.items():
-                instances.append(self._info_from_entry(app_key, index, entry, manifest))
+        # Every app key with an instance entry or a needs-restart record, in first-seen order.
+        app_keys = dict.fromkeys([*self._instances, *self._needs_restart])
+        instances = [info for app_key in app_keys for info in self.resolve_instance_infos(app_key).values()]
 
         return AppStatusSnapshot(
             instances=tuple(instances),
@@ -301,13 +395,14 @@ class AppRegistry:
         tracked and configured indices, never a plain ``range(configured_count)``, so a live
         orphan is never dropped from view.
 
-        ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked registry entries
-        only, same as before — a configured-but-not-yet-started app is correctly STOPPED, not
-        DEGRADED, even though ``instances`` now lists its not-yet-tracked instances too.
+        ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked indices only
+        (entries and needs-restart records, through ``resolve_instance_info``) — a
+        configured-but-not-yet-started app is correctly STOPPED, not DEGRADED, even though
+        ``instances`` also lists its not-yet-tracked instances. A flagged index counts as failed.
         """
-        entries = self._instances.get(app_key, {})
-        has_running = any(entry.is_running for entry in entries.values())
-        has_failed = any(entry.status == ResourceStatus.FAILED for entry in entries.values())
+        tracked = self.resolve_instance_infos(app_key, manifest)
+        has_running = any(not is_failed_info(info) for info in tracked.values())
+        has_failed = any(is_failed_info(info) for info in tracked.values())
 
         if not manifest.enabled:
             status = AppStatus.DISABLED
@@ -323,17 +418,16 @@ class AppRegistry:
             status = AppStatus.STOPPED
 
         configured_count = len(AppFactory.normalize_configs(manifest.app_config))
-        all_indices = sorted(set(entries) | set(range(configured_count)))
+        all_indices = sorted(set(tracked) | set(range(configured_count)))
 
         instances: list[AppInstanceInfo] = []
         error_message: str | None = None
         error_traceback: str | None = None
 
         for index in all_indices:
-            entry = entries.get(index)
-            if entry is not None:
-                info = self._info_from_entry(app_key, index, entry, manifest)
-                if not entry.is_running and error_message is None:
+            info = tracked.get(index)
+            if info is not None:
+                if is_failed_info(info) and error_message is None:
                     error_message = info.error_message
                     error_traceback = info.error_traceback
             else:
@@ -362,6 +456,35 @@ class AppRegistry:
             instances=tuple(instances),
             error_message=error_message,
             error_traceback=error_traceback,
+            needs_restart_count=count_needs_restart(instances),
+        )
+
+    def build_orphaned_flag_info(self, app_key: str) -> AppManifestInfo | None:
+        """Runtime fields for an app absent from the loaded config that still has needs-restart records.
+
+        Returns ``None`` when the app has no record. A record makes its index tracked, and the resolver
+        returns an info for every flagged index, so ``instances`` is never empty past the guard.
+
+        ``display_name``, ``filename`` and ``enabled`` are placeholders: static metadata is the caller's
+        to fill in (``overlay_runtime_state`` overrides them from the DB row).
+        """
+        if not self._needs_restart.get(app_key):
+            return None
+        instances = tuple(self.resolve_instance_infos(app_key).values())
+        first_failed = next((info for info in instances if is_failed_info(info)), None)
+        return AppManifestInfo(
+            app_key=app_key,
+            class_name=instances[0].class_name,
+            display_name=app_key,
+            filename="",
+            enabled=True,
+            status=AppStatus.FAILED,
+            instance_count=len(instances),
+            instances=instances,
+            error_message=first_failed.error_message if first_failed else None,
+            error_traceback=first_failed.error_traceback if first_failed else None,
+            in_current_config=False,
+            needs_restart_count=count_needs_restart(instances),
         )
 
     @property
@@ -404,7 +527,9 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
       ``build_manifest_info()`` (priority: disabled > blocked > degraded > running > failed >
       stopped), and ``in_current_config`` is ``True``.
     - If absent (a DB-only / removed app): status defaults to ``AppStatus.STOPPED`` with
-      zero instances, and ``in_current_config`` is ``False``.
+      zero instances, and ``in_current_config`` is ``False`` — unless an instance of it is still
+      flagged needs-restart, in which case it is FAILED and lists its flagged instances
+      (``AppRegistry.build_orphaned_flag_info``).
 
     Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``) always
     comes from the DB row, never from the in-memory manifest — the DB is the source of truth
@@ -446,6 +571,8 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
             # freshly-derived `status`.
             derived = registry.build_manifest_info(app_key, in_memory_manifest)
             info = replace(derived, app_key=app_key, in_current_config=True, **static_fields)
+        elif (flagged := registry.build_orphaned_flag_info(app_key)) is not None:
+            info = replace(flagged, enabled=bool(db_row["enabled"]), **static_fields)
         else:
             info = AppManifestInfo(
                 app_key=app_key,
@@ -458,3 +585,8 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
         results.append(info)
 
     return results
+
+
+def count_needs_restart(instances: Iterable[AppInstanceInfo]) -> int:
+    """Number of instance snapshots flagged needs-restart."""
+    return sum(1 for info in instances if info.needs_restart is not None)

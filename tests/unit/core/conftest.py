@@ -19,6 +19,7 @@ from ._fixtures_app_lifecycle import (
     mock_hassette,
     mock_manifest,
     mock_registry,
+    real_registry_service,
     set_registry_apps,
     stub_detected_changes,
 )
@@ -87,6 +88,7 @@ __all__ = [
     "mock_hassette",
     "mock_manifest",
     "mock_registry",
+    "real_registry_service",
     "run_cleanup",
     "set_registry_apps",
     "stub_detected_changes",

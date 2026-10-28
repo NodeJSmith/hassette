@@ -535,33 +535,6 @@ async def test_resistant_hook_holds_shutdown_until_the_owner_force_terminates():
     assert body_task.cancelled()
 
 
-async def test_shutdown_children_records_child_restart_unsafe_without_raising():
-    """A child whose own ``shutdown()`` call returns a report with ``is_restart_safe`` ``False``
-    (without raising -- ``ErrorChild`` fails inside ``on_shutdown()``, which ``run_hooks(...,
-    continue_on_error=True)`` catches and turns into a ``SHUTDOWN_HOOK_FAILED`` report rather
-    than an exception) makes the parent's aggregated report ``is_restart_safe`` ``False`` too,
-    merging the child's own cause and recording ``CHILD_RESTART_UNSAFE`` with the child's identity.
-    """
-    hassette = make_mock_hassette(sealed=False)
-    parent = SimpleParent(hassette)
-    child = parent.add_child(ErrorChild)
-
-    await parent.initialize()
-    await child.initialize()
-
-    report = await parent.shutdown()
-
-    child_report = child.teardown_report
-    assert child_report is not None
-    assert child_report.is_restart_safe is False
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED in child_report.causes
-
-    assert report.is_restart_safe is False
-    assert TeardownCause.CHILD_RESTART_UNSAFE in report.causes
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, "child's own cause must be merged into the parent"
-    assert child.unique_name in report.affected_resources
-
-
 async def test_shutdown_children_records_child_shutdown_failed_and_continues_siblings():
     """A child whose ``shutdown()`` call itself raises (not just a hook inside it) adds
     ``CHILD_SHUTDOWN_FAILED`` and the child's identity to the parent's aggregated report, and
@@ -685,7 +658,8 @@ async def test_slow_cleanup_is_cut_at_its_cap_and_children_still_shut_down():
     report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
     elapsed = loop.time() - start_time
 
-    assert report.is_restart_safe is False, "the cut-off cleanup and the hanging child must produce an unsafe report"
+    assert TeardownCause.CLEANUP_TIMED_OUT in report.causes
+    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes, "the hanging child's hook timeout is merged in"
     assert elapsed < 3.0, f"cleanup ran past its cap ({elapsed:.2f}s)"
     assert hanging.shutdown_completed is True
 

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import type { ResourceStatus } from "../api/endpoints";
-import type { ConnectedData, ExecutionCompletedData } from "../api/ws-types";
+import type { ConnectedData, ExecutionCompletedData, NeedsRestart } from "../api/ws-types";
 import { getStoredValue, setStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
 
@@ -38,6 +38,8 @@ export interface AppStatusEntry {
   instance_name?: string | null;
   class_name?: string | null;
   exception?: string | null;
+  /** Set when the instance needs a hassette restart; the first flag stands until restart. */
+  needs_restart?: NeedsRestart | null;
 }
 
 export function appStatusKey(appKey: string, index: number): string {

@@ -8,7 +8,7 @@ machinery; the guard decides whether and when to call it, retains the returned t
 cancellable handle, and (for ``queued``) drains pending factories one at a time.
 
 This module also provides the stateless dispatch-bridge helpers — ``run_with_stall_watch``,
-``run_through_guard``, ``release_and_drain`` (wrapping ``drain_pending_done``) — that both the
+``run_through_guard``, ``run_parallel``, ``release_and_drain`` (wrapping ``drain_pending_done``) — that both the
 bus (``HandlerInvoker``) and the scheduler (``SchedulerService``) call to wrap the guard with a
 completion-future bridge, a stall watchdog, and the drain. The module also provides
 ``resolve_execution_mode()``, the tier-aware mode resolution shared by both subsystems'
@@ -84,10 +84,10 @@ class ExecutionModeGuard:
 
     ``parallel`` is a fire-and-forget pass-through: ``run()`` calls ``run_and_track()`` and
     discards the returned task. The spawned task is owned and tracked by the caller's own task
-    machinery (the bus's ``task_bucket``) — the guard neither retains nor awaits it, holds no
+    machinery (its ``task_bucket``) — the guard neither retains nor awaits it, holds no
     tracking state, and takes no lock. A caller that needs to await the handler must not route a
-    parallel listener through ``run()``; ``HandlerInvoker`` awaits parallel inline and never
-    reaches this branch.
+    parallel invocation through ``run()``; ``HandlerInvoker`` and ``SchedulerService`` use
+    ``run_parallel()`` instead and never reach this branch.
     """
 
     __slots__ = ("_cap", "_lock", "_mode", "current_task", "dropped", "pending", "suppressed")
@@ -267,9 +267,9 @@ async def run_through_guard(
 ) -> None:
     """Route one non-parallel invocation through ``guard``, bridging completion via a future.
 
-    PRECONDITION: the caller must handle the ``parallel`` fast-path itself — this function is
+    PRECONDITION: the caller must route ``parallel`` through ``run_parallel`` — this function is
     the single/restart/queued path only. There is no guard-rail; passing a parallel guard here
-    would route it through the future bridge instead of awaiting inline.
+    would use the future bridge, which parallel never needs.
 
     The parameters fall into three groups: the overlap state (``guard``, ``pending_done``), the
     invocation (``invoke``, ``warn``, ``threshold``), and the task machinery (``spawn``,
@@ -324,6 +324,28 @@ async def run_through_guard(
         resolve_done()
         return
     await done
+
+
+async def run_parallel(
+    spawn: Callable[..., "asyncio.Task[None]"], invoke: Callable[[], Awaitable[None]], spawn_name: str
+) -> None:
+    """Run one ``parallel`` invocation as a task from ``spawn`` and wait for it to end.
+
+    A parallel guard tracks nothing, so removing the listener or job can't cancel its invocation.
+    ``spawn`` must therefore place the task in its owner's task bucket, where the owner's teardown
+    cancels it or reports it pending. Cancelling this wait cancels the invocation too, without
+    waiting for it to unwind (the owner's bucket still tracks it). The owner cancelling the
+    invocation ends the wait without raising here. Any other exception from the invocation, or from
+    ``spawn`` (a sealed ``TaskBucket``, say), propagates.
+    """
+    task = spawn(invoke(), name=spawn_name)
+    try:
+        await asyncio.wait([task])
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
+    if not task.cancelled():
+        task.result()
 
 
 async def release_and_drain(

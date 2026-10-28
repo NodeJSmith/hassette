@@ -84,6 +84,17 @@
           ],
           "default": null,
           "title": "Exception Traceback"
+        },
+        "needs_restart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NeedsRestart"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -377,6 +388,35 @@
         "timestamp"
       ],
       "title": "LogHintWsMessage",
+      "type": "object"
+    },
+    "NeedsRestart": {
+      "description": "Why an app instance needs a hassette restart: a teardown left work that may still be running.\n\nPython can't stop a coroutine that ignores cancellation, so the only recovery is restarting hassette. Until\nthen the instance reports ``failed``. Nested in ``AppInstance`` and in the ``app_status_changed`` WS event.",
+      "properties": {
+        "reason": {
+          "description": "What the teardown left behind, such as the tasks still pending or why its evidence is incomplete.",
+          "title": "Reason",
+          "type": "string"
+        },
+        "pending_tasks": {
+          "description": "Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the\ninstance was force-terminated, or its shutdown raised).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Pending Tasks",
+          "type": "array"
+        },
+        "flagged_at": {
+          "description": "When the instance was flagged, in epoch seconds. The first flag stands until restart.",
+          "title": "Flagged At",
+          "type": "number"
+        }
+      },
+      "required": [
+        "reason",
+        "flagged_at"
+      ],
+      "title": "NeedsRestart",
       "type": "object"
     },
     "ResourceStatus": {

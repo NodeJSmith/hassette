@@ -43,6 +43,28 @@ export interface AppStatusChangedData {
   exception?: string | null;
   exception_type?: string | null;
   exception_traceback?: string | null;
+  needs_restart?: NeedsRestart | null;
+}
+/**
+ * Why an app instance needs a hassette restart: a teardown left work that may still be running.
+ *
+ * Python can't stop a coroutine that ignores cancellation, so the only recovery is restarting hassette. Until
+ * then the instance reports ``failed``. Nested in ``AppInstance`` and in the ``app_status_changed`` WS event.
+ */
+export interface NeedsRestart {
+  /**
+   * What the teardown left behind, such as the tasks still pending or why its evidence is incomplete.
+   */
+  reason: string;
+  /**
+   * Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the
+   * instance was force-terminated, or its shutdown raised).
+   */
+  pending_tasks?: string[];
+  /**
+   * When the instance was flagged, in epoch seconds. The first flag stands until restart.
+   */
+  flagged_at: number;
 }
 /**
  * New log records exist; refetch them over HTTP.

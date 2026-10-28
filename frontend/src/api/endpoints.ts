@@ -10,6 +10,7 @@ export type AppStatus = components["schemas"]["AppStatus"];
 export type ResourceStatus = components["schemas"]["ResourceStatus"];
 export type AppManifest = components["schemas"]["AppSummary"];
 export type AppInstance = components["schemas"]["AppInstance"];
+export type NeedsRestart = components["schemas"]["NeedsRestart"];
 export type ManifestListResponse = components["schemas"]["AppListResponse"];
 export type ListenerData = components["schemas"]["ListenerSummary"];
 export type AppGridEntry = components["schemas"]["AppGridEntry"];

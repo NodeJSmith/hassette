@@ -210,8 +210,13 @@ class RuntimeQueryService(Resource):
         await self.broadcast_envelope(event_type, payload.model_dump())
 
     async def on_app_state_changed(self, event: AnyEvent) -> None:
-        """Convert an app status change event to ``AppStatusChangedData`` and broadcast it to WS clients."""
+        """Convert an app status change event to ``AppStatusChangedData`` and broadcast it to WS clients.
+
+        ``needs_restart`` isn't on the bus event: it is read here from ``AppRegistry.resolve_instance_info``, so
+        no emit site can drop it, and is set when the instance is flagged.
+        """
         data = event.payload.data
+        resolved = self.hassette.app_handler.registry.resolve_instance_info(data.app_key, data.index)
         payload = AppStatusChangedData(
             app_key=data.app_key,
             index=data.index,
@@ -222,6 +227,7 @@ class RuntimeQueryService(Resource):
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
+            needs_restart=resolved.needs_restart.to_wire() if resolved and resolved.needs_restart else None,
         )
         await self.build_and_broadcast("app_status_changed", payload)
 

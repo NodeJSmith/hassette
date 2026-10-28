@@ -254,6 +254,8 @@ def wire_app_handler(
     # "currently configured" overlay result should replace `registry` with a real AppRegistry.
     registry.manifests = {}
     registry.only_apps = frozenset()
+    # The DB-only branch also asks the registry for needs-restart records; no app has one here.
+    registry.build_orphaned_flag_info = MagicMock(return_value=None)
 
     # _failed_target_instances() (web/routes/apps.py) reads this after every start/reload to
     # detect a swallowed failure -- a bare MagicMock return value is truthy and non-empty when

@@ -182,7 +182,7 @@ Hassette starts its internal components — database, WebSocket connection, bus,
 | Field | Default | Caps |
 |---|---|---|
 | `startup_timeout_seconds` | 30s | Each startup wave, from starting its services until all have initialized and are ready. Must be ≥ `app_startup_timeout_seconds`, since app readiness is part of a wave. The database wave also gets `database.migration_timeout_seconds` on top, so a slow migration isn't cut short. |
-| `app_startup_timeout_seconds` | 20s | A single app's `on_initialize`. A slow app times out individually without failing the whole wave budget. |
+| `app_startup_timeout_seconds` | 20s | A single app's `on_initialize`. A slow app times out individually without failing the whole wave budget. A timed-out `on_initialize` is cancelled and its instance shut down, without its own shutdown hooks. |
 | `shutdown_timeout_seconds` | 10s | Each shutdown hook: an app's `before_shutdown`, `on_shutdown` and `after_shutdown`, and each framework component's. |
 | `total_shutdown_timeout_seconds` | 45s | The entire shutdown. Must be more than the foundation stage's fixed 20 seconds. |
 | `task_cancellation_timeout_seconds` | 5s | Waiting for cancelled tasks to finish before they are abandoned. |
@@ -206,7 +206,7 @@ Last, Hassette writes the shutdown snapshot: a consistent single-file copy of th
 
 Each hook gets `shutdown_timeout_seconds`, or less when its stage has less time left. A hook that outlives its bound is cancelled. `AppSync`'s shutdown hooks (`before_shutdown_sync`, `on_shutdown_sync`, `after_shutdown_sync`) share the worker-thread pool, so when more of them run at once than there are workers, the wait for a thread counts against each hook's bound. When a stage runs out of time, Hassette stops waiting: it force-terminates whatever hasn't finished and logs one ERROR naming each component.
 
-Stopping or reloading a single app at runtime gets the same limit as the stop stage. A stop that runs past it ends as a failed, timed-out stop, and the app's listeners and jobs are removed.
+Stopping or reloading a single app at runtime gets the same limit as the stop stage. A stop that runs past it ends as a failed, timed-out stop: the app's listeners and jobs are removed, and the instance is flagged as [needing a restart](#instances-that-need-a-restart).
 
 When Hassette force-terminated work at any point, or worker threads survived the join, `hassette run` exits as soon as shutdown finishes. It logs one ERROR naming what was left, and doesn't wait for that work. A process supervisor would otherwise have to kill it. An exit whose only problem is abandoned work still exits 0.
 
@@ -216,7 +216,31 @@ When Hassette force-terminated work at any point, or worker threads survived the
 !!! warning "Upgrading from the old shutdown settings"
     `app_shutdown_timeout_seconds`, `resource_shutdown_timeout_seconds` and `sync_executor_shutdown_timeout_seconds` no longer exist. A config that still sets one fails to load, and Hassette won't start until you remove it. Use `shutdown_timeout_seconds` for the per-hook bound.
 
+    `failed_instance_cleanup_timeout_seconds` no longer exists either, and fails to load the same way. An app whose `on_initialize` fails or times out is now shut down under the stop limit above, with its own shutdown hooks skipped, so the setting has nothing left to bound.
+
     `total_shutdown_timeout_seconds` now includes the foundation stage's fixed 20 seconds, so an explicit value leaves 20 seconds less for stopping apps than it used to. A config that set it to 30 gets a 10-second stop stage. A supervisor grace period of 45 seconds, which older versions of the compose example used, can kill Hassette before the shutdown snapshot is written; use 60.
+
+### Instances that need a restart
+
+Python cancellation is cooperative. Hassette can cancel a hook or a task, but it can't stop one that catches the cancellation and keeps going. When an app instance's teardown ends and work from it may still be running, Hassette flags the instance as needing a restart. That happens when:
+
+- a failed or timed-out `on_initialize` doesn't finish once it's cancelled,
+- a task the instance started with [`self.task_bucket`](../core-concepts/apps/task-bucket.md) is still pending when its teardown ends,
+- the teardown runs past its limit and Hassette force-terminates it, or the shutdown of one of its parts, such as its bus or scheduler, fails or times out,
+- an exception escapes the stop's own steps, cutting the teardown short before Hassette's steps after the hooks have run. The usual cause is a `CancelledError` escaping `before_shutdown`, `on_shutdown` or `after_shutdown`: a hook that cancels its own task with `task.cancel()` and then `await`s the task directly. Wait for it with `await asyncio.wait([task])` instead. That returns once the task has finished without raising its `CancelledError`, and still lets a real cancellation of the hook through.
+
+A shutdown hook that raised an ordinary exception or timed out, and then ended, doesn't flag the instance. Nothing from it is still running. Neither does a failed `cleanup()`: it's logged at ERROR, and the stop is reported as finished.
+
+The flag doesn't cover worker threads. A synchronous handler, job or [`AppSync`](../core-concepts/apps/index.md#synchronous-apps) hook that is still running when it's cancelled keeps its thread until the call returns, and the instance isn't flagged for it (see [timeout limitations](#limitations)). Make long-running work `async` so cancellation stops it.
+
+A flagged instance:
+
+- logs one ERROR naming the instance and what may still be running, such as the pending task names
+- reports `failed` with that reason until Hassette restarts, even after the app is stopped or removed from the config
+- appears in `hassette status`, is counted in the `Restart` column of `hassette app`, and gets a "needs restart" badge in the web UI
+- carries `needs_restart` (the reason, pending task names and when it was flagged) on its instance in `GET /api/apps` and on `app_status_changed` WebSocket events, and its app carries `needs_restart_count`
+
+Only a Hassette restart clears the flag. The usual cause is a hook or task that catches `asyncio.CancelledError`, or uses a bare `except:`, without re-raising. Fixing that code prevents a repeat.
 
 ## Scheduler Cadence
 

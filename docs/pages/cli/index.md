@@ -23,21 +23,21 @@ $ hassette status
 ╰───────────────────────────────────────────────────────────╯
 ```
 
-`hassette status` shows connection state, uptime, and app count. `app_count` counts tracked app instances, not apps: one app configured with two instances counts as 2. `websocket_connected` shows whether Hassette has a live connection to Home Assistant — when `false`, no events fire. `services` lists internal services currently running. `boot_issues` lists any apps that failed to initialize; check `hassette log --app <key>` for the error.
+`hassette status` shows connection state, uptime, and app count. `app_count` counts tracked app instances, not apps: one app configured with two instances counts as 2. `websocket_connected` shows whether Hassette has a live connection to Home Assistant — when `false`, no events fire. `services` lists internal services currently running. `boot_issues` lists any apps that failed to initialize; check `hassette log --app <key>` for the error. When an app instance needs a Hassette restart, a table below the panel names each one with its reason.
 
 ```console
 $ hassette app
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
-┃ App             ┃ Status  ┃ Display     ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ File              ┃
-┃                 ┃         ┃ Name        ┃           ┃                ┃         ┃                   ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
-│ config_app      │ running │ ConfigApp   │ 1         │ 0              │ True    │ config_app.py     │
-│ trivial_app     │ running │ TrivialApp  │ 1         │ 0              │ True    │ trivial_app.py    │
-│ bus_handler_app │ running │ BusHandler… │ 1         │ 0              │ True    │ bus_handler_app.py│
-└─────────────────┴─────────┴─────────────┴───────────┴────────────────┴─────────┴───────────────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Display     ┃ Instances ┃ Restart ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File              ┃
+┃                 ┃         ┃ Name        ┃           ┃         ┃                ┃         ┃           ┃                   ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ config_app      │ running │ ConfigApp   │ 1         │         │ 0              │ True    │ True      │ config_app.py     │
+│ trivial_app     │ running │ TrivialApp  │ 1         │         │ 0              │ True    │ True      │ trivial_app.py    │
+│ bus_handler_app │ running │ BusHandler… │ 1         │         │ 0              │ True    │ True      │ bus_handler_app.py│
+└─────────────────┴─────────┴─────────────┴───────────┴─────────┴────────────────┴─────────┴───────────┴───────────────────┘
 ```
 
-`hassette app` lists every loaded app. The `App` column is the identifier other commands take via `--app` — it comes from the `[hassette.apps.<key>]` section name in `hassette.toml` (see [Application Configuration](../core-concepts/apps/configuration.md#registering-an-app)). `Instances` counts running copies of the app; most apps run one. `Invocations/1h` counts how many times the app's handlers ran in the last hour — 0 is normal for apps that react to infrequent events.
+`hassette app` lists every loaded app. The `App` column is the identifier other commands take via `--app` — it comes from the `[hassette.apps.<key>]` section name in `hassette.toml` (see [Application Configuration](../core-concepts/apps/configuration.md#registering-an-app)). `Instances` counts running copies of the app; most apps run one. `Restart` counts the app's instances that need a Hassette restart, and is blank when none do (see [Instances that need a restart](../operating/index.md#instances-that-need-a-restart)). `Invocations/1h` counts how many times the app's handlers ran in the last hour — 0 is normal for apps that react to infrequent events.
 
 ```console
 $ hassette log --limit 5

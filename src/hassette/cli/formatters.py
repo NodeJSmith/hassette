@@ -188,3 +188,13 @@ def fmt_instance_count(value: Any) -> str:
     """Label a tracked-instance count so it can't be read as the configured-app total."""
     noun = "instance" if value == 1 else "instances"
     return f"{value} tracked {noun}"
+
+
+def fmt_names(value: Any) -> str:
+    """Comma-separated names, or blank when the list is empty."""
+    return ", ".join(str(v) for v in value)
+
+
+def fmt_nonzero_count(value: Any) -> str:
+    """A count, or blank when it is zero, so a column of mostly-zero counts shows only the ones that matter."""
+    return str(value) if value else ""

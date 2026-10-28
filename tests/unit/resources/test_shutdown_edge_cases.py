@@ -112,7 +112,7 @@ class TestShutdownBodySwallowsHandleStopException:
         report = await resource._shutdown_body()
 
         assert TeardownCause.CLEANUP_FAILED in report.causes
-        assert report.is_restart_safe is False
+        assert report.is_restart_safe is True, "a cleanup that raised has ended; it is diagnostic only"
         assert "cleanup" in report.failed_operations
 
     async def test_reaches_stopped_when_event_streams_already_closed(self) -> None:

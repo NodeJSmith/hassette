@@ -15,7 +15,9 @@ from hassette_wire import (
     SystemStatusResponse,
 )
 from pydantic import ValidationError
+from whenever import ZonedDateTime
 
+from hassette.schemas.app_snapshots import NeedsRestartInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.web.mappers import (
@@ -68,6 +70,27 @@ def test_app_instance_from_ignores_source_error_attribute():
 
     assert not hasattr(result, "error")
     assert result.status is ResourceStatus.FAILED
+
+
+def test_app_instance_from_carries_needs_restart_with_subsecond_flagged_at():
+    """A flagged instance's record reaches the wire, ``flagged_at`` as epoch seconds with its fraction kept."""
+    flagged_at = ZonedDateTime(2026, 10, 27, 12, 0, 0, nanosecond=250_000_000, tz="UTC")
+    info = make_app_instance_info(
+        needs_restart=NeedsRestartInfo(
+            reason="1 task still pending", flagged_at=flagged_at, pending_tasks=("MyApp.poll",)
+        )
+    )
+
+    result = app_instance_from(info)
+
+    assert result.needs_restart is not None
+    assert result.needs_restart.reason == "1 task still pending"
+    assert result.needs_restart.pending_tasks == ["MyApp.poll"]
+    assert result.needs_restart.flagged_at == pytest.approx(flagged_at.timestamp() + 0.25)
+
+
+def test_app_instance_from_unflagged_has_no_needs_restart():
+    assert app_instance_from(make_app_instance_info()).needs_restart is None
 
 
 def test_listener_summary_row_fields_are_subset_of_wire_model():

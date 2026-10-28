@@ -105,6 +105,11 @@ class TestFlagged:
                 id="removed-sync-executor-shutdown-timeout",
             ),
             pytest.param(
+                "[lifecycle]\nfailed_instance_cleanup_timeout_seconds = 5\n",
+                "lifecycle.failed_instance_cleanup_timeout_seconds",
+                id="removed-failed-instance-cleanup-timeout",
+            ),
+            pytest.param(
                 "[websocket]\nauthentication_timeout_seconds = 10\n",
                 "websocket.authentication_timeout_seconds",
                 id="removed-websocket-authentication-timeout",

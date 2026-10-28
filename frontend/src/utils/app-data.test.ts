@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AppActivity, AppStatus, ResourceStatus } from "../api/endpoints";
 import type { AppStatusEntry } from "../state/store";
 import { createAppActivityStats, createAppGridEntry, createAppHealth, createInstance } from "../test/factories";
-import { appLiveStatus, compareAppRows, hasFailedActivityPart, toAppRow } from "./app-data";
+import { appLiveStatus, appNeedsRestart, compareAppRows, hasFailedActivityPart, toAppRow } from "./app-data";
 
 const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
 
@@ -171,5 +171,61 @@ describe("hasFailedActivityPart", () => {
   it("treats null windowed parts as failed only when the since echo says a window was requested", () => {
     expect(hasFailedActivityPart(grid(null, { activity_buckets: null, last_error: null }))).toBe(false);
     expect(hasFailedActivityPart(grid(1000, { last_error: null }))).toBe(true);
+  });
+});
+
+describe("appNeedsRestart", () => {
+  it("counts a flag on an index the grid hasn't fetched yet", () => {
+    // A config reload added index 1 after the grid loaded; its only record is the WS event that flagged it.
+    const row = instanceRow("multi_app", "running", ["running"]);
+    const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "multi_app:1": { status: "failed", index: 1, needs_restart: flag },
+    };
+
+    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 1, flag });
+  });
+
+  it("keeps a cached flag when the index's last WS event carried none", () => {
+    // The STOPPING event arrived before the flag was set, and the FAILED event that carried it was lost.
+    const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
+    const row = toAppRow(
+      createAppGridEntry({
+        app: {
+          app_key: "multi_app",
+          status: "failed",
+          instance_count: 1,
+          instances: [createInstance({ app_key: "multi_app", index: 0, status: "failed", needs_restart: flag })],
+        },
+      }),
+    );
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "multi_app:0": { status: "stopping", index: 0, needs_restart: null },
+    };
+
+    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 1, flag });
+  });
+
+  it("counts flags that come from the cached row and a WS event on different indices", () => {
+    const cachedFlag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
+    const liveFlag = { reason: "task poll still pending", pending_tasks: ["poll"], flagged_at: 2 };
+    const row = toAppRow(
+      createAppGridEntry({
+        app: {
+          app_key: "multi_app",
+          status: "failed",
+          instance_count: 2,
+          instances: [
+            createInstance({ app_key: "multi_app", index: 0, status: "failed", needs_restart: cachedFlag }),
+            createInstance({ app_key: "multi_app", index: 1, status: "running" }),
+          ],
+        },
+      }),
+    );
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "multi_app:1": { status: "failed", index: 1, needs_restart: liveFlag },
+    };
+
+    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 2, flag: null });
   });
 });

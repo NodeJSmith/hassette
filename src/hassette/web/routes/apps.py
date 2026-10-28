@@ -110,9 +110,9 @@ def _require_no_action_in_progress(app_key: str, hassette: HassetteDep) -> None:
     """Raise ``ACTION_IN_PROGRESS`` when another action holds or is queued for ``app_key``'s lock.
 
     Runs before any existence or instance-range check: an in-flight action can mutate the
-    registry those checks read (stopping an orphaned app unregisters its instances before
-    awaiting their shutdown), so checking existence first would turn a concurrent request into a
-    spurious 404 instead of the 409 it should get.
+    registry those checks read (a stop in flight unregisters each instance as its teardown ends),
+    so checking existence first could turn a concurrent request into a spurious 404 instead of
+    the 409 it should get.
     """
     if hassette.app_handler.is_action_in_progress(app_key):
         raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, f"Another action on app {app_key!r} is still running")
@@ -208,9 +208,10 @@ def _failed_target_instances(
 
     Scoped to ``instance_index`` when given (a single-instance action must not surface an
     unrelated sibling's failure); otherwise every instance for ``app_key``, matching a whole-app
-    action's blast radius. ``stop`` never matches here: a successful stop removes its target
-    entries from the registry entirely (``AppRegistry.unregister_app``), so there is nothing
-    left to find FAILED.
+    action's blast radius. A successful stop removes its target entries from the registry
+    (``AppRegistry.unregister_app``), but an index flagged needs-restart stays FAILED until
+    restart, so a stop or reload touching one matches here and answers ``ACTION_FAILED`` even
+    when the action itself succeeded. #3110 owns refusing actions on flagged indices.
 
     Not atomic with ``operation()``: the per-app-key lock in ``AppLifecycleService`` is released
     before this read, so a concurrent action against the same ``app_key`` can record or clear a
