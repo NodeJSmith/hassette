@@ -39,6 +39,7 @@
         "tests/unit/bus/test_listeners.py",
         "tests/unit/cli/test_client.py",
         "tests/unit/cli/test_commands_app.py",
+        "tests/unit/cli/test_commands_app_actions.py",
         "tests/unit/core/test_app_change_detector.py",
         "tests/unit/core/test_bus_service_sealed_bucket.py",
         "tests/unit/core/test_command_executor.py",
