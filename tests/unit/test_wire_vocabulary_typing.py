@@ -129,14 +129,11 @@ def test_log_level_request_still_accepts_any_case() -> None:
 
 def test_public_hassette_names_resolve_to_the_wire_vocabularies() -> None:
     """``hassette.scheduler.ScheduleStatus*`` are public API backed by wire."""
-    assert (
-        hassette.scheduler.classes.ScheduleStatus is hassette.scheduler.ScheduleStatus is hassette_wire.ScheduleStatus
-    )
-    assert (
-        hassette.scheduler.classes.ScheduleStatusReason
-        is hassette.scheduler.ScheduleStatusReason
-        is hassette_wire.ScheduleStatusReason
-    )
+    # ``classes`` re-imports these from wire without re-exporting them; the test reads them there on purpose.
+    classes_status = hassette.scheduler.classes.ScheduleStatus  # pyright: ignore[reportPrivateImportUsage]
+    classes_reason = hassette.scheduler.classes.ScheduleStatusReason  # pyright: ignore[reportPrivateImportUsage]
+    assert classes_status is hassette.scheduler.ScheduleStatus is hassette_wire.ScheduleStatus
+    assert classes_reason is hassette.scheduler.ScheduleStatusReason is hassette_wire.ScheduleStatusReason
 
 
 def test_resource_role_is_a_hassette_enum_not_a_wire_name() -> None:
