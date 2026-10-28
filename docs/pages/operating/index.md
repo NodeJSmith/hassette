@@ -74,7 +74,7 @@ What each call does while HA is unreachable:
 
 - **`self.states` reads** keep working. [`StateProxy`][hassette.core.state_proxy.StateProxy], Hassette's local cache of HA states, serves the last-known (stale) values. It raises [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] only if it has never synchronized.
 - **[Api][hassette.api.api.Api] calls that go over the WebSocket**, such as `call_service`, raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError].
-- **Api calls that go over REST**, such as `self.api.get_state()`, retry and then raise [`aiohttp.ClientError`](https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientError). An unreachable HA raises its subclass `ClientConnectorError`.
+- **Api calls that go over REST**, such as `self.api.get_state()`, retry and then raise [`aiohttp.ClientError`](https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientError). An unreachable HA raises its subclass `ClientConnectorError`. An HA that accepts the connection but stops responding raises `TimeoutError` once `rest_request_timeout_seconds` expires, which is not an `aiohttp.ClientError`.
 
 Events during the gap are not replayed. At reconnect, the state cache is replaced with HA's current states, and no state-change events fire for what changed while disconnected. Edge-triggered logic, such as a handler waiting for `light.kitchen` to turn off, misses a transition that happened during the outage. Apps that must reconcile do it in a `hassette.event.websocket_connected` handler by reading current states.
 
