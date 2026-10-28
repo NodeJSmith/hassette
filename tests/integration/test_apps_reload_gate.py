@@ -1,7 +1,10 @@
-"""Reload decisions under the app-key lock, and the needs-restart replacement gate (#3110)."""
+"""Reload decisions under the app-key lock, the needs-restart replacement gate (#3110), and the per-instance
+outcomes each lifecycle action returns (#3111).
+"""
 
 import asyncio
 import typing
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from pathlib import Path
 
@@ -11,8 +14,10 @@ from hassette.config.classes import AppManifest
 from hassette.core.app_lifecycle_common import ActionOutcomes
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
-from hassette.schemas.app_outcomes import OutcomeResult
+from hassette.exceptions import AppBlockedError, AppRemovedError
+from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.testing import HassetteHarness, wait_for
+from hassette.types.enums import BlockReason
 from tests.support.factories import make_change_set
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
@@ -33,6 +38,38 @@ def multi_instance_manifest(app_config: list[dict] | None = None) -> AppManifest
         display_name="Multi Instance",
         full_path=TEST_APPS_PATH / "multi_instance_app.py",
     )
+
+
+def flag(lifecycle: AppLifecycleService, index: int, name: str) -> None:
+    """Flag ``index`` of the multi-instance app as needing a restart, as a teardown that left work running would."""
+    lifecycle.registry.flag_needs_restart(
+        MULTI_INSTANCE_APP_KEY, index, instance_name=name, class_name="MultiInstanceApp", reason="work still running"
+    )
+
+
+def summarize(outcomes: typing.Iterable[InstanceOutcome]) -> list[tuple[int, OutcomeResult, bool, str | None]]:
+    """Each outcome as ``(index, result, needs_restart, reason)``, for comparing a whole action at once."""
+    return [(o.instance_index, o.result, o.needs_restart, o.reason) for o in outcomes]
+
+
+StopUnlocked = Callable[..., Awaitable[None]]
+
+
+def stop_then_record(lifecycle: AppLifecycleService, *, reason: str, flags: bool) -> StopUnlocked:
+    """Wrap ``_stop_instance_unlocked`` so each stop ends failed with ``reason``, flagging the index when ``flags``.
+
+    Stands in for an ``on_shutdown`` that timed out: restart-safe when ``flags`` is false, leaving work running
+    when it is true.
+    """
+    orig_stop = lifecycle._stop_instance_unlocked
+
+    async def stop(app_key: str, index: int, *, outcomes: ActionOutcomes) -> None:
+        await orig_stop(app_key, index, outcomes=outcomes)
+        if flags:
+            flag(lifecycle, index, ("alpha", "beta")[index])
+        outcomes.failed(index, reason, needs_restart=flags)
+
+    return stop
 
 
 @pytest.fixture
@@ -183,3 +220,172 @@ class TestReloadLockAndNeedsRestartGate:
             (1, OutcomeResult.REFUSED),
         ]
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+class TestActionOutcomes:
+    """Each start, stop and reload returns one outcome per targeted instance, decided under the app-key lock."""
+
+    @pytest.fixture
+    async def running(self, lifecycle: AppLifecycleService) -> AppLifecycleService:
+        """The multi-instance app with both instances, ``alpha`` and ``beta``, running."""
+        lifecycle.set_apps_configs({MULTI_INSTANCE_APP_KEY: multi_instance_manifest()})
+        await lifecycle.start_app(MULTI_INSTANCE_APP_KEY)
+        assert len(lifecycle.registry.get_running_apps(MULTI_INSTANCE_APP_KEY)) == 2, "Precondition: both running"
+        return lifecycle
+
+    async def test_start_reports_already_running_instances(self, running: AppLifecycleService) -> None:
+        outcomes = await running.start_app(MULTI_INSTANCE_APP_KEY)
+
+        assert summarize(outcomes) == [
+            (0, OutcomeResult.SUCCEEDED, False, "already running"),
+            (1, OutcomeResult.SUCCEEDED, False, "already running"),
+        ]
+
+    async def test_stop_reports_every_configured_index_including_one_already_stopped(
+        self, running: AppLifecycleService
+    ) -> None:
+        await running.stop_instance(MULTI_INSTANCE_APP_KEY, 1)
+
+        outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
+
+        assert summarize(outcomes) == [
+            (0, OutcomeResult.SUCCEEDED, False, None),
+            (1, OutcomeResult.SUCCEEDED, False, "already stopped"),
+        ]
+
+    async def test_stop_also_targets_a_tracked_instance_outside_the_config(self, running: AppLifecycleService) -> None:
+        running.registry.manifests[MULTI_INSTANCE_APP_KEY].app_config = [{"value": "a", "instance_name": "alpha"}]
+
+        outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
+
+        assert [(o.instance_index, o.result) for o in outcomes] == [
+            (0, OutcomeResult.SUCCEEDED),
+            (1, OutcomeResult.SUCCEEDED),
+        ]
+        assert running.registry.get_running_apps(MULTI_INSTANCE_APP_KEY) == {}
+
+    @pytest.mark.parametrize("per_instance", [False, True], ids=["stop_app", "stop_instance"])
+    async def test_stop_refuses_an_index_already_flagged(
+        self, running: AppLifecycleService, per_instance: bool
+    ) -> None:
+        """A flagged index's work may still be running, so a stop never reports it stopped (spec 140 D3)."""
+        await running.stop_instance(MULTI_INSTANCE_APP_KEY, 1)
+        flag(running, 1, "beta")
+
+        if per_instance:
+            outcomes = await running.stop_instance(MULTI_INSTANCE_APP_KEY, 1)
+        else:
+            outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
+
+        refused = outcomes[-1]
+        assert (refused.instance_index, refused.result, refused.needs_restart) == (1, OutcomeResult.REFUSED, True)
+        assert refused.reason == running.registry.refusal_reason(MULTI_INSTANCE_APP_KEY, 1)
+
+    async def test_unexpected_raise_fails_every_target_with_its_message(
+        self, running: AppLifecycleService, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An exception escaping the stop body still leaves one outcome per target (spec 140 D5)."""
+
+        async def blow_up(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("teardown blew up")
+
+        orig_shutdown = running.shutdown_instances
+        running.shutdown_instances = blow_up  # pyright: ignore[reportAttributeAccessIssue]
+        try:
+            outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
+        finally:
+            running.shutdown_instances = orig_shutdown
+
+        assert summarize(outcomes) == [
+            (0, OutcomeResult.FAILED, False, "teardown blew up"),
+            (1, OutcomeResult.FAILED, False, "teardown blew up"),
+        ]
+        assert [r.getMessage().splitlines()[0] for r in caplog.records if r.levelname == "ERROR"] == [
+            f"Failed to stop app {MULTI_INSTANCE_APP_KEY}:"
+        ]
+
+    async def test_reload_after_a_restart_safe_stop_failure_reports_success(self, running: AppLifecycleService) -> None:
+        """The create half decides a reload's outcome; the stop failure before it stays in ``reason`` (spec 140 D6)."""
+        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=False)
+
+        outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
+
+        assert summarize(outcomes) == [
+            (0, OutcomeResult.SUCCEEDED, False, "the stop before it failed: on_shutdown timed out"),
+        ]
+        assert running.registry.get(MULTI_INSTANCE_APP_KEY, 0) is not None
+
+    async def test_reload_whose_stop_flags_the_index_reports_that_failure(self, running: AppLifecycleService) -> None:
+        """The create half's refusal doesn't relabel a zombie this reload created (spec 140 D6)."""
+        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=True)
+
+        outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
+
+        assert summarize(outcomes) == [(0, OutcomeResult.FAILED, True, "on_shutdown timed out")]
+        assert running.registry.get(MULTI_INSTANCE_APP_KEY, 0) is None
+
+    async def test_blocked_reload_carries_the_stop_outcomes(self, running: AppLifecycleService) -> None:
+        running.registry.block_app(MULTI_INSTANCE_APP_KEY, BlockReason.ONLY_APP)
+
+        with pytest.raises(AppBlockedError) as exc_info:
+            await running.reload_app(MULTI_INSTANCE_APP_KEY)
+
+        assert [(o.instance_index, o.result) for o in exc_info.value.outcomes] == [
+            (0, OutcomeResult.SUCCEEDED),
+            (1, OutcomeResult.SUCCEEDED),
+        ]
+        assert running.registry.get_running_apps(MULTI_INSTANCE_APP_KEY) == {}
+
+    async def test_start_of_an_app_with_no_manifest_raises_app_removed(self, lifecycle: AppLifecycleService) -> None:
+        with pytest.raises(AppRemovedError):
+            await lifecycle.start_app(MULTI_INSTANCE_APP_KEY)
+
+
+class TestRefusalsWithNoResponseChannel:
+    """A refused index reached by a caller with no response is logged as exactly one ERROR."""
+
+    @pytest.fixture
+    async def flagged(self, lifecycle: AppLifecycleService) -> AppLifecycleService:
+        """The multi-instance app running, except index 0, which is stopped and flagged needs-restart."""
+        lifecycle.set_apps_configs({MULTI_INSTANCE_APP_KEY: multi_instance_manifest()})
+        await lifecycle.start_app(MULTI_INSTANCE_APP_KEY)
+        await lifecycle.stop_instance(MULTI_INSTANCE_APP_KEY, 0)
+        flag(lifecycle, 0, "alpha")
+        return lifecycle
+
+    @staticmethod
+    def refusal_errors(caplog: pytest.LogCaptureFixture) -> list[str]:
+        return [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+
+    @pytest.mark.parametrize(
+        "new_config",
+        [
+            [{"value": "a2", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}],
+            [{"value": "a2", "instance_name": "alpha"}, {"value": "b2", "instance_name": "beta"}],
+        ],
+        ids=["changed-index-restart", "whole-app-restart"],
+    )
+    async def test_config_change(
+        self, flagged: AppLifecycleService, caplog: pytest.LogCaptureFixture, new_config: list[dict]
+    ) -> None:
+        original_config = deepcopy(flagged.registry.manifests)
+        flagged.registry.manifests[MULTI_INSTANCE_APP_KEY].app_config = new_config
+
+        await flagged.apply_changes(
+            make_change_set(reload_apps={MULTI_INSTANCE_APP_KEY}), original_config, flagged.registry.manifests
+        )
+
+        reason = flagged.registry.refusal_reason(MULTI_INSTANCE_APP_KEY, 0)
+        app = repr(MULTI_INSTANCE_APP_KEY)
+        assert self.refusal_errors(caplog) == [
+            f"Not starting alpha (app {app}, index 0): it {reason}. Restart hassette to run it again"
+        ]
+
+    async def test_bootstrap_start(self, flagged: AppLifecycleService, caplog: pytest.LogCaptureFixture) -> None:
+        await flagged.stop_app(MULTI_INSTANCE_APP_KEY)
+        caplog.clear()
+
+        await flagged.start_apps({MULTI_INSTANCE_APP_KEY})
+
+        assert len(self.refusal_errors(caplog)) == 1
+        assert self.refusal_errors(caplog)[0].startswith("Not starting alpha")

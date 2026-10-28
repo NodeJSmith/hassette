@@ -245,7 +245,11 @@ A flagged instance:
 - carries `needs_restart` (the reason, pending task names and when it was flagged) on its instance in `GET /api/apps` and on `app_status_changed` WebSocket events, and its app carries `needs_restart_count`
 - isn't replaced until Hassette restarts, as described below
 
-Hassette doesn't create a new instance at a flagged instance's place, because the old one's work may still be running. Hassette refuses a start, a reload, or a config or file change that would create one, and logs one ERROR. The ERROR names the instance and why it was flagged, and says to restart Hassette. The app's other instances still start and reload as usual. In the web UI and over the REST API, a refused start or reload reports that the action failed, and the reason is in the log. Removing a flagged app or instance from the config and adding it back doesn't clear the flag either, so its start is still refused until Hassette restarts.
+Hassette doesn't create a new instance at a flagged instance's place, because the old one's work may still be running. Hassette refuses a start, a reload, or a config or file change that would create one. A stop of a flagged instance is refused too: it is already unregistered, and nothing Hassette does can end work that ignored cancellation. The app's other instances still start, stop and reload as usual.
+
+A refused action from the web UI, the CLI, or the REST API answers `409` `needs_restart`, naming the instance and why it was flagged. Nothing is logged, since the response already carries the refusal. A refusal with no one to answer, at startup or after a config or file change, logs one ERROR instead: it names the instance and why it was flagged, and says to restart Hassette. [API Error Responses](../web-ui/api-errors.md#app-action-outcomes) describes the per-instance outcomes an action reports.
+
+Removing a flagged app or instance from the config and adding it back doesn't clear the flag either, so its start is still refused until Hassette restarts.
 
 !!! warning
     The refusal is tracked by the app and the instance's position in its config, not by the instance's name. A config edit that moves a flagged instance's name to another position or app isn't refused: the new instance starts while the old one's work may still be running, and the two share the name's listeners and jobs. Restart Hassette instead of renaming around a flagged instance.

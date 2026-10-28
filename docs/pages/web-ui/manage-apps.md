@@ -68,7 +68,9 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 
 **Stop** and **Reload** are both available for `DEGRADED` apps, not just `RUNNING` ones — a degraded app still has at least one instance running, so shutting it down or picking up new code is a meaningful recovery action. **Start** is not: nothing about `DEGRADED` implies a fully stopped app.
 
-**Start** and **Reload** skip an instance flagged as [needing a restart](../operating/index.md#instances-that-need-a-restart). Its siblings still start, the action reports that it failed, and the log says to restart Hassette.
+**Start**, **Stop** and **Reload** skip an instance flagged as [needing a restart](../operating/index.md#instances-that-need-a-restart). Its siblings still start, stop or reload. The action's error message names the flagged instance and says to restart Hassette.
+
+An action finishes before it answers. When it fails on one instance, the error message names that instance with its failure, after a count of the instances it acted on.
 
 **Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs a Hassette restart. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
 
