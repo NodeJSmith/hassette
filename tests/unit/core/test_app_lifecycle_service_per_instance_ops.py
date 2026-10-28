@@ -748,8 +748,8 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
         registry.flag_needs_restart(
             "test_app", 0, instance_name="zombie", class_name="TestApp", reason="work still running"
         )
-        record = registry.get_needs_restart("test_app", 0)
-        assert record is not None
+        refusal = registry.refusal_for("test_app", 0)
+        assert refusal is not None
 
         await real_registry_service._create_instance_unlocked("test_app", 0, mock_manifest, force_reload=True)
 
@@ -757,7 +757,7 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
         mock_factory.create_single_instance.assert_not_called()
         assert registry.get_instances("test_app") == {}
         errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == [record.refusal_message("test_app", 0)]
+        assert errors == [refusal]
 
     async def test_blocked_check_still_runs_before_the_flag_check(
         self,
@@ -790,7 +790,5 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
 
         await real_registry_service.start_instance("test_app", 0)
 
-        record = registry.get_needs_restart("test_app", 0)
-        assert record is not None
         errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == [record.refusal_message("test_app", 0)]
+        assert errors == [registry.refusal_for("test_app", 0)]

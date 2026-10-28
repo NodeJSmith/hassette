@@ -1,7 +1,7 @@
 # Design: Reload Decisions Under the App-Key Lock, and the Needs-Restart Replacement Gate
 
 **Date:** 2026-10-28
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3110
 **Parent:** design/specs/134-resource-lifecycle-outcomes/design.md
@@ -127,7 +127,7 @@ bookkeeping in one method.
 **Pick H instead if** releasing locks out of order inside the batch feels riskier than a 409 window
 users rarely hit. **Pick P instead if** never: it reintroduces the gap D6 closes.
 **Reversibility:** easy (local to `apply_changes`)
-**Ratified:** Chose releasing a no-op key's lock as soon as it is decided over holding every lock through the batch or pre-filtering, to keep the decision under the lock without a batch-long 409 on untouched keys, accepting per-key release bookkeeping in `apply_changes`, and (sketch challenge, Finding 2) that a batch can wait, up to the stop deadlines, behind an in-flight HTTP action on a key whose plan comes out empty, holding its earlier restart keys and `_change_event_lock` meanwhile.
+**Ratified:** Chose releasing a no-op key's lock as soon as it is decided over holding every lock through the batch or pre-filtering, to keep the decision under the lock without a batch-long 409 on untouched keys, accepting per-key release bookkeeping in `apply_changes`, and (sketch challenge, Finding 2) that a batch can wait behind an in-flight HTTP action on a key whose plan comes out empty, holding its earlier restart keys and `_change_event_lock` meanwhile. The wait lasts up to the stop and startup deadlines of the action holding each contended key, and adds up across keys (ship-time challenge, Finding 3).
 
 ### D2: How does the gate report a refusal before #3111 gives refusals an outcome?
 
@@ -206,12 +206,12 @@ instead if** an unnamed 500 for the few weeks before #3111 is acceptable.
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
-- The refusal formatter is `NeedsRestartRecord.refusal_message(app_key, index)`, a method on the record rather than a module-level function beside it: `app_registry` imports `app_factory` at module level, so the factory can't import a function back from `app_registry`, while a method reaches it through the record `get_needs_restart` returns.
-- `AppFactory.create_instances` refuses before `load_class` whenever at least one index is flagged and no configured index is left to create (all flagged, or a mix of flagged and live), not only when every index is flagged. Either way there is nothing to create, and with any instance live `force_reload` is already dropped.
+- The refusal formatter is `AppRegistry.refusal_for(app_key, index) -> str | None`, not a module-level function beside `NeedsRestartRecord`. `app_registry` imports `app_factory` at module level, so the factory can't import a function back from `app_registry`, while both funnels already hold the registry. It folds the flagged lookup and the message into one call, and since the registry knows the key and index, no caller can pair a record with the wrong ones. `get_needs_restart` stays, for `resolve_instance_info` and for #3111's structured outcome. (Ship-time challenge, Finding 4, side B.)
+- `AppFactory.create_instances` returns before `load_class` whenever no configured index is left to create: all flagged, a mix of flagged and live, or all live. The ledger names only the all-flagged case, but in each there is nothing to create, and the all-live case's `load_class` call was a cached read whose result was discarded (`force_reload` is already dropped when any instance is live). So a class-load failure is always recorded against `to_create[0]`. (Ship-time challenge, Finding 2.)
 - Restarts are stopped and created in sorted key order. The buckets are frozensets, so the old order was set iteration, not a meaningful list order.
 - `_start_for_restart` still resolves the manifest from the registry; only its comment changed, since the plan is now made under the lock.
 - The lock-scope unit tests (`TestApplyChangesLockScope`) also pass against the pre-change code: they pin D1's release behavior against the hold-every-lock alternative rather than reproduce a bug. The two integration tests for #1689's gaps fail on the pre-change code.

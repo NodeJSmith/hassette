@@ -332,8 +332,8 @@ class AppStartStopMixin:
         # it. Checked before load_class(), so a refused index never re-imports the module or records a
         # class-load failure over its flag. Logged rather than raised: every caller's except-Exception
         # handler would log it a second time.
-        if (record := self.registry.get_needs_restart(app_key, index)) is not None:
-            self.logger.error(record.refusal_message(app_key, index))
+        if (refusal := self.registry.refusal_for(app_key, index)) is not None:
+            self.logger.error(refusal)
             return
 
         app_class = self.factory.load_class(app_key, app_manifest, force_reload)

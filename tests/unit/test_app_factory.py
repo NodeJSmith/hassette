@@ -10,9 +10,6 @@ from pydantic_settings import SettingsConfigDict
 
 from hassette import App, AppConfig
 from hassette.core.app_factory import AppFactory, accepted_config_keys
-from hassette.core.app_registry import NeedsRestartRecord
-from hassette.schemas.app_snapshots import NeedsRestartInfo
-from hassette.utils import date_utils
 
 
 def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
@@ -39,7 +36,7 @@ def mock_registry() -> Mock:
     registry.record_failure = Mock()
     registry.get = Mock(return_value=None)
     registry.get_running_apps = Mock(return_value={})
-    registry.get_needs_restart = Mock(return_value=None)
+    registry.refusal_for = Mock(return_value=None)
     return registry
 
 
@@ -54,15 +51,9 @@ def mock_manifest():
     return manifest
 
 
-def flag_indices(mock_registry: Mock, *flagged: int) -> NeedsRestartRecord:
-    """Make ``mock_registry`` report each index in ``flagged`` as needing a restart; returns the shared record."""
-    record = NeedsRestartRecord(
-        instance_name="zombie",
-        class_name="TestApp",
-        info=NeedsRestartInfo(reason="work still running", flagged_at=date_utils.now()),
-    )
-    mock_registry.get_needs_restart = Mock(side_effect=lambda _key, idx: record if idx in flagged else None)
-    return record
+def flag_indices(mock_registry: Mock, *flagged: int) -> None:
+    """Make ``mock_registry`` refuse each index in ``flagged``, with the refusal text ``refused <index>``."""
+    mock_registry.refusal_for = Mock(side_effect=lambda _key, idx: f"refused {idx}" if idx in flagged else None)
 
 
 @pytest.fixture
@@ -307,7 +298,7 @@ class TestAppFactoryCreateInstances:
 
         created = factory.create_instances("test_app", mock_manifest, force_reload=True)
 
-        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
+        mock_load_class.assert_not_called()
         assert created == set()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
@@ -373,14 +364,14 @@ class TestAppFactoryNeedsRestartGate:
         """A flagged index gets no replacement and one refusal ERROR; its siblings are still created."""
         mock_load_class.return_value = make_app_class()
         mock_manifest.app_config = list(self.THREE_INSTANCES)
-        record = flag_indices(mock_registry, 1)
+        flag_indices(mock_registry, 1)
 
         created = factory.create_instances("test_app", mock_manifest)
 
         assert created == {0, 2}
         assert sorted(c.args[1] for c in mock_registry.register_app.call_args_list) == [0, 2]
         refusals = [r for r in caplog.records if r.levelname == "ERROR"]
-        assert [r.getMessage() for r in refusals] == [record.refusal_message("test_app", 1)]
+        assert [r.getMessage() for r in refusals] == ["refused 1"]
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_every_index_flagged_refuses_before_loading_the_class(
@@ -398,6 +389,27 @@ class TestAppFactoryNeedsRestartGate:
         mock_load_class.assert_not_called()
         mock_registry.record_failure.assert_not_called()
         assert len([r for r in caplog.records if r.levelname == "ERROR"]) == 2
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_flagged_and_live_indices_with_nothing_to_create_refuse_before_loading_the_class(
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest, caplog
+    ):
+        """A live index plus a flagged one leaves nothing to create: no class load (not even forced), no
+        class-load failure recorded, and one refusal for the flagged index.
+        """
+        mock_manifest.app_config = list(self.THREE_INSTANCES[:2])
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 0 else None)
+        mock_registry.get_running_apps = Mock(return_value={0: existing_app})
+        flag_indices(mock_registry, 1)
+
+        created = factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        assert created == set()
+        mock_load_class.assert_not_called()
+        mock_registry.record_failure.assert_not_called()
+        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+        assert errors == ["refused 1"]
 
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")

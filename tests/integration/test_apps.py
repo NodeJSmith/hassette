@@ -768,9 +768,9 @@ class TestPerInstanceSelectiveRestart:
         instance1_after = lifecycle.registry.get(app_key, 1)
         assert instance1_after is not None
         assert instance1_after is not instance1_before
-        record = lifecycle.registry.get_needs_restart(app_key, 0)
-        assert record is not None
-        refusals = [r for r in caplog.records if r.getMessage() == record.refusal_message(app_key, 0)]
+        refusal = lifecycle.registry.refusal_for(app_key, 0)
+        assert refusal is not None
+        refusals = [r for r in caplog.records if r.getMessage() == refusal]
         assert len(refusals) == 1
 
     async def test_start_app_with_every_index_flagged_starts_nothing_and_does_not_raise(
@@ -799,6 +799,6 @@ class TestPerInstanceSelectiveRestart:
         infos = lifecycle.registry.resolve_instance_infos(app_key)
         assert sorted(infos) == [0, 1]
         assert all(info.needs_restart is not None for info in infos.values())
-        records = [lifecycle.registry.get_needs_restart(app_key, idx) for idx in (0, 1)]
-        expected = {r.refusal_message(app_key, idx) for idx, r in enumerate(records) if r is not None}
+        expected = {lifecycle.registry.refusal_for(app_key, idx) for idx in (0, 1)}
+        assert None not in expected
         assert {r.getMessage() for r in caplog.records if r.levelname == "ERROR"} == expected
