@@ -457,3 +457,25 @@ class TestRemoveJobsSealedBucket:
 
         with pytest.raises(RuntimeError, match="congested"):
             svc.remove_jobs([make_scheduled_job(db_id=7)])
+
+
+class TestRemoveJobsPartialFailure:
+    """One job's removal tail failing must not leave the remaining jobs live (PR #3550 review)."""
+
+    async def test_a_failed_persistence_write_still_removes_every_job(self) -> None:
+        svc = make_dequeue_service()
+        jobs = [make_scheduled_job(db_id=7), make_scheduled_job(db_id=8)]
+        for job in jobs:
+            assert job.db_id is not None
+            svc._jobs_by_id[job.db_id] = job
+            await svc._job_queue.add(job)
+        svc._executor.mark_job_removed = AsyncMock(side_effect=[RuntimeError("db write failed"), None])
+
+        with pytest.raises(ExceptionGroup) as exc_info:
+            await svc._remove_jobs(jobs)
+
+        assert [str(exc) for exc in exc_info.value.exceptions] == ["db write failed"]
+        assert svc._jobs_by_id == {}
+        assert list(svc._job_queue._queue) == []
+        assert all(job._dequeued for job in jobs)
+        assert svc._executor.mark_job_removed.await_count == len(jobs)
