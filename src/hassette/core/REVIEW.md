@@ -56,3 +56,11 @@ end of the still-attached `_recv_task`, cancellation included, as a lost
 connection. Does every site that cancels the recv task on purpose (cleanup,
 shutdown) set `_recv_task` to `None` first? A site that cancels while the task is
 still attached turns a deliberate teardown into a spurious DISCONNECTED transition.
+
+## Needs-Restart Flag Sourcing
+`AppRegistry.resolve_instance_info()` in `src/hassette/core/app_registry.py` is the one place an
+instance entry and its needs-restart record are combined; a flagged index can outlive its entry.
+Does a new reader of per-instance state go through it (or `resolve_instance_infos()`) rather than
+reading the instance map directly, which drops flagged indices? And does every new FAILED outcome in
+`src/hassette/core/app_lifecycle_instances.py` whose `TeardownReport` is not restart-safe flag the
+index before the status event is sent?
