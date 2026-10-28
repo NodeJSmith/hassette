@@ -2,7 +2,7 @@
 
 import asyncio
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from logging import getLogger
 from typing import Any
 
@@ -16,19 +16,22 @@ from hassette_wire import (
     AppListResponse,
     AppSource,
     AppSummary,
+    InstanceOutcome,
     ProblemCode,
 )
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
-from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
+from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
 from hassette.schemas.app_config_shape import normalize_app_config
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, tally_app_statuses
+from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
+from hassette.schemas.app_outcomes import OutcomeResult
+from hassette.schemas.app_snapshots import AppFullSnapshot, tally_app_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
-from hassette.web.mappers import app_list_response_from, app_summary_from
+from hassette.web.mappers import app_list_response_from, app_summary_from, instance_outcome_from
 
 LOGGER = getLogger(__name__)
 
@@ -66,7 +69,13 @@ INSTANCE_INDEX_CODES = (
 )
 """Codes ``_require_valid_instance_index`` raises."""
 
-STOP_ACTION_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.ACTION_IN_PROGRESS, ProblemCode.ACTION_FAILED)
+STOP_ACTION_CODES = (
+    *APP_KEY_CODES,
+    *KNOWN_APP_CODES,
+    ProblemCode.ACTION_IN_PROGRESS,
+    ProblemCode.NEEDS_RESTART,
+    ProblemCode.ACTION_FAILED,
+)
 """Codes ``_run_app_action`` raises for ``stop``, which never awaits bootstrap release or checks the
 ``--app`` filter."""
 
@@ -78,8 +87,8 @@ router = APIRouter(tags=["apps"])
 
 
 def action_route(path: str, *codes: ProblemCode) -> Callable[[DecoratedCallable], DecoratedCallable]:
-    """Register an app lifecycle action route: a POST answering 202 with an ``ActionResponse``."""
-    return router.post(path, status_code=202, response_model=ActionResponse, responses=problem_responses(*codes))
+    """Register an app lifecycle action route: a POST answering 200 with an ``ActionResponse`` once it finishes."""
+    return router.post(path, response_model=ActionResponse, responses=problem_responses(*codes))
 
 
 def app_not_found(app_key: str) -> WebApiError:
@@ -90,15 +99,6 @@ def app_not_found(app_key: str) -> WebApiError:
 def source_not_found(app_key: str) -> WebApiError:
     """Build the 404 error raised when an app's source file cannot be found."""
     return WebApiError(ProblemCode.SOURCE_NOT_FOUND, f"Source file not found for app {app_key!r}")
-
-
-def _generic_action_failure_detail(action: AppAction, app_key: str) -> str:
-    """Shared fallback 500 detail for an action failure with no more specific message.
-
-    Used both when ``operation()`` itself raises and when a swallowed failure's
-    ``error_message`` is empty (see ``_failed_target_instances``).
-    """
-    return f"Failed to {action} app {app_key!r}"
 
 
 def _validate_app_key(app_key: str) -> None:
@@ -125,9 +125,9 @@ def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction
     for ``stop`` — ``AppLifecycleService.stop_instance()``/``_stop_app_unlocked()`` are
     deliberately permissive for an orphaned app (manifest gone from config, but the registry
     still has running instances), so the route lets the request through to match. ``start`` and
-    ``reload`` are NOT extended the same permissiveness: their service-layer counterparts silently
-    no-op on a missing manifest (log + return, no exception), so admitting an orphaned app there
-    would turn a clear 404 into a 202-accepted request that does nothing.
+    ``reload`` are NOT extended the same permissiveness: there is nothing to start without a
+    manifest, and their service-layer counterparts raise ``AppRemovedError`` for one, so admitting an
+    orphaned app there would only delay the same 404.
     """
     return action == "stop" and bool(hassette.app_handler.registry.get_instances(app_key))
 
@@ -140,8 +140,8 @@ def _orphan_instance_permitted(app_key: str, index: int, hassette: HassetteDep, 
     stale *failed* entries, never running ones, and ``build_manifest_info`` keeps reporting it in
     ``instances``. Only ``stop`` is permitted through, for the same reason as
     ``_orphan_app_permitted``: ``AppLifecycleService.stop_instance()`` matches this permissiveness,
-    while ``start_instance``/``reload_instance`` silently no-op on an out-of-range index, so
-    admitting them here would turn a clear 404 into a 202-accepted request that does nothing.
+    while ``start_instance``/``reload_instance`` report an out-of-range index as a failed outcome, so
+    admitting them here would turn a clear 404 into a 500.
     """
     return action == "stop" and index in hassette.app_handler.registry.get_instances(app_key)
 
@@ -194,60 +194,30 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
         raise WebApiError(ProblemCode.INSTANCE_NOT_FOUND, f"Instance {index} not found for app {app_key!r}")
 
 
-def _failed_target_instances(
-    hassette: HassetteDep, app_key: str, instance_index: int | None
-) -> dict[int, AppInstanceInfo]:
-    """FAILED instance snapshots among the instance(s) an action targeted.
-
-    ``start``/``reload`` (whole-app or single-instance) can fail during class loading, config
-    validation, or ``on_initialize()`` without raising — ``AppFactory``/``AppLifecycleService``
-    catch those failures and record them straight to the registry via ``record_failure()``
-    instead. Reading the registry back after
-    ``operation()`` completes, via the same ``get_failed_instance_infos()`` the registry already
-    uses to re-broadcast stale failures, is how ``_run_app_action`` notices a swallowed failure.
-
-    Scoped to ``instance_index`` when given (a single-instance action must not surface an
-    unrelated sibling's failure); otherwise every instance for ``app_key``, matching a whole-app
-    action's blast radius. A successful stop removes its target entries from the registry
-    (``AppRegistry.unregister_app``), but an index flagged needs-restart stays FAILED until
-    restart, so a stop or reload touching one matches here and answers ``ACTION_FAILED`` even
-    when the action itself succeeded. #3111 owns the per-instance verdict for flagged indices.
-
-    Not atomic with ``operation()``: the per-app-key lock in ``AppLifecycleService`` is released
-    before this read, so a concurrent action against the same ``app_key`` can record or clear a
-    failure between the two. A caller's response can then reflect a different, concurrent
-    request's outcome rather than its own — an accepted risk for this framework's single-operator
-    scope, not a guarantee this function makes.
-    """
-    failed = hassette.app_handler.registry.get_failed_instance_infos(app_key)
-    if instance_index is None:
-        return failed
-    if instance_index not in failed:
-        return {}
-    return {instance_index: failed[instance_index]}
-
-
 async def _run_app_action(
     action: AppAction,
     app_key: str,
     hassette: HassetteDep,
     request: Request,
-    operation: Callable[[], Awaitable[object]],
+    operation: Callable[[], Awaitable[Sequence[CoreInstanceOutcome]]],
     instance_index: int | None = None,
 ) -> ActionResponse:
     """Run one app lifecycle action behind the shared validation, error mapping, and logging.
 
-    Every start/stop/reload endpoint goes through this.
+    Every start/stop/reload endpoint goes through this. The action finishes before the response is
+    sent, and ``operation()`` returns what it did to each instance it targeted, decided under the
+    app's lifecycle lock. The worst outcome sets the status (spec 140): any ``failed`` instance gives
+    500 ``action_failed``, otherwise any ``refused`` one gives 409 ``needs_restart``, otherwise 200.
+    Both error bodies list every instance's outcome, as the 200 body does.
 
     ``AppBootstrapNotReleasedError`` maps to a retryable 409. It is only reachable from
-    start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint's
-    only 409 is ``action_in_progress`` below.
+    start/reload — ``stop_app`` never awaits bootstrap release.
 
     ``AppBlockedError`` also maps to a non-retryable 409: the app is excluded by the ``--app``
     filter, so start/reload was rejected outright (see ``AppLifecycleService``'s blocked-app
-    guards) rather than silently no-op'd — without this mapping the caller would get a 202
-    "accepted" for a request nothing acted on. Also only reachable from start/reload, for the
-    same reason as the bootstrap case above.
+    guards). A reload's stop half has already run by then, so its outcomes ride along in the body.
+    ``AppRemovedError`` (the manifest vanished while the action waited for the lock, or during a
+    reload's stop half) maps to ``app_not_found`` the same way.
 
     ``action_in_progress`` (409) answers at once when another action holds or is queued for this
     app's lifecycle lock (``AppKeyLock.busy``, which stays true across a release-to-waiter
@@ -260,70 +230,80 @@ async def _run_app_action(
 
     ``instance_index`` is echoed back on the response as-is (already validated by
     ``_require_valid_instance_index`` before this function is called) so a caller can confirm
-    the server acted on the instance it intended, not just that *some* 202 came back.
-
-    A start/reload that raises no exception can still have failed — ``AppFactory``/
-    ``AppLifecycleService`` swallow class-load, config-validation, and ``on_initialize()``
-    failures internally and record them to the registry instead of propagating (see
-    ``_failed_target_instances``). After ``operation()`` returns cleanly, the registry is
-    checked for a FAILED entry among the instance(s) targeted; if found, this maps to the same
-    500 path as the ``ValueError``/``RuntimeError`` case above rather than the unconditional 202
-    this function would otherwise return. A single HTTP response can only carry one failure, so
-    a whole-app action with multiple failed instances surfaces the lowest-indexed one in the
-    response body; every failed instance is still logged.
+    the server acted on the instance it intended.
     """
     _validate_app_key(app_key)
     _require_no_action_in_progress(app_key, hassette)
     _require_known_app(app_key, hassette, action)
-    await _await_operation(action, app_key, operation)
-    _raise_if_target_failed(action, app_key, hassette, instance_index)
+    outcomes = await _await_operation(app_key, operation)
+    wire_outcomes = [instance_outcome_from(outcome) for outcome in outcomes]
+    if (code := _status_code_for(outcomes)) is not None:
+        raise WebApiError(code, action_detail(action, app_key, outcomes), outcomes=wire_outcomes)
     LOGGER.info("%s app %s (source=%s)", ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
-    return ActionResponse(status="accepted", app_key=app_key, action=action, instance_index=instance_index)
+    return ActionResponse(app_key=app_key, action=action, instance_index=instance_index, outcomes=wire_outcomes)
 
 
-async def _await_operation(action: AppAction, app_key: str, operation: Callable[[], Awaitable[object]]) -> None:
+async def _await_operation(
+    app_key: str, operation: Callable[[], Awaitable[Sequence[CoreInstanceOutcome]]]
+) -> Sequence[CoreInstanceOutcome]:
     """Await ``operation`` and map the exceptions it can raise to their problem codes.
 
     See ``_run_app_action`` for why each mapping exists.
     """
     try:
-        await operation()
+        return await operation()
     except AppBootstrapNotReleasedError as exc:
         raise WebApiError(
             ProblemCode.BOOTSTRAP_NOT_RELEASED, "App bootstrap prerequisites are not ready yet; retry later"
         ) from exc
     except AppBlockedError as exc:
-        raise WebApiError(ProblemCode.APP_BLOCKED, f"App {app_key!r} is blocked by the --app filter") from exc
-    except (ValueError, RuntimeError) as exc:
-        LOGGER.warning("Failed to %s app %s", action, app_key, exc_info=True)
-        raise WebApiError(ProblemCode.ACTION_FAILED, _generic_action_failure_detail(action, app_key)) from exc
+        raise WebApiError(
+            ProblemCode.APP_BLOCKED,
+            f"App {app_key!r} is blocked by the --app filter",
+            outcomes=_wire_outcomes_or_none(exc.outcomes),
+        ) from exc
+    except AppRemovedError as exc:
+        raise WebApiError(
+            ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found", outcomes=_wire_outcomes_or_none(exc.outcomes)
+        ) from exc
 
 
-def _raise_if_target_failed(action: AppAction, app_key: str, hassette: HassetteDep, instance_index: int | None) -> None:
-    """Raise ``ACTION_FAILED`` when a cleanly-returning action left a targeted instance FAILED.
+def _wire_outcomes_or_none(outcomes: Sequence[CoreInstanceOutcome]) -> list[InstanceOutcome] | None:
+    """The wire outcomes of an action rejected partway, or ``None`` when it acted on no instance."""
+    return [instance_outcome_from(outcome) for outcome in outcomes] or None
 
-    Surfaces the lowest-indexed failure in the response and logs every failed instance (see
-    ``_run_app_action`` and ``_failed_target_instances``).
+
+def _status_code_for(outcomes: Sequence[CoreInstanceOutcome]) -> ProblemCode | None:
+    """The problem code the worst outcome calls for, or ``None`` when every instance succeeded."""
+    if any(outcome.result is OutcomeResult.FAILED for outcome in outcomes):
+        return ProblemCode.ACTION_FAILED
+    if any(outcome.result is OutcomeResult.REFUSED for outcome in outcomes):
+        return ProblemCode.NEEDS_RESTART
+    return None
+
+
+def action_detail(action: AppAction, app_key: str, outcomes: Sequence[CoreInstanceOutcome]) -> str:
+    """The problem ``detail`` of an action that didn't succeed on every instance.
+
+    Names each instance that didn't succeed, with its reason, after a count of what the others did
+    when the action targeted more than one. The CLI and the web UI's toast show only this line, so
+    it is their whole view of a partial outcome.
     """
-    failed = _failed_target_instances(hassette, app_key, instance_index)
-    if not failed:
-        return
-    first_index = min(failed)
-    detail = failed[first_index].error_message or _generic_action_failure_detail(action, app_key)
-    if len(failed) > 1:
-        # The response can only carry one failure — log the rest so a multi-instance
-        # failure isn't silently reduced to whichever index happened to sort lowest.
-        LOGGER.warning(
-            "Failed to %s app %s: %d instances failed (%s); surfacing instance %s in the response",
-            action,
-            app_key,
-            len(failed),
-            ", ".join(f"{index}: {info.error_message}" for index, info in sorted(failed.items())),
-            first_index,
-        )
-    else:
-        LOGGER.warning("Failed to %s app %s (instance %s): %s", action, app_key, first_index, detail)
-    raise WebApiError(ProblemCode.ACTION_FAILED, detail)
+    not_succeeded = [outcome for outcome in outcomes if outcome.result is not OutcomeResult.SUCCEEDED]
+    parts = [describe_not_succeeded(outcome) for outcome in not_succeeded]
+    if len(outcomes) > 1:
+        done = len(outcomes) - len(not_succeeded)
+        verb = ACTION_PAST_TENSE[action]
+        parts.insert(0, f"{verb} {done} of {len(outcomes)} instances of app {app_key!r}")
+    return "; ".join(parts)
+
+
+def describe_not_succeeded(outcome: CoreInstanceOutcome) -> str:
+    """One instance's part of ``action_detail``: its name and why it failed or was refused."""
+    if outcome.result is OutcomeResult.REFUSED:
+        return f"{outcome.instance_name!r} {outcome.reason or 'needs a hassette restart'}"
+    restart = "; it needs a hassette restart" if outcome.needs_restart else ""
+    return f"{outcome.instance_name!r} failed: {outcome.reason}{restart}"
 
 
 def _strip_none(obj: Any) -> Any:
@@ -426,19 +406,19 @@ async def get_app(app_key: str, runtime: RuntimeDep, telemetry: TelemetryDep) ->
 
 @action_route("/apps/{app_key}/start", *ACTION_CODES)
 async def start_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Start every instance of the app. Returns 202 once the start is accepted."""
+    """Start every instance of the app, and report what the start did to each one."""
     return await _run_app_action("start", app_key, hassette, request, lambda: hassette.app_handler.start_app(app_key))
 
 
 @action_route("/apps/{app_key}/stop", *STOP_ACTION_CODES)
 async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Stop every instance of the app. Returns 202 once the stop is accepted."""
+    """Stop every instance of the app, and report what the stop did to each one."""
     return await _run_app_action("stop", app_key, hassette, request, lambda: hassette.app_handler.stop_app(app_key))
 
 
 @action_route("/apps/{app_key}/reload", *ACTION_CODES)
 async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Re-import the app from disk and restart its instances. Returns 202 once the reload is accepted."""
+    """Re-import the app from disk, restart its instances, and report what the reload did to each one."""
     # Always re-import from disk so a previously-failed app recovers once its
     # source is fixed -- without force_reload the cached failed class is reused (#1005).
     return await _run_app_action(
@@ -448,7 +428,7 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
 
 @action_route("/apps/{app_key}/instances/{index}/start", *INSTANCE_INDEX_CODES, *ACTION_CODES)
 async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Start one instance of the app by index. Returns 202 once the start is accepted."""
+    """Start one instance of the app by index, and report what the start did to it."""
     _require_valid_instance_index(app_key, index, hassette, "start")
     return await _run_app_action(
         "start",
@@ -462,7 +442,7 @@ async def start_instance(app_key: str, index: int, hassette: HassetteDep, reques
 
 @action_route("/apps/{app_key}/instances/{index}/stop", *INSTANCE_INDEX_CODES, *STOP_ACTION_CODES)
 async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Stop one instance of the app by index. Returns 202 once the stop is accepted."""
+    """Stop one instance of the app by index, and report what the stop did to it."""
     _require_valid_instance_index(app_key, index, hassette, "stop")
     return await _run_app_action(
         "stop",
@@ -476,7 +456,7 @@ async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request
 
 @action_route("/apps/{app_key}/instances/{index}/reload", *INSTANCE_INDEX_CODES, *ACTION_CODES)
 async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Re-import the app from disk and restart one instance by index. Returns 202 once the reload is accepted."""
+    """Re-import the app from disk, restart one instance by index, and report what the reload did to it."""
     _require_valid_instance_index(app_key, index, hassette, "reload")
     # Always re-import from disk, matching the full app-key reload endpoint's force_reload=True
     # convention (#1005) at instance granularity.

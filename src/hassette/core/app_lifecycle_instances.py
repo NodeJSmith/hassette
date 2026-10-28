@@ -18,6 +18,8 @@ from hassette.core.app_lifecycle_common import (
     STARTING,
     STOPPED,
     STOPPING,
+    ActionOutcomes,
+    failure_reason,
 )
 from hassette.events.hassette import HassetteAppStateEvent
 from hassette.resources.lifecycle import create_lifecycle_task, mark_ready, skip_own_shutdown_hooks
@@ -57,8 +59,10 @@ class AppInstanceLifecycleMixin:
         manifest: "AppManifest",
         instance_index: int | None = None,
         only_indices: set[int] | None = None,
+        *,
+        outcomes: ActionOutcomes,
     ) -> None:
-        """Initialize instances for an app key.
+        """Initialize instances for an app key, recording each initialized instance's outcome.
 
         An instance whose initialization fails or times out is shut down under its entry deadline with its
         own shutdown hooks skipped, recorded FAILED, and flagged needs-restart if work may still be running
@@ -76,6 +80,7 @@ class AppInstanceLifecycleMixin:
                 When None (default), reconciliation is app_key-scoped only — unchanged behavior.
             only_indices: When provided, only instances at these indices are initialized.
                 Others are skipped but still included in reconciliation.
+            outcomes: The request's outcomes; must target every initialized index.
         """
         class_name = manifest.class_name
 
@@ -88,7 +93,7 @@ class AppInstanceLifecycleMixin:
                 instance_index=idx,
             )
             try:
-                await self.initialize_instance(inst, idx, class_name)
+                await self.initialize_instance(inst, idx, class_name, outcomes=outcomes)
             finally:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -96,8 +101,10 @@ class AppInstanceLifecycleMixin:
         # Runs after the instance loop to ensure all registrations are complete.
         await self.reconcile_app_registrations(app_key, instances, instance_index=instance_index)
 
-    async def initialize_instance(self, inst: "App[AppConfig]", index: int, class_name: str) -> None:
-        """Initialize one instance; on failure or timeout, shut it down as a failed init.
+    async def initialize_instance(
+        self, inst: "App[AppConfig]", index: int, class_name: str, *, outcomes: ActionOutcomes
+    ) -> None:
+        """Initialize one instance, recording its outcome; on failure or timeout, shut it down as a failed init.
 
         The ``try`` covers only the initialization itself. The RUNNING event is sent after it, and a failure
         to send it is a telemetry failure, not an app failure: it is logged and the app keeps running.
@@ -116,10 +123,11 @@ class AppInstanceLifecycleMixin:
                 get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
             )
             skip_own_shutdown_hooks(inst)
-            await self.shutdown_instance(inst, index, cause=exc)
+            await self.shutdown_instance(inst, index, cause=exc, outcomes=outcomes)
             return
 
         self.logger.debug("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
+        outcomes.succeeded(index)
         await self.send_outcome_event(inst, status=RUNNING, previous_status=STARTING)
 
     async def send_outcome_event(
@@ -182,6 +190,7 @@ class AppInstanceLifecycleMixin:
         *,
         deadline: float | None = None,
         cause: Exception | None = None,
+        outcomes: ActionOutcomes,
     ) -> TeardownReport | None:
         """Shut down a single app instance under its entry deadline and record the outcome.
 
@@ -205,6 +214,10 @@ class AppInstanceLifecycleMixin:
 
         In every FAILED outcome, an instance whose work may still run is flagged needs-restart in
         ``AppRegistry`` before the event is sent. The first flag at an index stands until restart.
+
+        Each outcome is also recorded in ``outcomes``: ``succeeded`` for a clean stop, ``failed`` otherwise
+        (with ``needs_restart`` when this stop flagged the instance), and ``refused`` when the index was
+        already flagged by something else, such as process exit.
 
         The caller sets ``skip_own_shutdown_hooks`` beforehand when the app's own hooks must not run.
         App identity is bound to the log context for the duration of the stop, so every record emitted
@@ -238,6 +251,7 @@ class AppInstanceLifecycleMixin:
                     failure,
                     is_init_failure=cause is not None,
                     force_terminated=force_terminated,
+                    outcomes=outcomes,
                 )
                 return None
 
@@ -246,7 +260,13 @@ class AppInstanceLifecycleMixin:
 
             if cause is not None:
                 self.settle_failed_init(
-                    inst, instance_index, cause, report, force_terminated=force_terminated, friendly_time=friendly_time
+                    inst,
+                    instance_index,
+                    cause,
+                    report,
+                    force_terminated=force_terminated,
+                    friendly_time=friendly_time,
+                    outcomes=outcomes,
                 )
                 await self.send_outcome_event(inst, status=FAILED, previous_status=STARTING, exception=cause)
                 return report
@@ -256,6 +276,7 @@ class AppInstanceLifecycleMixin:
                 self.logger.debug(
                     "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
                 )
+                outcomes.succeeded(instance_index)
                 await self.send_outcome_event(inst, status=STOPPED, previous_status=STOPPING)
                 return report
 
@@ -266,6 +287,7 @@ class AppInstanceLifecycleMixin:
                 timed_out=timed_out,
                 force_terminated=force_terminated,
                 friendly_time=friendly_time,
+                outcomes=outcomes,
             )
             await self.send_outcome_event(inst, status=FAILED, previous_status=STOPPING, exception=exc)
             return report
@@ -280,6 +302,7 @@ class AppInstanceLifecycleMixin:
         *,
         is_init_failure: bool,
         force_terminated: bool,
+        outcomes: ActionOutcomes,
     ) -> None:
         """Settle a teardown that raised: FAILED with ``failure``, flagged unless its stored report is safe.
 
@@ -294,7 +317,10 @@ class AppInstanceLifecycleMixin:
         if report is None or not report.is_restart_safe:
             left = describe_left_running(report or TeardownReport(), inst, force_terminated=force_terminated)
             reason = f"shutdown raised; {left}"
-            self.flag_instance_needs_restart(inst, instance_index, reason, report)
+            newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, report)
+            self.record_flagged_outcome(outcomes, inst, instance_index, failure_reason(failure), newly_flagged)
+        else:
+            outcomes.failed(instance_index, failure_reason(failure))
         previous = STARTING if is_init_failure else STOPPING
         await self.send_outcome_event(inst, status=FAILED, previous_status=previous, exception=failure)
 
@@ -307,6 +333,7 @@ class AppInstanceLifecycleMixin:
         *,
         force_terminated: bool,
         friendly_time: str,
+        outcomes: ActionOutcomes,
     ) -> None:
         """Settle a failed init's outcome: the failure entry, and a needs-restart flag if work may still run.
 
@@ -321,10 +348,12 @@ class AppInstanceLifecycleMixin:
                 inst.class_name,
                 friendly_time,
             )
+            outcomes.failed(instance_index, failure_reason(cause))
             return
         left = describe_left_running(report, inst, force_terminated=force_terminated)
         reason = f"failed to start, and {left}"
-        self.flag_instance_needs_restart(inst, instance_index, reason, report)
+        newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, report)
+        self.record_flagged_outcome(outcomes, inst, instance_index, failure_reason(cause), newly_flagged)
 
     def settle_failed_stop(
         self,
@@ -335,6 +364,7 @@ class AppInstanceLifecycleMixin:
         timed_out: bool,
         force_terminated: bool,
         friendly_time: str,
+        outcomes: ActionOutcomes,
     ) -> Exception:
         """Settle a stop that timed out or left work running: one ERROR, a failure entry, and maybe a flag.
 
@@ -352,6 +382,7 @@ class AppInstanceLifecycleMixin:
                 "Stop of app '%s' (%s) timed out after %s; nothing still pending", name, inst.class_name, friendly_time
             )
             self.registry.record_failure(inst.app_key, instance_index, exc)
+            outcomes.failed(instance_index, str(exc))
             return exc
 
         left = describe_left_running(report, inst, force_terminated=force_terminated)
@@ -362,17 +393,22 @@ class AppInstanceLifecycleMixin:
             reason = f"stopped, but {left}"
             exc = RuntimeError(f"app '{name}' stopped, but {left}")
         self.registry.record_failure(inst.app_key, instance_index, exc)
-        self.flag_instance_needs_restart(inst, instance_index, reason, report)
+        newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, report)
+        self.record_flagged_outcome(outcomes, inst, instance_index, str(exc), newly_flagged)
         return exc
 
     def flag_instance_needs_restart(
         self, inst: "App[AppConfig]", instance_index: int, reason: str, report: TeardownReport | None
-    ) -> None:
-        """Log the needs-restart ERROR and write the instance's record; the first record at an index stands."""
+    ) -> bool:
+        """Log the needs-restart ERROR and write the instance's record; the first record at an index stands.
+
+        Returns:
+            ``True`` when this call flagged the index, ``False`` when it was already flagged.
+        """
         self.logger.error(
             "App '%s' (%s) %s; restart hassette to recover", inst.app_config.instance_name, inst.class_name, reason
         )
-        self.registry.flag_needs_restart(
+        return self.registry.flag_needs_restart(
             inst.app_key,
             instance_index,
             instance_name=inst.app_config.instance_name,
@@ -380,6 +416,20 @@ class AppInstanceLifecycleMixin:
             reason=reason,
             pending_tasks=report.pending_tasks if report is not None else (),
         )
+
+    def record_flagged_outcome(
+        self, outcomes: ActionOutcomes, inst: "App[AppConfig]", instance_index: int, failure: str, newly_flagged: bool
+    ) -> None:
+        """Record the outcome of a failure that leaves the instance flagged needs-restart.
+
+        ``failed`` with ``needs_restart`` when this action flagged it. When something else flagged it first
+        (process exit's teardown takes no app-key lock), the index reports the earlier flag as a refusal.
+        """
+        refusal = None if newly_flagged else self.registry.refusal_reason(inst.app_key, instance_index)
+        if refusal is None:
+            outcomes.failed(instance_index, failure, needs_restart=True)
+        else:
+            outcomes.refused(instance_index, refusal)
 
     async def walk_away_from_instance(
         self, inst: "App[AppConfig]", task: "asyncio.Task[TeardownReport]"
@@ -405,13 +455,15 @@ class AppInstanceLifecycleMixin:
         return inst.teardown_report or TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
 
     async def shutdown_instances(
-        self, instances: dict[int, "App[AppConfig]"], *, deadline: float | None = None
+        self, instances: dict[int, "App[AppConfig]"], *, deadline: float | None = None, outcomes: ActionOutcomes
     ) -> TeardownReport:
         """Stop the given app instances concurrently, each under its own entry deadline.
 
         Args:
             instances: Dict of index -> App to shut down.
             deadline: An outer deadline each instance's stop is shortened to (process exit's stop stage).
+            outcomes: The request's outcomes; each instance records its own before returning, so one
+                that raises can't erase a sibling's.
 
         Returns:
             The instances' teardown reports, merged.
@@ -424,7 +476,7 @@ class AppInstanceLifecycleMixin:
         async def stop_one(idx: int, inst: "App[AppConfig]") -> TeardownReport | None:
             event = HassetteAppStateEvent.from_app(app=inst, status=STOPPING, previous_status=inst.status)
             await self.hassette.send_event(event)
-            return await self.shutdown_instance(inst, idx, deadline=deadline)
+            return await self.shutdown_instance(inst, idx, deadline=deadline, outcomes=outcomes)
 
         reports = await gather_all((stop_one(idx, inst) for idx, inst in instances.items()), name="app:stop_instance")
         return merge_teardown_reports(*(report for report in reports if report is not None))
@@ -446,8 +498,16 @@ class AppInstanceLifecycleMixin:
             for app_key in self.registry.app_keys()
             for idx, inst in self.registry.get_running_apps(app_key).items()
         ]
+        # Process exit has no response to carry outcomes; each stop gets its own, which nothing reads.
         reports = await gather_all(
-            (self.shutdown_instances({idx: inst}, deadline=deadline) for idx, inst in instances),
+            (
+                self.shutdown_instances(
+                    {idx: inst},
+                    deadline=deadline,
+                    outcomes=ActionOutcomes({idx: inst.app_config.instance_name}),
+                )
+                for idx, inst in instances
+            ),
             name="app:shutdown_all",
         )
         self.registry.clear_all()

@@ -14,13 +14,14 @@ from hassette.core.app_lifecycle_changes import AppChangeReconcilerMixin
 from hassette.core.app_lifecycle_common import (
     AppAdmissionMode,
     PendingReconciliation,
+    log_refusals,
 )
 from hassette.core.app_lifecycle_config import AppConfigStateMixin
 from hassette.core.app_lifecycle_instances import AppInstanceLifecycleMixin
 from hassette.core.app_lifecycle_registrations import AppRegistrationReconcilerMixin
 from hassette.core.app_lifecycle_start_stop import AppStartStopMixin
 from hassette.events.hassette import HassetteSimpleEvent
-from hassette.exceptions import AppBootstrapNotReleasedError
+from hassette.exceptions import AppBootstrapNotReleasedError, AppRemovedError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import Topic
@@ -253,10 +254,10 @@ class AppLifecycleService(
             admission_mode: What to do if bootstrap has not released yet: wait for release, or raise
                 ``AppBootstrapNotReleasedError``.
         """
-        apps = apps if apps is not None else set(self.registry.autostart_manifests.keys())
+        app_keys = sorted(apps if apps is not None else self.registry.autostart_manifests.keys())
 
         results = await asyncio.gather(
-            *[self.start_app(app_key, admission_mode=admission_mode) for app_key in apps],
+            *[self.start_app(app_key, admission_mode=admission_mode) for app_key in app_keys],
             return_exceptions=True,
         )
 
@@ -271,6 +272,11 @@ class AppLifecycleService(
             if isinstance(result, asyncio.CancelledError):
                 raise result
 
-        exception_results = [r for r in results if isinstance(r, Exception)]
-        for result in exception_results:
-            self.logger.error("Error during app initialization: %s", result, exc_info=result)
+        for app_key, result in zip(app_keys, results, strict=True):
+            if isinstance(result, AppRemovedError):
+                self.logger.debug("Skipping start of app %s: its manifest is gone", app_key)
+            elif isinstance(result, Exception):
+                self.logger.error("Error during app initialization: %s", result, exc_info=result)
+            elif isinstance(result, tuple):
+                # Bootstrap has no response to carry a refusal, so each one is logged here.
+                log_refusals(self.logger, app_key, result)

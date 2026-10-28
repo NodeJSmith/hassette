@@ -10,6 +10,8 @@ from pydantic_settings import SettingsConfigDict
 
 from hassette import App, AppConfig
 from hassette.core.app_factory import AppFactory, accepted_config_keys
+from hassette.schemas.app_outcomes import OutcomeResult
+from tests.support.outcomes import AnyIndexOutcomes
 
 
 def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
@@ -36,7 +38,7 @@ def mock_registry() -> Mock:
     registry.record_failure = Mock()
     registry.get = Mock(return_value=None)
     registry.get_running_apps = Mock(return_value={})
-    registry.refusal_for = Mock(return_value=None)
+    registry.refusal_reason = Mock(return_value=None)
     return registry
 
 
@@ -53,7 +55,7 @@ def mock_manifest():
 
 def flag_indices(mock_registry: Mock, *flagged: int) -> None:
     """Make ``mock_registry`` refuse each index in ``flagged``, with the refusal text ``refused <index>``."""
-    mock_registry.refusal_for = Mock(side_effect=lambda _key, idx: f"refused {idx}" if idx in flagged else None)
+    mock_registry.refusal_reason = Mock(side_effect=lambda _key, idx: f"refused {idx}" if idx in flagged else None)
 
 
 @pytest.fixture
@@ -83,7 +85,7 @@ class TestAppFactoryCreateInstances:
         """Successfully creates single app instance from dict config."""
         mock_load_class.return_value = mock_app_class = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_app_class.assert_called_once()
         mock_registry.register_app.assert_called_once_with("test_app", 0, mock_app_class.return_value)
@@ -99,7 +101,7 @@ class TestAppFactoryCreateInstances:
             {"instance_name": "instance_1"},
         ]
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         assert mock_app_class.call_count == 2
         assert mock_registry.register_app.call_count == 2
@@ -114,7 +116,7 @@ class TestAppFactoryCreateInstances:
         mock_manifest.app_config = None
         mock_load_class.return_value = mock_app_class = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_app_class.assert_not_called()
         mock_registry.register_app.assert_not_called()
@@ -128,7 +130,7 @@ class TestAppFactoryCreateInstances:
         cached_error = ValueError("Failed to load")
         mock_get_error.return_value = cached_error
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_registry.record_failure.assert_called_once_with("test_app", 0, cached_error)
         mock_registry.register_app.assert_not_called()
@@ -153,7 +155,7 @@ class TestAppFactoryCreateInstances:
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 0 else None)
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_registry.record_failure.assert_called_once_with("test_app", 1, cached_error)
         mock_registry.register_app.assert_not_called()
@@ -172,7 +174,7 @@ class TestAppFactoryCreateInstances:
         mock_manifest.app_config = [{"instance_name": "instance_0"}]
         mock_registry.get = Mock(return_value=Mock())
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_registry.record_failure.assert_not_called()
         mock_registry.register_app.assert_not_called()
@@ -188,7 +190,7 @@ class TestAppFactoryCreateInstances:
         mock_app_class.app_config_cls.model_validate.side_effect = validation_error
         mock_load_class.return_value = mock_app_class
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_registry.record_failure.assert_called_once_with("test_app", 0, validation_error)
         mock_registry.register_app.assert_not_called()
@@ -203,7 +205,7 @@ class TestAppFactoryCreateInstances:
 
         mock_app_class.side_effect = create_error
         mock_load_class.return_value = mock_app_class
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_registry.record_failure.assert_called_once_with("test_app", 0, create_error)
         mock_registry.register_app.assert_not_called()
@@ -214,7 +216,7 @@ class TestAppFactoryCreateInstances:
         mock_load_class.return_value = mock_app_class = make_app_class()
         mock_manifest.app_config = [{"instance_name": "instance_0"}]
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         assert mock_app_class.call_args.kwargs["app_manifest"] is mock_manifest
 
@@ -226,7 +228,7 @@ class TestAppFactoryCreateInstances:
         mock_load_class.return_value = mock_app_class = make_app_class()
         mock_manifest.app_config = [{"instance_name": "instance_0"}]
 
-        factory.create_instances("kitchen_lights", mock_manifest)
+        factory.create_instances("kitchen_lights", mock_manifest, outcomes=AnyIndexOutcomes())
 
         assert mock_app_class.call_args.kwargs["app_key"] == "kitchen_lights"
 
@@ -242,7 +244,7 @@ class TestAppFactoryCreateInstances:
         ]
         mock_load_class.return_value = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         assert mock_registry.register_app.call_count == 3
 
@@ -252,7 +254,7 @@ class TestAppFactoryCreateInstances:
         """Passes force_reload=True through to load_class()."""
         mock_load_class.return_value = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, force_reload=True)
+        factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyIndexOutcomes())
 
         # When force_reload=True, should call load_app_class_from_manifest even if already loaded
         mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=True)
@@ -277,7 +279,7 @@ class TestAppFactoryCreateInstances:
         mock_registry.get_running_apps = Mock(return_value={0: existing_app})
         mock_load_class.return_value = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, force_reload=True)
+        factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyIndexOutcomes())
 
         # load_class() must be called with force_reload downgraded to False.
         mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
@@ -296,7 +298,7 @@ class TestAppFactoryCreateInstances:
         mock_registry.get_running_apps = Mock(return_value={0: existing_app})
         mock_load_class.return_value = make_app_class()
 
-        created = factory.create_instances("test_app", mock_manifest, force_reload=True)
+        created = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyIndexOutcomes())
 
         mock_load_class.assert_not_called()
         assert created == set()
@@ -318,7 +320,7 @@ class TestAppFactoryCreateInstances:
         mock_registry.get_running_apps = Mock(return_value={1: orphan})  # index 1 is an out-of-range orphan
         mock_load_class.return_value = make_app_class()
 
-        factory.create_instances("test_app", mock_manifest, force_reload=True)
+        factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=AnyIndexOutcomes())
 
         mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
 
@@ -340,7 +342,7 @@ class TestAppFactoryCreateInstances:
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 1 else None)
 
-        created = factory.create_instances("test_app", mock_manifest)
+        created = factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         # Only indices 0 and 2 should be created (2 calls, not 3).
         assert created == {0, 2}
@@ -361,17 +363,20 @@ class TestAppFactoryNeedsRestartGate:
     def test_flagged_index_is_skipped_and_siblings_are_created(
         self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest, caplog
     ):
-        """A flagged index gets no replacement and one refusal ERROR; its siblings are still created."""
+        """A flagged index gets no replacement and a refused outcome, logged by nobody here; siblings are created."""
         mock_load_class.return_value = make_app_class()
         mock_manifest.app_config = list(self.THREE_INSTANCES)
         flag_indices(mock_registry, 1)
+        outcomes = AnyIndexOutcomes()
 
-        created = factory.create_instances("test_app", mock_manifest)
+        created = factory.create_instances("test_app", mock_manifest, outcomes=outcomes)
 
         assert created == {0, 2}
         assert sorted(c.args[1] for c in mock_registry.register_app.call_args_list) == [0, 2]
-        refusals = [r for r in caplog.records if r.levelname == "ERROR"]
-        assert [r.getMessage() for r in refusals] == ["refused 1"]
+        assert [(o.instance_index, o.result, o.needs_restart, o.reason) for o in outcomes.snapshot()] == [
+            (1, OutcomeResult.REFUSED, True, "refused 1")
+        ]
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_every_index_flagged_refuses_before_loading_the_class(
@@ -383,12 +388,15 @@ class TestAppFactoryNeedsRestartGate:
         mock_manifest.app_config = list(self.THREE_INSTANCES[:2])
         flag_indices(mock_registry, 0, 1)
 
-        created = factory.create_instances("test_app", mock_manifest, force_reload=True)
+        outcomes = AnyIndexOutcomes()
+
+        created = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=outcomes)
 
         assert created == set()
         mock_load_class.assert_not_called()
         mock_registry.record_failure.assert_not_called()
-        assert len([r for r in caplog.records if r.levelname == "ERROR"]) == 2
+        assert [o.result for o in outcomes.snapshot()] == [OutcomeResult.REFUSED, OutcomeResult.REFUSED]
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_flagged_and_live_indices_with_nothing_to_create_refuse_before_loading_the_class(
@@ -403,13 +411,18 @@ class TestAppFactoryNeedsRestartGate:
         mock_registry.get_running_apps = Mock(return_value={0: existing_app})
         flag_indices(mock_registry, 1)
 
-        created = factory.create_instances("test_app", mock_manifest, force_reload=True)
+        outcomes = AnyIndexOutcomes()
+
+        created = factory.create_instances("test_app", mock_manifest, force_reload=True, outcomes=outcomes)
 
         assert created == set()
         mock_load_class.assert_not_called()
         mock_registry.record_failure.assert_not_called()
-        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == ["refused 1"]
+        assert [(o.result, o.reason) for o in outcomes.snapshot()] == [
+            (OutcomeResult.SUCCEEDED, "already running"),
+            (OutcomeResult.REFUSED, "refused 1"),
+        ]
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
     @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
     @patch("hassette.core.app_factory.get_class_load_error")
@@ -423,9 +436,28 @@ class TestAppFactoryNeedsRestartGate:
         mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 1 else None)
         flag_indices(mock_registry, 0)
 
-        factory.create_instances("test_app", mock_manifest)
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_registry.record_failure.assert_called_once_with("test_app", 2, cached_error)
+
+    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
+    @patch("hassette.core.app_factory.get_class_load_error")
+    def test_class_load_failure_fails_every_index_left_to_create(
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
+    ):
+        """One shared class serves every instance, so its load failure fails each index left to create."""
+        mock_get_error.return_value = ValueError("Failed to load")
+        mock_manifest.app_config = list(self.THREE_INSTANCES)
+        flag_indices(mock_registry, 0)
+        outcomes = AnyIndexOutcomes()
+
+        factory.create_instances("test_app", mock_manifest, outcomes=outcomes)
+
+        assert [(o.instance_index, o.result, o.reason) for o in outcomes.snapshot()] == [
+            (0, OutcomeResult.REFUSED, "refused 0"),
+            (1, OutcomeResult.FAILED, "the app class failed to load: Failed to load"),
+            (2, OutcomeResult.FAILED, "the app class failed to load: Failed to load"),
+        ]
 
 
 class TestAppFactoryCreateSingleInstance:
@@ -434,7 +466,9 @@ class TestAppFactoryCreateSingleInstance:
         mock_app_class = make_app_class()
         config = {"instance_name": "test_instance"}
 
-        factory.create_single_instance("test_app", mock_manifest, 3, config, as_app_class(mock_app_class))
+        factory.create_single_instance(
+            "test_app", mock_manifest, 3, config, as_app_class(mock_app_class), outcomes=AnyIndexOutcomes()
+        )
 
         mock_app_class.assert_called_once()
         mock_registry.register_app.assert_called_once_with("test_app", 3, mock_app_class.return_value)
@@ -449,7 +483,9 @@ class TestAppFactoryCreateSingleInstance:
         mock_app_class.app_config_cls.model_validate.side_effect = validation_error
         config = {"instance_name": "test_instance"}
 
-        factory.create_single_instance("test_app", mock_manifest, 5, config, as_app_class(mock_app_class))
+        factory.create_single_instance(
+            "test_app", mock_manifest, 5, config, as_app_class(mock_app_class), outcomes=AnyIndexOutcomes()
+        )
 
         mock_registry.record_failure.assert_called_once_with("test_app", 5, validation_error)
         mock_registry.register_app.assert_not_called()
@@ -463,7 +499,9 @@ class TestAppFactoryCreateSingleInstance:
         mock_app_class.side_effect = create_error
         config = {"instance_name": "test_instance"}
 
-        factory.create_single_instance("test_app", mock_manifest, 7, config, as_app_class(mock_app_class))
+        factory.create_single_instance(
+            "test_app", mock_manifest, 7, config, as_app_class(mock_app_class), outcomes=AnyIndexOutcomes()
+        )
 
         mock_registry.record_failure.assert_called_once_with("test_app", 7, create_error)
         mock_registry.register_app.assert_not_called()
@@ -536,7 +574,9 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         """A bare AppConfig takes arbitrary keys as intended extras, so none of them warn."""
         config = {"instance_name": "test_instance", "anything": 1, "off_dealy": 5}
 
-        factory.create_single_instance("test_app", mock_manifest, 0, config, as_app_class(make_app_class()))
+        factory.create_single_instance(
+            "test_app", mock_manifest, 0, config, as_app_class(make_app_class()), outcomes=AnyIndexOutcomes()
+        )
 
         mock_registry.register_app.assert_called_once()
         mock_registry.record_failure.assert_not_called()
@@ -547,7 +587,9 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "off_dealy": 5}
 
         with pytest.warns(UserWarning, match="Unrecognized configuration key") as record:
-            factory.create_single_instance("test_app", mock_manifest, 0, config, as_app_class(mock_app_class))
+            factory.create_single_instance(
+                "test_app", mock_manifest, 0, config, as_app_class(mock_app_class), outcomes=AnyIndexOutcomes()
+            )
 
         assert len(record) == 1
         msg = str(record[0].message)
@@ -566,7 +608,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         with pytest.warns(UserWarning, match="'log_lebel' \\(did you mean 'log_level'\\?\\)"):
             factory.create_single_instance(
-                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(OverrideOnlyConfig))
+                "test_app",
+                mock_manifest,
+                0,
+                config,
+                as_app_class(make_app_class(OverrideOnlyConfig)),
+                outcomes=AnyIndexOutcomes(),
             )
 
         mock_registry.register_app.assert_called_once()
@@ -580,7 +627,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         with pytest.warns(UserWarning, match="'off_dealy' \\(did you mean 'off_delay'\\?\\)"):
             factory.create_single_instance(
-                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(config_cls))
+                "test_app",
+                mock_manifest,
+                0,
+                config,
+                as_app_class(make_app_class(config_cls)),
+                outcomes=AnyIndexOutcomes(),
             )
 
         mock_registry.register_app.assert_called_once()
@@ -593,7 +645,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         with pytest.warns(UserWarning, match="'zzz'") as record:
             factory.create_single_instance(
-                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(MotionLightConfig))
+                "test_app",
+                mock_manifest,
+                0,
+                config,
+                as_app_class(make_app_class(MotionLightConfig)),
+                outcomes=AnyIndexOutcomes(),
             )
 
         assert "did you mean" not in str(record[0].message)
@@ -605,7 +662,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         with pytest.warns(UserWarning, match="Unrecognized configuration key") as record:
             factory.create_single_instance(
-                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(AliasedDelayConfig))
+                "test_app",
+                mock_manifest,
+                0,
+                config,
+                as_app_class(make_app_class(AliasedDelayConfig)),
+                outcomes=AnyIndexOutcomes(),
             )
 
         assert "'off_delay' (did you mean 'delay'?)" in str(record[0].message)
@@ -618,7 +680,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         with pytest.warns(UserWarning, match="'timing'") as record:
             factory.create_single_instance(
-                "test_app", mock_manifest, 0, config, as_app_class(make_app_class(AliasChoicesConfig))
+                "test_app",
+                mock_manifest,
+                0,
+                config,
+                as_app_class(make_app_class(AliasChoicesConfig)),
+                outcomes=AnyIndexOutcomes(),
             )
 
         msg = str(record[0].message)
@@ -633,7 +700,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "offDelay": 5}
 
         factory.create_single_instance(
-            "test_app", mock_manifest, 0, config, as_app_class(make_app_class(CamelCaseConfig))
+            "test_app",
+            mock_manifest,
+            0,
+            config,
+            as_app_class(make_app_class(CamelCaseConfig)),
+            outcomes=AnyIndexOutcomes(),
         )
 
         mock_registry.register_app.assert_called_once()
@@ -646,7 +718,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         config = {"instance_name": "test_instance", "off_delay": 5}
 
         factory.create_single_instance(
-            "test_app", mock_manifest, 0, config, as_app_class(make_app_class(MotionLightConfig))
+            "test_app",
+            mock_manifest,
+            0,
+            config,
+            as_app_class(make_app_class(MotionLightConfig)),
+            outcomes=AnyIndexOutcomes(),
         )
 
         mock_registry.register_app.assert_called_once()
@@ -662,7 +739,9 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         mock_app_class = make_app_class(MotionLightConfig)
 
-        factory.create_single_instance("test_app", mock_manifest, 0, config, as_app_class(mock_app_class))
+        factory.create_single_instance(
+            "test_app", mock_manifest, 0, config, as_app_class(mock_app_class), outcomes=AnyIndexOutcomes()
+        )
 
         assert "some_other_secret" in mock_app_class.call_args.kwargs["app_config"].model_extra
         mock_registry.register_app.assert_called_once()

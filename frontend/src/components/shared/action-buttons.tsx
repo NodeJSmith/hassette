@@ -79,8 +79,9 @@ interface ActionButtonSpec {
   onClick: () => void;
 }
 
-// The request returns 202 — the toast confirms the action was accepted, the
-// resulting status change arrives later over the WebSocket.
+// The request returns 200 once the action has finished on every instance, and an error
+// (409/500) naming each instance it didn't succeed on otherwise; the toast shows either.
+// The status changes themselves arrive over the WebSocket.
 async function performAction(appKey: string, name: ActionName, instance?: InstanceRef) {
   const { request, instanceRequest, verb, outcome } = ACTIONS[name];
   try {

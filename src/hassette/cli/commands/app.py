@@ -196,7 +196,6 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
 
     message = _action_message(action, key, instance_label)
     detail = {
-        "status": result.status,
         "app_key": result.app_key,
         "action": result.action,
         "instance_index": result.instance_index,

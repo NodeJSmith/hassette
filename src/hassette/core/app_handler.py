@@ -27,6 +27,7 @@ if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.app.app import App
     from hassette.config.classes import AppManifest
+    from hassette.schemas.app_outcomes import InstanceOutcome
 
 
 class AppHandler(Service):
@@ -165,29 +166,31 @@ class AppHandler(Service):
         """Whether an action on ``app_key`` is running — delegates to lifecycle service."""
         return self.lifecycle.is_action_in_progress(app_key)
 
-    async def start_app(self, app_key: str, force_reload: bool = False) -> None:
+    async def start_app(self, app_key: str, force_reload: bool = False) -> "tuple[InstanceOutcome, ...]":
         """Start an app by key — delegates to lifecycle service."""
-        await self.lifecycle.start_app(app_key, force_reload=force_reload)
+        return await self.lifecycle.start_app(app_key, force_reload=force_reload)
 
-    async def stop_app(self, app_key: str) -> None:
+    async def stop_app(self, app_key: str) -> "tuple[InstanceOutcome, ...]":
         """Stop an app by key — delegates to lifecycle service."""
-        await self.lifecycle.stop_app(app_key)
+        return await self.lifecycle.stop_app(app_key)
 
-    async def reload_app(self, app_key: str, force_reload: bool = False) -> None:
+    async def reload_app(self, app_key: str, force_reload: bool = False) -> "tuple[InstanceOutcome, ...]":
         """Reload an app by key — delegates to lifecycle service."""
-        await self.lifecycle.reload_app(app_key, force_reload=force_reload)
+        return await self.lifecycle.reload_app(app_key, force_reload=force_reload)
 
-    async def reload_instance(self, app_key: str, index: int, force_reload: bool = False) -> None:
+    async def reload_instance(
+        self, app_key: str, index: int, force_reload: bool = False
+    ) -> "tuple[InstanceOutcome, ...]":
         """Reload a single instance by key and index — delegates to lifecycle service."""
-        await self.lifecycle.reload_instance(app_key, index, force_reload=force_reload)
+        return await self.lifecycle.reload_instance(app_key, index, force_reload=force_reload)
 
-    async def stop_instance(self, app_key: str, index: int) -> None:
+    async def stop_instance(self, app_key: str, index: int) -> "tuple[InstanceOutcome, ...]":
         """Stop a single instance by key and index — delegates to lifecycle service."""
-        await self.lifecycle.stop_instance(app_key, index)
+        return await self.lifecycle.stop_instance(app_key, index)
 
-    async def start_instance(self, app_key: str, index: int) -> None:
+    async def start_instance(self, app_key: str, index: int) -> "tuple[InstanceOutcome, ...]":
         """Start a single instance by key and index — delegates to lifecycle service."""
-        await self.lifecycle.start_instance(app_key, index)
+        return await self.lifecycle.start_instance(app_key, index)
 
     async def apply_changes(
         self,

@@ -6,7 +6,7 @@ shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
 
 import asyncio
 from typing import TYPE_CHECKING, NamedTuple
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock
 
 import pytest
 
@@ -59,10 +59,10 @@ class TestApplyChanges:
         await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.stop_app.assert_called_once_with("orphan_app")
-        stubs.stop_app_unlocked.assert_any_call("reimport_app")
-        stubs.stop_app_unlocked.assert_any_call("reload_app")
-        stubs.start_app_unlocked.assert_any_call("reimport_app", stubs.manifest, True)
-        stubs.start_app_unlocked.assert_any_call("reload_app", stubs.manifest, False)
+        stubs.stop_app_unlocked.assert_any_call("reimport_app", outcomes=ANY)
+        stubs.stop_app_unlocked.assert_any_call("reload_app", outcomes=ANY)
+        stubs.start_app_unlocked.assert_any_call("reimport_app", stubs.manifest, True, outcomes=ANY)
+        stubs.start_app_unlocked.assert_any_call("reload_app", stubs.manifest, False, outcomes=ANY)
         lifecycle_service.start_app.assert_called_once_with("new_app")
 
     async def test_blocked_app_raise_does_not_abort_remaining_apps(
@@ -74,11 +74,12 @@ class TestApplyChanges:
         ever sees an app_key), but the isolation must hold regardless.
         """
 
-        async def start_app(app_key: str) -> None:
+        async def start_app(app_key: str) -> tuple[()]:
             if app_key == "blocked_app":
                 raise AppBlockedError(f"{app_key} blocked")
+            return ()
 
-        async def start_app_unlocked(app_key: str, _manifest: object, _force_reload: bool) -> None:
+        async def start_app_unlocked(app_key: str, _manifest: object, _force_reload: bool, **_kwargs: object) -> None:
             if app_key == "blocked_reimport":
                 raise AppBlockedError(f"{app_key} blocked")
 
@@ -110,10 +111,10 @@ class TestApplyChanges:
         stub_full_restarts(lifecycle_service, mock_registry)
         calls: list[tuple[str, str]] = []
 
-        async def stop(app_key: str) -> None:
+        async def stop(app_key: str, **_kwargs: object) -> None:
             calls.append(("stop", app_key))
 
-        async def start(app_key: str, _manifest: object, _force_reload: bool) -> None:
+        async def start(app_key: str, _manifest: object, _force_reload: bool, **_kwargs: object) -> None:
             assert lifecycle_service._get_app_key_lock("app_x").locked()
             assert lifecycle_service._get_app_key_lock("app_y").locked()
             calls.append(("start", app_key))
@@ -151,10 +152,12 @@ class TestApplyChanges:
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
         calls: list[tuple[str, str]] = []
 
-        async def stop(app_key: str, _index: int) -> None:
+        async def stop(app_key: str, _index: int, **_kwargs: object) -> None:
             calls.append(("stop", app_key))
 
-        async def create(app_key: str, _index: int, _manifest: object, _force_reload: bool = False) -> None:
+        async def create(
+            app_key: str, _index: int, _manifest: object, _force_reload: bool = False, **_kwargs: object
+        ) -> None:
             calls.append(("create", app_key))
 
         lifecycle_service._stop_instance_unlocked = AsyncMock(side_effect=stop)  # pyright: ignore[reportAttributeAccessIssue]
@@ -171,7 +174,7 @@ class TestApplyChanges:
         """A replacement that fails to start is logged, and the rest of the batch still starts."""
         stub_full_restarts(lifecycle_service, mock_registry)
 
-        async def start(app_key: str, _manifest: object, _force_reload: bool) -> None:
+        async def start(app_key: str, _manifest: object, _force_reload: bool, **_kwargs: object) -> None:
             if app_key == "app_x":
                 raise RuntimeError("boom")
 
@@ -220,7 +223,7 @@ class TestReloadApp:
 
         await lifecycle_service.reload_app("test_app")
 
-        lifecycle_service.shutdown_instances.assert_awaited_once_with({0: running})
+        lifecycle_service.shutdown_instances.assert_awaited_once_with({0: running}, outcomes=ANY)
         mock_factory.create_instances.assert_called_once()
 
     async def test_stops_but_does_not_restart_blocked_app(
@@ -248,7 +251,7 @@ class TestReloadApp:
         with pytest.raises(AppBlockedError):
             await lifecycle_service.reload_app("test_app")
 
-        lifecycle_service.shutdown_instances.assert_awaited_once_with({0: running})
+        lifecycle_service.shutdown_instances.assert_awaited_once_with({0: running}, outcomes=ANY)
         mock_factory.create_instances.assert_not_called()
 
 
@@ -297,14 +300,16 @@ class TestReloadAppLocking:
         first_entered = asyncio.Event()
         call_order: list[str] = []
 
-        async def gated_stop_unlocked(_app_key: str) -> None:
+        async def gated_stop_unlocked(_app_key: str, **_kwargs: object) -> None:
             call_order.append("stop_start")
             if call_order.count("stop_start") == 1:
                 first_entered.set()
                 await gate.wait()
             call_order.append("stop_end")
 
-        async def recording_start_unlocked(_app_key: str, _app_manifest: MagicMock, _force_reload: bool) -> None:
+        async def recording_start_unlocked(
+            _app_key: str, _app_manifest: MagicMock, _force_reload: bool, **_kwargs: object
+        ) -> None:
             await asyncio.sleep(0)
             call_order.append("start")
 
@@ -374,7 +379,7 @@ class TestApplyChangesPerInstanceRestart:
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
         # Only index 1 was ever stopped — index 0 is never touched.
-        lifecycle_service.shutdown_instance.assert_called_once_with(app1, 1, deadline=None)
+        lifecycle_service.shutdown_instance.assert_called_once_with(app1, 1, deadline=None, outcomes=ANY)
 
         # Only index 1 was ever (re)created.
         mock_factory.create_single_instance.assert_called_once()
@@ -403,8 +408,8 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        stubs.stop_app_unlocked.assert_called_once_with("app_a")
-        stubs.start_app_unlocked.assert_called_once_with("app_a", stubs.manifest, True)
+        stubs.stop_app_unlocked.assert_called_once_with("app_a", outcomes=ANY)
+        stubs.start_app_unlocked.assert_called_once_with("app_a", stubs.manifest, True, outcomes=ANY)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
 
     async def test_instance_count_change_falls_back_to_full_restart(
@@ -433,8 +438,8 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
-        stubs.stop_app_unlocked.assert_called_once_with("app_a")
-        stubs.start_app_unlocked.assert_called_once_with("app_a", new_manifest, False)
+        stubs.stop_app_unlocked.assert_called_once_with("app_a", outcomes=ANY)
+        stubs.start_app_unlocked.assert_called_once_with("app_a", new_manifest, False, outcomes=ANY)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
 
     async def test_renamed_index_takes_selective_reload_path(
@@ -463,7 +468,7 @@ class TestApplyChangesPerInstanceRestart:
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
         stubs.stop_app_unlocked.assert_not_called()
-        lifecycle_service._stop_instance_unlocked.assert_called_once_with("app_a", 0)
+        lifecycle_service._stop_instance_unlocked.assert_called_once_with("app_a", 0, outcomes=ANY)
         lifecycle_service._create_instance_unlocked.assert_called_once()
 
     async def test_failure_reloading_one_instance_does_not_block_remaining_instances(
@@ -499,7 +504,9 @@ class TestApplyChangesPerInstanceRestart:
 
         created_indices: list[int] = []
 
-        async def create_side_effect(_app_key: str, index: int, _manifest: object, _force_reload: bool = False) -> None:
+        async def create_side_effect(
+            _app_key: str, index: int, _manifest: object, _force_reload: bool = False, **_kwargs: object
+        ) -> None:
             created_indices.append(index)
             if index == 0:
                 raise RuntimeError("boom")
@@ -546,7 +553,9 @@ class TestApplyChangesPerInstanceRestart:
         index_0_release = asyncio.Event()
         index_1_entered = asyncio.Event()
 
-        async def create_side_effect(_app_key: str, index: int, _manifest: object, _force_reload: bool = False) -> None:
+        async def create_side_effect(
+            _app_key: str, index: int, _manifest: object, _force_reload: bool = False, **_kwargs: object
+        ) -> None:
             if index == 0:
                 index_0_entered.set()
                 await index_0_release.wait()
@@ -624,8 +633,8 @@ class TestApplyChangesPerInstanceRestart:
 
         await lifecycle_service.apply_changes(changes, {"app_a": MagicMock()}, {"app_a": MagicMock()})
 
-        stubs.stop_app_unlocked.assert_called_once_with("app_a")
-        stubs.start_app_unlocked.assert_called_once_with("app_a", stubs.manifest, False)
+        stubs.stop_app_unlocked.assert_called_once_with("app_a", outcomes=ANY)
+        stubs.start_app_unlocked.assert_called_once_with("app_a", stubs.manifest, False, outcomes=ANY)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
         lifecycle_service._create_instance_unlocked.assert_not_called()
 
@@ -643,7 +652,7 @@ class TestApplyChangesLockScope:
         stop_entered = asyncio.Event()
         release_stop = asyncio.Event()
 
-        async def gated_stop(_app_key: str) -> None:
+        async def gated_stop(_app_key: str, **_kwargs: object) -> None:
             stop_entered.set()
             await release_stop.wait()
 

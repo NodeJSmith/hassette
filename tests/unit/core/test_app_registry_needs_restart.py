@@ -141,22 +141,27 @@ class TestReaders:
         assert info.class_name == "MyApp"
 
 
-class TestRefusalFor:
+class TestRefusalReason:
     def test_none_when_the_index_is_not_flagged(self, registry: AppRegistry) -> None:
         flag(registry, index=1)
 
-        assert registry.refusal_for("my_app", 0) is None
+        assert registry.refusal_reason("my_app", 0) is None
 
-    def test_names_the_instance_its_coordinates_and_the_flag_and_says_to_restart(self, registry: AppRegistry) -> None:
+    def test_says_a_restart_is_needed_with_the_flag_time_and_reason(self, registry: AppRegistry) -> None:
         flag(registry, reason="task t1 still pending")
         record = registry.get_needs_restart("my_app", 0)
         assert record is not None
 
-        refusal = registry.refusal_for("my_app", 0)
+        refusal = registry.refusal_reason("my_app", 0)
 
-        assert refusal is not None
-        assert "my_app.0" in refusal
-        assert "'my_app', index 0" in refusal
-        assert "task t1 still pending" in refusal
-        assert str(record.info.flagged_at) in refusal
-        assert "Restart hassette" in refusal
+        assert refusal == f"needs a hassette restart (flagged at {record.info.flagged_at}: task t1 still pending)"
+
+
+class TestInstanceName:
+    def test_a_flagged_untracked_index_keeps_its_recorded_name(self, registry: AppRegistry) -> None:
+        flag(registry)
+
+        assert registry.instance_name("my_app", 0) == "my_app.0"
+
+    def test_an_index_nothing_tracks_has_its_configured_label(self, registry: AppRegistry) -> None:
+        assert registry.instance_name("my_app", 3) == "MyApp.3"

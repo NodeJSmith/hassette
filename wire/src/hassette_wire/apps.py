@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
-from hassette_wire.literals import OpenAcceptedStatus, OpenAppAction
+from hassette_wire.literals import OpenAppAction, OpenInstanceResult
 
 
 class NeedsRestart(BaseModel):
@@ -100,19 +100,44 @@ class AppListResponse(BaseModel):
     only_apps: list[str] = Field(default_factory=list)
 
 
-class ActionResponse(BaseModel):
-    """Response for app mutation endpoints (start/stop/reload).
+class InstanceOutcome(BaseModel):
+    """What one start, stop or reload did to one instance it targeted.
 
-    ``instance_index`` is the server-confirmed instance the action ran against — ``None`` for
-    an app-level action, the validated index for an instance-scoped one. Callers (the CLI and
-    the frontend toast) compare this against the index they requested rather than trusting
-    their own request data, since a routing bug would otherwise still look like a plain 202.
+    Listed in ``ActionResponse.outcomes``, and in ``ProblemDetail.outcomes`` when the action answers with an
+    error. Valid pairs: ``succeeded`` with ``needs_restart`` false; ``failed`` with ``needs_restart`` true (this
+    action left the instance needing a hassette restart) or false; ``refused`` with ``needs_restart`` true (the
+    instance was already flagged, so nothing was done to it). A client that meets an unknown ``result`` must not
+    assume success.
     """
 
-    status: OpenAcceptedStatus = "accepted"
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    instance_index: int
+    instance_name: str
+    result: OpenInstanceResult
+    needs_restart: bool = False
+    """Whether the instance is flagged as needing a hassette restart after this action."""
+    reason: str | None = None
+    """The failure message or refusal, or a note on a success that needed no work (``already running``,
+    ``already stopped``); ``None`` for a plain success."""
+
+
+class ActionResponse(BaseModel):
+    """Response for a start, stop or reload that succeeded on every instance it targeted.
+
+    Sent with 200 once the action has finished. ``instance_index`` is the server-confirmed instance the
+    action ran against — ``None`` for an app-level action, the validated index for an instance-scoped one.
+    Callers (the CLI and the frontend toast) compare this against the index they requested rather than
+    trusting their own request data, since a routing bug would otherwise still look like a plain 200.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     app_key: str
     action: OpenAppAction
     instance_index: int | None
+    outcomes: list[InstanceOutcome]
+    """One entry per instance the action targeted, in index order."""
 
 
 class AppConfigResponse(BaseModel):

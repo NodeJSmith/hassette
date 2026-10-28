@@ -451,7 +451,7 @@ class TestCmdAppSource:
 def _action_response(
     app_key: str = "my_app", action: str = "start", instance_index: int | None = None
 ) -> ActionResponse:
-    return ActionResponse(app_key=app_key, action=action, instance_index=instance_index)
+    return ActionResponse(app_key=app_key, action=action, instance_index=instance_index, outcomes=[])
 
 
 def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstance:

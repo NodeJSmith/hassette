@@ -152,7 +152,7 @@ def mock_registry() -> MagicMock:
     registry.all_apps = Mock(return_value=[])
     registry.clear_all = Mock()
     registry.get_manifest = Mock(return_value=None)
-    registry.refusal_for = Mock(return_value=None)
+    registry.refusal_reason = Mock(return_value=None)
     registry.register_app = Mock()
     registry.unregister_app = Mock(return_value=None)
     registry.set_manifests = Mock()
@@ -182,6 +182,8 @@ def mock_factory() -> MagicMock:
     """
     factory = MagicMock()
     factory.create_instances = Mock(return_value=set(range(100)))
+    # One configured instance, so a start or reload targets index 0 (``mock_app_instance``'s index).
+    factory.normalize_configs = Mock(return_value=[{"instance_name": "test_instance"}])
     return factory
 
 

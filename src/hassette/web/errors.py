@@ -20,7 +20,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.utils import is_body_allowed_for_status_code
-from hassette_wire import ProblemCode, ProblemDetail
+from hassette_wire import InstanceOutcome, ProblemCode, ProblemDetail
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -38,6 +38,7 @@ CODE_STATUS: Mapping[ProblemCode, int] = {
     ProblemCode.BOOTSTRAP_NOT_RELEASED: 409,
     ProblemCode.APP_BLOCKED: 409,
     ProblemCode.ACTION_IN_PROGRESS: 409,
+    ProblemCode.NEEDS_RESTART: 409,
     ProblemCode.ACTION_FAILED: 500,
     ProblemCode.TELEMETRY_UNAVAILABLE: 503,
     ProblemCode.SOURCE_NOT_FOUND: 404,
@@ -83,7 +84,8 @@ CODE_DESCRIPTIONS: Mapping[ProblemCode, str] = {
     ProblemCode.BOOTSTRAP_NOT_RELEASED: "app bootstrap prerequisites are not ready yet (retry later)",
     ProblemCode.APP_BLOCKED: "the app is blocked by the --app filter (not retryable)",
     ProblemCode.ACTION_IN_PROGRESS: "another action on this app is still running; nothing was done",
-    ProblemCode.ACTION_FAILED: "the action ran but failed, or left a targeted instance failed",
+    ProblemCode.NEEDS_RESTART: "a targeted instance needs a hassette restart; nothing was done to it (not retryable)",
+    ProblemCode.ACTION_FAILED: "the action failed on at least one targeted instance",
     ProblemCode.TELEMETRY_UNAVAILABLE: "the telemetry store could not be read",
     ProblemCode.SOURCE_NOT_FOUND: "the app's source file does not exist",
     ProblemCode.PATH_TRAVERSAL: "the app's source path resolves outside its app directory",
@@ -168,23 +170,37 @@ class WebApiError(HTTPException):
     """An error a route raises; becomes a problem body with ``code`` and the code's fixed status.
 
     Subclasses Starlette's ``HTTPException`` so one handler serves this and the framework's own
-    ``HTTPException``s.
+    ``HTTPException``s. ``outcomes``, set only by an app start, stop or reload that acted on an
+    instance, becomes the body's ``outcomes`` member.
     """
 
-    def __init__(self, code: ProblemCode, detail: str, headers: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        code: ProblemCode,
+        detail: str,
+        headers: Mapping[str, str] | None = None,
+        *,
+        outcomes: Sequence[InstanceOutcome] | None = None,
+    ) -> None:
         if code not in CODE_STATUS:
             raise ValueError(f"{code!r} has no fixed status and can't be raised by a route")
         super().__init__(status_code=CODE_STATUS[code], detail=detail, headers=headers)
         self.code = code
+        self.outcomes = outcomes
 
 
 def problem_response(
-    code: ProblemCode, detail: str, *, status: int | None = None, headers: Mapping[str, str] | None = None
+    code: ProblemCode,
+    detail: str,
+    *,
+    status: int | None = None,
+    headers: Mapping[str, str] | None = None,
+    outcomes: Sequence[InstanceOutcome] | None = None,
 ) -> JSONResponse:
     """Build the ``application/problem+json`` response for ``code``. The only error-body builder.
 
     ``status`` defaults to the code's status in :data:`CODE_STATUS`; only the ``http_error``
-    fallback passes one.
+    fallback passes one. ``outcomes`` is omitted from the body when ``None``.
     """
     resolved_status = CODE_STATUS[code] if status is None else status
     body = ProblemDetail(
@@ -192,9 +208,13 @@ def problem_response(
         status=resolved_status,
         detail=detail,
         code=code,
+        outcomes=list(outcomes) if outcomes is not None else None,
     )
     return JSONResponse(
-        body.model_dump(mode="json"), status_code=resolved_status, headers=headers, media_type=PROBLEM_MEDIA_TYPE
+        body.model_dump(mode="json", exclude_none=True),
+        status_code=resolved_status,
+        headers=headers,
+        media_type=PROBLEM_MEDIA_TYPE,
     )
 
 
@@ -235,7 +255,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> Respon
     if not is_body_allowed_for_status_code(exc.status_code):
         return Response(status_code=exc.status_code, headers=headers)
     if isinstance(exc, WebApiError):
-        return problem_response(exc.code, exc.detail, headers=headers)
+        return problem_response(exc.code, exc.detail, headers=headers, outcomes=exc.outcomes)
     code = FALLBACK_CODES.get(exc.status_code, ProblemCode.HTTP_ERROR)
     return problem_response(code, exc.detail, status=exc.status_code, headers=headers)
 

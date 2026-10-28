@@ -12,6 +12,7 @@ from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.testing import HassetteHarness, wait_for
 from tests.support.factories import make_change_set
+from tests.support.outcomes import AnyIndexOutcomes
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 MULTI_INSTANCE_APP_KEY = "multi_instance"
@@ -77,7 +78,7 @@ class TestReloadLockAndNeedsRestartGate:
                 )
             )
             await wait_for(lambda: lock.claims == 2, desc="config change queued on the app-key lock")
-            await lifecycle._stop_app_unlocked(app_key)
+            await lifecycle._stop_app_unlocked(app_key, outcomes=AnyIndexOutcomes())
         await asyncio.wait_for(task, timeout=2)
 
         assert lifecycle.registry.get_running_apps(app_key) == {}

@@ -290,6 +290,14 @@ class AppBlockedError(ConflictError):
     """409 ``app_blocked``: the server's ``--app`` filter excludes this app."""
 
 
+class NeedsRestartError(ConflictError):
+    """409 ``needs_restart``: an instance the action targeted needs a hassette restart, so nothing was done to it.
+
+    Not retryable: the instance stays this way until hassette restarts, and a start, stop or reload of it
+    answers this again until then. ``problem.outcomes`` lists what the action did to each instance it targeted.
+    """
+
+
 class ActionInProgressError(ConflictError):
     """409 ``action_in_progress``: another start, stop or reload on this app is still running. Nothing was done."""
 
@@ -310,7 +318,10 @@ class ServerError(HassetteHTTPError):
 
 
 class ActionFailedError(ServerError):
-    """500 ``action_failed``: the start, stop or reload ran but failed, or left an instance failed."""
+    """500 ``action_failed``: the start, stop or reload failed on at least one instance it targeted.
+
+    ``problem.outcomes`` lists what it did to each instance, including any that succeeded.
+    """
 
 
 class SourceUnavailableError(ServerError):
@@ -343,6 +354,7 @@ CODE_ERRORS: Mapping[ProblemCode, type[HassetteHTTPError]] = {
     ProblemCode.BOOTSTRAP_NOT_RELEASED: BootstrapNotReleasedError,
     ProblemCode.APP_BLOCKED: AppBlockedError,
     ProblemCode.ACTION_IN_PROGRESS: ActionInProgressError,
+    ProblemCode.NEEDS_RESTART: NeedsRestartError,
     ProblemCode.ACTION_FAILED: ActionFailedError,
     ProblemCode.TELEMETRY_UNAVAILABLE: TelemetryUnavailableError,
     ProblemCode.SOURCE_NOT_FOUND: SourceNotFoundError,

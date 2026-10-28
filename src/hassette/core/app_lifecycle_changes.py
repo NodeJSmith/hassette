@@ -2,7 +2,7 @@
 
 import asyncio
 import typing
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from contextlib import AsyncExitStack
 from copy import deepcopy
 from dataclasses import dataclass
@@ -11,8 +11,9 @@ from pathlib import Path
 
 import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import ChangeSet
+from hassette.core.app_lifecycle_common import ActionOutcomes, log_refusals
 from hassette.events.hassette import HassetteSimpleEvent
-from hassette.exceptions import AppBlockedError, ConfigError
+from hassette.exceptions import AppBlockedError, AppRemovedError, ConfigError
 from hassette.types import Topic
 from hassette.utils.exception_utils import get_short_traceback
 
@@ -25,6 +26,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.app_key_lock import AppKeyLock
     from hassette.core.app_lifecycle_common import PendingReconciliation
     from hassette.core.app_registry import AppRegistry
+    from hassette.schemas.app_outcomes import InstanceOutcome
 
 
 @dataclass(frozen=True)
@@ -60,13 +62,15 @@ class AppChangeReconcilerMixin:
     ]
     should_autostart: Callable[[str], bool]
     should_auto_reconcile: Callable[[str], bool]
-    start_app: Callable[..., Awaitable[None]]
-    stop_app: Callable[[str], Awaitable[None]]
-    _start_app_unlocked: Callable[[str, "AppManifest", bool], Awaitable[None]]
-    _stop_app_unlocked: Callable[[str], Awaitable[None]]
+    start_app: Callable[..., Awaitable[tuple["InstanceOutcome", ...]]]
+    stop_app: Callable[[str], Awaitable[tuple["InstanceOutcome", ...]]]
+    _start_app_unlocked: Callable[..., Awaitable[None]]
+    _stop_app_unlocked: Callable[..., Awaitable[None]]
+    _stop_targets: Callable[[str], set[int]]
+    _outcomes_for: Callable[[str, Iterable[int]], ActionOutcomes]
     _instance_index_in_range: Callable[[str, int, "AppManifest"], bool]
     _create_instance_unlocked: Callable[..., Awaitable[None]]
-    _stop_instance_unlocked: Callable[[str, int], Awaitable[None]]
+    _stop_instance_unlocked: Callable[..., Awaitable[None]]
     persist_manifests: Callable[[], Awaitable[None]]
     set_apps_configs: Callable[[dict[str, "AppManifest"]], None]
     resolve_only_apps: Callable[[], Awaitable[None]]
@@ -131,9 +135,11 @@ class AppChangeReconcilerMixin:
 
             self.logger.debug("Starting new app %s", app_key)
             try:
-                await self.start_app(app_key)
+                log_refusals(self.logger, app_key, await self.start_app(app_key))
             except AppBlockedError:
                 self.logger.error("Skipping start of blocked app %s — this should not be reachable", app_key)
+            except AppRemovedError:
+                self.logger.debug("Skipping start of app %s: its manifest is gone", app_key)
 
     def _decide_restart(
         self,
@@ -209,22 +215,35 @@ class AppChangeReconcilerMixin:
 
         Caller must hold the app-key lock of every restart's key (``apply_changes`` takes them while
         deciding the restarts, and ``asyncio.Lock`` is not reentrant).
-        """
-        for restart in restarts:
-            await self._stop_for_restart(restart)
-        for restart in restarts:
-            await self._start_for_restart(restart)
 
-    async def _stop_for_restart(self, restart: "AppRestart") -> None:
+        No response carries these outcomes, so each restart's refusals are logged here, once per index.
+        """
+        outcomes = {
+            restart.app_key: self._outcomes_for(
+                restart.app_key,
+                self._stop_targets(restart.app_key) if restart.indices is None else restart.indices,
+            )
+            for restart in restarts
+        }
+        for restart in restarts:
+            await self._stop_for_restart(restart, outcomes[restart.app_key])
+        for restart in restarts:
+            await self._start_for_restart(restart, outcomes[restart.app_key])
+        for restart in restarts:
+            log_refusals(self.logger, restart.app_key, outcomes[restart.app_key].snapshot())
+
+    async def _stop_for_restart(self, restart: "AppRestart", outcomes: ActionOutcomes) -> None:
         # Both stop bodies catch and log their own failures, so one app's failed stop can't abort the batch.
         if restart.indices is None:
             self.logger.debug("Stopping app %s for reload", restart.app_key)
-            await self._stop_app_unlocked(restart.app_key)
+            await self._stop_app_unlocked(restart.app_key, outcomes=outcomes)
             return
         self.logger.debug("Stopping changed instance(s) %s of app %s", list(restart.indices), restart.app_key)
-        await asyncio.gather(*(self._stop_instance_unlocked(restart.app_key, idx) for idx in restart.indices))
+        await asyncio.gather(
+            *(self._stop_instance_unlocked(restart.app_key, idx, outcomes=outcomes) for idx in restart.indices)
+        )
 
-    async def _start_for_restart(self, restart: "AppRestart") -> None:
+    async def _start_for_restart(self, restart: "AppRestart", outcomes: ActionOutcomes) -> None:
         # AppRestart carries only the key and indices, so the manifest is read from the registry here.
         app_key = restart.app_key
         app_manifest = self._resolve_manifest(app_key)
@@ -233,8 +252,9 @@ class AppChangeReconcilerMixin:
             return
 
         if restart.indices is None:
+            outcomes.begin_phase(outcomes.indices)
             try:
-                await self._start_app_unlocked(app_key, app_manifest, restart.force_reload)
+                await self._start_app_unlocked(app_key, app_manifest, restart.force_reload, outcomes=outcomes)
             except AppBlockedError:
                 self.logger.error("Skipping reload of blocked app %s — this should not be reachable", app_key)
             except Exception:
@@ -244,11 +264,12 @@ class AppChangeReconcilerMixin:
         async def create_one(idx: int) -> None:
             # A failure at one index must not abort the other indices, or the other apps in the batch.
             try:
-                await self._create_instance_unlocked(app_key, idx, app_manifest)
+                await self._create_instance_unlocked(app_key, idx, app_manifest, outcomes=outcomes)
             except Exception:
                 self.logger.error("Failed to reload instance %d of app %s:\n%s", idx, app_key, get_short_traceback())
 
         valid = [idx for idx in restart.indices if self._instance_index_in_range(app_key, idx, app_manifest)]
+        outcomes.begin_phase(valid)
         await asyncio.gather(*(create_one(idx) for idx in valid))
 
     async def handle_change_event(

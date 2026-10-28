@@ -5,15 +5,17 @@ shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock
 
 import pytest
 from hassette_wire import ResourceStatus
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.exceptions import AppBlockedError
+from hassette.exceptions import AppBlockedError, AppRemovedError
+from hassette.schemas.app_outcomes import OutcomeResult
 from hassette.testing import EventCapture, wait_for
 from hassette.types.enums import BlockReason
+from tests.support.outcomes import AnyIndexOutcomes
 from tests.support.web_manifest_helpers import make_app_instance_info
 
 from .conftest import app_state_payloads, assert_acquires_app_key_lock_once, make_mock_app_instance
@@ -111,7 +113,7 @@ class TestStopInstanceBehavior:
         await lifecycle_service.stop_instance("test_app", 1)
 
         mock_registry.unregister_app.assert_not_called()
-        lifecycle_service.shutdown_instances.assert_called_once_with({1: app1})
+        lifecycle_service.shutdown_instances.assert_called_once_with({1: app1}, outcomes=ANY)
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_out_of_range_index_skips_cleanly(
@@ -157,7 +159,7 @@ class TestStopInstanceBehavior:
 
         await lifecycle_service.stop_instance("test_app", 2)
 
-        lifecycle_service.shutdown_instances.assert_called_once_with({2: orphan})
+        lifecycle_service.shutdown_instances.assert_called_once_with({2: orphan}, outcomes=ANY)
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_succeeds_without_admission_check_before_bootstrap_release(
@@ -400,16 +402,20 @@ class TestPerInstanceLifecycleLocking:
         first_entered = asyncio.Event()
         call_order: list[str] = []
 
-        async def gated_reload_instance_unlocked(_app_key: str, _index: int, _force_reload: bool = False) -> None:
+        async def gated_reload_instance_unlocked(
+            _app_key: str, _index: int, _force_reload: bool = False, **_kwargs: object
+        ) -> None:
             call_order.append("instance_start")
             first_entered.set()
             await gate.wait()
             call_order.append("instance_end")
 
-        async def recording_stop_unlocked(_app_key: str) -> None:
+        async def recording_stop_unlocked(_app_key: str, **_kwargs: object) -> None:
             call_order.append("stop")
 
-        async def recording_start_unlocked(_app_key: str, _app_manifest: MagicMock, _force_reload: bool) -> None:
+        async def recording_start_unlocked(
+            _app_key: str, _app_manifest: MagicMock, _force_reload: bool, **_kwargs: object
+        ) -> None:
             call_order.append("start")
 
         lifecycle_service._reload_instance_unlocked = gated_reload_instance_unlocked  # pyright: ignore[reportAttributeAccessIssue]
@@ -469,7 +475,7 @@ class TestCreateInstanceUnlockedSynchronousFailure:
 
         lifecycle_service.initialize_instances = AsyncMock()
 
-        await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+        await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_factory.create_single_instance.assert_called_once()
         lifecycle_service.initialize_instances.assert_not_called()
@@ -503,9 +509,9 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         lifecycle_service.shutdown_instance = AsyncMock()
 
         with pytest.raises(RuntimeError, match="event bus failure"):
-            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest, outcomes=AnyIndexOutcomes())
 
-        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure)
+        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure, outcomes=ANY)
         assert mock_inst._skip_own_shutdown_hooks is True
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
@@ -532,9 +538,9 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         lifecycle_service.shutdown_instance = AsyncMock()
 
         with pytest.raises(RuntimeError, match="reconcile failed"):
-            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest, outcomes=AnyIndexOutcomes())
 
-        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure)
+        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure, outcomes=ANY)
         assert mock_inst._skip_own_shutdown_hooks is False
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
@@ -560,7 +566,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         lifecycle_service.shutdown_instance = AsyncMock()
 
         with pytest.raises(RuntimeError, match="reconcile failed"):
-            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest)
+            await lifecycle_service._create_instance_unlocked("test_app", 0, mock_manifest, outcomes=AnyIndexOutcomes())
 
         lifecycle_service.shutdown_instance.assert_not_called()
         mock_registry.record_failure.assert_called_once()
@@ -573,14 +579,15 @@ class TestReloadInstanceUnlockedGuards:
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
     ) -> None:
-        """Unknown/missing app_key (manifest is None after get_manifest) logs and returns
+        """Unknown/missing app_key (manifest is None after get_manifest) raises AppRemovedError
         without stopping or creating anything.
         """
         mock_registry.get_manifest = Mock(return_value=None)
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await lifecycle_service._reload_instance_unlocked("missing_app", 0)
+        with pytest.raises(AppRemovedError):
+            await lifecycle_service._reload_instance_unlocked("missing_app", 0, outcomes=AnyIndexOutcomes())
 
         lifecycle_service._stop_instance_unlocked.assert_not_called()
         lifecycle_service._create_instance_unlocked.assert_not_called()
@@ -601,7 +608,7 @@ class TestReloadInstanceUnlockedGuards:
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await lifecycle_service._reload_instance_unlocked("test_app", 5)
+        await lifecycle_service._reload_instance_unlocked("test_app", 5, outcomes=AnyIndexOutcomes())
 
         lifecycle_service._stop_instance_unlocked.assert_not_called()
         lifecycle_service._create_instance_unlocked.assert_not_called()
@@ -631,7 +638,7 @@ class TestReloadInstanceUnlockedGuards:
         mock_registry.unregister_app = Mock(return_value=None)
 
         with pytest.raises(AppBlockedError):
-            await lifecycle_service._reload_instance_unlocked("test_app", 0)
+            await lifecycle_service._reload_instance_unlocked("test_app", 0, outcomes=AnyIndexOutcomes())
 
         mock_factory.create_single_instance.assert_not_called()
 
@@ -652,7 +659,7 @@ class TestReloadInstanceFailure:
 
         await lifecycle_service.reload_instance("test_app", 0)  # must not raise
 
-        lifecycle_service._reload_instance_unlocked.assert_awaited_once_with("test_app", 0, False)
+        lifecycle_service._reload_instance_unlocked.assert_awaited_once_with("test_app", 0, False, outcomes=ANY)
 
     async def test_reload_instance_reraises_blocked_error(
         self,
@@ -702,13 +709,12 @@ class TestStartInstanceAdmissionGuards:
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
     ) -> None:
-        """Missing/unknown manifest returns before _admit_start is even called — the first
-        `if not app_manifest: return` guard near the top of start_instance().
-        """
+        """Missing/unknown manifest raises AppRemovedError before _admit_start is even called."""
         mock_registry.get_manifest = Mock(return_value=None)
         lifecycle_service._admit_start = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await lifecycle_service.start_instance("test_app", 0)
+        with pytest.raises(AppRemovedError):
+            await lifecycle_service.start_instance("test_app", 0)
 
         lifecycle_service._admit_start.assert_not_called()
 
@@ -727,7 +733,8 @@ class TestStartInstanceAdmissionGuards:
         lifecycle_service._admit_start = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await lifecycle_service.start_instance("test_app", 0)
+        with pytest.raises(AppRemovedError):
+            await lifecycle_service.start_instance("test_app", 0)
 
         lifecycle_service._admit_start.assert_awaited_once()
         lifecycle_service._create_instance_unlocked.assert_not_called()
@@ -741,23 +748,26 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
         mock_manifest: MagicMock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A start or reload over a flagged index logs one refusal ERROR and returns without raising. The
+        """A start or reload over a flagged index records a refusal and returns without raising or logging. The
         module isn't re-imported, and no class-load failure is recorded over the flag.
         """
         registry = real_registry_service.registry
         registry.flag_needs_restart(
             "test_app", 0, instance_name="zombie", class_name="TestApp", reason="work still running"
         )
-        refusal = registry.refusal_for("test_app", 0)
-        assert refusal is not None
+        outcomes = AnyIndexOutcomes()
 
-        await real_registry_service._create_instance_unlocked("test_app", 0, mock_manifest, force_reload=True)
+        await real_registry_service._create_instance_unlocked(
+            "test_app", 0, mock_manifest, force_reload=True, outcomes=outcomes
+        )
 
         mock_factory.load_class.assert_not_called()
         mock_factory.create_single_instance.assert_not_called()
         assert registry.get_instances("test_app") == {}
-        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == [refusal]
+        assert [(o.result, o.reason) for o in outcomes.snapshot()] == [
+            (OutcomeResult.REFUSED, registry.refusal_reason("test_app", 0))
+        ]
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
     async def test_blocked_check_still_runs_before_the_flag_check(
         self,
@@ -772,7 +782,9 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
         registry.block_app("test_app", BlockReason.ONLY_APP)
 
         with pytest.raises(AppBlockedError):
-            await real_registry_service._create_instance_unlocked("test_app", 0, mock_manifest)
+            await real_registry_service._create_instance_unlocked(
+                "test_app", 0, mock_manifest, outcomes=AnyIndexOutcomes()
+            )
 
     async def test_start_instance_over_a_flagged_index_does_not_raise_or_log_twice(
         self,
@@ -780,7 +792,7 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
         mock_manifest: MagicMock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """The public path returns without raising, and its except-Exception handler adds no second ERROR."""
+        """The public path returns the refusal without raising or logging: the HTTP response carries it."""
         registry = real_registry_service.registry
         registry.set_manifests({"test_app": mock_manifest})
         real_registry_service._instance_index_in_range = Mock(return_value=True)  # pyright: ignore[reportAttributeAccessIssue]
@@ -788,7 +800,9 @@ class TestCreateInstanceUnlockedNeedsRestartGate:
             "test_app", 0, instance_name="zombie", class_name="TestApp", reason="work still running"
         )
 
-        await real_registry_service.start_instance("test_app", 0)
+        outcomes = await real_registry_service.start_instance("test_app", 0)
 
-        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == [registry.refusal_for("test_app", 0)]
+        assert [(o.result, o.needs_restart, o.reason) for o in outcomes] == [
+            (OutcomeResult.REFUSED, True, registry.refusal_reason("test_app", 0))
+        ]
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]
