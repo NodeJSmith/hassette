@@ -104,8 +104,9 @@ run concurrently. This is the framework default for internal jobs.
 invocation manages its own isolated resources.
 
 Removing a `parallel` job doesn't stop an invocation that is already running;
-it runs to completion. When the app stops, its teardown cancels every running
-invocation.
+it runs to completion. When the app stops, its teardown cancels the invocation.
+One that ignores the cancellation flags the app instance as
+[needing a restart](../../operating/index.md#instances-that-need-a-restart).
 
 ## Default Mode: Tier-Aware
 
@@ -189,7 +190,7 @@ against the success rate. The cancelled column appears on the
 
 A job that holds its execution-mode guard — any mode except `parallel` —
 longer than 60 seconds without completing emits a WARNING. This is the
-only WARNING the execution mode feature generates. Suppressed and dropped
+only WARNING that overlap handling generates. Suppressed and dropped
 ticks always log at DEBUG.
 
 The per-job `timeout` still applies and ultimately releases the guard

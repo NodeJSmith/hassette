@@ -93,7 +93,8 @@ where each invocation manages its own isolated resources.
 
 Cancelling a `parallel` subscription doesn't stop an invocation that is
 already running; it runs to completion. When the app stops, its teardown
-cancels every running invocation.
+cancels the invocation. One that ignores the cancellation flags the app
+instance as [needing a restart](../../operating/index.md#instances-that-need-a-restart).
 
 ## Default Mode: Tier-Aware
 

@@ -225,13 +225,13 @@ When Hassette force-terminated work at any point, or worker threads survived the
 Python cancellation is cooperative. Hassette can cancel a hook or a task, but it can't stop one that catches the cancellation and keeps going. When an app instance's teardown ends and work from it may still be running, Hassette flags the instance as needing a restart. That happens when:
 
 - a failed or timed-out `on_initialize` doesn't finish once it's cancelled,
-- a task the instance started with `self.task_bucket` is still pending when its teardown ends,
+- a task the instance started with [`self.task_bucket`](../core-concepts/apps/task-bucket.md) is still pending when its teardown ends,
 - the teardown runs past its limit and Hassette force-terminates it, or the shutdown of one of its parts, such as its bus or scheduler, fails or times out,
 - an exception escapes the stop's own steps, cutting the teardown short before Hassette's steps after the hooks have run. The usual cause is a `CancelledError` escaping `before_shutdown`, `on_shutdown` or `after_shutdown`: a hook that cancels its own task with `task.cancel()` and then `await`s the task directly. Wait for it with `await asyncio.wait([task])` instead. That returns once the task has finished without raising its `CancelledError`, and still lets a real cancellation of the hook through.
 
 A shutdown hook that raised an ordinary exception or timed out, and then ended, doesn't flag the instance. Nothing from it is still running. Neither does a failed `cleanup()`: it's logged at ERROR, and the stop is reported as finished.
 
-The flag doesn't cover worker threads. A synchronous handler, job or `AppSync` hook that is still running when it's cancelled keeps its thread until the call returns, and the instance isn't flagged for it (see [timeout limitations](#limitations)). Make long-running work `async` so cancellation stops it.
+The flag doesn't cover worker threads. A synchronous handler, job or [`AppSync`](../core-concepts/apps/index.md#synchronous-apps) hook that is still running when it's cancelled keeps its thread until the call returns, and the instance isn't flagged for it (see [timeout limitations](#limitations)). Make long-running work `async` so cancellation stops it.
 
 A flagged instance:
 
