@@ -126,6 +126,21 @@ export function configStatusOverride(status: AppStatus | ResourceStatus): "disab
  *  scanning the whole (cross-app) `appStatuses` record or prefix-matching app_key by hand.
  *
  *  Config states win over any live status — see `configStatusOverride`. */
+/** An app's instance indices: the grid's cached ones plus any past them that only a WS event has
+ *  reported so far, such as an instance a config reload added after the grid loaded. */
+function liveIndices(
+  appStatuses: Record<string, AppStatusEntry>,
+  appKey: string,
+  instances: readonly { index: number }[],
+): Set<number> {
+  const indices = new Set(instances.map((inst) => inst.index));
+  const maxKnownIndex = indices.size > 0 ? Math.max(...indices) : -1;
+  for (let index = maxKnownIndex + 1; appStatuses[appStatusKey(appKey, index)]; index++) {
+    indices.add(index);
+  }
+  return indices;
+}
+
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
@@ -133,11 +148,7 @@ export function appLiveStatus(
   const override = configStatusOverride(row.status);
   if (override) return override;
   const instances = row.instances ?? [];
-  const knownIndices = new Set(instances.map((inst) => inst.index));
-  const maxKnownIndex = knownIndices.size > 0 ? Math.max(...knownIndices) : -1;
-  for (let index = maxKnownIndex + 1; appStatuses[appStatusKey(row.app_key, index)]; index++) {
-    knownIndices.add(index);
-  }
+  const knownIndices = liveIndices(appStatuses, row.app_key, instances);
   // Fast path for the common case (0 or 1 known indices) — skips the two-way includes() check
   // and the per-index instances.find() scan below, both of which only matter once there's more
   // than one index to reduce over.
@@ -195,17 +206,18 @@ export function instanceLiveNeedsRestart(
 /** An app's needs-restart summary for its row: how many instances are flagged, and the flag itself when
  *  exactly one is, so the row can show that instance's reason.
  *
- *  The count is the larger of the live flags over the row's cached instances and the server's
- *  `needs_restart_count`, which counts the same instances. Live can be higher when a WS event flagged an
- *  instance after the grid loaded; the server count can be higher when an instance's last WS event
- *  predates its flag (a STOPPING event, say) and so shadows the fresher grid row. A flag never clears
- *  before restart, so neither side can be stale-high. */
+ *  The count is the larger of the live flags over the row's instances (the cached ones, plus any only a
+ *  WS event has reported, as in `appLiveStatus`) and the server's `needs_restart_count`, which counts the
+ *  cached ones. Live can be higher when a WS event flagged an instance after the grid loaded; the server
+ *  count can be higher when an instance's last WS event predates its flag (a STOPPING event, say) and so
+ *  shadows the fresher grid row. A flag never clears before restart, so neither side can be stale-high. */
 export function appNeedsRestart(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "instances" | "needs_restart_count">,
 ): { count: number; flag: NeedsRestart | null } {
-  const flags = row.instances.flatMap((inst) => {
-    const flag = instanceLiveNeedsRestart(appStatuses, row.app_key, inst);
+  const flags = [...liveIndices(appStatuses, row.app_key, row.instances)].flatMap((index) => {
+    const cached = row.instances.find((inst) => inst.index === index);
+    const flag = instanceLiveNeedsRestart(appStatuses, row.app_key, { index, needs_restart: cached?.needs_restart });
     return flag ? [flag] : [];
   });
   const count = Math.max(flags.length, row.needs_restart_count ?? 0);
