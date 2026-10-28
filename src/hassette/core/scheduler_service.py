@@ -406,7 +406,8 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         await the old job's ``removed_at`` write landing before issuing the new
         registration's upsert against the same natural-key row — see
         ``Scheduler._add_job()``) and registration rollback (``_rollback_failed_registration``).
-        Owner cleanup (``remove_jobs()``) runs the same two halves, all live-state removals first.
+        Owner cleanup (``remove_jobs()``) runs the same steps across all its jobs one step at a time:
+        every live-state removal, then every guard release, then every ``removed_at`` write.
 
         Not to be confused with ``_ScheduledJobQueue.remove_job``, which only touches the
         heap under its own lock.
@@ -496,22 +497,31 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     async def _remove_jobs(self, jobs: "list[Job]") -> None:
         """Async body for ``remove_jobs()``.
 
-        Runs the unified removal operation (see ``remove_job()``) in two passes: every job leaves
-        live state first, then each job's guard-release/persistence tail runs. A tail that raises
-        is logged and the rest still run, so one failed ``removed_at`` write can't leave the
-        remaining jobs dispatchable or their invocations running.
+        Runs the unified removal operation (see ``remove_job()``) in three passes: every job leaves
+        live state, then every job's guard is released, then each ``removed_at`` is persisted. A
+        step that raises is logged and the rest still run, and no invocation waits behind a
+        persistence write, so a failed or stalled write (cancelled by the caller's shutdown-hook
+        timeout) can't leave the remaining jobs dispatchable or their invocations running.
 
         Raises:
-            ExceptionGroup: After every job was handled, when any tail raised.
+            ExceptionGroup: After every job was handled, when any step raised.
         """
         for job in jobs:
             self._remove_from_live_state(job)
         failures: list[Exception] = []
         for job in jobs:
             try:
-                await self._finish_removal(job)
+                await release_and_drain(job.guard, job.pending_done)
             except Exception as exc:
-                self.logger.exception("Failed to finish removing job '%s' (db_id=%s)", job.name, job.db_id)
+                self.logger.exception("Failed to release the guard of removed job '%s'", job.name)
+                failures.append(exc)
+        for job in jobs:
+            if job.db_id is None:
+                continue
+            try:
+                await self.mark_job_removed(job.db_id)
+            except Exception as exc:
+                self.logger.exception("Failed to persist removal of job '%s' (db_id=%s)", job.name, job.db_id)
                 failures.append(exc)
         if failures:
             raise ExceptionGroup("job removal tail failed", failures)
