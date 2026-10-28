@@ -129,7 +129,7 @@ The simplest fix is to point the URL straight at Hassette's LAN address, skippin
 --8<-- "pages/getting-started/snippets/hassette_trusted_proxies.toml"
 ```
 
-Leave **API token** blank. In `web_api.trusted_proxies`, list the address Home Assistant's requests arrive from. That may be a Docker gateway like `172.17.0.1` rather than Home Assistant's LAN IP. Hassette then admits requests from that address that send no `Authorization` header. A request that sends a token is still checked against `auth_token`. See [Web UI](../web-ui/index.md#enabling-and-accessing) for how `trusted_proxies` matches addresses.
+In `web_api.trusted_proxies`, list the address Home Assistant's requests arrive from. That may be a Docker gateway like `172.17.0.1` rather than Home Assistant's LAN IP. Add this to `hassette.toml`, restart Hassette, then submit the form with **API token** left blank. Hassette then admits requests from that address that send no `Authorization` header. A request that sends a token is still checked against `auth_token`. See [Web UI](../web-ui/index.md#enabling-and-accessing) for how `trusted_proxies` matches addresses.
 
 !!! warning "Trusting an address trusts everything behind it"
     Every process that reaches Hassette from that address gets full access to its API. On Home Assistant OS, add-ons usually reach other machines from Home Assistant's address too. Use a token unless you control everything on that address.
