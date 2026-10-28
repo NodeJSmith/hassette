@@ -49,7 +49,7 @@ This is the bigger change. In AppDaemon, you declare app arguments in `apps.yaml
 Missing required fields raise a validation error at startup, before any handler runs — the error names the missing key, so a failed config migration surfaces immediately rather than as a `KeyError` mid-automation. `self.app_config.entity` carries a type your IDE can check.
 
 !!! note "`[[double brackets]]`: TOML array-of-tables"
-    `[[hassette.apps.my_app.config]]` is a TOML array-of-tables. You can repeat the block to run the same app class with multiple independent configurations. Use `[...]` for a single instance; use `[[...]]` when you want a list.
+    `[[hassette.apps.my_app.config]]` is a TOML array-of-tables. You can repeat the block to run the same app class with multiple independent configurations. Either form works for a single instance: `[hassette.apps.my_app.config]` (single brackets) defines one config table, and `[[...]]` defines a list of one. These examples use `[[...]]` so adding a second instance means repeating the block.
 
 ## Multi-Instance Apps
 
