@@ -298,6 +298,7 @@ class TestShutdownInstance:
 
         mock_app_instance.shutdown.assert_awaited_once()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_catches_exceptions_and_flags_the_instance(
         self,
         lifecycle_service: AppLifecycleService,
@@ -306,6 +307,7 @@ class TestShutdownInstance:
         mock_registry: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """A raised shutdown doesn't raise here: it is FAILED with a failure entry and flagged, since the
         coordinator's COORDINATOR_FAILED report leaves its evidence incomplete.
         """
@@ -378,6 +380,7 @@ class TestShutdownInstanceEntryDeadline:
 
         assert mock_app_instance._shutdown_deadline == outer
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_walks_away_from_a_stop_that_outlives_its_deadline(
         self,
         lifecycle_service: AppLifecycleService,
@@ -386,6 +389,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_registry: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """On expiry the instance is force-terminated, its listeners and jobs are removed by owner, it is
         recorded as force-terminated work, and it is reported FAILED with a registry failure entry.
         """
@@ -447,6 +451,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_hassette.record_force_terminated.assert_called_once_with([mock_app_instance.unique_name])
         mock_registry.record_failure.assert_called_once()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_a_timed_out_hook_reports_failed_without_walking_away(
         self,
         lifecycle_service: AppLifecycleService,
@@ -455,6 +460,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_registry: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """A stop that finished but whose hook was cut off at its bound is FAILED with a registry entry."""
         event_capture.install(mock_hassette)
         mock_app_instance.shutdown = AsyncMock(
@@ -470,6 +476,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_registry.flag_needs_restart.assert_not_called()
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_a_stop_that_left_tasks_pending_is_failed_and_flagged_without_timing_out(
         self,
         lifecycle_service: AppLifecycleService,
@@ -478,6 +485,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_registry: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """A stop that finished in time but left work running is FAILED and flagged, not STOPPED."""
         event_capture.install(mock_hassette)
         mock_app_instance.shutdown = AsyncMock(
@@ -515,6 +523,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_registry.record_failure.assert_called_once()
         mock_registry.flag_needs_restart.assert_called_once()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_a_raised_hook_still_reports_stopped(
         self,
         lifecycle_service: AppLifecycleService,
@@ -523,6 +532,7 @@ class TestShutdownInstanceEntryDeadline:
         mock_registry: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """Only a timed-out stop is FAILED here; a hook that raised is evidence on the report, not a timeout."""
         event_capture.install(mock_hassette)
         mock_app_instance.shutdown = AsyncMock(

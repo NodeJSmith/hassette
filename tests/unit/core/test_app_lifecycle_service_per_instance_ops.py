@@ -87,6 +87,7 @@ class TestStopInstanceFailure:
 
 
 class TestStopInstanceBehavior:
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_stops_running_instance_at_target_index(
         self,
         lifecycle_service: AppLifecycleService,
@@ -94,6 +95,7 @@ class TestStopInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """stop_instance shuts down the running instance at the target index only, leaving its
         unregistration to shutdown_instance (after the teardown).
         """
@@ -110,6 +112,7 @@ class TestStopInstanceBehavior:
         mock_registry.unregister_app.assert_not_called()
         lifecycle_service.shutdown_instances.assert_called_once_with({1: app1})
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_out_of_range_index_skips_cleanly(
         self,
         lifecycle_service: AppLifecycleService,
@@ -117,6 +120,7 @@ class TestStopInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """stop_instance no-ops for an untracked index beyond the current manifest's count."""
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
@@ -128,6 +132,7 @@ class TestStopInstanceBehavior:
 
         mock_registry.unregister_app.assert_not_called()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_tracked_out_of_range_index_is_still_stopped(
         self,
         lifecycle_service: AppLifecycleService,
@@ -135,6 +140,7 @@ class TestStopInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """An instance orphaned by a config shrink (still tracked, index now out of range) stays
         stoppable — prune_stale_failed_indices only prunes stale *failed* entries, so refusing
         here would leave it running with no way to shut it down.
@@ -152,6 +158,7 @@ class TestStopInstanceBehavior:
 
         lifecycle_service.shutdown_instances.assert_called_once_with({2: orphan})
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_succeeds_without_admission_check_before_bootstrap_release(
         self,
         lifecycle_service: AppLifecycleService,
@@ -159,6 +166,7 @@ class TestStopInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """stop_instance does not call _admit_start — it works before bootstrap release,
         matching the existing stop_app convention (design.md Edge Cases: "The stop endpoint
         does not go through admission").
@@ -176,6 +184,7 @@ class TestStopInstanceBehavior:
 
 
 class TestStartInstanceFailure:
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_create_instance_failure_does_not_raise(
         self,
         lifecycle_service: AppLifecycleService,
@@ -183,6 +192,7 @@ class TestStartInstanceFailure:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """An exception from create_single_instance is caught and logged, not propagated.
 
         Mirrors TestStopInstanceFailure.test_unregister_failure_does_not_raise but for
@@ -200,6 +210,7 @@ class TestStartInstanceFailure:
 
 
 class TestStartInstanceBehavior:
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_creates_and_initializes_target_index(
         self,
         lifecycle_service: AppLifecycleService,
@@ -207,6 +218,7 @@ class TestStartInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """start_instance creates and initializes the instance at the target index only."""
         mock_manifest.app_config = [{"instance_name": "a"}, {"instance_name": "b"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
@@ -243,6 +255,7 @@ class TestStartInstanceBehavior:
 
         mock_factory.create_single_instance.assert_not_called()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_out_of_range_index_skips_cleanly(
         self,
         lifecycle_service: AppLifecycleService,
@@ -250,6 +263,7 @@ class TestStartInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """start_instance no-ops for an index beyond the current manifest's instance count."""
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
@@ -259,6 +273,7 @@ class TestStartInstanceBehavior:
 
         mock_factory.create_single_instance.assert_not_called()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_negative_index_skips_cleanly(
         self,
         lifecycle_service: AppLifecycleService,
@@ -266,6 +281,7 @@ class TestStartInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """start_instance no-ops for a negative index rather than resolving it via Python's
         negative-indexing semantics into the last configured instance (ship-time challenge
         finding — the shared _instance_index_in_range() helper only checked the upper bound).
@@ -278,6 +294,7 @@ class TestStartInstanceBehavior:
 
         mock_factory.create_single_instance.assert_not_called()
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_blocked_app_skips_without_creating(
         self,
         lifecycle_service: AppLifecycleService,
@@ -285,6 +302,7 @@ class TestStartInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """A manual start_instance() for an app excluded by the --app filter must not bypass
         that exclusion — regression test for the P1 finding on PR #1873:
         build_manifest_info() now gives a blocked app's not-yet-tracked configured indices a
@@ -342,6 +360,7 @@ class TestPerInstanceLifecycleLocking:
             lifecycle_service, "test_app", lambda: lifecycle_service.stop_instance("test_app", 0)
         )
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_start_instance_acquires_app_key_lock_once(
         self,
         lifecycle_service: AppLifecycleService,
@@ -349,6 +368,7 @@ class TestPerInstanceLifecycleLocking:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """start_instance acquires the per-app-key lock exactly once."""
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
@@ -488,6 +508,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure)
         assert mock_inst._skip_own_shutdown_hooks is True
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_initialized_phantom_is_shut_down_with_its_own_hooks(
         self,
         lifecycle_service: AppLifecycleService,
@@ -495,6 +516,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """An app that initialized before something after it raised (reconciliation) gets its
         ``on_shutdown``: the phantom is shut down with the cause, without the hook skip.
         """
@@ -516,6 +538,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, 0, cause=failure)
         assert mock_inst._skip_own_shutdown_hooks is False
 
+    # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_phantom_already_gone_records_a_post_registration_failure(
         self,
         lifecycle_service: AppLifecycleService,
@@ -523,6 +546,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
+        # dup-ignore-end
         """When nothing is registered at the index any more, there is nothing to shut down; the
         failure is recorded so the index doesn't silently look stopped.
         """
