@@ -24,9 +24,9 @@ If a raised shutdown body is ever seen in the field leaving work running, add `S
 Acceptance criteria:
 - A report carrying `SHUTDOWN_BODY_FAILED` makes `is_restart_safe` `False`, and an app instance whose body raised is flagged needs-restart.
 
-## KI-002: A timed-out `AppSync` hook's worker thread isn't flagged
+## KI-002: A cancelled sync worker thread isn't flagged
 
-Status: open
+Status: resolved — documented as an accepted limitation in the needs-restart docs (PR #3550 review, 2026-10-28), meeting the acceptance criterion's docs branch
 Recorded: 2026-10-27 (3109)
 Source: ship-challenge
 Reason not fixed now: accepted-limitation
@@ -35,13 +35,13 @@ Affected files:
 - docs/pages/operating/index.md
 
 Issue:
-A blocking `on_initialize_sync`/`on_shutdown_sync` that outlives its bound keeps its worker thread running, but the hook is recorded as timed out and ended, so the instance isn't flagged needs-restart.
+A blocking `on_initialize_sync`/`on_shutdown_sync` that outlives its bound keeps its worker thread running, but the hook is recorded as timed out and ended, so the instance isn't flagged needs-restart. Sync handlers and sync jobs have the same gap: cancelling the task that awaits the worker leaves the thread running, and the task reads as ended.
 
 Why deferred:
 Peers only log leaked threads (AppDaemon's long-callback warnings, HA's shutdown logs; `design/research/2026-10-27-needs-restart-ship-findings/prior-art.md`, Q3). The operating docs already say a timed-out sync handler's thread keeps running until it returns.
 
 Recommended follow-up:
-If users hit it, add one sentence to the needs-restart docs saying the flag doesn't cover a sync hook's worker thread, or record a thread-pending cause the predicate reads.
+The needs-restart docs now state that the flag doesn't cover worker threads (`docs/pages/operating/index.md`). If users hit it, record a thread-pending cause the predicate reads, or fold surviving threads into #3395's still-running names.
 
 Acceptance criteria:
 - Either the docs state the gap next to the needs-restart section, or a timed-out sync hook whose thread is still alive flags the instance.

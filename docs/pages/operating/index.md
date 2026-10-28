@@ -231,6 +231,8 @@ Python cancellation is cooperative. Hassette can cancel a hook or a task, but it
 
 A shutdown hook that raised an ordinary exception or timed out, and then ended, doesn't flag the instance. Nothing from it is still running. Neither does a failed `cleanup()`: it's logged at ERROR, and the stop is reported as finished.
 
+The flag doesn't cover worker threads. A synchronous handler, job or `AppSync` hook that is still running when it's cancelled keeps its thread until the call returns, and the instance isn't flagged for it (see [timeout limitations](#limitations)). Make long-running work `async` so cancellation stops it.
+
 A flagged instance:
 
 - logs one ERROR naming the instance and what may still be running, such as the pending task names
