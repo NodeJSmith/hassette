@@ -429,53 +429,24 @@ class TestAppInstanceEndpoints:
 
         assert response.status_code == 404
 
-    async def test_start_instance_returns_retryable_conflict_before_release(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+    @pytest.mark.parametrize("action", ["start", "reload"])
+    @pytest.mark.parametrize(
+        "error",
+        [
+            AppBootstrapNotReleasedError("not released"),
+            # A blocked app's instance start or reload (reload is stop-then-start, so the same block applies)
+            # must surface as a rejected request, not a 200 for an action the registry silently no-op'd.
+            AppBlockedError("App 'my_app' is blocked by the --app filter"),
+        ],
+        ids=["before_release", "blocked_app"],
+    )
+    async def test_instance_action_returns_conflict(
+        self, client: "AsyncClient", mock_hassette: MagicMock, action: str, error: Exception
     ) -> None:
         self._seed_manifest(mock_hassette)
-        mock_hassette.app_handler.start_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
+        setattr(mock_hassette.app_handler, f"{action}_instance", AsyncMock(side_effect=error))
 
-        response = await client.post(instance_action_path("my_app", 0, "start"))
-
-        assert response.status_code == 409
-
-    async def test_start_instance_returns_conflict_for_blocked_app(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """A blocked app's instance start must surface as a rejected request, not a 200
-        for an action the registry silently no-op'd.
-        """
-        self._seed_manifest(mock_hassette)
-        mock_hassette.app_handler.start_instance = AsyncMock(
-            side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
-        )
-
-        response = await client.post(instance_action_path("my_app", 0, "start"))
-
-        assert response.status_code == 409
-
-    async def test_reload_instance_returns_retryable_conflict_before_release(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        self._seed_manifest(mock_hassette)
-        mock_hassette.app_handler.reload_instance = AsyncMock(side_effect=AppBootstrapNotReleasedError("not released"))
-
-        response = await client.post(instance_action_path("my_app", 0, "reload"))
-
-        assert response.status_code == 409
-
-    async def test_reload_instance_returns_conflict_for_blocked_app(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """A blocked app's instance reload must surface as a rejected request (reload is
-        stop-then-start, so the same block applies).
-        """
-        self._seed_manifest(mock_hassette)
-        mock_hassette.app_handler.reload_instance = AsyncMock(
-            side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
-        )
-
-        response = await client.post(instance_action_path("my_app", 0, "reload"))
+        response = await client.post(instance_action_path("my_app", 0, action))
 
         assert response.status_code == 409
 
