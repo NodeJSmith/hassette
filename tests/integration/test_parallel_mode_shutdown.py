@@ -67,12 +67,10 @@ async def test_a_running_parallel_job_is_cancelled_when_its_app_stops() -> None:
         await assert_stopping_the_app_cancels_the_invocation(harness.app, trigger)
 
 
-class _SlowCancelJobsApp(App[AppConfig]):
+class _SlowCancelJobsApp(_ParallelWorkApp):
     """Registers two ``single`` jobs: the first takes a while to finish once cancelled, the second doesn't."""
 
     slow_started: asyncio.Event
-    started: asyncio.Event
-    cancelled: asyncio.Event
 
     async def on_initialize(self) -> None:
         self.slow_started = asyncio.Event()
@@ -91,14 +89,6 @@ class _SlowCancelJobsApp(App[AppConfig]):
             while loop.time() < finish_at:
                 with contextlib.suppress(asyncio.CancelledError):
                     await asyncio.sleep(finish_at - loop.time())
-            raise
-
-    async def run_until_cancelled(self) -> None:
-        self.started.set()
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            self.cancelled.set()
             raise
 
 
