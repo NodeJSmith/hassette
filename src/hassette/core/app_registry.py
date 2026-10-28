@@ -188,6 +188,14 @@ class AppRegistry:
         """Indices with an instance entry or a needs-restart record for ``app_key``."""
         return set(self._instances.get(app_key, {})) | set(self._needs_restart.get(app_key, {}))
 
+    def resolve_instance_infos(self, app_key: str, manifest: "AppManifest | None" = None) -> dict[int, AppInstanceInfo]:
+        """``resolve_instance_info`` for every tracked index of ``app_key``, in index order."""
+        return {
+            index: info
+            for index in sorted(self.tracked_indices(app_key))
+            if (info := self.resolve_instance_info(app_key, index, manifest)) is not None
+        }
+
     def prune_stale_failed_indices(self, app_key: str, valid_index_count: int) -> dict[int, AppInstanceInfo]:
         """Remove failed (non-running) entries at indices no longer present in the current config.
 
@@ -299,8 +307,7 @@ class AppRegistry:
         class_name resolution as snapshot generation so the event matches what a subsequent fetch
         would show.
         """
-        infos = {index: self.resolve_instance_info(app_key, index) for index in sorted(self.tracked_indices(app_key))}
-        return {index: info for index, info in infos.items() if info is not None and is_failed_info(info)}
+        return {index: info for index, info in self.resolve_instance_infos(app_key).items() if is_failed_info(info)}
 
     @staticmethod
     def _index_in_current_config(index: int, manifest: "AppManifest | None") -> bool:
@@ -356,12 +363,7 @@ class AppRegistry:
         """Generate immutable status snapshot for web UI."""
         # Every app key with an instance entry or a needs-restart record, in first-seen order.
         app_keys = dict.fromkeys([*self._instances, *self._needs_restart])
-        instances = [
-            info
-            for app_key in app_keys
-            for index in sorted(self.tracked_indices(app_key))
-            if (info := self.resolve_instance_info(app_key, index)) is not None
-        ]
+        instances = [info for app_key in app_keys for info in self.resolve_instance_infos(app_key).values()]
 
         return AppStatusSnapshot(
             instances=tuple(instances),
@@ -398,11 +400,7 @@ class AppRegistry:
         configured-but-not-yet-started app is correctly STOPPED, not DEGRADED, even though
         ``instances`` also lists its not-yet-tracked instances. A flagged index counts as failed.
         """
-        tracked = {
-            index: info
-            for index in self.tracked_indices(app_key)
-            if (info := self.resolve_instance_info(app_key, index, manifest))
-        }
+        tracked = self.resolve_instance_infos(app_key, manifest)
         has_running = any(not is_failed_info(info) for info in tracked.values())
         has_failed = any(is_failed_info(info) for info in tracked.values())
 
@@ -472,11 +470,7 @@ class AppRegistry:
         """
         if not self._needs_restart.get(app_key):
             return None
-        instances = tuple(
-            info
-            for index in sorted(self.tracked_indices(app_key))
-            if (info := self.resolve_instance_info(app_key, index))
-        )
+        instances = tuple(self.resolve_instance_infos(app_key).values())
         first_failed = next((info for info in instances if is_failed_info(info)), None)
         return AppManifestInfo(
             app_key=app_key,

@@ -495,7 +495,6 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_factory.load_class = Mock(return_value=MagicMock())
 
         mock_inst = make_mock_app_instance()
-        mock_inst._skip_own_shutdown_hooks = False
         mock_registry.get = Mock(return_value=mock_inst)
 
         failure = RuntimeError("event bus failure")
@@ -525,7 +524,6 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
         mock_factory.load_class = Mock(return_value=MagicMock())
 
         mock_inst = make_mock_app_instance()
-        mock_inst._skip_own_shutdown_hooks = False
         mock_registry.get = Mock(return_value=mock_inst)
 
         failure = RuntimeError("reconcile failed")

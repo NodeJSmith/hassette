@@ -106,19 +106,11 @@ class AppInstanceLifecycleMixin:
             with anyio.fail_after(self.startup_timeout):
                 await inst.initialize()
                 mark_ready(inst, reason="initialized")
-        except TimeoutError as exc:
-            self.logger.error(
-                "Timed out while starting app '%s' (%s):\n%s",
-                inst.app_config.instance_name,
-                class_name,
-                get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
-            )
-            skip_own_shutdown_hooks(inst)
-            await self.shutdown_instance(inst, index, cause=exc)
-            return
         except Exception as exc:
             self.logger.error(
-                "Failed to start app '%s' (%s):\n%s",
+                "Timed out while starting app '%s' (%s):\n%s"
+                if isinstance(exc, TimeoutError)
+                else "Failed to start app '%s' (%s):\n%s",
                 inst.app_config.instance_name,
                 class_name,
                 get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
@@ -240,14 +232,22 @@ class AppInstanceLifecycleMixin:
                 report = await self.walk_away_from_instance(inst, task) if force_terminated else task.result()
             except Exception as exc:
                 failure = cause or exc
-                await self.settle_raised_shutdown(inst, instance_index, failure, cause is not None, force_terminated)
+                await self.settle_raised_shutdown(
+                    inst,
+                    instance_index,
+                    failure,
+                    is_init_failure=cause is not None,
+                    force_terminated=force_terminated,
+                )
                 return None
 
             self.registry.unregister_app(inst.app_key, instance_index)
             friendly_time = precisedelta(timer() - start_time, minimum_unit="milliseconds")
 
             if cause is not None:
-                self.settle_failed_init(inst, instance_index, cause, report, force_terminated, friendly_time)
+                self.settle_failed_init(
+                    inst, instance_index, cause, report, force_terminated=force_terminated, friendly_time=friendly_time
+                )
                 await self.send_outcome_event(inst, status=FAILED, previous_status=STARTING, exception=cause)
                 return report
 
@@ -259,7 +259,14 @@ class AppInstanceLifecycleMixin:
                 await self.send_outcome_event(inst, status=STOPPED, previous_status=STOPPING)
                 return report
 
-            exc = self.settle_failed_stop(inst, instance_index, report, timed_out, force_terminated, friendly_time)
+            exc = self.settle_failed_stop(
+                inst,
+                instance_index,
+                report,
+                timed_out=timed_out,
+                force_terminated=force_terminated,
+                friendly_time=friendly_time,
+            )
             await self.send_outcome_event(inst, status=FAILED, previous_status=STOPPING, exception=exc)
             return report
         finally:
@@ -270,6 +277,7 @@ class AppInstanceLifecycleMixin:
         inst: "App[AppConfig]",
         instance_index: int,
         failure: Exception,
+        *,
         is_init_failure: bool,
         force_terminated: bool,
     ) -> None:
@@ -286,7 +294,6 @@ class AppInstanceLifecycleMixin:
         if report is None or not report.is_restart_safe:
             left = describe_left_running(report or TeardownReport(), inst, force_terminated=force_terminated)
             reason = f"shutdown raised; {left}"
-            self.logger.error("App '%s' (%s) %s; restart hassette to recover", name, inst.class_name, reason)
             self.flag_instance_needs_restart(inst, instance_index, reason, report)
         previous = STARTING if is_init_failure else STOPPING
         await self.send_outcome_event(inst, status=FAILED, previous_status=previous, exception=failure)
@@ -297,6 +304,7 @@ class AppInstanceLifecycleMixin:
         instance_index: int,
         cause: Exception,
         report: TeardownReport,
+        *,
         force_terminated: bool,
         friendly_time: str,
     ) -> None:
@@ -316,9 +324,6 @@ class AppInstanceLifecycleMixin:
             return
         left = describe_left_running(report, inst, force_terminated=force_terminated)
         reason = f"failed to start, and {left}"
-        self.logger.error(
-            "App '%s' (%s) %s; restart hassette to recover", inst.app_config.instance_name, inst.class_name, reason
-        )
         self.flag_instance_needs_restart(inst, instance_index, reason, report)
 
     def settle_failed_stop(
@@ -326,6 +331,7 @@ class AppInstanceLifecycleMixin:
         inst: "App[AppConfig]",
         instance_index: int,
         report: TeardownReport,
+        *,
         timed_out: bool,
         force_terminated: bool,
         friendly_time: str,
@@ -355,7 +361,6 @@ class AppInstanceLifecycleMixin:
         else:
             reason = f"stopped, but {left}"
             exc = RuntimeError(f"app '{name}' stopped, but {left}")
-        self.logger.error("App '%s' (%s) %s; restart hassette to recover", name, inst.class_name, reason)
         self.registry.record_failure(inst.app_key, instance_index, exc)
         self.flag_instance_needs_restart(inst, instance_index, reason, report)
         return exc
@@ -363,7 +368,10 @@ class AppInstanceLifecycleMixin:
     def flag_instance_needs_restart(
         self, inst: "App[AppConfig]", instance_index: int, reason: str, report: TeardownReport | None
     ) -> None:
-        """Write the instance's needs-restart record; the first record at an index stands."""
+        """Log the needs-restart ERROR and write the instance's record; the first record at an index stands."""
+        self.logger.error(
+            "App '%s' (%s) %s; restart hassette to recover", inst.app_config.instance_name, inst.class_name, reason
+        )
         self.registry.flag_needs_restart(
             inst.app_key,
             instance_index,
