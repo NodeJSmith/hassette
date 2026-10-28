@@ -137,8 +137,12 @@ class ErrorContext:
 
     def handle_http_error(self, response: httpx.Response) -> NoReturn:
         """Print HTTP error and exit with code 1."""
+        outcomes = None
         try:
-            detail = response.json().get("detail", response.text)
+            body = response.json()
+            detail = body.get("detail", response.text)
+            # An app action's problem body names what it did to each instance; --json passes that through.
+            outcomes = body.get("outcomes")
         except (ValueError, AttributeError):
             detail = response.text
 
@@ -161,6 +165,7 @@ class ErrorContext:
             heading=f"[bold red]Error {response.status_code}:[/bold red] {escape(str(detail))}",
             body=response.text,
             heading_highlight=None,
+            outcomes=outcomes if isinstance(outcomes, list) else None,
         )
 
     def handle_malformed_response(self, response: httpx.Response, exc: Exception) -> NoReturn:
@@ -198,20 +203,35 @@ class ErrorContext:
         )
 
     def render_response_error(
-        self, response: httpx.Response, detail: str, *, heading: str, body: str, heading_highlight: bool | None
+        self,
+        response: httpx.Response,
+        detail: str,
+        *,
+        heading: str,
+        body: str,
+        heading_highlight: bool | None,
+        outcomes: list[Any] | None = None,
     ) -> NoReturn:
         """Render an error about a received response in the active output mode and exit with code 1.
 
         Shared by :meth:`handle_http_error` and :meth:`handle_malformed_response`, which differ only
         in the detail text, the human-mode heading, and how the debug body is decoded.
         ``heading_highlight`` is passed to Rich as-is: ``None`` defers to the console's setting.
+        ``outcomes`` (an app action's per-instance outcomes) is added to the JSON document only.
         """
         target, tls_verified = self.target_and_tls()
         if self.json_mode:
             extra = (
                 {"url": str(response.url), "method": response.request.method, "body": body} if self.debug_mode else None
             )
-            _write_json_error(response.status_code, detail, debug_extra=extra, target=target, tls_verified=tls_verified)
+            _write_json_error(
+                response.status_code,
+                detail,
+                debug_extra=extra,
+                target=target,
+                tls_verified=tls_verified,
+                outcomes=outcomes,
+            )
         else:
             cli_output.stderr_console.print(heading, highlight=heading_highlight)
             if target is not None:
@@ -271,9 +291,12 @@ def _write_json_error(
     debug_extra: dict[str, Any] | None = None,
     target: str | None = None,
     tls_verified: bool | None = None,
+    outcomes: list[Any] | None = None,
 ) -> None:
     """Write a JSON error document to stdout."""
     doc: dict[str, Any] = {"error": True, "status": status, "detail": detail}
+    if outcomes is not None:
+        doc["outcomes"] = outcomes
     if target is not None:
         doc["target"] = target
     if tls_verified is not None:

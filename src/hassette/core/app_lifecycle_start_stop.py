@@ -266,6 +266,7 @@ class AppStartStopMixin:
         if not outcomes.indices:
             self.logger.warning("Cannot stop app %s, not found", app_key)
             return
+        self._record_untracked_stops(app_key, outcomes.indices, outcomes)
         try:
             instances = self.registry.get_running_apps(app_key)
             await self._discard_failed_indices(
@@ -276,19 +277,29 @@ class AppStartStopMixin:
         except Exception as exc:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
             outcomes.fail_undecided(failure_reason(exc))
-        self._settle_stop_outcomes(app_key, outcomes)
+        self._refuse_flagged_stops(app_key, outcomes.indices, outcomes)
 
-    def _settle_stop_outcomes(self, app_key: str, outcomes: ActionOutcomes) -> None:
-        """Finish a stop's outcomes: a flagged target is refused, and one nothing else recorded was already stopped.
+    def _record_untracked_stops(self, app_key: str, indices: "typing.Iterable[int]", outcomes: ActionOutcomes) -> None:
+        """Record each of ``indices`` the registry doesn't track as ``succeeded``, "already stopped" (spec 140 D1).
+
+        Decided when the stop picks its targets, so a target its teardown never recorded fails at ``finish``
+        instead of passing as stopped.
+        """
+        tracked = self.registry.tracked_indices(app_key)
+        for index in indices:
+            if index not in tracked:
+                outcomes.succeeded(index, ALREADY_STOPPED_REASON)
+
+    def _refuse_flagged_stops(self, app_key: str, indices: "typing.Iterable[int]", outcomes: ActionOutcomes) -> None:
+        """Record each of ``indices`` flagged needs-restart as ``refused``, over whatever its teardown recorded.
 
         A flagged index's work may still be running, so a stop never reports it stopped (spec 140 D3). One this
-        stop flagged keeps its failure, since ``ActionOutcomes`` never replaces a newly flagged outcome.
+        stop flagged keeps its failure, since ``ActionOutcomes`` never replaces a newly flagged outcome. Scoped to
+        the caller's indices: concurrent per-index stops can share one collector.
         """
-        for index in outcomes.indices:
+        for index in indices:
             if (refusal := self.registry.refusal_reason(app_key, index)) is not None:
                 outcomes.refused(index, refusal)
-            elif not outcomes.is_decided(index):
-                outcomes.succeeded(index, ALREADY_STOPPED_REASON)
 
     async def _discard_failed_indices(self, app_key: str, indices: set[int], *, outcomes: ActionOutcomes) -> None:
         """Discard the failure entries at ``indices`` (none of them running), emit their events, and record each.
@@ -486,6 +497,7 @@ class AppStartStopMixin:
         unguarded public ``stop_instance()`` (and ``_reload_instance_unlocked``, which calls
         this before creating the replacement) from letting a shutdown failure escape uncaught.
         """
+        self._record_untracked_stops(app_key, [index], outcomes)
         try:
             inst = self.registry.get(app_key, index)
             if inst is None:
@@ -494,8 +506,8 @@ class AppStartStopMixin:
                 await self.shutdown_instances({index: inst}, outcomes=outcomes)
         except Exception as exc:
             self.logger.error("Failed to stop instance %d of app %s:\n%s", index, app_key, get_short_traceback())
-            outcomes.fail_undecided(failure_reason(exc))
-        self._settle_stop_outcomes(app_key, outcomes)
+            outcomes.fail_undecided(failure_reason(exc), [index])
+        self._refuse_flagged_stops(app_key, [index], outcomes)
 
     async def reload_instance(
         self,

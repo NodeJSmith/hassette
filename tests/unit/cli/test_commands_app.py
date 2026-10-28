@@ -667,6 +667,31 @@ class TestCmdAppStart:
             }
         ]
 
+    def test_json_error_carries_the_problem_outcomes(self, cli_client_factory: CLIClientFactory) -> None:
+        """A 409/500 problem body's per-instance outcomes reach the --json error document."""
+        outcome = {
+            "instance_index": 0,
+            "instance_name": "kitchen",
+            "result": "refused",
+            "needs_restart": True,
+            "reason": "needs a hassette restart",
+        }
+        problem = {"code": "needs_restart", "detail": "kitchen: needs a hassette restart", "outcomes": [outcome]}
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/start", 409, problem)], json_mode=True
+        )
+
+        parsed = runner.json_error(client, cmd_app_start, "my_app")
+
+        assert (parsed["status"], parsed["outcomes"]) == (409, [outcome])
+
+    def test_json_error_without_outcomes_has_no_outcomes_key(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/missing/start", 404, {"detail": "App not found"})], json_mode=True
+        )
+
+        assert "outcomes" not in runner.json_error(client, cmd_app_start, "missing")
+
     def test_error_on_404_surfaces_via_http_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Start against a non-existent app surfaces the 404 via the standard HTTP error path."""
         client = cli_client_factory.build_with_routes(

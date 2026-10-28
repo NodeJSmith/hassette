@@ -1,7 +1,7 @@
 # Design: Per-Instance Outcomes from App Action Endpoints
 
 **Date:** 2026-10-28
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3111
 **Parent:** design/specs/134-resource-lifecycle-outcomes/design.md
@@ -281,7 +281,7 @@ A reload of an app blocked by `--app` stops it first and then raises `AppBlocked
 created a zombie must not be relabelled a refusal.
 **Pick A instead if** a stop timeout during reload should always fail the request by status.
 **Reversibility:** easy
-**Ratified:** Chose letting the create half decide, except a stop half that newly flags the index stands as `failed` + `needs_restart`, over worst-of-both-halves, so a reload that left a working instance reports success and a zombie this request created is never relabelled a refusal, accepting that a clean stop timeout during reload is visible only in `reason` and the server log's ERROR. Ratified at the sketch challenge (Finding 1, converging Finding 4). At the sketch comb, chose holding the Posture over having the CLI render success-entry reasons, accepting that a CLI or UI user doesn't see that clean timeout.
+**Ratified:** Chose letting the create half decide, except a stop half that newly flags the index stands as `failed` + `needs_restart`, over worst-of-both-halves, so a reload that left a working instance reports success and a zombie this request created is never relabelled a refusal, accepting that a clean stop timeout during reload is visible only in `reason` and the server log's ERROR. Ratified at the sketch challenge (Finding 1, converging Finding 4). At the sketch comb, chose holding the Posture over having the CLI render success-entry reasons, accepting that a CLI or UI user doesn't see that clean timeout. At the ship-time challenge (Finding 10), chose keeping the stop half's failure in `reason` when the create half fails too, over the create failure alone, so `detail` tells the CLI and toast what happened in both halves, accepting a longer `detail`.
 
 ## Assumed
 
@@ -345,18 +345,20 @@ created a zombie must not be relabelled a refusal.
 - [x] Wire and consumers: outcome model, `ProblemDetail.outcomes`, `needs_restart` code, `ActionResponse` reshape, 200 status, client error class and schema floor, regenerated OpenAPI/TS, frontend and CLI, compat lists if checks fail
 - [x] Parent Addendum entry for rules beyond D15
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - The outcome dataclass and result enum live in `src/hassette/schemas/app_outcomes.py`, not `core/app_lifecycle_common.py`: `web` may not import `core` at runtime (`web-no-core` in `tools/check_module_boundaries.py`), and the route and mapper need the type. The collector (`ActionOutcomes`) and `log_refusals` stay in `core/app_lifecycle_common.py`.
 - `start_app` and `start_instance` raise `AppRemovedError` for a missing manifest before admission too, not only under the lock: the route already pre-checks the manifest, so this is the same race one step earlier, and returning no outcomes would have answered 200 with an empty list.
 - A per-instance start or reload whose index left the config while it waited reports that index `failed` ("the index is no longer in the app's config"), where it used to return silently.
-- `stop_instance` no longer special-cases an untracked out-of-range index: there is nothing to stop, so its outcome settles as `succeeded`, "already stopped", like any untracked target.
-- `_await_operation`'s `ValueError`/`RuntimeError` → `action_failed` mapping is removed: D5 has every public lifecycle method catch and record unexpected exceptions, so the mapping was unreachable; anything else that escapes is an `internal_error`.
+- `stop_instance` no longer special-cases an untracked out-of-range index: there is nothing to stop, so its outcome is `succeeded`, "already stopped", like any untracked target. A stop records "already stopped" for each target the registry doesn't track when it picks its targets, before any teardown, so a tracked target its teardown never recorded fails at `finish` like start and reload. Its refusal step covers only the indices that stop owns, since a config restart's per-index stops share one collector.
+- `_await_operation`'s `ValueError`/`RuntimeError` → `action_failed` mapping is removed: D5 has the public start and reload methods catch and record unexpected exceptions, and the stops catch around their teardown, so the mapping was unreachable; anything else that escapes is an `internal_error`. A raise in a stop's bookkeeping outside its teardown is one (known-issues KI-005).
 - `AppRegistry.refusal_for` (a full log line) became `refusal_reason` (the outcome's `reason`: "needs a hassette restart (flagged at …: …)"), and `log_refusals` builds the no-channel ERROR line from the outcome, so the HTTP `detail` and the log share one wording.
 - Tests that drive one lifecycle step directly pass `tests/support/outcomes.py`'s `AnyIndexOutcomes`, which targets each index on first write; per-request contract tests go through the public methods.
 - Problem bodies leave out `outcomes` only when it is absent; each outcome inside keeps `reason: null`, so an entry has one shape in a 200 body and an error body.
-- `--json` from `hassette app start|stop|reload` adds `outcomes` to the CLI's own success object (the Summary's "`--json` output carries the response"), while the human panel keeps its one-line success. Error output stays the CLI's standard error document, whose `detail` names each instance that didn't succeed.
+- `--json` from `hassette app start|stop|reload` adds `outcomes` to the CLI's own success object (the Summary's "`--json` output carries the response"), while the human panel keeps its one-line success. Its error document, whose `detail` names each instance that didn't succeed, also carries the problem body's `outcomes` when it has them (ship-time challenge Finding 13: scripts read which instance failed without parsing prose, accepting one optional key that other commands' error documents lack).
 - A whole-app start or reload whose post-init registration reconcile raises still reports its initialized instances `succeeded`, since they run; the reconcile failure is logged at ERROR. This is the behavior `main` already had for that path, unlike the per-instance path, which shuts the instance down.
-- Every success reason is a named constant in `core/app_lifecycle_common.py` (`ALREADY_RUNNING_REASON` and the others), and the collector's reload phases are named for what they are (`begin_create_half`, `is_decided`, `fail_undecided`).
+- Every success reason is a named constant in `core/app_lifecycle_common.py` (`ALREADY_RUNNING_REASON` and the others), and the collector's reload phases are named for what they are (`begin_create_half`, `fail_undecided`).
+- Within one half, a later write to a slot replaces an earlier one, except that a failure that newly flagged the index stands. D1's "written at most once per phase" describes the finish step, which fills only empty slots; a stop's refusal step (`_refuse_flagged_stops`) relies on the replace rule to record `refused` over a teardown outcome.
+- The collector raises `ValueError` for a write to an index the request doesn't target, since that is a programming error tests should catch. It stays a raise even though a teardown records its outcome before sending the STOPPED event, so a mis-targeted collector would also suppress that event.
 - A refused stop with no response channel (a config change stopping a flagged orphan app) isn't logged: `log_refusals` covers starts and reloads, and the flag-time ERROR already named the instance.

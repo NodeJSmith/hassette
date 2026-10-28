@@ -58,7 +58,7 @@ An app action (`POST /api/apps/{app_key}/start`, `/stop`, `/reload`, and the per
 | `instance_name` | The instance's name. |
 | `result` | `succeeded`, `failed`, or `refused`. |
 | `needs_restart` | Whether the instance needs a Hassette restart after this action. |
-| `reason` | The failure or refusal. On a success, a note on anything beyond a plain success, such as `already running`, or an earlier stop failure a reload recovered from. Otherwise `null`. |
+| `reason` | The failure or refusal. On a success, a note on anything beyond a plain success, such as `already running`. Otherwise `null`. When a reload's stop failed, the reason also names that stop failure, whether the restart then succeeded or failed. |
 
 `refused` means the instance needs a Hassette restart from an earlier action: its last shutdown left work that may still be running, so Hassette doesn't start, stop, or reload it again. An instance this action left needing a restart is `failed` with `needs_restart` set.
 

@@ -113,17 +113,13 @@ class ActionOutcomes:
         """Record a refusal: the instance was already flagged as needing a hassette restart, so nothing was done."""
         self._write(index, OutcomeResult.REFUSED, reason, needs_restart=True)
 
-    def is_decided(self, index: int) -> bool:
-        """Whether ``index`` has an outcome from the current half."""
-        return index in self._decided
-
     def begin_create_half(self, indices: Iterable[int]) -> None:
         """Open a reload's create half: each of ``indices`` needs an outcome from it, or ``finish`` fails it."""
         self._decided -= set(indices)
 
-    def fail_undecided(self, reason: str) -> None:
-        """Record ``reason`` as the failure of every target with no outcome from the current half."""
-        for index in self.indices:
+    def fail_undecided(self, reason: str, indices: Iterable[int] | None = None) -> None:
+        """Record ``reason`` as the failure of every target (or each of ``indices``) with no outcome from this half."""
+        for index in self.indices if indices is None else indices:
             if index not in self._decided:
                 self.failed(index, reason)
 
@@ -140,7 +136,10 @@ class ActionOutcomes:
         return self.snapshot()
 
     def _write(self, index: int, result: OutcomeResult, reason: str | None, *, needs_restart: bool) -> None:
-        """Record ``index``'s outcome. A later write replaces an earlier one, with two exceptions for a reload."""
+        """Record ``index``'s outcome. A later write replaces an earlier one, unless the earlier one newly flagged it.
+
+        A reload's create half also carries its stop half's failure into the reason it writes.
+        """
         if index not in self._names:
             raise ValueError(f"index {index} is not a target of this action (targets: {self.indices})")
         previous = self._slots.get(index)
@@ -150,11 +149,11 @@ class ActionOutcomes:
         # created must not relabel it a refusal, and nothing later can make it succeed.
         if previous is not None and previous.is_newly_flagged:
             return
-        # A create half that succeeds after a stop half that failed without flagging is a success, since the
-        # instance runs. The stop's failure stays in the reason so it isn't lost.
+        # A first write in a half over an earlier failure happens only in a reload's create half, so ``previous`` is
+        # its stop half's failure, which didn't flag the index. The create half's result decides (a success means
+        # the instance runs), and the stop's failure stays in the reason so it isn't lost.
         if first_in_half and previous is not None and previous.result is OutcomeResult.FAILED:
-            if result is OutcomeResult.SUCCEEDED:
-                reason = "; ".join(part for part in (reason, f"{STOP_FAILED_PREFIX}{previous.reason}") if part)
+            reason = "; ".join(part for part in (reason, f"{STOP_FAILED_PREFIX}{previous.reason}") if part)
         self._slots[index] = InstanceOutcome(
             instance_index=index,
             instance_name=self._names[index],

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from hassette.config.classes import AppManifest
-from hassette.core.app_lifecycle_common import ActionOutcomes
+from hassette.core.app_lifecycle_common import NO_OUTCOME_REASON, ActionOutcomes
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppRemovedError
@@ -281,6 +281,52 @@ class TestActionOutcomes:
         assert (refused.instance_index, refused.result, refused.needs_restart) == (1, OutcomeResult.REFUSED, True)
         assert refused.reason == running.registry.refusal_reason(MULTI_INSTANCE_APP_KEY, 1)
 
+    async def test_stop_whose_teardown_records_nothing_fails_closed(self, running: AppLifecycleService) -> None:
+        """Only a target untracked when the stop chose it is "already stopped"; a running one needs a record (D1)."""
+
+        async def record_nothing(*_args: object, **_kwargs: object) -> None:
+            return None
+
+        orig_shutdown = running.shutdown_instances
+        running.shutdown_instances = record_nothing  # pyright: ignore[reportAttributeAccessIssue]
+        try:
+            outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
+        finally:
+            running.shutdown_instances = orig_shutdown
+
+        assert summarize(outcomes) == [
+            (0, OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
+            (1, OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
+        ]
+
+    async def test_per_index_stop_over_a_shared_collector_decides_only_its_index(
+        self, running: AppLifecycleService
+    ) -> None:
+        """A config restart's per-index stops share one collector; one stop never decides a sibling still stopping."""
+        shared = running._outcomes_for(MULTI_INSTANCE_APP_KEY, [0, 1])
+
+        async with running._get_app_key_lock(MULTI_INSTANCE_APP_KEY):
+            await running._stop_instance_unlocked(MULTI_INSTANCE_APP_KEY, 0, outcomes=shared)
+
+        assert summarize(shared.snapshot()) == [(0, OutcomeResult.SUCCEEDED, False, None)]
+
+    async def test_per_index_stop_that_raises_fails_only_its_index(self, running: AppLifecycleService) -> None:
+        """A raising per-index stop over a shared collector never fails a sibling still stopping."""
+        shared = running._outcomes_for(MULTI_INSTANCE_APP_KEY, [0, 1])
+
+        async def blow_up(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("teardown blew up")
+
+        orig_shutdown = running.shutdown_instances
+        running.shutdown_instances = blow_up  # pyright: ignore[reportAttributeAccessIssue]
+        try:
+            async with running._get_app_key_lock(MULTI_INSTANCE_APP_KEY):
+                await running._stop_instance_unlocked(MULTI_INSTANCE_APP_KEY, 0, outcomes=shared)
+        finally:
+            running.shutdown_instances = orig_shutdown
+
+        assert summarize(shared.snapshot()) == [(0, OutcomeResult.FAILED, False, "teardown blew up")]
+
     async def test_unexpected_raise_fails_every_target_with_its_message(
         self, running: AppLifecycleService, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -314,6 +360,23 @@ class TestActionOutcomes:
             (0, OutcomeResult.SUCCEEDED, False, "the stop before it failed: on_shutdown timed out"),
         ]
         assert running.registry.get(MULTI_INSTANCE_APP_KEY, 0) is not None
+
+    async def test_reload_whose_create_fails_after_a_stop_failure_keeps_both_reasons(
+        self, running: AppLifecycleService
+    ) -> None:
+        """A failing create half still reports the stop failure before it (spec 140 D6)."""
+        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=False)  # pyright: ignore[reportAttributeAccessIssue]
+
+        async def create_fails(_app_key: str, index: int, *_args: object, outcomes: ActionOutcomes) -> None:
+            outcomes.failed(index, "class failed to load")
+
+        running._create_instance_unlocked = create_fails  # pyright: ignore[reportAttributeAccessIssue]
+
+        outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
+
+        assert summarize(outcomes) == [
+            (0, OutcomeResult.FAILED, False, "class failed to load; the stop before it failed: on_shutdown timed out"),
+        ]
 
     async def test_reload_whose_stop_flags_the_index_reports_that_failure(self, running: AppLifecycleService) -> None:
         """The create half's refusal doesn't relabel a zombie this reload created (spec 140 D6)."""
