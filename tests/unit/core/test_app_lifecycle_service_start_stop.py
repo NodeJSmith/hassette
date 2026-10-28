@@ -5,7 +5,7 @@ shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock
 
 import pytest
 import structlog
@@ -14,9 +14,10 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
-from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
+from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
 from hassette.resources.teardown import TeardownReport
 from hassette.testing import EventCapture, wait_for
+from tests.support.outcomes import AnyIndexOutcomes
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
 
@@ -39,7 +40,9 @@ class TestStartApp:
         await lifecycle_service.start_app("test_app", admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
         mock_hassette.app_bootstrap_coordinator.wait_released.assert_awaited_once_with()
-        mock_factory.create_instances.assert_called_once_with("test_app", mock_manifest, force_reload=False)
+        mock_factory.create_instances.assert_called_once_with(
+            "test_app", mock_manifest, force_reload=False, outcomes=ANY
+        )
 
     async def test_rejects_when_unreleased_in_manual_mode(
         self,
@@ -74,7 +77,9 @@ class TestStartApp:
 
         await lifecycle_service.start_app("test_app")
 
-        mock_factory.create_instances.assert_called_once_with("test_app", mock_manifest, force_reload=False)
+        mock_factory.create_instances.assert_called_once_with(
+            "test_app", mock_manifest, force_reload=False, outcomes=ANY
+        )
 
     async def test_emits_not_started_event(
         self,
@@ -122,13 +127,14 @@ class TestStartApp:
 
         assert initialize_order == ["initialize", "reconcile"]
 
-    async def test_skips_disabled_app(
+    async def test_rejects_disabled_app(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_factory: MagicMock
     ) -> None:
-        """Skips app when manifest is not found (disabled or unknown)."""
+        """An app with no manifest (disabled or unknown) raises AppRemovedError rather than reporting no outcomes."""
         mock_registry.get_manifest = Mock(return_value=None)
 
-        await lifecycle_service.start_app("disabled_app")
+        with pytest.raises(AppRemovedError):
+            await lifecycle_service.start_app("disabled_app")
 
         mock_factory.create_instances.assert_not_called()
 
@@ -176,7 +182,7 @@ class TestStartApp:
         await lifecycle_service.start_app("test_app")
 
         mock_registry.prune_stale_failed_indices.assert_called_once_with("test_app", 1)
-        mock_factory.normalize_configs.assert_called_once_with(mock_manifest.app_config)
+        mock_factory.normalize_configs.assert_called_with(mock_manifest.app_config)
 
     async def test_prunes_before_creating_instances_not_after(
         self,
@@ -207,6 +213,7 @@ class TestStartApp:
 
         assert call_order == ["prune", "create_instances"]
 
+    # dup-ignore-start: pytest test function signature
     async def test_emits_stopped_event_for_pruned_stale_failed_entries(
         self,
         lifecycle_service: AppLifecycleService,
@@ -215,6 +222,7 @@ class TestStartApp:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """Pruned entries must not be discarded silently — without a STOPPED event, the WS
         status cache for that index stays on FAILED forever, and if the config shrinks to a
         single remaining instance, appLiveStatus() falls back to reading exactly that stale
@@ -246,6 +254,7 @@ class TestStartApp:
         assert payload.previous_status == ResourceStatus.FAILED
         assert payload.exception is None  # STOPPED events don't carry the prior failure's exception info
 
+    # dup-ignore-start: pytest test function signature
     async def test_emits_state_event_for_pre_instantiation_failure(
         self,
         lifecycle_service: AppLifecycleService,
@@ -254,6 +263,7 @@ class TestStartApp:
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
+        # dup-ignore-end
         """create_instances() records failures that occur before an App object exists (invalid
         instance_name, config validation, class load error) straight to the registry, with no
         App to build an app_status_changed event from. Without emitting one here, those failures
@@ -378,7 +388,8 @@ class TestStartAppStaleManifestRace:
         manifest_removed = True
 
         gate.set()
-        await asyncio.wait_for(task, timeout=1)
+        with pytest.raises(AppRemovedError):
+            await asyncio.wait_for(task, timeout=1)
 
         # The stale, pre-admission manifest must never reach the factory.
         mock_factory.create_instances.assert_not_called()
@@ -536,7 +547,7 @@ class TestShutdownInstanceLogContext:
 
         inst.shutdown = AsyncMock(side_effect=capture_context)
 
-        await lifecycle_service.shutdown_instance(inst, 0)
+        await lifecycle_service.shutdown_instance(inst, 0, outcomes=AnyIndexOutcomes())
 
         assert bound["app_key"] == "my_app"
         assert bound["instance_name"] == "inst_0"

@@ -122,6 +122,10 @@ A part is `null` when the server couldn't compute it. The table shows that as a 
 
 The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{index}/{start,stop,reload}` instead of the app-level path shown above.
 
+Each action finishes before the command returns. If any instance fails or is refused, the command prints an error and exits 1. The error names each such instance and why.
+
+With `--json`, the success object adds an `outcomes` list saying what the action did to each instance. Error documents carry `outcomes` too, unless the error came before any instance was touched. See [App action outcomes](../web-ui/api-errors.md#app-action-outcomes).
+
 ### `hassette app start <key>`
 
 Starts a stopped app, or a specific instance with `--instance`.

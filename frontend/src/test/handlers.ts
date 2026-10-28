@@ -75,30 +75,30 @@ export const handlers = [
   // POST /api/apps/:app_key/start
   http.post("/api/apps/:app_key/start", ({ params }) => {
     return HttpResponse.json<ActionResponse>({
-      status: "accepted",
       app_key: String(params["app_key"]),
       action: "start",
       instance_index: null,
+      outcomes: [],
     });
   }),
 
   // POST /api/apps/:app_key/stop
   http.post("/api/apps/:app_key/stop", ({ params }) => {
     return HttpResponse.json<ActionResponse>({
-      status: "accepted",
       app_key: String(params["app_key"]),
       action: "stop",
       instance_index: null,
+      outcomes: [],
     });
   }),
 
   // POST /api/apps/:app_key/reload
   http.post("/api/apps/:app_key/reload", ({ params }) => {
     return HttpResponse.json<ActionResponse>({
-      status: "accepted",
       app_key: String(params["app_key"]),
       action: "reload",
       instance_index: null,
+      outcomes: [],
     });
   }),
 

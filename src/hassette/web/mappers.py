@@ -21,12 +21,14 @@ from hassette_wire import (
     AppListResponse,
     AppSummary,
     ConnectedData,
+    InstanceOutcome,
     ListenerKind,
     ListenerSummary,
     ReadinessResponse,
     SystemStatusResponse,
 )
 
+from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
@@ -51,6 +53,17 @@ def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     """
     fields = {name: getattr(instance, name) for name in AppInstance.model_fields if name != "needs_restart"}
     return AppInstance(**fields, needs_restart=instance.needs_restart.to_wire() if instance.needs_restart else None)
+
+
+def instance_outcome_from(outcome: CoreInstanceOutcome) -> InstanceOutcome:
+    """Map one app action's per-instance outcome to its wire model."""
+    return InstanceOutcome(
+        instance_index=outcome.instance_index,
+        instance_name=outcome.instance_name,
+        result=outcome.result.value,
+        needs_restart=outcome.needs_restart,
+        reason=outcome.reason,
+    )
 
 
 def app_summary_from(manifest: AppManifestInfo) -> AppSummary:

@@ -28,6 +28,7 @@ from hassette.types import Topic
 from tests.support.factories import make_mock_parent
 from tests.support.helpers import noop
 from tests.support.mock_hassette import make_mock_hassette
+from tests.support.outcomes import AnyIndexOutcomes
 from tests.support.task_buckets import sealed_fallback_task_factory
 
 from .conftest import app_state_payloads, make_mock_app_instance, set_registry_apps
@@ -44,7 +45,9 @@ class TestInitializeInstances:
         instances: dict[int, App] = {0: mock_app_instance}
 
         with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
-            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+            await lifecycle_service.initialize_instances(
+                "test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes()
+            )
 
         mock_app_instance.initialize.assert_awaited_once()
         mock_mark_ready.assert_called_once_with(mock_app_instance, reason="initialized")
@@ -56,7 +59,9 @@ class TestInitializeInstances:
         instances: dict[int, App] = {0: app1, 1: app2}
 
         with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
-            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+            await lifecycle_service.initialize_instances(
+                "test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes()
+            )
 
         app1.initialize.assert_awaited_once()
         app2.initialize.assert_awaited_once()
@@ -80,7 +85,7 @@ class TestInitializeInstances:
         mock_app_instance.initialize.side_effect = error
         instances: dict[int, App] = {0: mock_app_instance}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_app_instance.shutdown.assert_awaited_once()
         assert mock_app_instance._skip_own_shutdown_hooks is True
@@ -102,7 +107,7 @@ class TestInitializeInstances:
         )
         instances: dict[int, App] = {0: mock_app_instance}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes())
 
         mock_registry.flag_needs_restart.assert_called_once()
         assert mock_registry.flag_needs_restart.call_args.args == ("test_app", 0)
@@ -119,7 +124,9 @@ class TestInitializeInstances:
         event_capture.install(mock_hassette)
         mock_app_instance.initialize.side_effect = ValueError("boom")
 
-        await lifecycle_service.initialize_instances("test_app", {0: mock_app_instance}, mock_manifest)
+        await lifecycle_service.initialize_instances(
+            "test_app", {0: mock_app_instance}, mock_manifest, outcomes=AnyIndexOutcomes()
+        )
 
         assert app_state_payloads(event_capture, ResourceStatus.STOPPING) == []
         failed = app_state_payloads(event_capture, ResourceStatus.FAILED)
@@ -139,7 +146,9 @@ class TestInitializeInstances:
         app1 = make_mock_app_instance(instance_name="instance_1")
         mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("bus closed"))
 
-        await lifecycle_service.initialize_instances("test_app", {0: app0, 1: app1}, mock_manifest)
+        await lifecycle_service.initialize_instances(
+            "test_app", {0: app0, 1: app1}, mock_manifest, outcomes=AnyIndexOutcomes()
+        )
 
         app0.shutdown.assert_not_awaited()
         app1.initialize.assert_awaited_once()
@@ -179,7 +188,9 @@ class TestInitializeInstances:
         instances: dict[int, App] = {0: mock_app_instance}
 
         with patch.object(lifecycle_service, "logger") as mock_logger:
-            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+            await lifecycle_service.initialize_instances(
+                "test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes()
+            )
 
         traceback_arg = mock_logger.error.call_args[0][-1]
         assert "level_5" in traceback_arg
@@ -196,7 +207,9 @@ class TestInitializeInstances:
         instances: dict[int, App] = {0: app1, 1: app2}
 
         with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
-            await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+            await lifecycle_service.initialize_instances(
+                "test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes()
+            )
 
         app1.initialize.assert_awaited_once()
         app2.initialize.assert_awaited_once()
@@ -214,7 +227,7 @@ class TestInitializeInstances:
         event_capture.install(mock_hassette)
         instances: dict[int, App] = {0: mock_app_instance}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes())
 
         running_calls = app_state_payloads(event_capture, ResourceStatus.RUNNING)
         assert len(running_calls) == 1
@@ -232,7 +245,7 @@ class TestInitializeInstances:
         mock_app_instance.initialize.side_effect = ValueError("boom")
         instances: dict[int, App] = {0: mock_app_instance}
 
-        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
+        await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes())
 
         failed_calls = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_calls) == 1
@@ -294,7 +307,7 @@ class TestRemoveInstanceRegistrations:
 class TestShutdownInstance:
     async def test_calls_shutdown(self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock) -> None:
         """Calls inst.shutdown()."""
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         mock_app_instance.shutdown.assert_awaited_once()
 
@@ -316,7 +329,7 @@ class TestShutdownInstance:
         mock_app_instance.shutdown.side_effect = error
         mock_app_instance.teardown_report = TeardownReport(causes=(TeardownCause.COORDINATOR_FAILED,))
 
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         failed_calls = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert len(failed_calls) == 1
@@ -337,7 +350,7 @@ class TestShutdownInstance:
         mock_registry.unregister_app.side_effect = lambda *_args: order.append("unregister")
         mock_registry.record_failure.side_effect = lambda *_args: order.append("record_failure")
 
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         assert order == ["teardown", "unregister", "record_failure"]
 
@@ -350,7 +363,7 @@ class TestShutdownInstance:
     ) -> None:
         """Emits HASSETTE_EVENT_APP_STATE_CHANGED with STOPPED status."""
         event_capture.install(mock_hassette)
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         stopped_calls = app_state_payloads(event_capture, ResourceStatus.STOPPED)
         assert len(stopped_calls) == 1
@@ -364,7 +377,7 @@ class TestShutdownInstanceEntryDeadline:
         loop = asyncio.get_running_loop()
         before = loop.time()
 
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         deadline = mock_app_instance._shutdown_deadline
         assert deadline is not None
@@ -376,7 +389,7 @@ class TestShutdownInstanceEntryDeadline:
         """Process exit passes what is left of its stop stage; the instance gets the closer of the two."""
         outer = deadline_in(1.0)
 
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0, deadline=outer)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, deadline=outer, outcomes=AnyIndexOutcomes())
 
         assert mock_app_instance._shutdown_deadline == outer
 
@@ -405,7 +418,10 @@ class TestShutdownInstanceEntryDeadline:
         mock_app_instance.teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
 
         report = await asyncio.wait_for(
-            lifecycle_service.shutdown_instance(mock_app_instance, 3, deadline=deadline_in(0.1)), timeout=5
+            lifecycle_service.shutdown_instance(
+                mock_app_instance, 3, deadline=deadline_in(0.1), outcomes=AnyIndexOutcomes()
+            ),
+            timeout=5,
         )
 
         assert report is not None
@@ -445,7 +461,10 @@ class TestShutdownInstanceEntryDeadline:
         mock_app_instance.scheduler.remove_all_jobs = AsyncMock(side_effect=hang)
 
         await asyncio.wait_for(
-            lifecycle_service.shutdown_instance(mock_app_instance, 0, deadline=deadline_in(0.1)), timeout=5
+            lifecycle_service.shutdown_instance(
+                mock_app_instance, 0, deadline=deadline_in(0.1), outcomes=AnyIndexOutcomes()
+            ),
+            timeout=5,
         )
 
         mock_hassette.record_force_terminated.assert_called_once_with([mock_app_instance.unique_name])
@@ -468,7 +487,7 @@ class TestShutdownInstanceEntryDeadline:
         )
         mock_app_instance._force_terminal = Mock()
 
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         mock_app_instance._force_terminal.assert_not_called()
         mock_registry.record_failure.assert_called_once()
@@ -492,7 +511,7 @@ class TestShutdownInstanceEntryDeadline:
             return_value=TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=("app:poller",))
         )
 
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         app_key, index, exc = mock_registry.record_failure.call_args.args
         assert (app_key, index) == ("test_app", 0)
@@ -516,7 +535,7 @@ class TestShutdownInstanceEntryDeadline:
         )
         mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus down"))
 
-        report = await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        report = await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         assert report is not None
         assert report.pending_tasks == ("app:poller",)
@@ -539,7 +558,7 @@ class TestShutdownInstanceEntryDeadline:
             return_value=TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,))
         )
 
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
         mock_registry.record_failure.assert_not_called()
         assert len(app_state_payloads(event_capture, ResourceStatus.STOPPED)) == 1
@@ -548,7 +567,7 @@ class TestShutdownInstanceEntryDeadline:
 class TestShutdownInstances:
     async def test_empty_dict_returns_early(self, lifecycle_service: AppLifecycleService) -> None:
         """Returns early for empty instances dict."""
-        await lifecycle_service.shutdown_instances({})
+        await lifecycle_service.shutdown_instances({}, outcomes=AnyIndexOutcomes())
 
     async def test_stops_instances_concurrently(self, lifecycle_service: AppLifecycleService) -> None:
         """No instance's hooks wait on another's: two slow stops take about as long as one."""
@@ -566,7 +585,7 @@ class TestShutdownInstances:
 
         loop = asyncio.get_running_loop()
         start = loop.time()
-        await lifecycle_service.shutdown_instances(instances)
+        await lifecycle_service.shutdown_instances(instances, outcomes=AnyIndexOutcomes())
         elapsed = loop.time() - start
 
         assert elapsed < stop_seconds * 2, f"instances stopped one after another ({elapsed:.2f}s)"
@@ -588,7 +607,7 @@ class TestShutdownInstances:
         mock_hassette.send_event = AsyncMock(side_effect=[RuntimeError("event bus down"), None, None, None])
 
         with pytest.raises(RuntimeError, match="event bus down"):
-            await lifecycle_service.shutdown_instances(instances)
+            await lifecycle_service.shutdown_instances(instances, outcomes=AnyIndexOutcomes())
 
         assert finished == [1]
 
@@ -601,7 +620,7 @@ class TestShutdownInstances:
 
         instances: dict[int, App] = {0: app1, 1: app2}
 
-        await lifecycle_service.shutdown_instances(instances)
+        await lifecycle_service.shutdown_instances(instances, outcomes=AnyIndexOutcomes())
 
         app1.shutdown.assert_awaited_once()
         app2.shutdown.assert_awaited_once()
@@ -618,7 +637,7 @@ class TestShutdownInstances:
         mock_app_instance.status = ResourceStatus.RUNNING
         instances: dict[int, App] = {0: mock_app_instance}
 
-        await lifecycle_service.shutdown_instances(instances)
+        await lifecycle_service.shutdown_instances(instances, outcomes=AnyIndexOutcomes())
 
         first_event = event_capture.events[0]
         assert first_event.topic == Topic.HASSETTE_EVENT_APP_STATE_CHANGED

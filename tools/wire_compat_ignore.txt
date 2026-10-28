@@ -192,3 +192,12 @@ GET /api/health removed the `exhausted_cooling` enum value from the `services/it
 GET /api/health removed the `exhausted_dead` enum value from the `services/items/status` response property for the response status `200`
 GET /api/telemetry/app-grid removed the `exhausted_cooling` enum value from the `apps/items/app/instances/items/status` response property for the response status `200`
 GET /api/telemetry/app-grid removed the `exhausted_dead` enum value from the `apps/items/app/instances/items/status` response property for the response status `200`
+
+# #3111: app actions finish before answering, so they return 200 with per-instance outcomes instead of 202
+# (spec 140 D4). Released clients accept any 2xx and their ActionResponse defaults the removed `status`.
+POST /api/apps/{app_key}/instances/{index}/reload removed the success response with the status `202`
+POST /api/apps/{app_key}/instances/{index}/start removed the success response with the status `202`
+POST /api/apps/{app_key}/instances/{index}/stop removed the success response with the status `202`
+POST /api/apps/{app_key}/reload removed the success response with the status `202`
+POST /api/apps/{app_key}/start removed the success response with the status `202`
+POST /api/apps/{app_key}/stop removed the success response with the status `202`

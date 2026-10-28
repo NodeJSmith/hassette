@@ -196,12 +196,14 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
 
     message = _action_message(action, key, instance_label)
     detail = {
-        "status": result.status,
         "app_key": result.app_key,
         "action": result.action,
         "instance_index": result.instance_index,
         "message": message,
     }
+    if ctx.json_mode:
+        # The human panel stays a one-line success; scripts get what the action did to each instance.
+        detail["outcomes"] = [outcome.model_dump(mode="json") for outcome in result.outcomes]
     cli_output.render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
 
 

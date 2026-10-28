@@ -3,6 +3,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict
 
+from hassette_wire.apps import InstanceOutcome
 from hassette_wire.lenient import LenientValue, UnknownValue
 
 
@@ -32,8 +33,12 @@ class ProblemCode(StrEnum):
     ACTION_IN_PROGRESS = "action_in_progress"
     """409: another start, stop, or reload on this app is still running. Nothing was done."""
 
+    NEEDS_RESTART = "needs_restart"
+    """409: an instance the start, stop, or reload targeted needs a hassette restart, so nothing was done to it.
+    Retrying won't help until hassette restarts."""
+
     ACTION_FAILED = "action_failed"
-    """500: the start, stop, or reload ran but failed, or left a targeted instance failed."""
+    """500: the start, stop, or reload failed on at least one instance it targeted."""
 
     TELEMETRY_UNAVAILABLE = "telemetry_unavailable"
     """503: the telemetry store could not be read."""
@@ -97,3 +102,7 @@ class ProblemDetail(BaseModel):
 
     code: OpenProblemCode
     """Machine-readable reason for the error."""
+
+    outcomes: list[InstanceOutcome] | None = None
+    """For an app start, stop or reload: what it did to each instance it targeted. Absent from every other error,
+    and from an app action rejected before it acted on any instance."""

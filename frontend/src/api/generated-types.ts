@@ -125,7 +125,7 @@ export interface paths {
         put?: never;
         /**
          * Start App
-         * @description Start every instance of the app. Returns 202 once the start is accepted.
+         * @description Start every instance of the app, and report what the start did to each one.
          */
         post: operations["start_app_api_apps__app_key__start_post"];
         delete?: never;
@@ -145,7 +145,7 @@ export interface paths {
         put?: never;
         /**
          * Stop App
-         * @description Stop every instance of the app. Returns 202 once the stop is accepted.
+         * @description Stop every instance of the app, and report what the stop did to each one.
          */
         post: operations["stop_app_api_apps__app_key__stop_post"];
         delete?: never;
@@ -165,7 +165,7 @@ export interface paths {
         put?: never;
         /**
          * Reload App
-         * @description Re-import the app from disk and restart its instances. Returns 202 once the reload is accepted.
+         * @description Re-import the app from disk, restart its instances, and report what the reload did to each one.
          */
         post: operations["reload_app_api_apps__app_key__reload_post"];
         delete?: never;
@@ -185,7 +185,7 @@ export interface paths {
         put?: never;
         /**
          * Start Instance
-         * @description Start one instance of the app by index. Returns 202 once the start is accepted.
+         * @description Start one instance of the app by index, and report what the start did to it.
          */
         post: operations["start_instance_api_apps__app_key__instances__index__start_post"];
         delete?: never;
@@ -205,7 +205,7 @@ export interface paths {
         put?: never;
         /**
          * Stop Instance
-         * @description Stop one instance of the app by index. Returns 202 once the stop is accepted.
+         * @description Stop one instance of the app by index, and report what the stop did to it.
          */
         post: operations["stop_instance_api_apps__app_key__instances__index__stop_post"];
         delete?: never;
@@ -225,7 +225,7 @@ export interface paths {
         put?: never;
         /**
          * Reload Instance
-         * @description Re-import the app from disk and restart one instance by index. Returns 202 once the reload is accepted.
+         * @description Re-import the app from disk, restart one instance by index, and report what the reload did to it.
          */
         post: operations["reload_instance_api_apps__app_key__instances__index__reload_post"];
         delete?: never;
@@ -785,20 +785,14 @@ export interface components {
     schemas: {
         /**
          * ActionResponse
-         * @description Response for app mutation endpoints (start/stop/reload).
+         * @description Response for a start, stop or reload that succeeded on every instance it targeted.
          *
-         *     ``instance_index`` is the server-confirmed instance the action ran against — ``None`` for
-         *     an app-level action, the validated index for an instance-scoped one. Callers (the CLI and
-         *     the frontend toast) compare this against the index they requested rather than trusting
-         *     their own request data, since a routing bug would otherwise still look like a plain 202.
+         *     Sent with 200 once the action has finished. ``instance_index`` is the server-confirmed instance the
+         *     action ran against — ``None`` for an app-level action, the validated index for an instance-scoped one.
+         *     Callers (the CLI and the frontend toast) compare this against the index they requested rather than
+         *     trusting their own request data, since a routing bug would otherwise still look like a plain 200.
          */
         ActionResponse: {
-            /**
-             * Status
-             * @default accepted
-             * @constant
-             */
-            status: "accepted";
             /** App Key */
             app_key: string;
             /**
@@ -808,6 +802,11 @@ export interface components {
             action: "start" | "stop" | "reload";
             /** Instance Index */
             instance_index: number | null;
+            /**
+             * Outcomes
+             * @description One entry per instance the action targeted, in index order.
+             */
+            outcomes: components["schemas"]["InstanceOutcome"][];
         };
         /**
          * ActivityBucket
@@ -1459,6 +1458,39 @@ export interface components {
          */
         ExecutionStatus: "success" | "error" | "cancelled" | "timed_out" | "skipped";
         /**
+         * InstanceOutcome
+         * @description What one start, stop or reload did to one instance it targeted.
+         *
+         *     Listed in ``ActionResponse.outcomes``, and in ``ProblemDetail.outcomes`` when the action answers with an
+         *     error. Valid pairs: ``succeeded`` with ``needs_restart`` false; ``failed`` with ``needs_restart`` true (this
+         *     action left the instance needing a hassette restart) or false; ``refused`` with ``needs_restart`` true (the
+         *     instance was already flagged, so nothing was done to it). A client that meets an unknown ``result`` must not
+         *     assume success.
+         */
+        InstanceOutcome: {
+            /** Instance Index */
+            instance_index: number;
+            /** Instance Name */
+            instance_name: string;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "succeeded" | "failed" | "refused";
+            /**
+             * Needs Restart
+             * @description Whether the instance is flagged as needing a hassette restart after this action.
+             * @default false
+             */
+            needs_restart: boolean;
+            /**
+             * Reason
+             * @description The failure message or refusal, or a note on a success that wasn't plain (``already running``,
+             *     ``already stopped``, or the failed stop a reload recovered from); ``None`` for a plain success.
+             */
+            reason?: string | null;
+        };
+        /**
          * JobSummary
          * @description One scheduled job's registration and its execution totals.
          *
@@ -1972,7 +2004,7 @@ export interface components {
          *     status, is a breaking change and is flagged as one; adding a code is not.
          * @enum {string}
          */
-        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
+        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "needs_restart" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
         /**
          * ProblemDetail
          * @description RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error.
@@ -2001,6 +2033,12 @@ export interface components {
             detail: string;
             /** @description Machine-readable reason for the error. */
             code: components["schemas"]["ProblemCode"];
+            /**
+             * Outcomes
+             * @description For an app start, stop or reload: what it did to each instance it targeted. Absent from every other error,
+             *     and from an app action rejected before it acted on any instance.
+             */
+            outcomes?: components["schemas"]["InstanceOutcome"][] | null;
         };
         /**
          * ReadinessResponse
@@ -2432,7 +2470,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2458,7 +2496,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2476,7 +2514,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            /** @description `action_failed`: the action failed on at least one targeted instance */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2499,7 +2537,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2525,7 +2563,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2543,7 +2581,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            /** @description `action_failed`: the action failed on at least one targeted instance */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2566,7 +2604,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2592,7 +2630,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2610,7 +2648,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            /** @description `action_failed`: the action failed on at least one targeted instance */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2634,7 +2672,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2660,7 +2698,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2678,7 +2716,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            /** @description `action_failed`: the action failed on at least one targeted instance */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2702,7 +2740,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2728,7 +2766,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2746,7 +2784,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            /** @description `action_failed`: the action failed on at least one targeted instance */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2770,7 +2808,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2796,7 +2834,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `needs_restart`: a targeted instance needs a hassette restart; nothing was done to it (not retryable); `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2814,7 +2852,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            /** @description `action_failed`: the action failed on at least one targeted instance */
             500: {
                 headers: {
                     [name: string]: unknown;

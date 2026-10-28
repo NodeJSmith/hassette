@@ -65,4 +65,4 @@ reading the instance map directly, which drops flagged indices? And does every n
 `src/hassette/core/app_lifecycle_instances.py` whose `TeardownReport` is not restart-safe flag the
 index before the status event is sent? Does a new path that creates an instance go through
 `AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,
-whose `AppRegistry.refusal_for` check keeps a replacement off a flagged index?
+whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged index?

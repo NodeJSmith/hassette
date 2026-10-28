@@ -17,6 +17,7 @@ from client_compat_live_state import (
     APP_KEY_BLOCKED_APP,
     APP_KEY_BUSY_APP,
     APP_KEY_ESCAPING_APP,
+    APP_KEY_FLAGGED_APP,
     APP_KEY_UNREADABLE_APP,
     SeedIds,
 )
@@ -134,6 +135,13 @@ PROBLEM_REQUESTS = [
         "/api/apps/{app_key}/reload",
         {"app_key": APP_KEY_BROKEN_APP},
         problem_code=ProblemCode.ACTION_FAILED,
+    ),
+    FixtureRequest(
+        "problem-needs-restart",
+        "POST",
+        "/api/apps/{app_key}/stop",
+        {"app_key": APP_KEY_FLAGGED_APP},
+        problem_code=ProblemCode.NEEDS_RESTART,
     ),
     FixtureRequest(
         "problem-source-not-found",

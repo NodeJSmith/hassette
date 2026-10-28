@@ -10,6 +10,7 @@ from pydantic import AliasChoices, AliasPath
 from pydantic.fields import FieldInfo
 
 from hassette.app.app_config import AppConfig
+from hassette.core.app_lifecycle_common import ALREADY_RUNNING_REASON, CLASS_LOAD_FAILED_PREFIX, failure_reason
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.utils.app_utils import (
     class_already_loaded,
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.app import App
     from hassette.config.classes import AppManifest
+    from hassette.core.app_lifecycle_common import ActionOutcomes
     from hassette.core.app_registry import AppRegistry
 
 
@@ -51,13 +53,17 @@ class AppFactory:
         app_key: str,
         manifest: "AppManifest",
         force_reload: bool = False,
+        *,
+        outcomes: "ActionOutcomes",
     ) -> set[int]:
         """Create all app instances for a manifest and register them.
 
         Returns the set of indices that were actually created. Indices that already have a
-        live registry entry are skipped — callers use this to initialize only the new instances.
-        Indices flagged as needing a hassette restart are skipped too, with one ERROR each. When no configured
-        index is left to create, the class isn't loaded.
+        live registry entry are skipped and recorded as succeeded ("already running") — callers use
+        the returned set to initialize only the new instances. Indices flagged as needing a hassette
+        restart are skipped too, and recorded as refused; this logs nothing for them, so a caller with
+        no response to carry the refusal logs it (``log_refusals``). When no configured index is left
+        to create, the class isn't loaded. A class that fails to load fails every index left to create.
 
         Args:
             app_key: The app key from configuration
@@ -65,6 +71,7 @@ class AppFactory:
             force_reload: Whether to force reload the class. Ignored (treated as False) if any
                 instance of this app_key is already running (configured index or not) -- see
                 reload_app() to force a reload onto instances that are already running.
+            outcomes: The request's outcomes; must target every configured index.
         """
         app_configs = self.normalize_configs(manifest.app_config)
 
@@ -83,9 +90,10 @@ class AppFactory:
         for idx in range(len(app_configs)):
             if idx in live_indices:
                 self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
+                outcomes.succeeded(idx, ALREADY_RUNNING_REASON)
                 continue
-            if (refusal := self.registry.refusal_for(app_key, idx)) is not None:
-                self.logger.error(refusal)
+            if (refusal := self.registry.refusal_reason(app_key, idx)) is not None:
+                outcomes.refused(idx, refusal)
                 continue
             to_create.append(idx)
         if not to_create:
@@ -122,8 +130,11 @@ class AppFactory:
             # flagged, not always index 0: if index 0 is preserved from a prior successful start, blindly
             # recording there would both overwrite its live entry and leave a genuinely-failed,
             # unstarted sibling index unreported (looking like an ordinary stopped index instead
-            # of FAILED).
-            self.registry.record_failure(app_key, to_create[0], self.get_load_error(manifest))
+            # of FAILED). The request's outcomes fail every index left to create, naming the shared cause.
+            load_error = self.get_load_error(manifest)
+            self.registry.record_failure(app_key, to_create[0], load_error)
+            for idx in to_create:
+                outcomes.failed(idx, f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(load_error)}")
             return set()
 
         # Create only the indices in to_create: live and flagged ones were skipped above.
@@ -133,9 +144,11 @@ class AppFactory:
         # should use reload_app(), which stops before recreating. A no-op on the reload_app()
         # path: _stop_app_unlocked() already removed all entries before create_instances() runs.
         # Mirrors the per-index guard in start_instance() (#1688).
-        for idx in to_create:
-            self.create_single_instance(app_key, manifest, idx, app_configs[idx], app_class)
-        return set(to_create)
+        return {
+            idx
+            for idx in to_create
+            if self.create_single_instance(app_key, manifest, idx, app_configs[idx], app_class, outcomes=outcomes)
+        }
 
     def create_single_instance(
         self,
@@ -144,8 +157,13 @@ class AppFactory:
         index: int,
         config_dict: dict,
         app_class: "type[App[AppConfig]]",
-    ) -> None:
+        *,
+        outcomes: "ActionOutcomes",
+    ) -> bool:
         """Create and register a single app instance at the given index.
+
+        A config that fails validation, or a constructor that raises, is recorded as the index's
+        failure in the registry and in ``outcomes``; nothing is registered.
 
         Args:
             app_key: The app key from configuration
@@ -153,6 +171,10 @@ class AppFactory:
             index: The instance index this config corresponds to
             config_dict: The raw config dict for this instance
             app_class: The already-loaded app class to instantiate
+            outcomes: The request's outcomes
+
+        Returns:
+            Whether the instance was registered.
         """
         # Set on every instance config by AppManifest.model_post_init (resolve_instance_name).
         instance_name: str = config_dict[INSTANCE_NAME_KEY]
@@ -182,6 +204,9 @@ class AppFactory:
                 get_short_traceback(),
             )
             self.registry.record_failure(app_key, index, exc)
+            outcomes.failed(index, failure_reason(exc))
+            return False
+        return True
 
     def load_class(
         self,

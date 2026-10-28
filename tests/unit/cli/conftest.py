@@ -311,6 +311,16 @@ class CommandRunner:
             func(*args, ctx=CLIContext(json_mode=True), **kwargs)
         return json.loads("".join(captured))
 
+    def json_error(self, client: HassetteCLIClient, func: Callable[..., None], *args: Any, **kwargs: Any) -> Any:
+        """Run ``func`` in JSON mode expecting it to exit with an error; return the parsed error document."""
+        with (
+            patch(self.make_client_path, return_value=client),
+            capture_json_stdout() as captured,
+            pytest.raises(SystemExit),
+        ):
+            func(*args, ctx=CLIContext(json_mode=True), **kwargs)
+        return json.loads("".join(captured))
+
 
 class MockTransportBuilder:
     """Builds an httpx2.MockTransport from a route table.

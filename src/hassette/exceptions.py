@@ -4,9 +4,11 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from hassette.models.states import BaseState
     from hassette.resources.teardown import TeardownReport
+    from hassette.schemas.app_outcomes import InstanceOutcome
 
 __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and wrap by hand
-    "AppBlockedError", "AppBootstrapNotReleasedError", "AppPrecheckFailedError", "AuthTokenWriteError",
+    "AppBlockedError", "AppBootstrapNotReleasedError", "AppPrecheckFailedError", "AppRemovedError",
+    "AuthTokenWriteError",
     "BaseUrlRequiredError", "CannotOverrideFinalError", "ConfigError", "ConnectionClosedError",
     "ConvertedTypeDoesNotMatchError", "DependencyError", "DependencyInjectionError", "DependencyResolutionError",
     "DomainNotFoundError", "DomainRequiredError",
@@ -317,9 +319,25 @@ class AppBootstrapNotReleasedError(HassetteError):
 class AppBlockedError(HassetteError):
     """Raised when a manual start/reload is requested for an app the exclusive-app filter has blocked.
 
-    The filter is set by ``--app``. Without this, the caller would get a lying 202 "accepted" for a
-    request the registry silently no-ops — see AppLifecycleService's blocked-app guards.
+    The filter is set by ``--app``. Without this, the caller would get a success for a request the
+    registry silently no-ops — see AppLifecycleService's blocked-app guards. ``outcomes`` holds what a
+    reload's stop half did before the start was refused; empty when nothing ran.
     """
+
+    def __init__(self, msg: str, *, outcomes: "tuple[InstanceOutcome, ...]" = ()) -> None:
+        super().__init__(msg)
+        self.outcomes = outcomes
+
+
+class AppRemovedError(HassetteError):
+    """Raised when a start or reload finds its app's manifest gone, such as after a config change mid-request.
+
+    ``outcomes`` holds what a reload's stop half did before the manifest was found missing; empty when nothing ran.
+    """
+
+    def __init__(self, msg: str, *, outcomes: "tuple[InstanceOutcome, ...]" = ()) -> None:
+        super().__init__(msg)
+        self.outcomes = outcomes
 
 
 class AppPrecheckFailedError(HassetteError):

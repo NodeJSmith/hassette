@@ -42,6 +42,7 @@ from hassette_wire.apps import (
     AppListResponse,
     AppSource,
     AppSummary,
+    InstanceOutcome,
     NeedsRestart,
 )
 from hassette_wire.auth import MAX_SESSION_TOKEN_LENGTH, SessionRequest, SessionResponse
@@ -82,6 +83,7 @@ from hassette_wire.literals import (
     ErrorRateClass,
     ExecutionKind,
     HealthStatus,
+    InstanceResult,
     ListenerKind,
     LogAuthor,
     LogLevel,
@@ -174,6 +176,8 @@ __all__ = [
     "ExecutionMode",
     "ExecutionStatus",
     "HealthStatus",
+    "InstanceOutcome",
+    "InstanceResult",
     "JobSummary",
     "JobTriggerResponse",
     "LastError",

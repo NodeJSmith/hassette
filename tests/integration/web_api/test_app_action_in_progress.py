@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx2 import AsyncClient
 
+from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from tests.integration.conftest import make_manifest_mock
 
 from .conftest import APPS_PATH
@@ -41,10 +42,11 @@ class InFlightReload:
         )
         handler.reload_app = AsyncMock(side_effect=self.slow_reload)
 
-    async def slow_reload(self, _app_key: str, **_kwargs: object) -> None:
+    async def slow_reload(self, _app_key: str, **_kwargs: object) -> tuple[InstanceOutcome, ...]:
         async with self.lock:
             self.started.set()
             await self.release.wait()
+        return (InstanceOutcome(instance_index=0, instance_name="my_app", result=OutcomeResult.SUCCEEDED),)
 
     async def begin(self, client: AsyncClient) -> "asyncio.Task":
         task = asyncio.create_task(client.post(f"{APPS_PATH}/my_app/reload"))
@@ -54,7 +56,7 @@ class InFlightReload:
     async def finish(self, task: "asyncio.Task") -> None:
         self.release.set()
         response = await asyncio.wait_for(task, WAIT_TIMEOUT_SECONDS)
-        assert response.status_code == 202, response.text
+        assert response.status_code == 200, response.text
 
 
 @pytest.mark.parametrize(("suffix", "handler_method"), ACTIONS, ids=[suffix for suffix, _ in ACTIONS])
@@ -81,7 +83,7 @@ async def test_action_on_another_app_runs_while_lock_held(client: AsyncClient, m
 
     response = await asyncio.wait_for(client.post(f"{APPS_PATH}/other_app/start"), WAIT_TIMEOUT_SECONDS)
 
-    assert response.status_code == 202, response.text
+    assert response.status_code == 200, response.text
     mock_hassette.app_handler.start_app.assert_awaited_once_with("other_app")
     await in_flight.finish(first)
 
@@ -92,7 +94,7 @@ async def test_action_after_lock_released_is_accepted(client: AsyncClient, mock_
 
     response = await client.post(f"{APPS_PATH}/my_app/start")
 
-    assert response.status_code == 202, response.text
+    assert response.status_code == 200, response.text
     mock_hassette.app_handler.start_app.assert_awaited_once_with("my_app")
 
 

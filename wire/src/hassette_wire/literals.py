@@ -73,6 +73,11 @@ AppAction = Literal["start", "stop", "reload"]
 
 OpenAppAction = Annotated[AppAction | UnknownValue, LenientValue("AppAction")]
 
+InstanceResult = Literal["succeeded", "failed", "refused"]
+"""What an app action did to one instance: see ``InstanceOutcome``."""
+
+OpenInstanceResult = Annotated[InstanceResult | UnknownValue, LenientValue("InstanceResult")]
+
 AcceptedStatus = Literal["accepted"]
 """The ``status`` of a response confirming the server accepted a requested action."""
 

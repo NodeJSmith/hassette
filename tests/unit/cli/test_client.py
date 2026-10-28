@@ -441,7 +441,7 @@ class TestPostMalformedResponse:
     def test_valid_response_still_returns_action_response(self) -> None:
         """Control case: a well-formed 2xx body still deserializes normally."""
         config = make_host_port_config()
-        body = ActionResponse(app_key="my_app", action="stop", instance_index=None).model_dump()
+        body = ActionResponse(app_key="my_app", action="stop", instance_index=None, outcomes=[]).model_dump()
         transport = make_transport(200, body)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         result = client.post("/api/apps/my_app/stop", ActionResponse)

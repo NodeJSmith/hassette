@@ -20,9 +20,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 from hassette_wire import AppStatus, ExecutionStatus, ResourceStatus, StackFrame
 from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext, make_instance_name
+from whenever import ZonedDateTime
 
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
-from hassette.schemas.app_snapshots import AppManifestInfo
+from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo, NeedsRestartInfo
 from hassette.types.enums import BlockReason
 from hassette.utils.stack_frames import encode_frames
 from tests.e2e.mock_fixtures import build_manifests
@@ -34,7 +36,11 @@ APP_KEY_DEGRADED_APP = "degraded_app"
 """A live app with one instance in every ``ResourceStatus``."""
 
 APP_KEY_BLOCKED_APP = "blocked_app"
-"""A live app the ``--app`` filter blocks, so starting it answers ``app_blocked`` (:func:`refuse_blocked_apps`)."""
+"""A live app the ``--app`` filter blocks, so starting it answers ``app_blocked`` (:func:`wire_app_actions`)."""
+
+APP_KEY_FLAGGED_APP = "flagged_app"
+"""A live app whose only instance needs a hassette restart, so any action on it answers ``needs_restart``
+(:func:`wire_app_actions`)."""
 
 APP_KEY_BUSY_APP = "busy_app"
 """A live app with an action always in flight, so any action on it answers ``action_in_progress``
@@ -90,6 +96,9 @@ FAILED_RUN_TRACEBACK = (
     'Traceback (most recent call last):\n  File "/config/apps/handler.py", line 42, in on_change\n'
     '    raise RuntimeError("sensor offline")\nRuntimeError: sensor offline\n'
 )
+
+FLAGGED_AT = ZonedDateTime(2024, 1, 1, 12, tz="UTC")
+"""When :data:`APP_KEY_FLAGGED_APP`'s instance was flagged; fixed so every generation writes the same body."""
 
 FAULTED_STATUSES = (ResourceStatus.FAILED, ResourceStatus.CRASHED)
 """Instance statuses that carry an error message."""
@@ -195,6 +204,27 @@ def live_manifests() -> list[AppManifestInfo]:
             instances=degraded_instances,
         ),
         make_manifest(
+            app_key=APP_KEY_FLAGGED_APP,
+            class_name="FlaggedApp",
+            display_name="Flagged App",
+            filename="flagged_app.py",
+            status=AppStatus.FAILED,
+            instance_count=1,
+            instances=[
+                make_app_instance_info(
+                    app_key=APP_KEY_FLAGGED_APP,
+                    class_name="FlaggedApp",
+                    status=ResourceStatus.FAILED,
+                    error_message="on_shutdown timed out",
+                    needs_restart=NeedsRestartInfo(
+                        reason="on_shutdown timed out",
+                        flagged_at=FLAGGED_AT,
+                        pending_tasks=("poll_sensor",),
+                    ),
+                )
+            ],
+        ),
+        make_manifest(
             app_key=APP_KEY_BLOCKED_APP,
             class_name="BlockedApp",
             display_name="Blocked App",
@@ -224,9 +254,8 @@ def live_manifests() -> list[AppManifestInfo]:
 def wire_app_outcomes(hassette: MagicMock, manifests: Iterable[AppManifestInfo]) -> None:
     """Make app actions, config and source reads answer the way each live app's state implies."""
     by_key = {manifest.app_key: manifest for manifest in manifests}
-    refuse_blocked_apps(hassette, by_key)
+    wire_app_actions(hassette, by_key)
     wire_busy_app(hassette)
-    wire_failed_instances(hassette, by_key)
     wire_multi_app_config(hassette, by_key[APP_KEY_MULTI_APP])
     wire_source_paths(hassette)
     wire_framework_services(hassette)
@@ -242,20 +271,63 @@ def wire_app_filter(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) 
     """Set the ``--app`` filter that :data:`APP_KEY_BLOCKED_APP`'s ``ONLY_APP`` block reason implies.
 
     The filter is an allowlist, so it names every other live app. ``/api/apps`` reports it as ``only_apps``;
-    the app's refusal to start is wired separately, by :func:`refuse_blocked_apps`.
+    the app's refusal to start is wired separately, by :func:`wire_app_actions`.
     """
     hassette._app_handler.registry.only_apps = frozenset(by_key) - {APP_KEY_BLOCKED_APP}
 
 
-def refuse_blocked_apps(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:
-    """Start and reload of a blocked app raise ``AppBlockedError``, which answers ``app_blocked``."""
+def wire_app_actions(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:
+    """Each app action reports the outcome its targets' state implies.
 
-    async def refuse_blocked(app_key: str, *_args: Any, **_kwargs: Any) -> None:
+    A start or reload of a blocked app raises ``AppBlockedError`` (``app_blocked``). Otherwise each targeted
+    instance that needs a restart is refused (``needs_restart``), each other ``FAILED`` one failed
+    (``action_failed``, how the e2e fixtures' broken app reaches that code), and the rest succeeded. An app with
+    no instances reports one succeeded instance, so every success body lists an outcome.
+    """
+
+    def outcomes(app_key: str, index: int | None = None) -> tuple[InstanceOutcome, ...]:
+        instances = [info for info in by_key[app_key].instances if index is None or info.index == index]
+        if not instances:
+            return (InstanceOutcome(instance_index=index or 0, instance_name=app_key, result=OutcomeResult.SUCCEEDED),)
+        return tuple(instance_outcome(info) for info in instances)
+
+    async def app_action(app_key: str, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
+        return outcomes(app_key)
+
+    async def instance_action(app_key: str, index: int, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
+        return outcomes(app_key, index)
+
+    async def refusing_blocked(app_key: str, *args: Any, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
         if by_key[app_key].status is AppStatus.BLOCKED:
             raise AppBlockedError(f"{app_key} is blocked")
+        return outcomes(app_key, *args)
 
-    hassette._app_handler.start_app.side_effect = refuse_blocked
-    hassette._app_handler.reload_app.side_effect = refuse_blocked
+    handler = hassette._app_handler
+    handler.stop_app.side_effect = app_action
+    handler.stop_instance.side_effect = instance_action
+    for name in ("start_app", "reload_app", "start_instance", "reload_instance"):
+        getattr(handler, name).side_effect = refusing_blocked
+
+
+def instance_outcome(info: AppInstanceInfo) -> InstanceOutcome:
+    """The outcome an action on ``info`` reports, given the instance's state."""
+    if info.needs_restart is not None:
+        return InstanceOutcome(
+            instance_index=info.index,
+            instance_name=info.instance_name,
+            result=OutcomeResult.REFUSED,
+            needs_restart=True,
+            # Shaped like AppRegistry.refusal_reason without its flag time; any text parses the same.
+            reason=f"needs a hassette restart ({info.needs_restart.reason})",
+        )
+    if info.status is ResourceStatus.FAILED:
+        return InstanceOutcome(
+            instance_index=info.index,
+            instance_name=info.instance_name,
+            result=OutcomeResult.FAILED,
+            reason=info.error_message,
+        )
+    return InstanceOutcome(instance_index=info.index, instance_name=info.instance_name, result=OutcomeResult.SUCCEEDED)
 
 
 def wire_busy_app(hassette: MagicMock) -> None:
@@ -264,20 +336,6 @@ def wire_busy_app(hassette: MagicMock) -> None:
     The route checks this before running the action, so the stub's action mocks are never reached for it.
     """
     hassette._app_handler.is_action_in_progress.side_effect = lambda app_key: app_key == APP_KEY_BUSY_APP
-
-
-def wire_failed_instances(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:
-    """An app's ``FAILED`` instances are the registry's recorded failures.
-
-    A start or reload that leaves a recorded failure answers ``action_failed``, which is how the e2e fixtures'
-    broken app reaches that code.
-    """
-
-    def failed_instances(app_key: str) -> dict[int, Any]:
-        instances = by_key[app_key].instances if app_key in by_key else ()
-        return {info.index: info for info in instances if info.status is ResourceStatus.FAILED}
-
-    hassette._app_handler.registry.get_failed_instance_infos.side_effect = failed_instances
 
 
 def wire_multi_app_config(hassette: MagicMock, multi_app: AppManifestInfo) -> None:

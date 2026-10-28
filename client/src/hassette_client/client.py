@@ -129,9 +129,14 @@ class HassetteClient:
         ``on_initialize()``, so a slow app can take longer than the client's ``request_timeout``. Use
         a second client with a longer ``request_timeout`` on the same session for those.
 
+        The response lists what the action did to each instance it targeted (``outcomes``). It is
+        returned only when every instance succeeded; otherwise the error's ``problem.outcomes`` holds
+        the same list.
+
         After a timeout or connection error the outcome is unknown. Sending ``start`` or ``stop``
-        again is safe, since each converges on a state; sending ``reload`` again reloads the app a
-        second time, so check the app's status first. While the first action is still running, the
+        again is safe, since each converges on a state, except on an instance that needs a hassette
+        restart, which answers ``NeedsRestartError`` until hassette restarts. Sending ``reload`` again
+        reloads the app a second time, so check the app's status first. While the first action is still running, the
         server rejects a second one on the same app with ``ActionInProgressError`` rather than
         queuing it.
 
@@ -148,7 +153,9 @@ class HassetteClient:
             BootstrapNotReleasedError: Apps can't be started yet; retry later. Not raised for a stop.
             AppBlockedError: The server's ``--app`` filter excludes this app. Not raised for a stop.
             ActionInProgressError: Another action on this app is still running. Nothing was done.
-            ActionFailedError: The action ran but failed, or left a targeted instance failed.
+            NeedsRestartError: A targeted instance needs a hassette restart, so nothing was done to it. Not
+                retryable until hassette restarts.
+            ActionFailedError: The action failed on at least one targeted instance.
             HassetteTimeoutError: No answer in time. The action may still have run, or still be running.
         """
         path = app_path(app_key)

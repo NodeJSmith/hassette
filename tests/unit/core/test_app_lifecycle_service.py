@@ -374,7 +374,7 @@ class TestStopAppLocking:
         lock = lifecycle_service._get_app_key_lock("test_app")
         lock_held_during_call = False
 
-        async def fake_unlocked(_app_key: str) -> None:
+        async def fake_unlocked(_app_key: str, **_kwargs: object) -> None:
             nonlocal lock_held_during_call
             lock_held_during_call = lock.locked()
 
@@ -396,7 +396,7 @@ class TestIsActionInProgress:
         """While stop_app runs, its own app key reports busy and other app keys don't; afterward it's idle."""
         observed: dict[str, bool] = {}
 
-        async def fake_unlocked(app_key: str) -> None:
+        async def fake_unlocked(app_key: str, **_kwargs: object) -> None:
             observed[app_key] = lifecycle_service.is_action_in_progress(app_key)
             observed["other_app"] = lifecycle_service.is_action_in_progress("other_app")
 
@@ -420,7 +420,7 @@ class TestIsActionInProgress:
         first_entered = asyncio.Event()
         gate = asyncio.Event()
 
-        async def fake_unlocked(_app_key: str) -> None:
+        async def fake_unlocked(_app_key: str, **_kwargs: object) -> None:
             if not first_entered.is_set():
                 first_entered.set()
                 await gate.wait()
@@ -477,7 +477,7 @@ class TestIsActionInProgress:
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         never = asyncio.Event()
 
-        async def park(*_args: object) -> None:
+        async def park(*_args: object, **_kwargs: object) -> None:
             await never.wait()
 
         for body in (
@@ -504,9 +504,9 @@ class TestApplyChangesGating:
         [
             ("new_apps", False, False, "start_app", None),
             ("new_apps", True, False, "start_app", call("app_a")),
-            ("reload_apps", False, True, "_start_app_unlocked", call("app_a", ANY, False)),
+            ("reload_apps", False, True, "_start_app_unlocked", call("app_a", ANY, False, outcomes=ANY)),
             ("reload_apps", False, False, "_start_app_unlocked", None),
-            ("reimport_apps", False, True, "_start_app_unlocked", call("app_a", ANY, True)),
+            ("reimport_apps", False, True, "_start_app_unlocked", call("app_a", ANY, True, outcomes=ANY)),
             ("reimport_apps", False, False, "_start_app_unlocked", None),
             ("orphans", False, False, "stop_app", call("app_a")),
         ],

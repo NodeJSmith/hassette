@@ -37,6 +37,7 @@ CODE_STATUS: dict[ProblemCode, int] = {
     ProblemCode.BOOTSTRAP_NOT_RELEASED: 409,
     ProblemCode.APP_BLOCKED: 409,
     ProblemCode.ACTION_IN_PROGRESS: 409,
+    ProblemCode.NEEDS_RESTART: 409,
     ProblemCode.ACTION_FAILED: 500,
     ProblemCode.TELEMETRY_UNAVAILABLE: 503,
     ProblemCode.SOURCE_NOT_FOUND: 404,

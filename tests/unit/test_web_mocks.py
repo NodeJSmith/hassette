@@ -131,7 +131,6 @@ class TestAppHandler:
         registry = h.app_handler.registry
         assert registry.manifests == {}
         assert registry.only_apps == frozenset()
-        assert registry.get_failed_instance_infos() == {}
         assert h.app_handler.is_action_in_progress() is False
         assert registry.get_full_snapshot() is not None
 

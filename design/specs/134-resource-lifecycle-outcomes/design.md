@@ -991,3 +991,25 @@ machinery), #3113 (remaining duplicate guards), #3114 (`TaskBucket` subclassing 
   response channel logs one ERROR" left an HTTP refusal as an unnamed 500 until #3111 gives refusals an outcome.
   Until then the gate logs on every path and returns without raising; #3111 moves the log to the callers with no
   response channel.
+
+**2026-10-28 — item 8 (#3111, spec 140).** Rules beyond D15's text, ratified in
+`design/specs/140-app-action-outcomes/design.md`:
+
+- **D15: an outcome is `result` (`succeeded`/`failed`/`refused`) plus a separate `needs_restart` bool**, with
+  `instance_index`, `instance_name` and `reason`. "Needs restart" isn't a fourth result, because a newly flagged
+  instance is a failure (500) and an already flagged one a refusal (409). The 409 code is `needs_restart`.
+- **D15: a stop refuses an already-flagged index too**, so every action reports it `refused`. A 200 never
+  covers a zombie the user acted on, matching HA's refusal to unload a `FAILED_UNLOAD` entry.
+- **D15: a reload's create half decides each index's outcome**, except that a stop half which newly flagged
+  the index stands as `failed` with `needs_restart`. A restart-safe stop failure before a good create is a
+  success whose `reason` names it.
+- **D15: `ActionResponse` drops `status: "accepted"`** and the action routes answer 200, not 202, once the
+  action finishes. `outcomes` is required, so `MIN_API_SCHEMA_VERSION` moved to 4.
+- **D15: an error's `detail` names each instance that didn't succeed, with its reason**, after a count of what
+  the others did. It is the CLI's and the web UI toast's whole view of a partial outcome.
+- **D15: an action whose manifest is gone once it holds the lock raises `AppRemovedError`** (`app_not_found`)
+  instead of returning nothing. A reload's `app_blocked` or `app_not_found` carries the outcomes of the stop
+  half that already ran.
+- **D12: refusals are logged only by callers with no response channel** (bootstrap `start_apps`, and
+  `apply_changes`'s restarts and autostarts), through one helper over the returned outcomes. This supersedes
+  the interim rule in the item 7 entry above: an HTTP refusal is in its response and isn't logged.
