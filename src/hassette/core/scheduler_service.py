@@ -405,8 +405,8 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         before proceeding: destructive replacement (``if_exists="replace"``, which must
         await the old job's ``removed_at`` write landing before issuing the new
         registration's upsert against the same natural-key row — see
-        ``Scheduler._add_job()``), registration rollback (``_rollback_failed_registration``),
-        and owner cleanup (``remove_jobs()``, which awaits this per job).
+        ``Scheduler._add_job()``) and registration rollback (``_rollback_failed_registration``).
+        Owner cleanup (``remove_jobs()``) runs the same two halves, all live-state removals first.
 
         Not to be confused with ``_ScheduledJobQueue.remove_job``, which only touches the
         heap under its own lock.
@@ -496,11 +496,25 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     async def _remove_jobs(self, jobs: "list[Job]") -> None:
         """Async body for ``remove_jobs()``.
 
-        Removes each job via the unified removal operation (``remove_job()``) — see that method
-        for the removal contract.
+        Runs the unified removal operation (see ``remove_job()``) in two passes: every job leaves
+        live state first, then each job's guard-release/persistence tail runs. A tail that raises
+        is logged and the rest still run, so one failed ``removed_at`` write can't leave the
+        remaining jobs dispatchable or their invocations running.
+
+        Raises:
+            ExceptionGroup: After every job was handled, when any tail raised.
         """
         for job in jobs:
-            await self.remove_job(job)
+            self._remove_from_live_state(job)
+        failures: list[Exception] = []
+        for job in jobs:
+            try:
+                await self._finish_removal(job)
+            except Exception as exc:
+                self.logger.exception("Failed to finish removing job '%s' (db_id=%s)", job.name, job.db_id)
+                failures.append(exc)
+        if failures:
+            raise ExceptionGroup("job removal tail failed", failures)
 
     def submit_job(self, job: "Job") -> None:
         """Submit one manual invocation of ``job``. Fire-and-observe: returns immediately.

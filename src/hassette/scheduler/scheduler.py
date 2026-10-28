@@ -184,8 +184,10 @@ class Scheduler(Resource):
 
     async def on_shutdown(self) -> None:
         """Remove every job this scheduler owns and stop receiving job-removal callbacks from the service."""
-        await self.remove_all_jobs()
-        self.scheduler_service.deregister_removal_callback(self.owner_id)
+        try:
+            await self.remove_all_jobs()
+        finally:
+            self.scheduler_service.deregister_removal_callback(self.owner_id)
 
     def on_error(self, handler: "SchedulerErrorHandlerType") -> None:
         """Register an app-level error handler for this scheduler.
