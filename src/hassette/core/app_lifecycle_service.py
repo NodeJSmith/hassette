@@ -130,9 +130,9 @@ class AppLifecycleService(
     def _resolve_manifest(self, app_key: str) -> "AppManifest | None":
         """Fetch ``app_key``'s manifest, logging the standard skip message if it is absent.
 
-        A missing manifest means the app is disabled or unknown, which every lifecycle path
-        treats as a silent no-op skip. Callers keep their own ``return`` so this works the same
-        in public methods and in ``_unlocked`` helpers.
+        A missing manifest means the app is disabled or unknown. The public actions turn that into
+        ``AppRemovedError`` (``_require_manifest``) so a caller learns nothing was done; a config
+        reconciliation, which has no caller to tell, skips the app.
         """
         app_manifest = self.registry.get_manifest(app_key)
         if app_manifest is None:

@@ -306,7 +306,7 @@ class TestActionOutcomes:
 
     async def test_reload_after_a_restart_safe_stop_failure_reports_success(self, running: AppLifecycleService) -> None:
         """The create half decides a reload's outcome; the stop failure before it stays in ``reason`` (spec 140 D6)."""
-        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=False)
+        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=False)  # pyright: ignore[reportAttributeAccessIssue]
 
         outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
 
@@ -317,7 +317,7 @@ class TestActionOutcomes:
 
     async def test_reload_whose_stop_flags_the_index_reports_that_failure(self, running: AppLifecycleService) -> None:
         """The create half's refusal doesn't relabel a zombie this reload created (spec 140 D6)."""
-        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=True)
+        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=True)  # pyright: ignore[reportAttributeAccessIssue]
 
         outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
 

@@ -317,6 +317,7 @@ def instance_outcome(info: AppInstanceInfo) -> InstanceOutcome:
             instance_name=info.instance_name,
             result=OutcomeResult.REFUSED,
             needs_restart=True,
+            # Shaped like AppRegistry.refusal_reason without its flag time; any text parses the same.
             reason=f"needs a hassette restart ({info.needs_restart.reason})",
         )
     if info.status is ResourceStatus.FAILED:

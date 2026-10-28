@@ -118,8 +118,8 @@ class InstanceOutcome(BaseModel):
     needs_restart: bool = False
     """Whether the instance is flagged as needing a hassette restart after this action."""
     reason: str | None = None
-    """The failure message or refusal, or a note on a success that needed no work (``already running``,
-    ``already stopped``); ``None`` for a plain success."""
+    """The failure message or refusal, or a note on a success that wasn't plain (``already running``,
+    ``already stopped``, or the failed stop a reload recovered from); ``None`` for a plain success."""
 
 
 class ActionResponse(BaseModel):

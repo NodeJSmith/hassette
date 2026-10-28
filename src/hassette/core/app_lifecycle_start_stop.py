@@ -5,6 +5,9 @@ from collections.abc import Awaitable, Callable
 from logging import Logger
 
 from hassette.core.app_lifecycle_common import (
+    ALREADY_RUNNING_REASON,
+    ALREADY_STOPPED_REASON,
+    CLEARED_FAILURE_REASON,
     FAILED,
     NOT_STARTED,
     STOPPED,
@@ -115,7 +118,11 @@ class AppStartStopMixin:
 
     def _outcomes_for(self, app_key: str, indices: "typing.Iterable[int]") -> ActionOutcomes:
         """A new request's outcomes, targeting ``indices`` of ``app_key``."""
-        return ActionOutcomes({index: self.registry.instance_name(app_key, index) for index in indices})
+        return ActionOutcomes(self._target_names(app_key, indices))
+
+    def _target_names(self, app_key: str, indices: "typing.Iterable[int]") -> dict[int, str]:
+        """Each of ``indices`` of ``app_key`` mapped to its instance name, as ``ActionOutcomes`` targets them."""
+        return {index: self.registry.instance_name(app_key, index) for index in indices}
 
     async def _start_app_unlocked(
         self, app_key: str, app_manifest: "AppManifest", force_reload: bool, *, outcomes: ActionOutcomes
@@ -132,18 +139,14 @@ class AppStartStopMixin:
             # A blocked app's manifest still exists and still reports a configured instance
             # count, so it stays addressable by every check above this one — this is the only
             # thing standing between a manual start/reload and bypassing the exclusive-app
-            # filter that blocked it in the first place. Raises (rather than a silent no-op,
-            # like the sibling guards above) so the web route and CLI surface an actionable
-            # rejection instead of reporting success for a request nothing acted on; start_app()
-            # has no surrounding try/except so this propagates directly, and reload_app() special-
-            # cases this exception to re-raise past its otherwise-swallowing try/except. It carries
-            # the outcomes of a reload's stop half, which really ran.
+            # filter that blocked it in the first place. Raises so the web route and CLI surface an
+            # actionable rejection instead of reporting success for a request nothing acted on;
+            # start_app() and reload_app() re-raise it past their catch-all. It carries the outcomes
+            # of a reload's stop half, which really ran.
             raise AppBlockedError(f"App {app_key!r} is blocked by the --app filter", outcomes=outcomes.snapshot())
 
         # The config can change while a reload's stop half runs, so its create half may find more indices.
-        outcomes.add_targets(
-            {index: self.registry.instance_name(app_key, index) for index in self._configured_indices(app_manifest)}
-        )
+        outcomes.add_targets(self._target_names(app_key, self._configured_indices(app_manifest)))
 
         # A prior, larger config can leave failed entries at indices the *current* config no
         # longer has — e.g. an autostart=false app that wasn't auto-reconciled on the config
@@ -167,11 +170,11 @@ class AppStartStopMixin:
             self.logger.error(
                 "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
             )
-            outcomes.fail_unwritten(f"bad configuration: {failure_reason(exc)}")
+            outcomes.fail_undecided(f"bad configuration: {failure_reason(exc)}")
             return
         except Exception as exc:
             self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
-            outcomes.fail_unwritten(f"the app class failed to load: {failure_reason(exc)}")
+            outcomes.fail_undecided(f"the app class failed to load: {failure_reason(exc)}")
             return
 
         # create_instances() records failures (config validation, class
@@ -272,7 +275,7 @@ class AppStartStopMixin:
                 await self.shutdown_instances(instances, outcomes=outcomes)
         except Exception as exc:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
-            outcomes.fail_unwritten(failure_reason(exc))
+            outcomes.fail_undecided(failure_reason(exc))
         self._settle_stop_outcomes(app_key, outcomes)
 
     def _settle_stop_outcomes(self, app_key: str, outcomes: ActionOutcomes) -> None:
@@ -284,8 +287,8 @@ class AppStartStopMixin:
         for index in outcomes.indices:
             if (refusal := self.registry.refusal_reason(app_key, index)) is not None:
                 outcomes.refused(index, refusal)
-            elif not outcomes.is_written(index):
-                outcomes.succeeded(index, "already stopped")
+            elif not outcomes.is_decided(index):
+                outcomes.succeeded(index, ALREADY_STOPPED_REASON)
 
     async def _discard_failed_indices(self, app_key: str, indices: set[int], *, outcomes: ActionOutcomes) -> None:
         """Discard the failure entries at ``indices`` (none of them running), emit their events, and record each.
@@ -297,7 +300,7 @@ class AppStartStopMixin:
         discarded = {index: info for index, info in failed_infos.items() if index in indices}
         for index in discarded:
             self.registry.unregister_app(app_key, index)
-            outcomes.succeeded(index, "was not running; cleared its failure")
+            outcomes.succeeded(index, CLEARED_FAILURE_REASON)
         await self._emit_discarded_entry_events(discarded)
 
     async def reload_app(
@@ -337,7 +340,7 @@ class AppStartStopMixin:
                 await self._stop_app_unlocked(app_key, outcomes=outcomes)
 
                 app_manifest = self._require_manifest(app_key, outcomes.snapshot())
-                outcomes.begin_phase(self._configured_indices(app_manifest))
+                outcomes.begin_create_half(self._configured_indices(app_manifest))
                 await self._start_app_unlocked(app_key, app_manifest, force_reload, outcomes=outcomes)
             except (AppBlockedError, AppRemovedError):
                 # The stop above already ran — a blocked-but-running instance (e.g. left over
@@ -353,12 +356,12 @@ class AppStartStopMixin:
     def _instance_index_in_range(self, app_key: str, index: int, app_manifest: "AppManifest") -> bool:
         """Check ``index`` against the current manifest's instance count.
 
-        Shared by ``reload_instance``, ``stop_instance``, and ``start_instance`` — all three
-        must re-validate the index after acquiring the per-app-key lock, mirroring
+        Shared by ``reload_instance``, ``start_instance`` and a config change's per-index restarts.
+        Each re-validates the index after acquiring the per-app-key lock, mirroring
         ``start_app()``'s post-lock re-fetch pattern, since the manifest (and therefore the
         valid index range) can change while a caller was parked in ``_admit_start()``.
-        ``stop_instance`` consults this only for an index the registry no longer tracks: a
-        tracked out-of-range instance is an orphan that must stay stoppable.
+        ``stop_instance`` doesn't use it: an out-of-range index it doesn't track has nothing to
+        stop, and one it tracks is an orphan that must stay stoppable.
         """
         valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
         if index < 0 or index >= valid_index_count:
@@ -491,7 +494,7 @@ class AppStartStopMixin:
                 await self.shutdown_instances({index: inst}, outcomes=outcomes)
         except Exception as exc:
             self.logger.error("Failed to stop instance %d of app %s:\n%s", index, app_key, get_short_traceback())
-            outcomes.fail_unwritten(failure_reason(exc))
+            outcomes.fail_undecided(failure_reason(exc))
         self._settle_stop_outcomes(app_key, outcomes)
 
     async def reload_instance(
@@ -551,7 +554,7 @@ class AppStartStopMixin:
             return
 
         await self._stop_instance_unlocked(app_key, index, outcomes=outcomes)
-        outcomes.begin_phase([index])
+        outcomes.begin_create_half([index])
         await self._create_instance_unlocked(app_key, index, app_manifest, force_reload, outcomes=outcomes)
 
     async def stop_instance(self, app_key: str, index: int) -> "tuple[InstanceOutcome, ...]":
@@ -617,7 +620,7 @@ class AppStartStopMixin:
                     outcomes.failed(index, NOT_IN_CONFIG_REASON)
                 elif self.registry.get(app_key, index) is not None:
                     self.logger.debug("Instance %d of app %s is already running — skipping start", index, app_key)
-                    outcomes.succeeded(index, "already running")
+                    outcomes.succeeded(index, ALREADY_RUNNING_REASON)
                 else:
                     await self._create_instance_unlocked(app_key, index, app_manifest, outcomes=outcomes)
             except AppBlockedError:

@@ -50,7 +50,7 @@ The four `409` codes on the app action endpoints (`POST /api/apps/{app_key}/star
 
 ## App action outcomes
 
-An app action (`POST /api/apps/{app_key}/start`, `/stop`, `/reload`, and the per-instance `/instances/{index}/...` forms) finishes before it answers, and reports what it did to each instance it targeted. A whole-app action targets every configured instance, and a stop also targets any instance still running outside the current config. Each entry in `outcomes` has these members:
+An app action (`POST /api/apps/{app_key}/start`, `/stop`, `/reload`, and the per-instance `/instances/{index}/...` forms) finishes before it answers, and reports what it did to each instance it targeted. A whole-app action targets every configured instance. A stop or reload also targets any instance Hassette still tracks outside the current config, and a reload only stops those. Each entry in `outcomes` has these members:
 
 | Member | Contents |
 |---|---|
@@ -58,7 +58,7 @@ An app action (`POST /api/apps/{app_key}/start`, `/stop`, `/reload`, and the per
 | `instance_name` | The instance's name. |
 | `result` | `succeeded`, `failed`, or `refused`. |
 | `needs_restart` | Whether the instance needs a Hassette restart after this action. |
-| `reason` | The failure or refusal. On a success, a note when there was nothing to do (`already running`, `already stopped`), otherwise `null`. |
+| `reason` | The failure or refusal. On a success, a note on anything beyond a plain success, such as `already running`, or an earlier stop failure a reload recovered from. Otherwise `null`. |
 
 `refused` means the instance needs a Hassette restart from an earlier action: its last shutdown left work that may still be running, so Hassette doesn't start, stop, or reload it again. An instance this action left needing a restart is `failed` with `needs_restart` set.
 
@@ -84,7 +84,7 @@ So a whole-app action that worked on two instances and failed on a third answers
 }
 ```
 
-A reload of an app the `--app` filter blocks stops the app before it is refused, so its `app_blocked` body carries the stop's `outcomes`. So does an `app_not_found` from a reload whose app left the config while it ran. Every other error from these endpoints is answered before any instance is touched, and has no `outcomes`.
+A reload of an app the [`--app` filter](../cli/commands.md#hassette-run) blocks stops the app before it is refused, so its `app_blocked` body carries the stop's `outcomes`. So does an `app_not_found` from a reload whose app left the config while it ran. Every other error from these endpoints is answered before any instance is touched, and has no `outcomes`.
 
 ## Codes any endpoint can return
 

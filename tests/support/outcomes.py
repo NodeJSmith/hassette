@@ -1,7 +1,6 @@
 """An ``ActionOutcomes`` for tests that call a lifecycle internal directly, with no request to declare targets."""
 
 from hassette.core.app_lifecycle_common import ActionOutcomes
-from hassette.schemas.app_outcomes import OutcomeResult
 
 
 class AnyIndexOutcomes(ActionOutcomes):
@@ -14,6 +13,14 @@ class AnyIndexOutcomes(ActionOutcomes):
     def __init__(self) -> None:
         super().__init__({})
 
-    def _write(self, index: int, result: OutcomeResult, reason: str | None, *, needs_restart: bool) -> None:
+    def succeeded(self, index: int, reason: str | None = None) -> None:
         self.add_targets({index: f"instance_{index}"})
-        super()._write(index, result, reason, needs_restart=needs_restart)
+        super().succeeded(index, reason)
+
+    def failed(self, index: int, reason: str, *, needs_restart: bool = False) -> None:
+        self.add_targets({index: f"instance_{index}"})
+        super().failed(index, reason, needs_restart=needs_restart)
+
+    def refused(self, index: int, reason: str) -> None:
+        self.add_targets({index: f"instance_{index}"})
+        super().refused(index, reason)

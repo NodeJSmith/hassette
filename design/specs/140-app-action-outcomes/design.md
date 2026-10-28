@@ -341,10 +341,10 @@ created a zombie must not be relabelled a refusal.
 
 ## Build
 
-- [ ] Core: lifecycle methods return per-instance outcomes; the gate returns refusals and only no-channel callers log them; the route maps outcomes worst-outcome-wins; registry read-back deleted
-- [ ] Wire and consumers: outcome model, `ProblemDetail.outcomes`, `needs_restart` code, `ActionResponse` reshape, 200 status, client error class and schema floor, regenerated OpenAPI/TS, frontend and CLI, compat lists if checks fail
-- [ ] Parent Addendum entry for rules beyond D15
-- [ ] Docs
+- [x] Core: lifecycle methods return per-instance outcomes; the gate returns refusals and only no-channel callers log them; the route maps outcomes worst-outcome-wins; registry read-back deleted
+- [x] Wire and consumers: outcome model, `ProblemDetail.outcomes`, `needs_restart` code, `ActionResponse` reshape, 200 status, client error class and schema floor, regenerated OpenAPI/TS, frontend and CLI, compat lists if checks fail
+- [x] Parent Addendum entry for rules beyond D15
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
@@ -354,5 +354,9 @@ created a zombie must not be relabelled a refusal.
 - `stop_instance` no longer special-cases an untracked out-of-range index: there is nothing to stop, so its outcome settles as `succeeded`, "already stopped", like any untracked target.
 - `_await_operation`'s `ValueError`/`RuntimeError` → `action_failed` mapping is removed: D5 has every public lifecycle method catch and record unexpected exceptions, so the mapping was unreachable; anything else that escapes is an `internal_error`.
 - `AppRegistry.refusal_for` (a full log line) became `refusal_reason` (the outcome's `reason`: "needs a hassette restart (flagged at …: …)"), and `log_refusals` builds the no-channel ERROR line from the outcome, so the HTTP `detail` and the log share one wording.
-- Problem bodies are dumped with `exclude_none`, so `outcomes` is absent (not `null`) on every error that isn't an app action that acted on an instance.
 - Tests that drive one lifecycle step directly pass `tests/support/outcomes.py`'s `AnyIndexOutcomes`, which targets each index on first write; per-request contract tests go through the public methods.
+- Problem bodies leave out `outcomes` only when it is absent; each outcome inside keeps `reason: null`, so an entry has one shape in a 200 body and an error body.
+- `--json` from `hassette app start|stop|reload` adds `outcomes` to the CLI's own success object (the Summary's "`--json` output carries the response"), while the human panel keeps its one-line success. Error output stays the CLI's standard error document, whose `detail` names each instance that didn't succeed.
+- A whole-app start or reload whose post-init registration reconcile raises still reports its initialized instances `succeeded`, since they run; the reconcile failure is logged at ERROR. This is the behavior `main` already had for that path, unlike the per-instance path, which shuts the instance down.
+- Every success reason is a named constant in `core/app_lifecycle_common.py` (`ALREADY_RUNNING_REASON` and the others), and the collector's reload phases are named for what they are (`begin_create_half`, `is_decided`, `fail_undecided`).
+- A refused stop with no response channel (a config change stopping a flagged orphan app) isn't logged: `log_refusals` covers starts and reloads, and the flag-time ERROR already named the instance.

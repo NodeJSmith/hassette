@@ -35,6 +35,21 @@ INIT_FAILURE_TRACEBACK_LIMIT = 5
 # never block app startup or a hot-reload. See design doc "Persist trigger".
 MANIFEST_UPSERT_TIMEOUT_SECONDS = 5.0
 
+ALREADY_RUNNING_REASON = "already running"
+"""A start's or reload's success reason for an index that already had a live instance."""
+
+ALREADY_STOPPED_REASON = "already stopped"
+"""A stop's success reason for a target with nothing tracked to stop."""
+
+CLEARED_FAILURE_REASON = "was not running; cleared its failure"
+"""A stop's success reason for a target that held only a failure entry."""
+
+NO_OUTCOME_REASON = "no outcome was recorded"
+"""A target's failure reason when nothing recorded an outcome for it and nothing raised."""
+
+STOP_FAILED_PREFIX = "the stop before it failed: "
+"""Leads the stop half's failure in the reason of a reload that recreated the instance anyway."""
+
 
 class AppAdmissionMode(StrEnum):
     WAIT_FOR_RELEASE = "wait_for_release"
@@ -61,19 +76,20 @@ class ActionOutcomes:
 
     Each public start, stop and reload creates one once it holds the app-key lock and knows its targets, and
     passes it explicitly down the paths that settle each instance. A slot fills when its outcome is decided, so
-    an outcome decided before a sibling or a later step raises is kept. ``finish`` gives every slot still empty
-    an outcome, so each target ends with exactly one.
+    an outcome decided before a sibling or a later step raises is kept. ``finish`` gives every target still
+    undecided an outcome, so each target ends with exactly one.
 
-    A later write to a slot replaces the earlier one, except that an outcome which flagged the instance needs-restart
-    stands. A reload's create half calls ``begin_phase`` first: its outcome replaces the stop half's, and a stop
-    half that failed without flagging is kept in the success's ``reason`` (spec 140 D6).
+    A reload decides each index twice, in its stop half and then its create half, which it opens with
+    ``begin_create_half``. ``_write`` keeps the rules for combining the two (spec 140 D6).
     """
 
     def __init__(self, names: Mapping[int, str]) -> None:
         """Declare the targets: each targeted index and its instance name."""
         self._names = dict(names)
         self._slots: dict[int, InstanceOutcome] = {}
-        self._written: set[int] = set()
+        self._decided: set[int] = set()
+        """Indices with an outcome from the current half. A reload's create half clears its indices from it;
+        their slots keep the stop half's outcome until the create half writes over it."""
 
     def add_targets(self, names: Mapping[int, str]) -> None:
         """Target more indices, such as ones a config change added while the action was running."""
@@ -86,54 +102,59 @@ class ActionOutcomes:
         return sorted(self._names)
 
     def succeeded(self, index: int, reason: str | None = None) -> None:
+        """Record that the instance is in the action's target state; ``reason`` notes a success that wasn't plain."""
         self._write(index, OutcomeResult.SUCCEEDED, reason, needs_restart=False)
 
     def failed(self, index: int, reason: str, *, needs_restart: bool = False) -> None:
+        """Record a failure; ``needs_restart`` when this action left the instance flagged as needing a restart."""
         self._write(index, OutcomeResult.FAILED, reason, needs_restart=needs_restart)
 
     def refused(self, index: int, reason: str) -> None:
-        """Record a refusal: the instance is flagged as needing a hassette restart, so nothing was done to it."""
+        """Record a refusal: the instance was already flagged as needing a hassette restart, so nothing was done."""
         self._write(index, OutcomeResult.REFUSED, reason, needs_restart=True)
 
-    def is_written(self, index: int) -> bool:
-        """Whether ``index`` has an outcome from the current phase."""
-        return index in self._written
+    def is_decided(self, index: int) -> bool:
+        """Whether ``index`` has an outcome from the current half."""
+        return index in self._decided
 
-    def begin_phase(self, indices: Iterable[int]) -> None:
-        """Start a reload's create half: each of ``indices`` needs an outcome from it, or ``finish`` fails it."""
-        self._written -= set(indices)
+    def begin_create_half(self, indices: Iterable[int]) -> None:
+        """Open a reload's create half: each of ``indices`` needs an outcome from it, or ``finish`` fails it."""
+        self._decided -= set(indices)
 
-    def fail_unwritten(self, reason: str) -> None:
-        """Record ``reason`` as the failure of every target with no outcome from the current phase."""
+    def fail_undecided(self, reason: str) -> None:
+        """Record ``reason`` as the failure of every target with no outcome from the current half."""
         for index in self.indices:
-            if index not in self._written:
+            if index not in self._decided:
                 self.failed(index, reason)
 
     def snapshot(self) -> tuple[InstanceOutcome, ...]:
-        """The outcomes recorded so far, in index order, leaving empty slots out."""
+        """The outcomes recorded so far, in index order, leaving targets with none out."""
         return tuple(self._slots[index] for index in self.indices if index in self._slots)
 
-    def finish(self, reason: str = "no outcome was recorded") -> tuple[InstanceOutcome, ...]:
-        """Fail every target with no outcome from the current phase, then return every outcome in index order."""
-        self.fail_unwritten(reason)
+    def finish(self, reason: str = NO_OUTCOME_REASON) -> tuple[InstanceOutcome, ...]:
+        """Fail every target still undecided with ``reason``, then return every outcome in index order.
+
+        An action whose body raised passes the exception's message as ``reason`` (spec 140 D5).
+        """
+        self.fail_undecided(reason)
         return self.snapshot()
 
     def _write(self, index: int, result: OutcomeResult, reason: str | None, *, needs_restart: bool) -> None:
+        """Record ``index``'s outcome. A later write replaces an earlier one, with two exceptions for a reload."""
         if index not in self._names:
             raise ValueError(f"index {index} is not a target of this action (targets: {self.indices})")
         previous = self._slots.get(index)
-        new_phase = index not in self._written
-        self._written.add(index)
+        first_in_half = index not in self._decided
+        self._decided.add(index)
+        # A failure that flagged the instance stands: the create half's refusal of the zombie this request
+        # created must not relabel it a refusal, and nothing later can make it succeed.
         if previous is not None and previous.is_newly_flagged:
             return
-        if (
-            previous is not None
-            and new_phase
-            and previous.result is OutcomeResult.FAILED
-            and result is OutcomeResult.SUCCEEDED
-            and previous.reason
-        ):
-            reason = "; ".join(part for part in (reason, f"the stop before it failed: {previous.reason}") if part)
+        # A create half that succeeds after a stop half that failed without flagging is a success, since the
+        # instance runs. The stop's failure stays in the reason so it isn't lost.
+        if first_in_half and previous is not None and previous.result is OutcomeResult.FAILED:
+            if result is OutcomeResult.SUCCEEDED:
+                reason = "; ".join(part for part in (reason, f"{STOP_FAILED_PREFIX}{previous.reason}") if part)
         self._slots[index] = InstanceOutcome(
             instance_index=index,
             instance_name=self._names[index],

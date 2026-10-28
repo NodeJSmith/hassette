@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatus, ExecutionStatus
+from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatus, ExecutionStatus, InstanceOutcome
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -645,6 +645,27 @@ class TestCmdAppStart:
         )
         with patch("builtins.input", side_effect=AssertionError("start must not prompt")):
             runner.stdout(client, cmd_app_start, "my_app")
+
+    def test_json_output_lists_each_instance_outcome(self, cli_client_factory: CLIClientFactory) -> None:
+        outcome = InstanceOutcome(
+            instance_index=0, instance_name="kitchen", result="succeeded", reason="already running"
+        )
+        response = ActionResponse(app_key="my_app", action="start", instance_index=None, outcomes=[outcome])
+        client = cli_client_factory.build_with_routes(
+            [("POST", "/api/apps/my_app/start", 200, response.model_dump(mode="json"))]
+        )
+
+        parsed = runner.json_output(client, cmd_app_start, "my_app")
+
+        assert parsed["outcomes"] == [
+            {
+                "instance_index": 0,
+                "instance_name": "kitchen",
+                "result": "succeeded",
+                "needs_restart": False,
+                "reason": "already running",
+            }
+        ]
 
     def test_error_on_404_surfaces_via_http_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Start against a non-existent app surfaces the 404 via the standard HTTP error path."""

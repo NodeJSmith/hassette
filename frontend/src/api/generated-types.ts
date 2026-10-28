@@ -1485,8 +1485,8 @@ export interface components {
             needs_restart: boolean;
             /**
              * Reason
-             * @description The failure message or refusal, or a note on a success that needed no work (``already running``,
-             *     ``already stopped``); ``None`` for a plain success.
+             * @description The failure message or refusal, or a note on a success that wasn't plain (``already running``,
+             *     ``already stopped``, or the failed stop a reload recovered from); ``None`` for a plain success.
              */
             reason?: string | null;
         };
@@ -2004,7 +2004,7 @@ export interface components {
          *     status, is a breaking change and is flagged as one; adding a code is not.
          * @enum {string}
          */
-        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "action_failed" | "needs_restart" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
+        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "needs_restart" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
         /**
          * ProblemDetail
          * @description RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error.

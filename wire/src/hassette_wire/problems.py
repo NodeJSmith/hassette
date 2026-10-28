@@ -33,12 +33,12 @@ class ProblemCode(StrEnum):
     ACTION_IN_PROGRESS = "action_in_progress"
     """409: another start, stop, or reload on this app is still running. Nothing was done."""
 
-    ACTION_FAILED = "action_failed"
-    """500: the start, stop, or reload failed on at least one instance it targeted."""
-
     NEEDS_RESTART = "needs_restart"
     """409: an instance the start, stop, or reload targeted needs a hassette restart, so nothing was done to it.
     Retrying won't help until hassette restarts."""
+
+    ACTION_FAILED = "action_failed"
+    """500: the start, stop, or reload failed on at least one instance it targeted."""
 
     TELEMETRY_UNAVAILABLE = "telemetry_unavailable"
     """503: the telemetry store could not be read."""

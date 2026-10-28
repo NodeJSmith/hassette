@@ -35,7 +35,8 @@ class InstanceOutcome:
     needs_restart: bool = False
     """Whether the instance is flagged as needing a hassette restart after this action."""
     reason: str | None = None
-    """The failure or refusal, or a note on a success that needed no work (``already running``)."""
+    """The failure or refusal, or a note on a success that wasn't plain (``already running``, a reload's
+    failed stop)."""
 
     @property
     def is_newly_flagged(self) -> bool:

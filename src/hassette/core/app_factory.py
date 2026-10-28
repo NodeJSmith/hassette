@@ -10,7 +10,7 @@ from pydantic import AliasChoices, AliasPath
 from pydantic.fields import FieldInfo
 
 from hassette.app.app_config import AppConfig
-from hassette.core.app_lifecycle_common import failure_reason
+from hassette.core.app_lifecycle_common import ALREADY_RUNNING_REASON, failure_reason
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.utils.app_utils import (
     class_already_loaded,
@@ -90,7 +90,7 @@ class AppFactory:
         for idx in range(len(app_configs)):
             if idx in live_indices:
                 self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
-                outcomes.succeeded(idx, "already running")
+                outcomes.succeeded(idx, ALREADY_RUNNING_REASON)
                 continue
             if (refusal := self.registry.refusal_reason(app_key, idx)) is not None:
                 outcomes.refused(idx, refusal)

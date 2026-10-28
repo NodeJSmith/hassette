@@ -211,7 +211,8 @@ def problem_response(
         outcomes=list(outcomes) if outcomes is not None else None,
     )
     return JSONResponse(
-        body.model_dump(mode="json", exclude_none=True),
+        # Leave out only an absent ``outcomes``; an outcome's own ``reason: null`` stays, as on a 200 body.
+        body.model_dump(mode="json", exclude=None if body.outcomes is not None else {"outcomes"}),
         status_code=resolved_status,
         headers=headers,
         media_type=PROBLEM_MEDIA_TYPE,

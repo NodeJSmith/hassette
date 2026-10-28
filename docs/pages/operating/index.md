@@ -247,7 +247,7 @@ A flagged instance:
 
 Hassette doesn't create a new instance at a flagged instance's place, because the old one's work may still be running. Hassette refuses a start, a reload, or a config or file change that would create one. A stop of a flagged instance is refused too: it is already unregistered, and nothing Hassette does can end work that ignored cancellation. The app's other instances still start, stop and reload as usual.
 
-A refused action from the web UI, the CLI, or the REST API answers `409` `needs_restart`, naming the instance and why it was flagged. Nothing is logged, since the response already carries the refusal. A refusal with no one to answer, at startup or after a config or file change, logs one ERROR instead: it names the instance and why it was flagged, and says to restart Hassette. [API Error Responses](../web-ui/api-errors.md#app-action-outcomes) describes the per-instance outcomes an action reports.
+A refused action from the web UI, the CLI, or the REST API answers `409` `needs_restart`, naming the instance and why it was flagged. Nothing is logged, since the response already carries the refusal. A refused start or reload with no one to answer, at startup or after a config or file change, logs one ERROR instead: it names the instance and why it was flagged, and says to restart Hassette. [API Error Responses](../web-ui/api-errors.md#app-action-outcomes) describes the per-instance outcomes an action reports.
 
 Removing a flagged app or instance from the config and adding it back doesn't clear the flag either, so its start is still refused until Hassette restarts.
 

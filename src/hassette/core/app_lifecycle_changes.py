@@ -68,6 +68,7 @@ class AppChangeReconcilerMixin:
     _stop_app_unlocked: Callable[..., Awaitable[None]]
     _stop_targets: Callable[[str], set[int]]
     _outcomes_for: Callable[[str, Iterable[int]], ActionOutcomes]
+    _configured_indices: Callable[["AppManifest"], range]
     _instance_index_in_range: Callable[[str, int, "AppManifest"], bool]
     _create_instance_unlocked: Callable[..., Awaitable[None]]
     _stop_instance_unlocked: Callable[..., Awaitable[None]]
@@ -252,7 +253,7 @@ class AppChangeReconcilerMixin:
             return
 
         if restart.indices is None:
-            outcomes.begin_phase(outcomes.indices)
+            outcomes.begin_create_half(self._configured_indices(app_manifest))
             try:
                 await self._start_app_unlocked(app_key, app_manifest, restart.force_reload, outcomes=outcomes)
             except AppBlockedError:
@@ -269,7 +270,7 @@ class AppChangeReconcilerMixin:
                 self.logger.error("Failed to reload instance %d of app %s:\n%s", idx, app_key, get_short_traceback())
 
         valid = [idx for idx in restart.indices if self._instance_index_in_range(app_key, idx, app_manifest)]
-        outcomes.begin_phase(valid)
+        outcomes.begin_create_half(valid)
         await asyncio.gather(*(create_one(idx) for idx in valid))
 
     async def handle_change_event(

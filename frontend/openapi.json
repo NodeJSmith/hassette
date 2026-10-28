@@ -4009,7 +4009,7 @@
               }
             ],
             "title": "Reason",
-            "description": "The failure message or refusal, or a note on a success that needed no work (``already running``,\n``already stopped``); ``None`` for a plain success."
+            "description": "The failure message or refusal, or a note on a success that wasn't plain (``already running``,\n``already stopped``, or the failed stop a reload recovered from); ``None`` for a plain success."
           }
         },
         "type": "object",
@@ -5061,8 +5061,8 @@
           "bootstrap_not_released",
           "app_blocked",
           "action_in_progress",
-          "action_failed",
           "needs_restart",
+          "action_failed",
           "telemetry_unavailable",
           "source_not_found",
           "path_traversal",

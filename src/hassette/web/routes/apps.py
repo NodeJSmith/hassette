@@ -237,7 +237,7 @@ async def _run_app_action(
     _require_known_app(app_key, hassette, action)
     outcomes = await _await_operation(app_key, operation)
     wire_outcomes = [instance_outcome_from(outcome) for outcome in outcomes]
-    if (code := _status_code_for(outcomes)) is not None:
+    if (code := _problem_code_for(outcomes)) is not None:
         raise WebApiError(code, action_detail(action, app_key, outcomes), outcomes=wire_outcomes)
     LOGGER.info("%s app %s (source=%s)", ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
     return ActionResponse(app_key=app_key, action=action, instance_index=instance_index, outcomes=wire_outcomes)
@@ -273,7 +273,7 @@ def _wire_outcomes_or_none(outcomes: Sequence[CoreInstanceOutcome]) -> list[Inst
     return [instance_outcome_from(outcome) for outcome in outcomes] or None
 
 
-def _status_code_for(outcomes: Sequence[CoreInstanceOutcome]) -> ProblemCode | None:
+def _problem_code_for(outcomes: Sequence[CoreInstanceOutcome]) -> ProblemCode | None:
     """The problem code the worst outcome calls for, or ``None`` when every instance succeeded."""
     if any(outcome.result is OutcomeResult.FAILED for outcome in outcomes):
         return ProblemCode.ACTION_FAILED
