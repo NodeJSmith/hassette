@@ -104,7 +104,8 @@ run concurrently. This is the framework default for internal jobs.
 invocation manages its own isolated resources.
 
 Removing a `parallel` job doesn't stop an invocation that is already running;
-it runs to completion. When the app stops, its teardown cancels the invocation.
+it runs to completion. When the app stops, its teardown cancels the invocation,
+as it does for a running invocation in any mode.
 One that ignores the cancellation flags the app instance as
 [needing a restart](../../operating/index.md#instances-that-need-a-restart).
 

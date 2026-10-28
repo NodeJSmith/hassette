@@ -364,14 +364,17 @@ class SchedulerDispatchMixin:
     ) -> None:
         """Route one job invocation through the job's execution-mode guard.
 
-        - ``parallel``: runs ``run_job`` as a task in the owning ``Scheduler``'s task bucket and
-          waits for it — concurrency comes from ``serve()`` spawning a fresh dispatch task per
-          due-pop. No stall watch, no guard state. The guard tracks nothing to cancel on removal, so
-          the invocation must belong to its owner: the owner's teardown cancels it, and reports it as
-          pending if it won't end. An owner whose bucket is already sealed is stopping, so the
-          invocation is skipped. A job with no owning ``Scheduler`` runs inline.
-        - ``single``/``restart``/``queued``: delegates to ``run_through_guard``, which
-          bridges completion via a per-invocation future and arms the stall watchdog.
+        Every invocation runs in the owning ``Scheduler``'s task bucket, as bus invocations run in
+        their ``Bus``'s: the owner's teardown cancels it and reports it as pending if it won't end,
+        even when the owner's job-removal hook was cut short. An owner whose bucket is already sealed
+        is stopping, so the invocation is skipped.
+
+        - ``parallel``: runs ``run_job`` as a task and waits for it — concurrency comes from
+          ``serve()`` spawning a fresh dispatch task per due-pop. No stall watch, no guard state. A
+          job with no owning ``Scheduler`` runs inline.
+        - ``single``/``restart``/``queued``: delegates to ``run_through_guard``, which bridges
+          completion via a per-invocation future and arms the stall watchdog. A job with no owning
+          ``Scheduler`` runs in this service's bucket.
 
         Args:
             job: The job to invoke.
@@ -381,31 +384,30 @@ class SchedulerDispatchMixin:
                 calculation. See ``run_job``'s docstring for precedence against
                 ``job.fire_at``.
         """
-        if job.mode is ExecutionMode.PARALLEL:
-            if job._scheduler is None:
-                await self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at)
-                return
-            owner_bucket = job._scheduler.task_bucket
-            try:
+        if job.mode is ExecutionMode.PARALLEL and job._scheduler is None:
+            await self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at)
+            return
+        bucket = job._scheduler.task_bucket if job._scheduler is not None else self.task_bucket
+        try:
+            if job.mode is ExecutionMode.PARALLEL:
                 await run_parallel(
-                    spawn=lambda coro, *, name: owner_bucket.spawn(coro, name=name),
+                    spawn=lambda coro, *, name: bucket.spawn(coro, name=name),
                     invoke=lambda: self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at),
                     spawn_name=f"scheduler:parallel_invocation:{job.name}",
                 )
-            except TaskBucketSealedError:
-                level = logging.WARNING if trigger_mode == "manual" else logging.DEBUG
-                self.logger.log(level, "Owner of job %s is shutting down, so the invocation didn't run", job)
-            return
-
-        await run_through_guard(
-            guard=job.guard,
-            spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
-            pending_done=job.pending_done,
-            invoke=lambda: self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at),
-            warn=lambda secs: self.warn_stalled_job(job, secs),
-            spawn_name="scheduler:mode_invocation",
-            threshold=STALL_THRESHOLD_SECONDS,
-        )
+            else:
+                await run_through_guard(
+                    guard=job.guard,
+                    spawn=lambda coro, *, name: bucket.spawn(coro, name=name),
+                    pending_done=job.pending_done,
+                    invoke=lambda: self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at),
+                    warn=lambda secs: self.warn_stalled_job(job, secs),
+                    spawn_name="scheduler:mode_invocation",
+                    threshold=STALL_THRESHOLD_SECONDS,
+                )
+        except TaskBucketSealedError:
+            level = logging.WARNING if trigger_mode == "manual" else logging.DEBUG
+            self.logger.log(level, "Owner of job %s is shutting down, so the invocation didn't run", job)
 
     def warn_stalled_job(self, job: "Job", threshold: float) -> None:
         """Emit the stall WARNING: a non-parallel job is still holding its guard.
