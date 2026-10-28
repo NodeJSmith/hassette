@@ -31,7 +31,7 @@ Three access patterns:
 | `self.states[states.LightState].get("light.kitchen")` | `LightState \| None`, for any domain |
 | `for entity_id, state in self.states.light.items()` | Iterates all cached lights |
 
-Use `self.states` for any read inside a handler or scheduled task. The cache is always up-to-date.
+Use `self.states` for any read inside a handler or scheduled task. The cache is filled before `on_initialize` runs and kept current by state change events.
 
 ### Hassette: Direct API Call
 
@@ -41,7 +41,7 @@ For a guaranteed fresh read from Home Assistant:
 --8<-- "pages/migration/snippets/api_hassette_get_state_api.py"
 ```
 
-`self.api.get_state()` hits the HA REST API and requires `await`. Use it when the cache is not reliable, such as during initialization before the first state change event.
+`self.api.get_state()` hits the HA REST API and requires `await`. The cache is already populated when `on_initialize` runs, so startup reads don't need the API call. Use it to read the value straight from Home Assistant rather than the local copy. After a disconnect, for example, the cache is marked stale and keeps serving the last known values.
 
 ## Calling Services
 
