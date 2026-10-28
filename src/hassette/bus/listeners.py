@@ -16,6 +16,7 @@ from hassette.execution_mode import (
     STALL_THRESHOLD_SECONDS,
     ExecutionModeGuard,
     release_and_drain,
+    run_parallel,
     run_through_guard,
 )
 from hassette.types.types import WhereClause
@@ -287,12 +288,14 @@ class HandlerInvoker:
         Once-guard: if ``once=True`` and the invoker has already fired, returns immediately. Safe
         without a lock — no ``await`` between check-and-set.
 
-        Mode guard: ``parallel`` is a pass-through that awaits ``invoke_fn`` inline (byte-for-byte
-        today's behavior, no child task). For ``single``/``restart``/``queued`` the guard receives a
-        run-and-track callable that spawns a fresh child task through ``task_bucket``; this method
-        then awaits that child so the outer dispatch task stays pending and remains counted by
-        ``_dispatch_pending``. A ``restart`` cancellation of the child surfaces as ``CancelledError``
-        inside the child only — it is swallowed here so the outer dispatch task does not crash.
+        Mode guard: ``parallel`` runs ``invoke_fn`` as a child task in ``task_bucket`` (the owning
+        ``Bus``'s) and awaits it through ``run_parallel``, so the owner's teardown cancels it; a sealed
+        bucket means the owner is stopping, and the invocation is skipped. For
+        ``single``/``restart``/``queued`` the guard receives a run-and-track callable that spawns a
+        fresh child task through ``task_bucket``; this method then awaits that child so the outer
+        dispatch task stays pending and remains counted by ``_dispatch_pending``. A ``restart``
+        cancellation of the child surfaces as ``CancelledError`` inside the child only — it is swallowed
+        here so the outer dispatch task does not crash.
         """
         if self.once and self.fired:
             return
@@ -307,7 +310,16 @@ class HandlerInvoker:
     async def run_with_mode(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
         """Apply the overlap mode guard to a single started invocation."""
         if self.mode is ExecutionMode.PARALLEL:
-            await invoke_fn()
+            try:
+                await run_parallel(
+                    spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
+                    invoke=invoke_fn,
+                    spawn_name=f"bus:parallel_invocation:{self.handler_short_name}",
+                )
+            except TaskBucketSealedError:
+                LOGGER.debug(
+                    "Owner of handler '%s' is shutting down, so the invocation didn't run", self.handler_short_name
+                )
             return
 
         await run_through_guard(

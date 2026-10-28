@@ -91,6 +91,10 @@ modes were introduced, and it is what framework-internal listeners default to.
 `parallel` is the right choice for stateless, idempotent handlers, or handlers
 where each invocation manages its own isolated resources.
 
+Cancelling a `parallel` subscription doesn't stop an invocation that is
+already running; it runs to completion. When the app stops, its teardown
+cancels every running invocation.
+
 ## Default Mode: Tier-Aware
 
 The default mode depends on the *tier* — who registered the listener. App

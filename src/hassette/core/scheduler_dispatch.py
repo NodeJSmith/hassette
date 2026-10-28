@@ -11,7 +11,8 @@ from whenever import ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
 from hassette.core.execution_record import ExecutionRecord
-from hassette.execution_mode import STALL_THRESHOLD_SECONDS, run_through_guard
+from hassette.exceptions import TaskBucketSealedError
+from hassette.execution_mode import STALL_THRESHOLD_SECONDS, run_parallel, run_through_guard
 from hassette.scheduler.classes import Job
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.scheduler.triggers import _WaitingSentinel
@@ -363,8 +364,12 @@ class SchedulerDispatchMixin:
     ) -> None:
         """Route one job invocation through the job's execution-mode guard.
 
-        - ``parallel``: awaits ``run_job`` inline — concurrency comes from ``serve()``
-          spawning a fresh dispatch task per due-pop. No stall watch, no guard state.
+        - ``parallel``: runs ``run_job`` as a task in the owning ``Scheduler``'s task bucket and
+          waits for it — concurrency comes from ``serve()`` spawning a fresh dispatch task per
+          due-pop. No stall watch, no guard state. The guard tracks nothing to cancel on removal, so
+          the invocation must belong to its owner: the owner's teardown cancels it, and reports it as
+          pending if it won't end. An owner whose bucket is already sealed is stopping, so the
+          invocation is skipped. A job with no owning ``Scheduler`` runs inline.
         - ``single``/``restart``/``queued``: delegates to ``run_through_guard``, which
           bridges completion via a per-invocation future and arms the stall watchdog.
 
@@ -377,7 +382,19 @@ class SchedulerDispatchMixin:
                 ``job.fire_at``.
         """
         if job.mode is ExecutionMode.PARALLEL:
-            await self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at)
+            if job._scheduler is None:
+                await self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at)
+                return
+            owner_bucket = job._scheduler.task_bucket
+            try:
+                await run_parallel(
+                    spawn=lambda coro, *, name: owner_bucket.spawn(coro, name=name),
+                    invoke=lambda: self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at),
+                    spawn_name=f"scheduler:parallel_invocation:{job.name}",
+                )
+            except TaskBucketSealedError:
+                level = logging.WARNING if trigger_mode == "manual" else logging.DEBUG
+                self.logger.log(level, "Owner of job %s is shutting down, so the invocation didn't run", job)
             return
 
         await run_through_guard(

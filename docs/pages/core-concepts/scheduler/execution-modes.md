@@ -103,6 +103,10 @@ run concurrently. This is the framework default for internal jobs.
 `parallel` is the right choice for stateless, idempotent work where each
 invocation manages its own isolated resources.
 
+Removing a `parallel` job doesn't stop an invocation that is already running;
+it runs to completion. When the app stops, its teardown cancels every running
+invocation.
+
 ## Default Mode: Tier-Aware
 
 The default mode depends on the *tier* — who registered the job. App

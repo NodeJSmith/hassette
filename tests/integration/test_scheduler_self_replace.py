@@ -101,7 +101,7 @@ class _SyncSelfReplaceApp(App[_SelfReplaceConfig]):
         self.callback_finished = True
 
 
-# parallel is omitted: its guard tracks no invocation, so removal never cancels it either way.
+# parallel is omitted: removal never cancels a parallel invocation (only its owner's teardown does).
 @pytest.mark.parametrize("mode", ["single", "queued", "restart"])
 async def test_sync_job_replaces_itself_from_own_callback(mode: str) -> None:
     """A sync callback re-arming itself is not cancelled; the dispatch waits for the worker thread.
