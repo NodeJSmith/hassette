@@ -36,13 +36,13 @@ While stopped, the Diagnostics page shows the WebSocket service with the reason 
 
 A freshly restarted HA accepts connections before its integrations finish loading. Hassette does not report itself connected until HA's own startup state, which moves from `STARTING` to `RUNNING`, reaches `RUNNING`. Until then:
 
-- Events from HA are not delivered to apps, so the burst of `unavailable` states during HA's boot never reaches handlers. The one exception is `homeassistant_started`, which the bus delivers right after the connection is up.
+- Events from HA are not delivered to apps, so the burst of `unavailable` states during HA's boot never reaches handlers. The one exception is `homeassistant_started`. Hassette holds it and delivers it once the connection reports connected.
 - Api calls that go over the WebSocket raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError], the same as during an outage.
 - When Hassette itself is starting up, apps don't initialize yet. They start against a fully loaded HA.
 
 HA reaches `RUNNING` within seconds of accepting connections. The Diagnostics page shows the wait as the WebSocket service's reason, "Home Assistant core state is STARTING, waiting for RUNNING". The service itself stays ready.
 
-The `homeassistant_started` event marks an actual HA restart. Hassette delivers it only when it observes HA starting: the event arrives while Hassette waits for `RUNNING`, or while Hassette is already connected. A connection that finds HA already `RUNNING` sees no such event. `hassette.event.websocket_connected` fires on every reconnect, including ones where HA never restarted.
+The `homeassistant_started` event marks an actual HA restart. Hassette delivers it only when it observes HA starting, either while waiting for `RUNNING` or while already connected. A connection that finds HA already `RUNNING` sees no such event. `hassette.event.websocket_connected` fires on every reconnect, including ones where HA never restarted.
 
 `Topic` has no member for this event, so apps pass its topic string to [`on()`](../core-concepts/bus/methods.md#ontopic) in `on_initialize`:
 
@@ -50,7 +50,7 @@ The `homeassistant_started` event marks an actual HA restart. Hassette delivers 
 --8<-- "pages/operating/snippets/ha_started_event.py:subscribe"
 ```
 
-The handler runs once per observed HA restart, after Hassette reports itself connected.
+The handler runs once per observed HA restart, always after Hassette reports itself connected. WebSocket Api calls such as `call_service` work inside it.
 
 ### What the logs show
 
@@ -74,11 +74,15 @@ What each call does while HA is unreachable:
 
 - **`self.states` reads** keep working. [`StateProxy`][hassette.core.state_proxy.StateProxy], Hassette's local cache of HA states, serves the last-known (stale) values. It raises [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] only if it has never synchronized.
 - **[Api][hassette.api.api.Api] calls that go over the WebSocket**, such as `call_service`, raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError].
-- **Api calls that go over REST**, such as `self.api.get_state()`, retry and then raise the underlying `aiohttp` client error.
+- **Api calls that go over REST**, such as `self.api.get_state()`, retry and then raise [`aiohttp.ClientError`](https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientError). An unreachable HA raises its subclass `ClientConnectorError`. An HA that accepts the connection but stops responding raises `TimeoutError` once `rest_request_timeout_seconds` expires, which is not an `aiohttp.ClientError`.
 
 Events during the gap are not replayed. At reconnect, the state cache is replaced with HA's current states, and no state-change events fire for what changed while disconnected. Edge-triggered logic, such as a handler waiting for `light.kitchen` to turn off, misses a transition that happened during the outage. Apps that must reconcile do it in a `hassette.event.websocket_connected` handler by reading current states.
 
-Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable.
+Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable. This handler skips one refresh when HA is unreachable over either transport:
+
+```python
+--8<-- "pages/operating/snippets/catch_ha_unreachable.py:catch"
+```
 
 The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. `websocket_connected` marks any reconnect. `homeassistant_started` marks an actual HA restart. The two connection events alternate, starting with connected. A connection that drops while it is being announced still produces both. Apps that need to pause or resume behavior based on HA reachability subscribe to these topics in `on_initialize` via [`on()`](../core-concepts/bus/methods.md), the generic topic subscription:
 
