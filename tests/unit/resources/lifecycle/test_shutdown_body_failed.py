@@ -10,7 +10,7 @@ from hassette.resources.base import Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from tests.support.mock_hassette import make_mock_hassette
 
-from .conftest import ShutdownCounter
+from .conftest import ShutdownCounter, shut_down_parent_with_child
 
 
 class CancelAwaitingParent(Resource):
@@ -28,13 +28,7 @@ async def test_cancelled_error_escaping_a_shutdown_hook_leaves_the_report_restar
     """A ``CancelledError`` from awaiting a task the hook cancelled aborts the body before child shutdown,
     and the report says work may still be running.
     """
-    hassette = make_mock_hassette(sealed=False)
-    parent = CancelAwaitingParent(hassette)
-    child = parent.add_child(ShutdownCounter)
-    await parent.initialize()
-    await child.initialize()
-
-    report = await parent.shutdown()
+    _parent, child, report = await shut_down_parent_with_child(CancelAwaitingParent, ShutdownCounter)
 
     assert TeardownCause.SHUTDOWN_BODY_FAILED in report.causes
     assert child.shutdown_count == 0, "the aborted body never reached child shutdown"
