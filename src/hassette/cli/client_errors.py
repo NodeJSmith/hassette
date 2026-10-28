@@ -139,10 +139,10 @@ class ErrorContext:
         """Print HTTP error and exit with code 1."""
         outcomes = None
         try:
-            body = response.json()
-            detail = body.get("detail", response.text)
+            problem = response.json()
+            detail = problem.get("detail", response.text)
             # An app action's problem body names what it did to each instance; --json passes that through.
-            outcomes = body.get("outcomes")
+            outcomes = problem.get("outcomes")
         except (ValueError, AttributeError):
             detail = response.text
 

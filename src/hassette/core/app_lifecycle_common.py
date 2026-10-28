@@ -45,6 +45,9 @@ CLEARED_FAILURE_REASON = "was not running; cleared its failure"
 """A stop's success reason for a target that held only a failure entry."""
 
 NO_OUTCOME_REASON = "no outcome was recorded"
+NOT_IN_CONFIG_REASON = "the index is no longer in the app's config"
+CLASS_LOAD_FAILED_PREFIX = "the app class failed to load: "
+BAD_CONFIGURATION_PREFIX = "bad configuration: "
 """A target's failure reason when nothing recorded an outcome for it and nothing raised."""
 
 STOP_FAILED_PREFIX = "the stop before it failed: "

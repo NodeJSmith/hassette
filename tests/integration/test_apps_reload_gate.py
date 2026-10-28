@@ -22,6 +22,7 @@ from tests.support.factories import make_change_set
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 MULTI_INSTANCE_APP_KEY = "multi_instance"
+STOP_TIMEOUT_REASON = "on_shutdown timed out"
 
 
 def multi_instance_manifest(app_config: list[dict] | None = None) -> AppManifest:
@@ -55,6 +56,25 @@ def summarize(outcomes: typing.Iterable[InstanceOutcome]) -> list[tuple[int, Out
 StopUnlocked = Callable[..., Awaitable[None]]
 
 
+async def stopped_app_summary(lifecycle: AppLifecycleService) -> list[tuple[int, OutcomeResult, bool, str | None]]:
+    """Stop the whole multi-instance app and ``summarize`` its outcomes."""
+    return summarize(await lifecycle.stop_app(MULTI_INSTANCE_APP_KEY))
+
+
+async def reloaded_instance_summary(
+    lifecycle: AppLifecycleService,
+) -> list[tuple[int, OutcomeResult, bool, str | None]]:
+    """Reload instance 0 of the multi-instance app and ``summarize`` its outcome."""
+    return summarize(await lifecycle.reload_instance(MULTI_INSTANCE_APP_KEY, 0))
+
+
+def fail_each_stop(lifecycle: AppLifecycleService, monkeypatch: pytest.MonkeyPatch, *, flags: bool) -> None:
+    """Make each per-index stop end failed with ``STOP_TIMEOUT_REASON`` (see ``stop_then_record``)."""
+    monkeypatch.setattr(
+        lifecycle, "_stop_instance_unlocked", stop_then_record(lifecycle, reason=STOP_TIMEOUT_REASON, flags=flags)
+    )
+
+
 def stop_then_record(lifecycle: AppLifecycleService, *, reason: str, flags: bool) -> StopUnlocked:
     """Wrap ``_stop_instance_unlocked`` so each stop ends failed with ``reason``, flagging the index when ``flags``.
 
@@ -70,6 +90,15 @@ def stop_then_record(lifecycle: AppLifecycleService, *, reason: str, flags: bool
         outcomes.failed(index, reason, needs_restart=flags)
 
     return stop
+
+
+async def record_nothing(*_args: object, **_kwargs: object) -> None:
+    """A ``shutdown_instances`` stand-in that tears nothing down and records no outcome."""
+
+
+async def blow_up(*_args: object, **_kwargs: object) -> None:
+    """A ``shutdown_instances`` stand-in whose teardown raises."""
+    raise RuntimeError("teardown blew up")
 
 
 @pytest.fixture
@@ -246,9 +275,7 @@ class TestActionOutcomes:
     ) -> None:
         await running.stop_instance(MULTI_INSTANCE_APP_KEY, 1)
 
-        outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
-
-        assert summarize(outcomes) == [
+        assert await stopped_app_summary(running) == [
             (0, OutcomeResult.SUCCEEDED, False, None),
             (1, OutcomeResult.SUCCEEDED, False, "already stopped"),
         ]
@@ -281,20 +308,13 @@ class TestActionOutcomes:
         assert (refused.instance_index, refused.result, refused.needs_restart) == (1, OutcomeResult.REFUSED, True)
         assert refused.reason == running.registry.refusal_reason(MULTI_INSTANCE_APP_KEY, 1)
 
-    async def test_stop_whose_teardown_records_nothing_fails_closed(self, running: AppLifecycleService) -> None:
+    async def test_stop_whose_teardown_records_nothing_fails_closed(
+        self, running: AppLifecycleService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Only a target untracked when the stop chose it is "already stopped"; a running one needs a record (D1)."""
+        monkeypatch.setattr(running, "shutdown_instances", record_nothing)
 
-        async def record_nothing(*_args: object, **_kwargs: object) -> None:
-            return None
-
-        orig_shutdown = running.shutdown_instances
-        running.shutdown_instances = record_nothing  # pyright: ignore[reportAttributeAccessIssue]
-        try:
-            outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
-        finally:
-            running.shutdown_instances = orig_shutdown
-
-        assert summarize(outcomes) == [
+        assert await stopped_app_summary(running) == [
             (0, OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
             (1, OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
         ]
@@ -310,39 +330,25 @@ class TestActionOutcomes:
 
         assert summarize(shared.snapshot()) == [(0, OutcomeResult.SUCCEEDED, False, None)]
 
-    async def test_per_index_stop_that_raises_fails_only_its_index(self, running: AppLifecycleService) -> None:
+    async def test_per_index_stop_that_raises_fails_only_its_index(
+        self, running: AppLifecycleService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A raising per-index stop over a shared collector never fails a sibling still stopping."""
         shared = running._outcomes_for(MULTI_INSTANCE_APP_KEY, [0, 1])
 
-        async def blow_up(*_args: object, **_kwargs: object) -> None:
-            raise RuntimeError("teardown blew up")
-
-        orig_shutdown = running.shutdown_instances
-        running.shutdown_instances = blow_up  # pyright: ignore[reportAttributeAccessIssue]
-        try:
-            async with running._get_app_key_lock(MULTI_INSTANCE_APP_KEY):
-                await running._stop_instance_unlocked(MULTI_INSTANCE_APP_KEY, 0, outcomes=shared)
-        finally:
-            running.shutdown_instances = orig_shutdown
+        monkeypatch.setattr(running, "shutdown_instances", blow_up)
+        async with running._get_app_key_lock(MULTI_INSTANCE_APP_KEY):
+            await running._stop_instance_unlocked(MULTI_INSTANCE_APP_KEY, 0, outcomes=shared)
 
         assert summarize(shared.snapshot()) == [(0, OutcomeResult.FAILED, False, "teardown blew up")]
 
     async def test_unexpected_raise_fails_every_target_with_its_message(
-        self, running: AppLifecycleService, caplog: pytest.LogCaptureFixture
+        self, running: AppLifecycleService, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """An exception escaping the stop body still leaves one outcome per target (spec 140 D5)."""
+        monkeypatch.setattr(running, "shutdown_instances", blow_up)
 
-        async def blow_up(*_args: object, **_kwargs: object) -> None:
-            raise RuntimeError("teardown blew up")
-
-        orig_shutdown = running.shutdown_instances
-        running.shutdown_instances = blow_up  # pyright: ignore[reportAttributeAccessIssue]
-        try:
-            outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
-        finally:
-            running.shutdown_instances = orig_shutdown
-
-        assert summarize(outcomes) == [
+        assert await stopped_app_summary(running) == [
             (0, OutcomeResult.FAILED, False, "teardown blew up"),
             (1, OutcomeResult.FAILED, False, "teardown blew up"),
         ]
@@ -350,41 +356,39 @@ class TestActionOutcomes:
             f"Failed to stop app {MULTI_INSTANCE_APP_KEY}:"
         ]
 
-    async def test_reload_after_a_restart_safe_stop_failure_reports_success(self, running: AppLifecycleService) -> None:
+    async def test_reload_after_a_restart_safe_stop_failure_reports_success(
+        self, running: AppLifecycleService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """The create half decides a reload's outcome; the stop failure before it stays in ``reason`` (spec 140 D6)."""
-        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=False)  # pyright: ignore[reportAttributeAccessIssue]
+        fail_each_stop(running, monkeypatch, flags=False)
 
-        outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
-
-        assert summarize(outcomes) == [
+        assert await reloaded_instance_summary(running) == [
             (0, OutcomeResult.SUCCEEDED, False, "the stop before it failed: on_shutdown timed out"),
         ]
         assert running.registry.get(MULTI_INSTANCE_APP_KEY, 0) is not None
 
     async def test_reload_whose_create_fails_after_a_stop_failure_keeps_both_reasons(
-        self, running: AppLifecycleService
+        self, running: AppLifecycleService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A failing create half still reports the stop failure before it (spec 140 D6)."""
-        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=False)  # pyright: ignore[reportAttributeAccessIssue]
+        fail_each_stop(running, monkeypatch, flags=False)
 
         async def create_fails(_app_key: str, index: int, *_args: object, outcomes: ActionOutcomes) -> None:
             outcomes.failed(index, "class failed to load")
 
-        running._create_instance_unlocked = create_fails  # pyright: ignore[reportAttributeAccessIssue]
+        monkeypatch.setattr(running, "_create_instance_unlocked", create_fails)
 
-        outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
-
-        assert summarize(outcomes) == [
+        assert await reloaded_instance_summary(running) == [
             (0, OutcomeResult.FAILED, False, "class failed to load; the stop before it failed: on_shutdown timed out"),
         ]
 
-    async def test_reload_whose_stop_flags_the_index_reports_that_failure(self, running: AppLifecycleService) -> None:
+    async def test_reload_whose_stop_flags_the_index_reports_that_failure(
+        self, running: AppLifecycleService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """The create half's refusal doesn't relabel a zombie this reload created (spec 140 D6)."""
-        running._stop_instance_unlocked = stop_then_record(running, reason="on_shutdown timed out", flags=True)  # pyright: ignore[reportAttributeAccessIssue]
+        fail_each_stop(running, monkeypatch, flags=True)
 
-        outcomes = await running.reload_instance(MULTI_INSTANCE_APP_KEY, 0)
-
-        assert summarize(outcomes) == [(0, OutcomeResult.FAILED, True, "on_shutdown timed out")]
+        assert await reloaded_instance_summary(running) == [(0, OutcomeResult.FAILED, True, "on_shutdown timed out")]
         assert running.registry.get(MULTI_INSTANCE_APP_KEY, 0) is None
 
     async def test_blocked_reload_carries_the_stop_outcomes(self, running: AppLifecycleService) -> None:

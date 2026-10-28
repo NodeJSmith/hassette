@@ -7,8 +7,11 @@ from logging import Logger
 from hassette.core.app_lifecycle_common import (
     ALREADY_RUNNING_REASON,
     ALREADY_STOPPED_REASON,
+    BAD_CONFIGURATION_PREFIX,
+    CLASS_LOAD_FAILED_PREFIX,
     CLEARED_FAILURE_REASON,
     FAILED,
+    NOT_IN_CONFIG_REASON,
     NOT_STARTED,
     STOPPED,
     ActionOutcomes,
@@ -35,7 +38,6 @@ if typing.TYPE_CHECKING:
     from hassette.schemas.app_outcomes import InstanceOutcome
     from hassette.schemas.app_snapshots import AppInstanceInfo
 
-NOT_IN_CONFIG_REASON = "the index is no longer in the app's config"
 """Failure ``reason`` for an instance action whose index a config change removed while the action waited."""
 
 
@@ -158,7 +160,7 @@ class AppStartStopMixin:
         # A no-op on the reload_app() path: _stop_app_unlocked() already removed every failed entry
         # for app_key before this runs, so there's nothing left to prune. This only ever does real
         # work for a standalone start_app() call.
-        valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
+        valid_index_count = len(self._configured_indices(app_manifest))
         await self._emit_discarded_entry_events(self.registry.prune_stale_failed_indices(app_key, valid_index_count))
 
         try:
@@ -170,11 +172,11 @@ class AppStartStopMixin:
             self.logger.error(
                 "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
             )
-            outcomes.fail_undecided(f"bad configuration: {failure_reason(exc)}")
+            outcomes.fail_undecided(f"{BAD_CONFIGURATION_PREFIX}{failure_reason(exc)}")
             return
         except Exception as exc:
             self.logger.error("Failed to load app class for '%s':\n%s", app_key, get_short_traceback())
-            outcomes.fail_undecided(f"the app class failed to load: {failure_reason(exc)}")
+            outcomes.fail_undecided(f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(exc)}")
             return
 
         # create_instances() records failures (config validation, class
@@ -266,7 +268,7 @@ class AppStartStopMixin:
         if not outcomes.indices:
             self.logger.warning("Cannot stop app %s, not found", app_key)
             return
-        self._record_untracked_stops(app_key, outcomes.indices, outcomes)
+        self._record_untracked_stops(app_key, outcomes.indices, outcomes=outcomes)
         try:
             instances = self.registry.get_running_apps(app_key)
             await self._discard_failed_indices(
@@ -277,9 +279,11 @@ class AppStartStopMixin:
         except Exception as exc:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
             outcomes.fail_undecided(failure_reason(exc))
-        self._refuse_flagged_stops(app_key, outcomes.indices, outcomes)
+        self._refuse_flagged_stops(app_key, outcomes.indices, outcomes=outcomes)
 
-    def _record_untracked_stops(self, app_key: str, indices: "typing.Iterable[int]", outcomes: ActionOutcomes) -> None:
+    def _record_untracked_stops(
+        self, app_key: str, indices: "typing.Iterable[int]", *, outcomes: ActionOutcomes
+    ) -> None:
         """Record each of ``indices`` the registry doesn't track as ``succeeded``, "already stopped" (spec 140 D1).
 
         Decided when the stop picks its targets, so a target its teardown never recorded fails at ``finish``
@@ -290,7 +294,7 @@ class AppStartStopMixin:
             if index not in tracked:
                 outcomes.succeeded(index, ALREADY_STOPPED_REASON)
 
-    def _refuse_flagged_stops(self, app_key: str, indices: "typing.Iterable[int]", outcomes: ActionOutcomes) -> None:
+    def _refuse_flagged_stops(self, app_key: str, indices: "typing.Iterable[int]", *, outcomes: ActionOutcomes) -> None:
         """Record each of ``indices`` flagged needs-restart as ``refused``, over whatever its teardown recorded.
 
         A flagged index's work may still be running, so a stop never reports it stopped (spec 140 D3). One this
@@ -374,7 +378,7 @@ class AppStartStopMixin:
         ``stop_instance`` doesn't use it: an out-of-range index it doesn't track has nothing to
         stop, and one it tracks is an orphan that must stay stoppable.
         """
-        valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
+        valid_index_count = len(self._configured_indices(app_manifest))
         if index < 0 or index >= valid_index_count:
             self.logger.debug(
                 "Instance %d of app %s is out of range (%d configured) — skipping",
@@ -443,7 +447,7 @@ class AppStartStopMixin:
         if app_class is None:
             load_error = self.factory.get_load_error(app_manifest)
             self.registry.record_failure(app_key, index, load_error)
-            outcomes.failed(index, f"the app class failed to load: {failure_reason(load_error)}")
+            outcomes.failed(index, f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(load_error)}")
             await self._emit_failure_event_if_present(app_key, index)
             return
 
@@ -497,7 +501,7 @@ class AppStartStopMixin:
         unguarded public ``stop_instance()`` (and ``_reload_instance_unlocked``, which calls
         this before creating the replacement) from letting a shutdown failure escape uncaught.
         """
-        self._record_untracked_stops(app_key, [index], outcomes)
+        self._record_untracked_stops(app_key, [index], outcomes=outcomes)
         try:
             inst = self.registry.get(app_key, index)
             if inst is None:
@@ -507,7 +511,7 @@ class AppStartStopMixin:
         except Exception as exc:
             self.logger.error("Failed to stop instance %d of app %s:\n%s", index, app_key, get_short_traceback())
             outcomes.fail_undecided(failure_reason(exc), [index])
-        self._refuse_flagged_stops(app_key, [index], outcomes)
+        self._refuse_flagged_stops(app_key, [index], outcomes=outcomes)
 
     async def reload_instance(
         self,

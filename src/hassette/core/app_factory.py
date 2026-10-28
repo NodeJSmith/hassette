@@ -10,7 +10,7 @@ from pydantic import AliasChoices, AliasPath
 from pydantic.fields import FieldInfo
 
 from hassette.app.app_config import AppConfig
-from hassette.core.app_lifecycle_common import ALREADY_RUNNING_REASON, failure_reason
+from hassette.core.app_lifecycle_common import ALREADY_RUNNING_REASON, CLASS_LOAD_FAILED_PREFIX, failure_reason
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.utils.app_utils import (
     class_already_loaded,
@@ -134,7 +134,7 @@ class AppFactory:
             load_error = self.get_load_error(manifest)
             self.registry.record_failure(app_key, to_create[0], load_error)
             for idx in to_create:
-                outcomes.failed(idx, f"the app class failed to load: {failure_reason(load_error)}")
+                outcomes.failed(idx, f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(load_error)}")
             return set()
 
         # Create only the indices in to_create: live and flagged ones were skipped above.
