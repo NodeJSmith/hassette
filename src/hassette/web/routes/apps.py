@@ -208,9 +208,10 @@ def _failed_target_instances(
 
     Scoped to ``instance_index`` when given (a single-instance action must not surface an
     unrelated sibling's failure); otherwise every instance for ``app_key``, matching a whole-app
-    action's blast radius. ``stop`` never matches here: a successful stop removes its target
-    entries from the registry entirely (``AppRegistry.unregister_app``), so there is nothing
-    left to find FAILED.
+    action's blast radius. A successful stop removes its target entries from the registry
+    (``AppRegistry.unregister_app``), but an index flagged needs-restart stays FAILED until
+    restart, so a stop or reload touching one matches here and answers ``ACTION_FAILED`` even
+    when the action itself succeeded. #3110 owns refusing actions on flagged indices.
 
     Not atomic with ``operation()``: the per-app-key lock in ``AppLifecycleService`` is released
     before this read, so a concurrent action against the same ``app_key`` can record or clear a

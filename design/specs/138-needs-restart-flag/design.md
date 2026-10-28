@@ -1,7 +1,7 @@
 # Design: Needs-Restart Flag After a Hook Timeout
 
 **Date:** 2026-10-27
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3109
 
@@ -347,13 +347,13 @@ Also accepting two rare cases:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
 - Failed-init logging: the init ERROR (with traceback) is always logged, and a second needs-restart ERROR only when the instance is flagged; they are two distinct facts, so a non-flagged failed init gets no extra ERROR.
 - `_create_instance_unlocked` detects a create failure by `registry.get(...) is None` instead of `_emit_failure_event_if_present`: the D4 resolver reports flagged indices as failed, which would otherwise leave a registered, uninitialized replacement at a flagged index.
-- A stop/reload targeting a flagged index returns ACTION_FAILED (500) from the web route, because `get_failed_instance_infos` includes flagged indices; consistent with D4's sticky FAILED.
+- A stop/reload of an app with a flagged index returns ACTION_FAILED (500) from the web route, because `get_failed_instance_infos` includes flagged indices. That holds even when the action succeeded, including a whole-app stop whose flagged index is a sibling. The ship-time challenge (Finding 2) left this for #3110, which refuses actions on flagged indices, over excluding pre-existing flags from the verdict now.
 - `NeedsRestartInfo.flagged_at` is a `ZonedDateTime` internally and becomes epoch seconds at the wire boundary (`NeedsRestartInfo.to_wire`), matching other wire timestamps.
 - The phantom path passes the real exception as its cause when the instance is still registered; the generic "Post-registration failure" message remains only when nothing is registered.
 - `WALK_AWAY_CLEANUP_TIMEOUT_SECONDS` = 5.0, the removed setting's default.
@@ -366,4 +366,5 @@ Also accepting two rare cases:
 - The `NeedsRestartInfo` → wire conversion is `NeedsRestartInfo.to_wire()` (`schemas/app_snapshots.py`), shared by the REST mappers and the WS dispatcher, so core doesn't import `web/`.
 - The failed-init docs snippet catches `BaseException`, so it also closes its resource when the startup timeout cancels `on_initialize` (a `CancelledError`, which `except Exception` misses).
 - UI evidence comes from a real flag, not a mocked state: the `stuck_demo` demo fixture (`scripts/demo_apps/`, `autostart = false`) fails its init after spawning a task that swallows cancellation, and `docs/screenshots.yml` captures `web_ui_needs_restart_badge.png` from it, embedded on `web-ui/manage-apps.md`.
+- PR title uses `feat!:` with one `BREAKING CHANGE:` footer at the end of the body (CLAUDE.md, Changelog): `lifecycle.failed_instance_cleanup_timeout_seconds` is removed and rejected at load, and `TeardownReport.is_restart_safe` now means "no work may still be running" (a report carrying only diagnostic causes is restart-safe).
 - `client_compat` passes unchanged: responses already carry `needs_restart: null` and `needs_restart_count: 0`, which the released client accepts; no ignore entry was needed.

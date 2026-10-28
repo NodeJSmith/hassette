@@ -196,8 +196,9 @@ export function instanceLiveNeedsRestart(
  *  exactly one is, so the row can show that instance's reason.
  *
  *  The count is the larger of the live flags over the row's cached instances and the server's
- *  `needs_restart_count`. Live can be higher when a WS event flagged an instance after the grid loaded;
- *  the server count can be higher when it covers indices the row doesn't list. A flag never clears
+ *  `needs_restart_count`, which counts the same instances. Live can be higher when a WS event flagged an
+ *  instance after the grid loaded; the server count can be higher when an instance's last WS event
+ *  predates its flag (a STOPPING event, say) and so shadows the fresher grid row. A flag never clears
  *  before restart, so neither side can be stale-high. */
 export function appNeedsRestart(
   appStatuses: Record<string, AppStatusEntry>,
