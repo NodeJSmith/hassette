@@ -4,18 +4,18 @@ Real issues found while building this feature and intentionally left unfixed.
 
 ## KI-001: A shutdown body that raised reads restart-safe
 
-Status: open
+Status: resolved — fixed in PR #3550 review (2026-10-28): `SHUTDOWN_BODY_FAILED` is in `WORK_MAY_RUN_CAUSES`. The deferral's premise didn't hold: a user `on_shutdown` that awaits a task it cancelled lets `CancelledError` escape and aborts the body before child shutdown (`tests/unit/resources/lifecycle/test_shutdown_body_failed.py`). See `design/research/2026-10-28-needs-restart-convergences/prior-art.md`.
 Recorded: 2026-10-27 (3109)
 Source: ship-challenge
-Reason not fixed now: accepted-limitation
+Reason not fixed now: accepted-limitation (at the time; since fixed, see Status)
 Affected files:
 - src/hassette/resources/teardown.py
 - src/hassette/resources/lifecycle.py
 
-Issue:
-When a resource's shutdown body itself raises or is cancelled outside the coordinator's own cancel path, the coordinator replaces the body's evidence with a bare `SHUTDOWN_BODY_FAILED` report (`pending_tasks` dropped). `SHUTDOWN_BODY_FAILED` isn't in `WORK_MAY_RUN_CAUSES`, so `is_restart_safe` is `True` and the instance is not flagged needs-restart, even though stages the body never reached may have left work running.
+Issue (as recorded, before the fix):
+When a resource's shutdown body itself raises or is cancelled outside the coordinator's own cancel path, the coordinator replaces the body's evidence with a bare `SHUTDOWN_BODY_FAILED` report (`pending_tasks` dropped). `SHUTDOWN_BODY_FAILED` wasn't in `WORK_MAY_RUN_CAUSES`, so `is_restart_safe` was `True` and the instance wasn't flagged needs-restart, even though stages the body never reached may have left work running.
 
-Why deferred:
+Why it was deferred:
 Only a framework bug in the shutdown body triggers it; no routine path does. Peers split: Home Assistant treats a raised unload as non-recoverable, while AppDaemon and Node-RED log the error and treat the item as stopped (`design/research/2026-10-27-needs-restart-ship-findings/prior-art.md`, Q1). The user chose the simpler behavior; the operating docs say such an error is logged but doesn't flag.
 
 Recommended follow-up:
@@ -130,3 +130,27 @@ If a client starts parsing it, add a docstring line saying it's display text, an
 
 Acceptance criteria:
 - `NeedsRestart.reason`'s docstring states it is display text.
+
+## KI-007: A flagged instance's pending tasks don't trigger the process-exit hard exit
+
+Status: open
+Recorded: 2026-10-28 (3109, PR #3550 review)
+Source: pr-review
+Reason not fixed now: deferred to #3395
+Affected files:
+- src/hassette/core/core.py
+- src/hassette/server.py
+- src/hassette/core/app_lifecycle_instances.py
+
+Issue:
+`hassette run` hard-exits only when `Hassette.force_terminated_work` is non-empty, and only deadline owners write to it. A flagged instance whose teardown finished with tasks still pending (a failed init, or a completed stop) is never recorded there, so at process exit a pending task that swallows cancellation can hold the interpreter until the supervisor kills it. The same list can also name work that finished long ago (134 sketch-challenge F7, accepted).
+
+Why deferred:
+Adding the flagged instance's task names as a fifth writer patches a list no peer keeps. Home Assistant core, AppDaemon and uvicorn derive survivors from `asyncio.all_tasks()` and non-daemon threads at exit, wait with a bound, and log what is left. That answers both this gap and F7, but it changes D19's ratified trigger and the exit path, so it belongs with #3395's outcome ("names of work still running"). The supervisor's kill is the backstop meanwhile, as it is for HA.
+
+Recommended follow-up:
+In #3395, replace the recorded list with a bounded check of live tasks and non-daemon threads at exit, and hard-exit only when something survives it.
+
+Acceptance criteria:
+- At process exit, a pending task left by a flagged instance either finishes within the bound or triggers the hard exit.
+- Work that finished before exit doesn't trigger the hard exit.
