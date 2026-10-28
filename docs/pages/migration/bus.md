@@ -58,7 +58,7 @@ await self.bus.on_state_change(
 
 After a once-listener fires, its name+topic key is released. A subsequent registration under the same name and topic is a fresh registration and does not raise.
 
-!!! note "Telemetry: the schema bump recreates the telemetry database"
+!!! note "Telemetry: the schema bump migrates the telemetry database in place"
     This release adds a `removed_at` column to the `listeners` table, which bumps the telemetry schema version. On first run after upgrade, Hassette applies the migration in place and existing telemetry rows are preserved. (The column shipped briefly under the name `cancelled_at` before a follow-up release renamed it — a terminology correction, not a behavioral change.) Querying the telemetry DB directly today: `removed_at` marks listeners torn down mid-session (an explicit `Subscription.cancel()`, an `if_exists="replace"`, or a once-listener firing), while `retired_at` marks listeners that were not re-registered after a restart — set by the startup reconciliation pass, not at removal time.
 
 ## The `name=` Requirement
@@ -81,7 +81,7 @@ This is the most common cause of breakage when porting AppDaemon apps. Add `name
 
 ## State Change Listeners
 
-AppDaemon uses `self.listen_state()` with a fixed four-argument callback signature. Hassette uses `self.bus.on_state_change()`, which is `async` and must be awaited. Handler signatures are flexible: instead of AppDaemon's fixed `(entity, attribute, old, new, kwargs)`, declare only the parameters the handler needs and give them type hints — Hassette reads the hints and passes the matching values in. This pattern is called dependency injection.
+AppDaemon uses `self.listen_state()` with a fixed five-argument callback signature. Hassette uses `self.bus.on_state_change()`, which is `async` and must be awaited. Handler signatures are flexible: instead of AppDaemon's fixed `(entity, attribute, old, new, kwargs)`, declare only the parameters the handler needs and give them type hints — Hassette reads the hints and passes the matching values in. This pattern is called dependency injection.
 
 === "AppDaemon"
 
@@ -207,7 +207,7 @@ All registration methods (`on_state_change`, `on_attribute_change`, `on_call_ser
 
 ## Verify the Migration
 
-Run `hassette listener --app <key>` to confirm each subscription registered under its `name=`, then trigger the entity and watch `hassette log --app <key>` for the handler's log line.
+With Hassette running, run [`hassette listener --app <key>`](../cli/commands.md#hassette-listener) to confirm each subscription registered under its `name=`. `<key>` is the app's name from its `[hassette.apps.<key>]` table in `hassette.toml`. Then trigger the entity and watch `hassette log --app <key>` for the handler's log line.
 
 ## See Also
 
