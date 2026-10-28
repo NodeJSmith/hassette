@@ -63,4 +63,6 @@ instance entry and its needs-restart record are combined; a flagged index can ou
 Does a new reader of per-instance state go through it (or `resolve_instance_infos()`) rather than
 reading the instance map directly, which drops flagged indices? And does every new FAILED outcome in
 `src/hassette/core/app_lifecycle_instances.py` whose `TeardownReport` is not restart-safe flag the
-index before the status event is sent?
+index before the status event is sent? Does a new path that creates an instance go through
+`AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,
+whose `AppRegistry.refusal_for` check keeps a replacement off a flagged index?

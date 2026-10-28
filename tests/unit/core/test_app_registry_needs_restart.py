@@ -139,3 +139,24 @@ class TestReaders:
         assert info.needs_restart_count == 1
         assert [i.instance_name for i in info.instances] == ["gone_app.0"]
         assert info.class_name == "MyApp"
+
+
+class TestRefusalFor:
+    def test_none_when_the_index_is_not_flagged(self, registry: AppRegistry) -> None:
+        flag(registry, index=1)
+
+        assert registry.refusal_for("my_app", 0) is None
+
+    def test_names_the_instance_its_coordinates_and_the_flag_and_says_to_restart(self, registry: AppRegistry) -> None:
+        flag(registry, reason="task t1 still pending")
+        record = registry.get_needs_restart("my_app", 0)
+        assert record is not None
+
+        refusal = registry.refusal_for("my_app", 0)
+
+        assert refusal is not None
+        assert "my_app.0" in refusal
+        assert "'my_app', index 0" in refusal
+        assert "task t1 still pending" in refusal
+        assert str(record.info.flagged_at) in refusal
+        assert "Restart hassette" in refusal

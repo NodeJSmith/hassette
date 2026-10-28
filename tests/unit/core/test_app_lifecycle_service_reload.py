@@ -628,3 +628,74 @@ class TestApplyChangesPerInstanceRestart:
         stubs.start_app_unlocked.assert_called_once_with("app_a", stubs.manifest, False)
         lifecycle_service._stop_instance_unlocked.assert_not_called()
         lifecycle_service._create_instance_unlocked.assert_not_called()
+
+
+class TestApplyChangesLockScope:
+    """apply_changes() decides each key under its own app-key lock and releases every lock exactly once."""
+
+    async def test_no_op_key_releases_its_lock_while_another_key_is_still_stopping(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """A key whose plan comes out empty doesn't hold its lock (and 409 HTTP actions) through the batch."""
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service._plan_reload = Mock(return_value=None)  # pyright: ignore[reportAttributeAccessIssue]
+        stop_entered = asyncio.Event()
+        release_stop = asyncio.Event()
+
+        async def gated_stop(_app_key: str) -> None:
+            stop_entered.set()
+            await release_stop.wait()
+
+        stubs.stop_app_unlocked.side_effect = gated_stop
+        changes = make_change_set(reimport_apps={"a_restarts"}, reload_apps={"b_no_op"})
+        task = asyncio.create_task(lifecycle_service.apply_changes(changes, {}, {}))
+
+        await asyncio.wait_for(stop_entered.wait(), timeout=1)
+        assert lifecycle_service._get_app_key_lock("a_restarts").busy
+        assert not lifecycle_service._get_app_key_lock("b_no_op").busy
+
+        release_stop.set()
+        await asyncio.wait_for(task, timeout=1)
+        assert not lifecycle_service._get_app_key_lock("a_restarts").busy
+
+    async def test_a_raising_decision_releases_its_own_lock_and_every_kept_lock(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """A decision that raises releases the lock it was decided under and the locks of earlier restarting
+        keys, and nothing is stopped.
+        """
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        lifecycle_service._plan_reload = Mock(side_effect=RuntimeError("bad plan"))  # pyright: ignore[reportAttributeAccessIssue]
+        changes = make_change_set(reimport_apps={"a_restarts"}, reload_apps={"b_raises"})
+
+        with pytest.raises(RuntimeError, match="bad plan"):
+            await lifecycle_service.apply_changes(changes, {}, {})
+
+        assert not lifecycle_service._get_app_key_lock("a_restarts").busy
+        assert not lifecycle_service._get_app_key_lock("b_raises").busy
+        stubs.stop_app_unlocked.assert_not_called()
+
+    async def test_cancellation_while_waiting_for_a_later_key_releases_the_kept_ones(
+        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    ) -> None:
+        """Cancelled while queued on a later key's lock, apply_changes releases the earlier keys it kept for
+        their restarts, and the contended lock is left to its holder.
+        """
+        stubs = stub_full_restarts(lifecycle_service, mock_registry)
+        lifecycle_service.should_auto_reconcile = Mock(return_value=True)
+        changes = make_change_set(reimport_apps={"a_restarts", "b_contended"})
+        contended = lifecycle_service._get_app_key_lock("b_contended")
+
+        async with contended:
+            task = asyncio.create_task(lifecycle_service.apply_changes(changes, {}, {}))
+            await wait_for(lambda: contended.claims == 2, desc="apply_changes queued on the second key")
+            assert lifecycle_service._get_app_key_lock("a_restarts").busy
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert not lifecycle_service._get_app_key_lock("a_restarts").busy
+
+        assert not contended.busy
+        stubs.stop_app_unlocked.assert_not_called()

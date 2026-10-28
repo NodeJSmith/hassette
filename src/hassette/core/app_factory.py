@@ -56,6 +56,8 @@ class AppFactory:
 
         Returns the set of indices that were actually created. Indices that already have a
         live registry entry are skipped — callers use this to initialize only the new instances.
+        Indices flagged as needing a hassette restart are skipped too, with one ERROR each. When no configured
+        index is left to create, the class isn't loaded.
 
         Args:
             app_key: The app key from configuration
@@ -73,13 +75,27 @@ class AppFactory:
         # failure-target selection only ever act on configured indices.
         live_indices = {idx for idx in range(len(app_configs)) if self.registry.get(app_key, idx) is not None}
 
+        # A flagged index's old instance may still be running work, so no replacement is created over it
+        # until hassette restarts. Its siblings are unaffected. When nothing is left to create (every index
+        # live or flagged), the class isn't loaded either, so a refused app is never re-imported and records
+        # no class-load failure.
+        to_create: list[int] = []
+        for idx in range(len(app_configs)):
+            if idx in live_indices:
+                self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
+                continue
+            if (refusal := self.registry.refusal_for(app_key, idx)) is not None:
+                self.logger.error(refusal)
+                continue
+            to_create.append(idx)
+        if not to_create:
+            return set()
+
         # A forced reload is unsafe to combine with any already-running instance of this
         # app_key: load_class() would reload the shared module/class before the per-index guard
         # below preserves the live instance, leaving it bound to the pre-reload class while any
         # newly created sibling gets the post-reload one -- two class versions serving one
-        # app_key at once. And when every instance is already live, the reload has no instance
-        # left to apply to, so it would just mutate the module/class cache for nothing.
-        # Unlike live_indices above, this check is NOT scoped to the current config's index
+        # app_key at once. Unlike live_indices above, this check is NOT scoped to the current config's index
         # range: prune_stale_failed_indices() (called by _start_app_unlocked() before this)
         # only prunes stale *failed* entries, never running ones, so a running orphan at an
         # index the config no longer covers (e.g. after a config shrink) can still be live here.
@@ -102,33 +118,24 @@ class AppFactory:
         if app_class is None:
             # Class loading failed — this affects every configured index (one shared class
             # serves all instances of this app_key), but we only ever record one representative
-            # failure. Record it against the first configured index that isn't already running,
-            # not always index 0: if index 0 is preserved from a prior successful start, blindly
+            # failure. Record it against the first configured index that is neither running nor
+            # flagged, not always index 0: if index 0 is preserved from a prior successful start, blindly
             # recording there would both overwrite its live entry and leave a genuinely-failed,
             # unstarted sibling index unreported (looking like an ordinary stopped index instead
-            # of FAILED). If every configured index already has a live entry, there's no
-            # unstarted index left to report against, so skip recording entirely.
-            load_error = self.get_load_error(manifest)
-            target_index = next((idx for idx in range(len(app_configs)) if idx not in live_indices), None)
-            if target_index is not None:
-                self.registry.record_failure(app_key, target_index, load_error)
+            # of FAILED).
+            self.registry.record_failure(app_key, to_create[0], self.get_load_error(manifest))
             return set()
 
-        # Create instances, skipping indices that already have a live registry entry.
-        # Without this guard, a second start_app() call silently overwrites running instances
+        # Create only the indices in to_create: live and flagged ones were skipped above.
+        # Without the live-index skip, a second start_app() call silently overwrites running instances
         # via register_app() (which replaces any prior entry at that index), orphaning the
         # originals' listeners, scheduler jobs, and tasks. Callers that want a fresh instance
         # should use reload_app(), which stops before recreating. A no-op on the reload_app()
         # path: _stop_app_unlocked() already removed all entries before create_instances() runs.
         # Mirrors the per-index guard in start_instance() (#1688).
-        created: set[int] = set()
-        for idx, config in enumerate(app_configs):
-            if idx in live_indices:
-                self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
-                continue
-            self.create_single_instance(app_key, manifest, idx, config, app_class)
-            created.add(idx)
-        return created
+        for idx in to_create:
+            self.create_single_instance(app_key, manifest, idx, app_configs[idx], app_class)
+        return set(to_create)
 
     def create_single_instance(
         self,

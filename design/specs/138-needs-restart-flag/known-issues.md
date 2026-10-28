@@ -65,6 +65,12 @@ The main trigger (a replacement over a flagged index) exists only until #3110 re
 Recommended follow-up:
 After #3110, re-check; if still reachable, take `status` from the D4 resolver whenever it returns a flag.
 
+Update (2026-10-28, #3110): still reachable, by a narrower trigger. #3110 refuses replacements over a flagged
+index, which removes the main trigger. But the STOPPING event an instance's stop sends before its teardown is
+dispatched to WS asynchronously, and `on_app_state_changed` reads the registry when it runs. When the teardown ends
+fast and flags the index first (a task left pending, with no hook slow enough to delay it), that STOPPING event
+carries the flag. The follow-up above still applies.
+
 Acceptance criteria:
 - A WS `app_status_changed` event never carries a non-null `needs_restart` with a status other than `failed`.
 

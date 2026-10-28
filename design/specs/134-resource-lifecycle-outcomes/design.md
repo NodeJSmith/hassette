@@ -981,3 +981,13 @@ machinery), #3113 (remaining duplicate guards), #3114 (`TaskBucket` subclassing 
 
 - **D18: a shutdown body that raised or was cancelled is incomplete evidence.** D18 listed raised bodies as diagnostic on the premise that a raised body has ended. It doesn't prove its work ended: the coordinator's `SHUTDOWN_BODY_FAILED` report replaces what the body's stages observed, and a user hook's escaping `CancelledError` aborts the body before task cancellation and child shutdown. `SHUTDOWN_BODY_FAILED` joins `WORK_MAY_RUN_CAUSES`. Keeping completed-stage evidence was rejected because #3395 replaces the evidence tree and no peer keeps one.
 - **D19: the hard-exit trigger's gap is deferred to #3395.** A flagged instance's pending tasks aren't recorded with `record_force_terminated()`. Peers derive survivors from live tasks and threads at exit instead of a recorded list, which would also answer the sketch challenge's F7. Recorded as 138 KI-007.
+
+**2026-10-28 — item 7 (#3110, spec 139).**
+
+- **D6 holds as written.** `apply_changes` decides each key under its app-key lock. A key whose plan comes out
+  empty releases its lock as soon as it is decided, and a key that restarts keeps it until the last replacement
+  is created. The issue body's departure (hold every lock through the batch) wasn't needed.
+- **D12: a refusal logs one ERROR on every path for now, including HTTP.** D12's "a refused path with no
+  response channel logs one ERROR" left an HTTP refusal as an unnamed 500 until #3111 gives refusals an outcome.
+  Until then the gate logs on every path and returns without raising; #3111 moves the log to the callers with no
+  response channel.

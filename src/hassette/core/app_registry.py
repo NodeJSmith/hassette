@@ -149,6 +149,25 @@ class AppRegistry:
         self.logger.debug("Flagged app '%s' index %d needs restart: %s", app_key, index, reason)
         return True
 
+    def get_needs_restart(self, app_key: str, index: int) -> NeedsRestartRecord | None:
+        """The needs-restart record at ``(app_key, index)``, or ``None`` when that index isn't flagged."""
+        return self._needs_restart.get(app_key, {}).get(index)
+
+    def refusal_for(self, app_key: str, index: int) -> str | None:
+        """The ERROR line for refusing a start or reload at a flagged ``(app_key, index)``, or ``None`` when unflagged.
+
+        Both instance-creating funnels (``AppFactory.create_instances`` and
+        ``AppLifecycleService._create_instance_unlocked``) log this, so a refusal reads the same on every path. It
+        carries the flag's reason and time, which match the ERROR logged when the index was flagged.
+        """
+        record = self.get_needs_restart(app_key, index)
+        if record is None:
+            return None
+        return (
+            f"Not starting {record.instance_name} (app {app_key!r}, index {index}): it was flagged as needing a "
+            f"hassette restart at {record.info.flagged_at} ({record.info.reason}). Restart hassette to run it again"
+        )
+
     def resolve_instance_info(
         self, app_key: str, index: int, manifest: "AppManifest | None" = None
     ) -> AppInstanceInfo | None:
@@ -162,7 +181,7 @@ class AppRegistry:
         """
         manifest = manifest or self._manifests.get(app_key)
         entry = self._instances.get(app_key, {}).get(index)
-        record = self._needs_restart.get(app_key, {}).get(index)
+        record = self.get_needs_restart(app_key, index)
         if record is None:
             return self._info_from_entry(app_key, index, entry, manifest) if entry is not None else None
 

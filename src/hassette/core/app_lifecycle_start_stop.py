@@ -316,14 +316,25 @@ class AppStartStopMixin:
         checks alone. Without this check, the web UI's per-instance Start button (and the CLI's
         ``app start --instance``) could start an instance the exclusive-app filter excluded.
 
-        Raises (rather than a silent no-op) so the web route and CLI surface an actionable
-        rejection instead of reporting success for a request nothing acted on — see
+        The blocked check raises (rather than a silent no-op) so the web route and CLI surface an
+        actionable rejection instead of reporting success for a request nothing acted on — see
         ``_start_app_unlocked``'s matching guard for the same reasoning. ``start_instance()``
         and ``_reload_instance_unlocked()``'s caller (``reload_instance()``) both special-case
         this exception to re-raise past their otherwise-swallowing try/except.
+
+        An index flagged as needing a hassette restart is the exception: it is refused with one ERROR and
+        returns without raising (see the check below for why).
         """
         if self.registry.is_blocked(app_key):
             raise AppBlockedError(f"App {app_key!r} is blocked by the --app filter")
+
+        # The old instance at a flagged index may still be running work, so no replacement is created over
+        # it. Checked before load_class(), so a refused index never re-imports the module or records a
+        # class-load failure over its flag. Logged rather than raised: every caller's except-Exception
+        # handler would log it a second time.
+        if (refusal := self.registry.refusal_for(app_key, index)) is not None:
+            self.logger.error(refusal)
+            return
 
         app_class = self.factory.load_class(app_key, app_manifest, force_reload)
         if app_class is None:

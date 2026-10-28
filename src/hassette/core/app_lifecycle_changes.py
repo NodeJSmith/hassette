@@ -105,16 +105,24 @@ class AppChangeReconcilerMixin:
             self.logger.debug("Stopping orphaned app %s", app_key)
             await self.stop_app(app_key)
 
-        restarts = [
-            AppRestart(app_key, force_reload=True) for app_key in changes.reimport_apps if self._should_restart(app_key)
-        ]
-        for app_key in changes.reload_apps:
-            if not self._should_restart(app_key):
-                continue
-            restart = self._plan_reload(app_key, original_config, current_config)
-            if restart is not None:
-                restarts.append(restart)
-        await self._restart_apps(restarts)
+        # Each key is decided under its own app-key lock: the decision reads registry state that a stop
+        # already holding the lock can change while this waits. A key with nothing to restart releases its
+        # lock as soon as it is decided; a key that restarts keeps it until the last replacement is
+        # created. Keys are taken in sorted order so two callers can't deadlock.
+        restarts: list[AppRestart] = []
+        async with AsyncExitStack() as held:
+            for app_key in sorted(changes.reimport_apps | changes.reload_apps):
+                # `decision` releases the key's lock on leaving the block (no-op plan, raise, cancellation)
+                # unless the lock is handed to `held` first, which then releases it after the restarts.
+                async with AsyncExitStack() as decision:
+                    await decision.enter_async_context(self._get_app_key_lock(app_key))
+                    restart = self._decide_restart(
+                        app_key, original_config, current_config, reimport=app_key in changes.reimport_apps
+                    )
+                    if restart is not None:
+                        restarts.append(restart)
+                        held.push_async_exit(decision.pop_all())
+            await self._restart_apps_unlocked(restarts)
 
         for app_key in changes.new_apps:
             if not self.should_autostart(app_key):
@@ -126,6 +134,25 @@ class AppChangeReconcilerMixin:
                 await self.start_app(app_key)
             except AppBlockedError:
                 self.logger.error("Skipping start of blocked app %s — this should not be reachable", app_key)
+
+    def _decide_restart(
+        self,
+        app_key: str,
+        original_config: dict[str, "AppManifest"],
+        current_config: dict[str, "AppManifest"],
+        *,
+        reimport: bool,
+    ) -> "AppRestart | None":
+        """Decide what one reimported or reloaded key needs: a restart, or None for nothing.
+
+        ``reimport`` is True for a key in ``reimport_apps`` and False for one in ``reload_apps``; the two buckets
+        are disjoint (``AppChangeDetector.detect_changes``). Caller must hold the key's lock.
+        """
+        if not self._should_restart(app_key):
+            return None
+        if reimport:
+            return AppRestart(app_key, force_reload=True)
+        return self._plan_reload(app_key, original_config, current_config)
 
     def _should_restart(self, app_key: str) -> bool:
         if self.should_auto_reconcile(app_key):
@@ -171,7 +198,7 @@ class AppChangeReconcilerMixin:
             return None
         return AppRestart(app_key, indices=changed)
 
-    async def _restart_apps(self, restarts: list["AppRestart"]) -> None:
+    async def _restart_apps_unlocked(self, restarts: list["AppRestart"]) -> None:
         """Stop every instance the restarts replace, then create every replacement.
 
         Bus/Scheduler owner registries are keyed by instance name, and a config change can hand a
@@ -180,20 +207,13 @@ class AppChangeReconcilerMixin:
         name is still running would let the old one's teardown remove the new one's registrations,
         so nothing is created until everything being replaced has stopped.
 
-        Every affected app-key lock is held across both phases, taken in sorted order so two
-        callers can't deadlock, and released only after the last replacement is created.
+        Caller must hold the app-key lock of every restart's key (``apply_changes`` takes them while
+        deciding the restarts, and ``asyncio.Lock`` is not reentrant).
         """
-        if not restarts:
-            return
-
-        async with AsyncExitStack() as stack:
-            for app_key in sorted({r.app_key for r in restarts}):
-                await stack.enter_async_context(self._get_app_key_lock(app_key))
-
-            for restart in restarts:
-                await self._stop_for_restart(restart)
-            for restart in restarts:
-                await self._start_for_restart(restart)
+        for restart in restarts:
+            await self._stop_for_restart(restart)
+        for restart in restarts:
+            await self._start_for_restart(restart)
 
     async def _stop_for_restart(self, restart: "AppRestart") -> None:
         # Both stop bodies catch and log their own failures, so one app's failed stop can't abort the batch.
@@ -205,7 +225,7 @@ class AppChangeReconcilerMixin:
         await asyncio.gather(*(self._stop_instance_unlocked(restart.app_key, idx) for idx in restart.indices))
 
     async def _start_for_restart(self, restart: "AppRestart") -> None:
-        # Re-resolved here, not when planned: the manifest can change while the locks were awaited.
+        # AppRestart carries only the key and indices, so the manifest is read from the registry here.
         app_key = restart.app_key
         app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
