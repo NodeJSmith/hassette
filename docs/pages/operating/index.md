@@ -44,6 +44,14 @@ HA reaches `RUNNING` within seconds of accepting connections. The Diagnostics pa
 
 The `homeassistant_started` event marks an actual HA restart. Hassette delivers it only when it observes HA starting: the event arrives while Hassette waits for `RUNNING`, or while Hassette is already connected. A connection that finds HA already `RUNNING` sees no such event. `hassette.event.websocket_connected` fires on every reconnect, including ones where HA never restarted.
 
+`Topic` has no member for this event, so apps pass its topic string to [`on()`](../core-concepts/bus/methods.md#ontopic) in `on_initialize`:
+
+```python
+--8<-- "pages/operating/snippets/ha_started_event.py:subscribe"
+```
+
+The handler runs once per observed HA restart, after Hassette reports itself connected.
+
 ### What the logs show
 
 An outage produces a handful of lines, not one per attempt:
@@ -78,6 +86,8 @@ The bus delivers `hassette.event.websocket_disconnected` when the connection dro
 --8<-- "pages/operating/snippets/ws_reconnect_events.py"
 ```
 
+The disconnect handler sets a flag that the app's other handlers check before acting. The connect handler clears it and reconciles. It reads the current `binary_sensor.front_door` state and turns off `light.porch` if the door is closed. Events missed during the outage are not replayed, so the handler acts on current state instead of waiting for the next change.
+
 Running apps keep reading the last-known states (marked stale) through an outage. Each Api call that fails while HA is down records an error in the telemetry database, so a long outage leaves a trail of failed invocations in the Handlers tab.
 
 !!! warning "`on_initialize` no longer reruns after an HA restart"
@@ -111,7 +121,7 @@ Job error (job_db_id=<id>, exec=<execution_id>)
 <traceback>
 ```
 
-Registered error handlers on subscriptions or scheduled jobs fire after Hassette logs the exception. `bus.on_error()` and `scheduler.on_error()` register an app-wide handler, and `on_error=` sets one per subscription or job. [Bus error handling](../core-concepts/bus/methods.md#error-handling) and [scheduler error handling](../core-concepts/scheduler/management.md#handle-errors) cover both forms. Error handlers are the right place for alerting integrations, recovery logic, or additional context recording. The error handler itself is subject to a timeout (`lifecycle.error_handler_timeout_seconds`, default 5s) and is not re-raised if it raises.
+Registered error handlers on subscriptions or scheduled jobs fire after Hassette logs the exception. `bus.on_error()` and `scheduler.on_error()` register an app-wide handler, and `on_error=` sets one per subscription or job. A bus error handler receives one argument, a [`BusErrorContext`][hassette.bus.error_context.BusErrorContext]. A scheduler error handler receives a [`SchedulerErrorContext`][hassette.scheduler.error_context.SchedulerErrorContext]. Both carry the exception and its formatted traceback. The bus context adds the topic, listener name, and event; the scheduler context adds the job name and arguments. [Bus error handling](../core-concepts/bus/methods.md#error-handling) and [scheduler error handling](../core-concepts/scheduler/management.md#handle-errors) list every field and show both registration forms. Error handlers are the right place for alerting integrations, recovery logic, or additional context recording. The error handler itself is subject to a timeout (`lifecycle.error_handler_timeout_seconds`, default 5s) and is not re-raised if it raises.
 
 ## Timeouts
 
@@ -122,7 +132,13 @@ Two global timeout defaults apply to all user code:
 
 Both default to 600 seconds. A handler or job that runs longer than its timeout is cancelled; the cancellation is recorded in telemetry and logged at WARNING.
 
-Individual subscriptions and jobs can override the global default:
+The first lives under `[hassette.lifecycle]` in `hassette.toml`, the second under `[hassette.scheduler]`:
+
+```toml
+--8<-- "pages/operating/snippets/global_timeouts.toml"
+```
+
+Individual subscriptions and jobs override the global default with `timeout=` or `timeout_disabled=True`, passed where the app registers them in `on_initialize`:
 
 ```python
 --8<-- "pages/operating/snippets/timeout_overrides.py:overrides"
@@ -171,7 +187,13 @@ Hassette starts its internal components — database, WebSocket connection, bus,
 | `total_shutdown_timeout_seconds` | 45s | The entire shutdown. Must be more than the foundation stage's fixed 20 seconds. |
 | `task_cancellation_timeout_seconds` | 5s | Waiting for cancelled tasks to finish before they are abandoned. |
 
-Apps that fetch external data or open slow connections in `on_initialize` are the common reason to raise `app_startup_timeout_seconds` — and `startup_timeout_seconds` with it. The shutdown ceilings matter on constrained hardware where cleanup runs slowly; raising them trades slower restarts for cleaner teardown.
+Apps that fetch external data or open slow connections in `on_initialize` are the common reason to raise `app_startup_timeout_seconds` — and `startup_timeout_seconds` with it:
+
+```toml
+--8<-- "pages/operating/snippets/lifecycle_timeouts.toml"
+```
+
+The [`LifecycleConfig`][hassette.config.models.LifecycleConfig] API reference lists every `[hassette.lifecycle]` field with its default. The shutdown ceilings matter on constrained hardware where cleanup runs slowly; raising them trades slower restarts for cleaner teardown.
 
 ### How shutdown is bounded
 
@@ -227,5 +249,13 @@ A job that fires more than `scheduler.behind_schedule_threshold_seconds` (defaul
 ## Database Degraded Mode
 
 When the telemetry database is unavailable at startup or becomes unreachable at runtime, Hassette continues operating normally. Apps run, handlers fire, and the scheduler works as expected. Telemetry records are silently dropped rather than blocking execution. The monitoring UI shows zero counts for invocations and logs.
+
+Three signals show that the database is degraded:
+
+- **Logs.** Each failed database health check logs an ERROR such as `Failed to update heartbeat with no write progress since the previous attempt (failure 1/3)`.
+- **Telemetry status.** `/api/telemetry/status` returns HTTP 503 with `{"degraded": true}`, and `hassette telemetry` reports the same. The `status` field of `/api/health` ignores the database, so database monitoring polls this endpoint instead.
+- **Web UI.** The status bar shows a degraded indicator, and the Diagnostics page shows a [telemetry panel](../web-ui/diagnostics.md#telemetry-health) with a degraded banner.
+
+[Degraded Mode](../core-concepts/database-telemetry.md#degraded-mode) covers the causes and the recovery steps.
 
 For details on retention, migrations, and the telemetry schema, see [Database & Telemetry](../core-concepts/database-telemetry.md).

@@ -28,7 +28,7 @@ The `image:` line pulls Hassette from GitHub Container Registry (`ghcr.io`) — 
 - `./config` mounts your local config directory into the container as `/config`. It holds `hassette.toml`, `.env`, and your apps in `config/apps/`.
 - `data` and `uv_cache` are named volumes for persistent data and the package cache. Docker Compose creates them automatically — no action needed.
 
-Port `8126` exposes the web UI. Hassette requires a credential for it — on first start it generates one and logs it (see Step 4). Add `HASSETTE__TIMEZONE=America/Chicago` (with your own timezone) to `config/.env` so scheduled automations fire at the right times. The `TZ` environment variable on the container works as a fallback.
+Port `8126` exposes the web UI. Hassette requires a credential for it — on first start it generates one and logs it (see Step 4).
 
 ### Step 3: Create config/.env
 
@@ -37,6 +37,8 @@ Port `8126` exposes the web UI. Hassette requires a credential for it — on fir
 ```
 
 Replace `your_long_lived_access_token_here` with your token. Set `HASSETTE__BASE_URL` to your Home Assistant's address, like `http://192.168.1.100:8123` — when in doubt, use the IP address. The container-name form (`http://homeassistant:8123`) only works when HA also runs in Docker on the same Docker network.
+
+Set `HASSETTE__TIMEZONE` to your own timezone so scheduled automations fire at the right times. The container's `TZ` variable only works as a fallback.
 
 The `__` double underscore is how Hassette maps environment variables to nested settings — `HASSETTE__TOKEN` sets `token`. Hassette reads `/config/.env` automatically on startup; you do not need an `env_file:` directive in the compose file.
 

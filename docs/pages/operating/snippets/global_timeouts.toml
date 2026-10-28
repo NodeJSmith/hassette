@@ -1,0 +1,5 @@
+[hassette.lifecycle]
+event_handler_timeout_seconds = 300
+
+[hassette.scheduler]
+job_timeout_seconds = 900
