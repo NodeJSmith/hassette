@@ -586,7 +586,6 @@ describe("AppTableRow", () => {
     it("puts a single-instance app's flag and reason on the app row", () => {
       const app = createAppRow({
         status: "failed",
-        needs_restart_count: 1,
         instances: [createInstance({ app_key: "my_app", status: "failed", needs_restart: flag })],
       });
       const { getByTestId } = renderRow({ app });
@@ -607,7 +606,6 @@ describe("AppTableRow", () => {
     it("gives a multi-instance app row the reason when exactly one instance is flagged", () => {
       const app = createAppRow({
         instance_count: 2,
-        needs_restart_count: 1,
         instances: [
           createInstance({ app_key: "my_app", index: 0, instance_name: "my_app[0]" }),
           createInstance({
@@ -628,7 +626,6 @@ describe("AppTableRow", () => {
     it("counts flagged instances on a multi-instance app row and badges each flagged instance row", () => {
       const app = createAppRow({
         instance_count: 2,
-        needs_restart_count: 1,
         instances: [
           createInstance({ app_key: "my_app", index: 0, instance_name: "my_app[0]" }),
           createInstance({

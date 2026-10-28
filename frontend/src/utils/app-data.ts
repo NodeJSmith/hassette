@@ -192,36 +192,31 @@ export function instanceLiveError(
   return entry ? entry.exception : inst.error_message;
 }
 
-/** Resolve the live needs-restart flag for a single instance. As with `instanceLiveError`, a seen
- *  WS `app_status_changed` event is authoritative for its index; otherwise the cached row's flag is. */
+/** Resolve the live needs-restart flag for a single instance: the latest WS `app_status_changed` event's
+ *  flag, else the cached row's. A flag never clears before restart, so a WS entry with no flag (a STOPPING
+ *  event sent before the flag was set, say) doesn't hide the cached one. */
 export function instanceLiveNeedsRestart(
   appStatuses: Record<string, AppStatusEntry>,
   appKey: string,
   inst: { index: number; needs_restart?: NeedsRestart | null },
 ): NeedsRestart | null {
   const entry = appStatuses[appStatusKey(appKey, inst.index)];
-  return (entry ? entry.needs_restart : inst.needs_restart) ?? null;
+  return entry?.needs_restart ?? inst.needs_restart ?? null;
 }
 
 /** An app's needs-restart summary for its row: how many instances are flagged, and the flag itself when
- *  exactly one is, so the row can show that instance's reason.
- *
- *  The count is the larger of the live flags over the row's instances (the cached ones, plus any only a
- *  WS event has reported, as in `appLiveStatus`) and the server's `needs_restart_count`, which counts the
- *  cached ones. Live can be higher when a WS event flagged an instance after the grid loaded; the server
- *  count can be higher when an instance's last WS event predates its flag (a STOPPING event, say) and so
- *  shadows the fresher grid row. A flag never clears before restart, so neither side can be stale-high. */
+ *  exactly one is, so the row can show that instance's reason. Counts the row's cached instances plus any
+ *  only a WS event has reported, as in `appLiveStatus`. */
 export function appNeedsRestart(
   appStatuses: Record<string, AppStatusEntry>,
-  row: Pick<AppRow, "app_key" | "instances" | "needs_restart_count">,
+  row: Pick<AppRow, "app_key" | "instances">,
 ): { count: number; flag: NeedsRestart | null } {
   const flags = [...liveIndices(appStatuses, row.app_key, row.instances)].flatMap((index) => {
     const cached = row.instances.find((inst) => inst.index === index);
     const flag = instanceLiveNeedsRestart(appStatuses, row.app_key, { index, needs_restart: cached?.needs_restart });
     return flag ? [flag] : [];
   });
-  const count = Math.max(flags.length, row.needs_restart_count ?? 0);
-  return { count, flag: count === 1 && flags.length === 1 ? flags[0] : null };
+  return { count: flags.length, flag: flags.length === 1 ? flags[0] : null };
 }
 
 function hasError(row: AppRow): boolean {
