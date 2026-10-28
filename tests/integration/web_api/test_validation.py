@@ -183,7 +183,7 @@ class TestAppKeyValidation:
     async def test_valid_app_key_accepted(self, client: "AsyncClient", app_key: str) -> None:
         """app_key forms the regex permits are accepted (1 letter + up to 127 more)."""
         response = await client.post(f"/api/apps/{app_key}/start")
-        assert response.status_code == 202
+        assert response.status_code == 200
 
 
 class TestLimitParameterValidation:

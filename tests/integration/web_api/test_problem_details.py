@@ -21,12 +21,12 @@ from hassette_wire import MAX_SESSION_TOKEN_LENGTH
 from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, JobRemovedError
+from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.web.app import create_fastapi_app
 from hassette.web.body_limit import MAX_REQUEST_BODY_BYTES
 from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, get_runtime
 from hassette.web.errors import GLOBAL_CODES, PROBLEM_CODES_KEY
 from tests.integration.conftest import make_manifest_mock
-from tests.support.web_manifest_helpers import make_app_instance_info
 
 from .conftest import APP_GRID_PATH, APPS_PATH, AUTH_SESSION_PATH, telemetry_error
 
@@ -134,18 +134,25 @@ class ProblemCase:
     """OpenAPI path template whose `x-problem-codes` must list `code`; None for global codes."""
     arrange: Arrange | None = None
     request: dict[str, Any] = field(default_factory=dict)
+    outcomes: list[dict[str, Any]] | None = None
+    """The body's ``outcomes`` member, for an app action that acted on an instance."""
 
 
-def assert_problem(response: Response, *, status: int, code: str, detail: str) -> None:
+def assert_problem(
+    response: Response, *, status: int, code: str, detail: str, outcomes: list[dict[str, Any]] | None = None
+) -> None:
     assert response.status_code == status, response.text
     assert response.headers["content-type"] == PROBLEM_CONTENT_TYPE
-    assert response.json() == {
+    expected: dict[str, Any] = {
         "type": "about:blank",
         "title": TITLES[status],
         "status": status,
         "detail": detail,
         "code": code,
     }
+    if outcomes is not None:
+        expected["outcomes"] = outcomes
+    assert response.json() == expected
 
 
 def declared_codes(app: FastAPI, operation: str, method: str, status: int) -> list[str]:
@@ -175,11 +182,30 @@ def action_in_progress(mock_hassette: MagicMock, tmp_path: Path) -> None:
     mock_hassette.app_handler.is_action_in_progress = MagicMock(return_value=True)
 
 
-def instance_ends_failed(mock_hassette: MagicMock, tmp_path: Path) -> None:
-    single_instance_app(mock_hassette, tmp_path)
-    mock_hassette._app_handler.registry.get_failed_instance_infos.return_value = {
-        0: make_app_instance_info(app_key="my_app", error_message="on_initialize blew up")
-    }
+def returning(handler_method: str, result: OutcomeResult, reason: str, *, needs_restart: bool = False) -> Arrange:
+    """Make ``handler_method`` report instance 0 of ``my_app`` with ``result``."""
+
+    def arrange(mock_hassette: MagicMock, tmp_path: Path) -> None:
+        single_instance_app(mock_hassette, tmp_path)
+        outcome = InstanceOutcome(
+            instance_index=0, instance_name="my_app", result=result, needs_restart=needs_restart, reason=reason
+        )
+        setattr(mock_hassette.app_handler, handler_method, AsyncMock(return_value=(outcome,)))
+
+    return arrange
+
+
+def wire_outcome(result: str, reason: str, *, needs_restart: bool = False) -> list[dict[str, Any]]:
+    """The ``outcomes`` member ``returning`` produces on the wire."""
+    return [
+        {
+            "instance_index": 0,
+            "instance_name": "my_app",
+            "result": result,
+            "needs_restart": needs_restart,
+            "reason": reason,
+        }
+    ]
 
 
 def source_at(make_path: Callable[[Path], Any], *, write: bytes | None = None) -> Arrange:
@@ -281,23 +307,27 @@ ROUTE_CASES = {
         operation="/api/apps/{app_key}/stop",
         arrange=action_in_progress,
     ),
-    "app-action-raises": ProblemCase(
+    "app-action-needs-restart": ProblemCase(
         "POST",
         "/api/apps/my_app/stop",
-        500,
-        "action_failed",
-        "Failed to stop app 'my_app'",
+        409,
+        "needs_restart",
+        "'my_app' needs a hassette restart (flagged at 12:00: hung)",
         operation="/api/apps/{app_key}/stop",
-        arrange=raising("stop_app", RuntimeError("boom")),
+        arrange=returning(
+            "stop_app", OutcomeResult.REFUSED, "needs a hassette restart (flagged at 12:00: hung)", needs_restart=True
+        ),
+        outcomes=wire_outcome("refused", "needs a hassette restart (flagged at 12:00: hung)", needs_restart=True),
     ),
     "app-action-instance-failed": ProblemCase(
         "POST",
         "/api/apps/my_app/start",
         500,
         "action_failed",
-        "on_initialize blew up",
+        "'my_app' failed: on_initialize blew up",
         operation="/api/apps/{app_key}/start",
-        arrange=instance_ends_failed,
+        arrange=returning("start_app", OutcomeResult.FAILED, "on_initialize blew up"),
+        outcomes=wire_outcome("failed", "on_initialize blew up"),
     ),
     # POST /api/apps/{app_key}/instances/{index}/start, /stop, /reload
     "instance-invalid-key": ProblemCase(
@@ -358,9 +388,10 @@ ROUTE_CASES = {
         "/api/apps/my_app/instances/0/stop",
         500,
         "action_failed",
-        "Failed to stop app 'my_app'",
+        "'my_app' failed: stop timed out",
         operation="/api/apps/{app_key}/instances/{index}/stop",
-        arrange=raising("stop_instance", ValueError("boom")),
+        arrange=returning("stop_instance", OutcomeResult.FAILED, "stop timed out"),
+        outcomes=wire_outcome("failed", "stop timed out"),
     ),
     # GET /api/apps/{app_key}
     "manifest-invalid-key": ProblemCase(
@@ -594,7 +625,7 @@ async def test_error_is_problem_body(
 
     response = await client.request(case.method, case.path, **case.request)
 
-    assert_problem(response, status=case.status, code=case.code, detail=case.detail)
+    assert_problem(response, status=case.status, code=case.code, detail=case.detail, outcomes=case.outcomes)
     assert TOKEN_SENTINEL not in response.text
     if case.operation is not None:
         assert case.code not in GLOBAL_CODES

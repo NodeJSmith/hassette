@@ -38,7 +38,7 @@ def job_summary_body(**overrides: Any) -> dict[str, Any]:
 
 
 def action_body(**overrides: Any) -> dict[str, Any]:
-    return {"app_key": "lights", "action": "start", "instance_index": None} | overrides
+    return {"app_key": "lights", "action": "start", "instance_index": None, "outcomes": []} | overrides
 
 
 def app_list_body(status_counts: dict[str, int]) -> dict[str, Any]:

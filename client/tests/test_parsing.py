@@ -209,7 +209,6 @@ async def test_empty_liveness_body_isnt_live(client: HassetteClient, server: Fak
     ("call", "body"),
     [
         ("get_liveness", {"status": "draining"}),
-        ("action", {"status": "queued", "app_key": "a", "action": "start", "instance_index": None}),
         ("trigger_job", {"status": "queued", "job_id": 1, "job_name": "j"}),
     ],
 )
@@ -220,10 +219,25 @@ async def test_new_status_value_from_a_newer_server_is_tolerated(
     server.respond(200, body)
     calls = {
         "get_liveness": client.get_liveness,
-        "action": lambda: client.action("a", "start"),
         "trigger_job": lambda: client.trigger_job(1),
     }
 
     response = await calls[call]()
 
     assert isinstance(response.status, UnknownValue)
+
+
+async def test_new_outcome_result_from_a_newer_server_is_tolerated(client: HassetteClient, server: FakeServer) -> None:
+    """The action already ran when its outcomes parse, so a result value this client doesn't know can't fail it."""
+    outcome = {
+        "instance_index": 0,
+        "instance_name": "hall",
+        "result": "skipped",
+        "needs_restart": False,
+        "reason": None,
+    }
+    server.respond(200, {"app_key": "a", "action": "start", "instance_index": None, "outcomes": [outcome]})
+
+    response = await client.action("a", "start")
+
+    assert isinstance(response.outcomes[0].result, UnknownValue)

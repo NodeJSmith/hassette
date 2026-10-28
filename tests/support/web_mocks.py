@@ -17,6 +17,7 @@ from hassette_wire import BlockingFindingsResponse, ResourceStatus, Unattributed
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.state_proxy_sync import StateCacheFreshness
+from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.summary_models import AppHealthAggregates
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
@@ -257,12 +258,6 @@ def wire_app_handler(
     # The DB-only branch also asks the registry for needs-restart records; no app has one here.
     registry.build_orphaned_flag_info = MagicMock(return_value=None)
 
-    # _failed_target_instances() (web/routes/apps.py) reads this after every start/reload to
-    # detect a swallowed failure -- a bare MagicMock return value is truthy and non-empty when
-    # iterated, which would make every start/reload/instance-action test hit the 500 path.
-    # Tests exercising that path replace `registry` with a real AppRegistry.
-    registry.get_failed_instance_infos = MagicMock(return_value={})
-
     # _run_app_action() rejects an action with 409 while this is truthy, which a bare MagicMock is.
     handler.is_action_in_progress = MagicMock(return_value=False)
 
@@ -270,12 +265,11 @@ def wire_app_handler(
     handler.get_status_snapshot.return_value = old_snapshot if old_snapshot is not None else AppStatusSnapshot()
 
     if app_action_mocks:
-        handler.start_app = AsyncMock()
-        handler.stop_app = AsyncMock()
-        handler.reload_app = AsyncMock()
-        handler.start_instance = AsyncMock()
-        handler.stop_instance = AsyncMock()
-        handler.reload_instance = AsyncMock()
+        # Each action reports one succeeded instance, so the route answers 200. Tests of the
+        # 409/500 mapping set their own return value.
+        succeeded = (InstanceOutcome(instance_index=0, instance_name="instance_0", result=OutcomeResult.SUCCEEDED),)
+        for name in ("start_app", "stop_app", "reload_app", "start_instance", "stop_instance", "reload_instance"):
+            setattr(handler, name, AsyncMock(return_value=succeeded))
 
 
 def wire_bus_and_scheduler(hassette: MagicMock, *, scheduler_jobs: list[Any] | None) -> None:

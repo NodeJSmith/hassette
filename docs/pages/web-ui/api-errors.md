@@ -21,8 +21,9 @@ Every error response from the web API (paths under `/api`) is an [RFC 9457](http
 | `status` | The HTTP status code, repeated from the response. |
 | `detail` | A human-readable explanation of this failure. Clients display it and don't parse it. |
 | `code` | The machine-readable reason. One of the codes below. |
+| `outcomes` | Only on an error from an app action that acted on at least one instance: what the action did to each instance. See [App action outcomes](#app-action-outcomes). |
 
-A body carries these five members and no others. Headers such as `Allow` on a `405` and `X-Max-Body-Bytes` on a `413` still arrive on the response.
+A body carries these members and no others. Headers such as `Allow` on a `405` and `X-Max-Body-Bytes` on a `413` still arrive on the response.
 
 ## Endpoint codes
 
@@ -36,7 +37,8 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `bootstrap_not_released` | 409 | App bootstrap prerequisites aren't ready yet. Retry the start or reload later. |
 | `app_blocked` | 409 | The `--app` filter excludes this app. Retrying won't help until the filter changes. |
 | `action_in_progress` | 409 | Another start, stop, or reload on this app is still running, so this one was rejected without running. |
-| `action_failed` | 500 | A start, stop, or reload ran but failed, or left a targeted instance failed. `detail` carries the failure message. |
+| `needs_restart` | 409 | A targeted instance needs a Hassette restart, so the start, stop, or reload did nothing to it. Retrying won't help until Hassette restarts. |
+| `action_failed` | 500 | A start, stop, or reload failed on at least one targeted instance. `detail` names each one with its failure. |
 | `telemetry_unavailable` | 503 | The telemetry database could not be read. |
 | `source_not_found` | 404 | The app's source file doesn't exist. |
 | `path_traversal` | 403 | The app's source path resolves outside its app directory. |
@@ -44,7 +46,45 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `invalid_token` | 401 | The token sent to `POST /api/auth/session` is wrong. |
 | `job_not_registered` | 409 | The scheduled job has no live registration: never registered, or removed since the caller saw it. |
 
-The three `409` codes on the app action endpoints (`POST /api/apps/{app_key}/start` and the others) mean different things. `bootstrap_not_released` clears on its own once Hassette finishes connecting, so a retry succeeds. `app_blocked` does not clear until the `--app` filter changes. `action_in_progress` means Hassette is still working on an earlier action for the same app, such as a reload whose request timed out on the client side. Hassette rejects the new action instead of queuing it. Once the app's status shows the earlier action has finished, the same request succeeds.
+The four `409` codes on the app action endpoints (`POST /api/apps/{app_key}/start` and the others) mean different things. `bootstrap_not_released` clears on its own once Hassette finishes connecting, so a retry succeeds. `app_blocked` does not clear until the `--app` filter changes. `needs_restart` does not clear until Hassette restarts. `action_in_progress` means Hassette is still working on an earlier action for the same app, such as a reload whose request timed out on the client side. Hassette rejects the new action instead of queuing it. Once the app's status shows the earlier action has finished, the same request succeeds.
+
+## App action outcomes
+
+An app action (`POST /api/apps/{app_key}/start`, `/stop`, `/reload`, and the per-instance `/instances/{index}/...` forms) finishes before it answers, and reports what it did to each instance it targeted. A whole-app action targets every configured instance, and a stop also targets any instance still running outside the current config. Each entry in `outcomes` has these members:
+
+| Member | Contents |
+|---|---|
+| `instance_index` | The instance's index in the app's config. |
+| `instance_name` | The instance's name. |
+| `result` | `succeeded`, `failed`, or `refused`. |
+| `needs_restart` | Whether the instance needs a Hassette restart after this action. |
+| `reason` | The failure or refusal. On a success, a note when there was nothing to do (`already running`, `already stopped`), otherwise `null`. |
+
+`refused` means the instance needs a Hassette restart from an earlier action: its last shutdown left work that may still be running, so Hassette doesn't start, stop, or reload it again. An instance this action left needing a restart is `failed` with `needs_restart` set.
+
+The worst outcome sets the response:
+
+- Any `failed` instance: `500` `action_failed`.
+- Otherwise, any `refused` instance: `409` `needs_restart`.
+- Otherwise: `200`, with `outcomes` in the `ActionResponse` body.
+
+So a whole-app action that worked on two instances and failed on a third answers `500`, and its `outcomes` still shows the two that worked. On an error, `detail` names each instance that didn't succeed, with its reason, after a count of how many did:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Stopped 1 of 2 instances of app 'lights'; 'porch' needs a hassette restart (flagged at 2024-01-01T12:00:00-06:00[America/Chicago]: on_shutdown timed out)",
+  "code": "needs_restart",
+  "outcomes": [
+    {"instance_index": 0, "instance_name": "hall", "result": "succeeded", "needs_restart": false, "reason": null},
+    {"instance_index": 1, "instance_name": "porch", "result": "refused", "needs_restart": true, "reason": "needs a hassette restart (flagged at 2024-01-01T12:00:00-06:00[America/Chicago]: on_shutdown timed out)"}
+  ]
+}
+```
+
+A reload of an app the `--app` filter blocks stops the app before it is refused, so its `app_blocked` body carries the stop's `outcomes`. So does an `app_not_found` from a reload whose app left the config while it ran. Every other error from these endpoints is answered before any instance is touched, and has no `outcomes`.
 
 ## Codes any endpoint can return
 

@@ -329,7 +329,7 @@ class TestMutationSuccessLogging:
                 resp = await client.post(
                     "/api/apps/my_app/start", headers={"Authorization": f"Bearer {WEB_API_TEST_TOKEN}"}
                 )
-                assert resp.status_code == 202
+                assert resp.status_code == 200
 
                 info_records = [r for r in caplog.records if "Started app" in r.getMessage()]
                 assert len(info_records) == 1

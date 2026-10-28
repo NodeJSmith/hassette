@@ -187,7 +187,7 @@ async def test_request_body_is_sent_as_json(client: HassetteClient, server: Fake
 async def test_action_routes_by_instance(
     client: HassetteClient, server: FakeServer, instance: int | None, expected_path: str
 ) -> None:
-    server.respond(202, {"app_key": "my_app", "action": "reload", "instance_index": instance})
+    server.respond(200, {"app_key": "my_app", "action": "reload", "instance_index": instance, "outcomes": []})
 
     response = await client.action("my_app", "reload", instance=instance)
 

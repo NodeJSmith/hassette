@@ -8,11 +8,12 @@ from pathlib import Path
 import pytest
 
 from hassette.config.classes import AppManifest
+from hassette.core.app_lifecycle_common import ActionOutcomes
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
+from hassette.schemas.app_outcomes import OutcomeResult
 from hassette.testing import HassetteHarness, wait_for
 from tests.support.factories import make_change_set
-from tests.support.outcomes import AnyIndexOutcomes
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 MULTI_INSTANCE_APP_KEY = "multi_instance"
@@ -78,7 +79,9 @@ class TestReloadLockAndNeedsRestartGate:
                 )
             )
             await wait_for(lambda: lock.claims == 2, desc="config change queued on the app-key lock")
-            await lifecycle._stop_app_unlocked(app_key, outcomes=AnyIndexOutcomes())
+            await lifecycle._stop_app_unlocked(
+                app_key, outcomes=lifecycle._outcomes_for(app_key, lifecycle._stop_targets(app_key))
+            )
         await asyncio.wait_for(task, timeout=2)
 
         assert lifecycle.registry.get_running_apps(app_key) == {}
@@ -103,8 +106,8 @@ class TestReloadLockAndNeedsRestartGate:
 
         orig_stop = lifecycle._stop_instance_unlocked
 
-        async def stop_that_leaves_work_running(app_key: str, index: int) -> None:
-            await orig_stop(app_key, index)
+        async def stop_that_leaves_work_running(app_key: str, index: int, *, outcomes: ActionOutcomes) -> None:
+            await orig_stop(app_key, index, outcomes=outcomes)
             if index == 1:
                 lifecycle.registry.flag_needs_restart(
                     app_key, 1, instance_name="beta", class_name="MultiInstanceApp", reason="work still running"
@@ -129,9 +132,10 @@ class TestReloadLockAndNeedsRestartGate:
         lifecycle: AppLifecycleService,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A whole-app reload skips a flagged index with one refusal ERROR and recreates its siblings.
+        """A whole-app reload refuses a flagged index in its outcomes and recreates its siblings.
 
-        The reload's create goes through ``AppFactory.create_instances``.
+        The reload's create goes through ``AppFactory.create_instances``. The refusal reaches the caller
+        through the outcome, so nothing logs it.
         """
         app_key = MULTI_INSTANCE_APP_KEY
         lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
@@ -142,23 +146,25 @@ class TestReloadLockAndNeedsRestartGate:
         )
         instance1_before = lifecycle.registry.get(app_key, 1)
 
-        await lifecycle.reload_app(app_key)
+        outcomes = await lifecycle.reload_app(app_key)
 
         assert lifecycle.registry.get(app_key, 0) is None
         instance1_after = lifecycle.registry.get(app_key, 1)
         assert instance1_after is not None
         assert instance1_after is not instance1_before
-        refusal = lifecycle.registry.refusal_for(app_key, 0)
-        assert refusal is not None
-        refusals = [r for r in caplog.records if r.getMessage() == refusal]
-        assert len(refusals) == 1
+        assert [(o.instance_index, o.result, o.needs_restart) for o in outcomes] == [
+            (0, OutcomeResult.REFUSED, True),
+            (1, OutcomeResult.SUCCEEDED, False),
+        ]
+        assert outcomes[0].reason == lifecycle.registry.refusal_reason(app_key, 0)
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
     async def test_start_app_with_every_index_flagged_starts_nothing_and_does_not_raise(
         self,
         lifecycle: AppLifecycleService,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """A start with nothing left to create logs one refusal per index and leaves both flags in place."""
+        """A start with nothing left to create refuses every index, logs nothing, and leaves both flags."""
         app_key = MULTI_INSTANCE_APP_KEY
         lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         for idx, name in enumerate(("alpha", "beta")):
@@ -166,12 +172,14 @@ class TestReloadLockAndNeedsRestartGate:
                 app_key, idx, instance_name=name, class_name="MultiInstanceApp", reason="work still running"
             )
 
-        await lifecycle.start_app(app_key)
+        outcomes = await lifecycle.start_app(app_key)
 
         assert lifecycle.registry.get_running_apps(app_key) == {}
         infos = lifecycle.registry.resolve_instance_infos(app_key)
         assert sorted(infos) == [0, 1]
         assert all(info.needs_restart is not None for info in infos.values())
-        expected = {lifecycle.registry.refusal_for(app_key, idx) for idx in (0, 1)}
-        assert None not in expected
-        assert {r.getMessage() for r in caplog.records if r.levelname == "ERROR"} == expected
+        assert [(o.instance_index, o.result) for o in outcomes] == [
+            (0, OutcomeResult.REFUSED),
+            (1, OutcomeResult.REFUSED),
+        ]
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]

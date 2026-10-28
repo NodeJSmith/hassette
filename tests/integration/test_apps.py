@@ -9,6 +9,7 @@ import pytest
 
 from hassette.config.classes import AppManifest
 from hassette.core.app_change_detector import ChangeSet
+from hassette.core.app_lifecycle_common import ActionOutcomes
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.core.command_executor import CommandExecutor
@@ -600,18 +601,18 @@ class TestPerInstanceSelectiveRestart:
         orig_stop = lifecycle._stop_instance_unlocked
         orig_create = lifecycle._create_instance_unlocked
 
-        async def instrumented_stop(app_key: str, index: int) -> None:
+        async def instrumented_stop(app_key: str, index: int, *, outcomes: ActionOutcomes) -> None:
             if index == 1:
                 index_1_stop_entered.set()
                 await release_index_1_stop.wait()
-            await orig_stop(app_key, index)
+            await orig_stop(app_key, index, outcomes=outcomes)
             call_order.append(f"stop_{index}_done")
 
         async def instrumented_create(
-            app_key: str, index: int, app_manifest: AppManifest, force_reload: bool = False
+            app_key: str, index: int, app_manifest: AppManifest, force_reload: bool = False, *, outcomes: ActionOutcomes
         ) -> None:
             call_order.append(f"create_{index}_start")
-            await orig_create(app_key, index, app_manifest, force_reload)
+            await orig_create(app_key, index, app_manifest, force_reload, outcomes=outcomes)
 
         lifecycle._stop_instance_unlocked = instrumented_stop
         lifecycle._create_instance_unlocked = instrumented_create
