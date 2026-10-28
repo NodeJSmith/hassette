@@ -10,6 +10,9 @@ from pydantic_settings import SettingsConfigDict
 
 from hassette import App, AppConfig
 from hassette.core.app_factory import AppFactory, accepted_config_keys
+from hassette.core.app_registry import NeedsRestartRecord
+from hassette.schemas.app_snapshots import NeedsRestartInfo
+from hassette.utils import date_utils
 
 
 def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
@@ -36,6 +39,7 @@ def mock_registry() -> Mock:
     registry.record_failure = Mock()
     registry.get = Mock(return_value=None)
     registry.get_running_apps = Mock(return_value={})
+    registry.get_needs_restart = Mock(return_value=None)
     return registry
 
 
@@ -48,6 +52,17 @@ def mock_manifest():
     manifest.display_name = "test_app"
     manifest.app_config = {"instance_name": "test_instance"}
     return manifest
+
+
+def flag_indices(mock_registry: Mock, *flagged: int) -> NeedsRestartRecord:
+    """Make ``mock_registry`` report each index in ``flagged`` as needing a restart; returns the shared record."""
+    record = NeedsRestartRecord(
+        instance_name="zombie",
+        class_name="TestApp",
+        info=NeedsRestartInfo(reason="work still running", flagged_at=date_utils.now()),
+    )
+    mock_registry.get_needs_restart = Mock(side_effect=lambda _key, idx: record if idx in flagged else None)
+    return record
 
 
 @pytest.fixture
@@ -342,6 +357,63 @@ class TestAppFactoryCreateInstances:
         assert mock_registry.register_app.call_count == 2
         mock_registry.register_app.assert_any_call("test_app", 0, mock_app_class.return_value)
         mock_registry.register_app.assert_any_call("test_app", 2, mock_app_class.return_value)
+
+
+class TestAppFactoryNeedsRestartGate:
+    THREE_INSTANCES = (
+        {"instance_name": "instance_0"},
+        {"instance_name": "instance_1"},
+        {"instance_name": "instance_2"},
+    )
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_flagged_index_is_skipped_and_siblings_are_created(
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest, caplog
+    ):
+        """A flagged index gets no replacement and one refusal ERROR; its siblings are still created."""
+        mock_load_class.return_value = make_app_class()
+        mock_manifest.app_config = list(self.THREE_INSTANCES)
+        record = flag_indices(mock_registry, 1)
+
+        created = factory.create_instances("test_app", mock_manifest)
+
+        assert created == {0, 2}
+        assert sorted(c.args[1] for c in mock_registry.register_app.call_args_list) == [0, 2]
+        refusals = [r for r in caplog.records if r.levelname == "ERROR"]
+        assert [r.getMessage() for r in refusals] == [record.refusal_message("test_app", 1)]
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_every_index_flagged_refuses_before_loading_the_class(
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest, caplog
+    ):
+        """With every configured index flagged there is nothing to create: the class isn't loaded (not even
+        on a forced reload) and no class-load failure is recorded over a flag.
+        """
+        mock_manifest.app_config = list(self.THREE_INSTANCES[:2])
+        flag_indices(mock_registry, 0, 1)
+
+        created = factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        assert created == set()
+        mock_load_class.assert_not_called()
+        mock_registry.record_failure.assert_not_called()
+        assert len([r for r in caplog.records if r.levelname == "ERROR"]) == 2
+
+    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
+    @patch("hassette.core.app_factory.get_class_load_error")
+    def test_class_load_failure_skips_flagged_index_when_choosing_where_to_record(
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: Mock, mock_manifest
+    ):
+        """A class-load failure is recorded against the first index that is neither running nor flagged."""
+        mock_get_error.return_value = cached_error = ValueError("Failed to load")
+        mock_manifest.app_config = list(self.THREE_INSTANCES)
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 1 else None)
+        flag_indices(mock_registry, 0)
+
+        factory.create_instances("test_app", mock_manifest)
+
+        mock_registry.record_failure.assert_called_once_with("test_app", 2, cached_error)
 
 
 class TestAppFactoryCreateSingleInstance:

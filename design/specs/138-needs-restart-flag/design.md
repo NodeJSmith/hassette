@@ -368,3 +368,10 @@ Also accepting two rare cases:
 - UI evidence comes from a real flag, not a mocked state: the `stuck_demo` demo fixture (`scripts/demo_apps/`, `autostart = false`) fails its init after spawning a task that swallows cancellation, and `docs/screenshots.yml` captures `web_ui_needs_restart_badge.png` from it, embedded on `web-ui/manage-apps.md`.
 - PR title uses `feat!:` with one `BREAKING CHANGE:` footer at the end of the body (CLAUDE.md, Changelog): `lifecycle.failed_instance_cleanup_timeout_seconds` is removed and rejected at load, and `TeardownReport.is_restart_safe` now means "no work may still be running" (a report carrying only diagnostic causes is restart-safe).
 - `client_compat` passes unchanged: responses already carry `needs_restart: null` and `needs_restart_count: 0`, which the released client accepts; no ignore entry was needed.
+
+## Addendum
+
+**2026-10-28 — #3110 (spec 139).** #3110 refuses creating a replacement over a flagged index, but leaves the
+route verdict alone. The note in Build (a stop/reload touching a flagged index answers `ACTION_FAILED` even when
+the action succeeded, "left this for #3110") now belongs to #3111, which owns the per-instance outcome and
+response shape (parent D15).

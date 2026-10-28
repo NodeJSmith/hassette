@@ -173,6 +173,10 @@ resistant initializer that doesn't finish in time makes the resulting teardown r
 
 ### Restart refusal
 
+This refusal belongs to one resource object. App instances get a separate one: Hassette won't create a
+new instance over one flagged as [needing a restart](../../operating/index.md#instances-that-need-a-restart),
+and it logs that refusal instead of raising `RestartRefusedError`.
+
 `start()` and a direct `initialize()` call both check the stored report before doing
 anything else. A report with `is_restart_safe` `True` authorizes exactly one new attempt and is
 then cleared. A report with `is_restart_safe` `False` raises

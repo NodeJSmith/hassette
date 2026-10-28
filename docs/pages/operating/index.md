@@ -243,6 +243,12 @@ A flagged instance:
 - reports `failed` with that reason until Hassette restarts, even after the app is stopped or removed from the config
 - appears in `hassette status`, is counted in the `Restart` column of `hassette app`, and gets a "needs restart" badge in the web UI
 - carries `needs_restart` (the reason, pending task names and when it was flagged) on its instance in `GET /api/apps` and on `app_status_changed` WebSocket events, and its app carries `needs_restart_count`
+- isn't replaced until Hassette restarts, as described below
+
+Hassette doesn't create a new instance at a flagged instance's place, because the old one's work may still be running. A start, a reload, or a config or file change that would create one is refused, and logs one ERROR. The ERROR names the instance and why it was flagged, and says to restart Hassette. The app's other instances still start and reload as usual. In the web UI and over the REST API, a refused start or reload reports that the action failed, and the reason is in the log.
+
+!!! warning
+    The refusal is tracked by the app and the instance's position in its config, not by the instance's name. A config edit that moves a flagged instance's name to another position or app isn't refused: the new instance starts while the old one's work may still be running, and the two share the name's listeners and jobs. Restart Hassette instead of renaming around a flagged instance.
 
 Only a Hassette restart clears the flag. The usual cause is a hook or task that catches `asyncio.CancelledError`, or uses a bare `except:`, without re-raising. Fixing that code prevents a repeat.
 

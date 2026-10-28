@@ -13,6 +13,7 @@ from hassette_wire import ResourceStatus
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError
 from hassette.testing import EventCapture, wait_for
+from hassette.types.enums import BlockReason
 from tests.support.web_manifest_helpers import make_app_instance_info
 
 from .conftest import app_state_payloads, assert_acquires_app_key_lock_once, make_mock_app_instance
@@ -730,3 +731,66 @@ class TestStartInstanceAdmissionGuards:
 
         lifecycle_service._admit_start.assert_awaited_once()
         lifecycle_service._create_instance_unlocked.assert_not_called()
+
+
+class TestCreateInstanceUnlockedNeedsRestartGate:
+    async def test_flagged_index_is_refused_before_the_class_is_loaded(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A start or reload over a flagged index logs one refusal ERROR and returns without raising. The
+        module isn't re-imported, and no class-load failure is recorded over the flag.
+        """
+        registry = real_registry_service.registry
+        registry.flag_needs_restart(
+            "test_app", 0, instance_name="zombie", class_name="TestApp", reason="work still running"
+        )
+        record = registry.get_needs_restart("test_app", 0)
+        assert record is not None
+
+        await real_registry_service._create_instance_unlocked("test_app", 0, mock_manifest, force_reload=True)
+
+        mock_factory.load_class.assert_not_called()
+        mock_factory.create_single_instance.assert_not_called()
+        assert registry.get_instances("test_app") == {}
+        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+        assert errors == [record.refusal_message("test_app", 0)]
+
+    async def test_blocked_check_still_runs_before_the_flag_check(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """A blocked app still raises AppBlockedError even when the index is also flagged."""
+        registry = real_registry_service.registry
+        registry.flag_needs_restart(
+            "test_app", 0, instance_name="zombie", class_name="TestApp", reason="work still running"
+        )
+        registry.block_app("test_app", BlockReason.ONLY_APP)
+
+        with pytest.raises(AppBlockedError):
+            await real_registry_service._create_instance_unlocked("test_app", 0, mock_manifest)
+
+    async def test_start_instance_over_a_flagged_index_does_not_raise_or_log_twice(
+        self,
+        real_registry_service: AppLifecycleService,
+        mock_manifest: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """The public path returns without raising, and its except-Exception handler adds no second ERROR."""
+        registry = real_registry_service.registry
+        registry.set_manifests({"test_app": mock_manifest})
+        real_registry_service._instance_index_in_range = Mock(return_value=True)  # pyright: ignore[reportAttributeAccessIssue]
+        registry.flag_needs_restart(
+            "test_app", 0, instance_name="zombie", class_name="TestApp", reason="work still running"
+        )
+
+        await real_registry_service.start_instance("test_app", 0)
+
+        record = registry.get_needs_restart("test_app", 0)
+        assert record is not None
+        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+        assert errors == [record.refusal_message("test_app", 0)]
