@@ -204,9 +204,10 @@ Python cancellation is cooperative. Hassette can cancel a hook or a task, but it
 
 - a failed or timed-out `on_initialize` doesn't finish once it's cancelled,
 - a task the instance started with `self.task_bucket` is still pending when its teardown ends,
-- the teardown runs past its limit and Hassette force-terminates it, or the shutdown of one of its parts, such as its bus or scheduler, fails or times out.
+- the teardown runs past its limit and Hassette force-terminates it, or the shutdown of one of its parts, such as its bus or scheduler, fails or times out,
+- an exception escapes the stop's own steps, cutting the teardown short before Hassette's steps after the hooks have run. The usual cause is a `CancelledError` escaping `before_shutdown`, `on_shutdown` or `after_shutdown`: a hook that cancels its own task with `task.cancel()` and then `await`s the task directly. Wait for it with `await asyncio.wait([task])` instead. That returns once the task has finished without raising its `CancelledError`, and still lets a real cancellation of the hook through.
 
-A shutdown hook that raised or timed out, and then ended, doesn't flag the instance. Nothing from it is still running. Neither does an error in Hassette's own shutdown steps that run after the hooks: it's logged at ERROR, and the stop is reported as finished.
+A shutdown hook that raised an ordinary exception or timed out, and then ended, doesn't flag the instance. Nothing from it is still running. Neither does a failed `cleanup()`: it's logged at ERROR, and the stop is reported as finished.
 
 A flagged instance:
 

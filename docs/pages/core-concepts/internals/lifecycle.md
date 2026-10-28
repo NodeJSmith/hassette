@@ -118,7 +118,8 @@ pending, and so on). Its `is_restart_safe` property derives directly from those 
 `is_restart_safe` answers one question: may work from this attempt still be running? It's `False`
 when a tracked task or the `serve()` task was still pending, when an initializer didn't finish
 being cancelled, when a child's teardown failed, timed out, or was itself restart-unsafe, or when
-the evidence is incomplete (the attempt was force-terminated or its coordinator failed). A hook
+the evidence is incomplete (the attempt was force-terminated, its coordinator failed, or its
+shutdown body raised or was cancelled before its later steps ran). A hook
 that raised or timed out and has since ended is still recorded in `causes`, but it leaves the
 report restart-safe: nothing from it is still running. Read `causes` for what went wrong and
 `is_restart_safe` for whether anything may still run. The property is computed from those fields,

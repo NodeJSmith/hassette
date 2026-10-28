@@ -40,7 +40,8 @@ class TeardownCause(StrEnum):
     ``SHUTDOWN_HOOK_FAILED`` so an outcome can say "timed out" rather than "raised"."""
 
     SHUTDOWN_BODY_FAILED = auto()
-    """The resource's shutdown body raised during the teardown attempt."""
+    """The resource's shutdown body raised or was cancelled, so its later stages (task cancellation, child
+    shutdown, cleanup) may not have run and nothing proves the attempt's work ended."""
 
     CLEANUP_FAILED = auto()
     """A resource's cleanup step raised during the teardown attempt."""
@@ -80,13 +81,15 @@ WORK_MAY_RUN_CAUSES: frozenset[TeardownCause] = frozenset(
         TeardownCause.INITIALIZATION_TASK_PENDING,
         TeardownCause.FORCED_TERMINAL,
         TeardownCause.COORDINATOR_FAILED,
+        TeardownCause.SHUTDOWN_BODY_FAILED,
         TeardownCause.CHILD_SHUTDOWN_FAILED,
         TeardownCause.CHILD_SHUTDOWN_TIMED_OUT,
         TeardownCause.CHILD_RESTART_UNSAFE,
     }
 )
-"""Causes that make a report restart-unsafe: an initializer still pending, incomplete evidence, or a child
-whose own report is restart-unsafe. ``TASKS_PENDING`` and ``SERVE_TASK_PENDING`` aren't listed because the
+"""Causes that make a report restart-unsafe: an initializer still pending, incomplete evidence (including a
+shutdown body that ended abnormally, whose report replaces what its stages observed), or a child whose own
+report is restart-unsafe. ``TASKS_PENDING`` and ``SERVE_TASK_PENDING`` aren't listed because the
 tasks they name are already in ``pending_tasks``, which the predicate reads directly."""
 
 
@@ -145,7 +148,8 @@ class TeardownReport:
 
         Work may still run when a task was still pending, or when a cause in
         :data:`WORK_MAY_RUN_CAUSES` was recorded. A report carrying only diagnostic causes (a hook
-        that raised or timed out and has ended, a failed cleanup) is restart-safe.
+        that raised or timed out and has ended, a failed cleanup) is restart-safe; a shutdown body that
+        raised or was cancelled is not.
         """
         return not self.pending_tasks and WORK_MAY_RUN_CAUSES.isdisjoint(self.causes)
 
