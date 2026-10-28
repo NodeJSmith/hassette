@@ -177,9 +177,11 @@ This refusal belongs to one resource object. App instances get a separate one: H
 new instance over one flagged as [needing a restart](../../operating/index.md#instances-that-need-a-restart),
 and it logs that refusal instead of raising `RestartRefusedError`.
 
-`start()` and a direct `initialize()` call both check the stored report before doing
-anything else. A report with `is_restart_safe` `True` authorizes exactly one new attempt and is
-then cleared. A report with `is_restart_safe` `False` raises
+`start()` and a direct `initialize()` call both check the stored report before any initialization
+work starts. The check runs after the [re-entry check](#lifecycle-re-entry). `start()` checks it
+once no initialization or pending start is already in flight; otherwise it returns the
+in-flight task. `initialize()` checks it after any in-progress shutdown finishes. A report with
+`is_restart_safe` `True` authorizes exactly one new attempt and is then cleared. A report with `is_restart_safe` `False` raises
 [`RestartRefusedError`][hassette.exceptions.RestartRefusedError], which carries the resource's name and the
 full report, and no initialization work starts. There is no in-process way to clear a
 restart-unsafe report on the same object, not even a test-reset helper.
