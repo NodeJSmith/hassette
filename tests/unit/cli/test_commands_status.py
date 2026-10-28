@@ -23,6 +23,7 @@ from tests.unit.cli.conftest import (
     PARTIAL_DATA_WARNING,
     CLIClientFactory,
     CommandRunner,
+    MockTransportBuilder,
     grid_body_with_null_parts,
     resolve_path,
 )
@@ -126,12 +127,15 @@ class TestCmdStatus:
     def test_json_mode_stays_one_health_document(self, cli_client_factory: CLIClientFactory) -> None:
         """--json never makes the app-list request, so stdout is exactly the health document."""
         status_data = make_system_status_response()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/health", 200, status_data.model_dump()), ("GET", "/api/apps", 200, app_list_with_flag())],
-            json_mode=True,
-        )
-        spy = runner.spy(client, cmd_status)
-        assert not any("/api/apps" in path for path in spy.paths)
+        builder = MockTransportBuilder()
+        builder.add("GET", "/api/health", 200, status_data.model_dump())
+        builder.add("GET", "/api/apps", 200, app_list_with_flag())
+        client = cli_client_factory.build(builder.build(), json_mode=True)
+
+        parsed = runner.json_output(client, cmd_status)
+
+        assert parsed["status"] == status_data.status
+        assert builder.captured_paths == ["/api/health"]
 
     def test_status_degraded_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Status command prints status body (not an error) when instance is 'degraded' (200)."""

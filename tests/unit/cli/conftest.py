@@ -324,6 +324,7 @@ class MockTransportBuilder:
     def __init__(self) -> None:
         self._routes: list[tuple[str, str, int, Any]] = []
         self.captured_headers: list[httpx.Headers] = []
+        self.captured_paths: list[str] = []
 
     def add(self, method: str, path_fragment: str, status: int, body: Any) -> None:
         """Register a mock response for requests whose URL contains ``path_fragment``.
@@ -335,13 +336,15 @@ class MockTransportBuilder:
     def build(self) -> httpx.MockTransport:
         """Build the transport.
 
-        Every request's headers are recorded to ``self.captured_headers`` in order,
-        regardless of which route (if any) matched.
+        Every request's headers and URL path are recorded to ``self.captured_headers`` and
+        ``self.captured_paths`` in order, regardless of which route (if any) matched. Unlike ``GetSpy``,
+        this sees requests the client sends through its httpx client directly.
         """
         routes = list(self._routes)
 
         def handler(request: httpx.Request) -> httpx.Response:
             self.captured_headers.append(request.headers)
+            self.captured_paths.append(request.url.path)
             url = str(request.url)
             method = request.method.upper()
             for route_method, fragment, status, body in routes:
