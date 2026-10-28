@@ -115,7 +115,7 @@ class AppStartStopMixin:
         # for app_key before this runs, so there's nothing left to prune. This only ever does real
         # work for a standalone start_app() call.
         valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
-        await self._emit_stopped_events(self.registry.prune_stale_failed_indices(app_key, valid_index_count))
+        await self._emit_discarded_entry_events(self.registry.prune_stale_failed_indices(app_key, valid_index_count))
 
         try:
             self.logger.debug("Creating instances for app %s", app_key)
@@ -160,8 +160,8 @@ class AppStartStopMixin:
                     await self.hassette.send_event(event)
             await self.initialize_instances(app_key, instances, app_manifest, only_indices=created_indices)
 
-    async def _emit_stopped_events(self, infos: "dict[int, AppInstanceInfo]") -> None:
-        """Emit a STOPPED event for each given failed-entry snapshot, or FAILED for a flagged one.
+    async def _emit_discarded_entry_events(self, infos: "dict[int, AppInstanceInfo]") -> None:
+        """Emit an event for each discarded failed-entry snapshot: STOPPED, or FAILED for a flagged one.
 
         Shared by ``_start_app_unlocked`` (entries pruned for being outside the current config's
         range) and the stop paths (failed entries discarded with no teardown to run) — both
@@ -201,12 +201,13 @@ class AppStartStopMixin:
         needs-restart), so the WS status cache doesn't keep a stale FAILED for them indefinitely.
         """
         try:
-            if not self.registry.tracked_indices(app_key):
+            tracked = self.registry.tracked_indices(app_key)
+            if not tracked:
                 self.logger.warning("Cannot stop app %s, not found", app_key)
                 return
 
             instances = self.registry.get_running_apps(app_key)
-            await self._discard_failed_indices(app_key, set(self.registry.tracked_indices(app_key)) - set(instances))
+            await self._discard_failed_indices(app_key, set(tracked) - set(instances))
 
             if not instances:
                 self.logger.debug("Cleared failed entries for app %s; no running instances to shut down", app_key)
@@ -219,13 +220,14 @@ class AppStartStopMixin:
     async def _discard_failed_indices(self, app_key: str, indices: set[int]) -> None:
         """Discard the failure entries at ``indices`` (none of them running) and emit their events.
 
-        A needs-restart record at one of them is kept, so its event says FAILED (``_emit_stopped_events``).
+        ``unregister_app`` removes only the failure entry, never a needs-restart record, so a flagged
+        index stays FAILED after this and its event says FAILED (``_emit_discarded_entry_events``).
         """
         failed_infos = self.registry.get_failed_instance_infos(app_key)
         discarded = {index: info for index, info in failed_infos.items() if index in indices}
         for index in discarded:
             self.registry.unregister_app(app_key, index)
-        await self._emit_stopped_events(discarded)
+        await self._emit_discarded_entry_events(discarded)
 
     async def reload_app(
         self,
@@ -286,20 +288,16 @@ class AppStartStopMixin:
             return False
         return True
 
-    async def _emit_failure_event_if_present(self, app_key: str, index: int) -> bool:
+    async def _emit_failure_event_if_present(self, app_key: str, index: int) -> None:
         """Emit a FAILED ``HassetteAppStateEvent`` for ``index`` if it currently has a failed entry.
 
         Scoped to the single target index (not the app-key-wide ``get_failed_instance_infos``
         resync that ``_start_app_unlocked`` performs) — a per-instance operation must not
-        re-broadcast an unrelated sibling instance's failure. Returns True if an event was
-        emitted (i.e. the create attempt at ``index`` failed), so callers can short-circuit.
+        re-broadcast an unrelated sibling instance's failure.
         """
-        failed_infos = self.registry.get_failed_instance_infos(app_key)
-        info = failed_infos.get(index)
-        if info is None:
-            return False
-        await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
-        return True
+        info = self.registry.get_failed_instance_infos(app_key).get(index)
+        if info is not None:
+            await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
 
     async def _create_instance_unlocked(
         self, app_key: str, index: int, app_manifest: "AppManifest", force_reload: bool = False
@@ -338,8 +336,10 @@ class AppStartStopMixin:
         config_dict = app_configs[index]
         self.factory.create_single_instance(app_key, app_manifest, index, config_dict, app_class)
 
-        # Set just before initialize_instances() is called: an exception before it means the
-        # instance never started, so its own shutdown hooks must not run.
+        # Set just before initialize_instances() is called. initialize_instances() settles its own
+        # init failures (shutdown_instance with a cause) and doesn't raise them, so an exception after
+        # this point comes from post-ready reconciliation: the app initialized, and its shutdown hooks
+        # may run. An exception before it means the instance never started, so its hooks must not run.
         init_started = False
         try:
             inst = self.registry.get(app_key, index)

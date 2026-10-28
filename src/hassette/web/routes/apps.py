@@ -110,9 +110,9 @@ def _require_no_action_in_progress(app_key: str, hassette: HassetteDep) -> None:
     """Raise ``ACTION_IN_PROGRESS`` when another action holds or is queued for ``app_key``'s lock.
 
     Runs before any existence or instance-range check: an in-flight action can mutate the
-    registry those checks read (stopping an orphaned app unregisters its instances before
-    awaiting their shutdown), so checking existence first would turn a concurrent request into a
-    spurious 404 instead of the 409 it should get.
+    registry those checks read (a stop in flight unregisters each instance as its teardown ends),
+    so checking existence first could turn a concurrent request into a spurious 404 instead of
+    the 409 it should get.
     """
     if hassette.app_handler.is_action_in_progress(app_key):
         raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, f"Another action on app {app_key!r} is still running")

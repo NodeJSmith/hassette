@@ -494,11 +494,12 @@ class TestStopApp:
 
 
 class TestExitReachesInFlightStops:
-    async def test_shutdown_all_joins_a_runtime_stop_still_in_flight(
+    async def test_shutdown_all_reaches_a_runtime_stop_still_in_flight(
         self, real_registry_service: AppLifecycleService
     ) -> None:
         """A runtime stop keeps its instance registered until the teardown ends, so process exit reaches it
-        and joins its shutdown attempt instead of leaving it unrecorded.
+        instead of leaving it unrecorded. Joining that attempt (one body run for both callers) is the
+        coordinator's job and is pinned by the resource lifecycle tests; the mock here counts calls only.
         """
         registry = real_registry_service.registry
         inst = register_mock_instance(registry, "test_app", 0)

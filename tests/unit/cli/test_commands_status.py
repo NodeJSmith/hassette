@@ -1,6 +1,6 @@
 """Unit tests for hassette status, telemetry, and dashboard commands."""
 
-from hassette_wire import AppInstance, AppListResponse, AppStatus, NeedsRestart
+from hassette_wire import AppInstance, AppListResponse, AppStatus, NeedsRestart, ResourceStatus
 
 from hassette.cli.commands.status import (
     DASHBOARD_COLUMNS,
@@ -37,10 +37,12 @@ def app_list_with_flag() -> dict:
         index=0,
         instance_name="StuckApp[0]",
         class_name="StuckApp",
-        status="failed",
+        status=ResourceStatus.FAILED,
         needs_restart=NeedsRestart(reason="1 task still pending", pending_tasks=["StuckApp.poll"], flagged_at=0.0),
     )
-    healthy = AppInstance(app_key="ok_app", index=0, instance_name="OkApp[0]", class_name="OkApp", status="running")
+    healthy = AppInstance(
+        app_key="ok_app", index=0, instance_name="OkApp[0]", class_name="OkApp", status=ResourceStatus.RUNNING
+    )
     apps = [
         make_app_summary(app_key="stuck_app", status=AppStatus.FAILED, instances=[flagged]),
         make_app_summary(app_key="ok_app", instances=[healthy]),

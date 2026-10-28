@@ -495,6 +495,26 @@ class TestShutdownInstanceEntryDeadline:
         assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
 
+    async def test_a_failed_outcome_event_is_logged_not_recorded_twice(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+    ) -> None:
+        """The outcome is recorded before its event; a send failure doesn't re-record it or re-flag it."""
+        mock_app_instance.shutdown = AsyncMock(
+            return_value=TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=("app:poller",))
+        )
+        mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus down"))
+
+        report = await lifecycle_service.shutdown_instance(mock_app_instance, 0)
+
+        assert report is not None
+        assert report.pending_tasks == ("app:poller",)
+        mock_registry.record_failure.assert_called_once()
+        mock_registry.flag_needs_restart.assert_called_once()
+
     async def test_a_raised_hook_still_reports_stopped(
         self,
         lifecycle_service: AppLifecycleService,

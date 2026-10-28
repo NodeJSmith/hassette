@@ -49,19 +49,20 @@ After the shutdown hooks complete, Hassette cancels all bus subscriptions create
 
 ## If `on_initialize` Fails
 
-When `on_initialize` raises or times out, Hassette marks the app instance as failed. It removes the bus subscriptions and scheduled jobs the instance registered before the failure.
+When `on_initialize` raises or times out, Hassette marks the app instance as failed and shuts it down. A timed-out `on_initialize` is cancelled, so `asyncio.CancelledError` is raised inside it at the `await` it was waiting on. The shutdown removes the bus subscriptions and scheduled jobs the instance registered, and cancels its `self.task_bucket` tasks.
 
-`on_shutdown` does not run after a failed initialization. Resources the app created itself stay open until Hassette restarts, such as an `aiohttp.ClientSession`, a third-party client, or an open file. The app closes them itself: a `try`/`except` around the steps after the resource is created closes it and re-raises.
+The app's own shutdown hooks (`before_shutdown`, `on_shutdown`, `after_shutdown`) don't run after a failed initialization. Resources the app created itself stay open until Hassette restarts, such as an `aiohttp.ClientSession`, a third-party client, or an open file. The app closes them itself: a `try`/`except BaseException` around the steps after the resource is created closes it and re-raises.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/lifecycle_failed_init_cleanup.py"
 ```
 
-If the subscription or `refresh` raises, the `except` block closes the session. The re-raised error still marks the app as failed. On a normal stop, `on_shutdown` closes the session instead.
+The `except` block runs whether the subscription or `refresh` raised, or the startup timeout cancelled them. Catching `BaseException` rather than `Exception` matters for the timeout: the cancellation is an `asyncio.CancelledError`, which `except Exception` doesn't catch. The re-raise lets the error or cancellation finish, and the app is still marked failed. On a normal stop, `on_shutdown` closes the session instead.
 
-The same applies to `after_initialize`: if it raises, the app is marked failed and `on_shutdown` is skipped. An app that overrides `after_initialize` needs the same `try`/`except` there.
+The same applies to `after_initialize`: if it raises, the app is marked failed and its shutdown hooks are skipped. An app that overrides `after_initialize` needs the same `try`/`except` there.
 
-A timeout works differently. When `on_initialize` runs past `app_startup_timeout_seconds` (see [Startup and Shutdown Timeouts](../../operating/index.md#startup-and-shutdown-timeouts)), Hassette stops waiting and marks the app failed, but `on_initialize` is not cancelled and nothing is raised inside it. It keeps running in the background, so the `except` block never runs, and a resource it creates after the timeout is never closed. An `asyncio.timeout()` shorter than the startup timeout keeps a slow step inside the cleanup path. The `TimeoutError` it raises reaches the `except` block like any other error.
+!!! warning "Let the cancellation through"
+    An `on_initialize` that catches `asyncio.CancelledError` without re-raising it, or a background task that ignores its cancellation, keeps running after Hassette gave up on it. Python can't stop a coroutine that refuses to be cancelled. Hassette then reports the instance as failed and [needing a restart](../../operating/index.md#instances-that-need-a-restart), and only restarting Hassette stops that work.
 
 ## Synchronous Lifecycle
 

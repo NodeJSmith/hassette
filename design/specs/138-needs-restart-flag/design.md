@@ -130,7 +130,7 @@ initialize after a successful `on_initialize`. Handles opened outside the task b
 |---|---|---|
 | Matches peers | HA `FAILED_UNLOAD`, systemd `failed` | No |
 | UI/CLI truth | FAILED plus `needs_restart` until restart | STOPPED plus a separate badge |
-| Code | Status derivation and `_emit_stopped_events` read the record; orphaned rows rendered from it | Less |
+| Code | Status derivation and `_emit_discarded_entry_events` read the record; orphaned rows rendered from it | Less |
 
 **Recommendation:** A.
 **Pick B instead if** status must strictly mirror the resource object.
@@ -146,7 +146,7 @@ entry with its needs-restart record and returns the index's effective `AppInstan
 
 Every reader of per-index state goes through it:
 - `get_snapshot`, `build_manifest_info`, `overlay_runtime_state`, `get_failed_instance_infos`
-- `_emit_stopped_events`
+- `_emit_discarded_entry_events`
 - `needs_restart_count`, the `AppStatus` tally, and `AppStatusSnapshot.running_count`
 
 No reader combines entry and record on its own.
@@ -345,8 +345,25 @@ Also accepting two rare cases:
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- Failed-init logging: the init ERROR (with traceback) is always logged, and a second needs-restart ERROR only when the instance is flagged; they are two distinct facts, so a non-flagged failed init gets no extra ERROR.
+- `_create_instance_unlocked` detects a create failure by `registry.get(...) is None` instead of `_emit_failure_event_if_present`: the D4 resolver reports flagged indices as failed, which would otherwise leave a registered, uninitialized replacement at a flagged index.
+- A stop/reload targeting a flagged index returns ACTION_FAILED (500) from the web route, because `get_failed_instance_infos` includes flagged indices; consistent with D4's sticky FAILED.
+- `NeedsRestartInfo.flagged_at` is a `ZonedDateTime` internally and becomes epoch seconds at the wire boundary (`NeedsRestartInfo.to_wire`), matching other wire timestamps.
+- The phantom path passes the real exception as its cause when the instance is still registered; the generic "Post-registration failure" message remains only when nothing is registered.
+- `WALK_AWAY_CLEANUP_TIMEOUT_SECONDS` = 5.0, the removed setting's default.
+- A raised shutdown (`except Exception` in `shutdown_instance`) flags when the stored report is missing or restart-unsafe (D9's accepted Finding 8 case).
+- `hassette status --json` stays the single health document: the needs-restart section is human mode only, and JSON consumers read `needs_restart` per instance from `hassette app --json` or `GET /api/apps`.
+- `hassette status` reads `GET /api/apps` best-effort (new `HassetteCLIClient.try_fetch_app_list`, which `_try_fetch_instances` now builds on): `/api/apps` answers 503 while telemetry is down, so an unreadable list prints a stderr warning instead of failing the command.
+- The `hassette app` Restart column is blank when the count is 0, and `test_app_list_columns_count_is_compact`'s cap rises from 8 to 9 to hold it (D8 ratified a column).
+- UI badge placement: the app row shows the flagged count (`appNeedsRestart`), the larger of the live WS-flagged instances and the server's `needs_restart_count`, with the instance's reason as its tooltip when exactly one is flagged; each flagged instance row of a multi-instance app carries its own badge. A single-instance app has no instance row, so the app row is its only badge.
+- Outcome events from `shutdown_instance` and the init RUNNING event go through `send_outcome_event`, which logs a send failure instead of raising: the outcome is already in the registry, so a telemetry failure must not record the failure twice or emit a second FAILED. Only the teardown itself sits in the `try`; a raised teardown is settled by `settle_raised_shutdown`, which now also logs the needs-restart ERROR when it flags.
+- The `NeedsRestartInfo` → wire conversion is `NeedsRestartInfo.to_wire()` (`schemas/app_snapshots.py`), shared by the REST mappers and the WS dispatcher, so core doesn't import `web/`.
+- The failed-init docs snippet catches `BaseException`, so it also closes its resource when the startup timeout cancels `on_initialize` (a `CancelledError`, which `except Exception` misses).
+- UI evidence comes from a real flag, not a mocked state: the `stuck_demo` demo fixture (`scripts/demo_apps/`, `autostart = false`) fails its init after spawning a task that swallows cancellation, and `docs/screenshots.yml` captures `web_ui_needs_restart_badge.png` from it, embedded on `web-ui/manage-apps.md`.
+- `client_compat` passes unchanged: responses already carry `needs_restart: null` and `needs_restart_count: 0`, which the released client accepts; no ignore entry was needed.

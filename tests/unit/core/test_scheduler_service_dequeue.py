@@ -413,7 +413,7 @@ class TestRemoveJobsSealedBucket:
     """Regression tests for remove_jobs against a sealed task bucket (#2250).
 
     remove_jobs() is reached from shutdown paths (Scheduler.remove_all_jobs via
-    App.on_shutdown and AppLifecycleService.cleanup_failed_instance), exactly when a
+    App.on_shutdown and AppLifecycleService.remove_instance_registrations), exactly when a
     force-terminal teardown may have sealed the bucket. It absorbs the rejection, removes live
     state inline, and hands back an already-completed future the caller can still await.
     """

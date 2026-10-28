@@ -128,13 +128,29 @@ class AppInstanceLifecycleMixin:
             return
 
         self.logger.debug("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
+        await self.send_outcome_event(inst, status=RUNNING, previous_status=STARTING)
+
+    async def send_outcome_event(
+        self,
+        inst: "App[AppConfig]",
+        *,
+        status: ResourceStatus,
+        previous_status: ResourceStatus,
+        exception: BaseException | None = None,
+    ) -> None:
+        """Send the status event for an outcome that is already recorded; a send failure is only logged.
+
+        The event is telemetry: the registry already holds the outcome, so failing to send it must not
+        turn a started app into a failed one or record a stop's failure twice.
+        """
         try:
-            await self.emit_app_state_change(inst, status=RUNNING, previous_status=STARTING)
+            await self.emit_app_state_change(inst, status=status, previous_status=previous_status, exception=exception)
         except Exception:
             self.logger.exception(
-                "Failed to send the RUNNING event for app '%s' (%s); the app keeps running",
+                "Failed to send the %s event for app '%s' (%s); its outcome is recorded",
+                status,
                 inst.app_config.instance_name,
-                class_name,
+                inst.class_name,
             )
 
     async def remove_instance_registrations(self, inst: "App[AppConfig]") -> None:
@@ -212,23 +228,27 @@ class AppInstanceLifecycleMixin:
         )
         try:
             start_time = timer()
-            entry_deadline = deadline_in(self.entry_deadline_seconds)
-            stop_deadline = entry_deadline if deadline is None else min(entry_deadline, deadline)
-            tighten_shutdown_deadline(inst, stop_deadline)
-            task = create_lifecycle_task(inst.shutdown(), name=f"app:shutdown:{inst.unique_name}")
-            timeout = max(0.0, stop_deadline - asyncio.get_running_loop().time())
-            done, _pending = await asyncio.wait([task], timeout=timeout)
-            force_terminated = task not in done
-            if force_terminated:
-                report = await self.walk_away_from_instance(inst, task)
-            else:
-                report = task.result()
+            force_terminated = False
+            try:
+                entry_deadline = deadline_in(self.entry_deadline_seconds)
+                stop_deadline = entry_deadline if deadline is None else min(entry_deadline, deadline)
+                tighten_shutdown_deadline(inst, stop_deadline)
+                task = create_lifecycle_task(inst.shutdown(), name=f"app:shutdown:{inst.unique_name}")
+                timeout = max(0.0, stop_deadline - asyncio.get_running_loop().time())
+                done, _pending = await asyncio.wait([task], timeout=timeout)
+                force_terminated = task not in done
+                report = await self.walk_away_from_instance(inst, task) if force_terminated else task.result()
+            except Exception as exc:
+                failure = cause or exc
+                await self.settle_raised_shutdown(inst, instance_index, failure, cause is not None, force_terminated)
+                return None
+
             self.registry.unregister_app(inst.app_key, instance_index)
             friendly_time = precisedelta(timer() - start_time, minimum_unit="milliseconds")
 
             if cause is not None:
-                self.record_failed_init(inst, instance_index, cause, report, force_terminated, friendly_time)
-                await self.emit_app_state_change(inst, status=FAILED, previous_status=STARTING, exception=cause)
+                self.settle_failed_init(inst, instance_index, cause, report, force_terminated, friendly_time)
+                await self.send_outcome_event(inst, status=FAILED, previous_status=STARTING, exception=cause)
                 return report
 
             timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
@@ -236,30 +256,42 @@ class AppInstanceLifecycleMixin:
                 self.logger.debug(
                     "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
                 )
-                await self.emit_app_state_change(inst, status=STOPPED, previous_status=STOPPING)
+                await self.send_outcome_event(inst, status=STOPPED, previous_status=STOPPING)
                 return report
 
-            exc = self.record_failed_stop(inst, instance_index, report, force_terminated, friendly_time)
-            await self.emit_app_state_change(inst, status=FAILED, previous_status=STOPPING, exception=exc)
+            exc = self.settle_failed_stop(inst, instance_index, report, timed_out, force_terminated, friendly_time)
+            await self.send_outcome_event(inst, status=FAILED, previous_status=STOPPING, exception=exc)
             return report
-        except Exception as exc:
-            self.logger.error("Failed to stop app '%s':\n%s", inst.app_config.instance_name, get_short_traceback())
-            # The coordinator stores a COORDINATOR_FAILED report before re-raising, so this is normally a
-            # needs-restart outcome too; with no report at all, nothing proves the instance's work ended.
-            self.registry.unregister_app(inst.app_key, instance_index)
-            failure = cause or exc
-            self.registry.record_failure(inst.app_key, instance_index, failure)
-            report = inst.teardown_report
-            if report is None or not report.is_restart_safe:
-                left = describe_left_running(report or TeardownReport(), inst, force_terminated=False)
-                self.flag_needs_restart(inst, instance_index, f"shutdown raised; {left}", report)
-            previous = STARTING if cause is not None else STOPPING
-            await self.emit_app_state_change(inst, status=FAILED, previous_status=previous, exception=failure)
-            return None
         finally:
             structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
-    def record_failed_init(
+    async def settle_raised_shutdown(
+        self,
+        inst: "App[AppConfig]",
+        instance_index: int,
+        failure: Exception,
+        is_init_failure: bool,
+        force_terminated: bool,
+    ) -> None:
+        """Settle a teardown that raised: FAILED with ``failure``, flagged unless its stored report is safe.
+
+        The coordinator stores a COORDINATOR_FAILED report before re-raising, so this is normally a
+        needs-restart outcome too; with no report at all, nothing proves the instance's work ended.
+        """
+        name = inst.app_config.instance_name
+        self.logger.error("Failed to stop app '%s':\n%s", name, get_short_traceback())
+        self.registry.unregister_app(inst.app_key, instance_index)
+        self.registry.record_failure(inst.app_key, instance_index, failure)
+        report = inst.teardown_report
+        if report is None or not report.is_restart_safe:
+            left = describe_left_running(report or TeardownReport(), inst, force_terminated=force_terminated)
+            reason = f"shutdown raised; {left}"
+            self.logger.error("App '%s' (%s) %s; restart hassette to recover", name, inst.class_name, reason)
+            self.flag_instance_needs_restart(inst, instance_index, reason, report)
+        previous = STARTING if is_init_failure else STOPPING
+        await self.send_outcome_event(inst, status=FAILED, previous_status=previous, exception=failure)
+
+    def settle_failed_init(
         self,
         inst: "App[AppConfig]",
         instance_index: int,
@@ -268,7 +300,7 @@ class AppInstanceLifecycleMixin:
         force_terminated: bool,
         friendly_time: str,
     ) -> None:
-        """Record a failed init's outcome: the failure entry, and a needs-restart flag if work may still run.
+        """Settle a failed init's outcome: the failure entry, and a needs-restart flag if work may still run.
 
         Runs synchronously right after the unregister. The init failure itself was already logged at
         ERROR by its caller; a needs-restart flag gets its own ERROR.
@@ -287,24 +319,28 @@ class AppInstanceLifecycleMixin:
         self.logger.error(
             "App '%s' (%s) %s; restart hassette to recover", inst.app_config.instance_name, inst.class_name, reason
         )
-        self.flag_needs_restart(inst, instance_index, reason, report)
+        self.flag_instance_needs_restart(inst, instance_index, reason, report)
 
-    def record_failed_stop(
+    def settle_failed_stop(
         self,
         inst: "App[AppConfig]",
         instance_index: int,
         report: TeardownReport,
+        timed_out: bool,
         force_terminated: bool,
         friendly_time: str,
     ) -> Exception:
-        """Record a stop that timed out or left work running: one ERROR, a failure entry, and maybe a flag.
+        """Settle a stop that timed out or left work running: one ERROR, a failure entry, and maybe a flag.
+
+        Called only for a stop that timed out, left work running, or both; a clean stop that didn't time
+        out is STOPPED and never reaches here.
 
         Returns:
             The exception recorded as the instance's failure.
         """
         name = inst.app_config.instance_name
-        timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
         if report.is_restart_safe:
+            # Restart-safe here means the stop timed out (see above) but nothing is still pending.
             exc: Exception = TimeoutError(f"stop of app '{name}' timed out after {friendly_time}")
             self.logger.error(
                 "Stop of app '%s' (%s) timed out after %s; nothing still pending", name, inst.class_name, friendly_time
@@ -321,10 +357,10 @@ class AppInstanceLifecycleMixin:
             exc = RuntimeError(f"app '{name}' stopped, but {left}")
         self.logger.error("App '%s' (%s) %s; restart hassette to recover", name, inst.class_name, reason)
         self.registry.record_failure(inst.app_key, instance_index, exc)
-        self.flag_needs_restart(inst, instance_index, reason, report)
+        self.flag_instance_needs_restart(inst, instance_index, reason, report)
         return exc
 
-    def flag_needs_restart(
+    def flag_instance_needs_restart(
         self, inst: "App[AppConfig]", instance_index: int, reason: str, report: TeardownReport | None
     ) -> None:
         """Write the instance's needs-restart record; the first record at an index stands."""

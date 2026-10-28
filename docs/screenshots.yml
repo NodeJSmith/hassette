@@ -516,6 +516,23 @@
   javascript: "fetch('/api/apps/degraded_demo/start',{method:'POST'})"
 
 # ===========================================================================
+# Needs-restart badge
+# stuck_demo has autostart=false. Its on_initialize starts a task that ignores
+# cancellation and then raises, so the failed-init teardown leaves the task
+# pending and flags the instance as needing a restart. JS starts the app via
+# the API, then waits for the badge on its row. Runs after degraded_banner: the
+# flag (and the alert banner it adds) persists for the rest of the run.
+# ===========================================================================
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_needs_restart_badge.png
+  selector: "[data-testid='app-row-stuck_demo']"
+  width: 1400
+  height: 900
+  wait: 1000
+  wait_for: "document.querySelector('[data-testid=\"app-row-stuck_demo\"] [data-testid=\"needs-restart-badge\"]')"
+  javascript: "fetch('/api/apps/stuck_demo/start',{method:'POST'})"
+
+# ===========================================================================
 # Session-expired view
 # Shown after a 401 that isn't Hassette's own (Home Assistant ingress session
 # expired, or a forward-auth proxy's sign-in lapsed). The demo never produces

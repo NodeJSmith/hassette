@@ -426,9 +426,8 @@ class TestCreateInstanceUnlockedSynchronousFailure:
     ) -> None:
         """create_single_instance() can register a failure synchronously (e.g. a config
         validation error at instance-creation time, not a class-load error) without raising.
-        _create_instance_unlocked must notice that recorded failure via
-        _emit_failure_event_if_present and return early rather than proceeding to
-        initialize_instances().
+        _create_instance_unlocked must notice that nothing was registered, emit the
+        recorded failure, and return early rather than proceeding to initialize_instances().
         """
         event_capture.install(mock_hassette)
         mock_manifest.app_config = [{"instance_name": "a"}]

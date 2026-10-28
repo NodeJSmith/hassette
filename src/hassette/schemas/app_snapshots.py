@@ -9,7 +9,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-from hassette_wire import AppStatus, ResourceStatus
+from hassette_wire import AppStatus, NeedsRestart, ResourceStatus
 from whenever import ZonedDateTime
 
 APP_STATUS_KEYS = tuple(AppStatus)
@@ -24,6 +24,18 @@ class NeedsRestartInfo:
     pending_tasks: tuple[str, ...] = ()
     """Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete
     (the instance was force-terminated, or its shutdown raised)."""
+
+    def to_wire(self) -> NeedsRestart:
+        """The wire ``NeedsRestart``, with ``flagged_at`` in epoch seconds (sub-second precision kept).
+
+        Lives here rather than in ``web/mappers.py`` because both the REST mappers and the WS dispatcher
+        (``RuntimeQueryService``, in core) send it.
+        """
+        return NeedsRestart(
+            reason=self.reason,
+            pending_tasks=list(self.pending_tasks),
+            flagged_at=self.flagged_at.timestamp(unit="nanosecond") / 1e9,
+        )
 
 
 @dataclass(frozen=True)

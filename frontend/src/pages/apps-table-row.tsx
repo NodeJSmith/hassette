@@ -1,7 +1,7 @@
 import { type MouseEvent as ReactMouseEvent, useState } from "react";
 import { Link } from "wouter";
 
-import type { NeedsRestart } from "@/api/ws-types";
+import type { NeedsRestart } from "@/api/endpoints";
 import { ActionButtons, getStableInstanceRef } from "@/components/shared/action-buttons";
 import { AppLink } from "@/components/shared/app-link";
 import { IconChevron } from "@/components/shared/icons";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import type { AppStatusEntry } from "@/state/store";
 import {
   appLiveStatus,
-  appNeedsRestartCount,
+  appNeedsRestart,
   type AppRow,
   instanceLiveError,
   instanceLiveNeedsRestart,
@@ -39,11 +39,16 @@ function BlockingBadge({ appKey, count }: { appKey: string; count: number }) {
   );
 }
 
+/** Hover text for a needs-restart badge: the flag's reason, or a count when several instances are flagged. */
+function needsRestartLabel(count: number, flag: NeedsRestart | null): string {
+  if (flag) return `Needs a hassette restart: ${flag.reason}`;
+  const verb = count === 1 ? "needs" : "need";
+  return `${pluralize(count, "instance")} ${verb} a hassette restart: work from a teardown may still be running`;
+}
+
 /** Says the instance (or how many of the app's instances) need a hassette restart; the reason is the tooltip. */
-function NeedsRestartBadge({ count, flag }: { count: number; flag?: NeedsRestart | null }) {
-  const label = flag
-    ? `Needs a hassette restart: ${flag.reason}`
-    : `${pluralize(count, "instance")} need a hassette restart: work from a teardown may still be running`;
+function NeedsRestartBadge({ count, flag }: { count: number; flag: NeedsRestart | null }) {
+  const label = needsRestartLabel(count, flag);
   return (
     <Badge
       variant="danger"
@@ -84,11 +89,7 @@ export function AppTableRow({
   const isMulti = app.instance_count > 1;
   const isDimmed = INACTIVE_STATUSES.has(status);
   const runs = totalRuns(app);
-  const restartCount = appNeedsRestartCount(appStatuses, app);
-  // A single-instance app has no instance row, so its own flag (and reason) goes on the app row.
-  const singleFlag = isMulti
-    ? null
-    : app.instances[0] && instanceLiveNeedsRestart(appStatuses, app.app_key, app.instances[0]);
+  const restart = appNeedsRestart(appStatuses, app);
 
   return (
     <>
@@ -148,7 +149,7 @@ export function AppTableRow({
           <Badge variant={statusToVariant(status)} size="sm" data-testid="status-pill">
             {status}
           </Badge>
-          {restartCount > 0 && <NeedsRestartBadge count={restartCount} flag={singleFlag} />}
+          {restart.count > 0 && <NeedsRestartBadge count={restart.count} flag={restart.flag} />}
           {/* An uncomputed count (null) shows no badge: the badge only ever reports a positive count. */}
           {app.blocking_event_count !== null && app.blocking_event_count > 0 && (
             <BlockingBadge appKey={app.app_key} count={app.blocking_event_count} />

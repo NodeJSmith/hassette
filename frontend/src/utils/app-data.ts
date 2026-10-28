@@ -4,9 +4,9 @@ import type {
   AppGridResponse,
   AppManifest,
   AppStatus,
+  NeedsRestart,
   ResourceStatus,
 } from "@/api/endpoints";
-import type { NeedsRestart } from "@/api/ws-types";
 import { type AppStatusEntry, appStatusKey } from "@/state/store";
 import type { SortState } from "@/utils/sort";
 
@@ -192,14 +192,23 @@ export function instanceLiveNeedsRestart(
   return (entry ? entry.needs_restart : inst.needs_restart) ?? null;
 }
 
-/** How many of an app's instances need a hassette restart, counting live WS flags over the cached rows.
- *  Never below the server's `needs_restart_count`, which also covers indices the row doesn't list. */
-export function appNeedsRestartCount(
+/** An app's needs-restart summary for its row: how many instances are flagged, and the flag itself when
+ *  exactly one is, so the row can show that instance's reason.
+ *
+ *  The count is the larger of the live flags over the row's cached instances and the server's
+ *  `needs_restart_count`. Live can be higher when a WS event flagged an instance after the grid loaded;
+ *  the server count can be higher when it covers indices the row doesn't list. A flag never clears
+ *  before restart, so neither side can be stale-high. */
+export function appNeedsRestart(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "instances" | "needs_restart_count">,
-): number {
-  const live = row.instances.filter((inst) => instanceLiveNeedsRestart(appStatuses, row.app_key, inst) !== null).length;
-  return Math.max(live, row.needs_restart_count ?? 0);
+): { count: number; flag: NeedsRestart | null } {
+  const flags = row.instances.flatMap((inst) => {
+    const flag = instanceLiveNeedsRestart(appStatuses, row.app_key, inst);
+    return flag ? [flag] : [];
+  });
+  const count = Math.max(flags.length, row.needs_restart_count ?? 0);
+  return { count, flag: count === 1 && flags.length === 1 ? flags[0] : null };
 }
 
 function hasError(row: AppRow): boolean {

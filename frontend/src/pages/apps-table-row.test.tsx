@@ -604,6 +604,27 @@ describe("AppTableRow", () => {
       expect(getByTestId("needs-restart-badge").getAttribute("title")).toContain("1 task still pending");
     });
 
+    it("gives a multi-instance app row the reason when exactly one instance is flagged", () => {
+      const app = createAppRow({
+        instance_count: 2,
+        needs_restart_count: 1,
+        instances: [
+          createInstance({ app_key: "my_app", index: 0, instance_name: "my_app[0]" }),
+          createInstance({
+            app_key: "my_app",
+            index: 1,
+            instance_name: "my_app[1]",
+            status: "failed",
+            needs_restart: flag,
+          }),
+        ],
+      });
+      const { getByTestId } = renderRow({ app });
+      const badge = within(getByTestId("app-row-my_app")).getByTestId("needs-restart-badge");
+      expect(badge.textContent).toBe("needs restart");
+      expect(badge.getAttribute("title")).toContain("1 task still pending");
+    });
+
     it("counts flagged instances on a multi-instance app row and badges each flagged instance row", () => {
       const app = createAppRow({
         instance_count: 2,

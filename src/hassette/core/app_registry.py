@@ -354,9 +354,11 @@ class AppRegistry:
 
     def get_snapshot(self) -> AppStatusSnapshot:
         """Generate immutable status snapshot for web UI."""
+        # Every app key with an instance entry or a needs-restart record, in first-seen order.
+        app_keys = dict.fromkeys([*self._instances, *self._needs_restart])
         instances = [
             info
-            for app_key in dict.fromkeys([*self._instances, *self._needs_restart])
+            for app_key in app_keys
             for index in sorted(self.tracked_indices(app_key))
             if (info := self.resolve_instance_info(app_key, index)) is not None
         ]
@@ -462,8 +464,11 @@ class AppRegistry:
     def build_orphaned_flag_info(self, app_key: str) -> AppManifestInfo | None:
         """Runtime fields for an app absent from the loaded config that still has needs-restart records.
 
-        Returns ``None`` when the app has no record. Static metadata is the caller's to fill in
-        (``overlay_runtime_state`` takes it from the DB row).
+        Returns ``None`` when the app has no record. A record makes its index tracked, and the resolver
+        returns an info for every flagged index, so ``instances`` is never empty past the guard.
+
+        ``display_name``, ``filename`` and ``enabled`` are placeholders: static metadata is the caller's
+        to fill in (``overlay_runtime_state`` overrides them from the DB row).
         """
         if not self._needs_restart.get(app_key):
             return None

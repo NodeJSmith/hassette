@@ -14,7 +14,13 @@ from hassette_wire import (
     ResourceStatus,
 )
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_app_statuses
+from hassette.schemas.app_snapshots import (
+    AppFullSnapshot,
+    AppInstanceInfo,
+    AppManifestInfo,
+    NeedsRestartInfo,
+    tally_app_statuses,
+)
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 
 
@@ -38,6 +44,7 @@ def make_app_instance_info(
     error_message: str | None = None,
     error_traceback: str | None = None,
     owner_id: str | None = None,
+    needs_restart: NeedsRestartInfo | None = None,
 ) -> AppInstanceInfo:
     """Build an AppInstanceInfo with sensible defaults.
 
@@ -54,6 +61,7 @@ def make_app_instance_info(
         error_message=error_message,
         error_traceback=error_traceback,
         owner_id=owner_id,
+        needs_restart=needs_restart,
     )
 
 
@@ -115,6 +123,7 @@ def make_app_summary(
     instance_count: int = 1,
     instances: list[AppInstance] | None = None,
     in_current_config: bool = True,
+    needs_restart_count: int = 0,
 ) -> AppSummary:
     """Build an AppSummary with sensible defaults."""
     return AppSummary(
@@ -127,6 +136,7 @@ def make_app_summary(
         instance_count=instance_count,
         instances=instances or [],
         in_current_config=in_current_config,
+        needs_restart_count=needs_restart_count,
     )
 
 

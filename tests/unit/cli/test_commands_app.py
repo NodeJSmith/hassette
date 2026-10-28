@@ -90,9 +90,7 @@ class TestCmdApp:
 
     def test_restart_column_shows_count_only_when_flagged(self, cli_client_factory: CLIClientFactory) -> None:
         """The Restart column shows a flagged app's count and stays blank for an app with none."""
-        flagged = make_app_summary(app_key="stuck_app", status=AppStatus.FAILED).model_copy(
-            update={"needs_restart_count": 7}
-        )
+        flagged = make_app_summary(app_key="stuck_app", status=AppStatus.FAILED, needs_restart_count=7)
         entries = [make_app_grid_entry(app=flagged), make_app_grid_entry(app=make_app_summary(app_key="ok_app"))]
         client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body(entries))])
         output = runner.stdout(client, cmd_app)

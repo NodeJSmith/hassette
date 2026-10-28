@@ -35,7 +35,6 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo
 from hassette.types.enums import ResourceRole, Topic
 from hassette.utils import get_version
-from hassette.web.mappers import needs_restart_from
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -228,7 +227,7 @@ class RuntimeQueryService(Resource):
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
-            needs_restart=needs_restart_from(resolved.needs_restart) if resolved is not None else None,
+            needs_restart=resolved.needs_restart.to_wire() if resolved and resolved.needs_restart else None,
         )
         await self.build_and_broadcast("app_status_changed", payload)
 

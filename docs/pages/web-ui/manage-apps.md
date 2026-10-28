@@ -15,7 +15,7 @@ Below the strip, the app table shows one row per app with the following columns:
 | Column | What it shows |
 |--------|--------------|
 | **APP** | Status dot, app key, and class name. Apps with `autostart = false` also show a **no autostart** chip. |
-| **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DEGRADED`, `DISABLED`, or `BLOCKED`. An amber **N blocking** badge follows it when the app [blocked the event loop](../core-concepts/blocking-io-detection.md#finding-blocking-calls) in the selected time window. Click it to see the call sites on the app's overview. The badge is unrelated to the `BLOCKED` status, which comes from `hassette run --app`. |
+| **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DEGRADED`, `DISABLED`, or `BLOCKED`. An amber **N blocking** badge follows it when the app [blocked the event loop](../core-concepts/blocking-io-detection.md#finding-blocking-calls) in the selected time window. Click it to see the call sites on the app's overview. The badge is unrelated to the `BLOCKED` status, which comes from `hassette run --app`. A red **needs restart** badge marks an instance whose teardown may have left work running; hover it for the reason. Only restarting Hassette clears it (see [Instances that need a restart](../operating/index.md#instances-that-need-a-restart)). On a multi-instance app the parent row reads **N need restart** when several instances are flagged, or **needs restart** for one, and each flagged instance row carries its own badge. |
 | **LAST ERROR** | Most recent error message, truncated. Click to expand the full message. Shows `—` when the app is healthy. |
 | **RUNS** | An activity sparkline showing invocation frequency over the selected time window, plus the total run count. |
 | **LAST FIRED** | Relative timestamp of the most recent handler or job execution, for example "3 min ago". Shows `—` if the app has never fired. |
@@ -24,6 +24,10 @@ Below the strip, the app table shows one row per app with the following columns:
 Clicking a **LAST ERROR** cell expands the full error message inline:
 
 ![Error spotlight](../../_static/web_ui_detail_error_spotlight.png)
+
+An instance flagged as needing a restart shows the **needs restart** badge under its status:
+
+![An app row with the needs restart badge](../../_static/web_ui_needs_restart_badge.png)
 
 ### Find a specific app
 

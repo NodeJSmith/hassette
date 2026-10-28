@@ -13,8 +13,9 @@ class WeatherApp(App):
                 "sun.sun", handler=self.refresh, name="sun_refresh"
             )
             await self.refresh()
-        except Exception:
-            # on_shutdown does not run after a failed init
+        except BaseException:
+            # on_shutdown doesn't run after a failed or timed-out init;
+            # BaseException also catches the timeout's CancelledError
             await self.session.close()
             raise
 
