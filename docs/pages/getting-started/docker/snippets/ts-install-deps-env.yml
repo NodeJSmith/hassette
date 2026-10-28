@@ -1,0 +1,2 @@
+environment:
+  - HASSETTE_DOCKER_INSTALL_DEPS=1

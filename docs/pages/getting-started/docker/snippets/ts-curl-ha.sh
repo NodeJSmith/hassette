@@ -1,2 +1,2 @@
-docker compose exec hassette curl -s http://homeassistant:8123/api/ \
+docker compose exec hassette curl -s YOUR_BASE_URL/api/ \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
