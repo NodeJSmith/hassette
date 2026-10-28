@@ -183,11 +183,9 @@ class Scheduler(Resource):
         mark_ready(self, reason="Scheduler initialized")
 
     async def on_shutdown(self) -> None:
-        """Remove every job this scheduler owns and stop receiving job-removal callbacks from the service."""
-        try:
-            await self.remove_all_jobs()
-        finally:
-            self.scheduler_service.deregister_removal_callback(self.owner_id)
+        """Stop receiving job-removal callbacks (``remove_all_jobs()`` clears what they sync), then remove every job."""
+        self.scheduler_service.deregister_removal_callback(self.owner_id)
+        await self.remove_all_jobs()
 
     def on_error(self, handler: "SchedulerErrorHandlerType") -> None:
         """Register an app-level error handler for this scheduler.
@@ -385,7 +383,7 @@ class Scheduler(Resource):
         ``add_job``/``remove_job`` calls keep ``_jobs_by_name``/``_jobs_by_group`` in sync.
         A caller that is discarding this scheduler for good (``on_shutdown``,
         ``AppLifecycleService.remove_instance_registrations``) must call
-        ``scheduler_service.deregister_removal_callback(self.owner_id)`` itself afterward.
+        ``scheduler_service.deregister_removal_callback(self.owner_id)`` itself, before or after.
         """
         jobs = list(self._jobs_by_name.values())
         self._jobs_by_name.clear()
