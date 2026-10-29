@@ -1,0 +1,41 @@
+scenario                 py    base                          L                             W
+clean                    3.11  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-  rc=0     0.0s atexit/surv=A-
+clean                    3.14  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-
+idle_anyio               3.11  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-
+idle_anyio               3.14  rc=0     0.2s atexit/surv=A-  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-
+idle_stdlib_pool         3.11  rc=0     0.0s atexit/surv=A-  rc=0     0.0s atexit/surv=A-  rc=0     0.0s atexit/surv=A-
+idle_stdlib_pool         3.14  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-  rc=0     0.1s atexit/surv=A-
+    L stuck_user_thread 3.11 | [L] thread survivors ['user-device-client']; interpreter continues exit
+    W stuck_user_thread 3.11 | [W] WATCHDOG fired; alive: ['MainThread', 'user-device-client']
+stuck_user_thread        3.11  rc=HUNG  8.0s atexit/surv=--  rc=0     2.1s atexit/surv=AS  rc=0     2.0s atexit/surv=-S
+    L stuck_user_thread 3.14 | [L] thread survivors ['user-device-client']; interpreter continues exit
+    W stuck_user_thread 3.14 | [W] WATCHDOG fired; alive: ['MainThread', 'user-device-client']
+stuck_user_thread        3.14  rc=HUNG  8.0s atexit/surv=--  rc=0     2.1s atexit/surv=AS  rc=0     2.1s atexit/surv=-S
+    base error_stuck_thread 3.11 |   File "/tmp/claude-1000/-home-jessica-source-hassette--claude-worktrees-3395/056c7b6b-ab2c-48fc-a74e-43aa85972e44/scratchpad/exitprobe/child.py", line 76, in run_forever /     raise RuntimeError("fatal") / RuntimeError: fatal
+    L error_stuck_thread 3.11 |     raise RuntimeError("fatal") / RuntimeError: fatal / [L] thread survivors ['user-device-client']; interpreter continues exit
+    W error_stuck_thread 3.11 |     raise RuntimeError("fatal") / RuntimeError: fatal / [W] WATCHDOG fired; alive: ['MainThread', 'user-device-client']
+error_stuck_thread       3.11  rc=HUNG  8.0s atexit/surv=--  rc=1     2.1s atexit/surv=AS  rc=1     2.0s atexit/surv=-S
+    base error_stuck_thread 3.14 |   File "/tmp/claude-1000/-home-jessica-source-hassette--claude-worktrees-3395/056c7b6b-ab2c-48fc-a74e-43aa85972e44/scratchpad/exitprobe/child.py", line 76, in run_forever /     raise RuntimeError("fatal") / RuntimeError: fatal
+    L error_stuck_thread 3.14 |     raise RuntimeError("fatal") / RuntimeError: fatal / [L] thread survivors ['user-device-client']; interpreter continues exit
+    W error_stuck_thread 3.14 |     raise RuntimeError("fatal") / RuntimeError: fatal / [W] WATCHDOG fired; alive: ['MainThread', 'user-device-client']
+error_stuck_thread       3.14  rc=HUNG  8.0s atexit/surv=--  rc=1     2.1s atexit/surv=AS  rc=1     2.1s atexit/surv=-S
+    W hung_atexit 3.11 | [W] WATCHDOG fired; alive: ['MainThread']
+hung_atexit              3.11  rc=HUNG  8.0s atexit/surv=--  rc=HUNG  8.0s atexit/surv=--  rc=0     2.0s atexit/surv=-S
+    W hung_atexit 3.14 | [W] WATCHDOG fired; alive: ['MainThread']
+hung_atexit              3.14  rc=HUNG  8.0s atexit/surv=--  rc=HUNG  8.0s atexit/surv=--  rc=0     2.0s atexit/surv=-S
+    L stuck_default_executor 3.11 | [L] thread survivors ['asyncio_0']; interpreter continues exit
+    W stuck_default_executor 3.11 | [W] WATCHDOG fired; alive: ['MainThread', 'asyncio_0', 'Thread-1 (_do_shutdown)']
+stuck_default_executor   3.11  rc=HUNG  8.0s atexit/surv=--  rc=0     2.2s atexit/surv=AS  rc=0     2.2s atexit/surv=-S
+    L stuck_default_executor 3.14 | [L] thread survivors ['asyncio_0']; interpreter continues exit
+    W stuck_default_executor 3.14 | [W] WATCHDOG fired; alive: ['MainThread', 'asyncio_0', 'Thread-1 (_do_shutdown)']
+stuck_default_executor   3.14  rc=HUNG  8.0s atexit/surv=--  rc=0     2.2s atexit/surv=AS  rc=0     2.2s atexit/surv=-S
+    L swallowing_task 3.11 | [L] task survivors ['swallower']; os._exit
+    W swallowing_task 3.11 | [W] WATCHDOG fired; alive: ['MainThread']
+swallowing_task          3.11  rc=HUNG  8.0s atexit/surv=--  rc=0     2.2s atexit/surv=-S  rc=0     2.1s atexit/surv=-S
+    L swallowing_task 3.14 | [L] task survivors ['swallower']; os._exit
+    W swallowing_task 3.14 | [W] WATCHDOG fired; alive: ['MainThread']
+swallowing_task          3.14  rc=HUNG  8.0s atexit/surv=--  rc=0     2.2s atexit/surv=-S  rc=0     2.2s atexit/surv=-S
+    W frozen_loop 3.11 | [W] WATCHDOG fired; alive: ['MainThread']
+frozen_loop              3.11  rc=HUNG  8.0s atexit/surv=--  rc=HUNG  8.0s atexit/surv=--  rc=0     2.1s atexit/surv=-S
+    W frozen_loop 3.14 | [W] WATCHDOG fired; alive: ['MainThread']
+frozen_loop              3.14  rc=HUNG  8.0s atexit/surv=--  rc=HUNG  8.0s atexit/surv=--  rc=0     2.2s atexit/surv=-S

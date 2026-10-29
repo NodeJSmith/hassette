@@ -12,7 +12,7 @@ from contextlib import suppress
 
 from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, start
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound, tighten_shutdown_deadline
-from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
 from hassette.types.enums import ResourceRole
 from hassette.utils.service_utils import WaveOutcome, describe_children, describe_wave_causes, wait_for_wave
 
@@ -186,20 +186,20 @@ async def run_bounded_hook(resource: "Resource", method: typing.Callable[[], typ
         raise ShutdownHookTimedOutError(timeout_message)
 
 
-def shutdown_hook_report(hook_errors: "tuple[Exception, ...]", operation: str) -> TeardownReport:
-    """Teardown evidence for the shutdown hooks ``run_hooks()`` handled.
+def shutdown_hook_outcome(resource_name: str, hook_errors: "tuple[Exception, ...]") -> ShutdownOutcome:
+    """The outcome of the shutdown hooks ``run_hooks()`` handled for ``resource_name``.
 
-    A hook cut off by its bound records ``SHUTDOWN_HOOK_TIMED_OUT``; one that raised records
-    ``SHUTDOWN_HOOK_FAILED``. Both can appear when several hooks ran.
+    A hook cut off by its bound is ``TIMED_OUT``; one that raised is ``FAILED``. When both happened, the
+    timed-out hook ranks worse and gives the reason.
     """
-    if not hook_errors:
-        return TeardownReport()
-    causes: list[TeardownCause] = []
-    if any(isinstance(exc, ShutdownHookTimedOutError) for exc in hook_errors):
-        causes.append(TeardownCause.SHUTDOWN_HOOK_TIMED_OUT)
-    if any(not isinstance(exc, ShutdownHookTimedOutError) for exc in hook_errors):
-        causes.append(TeardownCause.SHUTDOWN_HOOK_FAILED)
-    return TeardownReport(causes=tuple(causes), failed_operations=(operation,))
+    timed_out = [exc for exc in hook_errors if isinstance(exc, ShutdownHookTimedOutError)]
+    if timed_out:
+        return ShutdownOutcome(ShutdownResult.TIMED_OUT, reason=f"{resource_name}: {timed_out[0]}")
+    if hook_errors:
+        return ShutdownOutcome(
+            ShutdownResult.FAILED, reason=f"{resource_name}: a shutdown hook raised {type(hook_errors[0]).__name__}"
+        )
+    return ShutdownOutcome()
 
 
 def ordered_children_for_shutdown(resource: "Resource") -> "list[Resource]":
@@ -207,45 +207,25 @@ def ordered_children_for_shutdown(resource: "Resource") -> "list[Resource]":
     return list(reversed(resource.children))
 
 
-class ShutdownBatchResult(typing.NamedTuple):
-    """One batch's contribution to a caller's aggregated ``TeardownReport``.
-
-    Returned by ``shutdown_batch()``; the caller extends its own running lists with these
-    three fields across every batch it runs, then merges once at the end (see
-    ``Resource._shutdown_children()`` and ``Hassette._shutdown_children()``).
-    """
-
-    reports: list[TeardownReport]
-    causes: list[TeardownCause]
-    affected: list[str]
-
-
-async def shutdown_batch(
-    resource: "Resource", batch: "list[Resource]", *, deadline: float | None
-) -> ShutdownBatchResult:
-    """Shut down one batch of children concurrently and classify the results.
+async def shutdown_batch(resource: "Resource", batch: "list[Resource]", *, deadline: float | None) -> ShutdownOutcome:
+    """Shut down one batch of children concurrently and merge their outcomes.
 
     Shared by ``Resource._shutdown_children()`` (one batch: all children) and the root's exit stages
-    (one batch per dependency wave). Each caller owns its own aggregation across batches -- this
-    function only classifies a single batch and returns the pieces.
+    (one batch per dependency wave). Each caller merges across its own batches.
 
     The batch has no bound of its own: each child gets ``deadline`` (tightening any it already has;
     normally the caller's own shutdown deadline), and only the operation's owner walks away when that
     deadline passes.
 
-    - A child whose ``shutdown()`` call itself raises unexpectedly adds ``CHILD_SHUTDOWN_FAILED``
-      and the child's identity to the affected list. The coordinator stores evidence (e.g.
-      ``COORDINATOR_FAILED``) on the child's own report before re-raising -- see
-      ``coordinate_shutdown()``'s ``except Exception`` branch in ``lifecycle.py`` -- so that
-      report is merged in when present, instead of being replaced by only the generic cause.
-    - A child that returns without raising, but whose own report has ``is_restart_safe`` ``False``,
-      adds ``CHILD_RESTART_UNSAFE`` and the child's identity -- the child's own causes and
-      details are merged in first.
-    """
-    child_reports: list[TeardownReport] = []
-    causes: list[TeardownCause] = []
-    affected: list[str] = []
+    - A child whose ``shutdown()`` call itself raises makes the batch ``INCOMPLETE``. The coordinator stores
+      an outcome on the child before re-raising (see ``coordinate_shutdown()``'s ``except Exception`` branch
+      in ``lifecycle.py``), so that outcome is merged first and its reason, naming the step, wins.
+    - A child that returns merges its own outcome in; one that is restart-unsafe makes the batch unsafe
+      through the merge, with no outcome of its own.
 
+    Outcomes merge in batch order, so among several children at the worst result the first one's reason
+    is kept.
+    """
     for child in batch:
         tighten_shutdown_deadline(child, deadline)
     # create_lifecycle_task(), not asyncio.gather()'s own implicit task creation -- resource's own
@@ -256,31 +236,13 @@ async def shutdown_batch(
     ]
     results = await asyncio.gather(*child_tasks, return_exceptions=True)
 
+    outcomes: list[ShutdownOutcome] = []
     for child, result in zip(batch, results, strict=True):
         if isinstance(result, BaseException):
             resource.lifecycle_logger.error("Child %s shutdown failed: %s", child.unique_name, result)
-            causes.append(TeardownCause.CHILD_SHUTDOWN_FAILED)
-            affected.append(child.unique_name)
-            child_report = child.teardown_report
-            if child_report is not None:
-                child_reports.append(child_report)
+            if (stored := child.shutdown_outcome) is not None:
+                outcomes.append(stored)
+            outcomes.append(incomplete_outcome(f"{child.unique_name}'s shutdown raised {type(result).__name__}"))
             continue
-        child_reports.append(result)
-        if not result.is_restart_safe:
-            causes.append(TeardownCause.CHILD_RESTART_UNSAFE)
-            affected.append(child.unique_name)
-
-    return ShutdownBatchResult(child_reports, causes, affected)
-
-
-def finalize_shutdown_report(
-    reports: list[TeardownReport], causes: list[TeardownCause], affected: list[str]
-) -> TeardownReport:
-    """Merge accumulated batch reports and stamp on the accumulated causes/affected evidence.
-
-    Shared tail of ``Resource._shutdown_children()`` and ``Hassette._shutdown_children()``: both
-    accumulate ``ShutdownBatchResult`` fields across one or more ``shutdown_batch()`` calls, then
-    call this once to produce the single aggregated ``TeardownReport`` they return.
-    """
-    merged = merge_teardown_reports(*reports) if reports else TeardownReport()
-    return add_teardown_evidence(merged, causes=tuple(causes), affected_resources=tuple(affected))
+        outcomes.append(result)
+    return merge_outcomes(*outcomes)

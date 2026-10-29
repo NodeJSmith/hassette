@@ -57,8 +57,9 @@ export interface NeedsRestart {
    */
   reason: string;
   /**
-   * Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the
-   * instance was force-terminated, or its shutdown raised).
+   * Names of the tasks still running when the teardown ended, including an initializer that hadn't stopped
+   * (``resource:initialize:<unique name>``). Can be empty when the evidence is incomplete (the instance was
+   * force-terminated, or its shutdown raised); ``reason`` says which.
    */
   pending_tasks?: string[];
   /**

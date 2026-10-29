@@ -173,7 +173,7 @@ const schema11 = {
         },
         pending_tasks: {
           description:
-            "Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the\ninstance was force-terminated, or its shutdown raised).",
+            "Names of the tasks still running when the teardown ended, including an initializer that hadn't stopped\n(``resource:initialize:<unique name>``). Can be empty when the evidence is incomplete (the instance was\nforce-terminated, or its shutdown raised); ``reason`` says which.",
           items: { type: "string" },
           title: "Pending Tasks",
           type: "array",
@@ -306,7 +306,7 @@ const schema16 = {
     },
     pending_tasks: {
       description:
-        "Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the\ninstance was force-terminated, or its shutdown raised).",
+        "Names of the tasks still running when the teardown ended, including an initializer that hadn't stopped\n(``resource:initialize:<unique name>``). Can be empty when the evidence is incomplete (the instance was\nforce-terminated, or its shutdown raised); ``reason`` says which.",
       items: { type: "string" },
       title: "Pending Tasks",
       type: "array",

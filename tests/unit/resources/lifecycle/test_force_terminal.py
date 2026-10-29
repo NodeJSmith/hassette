@@ -6,8 +6,8 @@ Verifies:
 - _force_terminal() recurses to grandchildren
 - _force_terminal() cancels task buckets
 - _force_terminal() still recurses into already-completed children
-- _force_terminal() records FORCED_TERMINAL restart-unsafe evidence before cancelling work
-- _force_terminal() leaves an already-completed SAFE report unchanged
+- _force_terminal() stores a restart-unsafe INCOMPLETE outcome before cancelling work
+- _force_terminal() leaves an already-completed restart-safe outcome unchanged
 - Service._force_terminal() cancels serve task
 - _on_children_stopped() hook fires on clean shutdown
 - _on_children_stopped() is skipped on timeout
@@ -23,7 +23,7 @@ from hassette_wire import ResourceStatus
 
 from hassette.cache import AsyncCache
 from hassette.resources.base import Resource
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownResult, incomplete_outcome
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from tests.support.factories import make_app, make_scheduled_job
@@ -157,9 +157,9 @@ async def test_force_terminal_cancels_task_bucket():
 
 
 async def test_force_terminal_still_recurses_into_already_completed_children():
-    """Regression: _force_terminal() must still recurse into a child whose own report was
-    already stored (e.g. an already-completed shutdown) -- only the report itself is left
-    unchanged (see test_force_terminal_leaves_completed_safe_child_report_unchanged below), not
+    """Regression: _force_terminal() must still recurse into a child whose own outcome was
+    already stored (e.g. an already-completed shutdown) -- only the outcome itself is left
+    unchanged (see test_force_terminal_leaves_completed_safe_child_outcome_unchanged below), not
     the recursive call. An early return here would also skip any *grandchildren* under that
     child, which is exactly what Hassette._shutdown_body() relies on this method reaching
     unconditionally on its total-timeout path.
@@ -190,12 +190,12 @@ async def test_force_terminal_still_recurses_into_already_completed_children():
         assert mock_cancel.call_args_list == [call(root), call(child)]
 
 
-async def test_force_terminal_stores_forced_terminal_report_before_cancelling_work():
-    """_force_terminal() stores its restart-unsafe report (FORCED_TERMINAL) before cancelling
+async def test_force_terminal_stores_forced_terminal_outcome_before_cancelling_work():
+    """_force_terminal() stores its restart-unsafe INCOMPLETE outcome before cancelling
     anything -- ``cancel()``, ``task_bucket.cancel_all_sync()``, and the recursive descendant
-    call all happen strictly after ``self._teardown_report`` already reflects the forced
-    outcome, so a caller inspecting the report mid-cancellation never sees ``None`` or a report
-    that doesn't yet name the forced-terminal cause.
+    call all happen strictly after ``self._shutdown_outcome`` already reflects the forced
+    outcome, so a caller inspecting the outcome mid-cancellation never sees ``None`` or an outcome
+    that doesn't yet give the forced-terminal reason.
     """
     hassette = make_mock_hassette(sealed=False)
     root = SimpleParent(hassette)
@@ -205,7 +205,7 @@ async def test_force_terminal_stores_forced_terminal_report_before_cancelling_wo
     original_cancel_all_sync = root.task_bucket.cancel_all_sync
 
     def _spy_cancel_all_sync() -> None:
-        assert root._teardown_report is not None, "report must already be stored before cancel_all_sync() runs"
+        assert root._shutdown_outcome is not None, "outcome must already be stored before cancel_all_sync() runs"
         order.append("cancel_all_sync")
         original_cancel_all_sync()
 
@@ -215,17 +215,17 @@ async def test_force_terminal_stores_forced_terminal_report_before_cancelling_wo
         mock_cancel.side_effect = lambda _r: order.append("cancel")
         root._force_terminal()
 
-    report = root.teardown_report
-    assert report is not None
-    assert report.is_restart_safe is False
-    assert TeardownCause.FORCED_TERMINAL in report.causes
-    assert order == ["cancel", "cancel_all_sync"], "both cancellation calls must run after the report was stored"
+    outcome = root.shutdown_outcome
+    assert outcome is not None
+    assert outcome.is_restart_safe is False
+    assert outcome.result is ShutdownResult.INCOMPLETE
+    assert order == ["cancel", "cancel_all_sync"], "both cancellation calls must run after the outcome was stored"
     assert root.status == ResourceStatus.STOPPED
 
 
-async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
+async def test_force_terminal_leaves_completed_safe_child_outcome_unchanged():
     """A child that already completed a clean, restart-safe shutdown before a parent's
-    force-terminal call keeps its own report unchanged -- force-terminal only degrades resources
+    force-terminal call keeps its own outcome unchanged -- force-terminal only degrades resources
     that have not yet completed a teardown attempt.
     """
     hassette = make_mock_hassette(sealed=False)
@@ -235,25 +235,27 @@ async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
     await root.initialize()
 
     await child.shutdown()
-    safe_report = child.teardown_report
-    assert safe_report is not None
-    assert safe_report.is_restart_safe is True
+    safe_outcome = child.shutdown_outcome
+    assert safe_outcome is not None
+    assert safe_outcome.is_restart_safe is True
 
     root._force_terminal()
 
-    assert child.teardown_report is safe_report, "force-terminal must not touch an already-completed SAFE report"
-    assert safe_report.is_restart_safe is True
+    assert child.shutdown_outcome is safe_outcome, (
+        "force-terminal must not touch an already-completed restart-safe outcome"
+    )
+    assert safe_outcome.is_restart_safe is True
 
 
-async def test_force_terminal_reaches_grandchild_under_already_reported_child():
-    """Regression: a live grandchild under a child whose own report was already stored must
+async def test_force_terminal_reaches_grandchild_under_child_with_a_stored_outcome():
+    """Regression: a live grandchild under a child whose own outcome was already stored must
     still be force-terminated. Before this fix, `_force_terminal()`'s "leave an already-stored
-    report unchanged" guard returned before the recursive call into children entirely, so a
-    resource with a stored report (restart-safe or not) blocked force-termination of its own
+    outcome unchanged" guard returned before the recursive call into children entirely, so a
+    resource with a stored outcome (restart-safe or not) blocked force-termination of its own
     descendants -- exactly the total-timeout path `Hassette._shutdown_body()` relies on this
     method reaching unconditionally.
 
-    Sets the child's report directly (rather than via `child.shutdown()`, which would also
+    Sets the child's outcome directly (rather than via `child.shutdown()`, which would also
     propagate to and shut down the grandchild itself, defeating the scenario) to simulate a
     resource that completed its own teardown attempt while a descendant it owns is still alive.
     """
@@ -264,7 +266,7 @@ async def test_force_terminal_reaches_grandchild_under_already_reported_child():
 
     await root.initialize()
 
-    child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+    child._shutdown_outcome = incomplete_outcome("child was force-terminated")
     assert grandchild.shutdown_completed is False
     assert grandchild.status == ResourceStatus.RUNNING
 
@@ -331,7 +333,7 @@ async def test_on_children_stopped_called_on_clean_shutdown():
 
 
 async def test_on_children_stopped_skipped_when_child_work_may_still_run():
-    """_on_children_stopped() is NOT called when a child's report says its work may still be running."""
+    """_on_children_stopped() is NOT called when a child's outcome says its work may still be running."""
     hassette = make_mock_hassette(sealed=False)
 
     parent = HookTrackingParent(hassette)
@@ -354,9 +356,9 @@ async def test_on_children_stopped_called_after_a_child_hook_timed_out():
 
     await parent.initialize()
 
-    report = await parent.shutdown()
+    outcome = await parent.shutdown()
 
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert outcome.result is ShutdownResult.TIMED_OUT
     assert parent.hook_called is True, "a timed-out child hook that ended must not block _on_children_stopped"
 
 

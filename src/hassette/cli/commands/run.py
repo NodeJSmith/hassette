@@ -16,7 +16,7 @@ from hassette.config.helpers import get_log_level
 from hassette.exceptions import AppPrecheckFailedError, ConfigError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.server import EX_CONFIG, exit_code_for
-from hassette.server import main as run_server
+from hassette.server import run as run_server
 from hassette.utils.app_utils import missing_apps_dir_warning
 
 LOGGER = getLogger("hassette.cli")
@@ -92,7 +92,7 @@ def cmd_run(
     try:
         asyncio.run(run_server(HassetteConfig(**init_kwargs)))
     except KeyboardInterrupt:
-        # Only reachable before server.main() installs its own SIGINT handler, or if that
+        # Only reachable before server.serve() installs its own SIGINT handler, or if that
         # registration itself fails — once installed, Ctrl+C is handled there, not here.
         LOGGER.info("Keyboard interrupt received, shutting down")
     except ConfigError as exc:

@@ -15,7 +15,7 @@ from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
-from hassette.resources.teardown import TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownOutcome
 from hassette.testing import EventCapture, wait_for
 from tests.support.outcomes import AnyIndexOutcomes
 from tests.support.web_manifest_helpers import make_app_instance_info
@@ -423,9 +423,9 @@ class TestStopApp:
         inst = register_mock_instance(registry, "test_app", 0)
         seen_during_teardown: list[object] = []
 
-        async def teardown() -> TeardownReport:
+        async def teardown() -> ShutdownOutcome:
             seen_during_teardown.append(registry.get("test_app", 0))
-            return TeardownReport()
+            return ShutdownOutcome()
 
         inst.shutdown = AsyncMock(side_effect=teardown)
 
@@ -517,10 +517,10 @@ class TestExitReachesInFlightStops:
         entered = asyncio.Event()
         release = asyncio.Event()
 
-        async def slow_teardown() -> TeardownReport:
+        async def slow_teardown() -> ShutdownOutcome:
             entered.set()
             await release.wait()
-            return TeardownReport()
+            return ShutdownOutcome()
 
         inst.shutdown = AsyncMock(side_effect=slow_teardown)
         runtime_stop = asyncio.create_task(real_registry_service.stop_app("test_app"))
@@ -541,9 +541,9 @@ class TestShutdownInstanceLogContext:
         inst.app_key = "my_app"
         bound: dict[str, object] = {}
 
-        async def capture_context() -> TeardownReport:
+        async def capture_context() -> ShutdownOutcome:
             bound.update(structlog.contextvars.get_contextvars())
-            return TeardownReport()
+            return ShutdownOutcome()
 
         inst.shutdown = AsyncMock(side_effect=capture_context)
 

@@ -24,7 +24,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.shutdown_deadline import deadline_in
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome
 from hassette.testing import wait_for
 from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
@@ -112,7 +112,7 @@ async def test_shutdown_immediately_after_start_does_not_leave_resource_running(
     event-loop turn later. Without ``_pending_start_task`` tracking that pending joiner,
     ``shutdown()``'s ``_observe_active_initializer()`` would see ``_init_task`` still ``None``,
     conclude there was nothing to cancel, and complete cleanly -- only for the still-pending
-    joiner to resume afterward, consume the just-stored safe report, and initialize the
+    joiner to resume afterward, consume the just-stored safe outcome, and initialize the
     resource anyway, leaving it running after the explicit shutdown had already returned.
     """
     hassette = make_mock_hassette(sealed=False)
@@ -120,9 +120,9 @@ async def test_shutdown_immediately_after_start_does_not_leave_resource_running(
 
     start(resource)
     # No await between start() and shutdown(): the joiner has not had an event-loop turn yet.
-    report = await resource.shutdown()
+    outcome = await resource.shutdown()
 
-    assert report.is_restart_safe is True
+    assert outcome.is_restart_safe is True
     assert resource.status == ResourceStatus.STOPPED, (
         f"resource must stay STOPPED after an explicit shutdown, got {resource.status}"
     )
@@ -139,25 +139,25 @@ async def test_shutdown_after_completed_shutdown_cancels_queued_start():
     still ``None`` at that point, so ``coordinate_shutdown()`` creates a fresh coordinator that
     calls ``_observe_active_initializer()`` and cancels the pending joiner). Here the resource
     has already shut down once, so ``_shutdown_task`` is a *completed* task -- it stays that way
-    until the next accepted ``initialize()`` attempt consumes the report and clears it (see
+    until the next accepted ``initialize()`` attempt consumes the outcome and clears it (see
     ``coordinate_initialize()``). Without the ``elif task.done():`` branch in
     ``coordinate_shutdown()``, this second ``shutdown()`` call would see a non-``None`` task and
-    simply return the already-stored report without ever cancelling the newly-queued
-    ``_pending_start_task`` -- letting that joiner resume afterward, consume the report, and
+    simply return the already-stored outcome without ever cancelling the newly-queued
+    ``_pending_start_task`` -- letting that joiner resume afterward, consume the outcome, and
     initialize the resource despite the explicit shutdown having already returned.
     """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette=hassette)
 
     await resource.initialize()
-    first_report = await resource.shutdown()
-    assert first_report.is_restart_safe is True
+    first_outcome = await resource.shutdown()
+    assert first_outcome.is_restart_safe is True
 
     start(resource)
     # No await between start() and shutdown(): the joiner has not had an event-loop turn yet.
-    second_report = await resource.shutdown()
+    second_outcome = await resource.shutdown()
 
-    assert second_report.is_restart_safe is True
+    assert second_outcome.is_restart_safe is True
     assert resource.status == ResourceStatus.STOPPED, (
         f"resource must stay STOPPED after the second explicit shutdown, got {resource.status}"
     )
@@ -220,14 +220,14 @@ async def test_shutdown_propagation_error_tolerance():
 
 
 async def make_parent_with_exploding_child(
-    message: str, stored_report: TeardownReport | None = None
+    message: str, stored_outcome: ShutdownOutcome | None = None
 ) -> tuple[SimpleParent, ShutdownCounter, ShutdownCounter]:
     """Build an initialized parent with two ``ShutdownCounter`` children, ``(parent, child_ok, child_broken)``.
 
     ``child_broken.shutdown`` is replaced with a coroutine that raises ``RuntimeError(message)``.
-    When ``stored_report`` is given, it is written to the child's ``_teardown_report`` before
+    When ``stored_outcome`` is given, it is written to the child's ``_shutdown_outcome`` before
     raising -- mirroring how ``_run_shutdown_coordinator()``'s ``except Exception`` branch stores
-    evidence on the child's own report before re-raising.
+    an outcome on the child before re-raising.
     """
     parent = SimpleParent(make_mock_hassette(sealed=False))
     child_ok = parent.add_child(ShutdownCounter)
@@ -236,8 +236,8 @@ async def make_parent_with_exploding_child(
         await resource.initialize()
 
     async def exploding_shutdown():
-        if stored_report is not None:
-            child_broken._teardown_report = stored_report
+        if stored_outcome is not None:
+            child_broken._shutdown_outcome = stored_outcome
         raise RuntimeError(message)
 
     # Bypass the @final descriptor by setting on the instance dict.
@@ -312,9 +312,9 @@ async def test_hanging_child_hook_times_out_and_parent_completes():
     assert parent.shutdown_completed is True
     assert hanging.shutdown_completed is True
     assert hanging.shutting_down is False
-    hanging_report = hanging.teardown_report
-    assert hanging_report is not None
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in hanging_report.causes
+    hanging_outcome = hanging.shutdown_outcome
+    assert hanging_outcome is not None
+    assert hanging_outcome.result is ShutdownResult.TIMED_OUT
     assert normal.shutdown_completed is True
 
 
@@ -322,17 +322,9 @@ async def test_hanging_hook_is_cut_off_by_its_own_bound_and_recorded_as_timed_ou
     """A hook that outlives ``shutdown_timeout_seconds`` is cancelled and recorded as timed out, not
     raised, and the body carries on through its later stages without being force-terminated.
     """
-    hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    resource, outcome = await shut_down_with_short_hook_bound(HangingChild)
 
-    resource = HangingChild(hassette)
-    await resource.initialize()
-
-    report = await resource.shutdown()
-
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED not in report.causes
-    assert TeardownCause.FORCED_TERMINAL not in report.causes
+    assert outcome.result is ShutdownResult.TIMED_OUT
     assert resource.status == ResourceStatus.STOPPED
 
 
@@ -346,16 +338,9 @@ class CancelSwallowingChild(Resource):
 
 async def test_hook_that_swallows_its_cancellation_and_returns_is_recorded_as_timed_out():
     """A hook cut off by its bound times out even when it catches the cancellation and returns."""
-    hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    _, outcome = await shut_down_with_short_hook_bound(CancelSwallowingChild)
 
-    resource = CancelSwallowingChild(hassette)
-    await resource.initialize()
-
-    report = await resource.shutdown()
-
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED not in report.causes
+    assert outcome.result is ShutdownResult.TIMED_OUT
 
 
 class TimeoutRaisingChild(Resource):
@@ -371,10 +356,9 @@ async def test_hook_raising_timeout_error_is_recorded_as_failed_not_timed_out():
     resource = TimeoutRaisingChild(hassette)
     await resource.initialize()
 
-    report = await resource.shutdown()
+    outcome = await resource.shutdown()
 
-    assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT not in report.causes
+    assert outcome.result is ShutdownResult.FAILED
 
 
 async def test_hook_bound_is_clamped_to_the_shutdown_deadline():
@@ -388,11 +372,11 @@ async def test_hook_bound_is_clamped_to_the_shutdown_deadline():
 
     loop = asyncio.get_running_loop()
     start_time = loop.time()
-    report = await asyncio.wait_for(resource.shutdown(), timeout=10)
+    outcome = await asyncio.wait_for(resource.shutdown(), timeout=10)
     elapsed = loop.time() - start_time
 
     assert elapsed < 3.0, f"the hook ran past the 0.2s deadline toward its 30s cap ({elapsed:.2f}s)"
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert outcome.result is ShutdownResult.TIMED_OUT
 
 
 async def test_accepted_initialization_clears_the_previous_shutdown_deadline():
@@ -400,8 +384,8 @@ async def test_accepted_initialization_clears_the_previous_shutdown_deadline():
     resource = await make_initialized_shutdown_counter()
     resource._shutdown_deadline = deadline_in(5.0)
 
-    report = await resource.shutdown()
-    assert report.is_restart_safe is True
+    outcome = await resource.shutdown()
+    assert outcome.is_restart_safe is True
 
     await resource.initialize()
 
@@ -411,7 +395,7 @@ async def test_accepted_initialization_clears_the_previous_shutdown_deadline():
 async def test_cancelling_one_shutdown_awaiter_does_not_cancel_shared_attempt():
     """Cancelling one caller's own wrapping task around ``shutdown()`` must not cancel the
     shared ``_shutdown_task`` attempt -- the other concurrent caller still receives a normal
-    completed report and the shared task/body are left running to completion.
+    completed outcome and the shared task/body are left running to completion.
 
     ``coordinate_shutdown()`` shields the shared task from each individual awaiter
     (``await asyncio.shield(task)``); cancelling one caller's outer wrapping task only
@@ -446,14 +430,14 @@ async def test_cancelling_one_shutdown_awaiter_does_not_cancel_shared_attempt():
     assert not shared_task.done(), "cancelling one awaiter must not cancel the shared attempt"
 
     # Release the gate; the shared attempt completes normally and the surviving caller gets
-    # a real completed report, not a CancelledError.
+    # a real completed outcome, not a CancelledError.
     release.set()
-    report = await second
+    outcome = await second
 
     assert shared_task.done()
     assert not shared_task.cancelled()
-    assert report is resource._teardown_report
-    assert report.is_restart_safe is True
+    assert outcome is resource._shutdown_outcome
+    assert outcome.is_restart_safe is True
     assert calls == ["called"], "on_shutdown must have run exactly once despite the cancelled awaiter"
 
 
@@ -477,13 +461,13 @@ async def test_shutdown_rejects_reentrant_call_from_shutdown_hook():
 
     resource.on_shutdown = _reentrant_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
-    report = await resource.shutdown()
+    outcome = await resource.shutdown()
 
     assert len(captured) == 1
     assert isinstance(captured[0], LifecycleReentryError)
     assert calls == ["called"], "the re-entrant call must not have re-run shutdown"
     assert resource.shutdown_count == 1
-    assert report is resource._teardown_report
+    assert outcome is resource._shutdown_outcome
 
 
 class TrulyResistantChild(Resource):
@@ -510,7 +494,7 @@ class TrulyResistantChild(Resource):
 
 async def test_resistant_hook_holds_shutdown_until_the_owner_force_terminates():
     """Nothing inside the shutdown walks away from a hook that swallows its cancellation: the attempt
-    waits until the owner force-terminates the resource, then every caller gets the forced report and
+    waits until the owner force-terminates the resource, then every caller gets the forced outcome and
     the body is cancelled rather than left running unobserved.
     """
     hassette = make_mock_hassette(sealed=False)
@@ -524,10 +508,10 @@ async def test_resistant_hook_holds_shutdown_until_the_owner_force_terminates():
     assert not shutdown.done(), "an interior node must not walk away from a body that outlives its hooks' bound"
 
     resource._force_terminal()
-    report = await asyncio.wait_for(shutdown, timeout=5)
+    outcome = await asyncio.wait_for(shutdown, timeout=5)
 
-    assert TeardownCause.FORCED_TERMINAL in report.causes
-    assert report.is_restart_safe is False
+    assert outcome.result is ShutdownResult.INCOMPLETE
+    assert outcome.is_restart_safe is False
     body_task = resource._shutdown_body_task
     assert body_task is not None
     with contextlib.suppress(asyncio.CancelledError):
@@ -536,48 +520,40 @@ async def test_resistant_hook_holds_shutdown_until_the_owner_force_terminates():
 
 
 async def test_shutdown_children_records_child_shutdown_failed_and_continues_siblings():
-    """A child whose ``shutdown()`` call itself raises (not just a hook inside it) adds
-    ``CHILD_SHUTDOWN_FAILED`` and the child's identity to the parent's aggregated report, and
-    siblings still complete via ``asyncio.gather(return_exceptions=True)``.
+    """A child whose ``shutdown()`` call itself raises (not just a hook inside it) makes the parent's
+    outcome ``INCOMPLETE`` with a reason naming the child, and siblings still complete via
+    ``asyncio.gather(return_exceptions=True)``.
     """
     parent, child_ok, child_broken = await make_parent_with_exploding_child("unexpected boom")
 
-    report = await parent.shutdown()
+    outcome = await parent.shutdown()
 
-    assert report.is_restart_safe is False
-    assert TeardownCause.CHILD_SHUTDOWN_FAILED in report.causes
-    assert child_broken.unique_name in report.affected_resources
+    assert outcome.is_restart_safe is False
+    assert outcome.result is ShutdownResult.INCOMPLETE
+    assert outcome.reason == f"{child_broken.unique_name}'s shutdown raised RuntimeError"
     assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
 
 
-async def test_shutdown_children_merges_child_report_when_shutdown_raises():
+async def test_shutdown_children_merges_child_outcome_when_shutdown_raises():
     """When a child's ``shutdown()`` call raises from *outside* its own ``_shutdown_body()`` --
-    e.g. the coordinator itself failing (``COORDINATOR_FAILED``, see
-    ``_run_shutdown_coordinator()``'s ``except Exception`` branch in ``lifecycle.py``, which
-    stores evidence on the child's own report before re-raising) -- the parent must merge that
-    already-stored report into its own aggregated report, not just record the generic
-    ``CHILD_SHUTDOWN_FAILED`` cause and drop the child's concrete cause and ``failed_operations``.
+    e.g. the coordinator itself failing (see ``_run_shutdown_coordinator()``'s ``except Exception``
+    branch in ``lifecycle.py``, which stores an outcome on the child before re-raising) -- the parent
+    merges that stored outcome first, so its reason naming the step wins over the generic "shutdown raised".
     """
-    parent, child_ok, child_broken = await make_parent_with_exploding_child(
-        "coordinator boom",
-        stored_report=TeardownReport(
-            causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
-        ),
-    )
+    stored = incomplete_outcome("child's shutdown coordinator raised RuntimeError")
+    parent, child_ok, _child_broken = await make_parent_with_exploding_child("coordinator boom", stored_outcome=stored)
 
-    report = await parent.shutdown()
+    outcome = await parent.shutdown()
 
-    assert report.is_restart_safe is False
-    assert TeardownCause.CHILD_SHUTDOWN_FAILED in report.causes
-    assert TeardownCause.COORDINATOR_FAILED in report.causes, "child's own stored cause must be merged into the parent"
-    assert "_run_shutdown_coordinator" in report.failed_operations
-    assert child_broken.unique_name in report.affected_resources
+    assert outcome.is_restart_safe is False
+    assert outcome.result is ShutdownResult.INCOMPLETE
+    assert outcome.reason == stored.reason, "the child's stored reason must win over the generic one"
     assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
 
 
 async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pending_tasks():
-    """The TaskBucket shutdown stage seals the bucket and records ``TASKS_PENDING`` with the
-    straggling task's name -- before ``cleanup()`` runs, so a task spawned before shutdown but
+    """The TaskBucket shutdown stage seals the bucket and records the
+    straggling task's name in ``still_running`` -- before ``cleanup()`` runs, so a task spawned before shutdown but
     still pending after the bounded cancellation wait is rejected as new work and reported by
     name.
     """
@@ -618,12 +594,11 @@ async def test_task_bucket_shutdown_stage_seals_before_cleanup_and_records_pendi
     resource.cleanup = _spying_cleanup  # pyright: ignore[reportAttributeAccessIssue]
 
     try:
-        report = await resource.shutdown()
+        outcome = await resource.shutdown()
 
         assert cleanup_saw_sealed == [True], "TaskBucket must already be sealed by the time cleanup() runs"
-        assert TeardownCause.TASKS_PENDING in report.causes
-        assert "straggler" in report.pending_tasks
-        assert report.is_restart_safe is False
+        assert "straggler" in outcome.still_running
+        assert outcome.is_restart_safe is False
     finally:
         # The straggler task ignores its first cancellation by design (that is what makes it a
         # straggler) -- clean it up unconditionally so it can never outlive this test, whether
@@ -655,11 +630,10 @@ async def test_slow_cleanup_is_cut_at_its_cap_and_children_still_shut_down():
 
     loop = asyncio.get_running_loop()
     start_time = loop.time()
-    report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
+    outcome = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
     elapsed = loop.time() - start_time
 
-    assert TeardownCause.CLEANUP_TIMED_OUT in report.causes
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes, "the hanging child's hook timeout is merged in"
+    assert outcome.result is ShutdownResult.TIMED_OUT, "the hanging child's hook timeout is merged in"
     assert elapsed < 3.0, f"cleanup ran past its cap ({elapsed:.2f}s)"
     assert hanging.shutdown_completed is True
 
@@ -671,10 +645,27 @@ async def test_slow_cleanup_is_cut_at_its_cap_and_children_still_shut_down():
     assert stopped_events, "the STOPPED event must still be emitted after a slow cleanup()"
 
 
+async def test_a_cleanup_cut_at_its_cap_is_failed_not_timed_out():
+    """A ``cleanup()`` cut off at its cap ranks ``FAILED``: an app stop reads ``TIMED_OUT`` as a timed-out
+    hook and fails the stop, and a slow ``cleanup()`` alone must leave the stop STOPPED.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    parent = SlowCleanupParent(hassette)
+    await parent.initialize()
+
+    outcome = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
+
+    assert outcome.result is ShutdownResult.FAILED
+    assert outcome.is_restart_safe is True
+    assert outcome.reason is not None
+    assert "cleanup() timed out" in outcome.reason
+
+
 class SlowBodyResource(Resource):
     """Resource whose shutdown body itself (not a hook) takes longer than ``shutdown_timeout_seconds``."""
 
-    async def _shutdown_body(self) -> TeardownReport:
+    async def _shutdown_body(self) -> ShutdownOutcome:
         await asyncio.sleep(0.3)
         return await super()._shutdown_body()
 
@@ -683,15 +674,9 @@ async def test_coordinator_waits_for_the_body_without_a_bound_of_its_own():
     """Only leaves bound themselves: a body that outlasts ``shutdown_timeout_seconds`` without any hook
     hanging is waited for and completes restart-safe.
     """
-    hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    _, outcome = await shut_down_with_short_hook_bound(SlowBodyResource)
 
-    resource = SlowBodyResource(hassette)
-    await resource.initialize()
-
-    report = await resource.shutdown()
-
-    assert report.is_restart_safe is True, f"expected a clean report, got causes={report.causes}"
+    assert outcome.is_restart_safe is True, f"expected a clean outcome, got {outcome}"
 
 
 def raise_boom(_resource, _reason=None):
@@ -700,9 +685,9 @@ def raise_boom(_resource, _reason=None):
 
 async def test_coordinator_failure_records_coordinator_failed_and_blocks_restart(monkeypatch):
     """When something raises inside the coordinator's try body itself (not the shutdown body
-    task), the outer ``except Exception`` block stores a ``COORDINATOR_FAILED`` report, the
+    task), the outer ``except Exception`` block stores an ``INCOMPLETE`` outcome, the
     exception propagates out of ``shutdown()``, and a subsequent ``initialize()`` is refused via
-    ``RestartRefusedError`` -- the "a completed attempt always produces a report" invariant holds
+    ``RestartRefusedError`` -- the "a completed attempt always produces an outcome" invariant holds
     even when the coordinator fails outside the shutdown body.
     """
     resource = await make_initialized_shutdown_counter()
@@ -715,19 +700,19 @@ async def test_coordinator_failure_records_coordinator_failed_and_blocks_restart
     with pytest.raises(RuntimeError, match="boom"):
         await resource.shutdown()
 
-    report = resource._teardown_report
-    assert report is not None
-    assert TeardownCause.COORDINATOR_FAILED in report.causes
-    assert report.is_restart_safe is False
+    outcome = resource._shutdown_outcome
+    assert outcome is not None
+    assert outcome.result is ShutdownResult.INCOMPLETE
+    assert outcome.is_restart_safe is False
 
     with pytest.raises(RestartRefusedError):
         await resource.initialize()
 
 
 async def test_coordinator_failure_merges_with_preexisting_force_terminal_evidence(monkeypatch):
-    """A coordinator failure that occurs after ``FORCED_TERMINAL`` evidence was already stored
-    on the resource must merge into that existing report rather than overwrite it -- the
-    ``COORDINATOR_FAILED`` cause is added alongside ``FORCED_TERMINAL``, not in place of it.
+    """A coordinator failure that occurs after a force-terminal outcome was already stored on the
+    resource merges into that outcome rather than overwriting it: the stored outcome is merged first, so
+    its "was force-terminated" reason is the one kept at ``INCOMPLETE``.
     """
     resource = await make_initialized_shutdown_counter()
 
@@ -735,20 +720,20 @@ async def test_coordinator_failure_merges_with_preexisting_force_terminal_eviden
     # coordinator's try body raises (e.g. a concurrent _force_terminal() call from a parent's
     # own shutdown body).
     resource._force_terminal()
-    existing_report = resource._teardown_report
-    assert existing_report is not None
-    assert TeardownCause.FORCED_TERMINAL in existing_report.causes
+    existing_outcome = resource._shutdown_outcome
+    assert existing_outcome is not None
+    assert existing_outcome.result is ShutdownResult.INCOMPLETE
 
     monkeypatch.setattr(lifecycle, "request_shutdown", raise_boom)
 
     with pytest.raises(RuntimeError, match="boom"):
         await resource.shutdown()
 
-    report = resource._teardown_report
-    assert report is not None
-    assert TeardownCause.FORCED_TERMINAL in report.causes, "pre-existing evidence must not be dropped by the merge"
-    assert TeardownCause.COORDINATOR_FAILED in report.causes
-    assert report.is_restart_safe is False
+    outcome = resource._shutdown_outcome
+    assert outcome is not None
+    assert outcome.result is ShutdownResult.INCOMPLETE
+    assert outcome.reason == existing_outcome.reason, "the stored force-terminal reason must win the merge"
+    assert outcome.is_restart_safe is False
 
 
 async def test_service_inherits_shutdown_propagation():
@@ -786,7 +771,7 @@ async def test_shutdown_children_survives_root_bucket_sealed_as_global_factory_b
     ``child.shutdown()`` coroutine used to route through the loop's task factory with no bucket
     context set, which fell back to the now-sealed global bucket and rejected every
     child-shutdown task immediately -- silently aborting child teardown and surfacing as
-    ``SHUTDOWN_BODY_FAILED`` (confirmed via CI: this exact mechanism broke every `system` job).
+    a raised shutdown body (confirmed via CI: this exact mechanism broke every `system` job).
     """
     hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
@@ -794,9 +779,9 @@ async def test_shutdown_children_survives_root_bucket_sealed_as_global_factory_b
 
     with sealed_fallback_task_factory(parent.task_bucket):
         await parent.initialize()
-        report = await parent.shutdown()
+        outcome = await parent.shutdown()
 
-    assert report.is_restart_safe is True, f"expected a clean report, got causes={report.causes}"
+    assert outcome.is_restart_safe is True, f"expected a clean outcome, got {outcome}"
     assert child.shutdown_count == 1, "child's on_shutdown must have actually run"
     assert child.status == ResourceStatus.STOPPED
 
@@ -828,14 +813,13 @@ async def test_each_hanging_hook_gets_its_own_bound_and_the_tail_still_runs():
 
     loop = asyncio.get_running_loop()
     start = loop.time()
-    report = await asyncio.wait_for(parent.shutdown(), timeout=10)
+    outcome = await asyncio.wait_for(parent.shutdown(), timeout=10)
     elapsed = loop.time() - start
 
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
-    assert TeardownCause.FORCED_TERMINAL not in report.causes
-    child_report = hanging_child.teardown_report
-    assert child_report is not None
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in child_report.causes
+    assert outcome.result is ShutdownResult.TIMED_OUT
+    child_outcome = hanging_child.shutdown_outcome
+    assert child_outcome is not None
+    assert child_outcome.result is ShutdownResult.TIMED_OUT
     assert elapsed < 3.0, f"four 0.1s hook bounds took {elapsed:.2f}s"
 
 
@@ -852,8 +836,17 @@ async def test_hooks_share_the_deadline_once_it_is_closer_than_their_bounds():
 
     loop = asyncio.get_running_loop()
     start = loop.time()
-    report = await asyncio.wait_for(parent.shutdown(), timeout=10)
+    outcome = await asyncio.wait_for(parent.shutdown(), timeout=10)
     elapsed = loop.time() - start
 
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert outcome.result is ShutdownResult.TIMED_OUT
     assert elapsed < 3.0, f"hooks ran past the 0.3s deadline ({elapsed:.2f}s)"
+
+
+async def shut_down_with_short_hook_bound(resource_cls: type[Resource]) -> tuple[Resource, ShutdownOutcome]:
+    """Initialize a ``resource_cls`` with ``SHORT_SHUTDOWN_TIMEOUT_SECONDS`` as its hook bound, then shut it down."""
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    resource = resource_cls(hassette)
+    await resource.initialize()
+    return resource, await resource.shutdown()

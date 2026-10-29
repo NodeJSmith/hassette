@@ -139,7 +139,7 @@ Acceptance criteria:
 
 ## KI-007: A flagged instance's pending tasks don't trigger the process-exit hard exit
 
-Status: open
+Status: resolved — fixed by spec 141 (#3395): the exit check sees live tasks instead of a recorded list
 Recorded: 2026-10-28 (3109, PR #3550 review)
 Source: pr-review
 Reason not fixed now: deferred to #3395

@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from hassette.models.states import BaseState
-    from hassette.resources.teardown import TeardownReport
+    from hassette.resources.shutdown_outcome import ShutdownOutcome
     from hassette.schemas.app_outcomes import InstanceOutcome
 
 __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and wrap by hand
@@ -621,36 +621,27 @@ class UnableToConvertValueError(HassetteError):
 class RestartRefusedError(FatalError):
     """Raised when a lifecycle front door refuses a new attempt because work from the last teardown may still run.
 
-    Carries the resource identity and the exact stored ``TeardownReport`` (``is_restart_safe`` is
-    always ``False`` whenever this exception is raised: a task was still pending, or the evidence is
-    incomplete) so a caller can inspect why
-    restart was refused without re-deriving evidence from logs. The message lists the report's
-    causes and any populated bounded detail fields (failed operations, pending tasks, affected
-    resources) so existing exception logging remains useful on its own. Inherits ``FatalError``
-    because a restart-unsafe object can never recover safely in-process; only process replacement
-    can, and that is the embedding host or supervisor's responsibility.
+    Carries the resource identity and the exact stored ``ShutdownOutcome`` (``is_restart_safe`` is always
+    ``False`` whenever this exception is raised: a task was still running, or the result is ``INCOMPLETE``)
+    so a caller can inspect why restart was refused without re-deriving it from logs. The message gives the
+    result, the reason and the names still running, so existing exception logging remains useful on its
+    own. Inherits ``FatalError`` because a restart-unsafe object can never recover safely in-process; only
+    process replacement can, and that is the embedding host or supervisor's responsibility.
 
     Attributes:
         resource_name: The ``unique_name`` of the resource that refused to restart.
-        report: The stored ``TeardownReport``.
+        outcome: The stored ``ShutdownOutcome``.
     """
 
-    def __init__(self, resource_name: str, report: "TeardownReport") -> None:
+    def __init__(self, resource_name: str, outcome: "ShutdownOutcome") -> None:
         self.resource_name = resource_name
-        self.report = report
+        self.outcome = outcome
 
-        causes = ", ".join(report.causes) if report.causes else "no recorded causes"
-        msg = f"Restart refused for '{resource_name}': teardown was not proven restart-safe ({causes})."
-
-        details: list[str] = []
-        if report.failed_operations:
-            details.append(f"failed_operations={list(report.failed_operations)}")
-        if report.pending_tasks:
-            details.append(f"pending_tasks={list(report.pending_tasks)}")
-        if report.affected_resources:
-            details.append(f"affected_resources={list(report.affected_resources)}")
-        if details:
-            msg += " " + "; ".join(details)
+        msg = f"Restart refused for '{resource_name}': teardown was not proven restart-safe ({outcome.result.name})."
+        if outcome.reason:
+            msg += f" {outcome.reason}."
+        if outcome.still_running:
+            msg += f" Still running: {', '.join(outcome.still_running)}."
 
         super().__init__(msg)
 

@@ -154,7 +154,7 @@ async def test_cancel_takes_precedence_over_a_non_cancel_error() -> None:
 async def test_non_cancel_error_is_raised_after_both_connections_are_handled() -> None:
     """A close failure propagates, but only once the second connection has been closed too.
 
-    Both callers record a ``TeardownCause`` from the escaping exception; swallowing it would let a
+    Both callers record a ``FAILED`` shutdown outcome from the escaping exception; swallowing it would let a
     connection left in an unknown state be reported as a restart-safe teardown.
     """
     write = FakeConnection(close_raises=RuntimeError("write boom"))

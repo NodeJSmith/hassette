@@ -24,9 +24,9 @@ import pytest
 
 from hassette.task_bucket.interruptible_executor import (
     InterruptibleThreadPoolExecutor,
-    _log_thread_running_at_shutdown,
     async_raise,
     join_or_interrupt_threads,
+    log_thread_running_at_shutdown,
 )
 from tests.unit.conftest import (
     await_worker_ready,
@@ -178,24 +178,34 @@ class TestAsyncRaise:
         assert done.is_set(), "Thread should have received SystemExit"
 
 
-# _log_thread_running_at_shutdown — verifies logging helper
+# log_thread_running_at_shutdown — verifies logging helper
 
 
 class TestLogThreadRunningAtShutdown:
     """Tests for the logging helper."""
 
     def test_logs_warning_with_name_and_stack(self) -> None:
-        """_log_thread_running_at_shutdown must emit a WARNING with name and stack trace."""
+        """log_thread_running_at_shutdown must emit a WARNING with name and stack trace."""
         t = threading.current_thread()
         assert t.ident is not None
 
         with capture_warnings() as records:
-            _log_thread_running_at_shutdown(t.name, t.ident)
+            log_thread_running_at_shutdown(t.name, t.ident)
 
         messages = [r.getMessage() for r in records]
         assert any(t.name in m and "is still running at shutdown" in m for m in messages), (
             f"Expected warning with thread name '{t.name}'; got: {messages}"
         )
+
+    def test_a_thread_without_python_frames_is_logged_without_the_callers_stack(self) -> None:
+        """No frame for the ident means no Python stack to show, not the calling thread's stack."""
+        missing_ident = max(sys._current_frames()) + 1
+
+        with capture_warnings() as records:
+            log_thread_running_at_shutdown("c-blocked", missing_ident)
+
+        (message,) = [r.getMessage() for r in records]
+        assert message == "Thread[c-blocked] is still running at shutdown: (no Python frames)"
 
 
 # join_or_interrupt_threads — unit-level tests

@@ -82,11 +82,11 @@ async def test_serve_task_cancelled_even_when_on_shutdown_overridden():
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
 
-    report = await svc.shutdown()
+    outcome = await svc.shutdown()
 
     assert svc.shutdown_called, "on_shutdown should have been called"
     assert svc._serve_task.done(), "serve task should be done after shutdown"
-    assert report.is_restart_safe is True, "cooperative teardown must remain restart-safe"
+    assert outcome.is_restart_safe is True, "cooperative teardown must remain restart-safe"
 
 
 async def test_on_initialize_runs_before_serve_task_spawned():
@@ -169,14 +169,14 @@ async def test_simple_service_completes_full_lifecycle():
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
 
-    report = await svc.shutdown()
+    outcome = await svc.shutdown()
 
     assert svc._serve_task.done()
-    assert report.is_restart_safe is True, "cooperative teardown must remain restart-safe"
+    assert outcome.is_restart_safe is True, "cooperative teardown must remain restart-safe"
 
 
 async def test_clean_teardown_still_permits_same_instance_reinitialization():
-    """A restart-safe report from cooperative Service teardown authorizes a same-instance
+    """A restart-safe outcome from cooperative Service teardown authorizes a same-instance
     shutdown-then-initialize round trip: the serve() task is replaced with a fresh one and the
     service returns to RUNNING.
     """
@@ -191,6 +191,6 @@ async def test_clean_teardown_still_permits_same_instance_reinitialization():
     assert svc._serve_task is not None
     assert svc._serve_task is not old_task, "re-initializing must spawn a fresh serve() task"
     assert not svc._serve_task.done()
-    assert svc.teardown_report is None, "an accepted new initialization consumes the prior SAFE report"
+    assert svc.shutdown_outcome is None, "an accepted new initialization consumes the prior restart-safe outcome"
 
     await svc.shutdown()
