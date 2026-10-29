@@ -3,6 +3,9 @@
 Run by ``test_exit_after_run.py`` as a subprocess, so the hard exit and the watchdog end a real process.
 It runs ``hassette run``'s coroutine, ``server.run()``, inside ``asyncio.run()``, with the core's construction and
 serving swapped for a scenario that leaves work behind and then ends (or raises). Logs go to stderr.
+
+The scripted core is deliberate: each scenario needs a known set of leftover tasks. A real ``create_core()``/
+``serve()`` run passing the exit check cleanly is covered by ``tests/system/test_sigint_shutdown.py``.
 """
 
 import asyncio
