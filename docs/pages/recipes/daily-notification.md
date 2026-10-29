@@ -48,6 +48,12 @@ daily_notification (instance 0)
   send_notification   next: 2026-06-03 08:00:00 local   trigger: daily@08:00
 ```
 
+!!! tip "Test delivery without waiting a day"
+    The default fire time may be hours away. For a first test, set `notify_time` in the
+    `[hassette.apps.daily_notification.config]` block to a minute or two from now. Restart
+    Hassette, wait for that minute, and check for the log lines below. Then set `notify_time`
+    back to your daily time.
+
 After the scheduled time fires, check the log to confirm delivery:
 
 ```
