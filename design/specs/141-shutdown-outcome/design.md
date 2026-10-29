@@ -97,8 +97,8 @@ Each current cause maps to a group:
 
 | Cause | Under A | Under B | Under C |
 |---|---|---|---|
-| Hook or cleanup raised | `FAILED` | `failed` | Kept as a cause |
-| Hook or cleanup cut off at its bound | `TIMED_OUT` | `timed_out` | Kept as a cause |
+| Hook or cleanup raised; cleanup cut off at its bound | `FAILED` | `failed` | Kept as a cause |
+| Hook cut off at its bound | `TIMED_OUT` | `timed_out` | Kept as a cause |
 | Pending owned tasks, pending serve task | Their names in `still_running` | Same | Names in `pending_tasks` |
 | Pending initializer | Its task's name in `still_running` | Same | Kept as a cause with no name |
 | Body raised or was cancelled, coordinator raised, forced terminal, a child's shutdown raised, a child's shutdown timed out at a stage deadline | `INCOMPLETE` | `incomplete` | Kept as causes in the unsafe set |
@@ -127,7 +127,7 @@ stop is still reported FAILED and flagged.
 **Pick B instead if** a stop that both timed out and lost its evidence must still say "timed out".
 **Pick C instead if** the cause names are worth keeping for diagnosis beyond what the logs already carry.
 **Reversibility:** easy (internal type; the public rename is D5's)
-**Ratified:** Chose a ranked result (`DONE` < `FAILED` < `TIMED_OUT` < `INCOMPLETE`) plus still-running names over independent flags or a trimmed cause set, to match systemd/HA and make every reader's branch one comparison, accepting that a stop whose hook timed out and whose evidence is also incomplete is worded "stopped, but…" rather than "timed out". At the sketch challenge (Finding 13), chose to list a pending initializer by its raw task name (`resource:initialize:<unique_name>`) over a reworded phrase, keeping `still_running` a uniform, greppable list of task names, accepting that the UI and the reason show that internal label.
+**Ratified:** Chose a ranked result (`DONE` < `FAILED` < `TIMED_OUT` < `INCOMPLETE`) plus still-running names over independent flags or a trimmed cause set, to match systemd/HA and make every reader's branch one comparison, accepting that a stop whose hook timed out and whose evidence is also incomplete is worded "stopped, but…" rather than "timed out". At the sketch challenge (Finding 13), chose to list a pending initializer by its raw task name (`resource:initialize:<unique_name>`) over a reworded phrase, keeping `still_running` a uniform, greppable list of task names, accepting that the UI and the reason show that internal label. At the build's pre-commit review, chose to rank a `cleanup()` cut off at its bound `FAILED` rather than `TIMED_OUT`, keeping main's behavior that a slow `cleanup()` alone leaves an app stop STOPPED (on main only `SHUTDOWN_HOOK_TIMED_OUT` made a stop time out), accepting that `TIMED_OUT` now means only a shutdown hook cut off at its bound.
 
 ### D2: Does the outcome carry a reason, and in what form?
 
@@ -291,7 +291,7 @@ it carries, so renaming it buys a client nothing.
   (`server.py`), called only from `main()`.
 - The exit function (D3) runs only under `hassette run`, via `asyncio.run()`, once per process. `main()` is also
   called in-process by about ten unit tests on the session-scoped loop, which is why the exit step lives outside it.
-  Evidence: `cli/commands/run.py`; `tests/unit/core/test_main.py`; `pyproject.toml`
+  Evidence: `cli/commands/run.py`; `tests/unit/core/test_server.py`; `pyproject.toml`
   (`asyncio_default_test_loop_scope = "session"`).
 - The SIGINT wait thread, the logging `QueueListener` thread and aiosqlite's threads are daemon threads, so they
   never hold exit. Sync executor workers and AnyIO's worker threads are not daemon, but on a clean exit CPython and
@@ -317,7 +317,7 @@ it carries, so renaming it buys a client nothing.
 - How `main()` hands the core and the run's error to the exit function (D3): `main()` is split into `create_core()` and `serve()`, and `hassette run` calls a new `run()` that serves, then calls `exit_after_run(core, exc)` on either path. Unit tests call `serve(create_core(...))` in-process, so nothing on their path runs the exit check, with no parameter that only one caller passes.
 - The task half waits with `asyncio.wait(tasks, timeout=<remaining budget>)`, not a poll on `asyncio.sleep`: same deadline and same survivors, without the lint-flagged sleep loop.
 - `ShutdownResult` is an `IntEnum`, so the merge's worst result is `max()`. `incomplete(reason, still_running)` builds the `INCOMPLETE` outcomes the producers record.
-- Reason formats: a hook gives `"<unique_name>: shutdown hook <hook> timed out after <bound>"` (the `ShutdownHookTimedOutError` text) or `"<unique_name>: a shutdown hook raised <type>"`; `cleanup()` gives `"<unique_name>: cleanup() timed out after <s>"` or `"... raised <type>"`; the body, the coordinator and a child's raised `shutdown()` give `"<unique_name>'s shutdown body raised <type>"` (or `was cancelled`), `"... shutdown coordinator raised <type>"` and `"<child>'s shutdown raised <type>"`; a forced terminal gives `"<unique_name> was force-terminated"`; a stage walk-away adds `"the shutdown <stage> stage gave up after its deadline passed"` after its children's outcomes, so a force-terminated child's reason wins.
+- Reason formats: a hook gives `"<unique_name>: shutdown hook <hook> timed out after <bound>"` (the `ShutdownHookTimedOutError` text) or `"<unique_name>: a shutdown hook raised <type>"`; `cleanup()` gives `"<unique_name>: cleanup() timed out after <s>"` or `"... raised <type>"`; the body, the coordinator and a child's raised `shutdown()` give `"<unique_name>'s shutdown body raised <type>"` (or `was cancelled`), `"... shutdown coordinator raised <type>"` and `"<child>'s shutdown raised <type>"`; a forced terminal gives `"<unique_name> was force-terminated"`; a stage walk-away adds `"<unique_name>: the shutdown <stage> stage gave up after its deadline passed"` after its children's outcomes, so a force-terminated child's reason wins.
 - `describe_left_running()` takes only the outcome: an `INCOMPLETE` reason is followed by the still-running names, or "work may still be running" when there are none. The generic "teardown evidence is incomplete" wording remains only for a raised shutdown with no stored outcome.
 - `RestartRefusedError`'s message is the result's name, then the reason, then the still-running names.
 - The watchdog names every live thread, daemon threads included, since any of them can explain a stuck exit; each stack goes through `log_thread_running_at_shutdown()`, made public for this. The hung-atexit pin found that it printed the *caller's* stack for a thread with no Python frame (`traceback.format_stack(None)`); it now logs "(no Python frames)" for one.

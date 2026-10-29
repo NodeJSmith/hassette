@@ -22,7 +22,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, start
 from hassette.resources.operations import shutdown_batch
 from hassette.resources.shutdown_deadline import deadline_in, elapsed_since, tighten_shutdown_deadline
-from hassette.resources.shutdown_outcome import ShutdownOutcome, incomplete, merge_outcomes
+from hassette.resources.shutdown_outcome import ShutdownOutcome, incomplete_outcome, merge_outcomes
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -662,7 +662,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
             if (child_outcome := child.shutdown_outcome) is not None:
                 outcomes.append(child_outcome)
         task.cancel()
-        outcomes.append(incomplete(f"the shutdown {stage} stage gave up after its deadline passed"))
+        outcomes.append(
+            incomplete_outcome(f"{self.unique_name}: the shutdown {stage} stage gave up after its deadline passed")
+        )
         return merge_outcomes(*outcomes)
 
     async def _finalize_session(self) -> None:

@@ -110,7 +110,8 @@ Every completed `shutdown()` call returns a [`ShutdownOutcome`][hassette.resourc
 An outcome is an immutable summary of how the attempt ended. It carries three fields:
 
 - `result`, a [`ShutdownResult`][hassette.resources.shutdown_outcome.ShutdownResult]: `DONE`, `FAILED` (a hook
-  or `cleanup()` raised), `TIMED_OUT` (one was cut off at its bound), or `INCOMPLETE` (work may still run).
+  raised, or `cleanup()` raised or overran its bound), `TIMED_OUT` (a hook was cut off at its bound), or
+  `INCOMPLETE` (work may still run).
 - `still_running`, the names of tasks still pending when the attempt ended.
 - `reason`, one line naming the resource and step behind the result, such as
   `"MyService's shutdown body raised RuntimeError"`. It is `None` for `DONE`.
@@ -128,9 +129,9 @@ initializer is named by its task name, `resource:initialize:<unique_name>`.
 
 `INCOMPLETE` means the evidence can't rule out running work. The attempt was force-terminated, its
 coordinator raised, its shutdown body raised or was cancelled, or a child's shutdown raised. A hook or
-`cleanup()` that raised or timed out and has since ended gives `FAILED` or `TIMED_OUT`. That outcome stays
-restart-safe, because nothing from it is still running. The property is computed, never stored, so it
-can't disagree with the fields.
+`cleanup()` that raised or timed out and has since ended gives `FAILED`, or `TIMED_OUT` for a hook cut off
+at its bound. That outcome stays restart-safe, because nothing from it is still running. The property is
+computed, never stored, so it can't disagree with the fields.
 
 Outcomes merge up the resource tree. A parent's result is the worst of its own and its children's, in the
 order `DONE` < `FAILED` < `TIMED_OUT` < `INCOMPLETE`. Its `still_running` collects every child's names. Its

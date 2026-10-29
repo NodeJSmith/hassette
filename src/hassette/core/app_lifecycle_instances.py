@@ -24,7 +24,7 @@ from hassette.core.app_lifecycle_common import (
 from hassette.events.hassette import HassetteAppStateEvent
 from hassette.resources.lifecycle import create_lifecycle_task, mark_ready, skip_own_shutdown_hooks
 from hassette.resources.shutdown_deadline import deadline_in, tighten_shutdown_deadline
-from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete, merge_outcomes
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -446,7 +446,7 @@ class AppInstanceLifecycleMixin:
                 "Cleanup timed out for walked-away instance '%s' — some listeners or jobs may leak until restart",
                 inst.app_config.instance_name,
             )
-        return inst.shutdown_outcome or incomplete(f"{inst.unique_name} was force-terminated")
+        return inst.shutdown_outcome or incomplete_outcome(f"{inst.unique_name} was force-terminated")
 
     async def shutdown_instances(
         self, instances: dict[int, "App[AppConfig]"], *, deadline: float | None = None, outcomes: ActionOutcomes
@@ -527,10 +527,13 @@ def describe_left_running(outcome: ShutdownOutcome) -> str:
     An ``INCOMPLETE`` outcome's reason names the resource and step behind it, including a walk-away's
     forced terminal state.
     """
-    running = f"work is still running: {', '.join(outcome.still_running)}" if outcome.still_running else ""
+    if outcome.still_running:
+        running = f"work is still running: {', '.join(outcome.still_running)}"
+    else:
+        running = "work may still be running"
     if outcome.result is ShutdownResult.INCOMPLETE and outcome.reason:
-        return f"{outcome.reason}; {running or 'work may still be running'}"
-    return running or "its teardown evidence is incomplete, so work may still be running"
+        return f"{outcome.reason}; {running}"
+    return running
 
 
 async def gather_all(coros: Iterable[Coroutine[typing.Any, typing.Any, T]], *, name: str) -> list[T]:

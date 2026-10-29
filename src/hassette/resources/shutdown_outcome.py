@@ -24,17 +24,18 @@ class ShutdownResult(IntEnum):
 
     Ordered ``DONE`` < ``FAILED`` < ``TIMED_OUT`` < ``INCOMPLETE``, as systemd's ``Result=`` keeps one value
     per unit. Only ``INCOMPLETE`` makes an outcome restart-unsafe on its own; the others describe a teardown
-    that has ended.
+    that has ended. ``TIMED_OUT`` is kept for a shutdown hook cut off at its bound, because an app stop reads it
+    as a timed-out stop and fails the stop; a ``cleanup()`` cut off at its bound is ``FAILED``.
     """
 
     DONE = 0
     """Every step ended normally. Tasks may still be named in ``still_running``."""
 
     FAILED = 1
-    """A shutdown hook or ``cleanup()`` raised, and has ended."""
+    """A shutdown hook raised, or ``cleanup()`` raised or was cut off at its bound, and has ended."""
 
     TIMED_OUT = 2
-    """A shutdown hook or ``cleanup()`` was cut off at its bound, and has ended."""
+    """A shutdown hook was cut off at its bound, and has ended."""
 
     INCOMPLETE = 3
     """The evidence is incomplete, so work may still be running: a shutdown body that raised or was
@@ -49,6 +50,9 @@ class ShutdownOutcome:
     ``still_running`` names tasks that were still pending: owned tasks, a serve task, or an initializer
     (by its task name, ``resource:initialize:<unique_name>``). ``reason`` names the resource and step
     behind ``result``; it is ``None`` for ``DONE``. Lesser problems are in the logs only.
+
+    ``result`` alone doesn't say whether work may still run: a ``DONE`` outcome naming tasks in
+    ``still_running`` is restart-unsafe. Read ``is_restart_safe`` for that.
 
     ``__post_init__`` normalizes ``still_running`` to a tuple: ``frozen=True`` blocks reassigning a field,
     but not the type of a value passed in, and a list would let a later mutation change
@@ -67,7 +71,7 @@ class ShutdownOutcome:
         """``False`` when work from this attempt may still be running; ``True`` otherwise.
 
         Work may still run when anything is named in ``still_running``, or when the result is
-        ``INCOMPLETE``. A hook or cleanup that raised or timed out and has ended is restart-safe.
+        ``INCOMPLETE``. A hook or ``cleanup()`` that raised or timed out and has ended is restart-safe.
         """
         return self.result is not ShutdownResult.INCOMPLETE and not self.still_running
 
@@ -91,6 +95,6 @@ def merge_outcomes(*outcomes: ShutdownOutcome) -> ShutdownOutcome:
     )
 
 
-def incomplete(reason: str, still_running: Iterable[str] = ()) -> ShutdownOutcome:
+def incomplete_outcome(reason: str, still_running: Iterable[str] = ()) -> ShutdownOutcome:
     """An ``INCOMPLETE`` outcome with its reason, for the producers that record one."""
     return ShutdownOutcome(ShutdownResult.INCOMPLETE, tuple(still_running), reason)

@@ -1,8 +1,8 @@
 """One real process exit through ``hassette.server.exit_after_run()``: ``exit_child.py <scenario> <budget>``.
 
 Run by ``test_exit_after_run.py`` as a subprocess, so the hard exit and the watchdog end a real process.
-It stands in for ``hassette run``: inside ``asyncio.run()``, the scenario plays the server's run, then the
-exit check runs with the run's error, which is re-raised afterwards as ``run()`` does. Logs go to stderr.
+It runs ``hassette run``'s coroutine, ``server.run()``, inside ``asyncio.run()``, with the core's construction and
+serving swapped for a scenario that leaves work behind and then ends (or raises). Logs go to stderr.
 """
 
 import asyncio
@@ -94,12 +94,9 @@ async def play_run(core: SimpleNamespace, keep: list[object]) -> None:
 async def main() -> None:
     core = SimpleNamespace(shutdown_snapshot_task=None)
     keep: list[object] = []
-    try:
-        await play_run(core, keep)
-    except BaseException as exc:
-        await server.exit_after_run(core, exc)  # pyright: ignore[reportArgumentType]
-        raise
-    await server.exit_after_run(core, None)  # pyright: ignore[reportArgumentType]
+    server.create_core = lambda _config: core  # pyright: ignore[reportAttributeAccessIssue]
+    server.serve = lambda _core: play_run(core, keep)  # pyright: ignore[reportAttributeAccessIssue]
+    await server.run(None)  # pyright: ignore[reportArgumentType]
 
 
 if __name__ == "__main__":

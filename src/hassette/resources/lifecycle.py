@@ -24,7 +24,7 @@ from hassette.events import HassetteServiceEvent
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources.mixins import LifecycleMixin, _LifecycleHostP
 from hassette.resources.shutdown_deadline import elapsed_since, format_bound, shutdown_hook_bound
-from hassette.resources.shutdown_outcome import ShutdownOutcome, incomplete, merge_outcomes
+from hassette.resources.shutdown_outcome import ShutdownOutcome, incomplete_outcome, merge_outcomes
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
 
 if typing.TYPE_CHECKING:
@@ -531,7 +531,7 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
     init_task = resource._init_task
     if init_task is None or init_task.done():
         if resource._shutdown_outcome is not None:
-            # First accepted initialization after a clean (SAFE) teardown: consume the outcome
+            # First accepted initialization after a restart-safe teardown: consume the outcome
             # and reopen the resources that a completed shutdown attempt sealed/cleared.
             resource._shutdown_outcome = None
             resource._shutdown_task = None
@@ -630,11 +630,11 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> ShutdownOutco
 
     If something external cancels this coordinator task directly (``_force_terminal()`` does this
     from the operation's owner, or for an unresponsive child from an ancestor's own shutdown body --
-    see ``Resource._force_terminal()``), the cancellation is converted to a normal
-    restart-unsafe (``is_restart_safe`` ``False``) return *only* when a force-terminal outcome was already stored
-    before the cancellation was requested. Every joined caller then receives that outcome rather
-    than ``CancelledError``. A cancellation with no pre-recorded evidence is a genuine error and
-    propagates normally.
+    see ``Resource._force_terminal()``), the cancellation is converted to a normal return *only* when an
+    outcome was already stored before the cancellation was requested -- normally the restart-unsafe one
+    ``_force_terminal()`` stores before it cancels. Every joined caller then receives that outcome rather
+    than ``CancelledError``. A cancellation with no stored outcome is a genuine error and propagates
+    normally.
     """
     try:
         coordinator_start = asyncio.get_running_loop().time()
@@ -662,33 +662,34 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> ShutdownOutco
         await asyncio.wait([body_task])
         try:
             outcome = body_task.result()
-        except asyncio.CancelledError:  # noqa: ASYNC103 — body cancellation is evidence for this
+        except asyncio.CancelledError:  # noqa: ASYNC103 — body cancellation is an outcome for this
             # coordinator, not a fatal event for it: convert to INCOMPLETE instead of propagating.
-            outcome = incomplete(f"{resource.unique_name}'s shutdown body was cancelled")
+            outcome = incomplete_outcome(f"{resource.unique_name}'s shutdown body was cancelled")
         except Exception as exc:
             resource.lifecycle_logger.exception("Shutdown body for %s raised", resource.unique_name)
-            outcome = incomplete(f"{resource.unique_name}'s shutdown body raised {type(exc).__name__}")
+            outcome = incomplete_outcome(f"{resource.unique_name}'s shutdown body raised {type(exc).__name__}")
 
         if pending_initializer is not None:
             outcome = merge_outcomes(outcome, ShutdownOutcome(still_running=(pending_initializer,)))
-    except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when no force evidence was stored first
+    except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when no outcome was stored first
         existing = resource._shutdown_outcome
         if existing is None:
             raise
         body_task = resource._shutdown_body_task
         if body_task is not None and not body_task.done():
             body_task.cancel()
-        return existing  # noqa: ASYNC104 — a force-terminal (or other) outcome was already stored before this
-        # coordinator was cancelled, so every joined caller gets that outcome instead of CancelledError.
+        # An outcome (normally _force_terminal()'s) was stored before this coordinator was cancelled, so
+        # every joined caller gets that outcome instead of CancelledError.
+        return existing  # noqa: ASYNC104
     except Exception as exc:
         # Anything else escaping the try body (observing the initializer, requesting shutdown,
-        # reading a config value) is itself teardown evidence, not a bare crash -- mirrors how
+        # reading a config value) makes the outcome INCOMPLETE, not a bare crash -- mirrors how
         # a raising shutdown body is turned into an INCOMPLETE outcome above rather than
         # left to propagate silently, so the "a completed attempt always produces an outcome"
         # invariant coordinate_initialize() relies on for its RestartRefusedError guard holds
         # even when the coordinator itself fails outside the body.
         resource.lifecycle_logger.exception("Shutdown coordinator for %s raised", resource.unique_name)
-        outcome = incomplete(f"{resource.unique_name}'s shutdown coordinator raised {type(exc).__name__}")
+        outcome = incomplete_outcome(f"{resource.unique_name}'s shutdown coordinator raised {type(exc).__name__}")
         existing = resource._shutdown_outcome
         if existing is not None:
             outcome = merge_outcomes(existing, outcome)

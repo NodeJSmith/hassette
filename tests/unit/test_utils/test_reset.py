@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from hassette.resources.shutdown_outcome import incomplete
+from hassette.resources.shutdown_outcome import incomplete_outcome
 from hassette.testing._reset import _reject_tree_if_active_or_reported, reset_hassette_lifecycle, reset_resource_flags
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource
@@ -35,7 +35,7 @@ class TestRejectTreeIfActiveOrReported:
 
         # Simulate a completed teardown attempt on the grandchild -- validation must refuse to
         # proceed anywhere in the tree once this is found, however deep it is.
-        grandchild._shutdown_outcome = incomplete("child was force-terminated")
+        grandchild._shutdown_outcome = incomplete_outcome("child was force-terminated")
 
         with pytest.raises(RuntimeError, match=re.escape(grandchild.unique_name)):
             _reject_tree_if_active_or_reported(root)
@@ -90,7 +90,7 @@ class TestResetHassetteLifecycleOriginalChildren:
         # A test dynamically adds its own child with a completed (unsafe) shutdown outcome --
         # e.g. a dummy service whose teardown was forced during the test body.
         test_added_child = ConcreteResource(hassette)
-        test_added_child._shutdown_outcome = incomplete("child was force-terminated")
+        test_added_child._shutdown_outcome = incomplete_outcome("child was force-terminated")
         hassette.children.append(test_added_child)
 
         await reset_hassette_lifecycle(hassette, original_children=snapshot)
@@ -109,7 +109,7 @@ class TestResetHassetteLifecycleOriginalChildren:
         hassette._shutdown_task = None
         hassette._shutdown_outcome = None
         original_child = ConcreteResource(hassette)
-        original_child._shutdown_outcome = incomplete("child was force-terminated")
+        original_child._shutdown_outcome = incomplete_outcome("child was force-terminated")
         hassette.children.append(original_child)
         snapshot = list(hassette.children)
 

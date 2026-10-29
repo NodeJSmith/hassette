@@ -22,8 +22,8 @@ class NeedsRestartInfo:
     reason: str
     flagged_at: ZonedDateTime
     pending_tasks: tuple[str, ...] = ()
-    """Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete
-    (the instance was force-terminated, or its shutdown raised)."""
+    """Names of the tasks still pending when the teardown ended, from the outcome's ``still_running``. It can
+    be empty when the teardown is flagged for incomplete evidence alone (its shutdown raised, for example)."""
 
     def to_wire(self) -> NeedsRestart:
         """The wire ``NeedsRestart``, with ``flagged_at`` in epoch seconds (sub-second precision kept).

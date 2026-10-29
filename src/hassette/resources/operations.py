@@ -12,7 +12,7 @@ from contextlib import suppress
 
 from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, start
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound, tighten_shutdown_deadline
-from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete, merge_outcomes
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
 from hassette.types.enums import ResourceRole
 from hassette.utils.service_utils import WaveOutcome, describe_children, describe_wave_causes, wait_for_wave
 
@@ -221,7 +221,7 @@ async def shutdown_batch(resource: "Resource", batch: "list[Resource]", *, deadl
       an outcome on the child before re-raising (see ``coordinate_shutdown()``'s ``except Exception`` branch
       in ``lifecycle.py``), so that outcome is merged first and its reason, naming the step, wins.
     - A child that returns merges its own outcome in; one that is restart-unsafe makes the batch unsafe
-      through the merge, with no evidence of its own.
+      through the merge, with no outcome of its own.
 
     Outcomes merge in batch order, so among several children at the worst result the first one's reason
     is kept.
@@ -242,7 +242,7 @@ async def shutdown_batch(resource: "Resource", batch: "list[Resource]", *, deadl
             resource.lifecycle_logger.error("Child %s shutdown failed: %s", child.unique_name, result)
             if (stored := child.shutdown_outcome) is not None:
                 outcomes.append(stored)
-            outcomes.append(incomplete(f"{child.unique_name}'s shutdown raised {type(result).__name__}"))
+            outcomes.append(incomplete_outcome(f"{child.unique_name}'s shutdown raised {type(result).__name__}"))
             continue
         outcomes.append(result)
     return merge_outcomes(*outcomes)

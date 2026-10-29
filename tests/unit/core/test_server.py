@@ -67,7 +67,7 @@ def patch_hassette_and_signal_registration(
         yield mock_hassette_cls, mock_thread_cls, mock_sigmask
 
 
-async def test_main_registers_sigterm_handler() -> None:
+async def test_server_registers_sigterm_handler() -> None:
     """serve() installs a SIGTERM handler that calls request_shutdown(core, ...) directly."""
     mock_core, mock_config = make_mock_core_and_config()
 
@@ -104,7 +104,7 @@ async def test_sigterm_handler_triggers_shutdown_event() -> None:
     assert mock_core.shutdown_event.is_set()
 
 
-async def test_main_continues_when_sigterm_handler_unsupported() -> None:
+async def test_server_continues_when_sigterm_handler_unsupported() -> None:
     """serve() continues to run_forever when add_signal_handler raises NotImplementedError."""
     mock_core, mock_config = make_mock_core_and_config()
 
@@ -114,7 +114,7 @@ async def test_main_continues_when_sigterm_handler_unsupported() -> None:
     mock_core.run_forever.assert_awaited_once()
 
 
-async def test_main_blocks_sigint_before_spawning_the_wait_thread() -> None:
+async def test_server_blocks_sigint_before_spawning_the_wait_thread() -> None:
     """serve() blocks SIGINT process-wide before starting the sigwait() thread.
 
     Ordering matters: every thread created after this point (the sigwait thread here, plus
@@ -132,7 +132,7 @@ async def test_main_blocks_sigint_before_spawning_the_wait_thread() -> None:
     mock_thread_cls.return_value.start.assert_called_once()
 
 
-async def test_main_starts_sigint_wait_thread_as_daemon() -> None:
+async def test_server_starts_sigint_wait_thread_as_daemon() -> None:
     """serve() starts a daemon thread running _sigint_wait_loop(core, loop, sigint_seen)."""
     mock_core, mock_config = make_mock_core_and_config()
     loop = asyncio.get_running_loop()
@@ -149,7 +149,7 @@ async def test_main_starts_sigint_wait_thread_as_daemon() -> None:
     assert kwargs["daemon"] is True
 
 
-async def test_main_continues_when_sigint_handling_unsupported() -> None:
+async def test_server_continues_when_sigint_handling_unsupported() -> None:
     """serve() continues to run_forever, without starting a thread, when pthread_sigmask is
     unavailable (e.g. Windows, where signal.pthread_sigmask doesn't exist at all).
     """
@@ -242,7 +242,7 @@ def test_sigint_wait_loop_calls_handler_once_per_wakeup() -> None:
     mock_handle.assert_called_once_with(mock_core, mock_loop, sigint_seen)
 
 
-async def test_main_checks_the_token_before_creating_hassette() -> None:
+async def test_server_checks_the_token_before_creating_hassette() -> None:
     """A missing token is a config error raised before Hassette is created."""
     mock_config = MagicMock()
     mock_config.require_token.side_effect = ConfigError("HA token is required")
@@ -253,7 +253,7 @@ async def test_main_checks_the_token_before_creating_hassette() -> None:
     mock_hassette.assert_not_called()
 
 
-async def test_main_proceeds_when_token_is_set() -> None:
+async def test_server_proceeds_when_token_is_set() -> None:
     """serve() proceeds to create Hassette when token is not None."""
     mock_core, mock_config = make_mock_core_and_config()
 
@@ -263,7 +263,7 @@ async def test_main_proceeds_when_token_is_set() -> None:
     mock_core.run_forever.assert_awaited_once()
 
 
-async def test_main_passes_config_to_hassette() -> None:
+async def test_server_passes_config_to_hassette() -> None:
     """serve() passes the provided HassetteConfig to Hassette."""
     mock_core, mock_config = make_mock_core_and_config()
 

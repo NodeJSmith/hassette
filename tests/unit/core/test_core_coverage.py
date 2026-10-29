@@ -29,7 +29,7 @@ from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
 from hassette.resources.shutdown_deadline import deadline_in
-from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome
 from hassette.testing import wait_for
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 from tests.support.factories import make_log_record
@@ -334,7 +334,9 @@ class TestShutdownChildren:
         for child in hassette.children:
             stub_shutdown(child, AsyncMock(return_value=ShutdownOutcome()))
         stub_shutdown(file_watcher, AsyncMock(side_effect=RuntimeError("coordinator boom")))
-        file_watcher._shutdown_outcome = incomplete("FileWatcherService's shutdown coordinator raised RuntimeError")
+        file_watcher._shutdown_outcome = incomplete_outcome(
+            "FileWatcherService's shutdown coordinator raised RuntimeError"
+        )
 
         result = await hassette._shutdown_children()
 
@@ -553,12 +555,12 @@ class TestRootShutdown:
         with preserve_config(hassette.config):
             object.__setattr__(hassette.config.lifecycle, "total_shutdown_timeout_seconds", 0.5)
             start = loop.time()
-            report = await hassette.shutdown()
+            outcome = await hassette.shutdown()
             elapsed = loop.time() - start
 
         assert 0.25 <= elapsed < 3.0, f"shutdown took {elapsed:.2f}s; the stop stage is 0.3s"
-        assert report.result is ShutdownResult.INCOMPLETE
-        assert report.is_restart_safe is False
+        assert outcome.result is ShutdownResult.INCOMPLETE
+        assert outcome.is_restart_safe is False
         assert hassette.status == ResourceStatus.STOPPED
         assert hassette.event_streams_closed is True
 

@@ -20,7 +20,7 @@ from hassette_wire import ResourceStatus
 from hassette.core import app_lifecycle_instances
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.resources.shutdown_deadline import deadline_in
-from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete, merge_outcomes
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing import EventCapture
@@ -325,7 +325,7 @@ class TestShutdownInstance:
         event_capture.install(mock_hassette)
         error = RuntimeError("Shutdown failed")
         mock_app_instance.shutdown.side_effect = error
-        mock_app_instance.shutdown_outcome = incomplete("app's shutdown coordinator raised RuntimeError")
+        mock_app_instance.shutdown_outcome = incomplete_outcome("app's shutdown coordinator raised RuntimeError")
 
         await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
@@ -412,17 +412,17 @@ class TestShutdownInstanceEntryDeadline:
 
         mock_app_instance.shutdown = AsyncMock(side_effect=hang)
         mock_app_instance._force_terminal = Mock()
-        mock_app_instance.shutdown_outcome = incomplete("app was force-terminated")
+        mock_app_instance.shutdown_outcome = incomplete_outcome("app was force-terminated")
 
-        report = await asyncio.wait_for(
+        outcome = await asyncio.wait_for(
             lifecycle_service.shutdown_instance(
                 mock_app_instance, 3, deadline=deadline_in(0.1), outcomes=AnyIndexOutcomes()
             ),
             timeout=5,
         )
 
-        assert report is not None
-        assert report.result is ShutdownResult.INCOMPLETE
+        assert outcome is not None
+        assert outcome.result is ShutdownResult.INCOMPLETE
         mock_app_instance._force_terminal.assert_called_once()
         mock_app_instance.bus.remove_all_listeners.assert_called_once()
         mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
@@ -499,7 +499,7 @@ class TestShutdownInstanceEntryDeadline:
         """
         outcome = merge_outcomes(
             ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="app: shutdown hook on_shutdown timed out after 5s"),
-            incomplete("app's shutdown body raised RuntimeError"),
+            incomplete_outcome("app's shutdown body raised RuntimeError"),
         )
         mock_app_instance.shutdown = AsyncMock(return_value=outcome)
 
@@ -546,10 +546,10 @@ class TestShutdownInstanceEntryDeadline:
         mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(still_running=("app:poller",)))
         mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus down"))
 
-        report = await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
+        outcome = await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
-        assert report is not None
-        assert report.still_running == ("app:poller",)
+        assert outcome is not None
+        assert outcome.still_running == ("app:poller",)
         mock_registry.record_failure.assert_called_once()
         mock_registry.flag_needs_restart.assert_called_once()
 
@@ -563,7 +563,7 @@ class TestShutdownInstanceEntryDeadline:
         event_capture: EventCapture,
     ) -> None:
         # dup-ignore-end
-        """Only a timed-out stop is FAILED here; a hook that raised is evidence on the report, not a timeout."""
+        """Only a timed-out stop is FAILED here; a hook that raised is evidence on the outcome, not a timeout."""
         event_capture.install(mock_hassette)
         mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(ShutdownResult.FAILED, reason="hook"))
 

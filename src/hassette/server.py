@@ -26,8 +26,8 @@ key on it (systemd ``RestartPreventExitStatus=78``, the add-on's s6 ``finish`` s
 EXIT_BUDGET_SECONDS = 5.0
 """How long ``hassette run``'s exit check waits, after the shutdown snapshot, for cancelled tasks to finish.
 
-HA's fixed task timeout at exit. One deadline for the whole exit, so it fits the supervisor's stop grace
-(spec 141 D4).
+5s matches Home Assistant core's fixed timeout for tasks at exit. It is one deadline for the whole exit, so
+it fits inside the supervisor's stop grace (spec 141 D4).
 """
 
 EXIT_WATCHDOG_MARGIN_SECONDS = 1.0
@@ -99,6 +99,8 @@ async def cancel_remaining_tasks(deadline: float) -> list[str]:
         task.cancel()
     if tasks:
         await asyncio.wait(tasks, timeout=max(0.0, deadline - time.monotonic()))
+    # Retrieving each finished task's exception keeps asyncio from logging "exception was never retrieved"
+    # for it at exit; the error is still recorded, at DEBUG.
     for task in tasks:
         if task.done() and not task.cancelled() and (task_exc := task.exception()) is not None:
             LOGGER.debug("Task %s ended with %r after the exit cancellation", task.get_name(), task_exc)

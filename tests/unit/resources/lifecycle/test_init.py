@@ -284,10 +284,10 @@ async def test_leaf_ready_after_restart(leaf_type: str):
     assert resource.is_ready(), f"{leaf_type} should be ready after re-initialize"
 
 
-async def test_initialize_waits_for_active_shutdown_before_evaluating_report():
+async def test_initialize_waits_for_active_shutdown_before_evaluating_outcome():
     """A concurrent ``initialize()`` call made while a shutdown is already in flight waits for
     that shutdown's outcome (shielding ``_shutdown_task``) before deciding whether a new
-    initialization attempt is admitted -- it does not race ahead of the report the shutdown
+    initialization attempt is admitted -- it does not race ahead of the outcome the shutdown
     attempt is about to store.
     """
     hassette = make_mock_hassette(sealed=False)
@@ -324,13 +324,13 @@ async def test_initialize_waits_for_active_shutdown_before_evaluating_report():
     assert not init_entered.is_set()
     assert not init_task.done()
 
-    # Release the shutdown; only now may initialize() evaluate the stored report and proceed.
+    # Release the shutdown; only now may initialize() evaluate the stored outcome and proceed.
     shutdown_release.set()
-    report = await shutdown_task
+    outcome = await shutdown_task
     await init_task
 
-    assert report.is_restart_safe is True
-    assert init_entered.is_set(), "initialize() must proceed only after the active shutdown's report exists"
+    assert outcome.is_restart_safe is True
+    assert init_entered.is_set(), "initialize() must proceed only after the active shutdown's outcome exists"
     assert resource.status == ResourceStatus.RUNNING
 
 
@@ -367,11 +367,11 @@ async def test_shutdown_cancels_and_observes_initializer_before_shutdown_hooks()
 
     resource.on_shutdown = _tracking_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
-    report = await resource.shutdown()
+    outcome = await resource.shutdown()
 
     assert init_cancelled.is_set()
     assert shutdown_hook_entered.is_set()
-    assert report.is_restart_safe is True
+    assert outcome.is_restart_safe is True
 
     with pytest.raises(asyncio.CancelledError):
         await init_task

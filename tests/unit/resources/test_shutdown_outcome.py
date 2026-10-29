@@ -13,7 +13,7 @@ import hassette.exceptions as exceptions_pkg
 import hassette.resources as resources_pkg
 from hassette.exceptions import FatalError, LifecycleReentryError, RestartRefusedError
 from hassette.resources import ShutdownOutcome, ShutdownResult
-from hassette.resources.shutdown_outcome import incomplete, merge_outcomes
+from hassette.resources.shutdown_outcome import incomplete_outcome, merge_outcomes
 
 # Every evidence kind the old cause vocabulary recorded, as its producer now records it, with the
 # restart-safe verdict the old vocabulary gave it. Pins that the reshape changed no verdict.
@@ -21,15 +21,15 @@ EVIDENCE_VERDICTS = {
     "hook raised": (ShutdownOutcome(ShutdownResult.FAILED, reason="x"), True),
     "hook timed out": (ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="x"), True),
     "cleanup raised": (ShutdownOutcome(ShutdownResult.FAILED, reason="x"), True),
-    "cleanup timed out": (ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="x"), True),
+    "cleanup timed out": (ShutdownOutcome(ShutdownResult.FAILED, reason="x"), True),
     "owned tasks pending": (ShutdownOutcome(still_running=("task",)), False),
     "serve task pending": (ShutdownOutcome(still_running=("service:serve:X",)), False),
     "initializer pending": (ShutdownOutcome(still_running=("resource:initialize:X",)), False),
-    "body raised or was cancelled": (incomplete("x"), False),
-    "coordinator raised": (incomplete("x"), False),
-    "forced terminal": (incomplete("x"), False),
-    "child shutdown raised": (incomplete("x"), False),
-    "child cut off at a stage deadline": (incomplete("x"), False),
+    "body raised or was cancelled": (incomplete_outcome("x"), False),
+    "coordinator raised": (incomplete_outcome("x"), False),
+    "forced terminal": (incomplete_outcome("x"), False),
+    "child shutdown raised": (incomplete_outcome("x"), False),
+    "child cut off at a stage deadline": (incomplete_outcome("x"), False),
 }
 
 
@@ -47,7 +47,7 @@ class TestRestartSafetyDerivation:
         assert not outcome.is_restart_safe
 
     def test_an_unsafe_child_makes_its_parent_unsafe_through_the_merge(self) -> None:
-        assert not merge_outcomes(ShutdownOutcome(), incomplete("child")).is_restart_safe
+        assert not merge_outcomes(ShutdownOutcome(), incomplete_outcome("child")).is_restart_safe
         assert not merge_outcomes(ShutdownOutcome(), ShutdownOutcome(still_running=("t",))).is_restart_safe
 
     def test_results_are_ranked_done_failed_timed_out_incomplete(self) -> None:
@@ -81,13 +81,15 @@ class TestMergeOutcomes:
 
     def test_first_reason_at_the_worst_result_wins(self) -> None:
         merged = merge_outcomes(
-            incomplete("first"), ShutdownOutcome(ShutdownResult.FAILED, reason="x"), incomplete("second")
+            incomplete_outcome("first"),
+            ShutdownOutcome(ShutdownResult.FAILED, reason="x"),
+            incomplete_outcome("second"),
         )
 
         assert merged.reason == "first"
 
     def test_a_timed_out_hook_with_incomplete_evidence_is_incomplete(self) -> None:
-        merged = merge_outcomes(ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="hook"), incomplete("body"))
+        merged = merge_outcomes(ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="hook"), incomplete_outcome("body"))
 
         assert merged.result is ShutdownResult.INCOMPLETE
         assert merged.reason == "body"
@@ -102,7 +104,7 @@ class TestMergeOutcomes:
 
     def test_merge_does_not_mutate_inputs(self) -> None:
         first = ShutdownOutcome(still_running=("a",))
-        merge_outcomes(first, incomplete("x", ("b",)))
+        merge_outcomes(first, incomplete_outcome("x", ("b",)))
 
         assert first == ShutdownOutcome(still_running=("a",))
 
@@ -112,14 +114,16 @@ class TestMergeOutcomes:
 
 class TestRestartRefusedError:
     def test_retains_resource_name_and_exact_outcome(self) -> None:
-        outcome = incomplete("Bus's shutdown body raised RuntimeError", ("task-1",))
+        outcome = incomplete_outcome("Bus's shutdown body raised RuntimeError", ("task-1",))
         error = RestartRefusedError("my_resource", outcome)
 
         assert error.resource_name == "my_resource"
         assert error.outcome is outcome
 
     def test_message_gives_result_reason_and_still_running(self) -> None:
-        error = RestartRefusedError("my_resource", incomplete("Bus's shutdown body raised RuntimeError", ("task-1",)))
+        error = RestartRefusedError(
+            "my_resource", incomplete_outcome("Bus's shutdown body raised RuntimeError", ("task-1",))
+        )
 
         message = str(error)
         assert "my_resource" in message
@@ -134,7 +138,7 @@ class TestRestartRefusedError:
         assert "Still running: task-1." in message
 
     def test_is_a_fatal_error(self) -> None:
-        assert isinstance(RestartRefusedError("r", incomplete("x")), FatalError)
+        assert isinstance(RestartRefusedError("r", incomplete_outcome("x")), FatalError)
 
 
 class TestLifecycleReentryError:

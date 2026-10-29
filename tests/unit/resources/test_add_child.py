@@ -107,7 +107,7 @@ class TestReinitializeAfterCleanTeardown:
 
 
 class TestReinitializeRefusedAfterChildWorkLeftRunning:
-    """A child whose work may still be running leaves the parent's stored report with ``is_restart_safe``
+    """A child whose work may still be running leaves the parent's stored outcome with ``is_restart_safe``
     ``False``, which must refuse every same-instance initialization path -- ``start()`` and a direct
     ``initialize()`` call -- without running a second ``on_initialize()`` hook.
     """
@@ -123,28 +123,28 @@ class TestReinitializeRefusedAfterChildWorkLeftRunning:
         await parent.initialize()
         await pending.initialize()
 
-        report = await parent.shutdown()
-        assert report.is_restart_safe is False
+        outcome = await parent.shutdown()
+        assert outcome.is_restart_safe is False
         return parent
 
     async def test_start_raises_and_never_reinitializes(self) -> None:
         parent = await self._make_unsafe_parent()
-        stored_report = parent.shutdown_outcome
+        stored_outcome = parent.shutdown_outcome
 
         with pytest.raises(RestartRefusedError) as exc_info:
             start(parent)
 
-        assert exc_info.value.outcome is stored_report
-        assert parent.shutdown_outcome is stored_report
+        assert exc_info.value.outcome is stored_outcome
+        assert parent.shutdown_outcome is stored_outcome
         assert parent.status == ResourceStatus.STOPPED
 
     async def test_direct_initialize_raises_and_never_reinitializes(self) -> None:
         parent = await self._make_unsafe_parent()
-        stored_report = parent.shutdown_outcome
+        stored_outcome = parent.shutdown_outcome
 
         with pytest.raises(RestartRefusedError) as exc_info:
             await parent.initialize()
 
-        assert exc_info.value.outcome is stored_report
-        assert parent.shutdown_outcome is stored_report
+        assert exc_info.value.outcome is stored_outcome
+        assert parent.shutdown_outcome is stored_outcome
         assert parent.status == ResourceStatus.STOPPED

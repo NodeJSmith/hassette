@@ -30,7 +30,7 @@ from hassette.resources.shutdown_deadline import (
     clamp_to_shutdown_deadline,
     elapsed_since,
 )
-from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete, merge_outcomes
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
 from hassette.types.enums import ResourceRole
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX
 
@@ -399,7 +399,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if self._shutdown_outcome is None:
             self.task_bucket.seal()
-            self._shutdown_outcome = incomplete(
+            self._shutdown_outcome = incomplete_outcome(
                 f"{self.unique_name} was force-terminated", self.task_bucket.pending_task_names()
             )
         cancel(self)
@@ -491,7 +491,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         except TimeoutError:
             self.lifecycle_logger.warning("cleanup() timed out after %.2fs for %s", cleanup_timeout, self.unique_name)
             reason = f"{self.unique_name}: cleanup() timed out after {cleanup_timeout:.2f}s"
-            outcomes.append(ShutdownOutcome(ShutdownResult.TIMED_OUT, reason=reason))
+            # FAILED, not TIMED_OUT: an app stop reads TIMED_OUT as "a shutdown hook timed out" and fails the stop.
+            outcomes.append(ShutdownOutcome(ShutdownResult.FAILED, reason=reason))
         except Exception as exc:
             self.lifecycle_logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
             reason = f"{self.unique_name}: cleanup() raised {type(exc).__name__}"

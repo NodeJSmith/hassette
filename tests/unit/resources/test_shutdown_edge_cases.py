@@ -93,9 +93,9 @@ class TestShutdownBodySwallowsHandleStopException:
         # attribute, since _shutdown_body()'s post-hook stage calls the free function directly.
         with patch("hassette.resources.base.handle_stop", side_effect=RuntimeError("handle_stop boom")):
             # Must not raise despite handle_stop() blowing up.
-            report = await resource._shutdown_body()
+            outcome = await resource._shutdown_body()
 
-        assert report is not None, "the body must complete and return a report rather than raise"
+        assert outcome is not None, "the body must complete and return an outcome rather than raise"
 
     async def test_cleanup_exception_does_not_propagate(self) -> None:
         """A non-timeout exception from cleanup() is logged, swallowed, and recorded as evidence."""
@@ -109,11 +109,11 @@ class TestShutdownBodySwallowsHandleStopException:
         resource.cleanup = _raising_cleanup  # pyright: ignore[reportAttributeAccessIssue]
 
         # Must not raise despite cleanup() blowing up, and the body must still complete.
-        report = await resource._shutdown_body()
+        outcome = await resource._shutdown_body()
 
-        assert report.result is ShutdownResult.FAILED
-        assert report.is_restart_safe is True, "a cleanup that raised has ended; it is diagnostic only"
-        assert report.reason == f"{resource.unique_name}: cleanup() raised RuntimeError"
+        assert outcome.result is ShutdownResult.FAILED
+        assert outcome.is_restart_safe is True, "a cleanup that raised has ended; it is diagnostic only"
+        assert outcome.reason == f"{resource.unique_name}: cleanup() raised RuntimeError"
 
     async def test_reaches_stopped_when_event_streams_already_closed(self) -> None:
         """With the event streams closed (a dead bus), the shutdown body still moves the resource to STOPPED."""

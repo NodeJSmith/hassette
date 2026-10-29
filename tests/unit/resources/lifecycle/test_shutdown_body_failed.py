@@ -1,6 +1,6 @@
-"""Tests for a shutdown body that ends abnormally: its report is restart-unsafe.
+"""Tests for a shutdown body that ends abnormally: its outcome is restart-unsafe.
 
-The coordinator replaces a raised or cancelled body's evidence with ``SHUTDOWN_BODY_FAILED``, so the
+The coordinator replaces a raised or cancelled body's outcome with an ``INCOMPLETE`` one, so the
 later stages (task cancellation, child shutdown) may never have run and nothing proves the work ended.
 """
 
@@ -26,31 +26,31 @@ class CancelAwaitingParent(Resource):
 
 async def test_cancelled_error_escaping_a_shutdown_hook_leaves_the_report_restart_unsafe():
     """A ``CancelledError`` from awaiting a task the hook cancelled aborts the body before child shutdown,
-    and the report says work may still be running.
+    and the outcome says work may still be running.
     """
-    _parent, child, report = await shut_down_parent_with_child(CancelAwaitingParent, ShutdownCounter)
+    _parent, child, outcome = await shut_down_parent_with_child(CancelAwaitingParent, ShutdownCounter)
 
-    assert report.result is ShutdownResult.INCOMPLETE
+    assert outcome.result is ShutdownResult.INCOMPLETE
     assert child.shutdown_count == 0, "the aborted body never reached child shutdown"
-    assert report.is_restart_safe is False
+    assert outcome.is_restart_safe is False
 
 
 class RaisingChildrenStageParent(Resource):
-    """Parent whose child-shutdown stage raises, so the body ends without a report of its own."""
+    """Parent whose child-shutdown stage raises, so the body ends without an outcome of its own."""
 
     async def _shutdown_children(self) -> ShutdownOutcome:
         raise RuntimeError("child stage boom")
 
 
 async def test_a_shutdown_body_that_raises_leaves_the_report_restart_unsafe():
-    """A body that raises an ordinary exception drops its stages' evidence, so the report can't claim the
+    """A body that raises an ordinary exception drops its stages' evidence, so the outcome can't claim the
     attempt's work ended.
     """
     hassette = make_mock_hassette(sealed=False)
     parent = RaisingChildrenStageParent(hassette)
     await parent.initialize()
 
-    report = await parent.shutdown()
+    outcome = await parent.shutdown()
 
-    assert report.result is ShutdownResult.INCOMPLETE
-    assert report.is_restart_safe is False
+    assert outcome.result is ShutdownResult.INCOMPLETE
+    assert outcome.is_restart_safe is False
