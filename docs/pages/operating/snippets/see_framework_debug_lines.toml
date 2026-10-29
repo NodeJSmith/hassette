@@ -1,0 +1,6 @@
+# hassette.toml
+[hassette.logging]
+log_persistence_level = "DEBUG"
+
+[hassette.apps.presence]
+config = { instance_name = "presence", framework_log_level = "DEBUG" }
