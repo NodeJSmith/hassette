@@ -83,13 +83,13 @@ Hassette handlers can have almost any signature. Three styles work:
 **Full event object.** Receive the raw event and extract what you need:
 
 ```python
-async def on_light_change(self, event: RawStateChangeEvent): ...
+--8<-- "pages/migration/snippets/concepts_handler_event.py"
 ```
 
 **Dependency injection.** Annotate parameters with `D.*` types and Hassette fills them in:
 
 ```python
-async def on_light_change(self, new_state: D.StateNew[states.LightState]): ...
+--8<-- "pages/migration/snippets/concepts_handler_di.py"
 ```
 
 **No arguments.** Use when you only care that the event fired:
