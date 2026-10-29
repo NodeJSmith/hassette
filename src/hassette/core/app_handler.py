@@ -145,8 +145,8 @@ class AppHandler(Service):
         """Also force-terminate the registry apps, which are not children of this handler.
 
         The root's stop-stage ERROR names only this handler, so the apps whose stop hadn't finished get
-        their own ERROR here. A runtime stop or reload already in
-        flight is reached too: its instances stay registered until their teardown finishes.
+        their own ERROR here. A runtime stop or reload already in flight is reached too: its instances stay
+        registered until their teardown finishes.
         """
         instances = [
             inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()

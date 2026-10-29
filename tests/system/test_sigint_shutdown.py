@@ -21,8 +21,7 @@ from pathlib import Path
 import httpx2 as httpx
 import pytest
 
-from tests.integration.test_exit_after_run import TASK_SURVIVOR, WATCHDOG
-from tests.support.helpers import write_app
+from tests.support.helpers import EXIT_TASK_SURVIVOR_ERROR, EXIT_WATCHDOG_ERROR, write_app
 
 from .conftest import app_entries, free_port, hassette_run_env, spawn_hassette_run
 
@@ -171,7 +170,7 @@ def test_single_signal_exits_promptly_on_healthy_instance(
         assert proc.returncode == 0, f"expected a clean exit, got returncode={proc.returncode}"
         reader.join(timeout=5)
         assert not reader.is_alive(), "stdout was still open 5s after the process exited"
-        hard_exit_lines = [line for line in lines if TASK_SURVIVOR in line or WATCHDOG in line]
+        hard_exit_lines = [line for line in lines if EXIT_TASK_SURVIVOR_ERROR in line or EXIT_WATCHDOG_ERROR in line]
         assert not hard_exit_lines, f"a clean exit reached the exit check's hard exit: {hard_exit_lines}"
     finally:
         _cleanup(proc, reader)

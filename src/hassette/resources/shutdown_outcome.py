@@ -22,10 +22,10 @@ from enum import IntEnum
 class ShutdownResult(IntEnum):
     """How a shutdown attempt ended, ranked so that merging keeps the worst.
 
-    Ordered ``DONE`` < ``FAILED`` < ``TIMED_OUT`` < ``INCOMPLETE``, as systemd's ``Result=`` keeps one value
-    per unit. Only ``INCOMPLETE`` makes an outcome restart-unsafe on its own; the others describe a teardown
-    that has ended. ``TIMED_OUT`` is kept for a shutdown hook cut off at its bound, because an app stop reads it
-    as a timed-out stop and fails the stop; a ``cleanup()`` cut off at its bound is ``FAILED``.
+    Ordered ``DONE`` < ``FAILED`` < ``TIMED_OUT`` < ``INCOMPLETE``. Only ``INCOMPLETE`` makes an outcome
+    restart-unsafe on its own; the others describe a teardown that has ended. ``TIMED_OUT`` is kept for a
+    shutdown hook cut off at its bound, because an app stop reads it as a timed-out stop and fails the stop;
+    a ``cleanup()`` cut off at its bound is ``FAILED``.
     """
 
     DONE = 0

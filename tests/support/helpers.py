@@ -80,6 +80,12 @@ SHORT_TASK_CANCEL_TIMEOUT_SECONDS = 0.1
 """Short ``task_cancellation_timeout_seconds`` for tests that need the TaskBucket cancel stage
 to resolve quickly."""
 
+EXIT_TASK_SURVIVOR_ERROR = "Exiting without waiting for tasks still running"
+"""Text of the ERROR `hassette run`'s exit check logs before its task-survivor hard exit (`server.exit_after_run`)."""
+
+EXIT_WATCHDOG_ERROR = "Hassette did not finish exiting in time"
+"""Text of the ERROR the exit watchdog logs before its hard exit (``server.start_exit_watchdog``)."""
+
 _FAILED_AUTH_LOGGER = "hassette.web.middleware"
 """Logger name `_FailedAuthTracker`'s coalesced WARN is emitted on, shared by every failed-auth
 WARN-capture helper below."""

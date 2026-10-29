@@ -24,7 +24,7 @@ class CancelAwaitingParent(Resource):
         await self.loop_task
 
 
-async def test_cancelled_error_escaping_a_shutdown_hook_leaves_the_report_restart_unsafe():
+async def test_cancelled_error_escaping_a_shutdown_hook_leaves_the_outcome_restart_unsafe():
     """A ``CancelledError`` from awaiting a task the hook cancelled aborts the body before child shutdown,
     and the outcome says work may still be running.
     """
@@ -42,7 +42,7 @@ class RaisingChildrenStageParent(Resource):
         raise RuntimeError("child stage boom")
 
 
-async def test_a_shutdown_body_that_raises_leaves_the_report_restart_unsafe():
+async def test_a_shutdown_body_that_raises_leaves_the_outcome_restart_unsafe():
     """A body that raises an ordinary exception drops its stages' evidence, so the outcome can't claim the
     attempt's work ended.
     """

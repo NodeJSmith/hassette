@@ -534,7 +534,7 @@ async def test_shutdown_children_records_child_shutdown_failed_and_continues_sib
     assert child_ok.shutdown_count == 1, "sibling must still complete despite the broken child"
 
 
-async def test_shutdown_children_merges_child_report_when_shutdown_raises():
+async def test_shutdown_children_merges_child_outcome_when_shutdown_raises():
     """When a child's ``shutdown()`` call raises from *outside* its own ``_shutdown_body()`` --
     e.g. the coordinator itself failing (see ``_run_shutdown_coordinator()``'s ``except Exception``
     branch in ``lifecycle.py``, which stores an outcome on the child before re-raising) -- the parent

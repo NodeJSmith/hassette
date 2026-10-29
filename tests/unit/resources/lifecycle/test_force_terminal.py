@@ -159,7 +159,7 @@ async def test_force_terminal_cancels_task_bucket():
 async def test_force_terminal_still_recurses_into_already_completed_children():
     """Regression: _force_terminal() must still recurse into a child whose own outcome was
     already stored (e.g. an already-completed shutdown) -- only the outcome itself is left
-    unchanged (see test_force_terminal_leaves_completed_safe_child_report_unchanged below), not
+    unchanged (see test_force_terminal_leaves_completed_safe_child_outcome_unchanged below), not
     the recursive call. An early return here would also skip any *grandchildren* under that
     child, which is exactly what Hassette._shutdown_body() relies on this method reaching
     unconditionally on its total-timeout path.
@@ -190,7 +190,7 @@ async def test_force_terminal_still_recurses_into_already_completed_children():
         assert mock_cancel.call_args_list == [call(root), call(child)]
 
 
-async def test_force_terminal_stores_forced_terminal_report_before_cancelling_work():
+async def test_force_terminal_stores_forced_terminal_outcome_before_cancelling_work():
     """_force_terminal() stores its restart-unsafe INCOMPLETE outcome before cancelling
     anything -- ``cancel()``, ``task_bucket.cancel_all_sync()``, and the recursive descendant
     call all happen strictly after ``self._shutdown_outcome`` already reflects the forced
@@ -223,7 +223,7 @@ async def test_force_terminal_stores_forced_terminal_report_before_cancelling_wo
     assert root.status == ResourceStatus.STOPPED
 
 
-async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
+async def test_force_terminal_leaves_completed_safe_child_outcome_unchanged():
     """A child that already completed a clean, restart-safe shutdown before a parent's
     force-terminal call keeps its own outcome unchanged -- force-terminal only degrades resources
     that have not yet completed a teardown attempt.
@@ -247,7 +247,7 @@ async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
     assert safe_outcome.is_restart_safe is True
 
 
-async def test_force_terminal_reaches_grandchild_under_already_reported_child():
+async def test_force_terminal_reaches_grandchild_under_child_with_a_stored_outcome():
     """Regression: a live grandchild under a child whose own outcome was already stored must
     still be force-terminated. Before this fix, `_force_terminal()`'s "leave an already-stored
     outcome unchanged" guard returned before the recursive call into children entirely, so a

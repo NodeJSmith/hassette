@@ -324,7 +324,7 @@ class TestShutdownChildren:
             if child is not file_watcher:
                 shutdown_mock(child).assert_awaited_once()
 
-    async def test_merges_child_report_when_shutdown_raises(self, wired_hassette: Hassette) -> None:
+    async def test_merges_child_outcome_when_shutdown_raises(self, wired_hassette: Hassette) -> None:
         """When a child's ``shutdown()`` call raises, its own already-stored ``shutdown_outcome`` (stored by
         ``_run_shutdown_coordinator()``'s ``except Exception`` branch before it re-raises) is merged first,
         so its reason wins over the generic "shutdown raised".

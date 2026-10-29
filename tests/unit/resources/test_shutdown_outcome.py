@@ -15,8 +15,7 @@ from hassette.exceptions import FatalError, LifecycleReentryError, RestartRefuse
 from hassette.resources import ShutdownOutcome, ShutdownResult
 from hassette.resources.shutdown_outcome import incomplete_outcome, merge_outcomes
 
-# Every evidence kind the old cause vocabulary recorded, as its producer now records it, with the
-# restart-safe verdict the old vocabulary gave it. Pins that the reshape changed no verdict.
+# Each kind of shutdown evidence, as its producer records it, with its restart-safe verdict.
 EVIDENCE_VERDICTS = {
     "hook raised": (ShutdownOutcome(ShutdownResult.FAILED, reason="x"), True),
     "hook timed out": (ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="x"), True),
