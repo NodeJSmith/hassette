@@ -23,7 +23,7 @@ Four areas change: configuration, app structure, event handlers, and API calls. 
 
 `name=` in the bus rows above is **required** — it identifies the listener in logs and the monitoring UI. Use a descriptive string like `"kitchen_motion"`. Omitting it raises `TypeError`; an empty name raises `ListenerNameRequiredError`. AppDaemon has no equivalent.
 
-All Hassette bus, scheduler, and API calls are `async` and need `await`. In AppDaemon, `self.listen_state` registers immediately. In Hassette, forgetting `await` means nothing registers — no error, no warning, just silence.
+All Hassette bus, scheduler, and API calls are `async` and need `await`. In AppDaemon, `self.listen_state` registers immediately. In Hassette, forgetting `await` means nothing registers. The call raises no error, and the only signal is a `HassetteForgottenAwaitWarning` in the logs (see [Troubleshooting](../troubleshooting.md#forgotten-await)).
 
 ## Is Migration Worth It?
 
@@ -43,7 +43,7 @@ All Hassette bus, scheduler, and API calls are `async` and need `await`. In AppD
 | HADashboard | Not planned |
 | Notification helpers (`notify`, `call_action`) | Use `await self.api.call_service("notify", ...)` directly |
 | MQTT plugin | Not yet supported. No workaround available. |
-| Global variables / inter-app communication | Use `await self.bus.emit(topic, data)` for in-process broadcast |
+| Global variables / inter-app communication | Send with `await self.bus.emit(topic, data)`; receive in another app with `self.bus.on(...)`. See [Cross-app Communication](../core-concepts/bus/handlers.md#cross-app-communication). |
 
 If a feature you depend on is missing, [open an issue](https://github.com/NodeJSmith/hassette/issues) or check [GitHub discussions](https://github.com/NodeJSmith/hassette/discussions).
 
