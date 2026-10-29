@@ -44,13 +44,19 @@ The web UI marks framework lines with a **Framework** badge. The CLI's Author co
 
 The opt-in and an app's `framework_log_level` control different stages. `framework_log_level` sets how much detail Hassette writes about that app. The opt-in sets whether log views show it.
 
-With `framework_log_level = "DEBUG"` and the opt-in off, Hassette writes its debug lines about the app, but log views hide them. Seeing them takes both settings:
+With `framework_log_level = "DEBUG"` and the opt-in off, Hassette writes its debug lines about the app, but log views hide them. Seeing them takes three settings:
+
+- `framework_log_level = "DEBUG"` on the app
+- `log_persistence_level = "DEBUG"` under `[hassette.logging]`
+- the opt-in: the **all framework lines** checkbox in the web UI, or `--author all` on the CLI
+
+The first two live in `hassette.toml`:
 
 ```toml
---8<-- "pages/operating/snippets/per_app_framework_log_level.toml"
+--8<-- "pages/operating/snippets/see_framework_debug_lines.toml"
 ```
 
-The log views read from the telemetry database, which stores only lines at or above `log_persistence_level`. That defaults to the global `log_level`, so debug lines also need `log_persistence_level = "DEBUG"` under `[hassette.logging]`. [Log Level Tuning](log-levels.md#hassettes-lines-about-one-app) covers both settings.
+The log views read from the telemetry database, which stores only lines at or above `log_persistence_level`. That defaults to the global `log_level`, so debug lines need the lower floor too. [Log Level Tuning](log-levels.md#hassettes-lines-about-one-app) covers both config keys.
 
 ## Hassette's Problem or the App's
 
@@ -62,7 +68,7 @@ The author and subject of an error line point to where the problem lives.
 
 Framework WARNING lines about an app, such as a handler timeout, stay hidden until the opt-in is on. The Handlers tab records every timeout and error regardless of log settings.
 
-When the default view shows nothing wrong, the opt-in plus `framework_log_level = "DEBUG"` is the next step. Hassette's lifecycle, listener, job and API detail about the app then appears beside the app's own lines.
+When the default view shows nothing wrong, the opt-in plus `framework_log_level = "DEBUG"` and `log_persistence_level = "DEBUG"` (see [The Opt-In and `framework_log_level`](#the-opt-in-and-framework_log_level)) is the next step. Hassette's lifecycle, listener, job and API detail about the app then appears beside the app's own lines.
 
 ## Limits for Loggers No App Owns
 
