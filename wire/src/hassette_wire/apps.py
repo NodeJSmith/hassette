@@ -18,8 +18,9 @@ class NeedsRestart(BaseModel):
     reason: str
     """What the teardown left behind, such as the tasks still pending or why its evidence is incomplete."""
     pending_tasks: list[str] = Field(default_factory=list)
-    """Names of the tasks still pending when the teardown ended; empty when the evidence is incomplete (the
-    instance was force-terminated, or its shutdown raised)."""
+    """Names of the tasks still running when the teardown ended, including an initializer that hadn't stopped
+    (``resource:initialize:<unique name>``). Can be empty when the evidence is incomplete (the instance was
+    force-terminated, or its shutdown raised); ``reason`` says which."""
     flagged_at: float
     """When the instance was flagged, in epoch seconds. The first flag stands until restart."""
 

@@ -41,7 +41,9 @@ root's stop and foundation stages in `src/hassette/core/core.py`, and the entry 
 `src/hassette/core/app_lifecycle_instances.py`. Does new shutdown work bound itself only as a leaf
 (its own cap clamped to the deadline), leaving interior waits unbounded and walking away to those two
 owners? Does anything added to the foundation stage fit inside `FOUNDATION_SHUTDOWN_BUDGET_SECONDS`,
-and does work a walk-away leaves running get recorded with `record_force_terminated()`?
+and does a walk-away force-terminate what it leaves running, so its shutdown outcome is `INCOMPLETE`
+and its ERROR names it? (`hassette run`'s exit check in `src/hassette/server.py` sees what is still
+alive at exit; nothing records walked-away work for it.)
 
 ## Tier Processing Parity
 When a maintenance loop in `src/hassette/core/database_service.py` processes
@@ -62,7 +64,7 @@ still attached turns a deliberate teardown into a spurious DISCONNECTED transiti
 instance entry and its needs-restart record are combined; a flagged index can outlive its entry.
 Does a new reader of per-instance state go through it (or `resolve_instance_infos()`) rather than
 reading the instance map directly, which drops flagged indices? And does every new FAILED outcome in
-`src/hassette/core/app_lifecycle_instances.py` whose `TeardownReport` is not restart-safe flag the
+`src/hassette/core/app_lifecycle_instances.py` whose `ShutdownOutcome` is not restart-safe flag the
 index before the status event is sent? Does a new path that creates an instance go through
 `AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,
 whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged index?

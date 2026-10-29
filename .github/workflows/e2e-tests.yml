@@ -41,7 +41,9 @@ jobs:
     e2e:
         needs: changes
         if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
-        runs-on: ubuntu-latest
+        # Pinned: Playwright 1.58 refuses ubuntu-latest's 26.04 image ("does not support chromium").
+        # Return to ubuntu-latest once a Playwright release supports 26.04.
+        runs-on: ubuntu-24.04
         timeout-minutes: 20
 
         strategy:

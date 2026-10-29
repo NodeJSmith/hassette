@@ -18,6 +18,7 @@ from hassette import Hassette
 from hassette.config.models import LifecycleConfig
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
+from hassette.resources.shutdown_outcome import ShutdownResult
 from tests.support.bare_hassette import running_bare_hassette, wait_for_web_api_ready
 from tests.support.helpers import fill_event_channel
 
@@ -38,7 +39,11 @@ def walk_resources(root: Resource) -> Iterator[Resource]:
 def assert_clean_fatal_teardown(hassette: Hassette) -> None:
     assert hassette.fatal_shutdown_reason is not None
     assert "BusService" in hassette.fatal_shutdown_reason
-    assert hassette.force_terminated_work == (), "no send may block teardown into a force-termination"
+    outcome = hassette.shutdown_outcome
+    assert outcome is not None
+    assert outcome.result is not ShutdownResult.INCOMPLETE, (
+        f"no send may block teardown into a force-termination: {outcome}"
+    )
     not_stopped = {r.unique_name: r.status for r in walk_resources(hassette) if r.status != ResourceStatus.STOPPED}
     assert not_stopped == {}, "every resource reaches STOPPED during the fatal teardown"
     assert hassette.status == ResourceStatus.STOPPED

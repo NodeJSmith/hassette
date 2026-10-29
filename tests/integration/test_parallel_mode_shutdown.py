@@ -45,10 +45,10 @@ class _ParallelWorkApp(App[AppConfig]):
 async def assert_stopping_the_app_cancels_the_invocation(app: _ParallelWorkApp, trigger: asyncio.Task[object]) -> None:
     await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
-    report = await asyncio.wait_for(app.shutdown(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+    outcome = await asyncio.wait_for(app.shutdown(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     assert app.cancelled.is_set(), "the parallel invocation outlived its app's teardown"
-    assert report.is_restart_safe
+    assert outcome.is_restart_safe
     await asyncio.wait_for(trigger, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 

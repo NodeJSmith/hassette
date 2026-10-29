@@ -302,8 +302,8 @@ async def test_close_handles_cancelled_error_and_still_closes_both(cache: AsyncC
 
 async def test_close_attempts_both_connections_and_raises_first_error(cache: AsyncCache) -> None:
     """close() must not swallow a connection-close failure -- App.cleanup() relies on it
-    propagating so the shutdown coordinator can record CLEANUP_FAILED instead of reporting a
-    restart-safe teardown for a cache that never confirmed it closed. Still attempts the
+    propagating so the shutdown coordinator can record a FAILED outcome naming the cleanup instead of a
+    clean teardown for a cache that never confirmed it closed. Still attempts the
     second connection even though the first raised.
     """
     write_conn = cache._write

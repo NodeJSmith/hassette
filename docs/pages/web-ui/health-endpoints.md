@@ -72,7 +72,7 @@ The response body also includes `bootstrap_released` (bool): whether `AppBootstr
 
 A fatal failure causes Hassette to exit with code `1`. Fatal failures include a [required service](../core-concepts/internals/lifecycle.md#required-and-optional-services) failing after startup, a fatal error, or a startup failure. An app failing never ends the process. Hassette logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL and records a `failure` status to the telemetry session before exiting. Nothing restarts services inside the process, so a restart policy must supervise Hassette. The reason stays in the supervisor's log (`docker logs`, the add-on log, or the journal).
 
-A clean operator shutdown (SIGTERM / `docker stop`) exits with code `0`.
+A clean operator shutdown (SIGTERM / `docker stop`) exits with code `0`. A shutdown that leaves work running past its exit check exits with `70` instead, and the log names the work in an ERROR (see [How shutdown is bounded](../operating/index.md#how-shutdown-is-bounded)). `systemd` shows the unit as failed after it. A requested stop is never restarted by either policy below.
 
 - `systemd` with `Restart=on-failure` restarts after a crash but not after a clean stop.
 - Docker with `restart: unless-stopped` restarts after a crash but not after `docker stop`.

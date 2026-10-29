@@ -5,7 +5,7 @@ from typing import Any, Protocol
 
 from hassette_wire import ResourceStatus
 
-from hassette.resources.teardown import TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownOutcome
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
@@ -54,7 +54,7 @@ if typing.TYPE_CHECKING:
 
         async def initialize(self, *args, **kwargs) -> None: ...
         async def _initialize_body(self) -> None: ...
-        async def _shutdown_body(self) -> TeardownReport: ...
+        async def _shutdown_body(self) -> ShutdownOutcome: ...
         def _force_terminal(self) -> None: ...
 else:
 
@@ -121,13 +121,12 @@ class LifecycleMixin(_LifecycleHostP):
     shutdown coordinator itself has returned to its callers.
     """
 
-    _teardown_report: TeardownReport | None = None
-    """The final report for the current shutdown attempt.
+    _shutdown_outcome: ShutdownOutcome | None = None
+    """The outcome of the current shutdown attempt.
 
-    ``None`` means no completed teardown attempt exists (never shut down, or a shutdown
-    attempt is still in progress). Cleared only when the first accepted new initialization
-    consumes a report with ``is_restart_safe`` ``True``; a report with ``is_restart_safe``
-    ``False`` has no in-process reset path.
+    ``None`` means no completed shutdown attempt exists (never shut down, or a shutdown attempt is still
+    in progress). Cleared only when the first accepted new initialization consumes an outcome with
+    ``is_restart_safe`` ``True``; an outcome with ``is_restart_safe`` ``False`` has no in-process reset path.
     """
 
     _shutdown_deadline: float | None = None
@@ -176,7 +175,7 @@ class LifecycleMixin(_LifecycleHostP):
         self._pending_start_task = None
         self._shutdown_task = None
         self._shutdown_body_task = None
-        self._teardown_report = None
+        self._shutdown_outcome = None
         self._shutdown_deadline = None
         self._skip_own_shutdown_hooks = False
 
@@ -191,31 +190,30 @@ class LifecycleMixin(_LifecycleHostP):
 
     @property
     def shutdown_completed(self) -> bool:
-        """Read-only diagnostic: whether a completed teardown report exists.
+        """Read-only diagnostic: whether a completed shutdown outcome exists.
 
-        Derived from ``_teardown_report`` rather than a mutable flag. Becomes ``True`` once a
-        shutdown attempt has stored its final report (regardless of ``is_restart_safe``), and is
-        cleared only when the first accepted new initialization consumes a restart-safe report.
+        Derived from ``_shutdown_outcome`` rather than a mutable flag. Becomes ``True`` once a shutdown
+        attempt has stored its outcome (regardless of ``is_restart_safe``), and is cleared only when the
+        first accepted new initialization consumes a restart-safe outcome.
         """
-        return self._teardown_report is not None
+        return self._shutdown_outcome is not None
 
     @property
-    def teardown_report(self) -> TeardownReport | None:
-        """Read-only: the current unconsumed teardown report, or ``None``.
+    def shutdown_outcome(self) -> ShutdownOutcome | None:
+        """Read-only: the current unconsumed shutdown outcome, or ``None``.
 
-        ``None`` means no completed teardown attempt exists yet, or a prior restart-safe report
-        has already been consumed by a new initialization attempt. A caller that needs the exact
-        report from a specific shutdown call should use the value ``await resource.shutdown()``
-        returns instead — this property only reflects the current, possibly-since-superseded
-        state.
+        ``None`` means no completed shutdown attempt exists yet, or a prior restart-safe outcome has already
+        been consumed by a new initialization attempt. A caller that needs the exact outcome of a specific
+        shutdown call should use the value ``await resource.shutdown()`` returns instead -- this property
+        only reflects the current, possibly-since-superseded state.
         """
-        return self._teardown_report
+        return self._shutdown_outcome
 
     @property
     def is_restart_safe(self) -> bool | None:
-        """Read-only: ``teardown_report.is_restart_safe``, or ``None`` if no report exists yet."""
-        report = self._teardown_report
-        return report.is_restart_safe if report is not None else None
+        """Read-only: ``shutdown_outcome.is_restart_safe``, or ``None`` if no outcome exists yet."""
+        outcome = self._shutdown_outcome
+        return outcome.is_restart_safe if outcome is not None else None
 
     @property
     def status(self) -> ResourceStatus:

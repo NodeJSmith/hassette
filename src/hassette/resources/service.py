@@ -16,9 +16,9 @@ from hassette.resources.lifecycle import (
     handle_stop,
     mark_not_ready,
 )
-from hassette.resources.operations import run_hooks, shutdown_hook_report
+from hassette.resources.operations import run_hooks, shutdown_hook_outcome
 from hassette.resources.shutdown_deadline import format_bound, shutdown_hook_bound
-from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
+from hassette.resources.shutdown_outcome import ShutdownOutcome, merge_outcomes
 from hassette.types.enums import ResourceRole
 
 
@@ -138,12 +138,12 @@ class Service(Resource):
                 await child.initialize()
         self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
 
-    async def _shutdown_body(self) -> TeardownReport:
+    async def _shutdown_body(self) -> ShutdownOutcome:
         """NOTE: keep hook ordering in sync with Resource._shutdown_body()."""
-        reports: list[TeardownReport] = []
+        outcomes: list[ShutdownOutcome] = []
 
         hook_errors = await run_hooks(self, [self.before_shutdown], continue_on_error=True, shutdown_bound=True)
-        reports.append(shutdown_hook_report(hook_errors, "before_shutdown"))
+        outcomes.append(shutdown_hook_outcome(self.unique_name, hook_errors))
 
         if self.is_running() and self._serve_task:
             self._serve_task.cancel()
@@ -158,12 +158,7 @@ class Service(Resource):
                 self.lifecycle_logger.warning(
                     "Serve task for %s did not complete within its %s bound", self.unique_name, format_bound(timeout)
                 )
-                reports.append(
-                    TeardownReport(
-                        causes=(TeardownCause.SERVE_TASK_PENDING,),
-                        pending_tasks=(self._serve_task.get_name(),),
-                    )
-                )
+                outcomes.append(ShutdownOutcome(still_running=(self._serve_task.get_name(),)))
             else:
                 with suppress(BaseException):
                     self._serve_task.exception()
@@ -171,11 +166,11 @@ class Service(Resource):
         hook_errors = await run_hooks(
             self, [self.on_shutdown, self.after_shutdown], continue_on_error=True, shutdown_bound=True
         )
-        reports.append(shutdown_hook_report(hook_errors, "shutdown_hooks"))
+        outcomes.append(shutdown_hook_outcome(self.unique_name, hook_errors))
 
-        reports.append(await self._run_post_hook_shutdown_stage())
+        outcomes.append(await self._run_post_hook_shutdown_stage())
 
-        return merge_teardown_reports(*reports)
+        return merge_outcomes(*outcomes)
 
     async def _serve_wrapper(self) -> None:
         """Run ``serve()`` and record how it ended.

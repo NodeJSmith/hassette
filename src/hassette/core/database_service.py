@@ -404,8 +404,8 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 
         Propagates the first close failure rather than swallowing it: both call sites feed teardown
         accounting that has to tell a clean close from one that left a connection in an unknown
-        state -- ``cleanup()`` records ``TeardownCause.CLEANUP_FAILED`` and ``on_shutdown()``
-        records ``TeardownCause.SHUTDOWN_HOOK_FAILED`` on an escaping exception. See
+        state -- an escaping exception makes the shutdown outcome ``FAILED``, from ``cleanup()`` and
+        ``on_shutdown()`` alike. See
         ``close_connection_pair()`` for the close and cancellation mechanics.
         """
         await close_connection_pair(self, self.CONN_ATTRS, self.logger)

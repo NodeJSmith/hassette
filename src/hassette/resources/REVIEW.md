@@ -7,19 +7,19 @@ Does this catch a lifecycle hook that spawns a new task (via `task_bucket.spawn(
 which then calls back into `initialize()` or `shutdown()` on the same resource?
 That spawn runs in a different task, so the direct task check would miss it.
 
-## Force-Terminal Report Storage
-`_force_terminal()` in `src/hassette/resources/base.py` stores a teardown report
+## Force-Terminal Outcome Storage
+`_force_terminal()` in `src/hassette/resources/base.py` stores a shutdown outcome
 before cancelling `_shutdown_task`. The coordinator cannot store
-a report before the shutdown work that produces it. Does `_force_terminal()`
-always store its report before issuing the cancellation, and does the
-coordinator merge against that report rather than assuming it owns all storage?
+an outcome before the shutdown work that produces it. Does `_force_terminal()`
+always store its outcome before issuing the cancellation, and does the
+coordinator merge against that outcome rather than assuming it owns all storage?
 
-## Teardown Report Merge Idempotency
-`merge_teardown_reports()` in `src/hassette/resources/teardown.py` deduplicates
-causes while preserving first-seen order — it is idempotent but intentionally
-non-commutative. Does a double-merge from `_run_post_hook_shutdown_stage()` and
-`_run_shutdown_coordinator()` produce duplicate `TeardownCause` entries, or does
-deduplication keep each cause to one occurrence?
+## Shutdown Outcome Merge Order
+`merge_outcomes()` in `src/hassette/resources/shutdown_outcome.py` keeps the worst
+result and the first reason recorded at it, so it is intentionally non-commutative.
+Does a new merge site pass the outcome whose reason should win first (a stored
+outcome before later evidence, children in shutdown order), and does every
+producer of a non-`DONE` result give it a reason naming the resource and step?
 
 ## Terminal-State Guard Completeness
 `handle_failed()` in `src/hassette/resources/lifecycle.py` silently returns when

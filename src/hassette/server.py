@@ -5,12 +5,14 @@ import logging
 import os
 import signal
 import threading
+import time
 from contextlib import suppress
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
 from hassette.exceptions import AppPrecheckFailedError, ConfigError
 from hassette.resources.lifecycle import request_shutdown
+from hassette.task_bucket.interruptible_executor import log_thread_running_at_shutdown
 
 LOGGER = getLogger(__name__)
 
@@ -21,12 +23,30 @@ Raised for a `ConfigError` and for a failed app precheck (an app file must be ed
 key on it (systemd ``RestartPreventExitStatus=78``, the add-on's s6 ``finish`` script).
 """
 
+EX_SOFTWARE = 70
+"""sysexits.h ``EX_SOFTWARE``: ``hassette run`` hard-exited after a clean stop, abandoning work still running.
+
+Either hard exit uses it in place of 0, so a supervisor can tell a stop that cut work off from a clean one, as
+systemd does for a stop that runs past ``TimeoutStopSec``. An exit already mapped to 1 or ``EX_CONFIG`` keeps
+that code, since it says more.
+"""
+
+EXIT_BUDGET_SECONDS = 5.0
+"""How long ``hassette run``'s exit check waits, after the shutdown snapshot, for cancelled tasks to finish.
+
+5s matches Home Assistant core's fixed timeout for tasks at exit. It is one deadline for the whole exit, so
+it fits inside the supervisor's stop grace (spec 141 D4).
+"""
+
+EXIT_WATCHDOG_MARGIN_SECONDS = 1.0
+"""How long after the exit budget the exit watchdog fires, so a surviving task is named by the task check first."""
+
 
 def exit_code_for(exc: BaseException | None) -> int:
     """The exit code ``hassette run`` maps a server run's outcome to.
 
     A clean stop or a keyboard interrupt is 0, a config error or failed app precheck ``EX_CONFIG``, and a
-    fatal error or anything else unexpected 1.
+    fatal error or anything else unexpected 1. A hard exit replaces the 0 with ``EX_SOFTWARE`` (``exit_after_run``).
     """
     if exc is None or isinstance(exc, KeyboardInterrupt):
         return 0
@@ -35,28 +55,100 @@ def exit_code_for(exc: BaseException | None) -> int:
     return 1
 
 
-async def exit_now_if_work_force_terminated(core: Hassette, exc: BaseException | None) -> None:
-    """Hard-exit when a shutdown deadline walked away from work during this process's life.
+async def exit_after_run(core: Hassette, exc: BaseException | None) -> None:
+    """``hassette run``'s exit check, run once the server's run has ended, with ``exc`` its error if any.
 
-    The event loop's cancel-and-await at ``asyncio.run()``'s end and the interpreter's thread join would
-    otherwise wait on that work until the supervisor kills the process. An in-flight shutdown snapshot is
-    waited for first, so it isn't cut short. The exit code is the one ``hassette run`` maps the outcome
-    to, so an exit whose only problem is force-terminated work exits 0.
+    Waits for an in-flight shutdown snapshot first, so it isn't cut short. Then sets one deadline,
+    ``EXIT_BUDGET_SECONDS`` away, and:
+
+    - starts the exit watchdog (``start_exit_watchdog()``), which bounds everything after this function:
+      ``asyncio.run()``'s executor shutdown, the interpreter's thread join and the atexit handlers;
+    - cancels every other task on the loop and waits for them until the deadline. A task still alive then
+      is a survivor: it is named in one ERROR, as is ``exc``, and the process hard-exits, because
+      ``asyncio.run()``'s own cancel-and-gather would otherwise wait on it forever.
+
+    Either hard exit uses the code ``hassette run`` maps ``exc`` to, or ``EX_SOFTWARE`` where that code is 0,
+    so an exit that abandoned work never reads as a clean stop. Only ``hassette run`` calls this, never
+    ``serve()``: unit tests run the server in-process on a shared loop, where cancelling every task or arming
+    the watchdog would hit the whole test worker.
     """
-    left = core.force_terminated_work
-    if not left:
-        return
     snapshot = core.shutdown_snapshot_task
     if snapshot is not None and not snapshot.done():
         # the snapshot's own done-callback logs its outcome
         with suppress(BaseException):
             await asyncio.shield(snapshot)
+
+    deadline = time.monotonic() + EXIT_BUDGET_SECONDS
+    # only the hard exits use this code, and one that abandoned work never reports a clean stop's 0
+    hard_exit_code = EX_SOFTWARE if (mapped := exit_code_for(exc)) == 0 else mapped
+    start_exit_watchdog(deadline + EXIT_WATCHDOG_MARGIN_SECONDS, hard_exit_code)
+
+    survivors = await cancel_remaining_tasks(deadline)
+    if not survivors:
+        return
     if exc is not None and not isinstance(exc, KeyboardInterrupt):
         # the hard exit never returns to `hassette run`, whose handlers would otherwise report the failure
         LOGGER.error("Hassette is exiting after an error: %s", exc, exc_info=exc)
-    LOGGER.error("Exiting without waiting for work shutdown left running: %s", ", ".join(left))
+    LOGGER.error(
+        "Exiting without waiting for tasks still running %.0fs after shutdown: %s",
+        EXIT_BUDGET_SECONDS,
+        ", ".join(survivors),
+    )
+    hard_exit(hard_exit_code)
+
+
+async def cancel_remaining_tasks(deadline: float) -> list[str]:
+    """Cancel every task on the loop but the current one, and return the names of those alive at ``deadline``.
+
+    A task that finishes its cancellation in time is not a survivor. One whose cancellation ended in an
+    exception other than ``CancelledError`` (a cleanup that raised) is logged at WARNING; a clean cancel logs
+    nothing.
+    """
+    current = asyncio.current_task()
+    tasks = [task for task in asyncio.all_tasks() if task is not current]
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.wait(tasks, timeout=max(0.0, deadline - time.monotonic()))
+    # Retrieving each finished task's exception keeps asyncio from logging "exception was never retrieved"
+    # for it at exit, so for an untracked task this WARNING is the only report. A bucket-tracked task's
+    # crash was already logged at ERROR by its bucket, so WARNING keeps the second line from reading as a
+    # second failure.
+    for task in tasks:
+        if task.done() and not task.cancelled() and (task_exc := task.exception()) is not None:
+            LOGGER.warning("Task %s raised during the exit cancellation", task.get_name(), exc_info=task_exc)
+    return [task.get_name() for task in tasks if not task.done()]
+
+
+def start_exit_watchdog(fire_at: float, code: int) -> None:
+    """Start a daemon thread that hard-exits with ``code`` if the process is still alive at ``fire_at``.
+
+    ``fire_at`` is on ``time.monotonic()``'s clock. When it fires, it logs one ERROR naming every live
+    thread, then each one's stack (the main thread's shows where a frozen loop or a hung atexit handler is
+    blocked). Threads are never judged one by one: a clean exit ends before it fires, however many threads
+    it had. The user's atexit handlers don't run after it fires, as under a supervisor's kill.
+    """
+
+    def watch() -> None:
+        time.sleep(max(0.0, fire_at - time.monotonic()))
+        current = threading.current_thread()
+        alive = [thread for thread in threading.enumerate() if thread is not current]
+        LOGGER.error(
+            "Hassette did not finish exiting in time; exiting with these threads alive: %s",
+            ", ".join(thread.name for thread in alive),
+        )
+        for thread in alive:
+            if thread.ident is not None:
+                log_thread_running_at_shutdown(thread.name, thread.ident)
+        hard_exit(code)
+
+    threading.Thread(target=watch, name="hassette-exit-watchdog", daemon=True).start()
+
+
+def hard_exit(code: int) -> None:
+    """Flush logging, then end the process at once with ``code``, skipping interpreter finalization."""
     logging.shutdown()
-    os._exit(exit_code_for(exc))
+    os._exit(code)
 
 
 def _handle_sigint_signal(core: Hassette, loop: asyncio.AbstractEventLoop, sigint_seen: threading.Event) -> None:
@@ -84,7 +176,7 @@ def _handle_sigint_signal(core: Hassette, loop: asyncio.AbstractEventLoop, sigin
 def _sigint_wait_loop(core: Hassette, loop: asyncio.AbstractEventLoop, sigint_seen: threading.Event) -> None:
     """Dedicated thread that synchronously waits for SIGINT via ``signal.sigwait()``.
 
-    ``main()`` blocks SIGINT process-wide before this thread (or any other) is created, so
+    ``serve()`` blocks SIGINT process-wide before this thread (or any other) is created, so
     every thread the framework later spawns (the sync executor pool, the logging
     ``QueueListener``, etc.) inherits the blocked mask and is never an eligible target for the
     kernel to deliver SIGINT to. POSIX guarantees a thread blocked in ``sigwait()`` for a signal
@@ -103,13 +195,17 @@ def _sigint_wait_loop(core: Hassette, loop: asyncio.AbstractEventLoop, sigint_se
         _handle_sigint_signal(core, loop, sigint_seen)
 
 
-async def main(config: HassetteConfig) -> None:
-    """Start the Hassette framework server with the provided configuration."""
+def create_core(config: HassetteConfig) -> Hassette:
+    """Check the config and build the wired ``Hassette`` core a server run drives."""
     config.require_token()
     config.ensure_directories()
     core = Hassette(config=config)
     core.wire_services()
+    return core
 
+
+async def serve(core: Hassette) -> None:
+    """Install the signal handling and run ``core`` until it stops."""
     loop = asyncio.get_running_loop()
     try:
         loop.add_signal_handler(signal.SIGTERM, request_shutdown, core, "SIGTERM received")
@@ -130,9 +226,15 @@ async def main(config: HassetteConfig) -> None:
     else:
         threading.Thread(target=_sigint_wait_loop, args=(core, loop, sigint_seen), daemon=True).start()
 
+    await core.run_forever()
+
+
+async def run(config: HassetteConfig) -> None:
+    """``hassette run``'s coroutine: serve the configured core, then run the exit check on either path."""
+    core = create_core(config)
     try:
-        await core.run_forever()
+        await serve(core)
     except BaseException as exc:
-        await exit_now_if_work_force_terminated(core, exc)
+        await exit_after_run(core, exc)
         raise
-    await exit_now_if_work_force_terminated(core, None)
+    await exit_after_run(core, None)

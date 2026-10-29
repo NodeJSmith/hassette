@@ -71,7 +71,7 @@ Rules that bite everywhere:
 - Handlers get only the parameters their signature declares. Don't pad a handler with an unused `event: Event[Any]` just to match siblings.
 - One live `Hassette()` per process at a time. Process-global state assumes it; don't add concurrency guards for it.
 
-Subsystem internals live in path-scoped rules under `.claude/rules/` and load automatically when you work in the matching files: `core-startup.md` (startup readiness, app bootstrap gate, StateProxy), `resource-lifecycle.md` (lifecycle, teardown reports), `bus-internals.md`, `web-api.md`, `frontend-css.md`, `demo-and-screenshots.md`, and `tests-*.md` rules for several test directories with notable local fixtures (not every directory has one — check its `conftest.py`). New subsystem guidance goes there too, not in nested `CLAUDE.md` files.
+Subsystem internals live in path-scoped rules under `.claude/rules/` and load automatically when you work in the matching files: `core-startup.md` (startup readiness, app bootstrap gate, StateProxy), `resource-lifecycle.md` (lifecycle, shutdown outcomes), `bus-internals.md`, `web-api.md`, `frontend-css.md`, `demo-and-screenshots.md`, and `tests-*.md` rules for several test directories with notable local fixtures (not every directory has one — check its `conftest.py`). New subsystem guidance goes there too, not in nested `CLAUDE.md` files.
 
 ## Designing the Framework
 

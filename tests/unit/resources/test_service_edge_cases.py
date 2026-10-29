@@ -26,7 +26,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
 from hassette.resources.service import Service
 from hassette.resources.shutdown_deadline import deadline_in
-from hassette.resources.teardown import TeardownCause
+from hassette.resources.shutdown_outcome import ShutdownResult
 from hassette.testing import wait_for
 from tests.support.factories import wire_dependent_resource
 from tests.support.helpers import (
@@ -187,7 +187,7 @@ class TestServiceShutdownIdempotency:
 
         Superseded by the coordinator design: shutdown() is no longer a same-instance
         no-op while shutting down — every concurrent caller shields and awaits the one
-        resource-owned ``_shutdown_task`` attempt, and both receive the same stored report.
+        resource-owned ``_shutdown_task`` attempt, and both receive the same stored outcome.
         """
         hassette = make_mock_hassette(sealed=False)
         svc = SimpleService(hassette)
@@ -211,11 +211,11 @@ class TestServiceShutdownIdempotency:
         second = asyncio.create_task(svc.shutdown())
 
         release.set()
-        report1 = await first
-        report2 = await second
+        outcome1 = await first
+        outcome2 = await second
 
         assert calls == ["called"], "before_shutdown must run exactly once — both calls share one attempt"
-        assert report1 == report2
+        assert outcome1 == outcome2
 
 
 class TestServiceShutdownSkipsStoppingWhenTerminal:
@@ -264,7 +264,7 @@ class TestIsRunning:
 class TestServiceShutdownBodyServeTaskPending:
     """``Service._shutdown_body()`` observes a cancellation-resistant ``serve()`` task with a
     bounded ``asyncio.wait()`` rather than treating ``cancel()`` as termination proof. Called
-    directly so the serve-task wait's own evidence is what the report carries.
+    directly so the serve-task wait's own evidence is what the outcome carries.
     """
 
     async def test_resistant_serve_task_adds_serve_task_pending_within_budget(self) -> None:
@@ -286,11 +286,10 @@ class TestServiceShutdownBodyServeTaskPending:
         try:
             # Generous headroom over the 0.1s config bounds above (see regression-test-patterns.md's guidance on
             # config-driven real-clock timeouts) — this proves boundedness, not tightness.
-            report = await asyncio.wait_for(svc._shutdown_body(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
+            outcome = await asyncio.wait_for(svc._shutdown_body(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
 
-            assert report.is_restart_safe is False
-            assert TeardownCause.SERVE_TASK_PENDING in report.causes
-            assert old_task.get_name() in report.pending_tasks
+            assert outcome.is_restart_safe is False
+            assert old_task.get_name() in outcome.still_running
             assert not old_task.done(), "resistant task must remain pending, not be treated as terminated"
         finally:
             svc.release()
@@ -343,12 +342,10 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
         svc._shutdown_deadline = deadline_in(UNRESPONSIVE_DEADLINE_SECONDS)
         start_time = loop.time()
 
-        report = await asyncio.wait_for(svc._shutdown_body(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        outcome = await asyncio.wait_for(svc._shutdown_body(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         elapsed = loop.time() - start_time
 
-        assert TeardownCause.SERVE_TASK_PENDING in report.causes, (
-            "the serve task never honoring cancellation must still be recorded as evidence"
-        )
+        assert outcome.still_running, "the serve task never honoring cancellation must still be recorded as evidence"
         assert elapsed < UNRESPONSIVE_DEADLINE_SECONDS + 0.5, (
             f"the body must finish by the shutdown deadline — took {elapsed:.2f}s"
         )
@@ -364,7 +361,7 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
 
 
 class TestServiceResistantServeNeverReplaced:
-    """A restart-unsafe report from a resistant ``serve()`` task must refuse every same-instance
+    """A restart-unsafe outcome from a resistant ``serve()`` task must refuse every same-instance
     initialization path and never spawn a replacement ``serve()`` task.
     """
 
@@ -381,9 +378,9 @@ class TestServiceResistantServeNeverReplaced:
         assert old_task is not None
 
         try:
-            report = await asyncio.wait_for(svc.shutdown(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
-            assert report.is_restart_safe is False
-            assert svc.teardown_report is report
+            outcome = await asyncio.wait_for(svc.shutdown(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
+            assert outcome.is_restart_safe is False
+            assert svc.shutdown_outcome is outcome
 
             with pytest.raises(RestartRefusedError):
                 start(svc)
@@ -435,10 +432,10 @@ async def test_slow_serve_wait_leaves_later_hooks_only_what_is_left_of_the_deadl
     svc._shutdown_deadline = deadline_in(SLOW_SERVE_DEADLINE_SECONDS)
     start_time = loop.time()
 
-    report = await asyncio.wait_for(svc.shutdown(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+    outcome = await asyncio.wait_for(svc.shutdown(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
     elapsed = loop.time() - start_time
 
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes, (
+    assert outcome.result is ShutdownResult.TIMED_OUT, (
         "on_shutdown must be recorded as timed out when the serve-wait used most of the deadline"
     )
     assert elapsed < SLOW_SERVE_DEADLINE_SECONDS + 0.5, f"shutdown ran past its deadline — took {elapsed:.2f}s"

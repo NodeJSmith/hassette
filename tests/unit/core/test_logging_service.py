@@ -96,7 +96,7 @@ def make_logging_service(
     svc._init_task = None
     svc._shutdown_task = None
     svc._shutdown_body_task = None
-    svc._teardown_report = None
+    svc._shutdown_outcome = None
     # Wire the stream handler via proper __init__ path but skip super().__init__
     svc._stream_handler = stream_handler
     svc.capture_handler = LogCaptureHandler()

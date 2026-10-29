@@ -20,13 +20,9 @@ from hassette.exceptions import FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import create_lifecycle_task, handle_stop, mark_not_ready, start
-from hassette.resources.operations import finalize_shutdown_report, shutdown_batch
+from hassette.resources.operations import shutdown_batch
 from hassette.resources.shutdown_deadline import deadline_in, elapsed_since, tighten_shutdown_deadline
-from hassette.resources.teardown import (
-    TeardownCause,
-    TeardownReport,
-    merge_teardown_reports,
-)
+from hassette.resources.shutdown_outcome import ShutdownOutcome, incomplete_outcome, merge_outcomes
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -71,7 +67,7 @@ from .web_ui_watcher import WebUiWatcherService
 from .websocket_service import WebsocketService
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine, Iterable
+    from collections.abc import Callable, Coroutine
 
     from hassette.events import AnyEvent
     from hassette.resources.service import Service
@@ -171,11 +167,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         # Set by escalate_service_failure() or a startup failure; run_forever() then raises FatalError after teardown.
         self._fatal_shutdown_reason: str | None = None
-
-        # Work a deadline owner walked away from during this process's life (stage expiry, runtime
-        # entry-deadline expiry, executor threads surviving the join). The `hassette run` path reads it
-        # and hard-exits instead of letting the interpreter wait on that work.
-        self._force_terminated_work: list[str] = []
 
         # Tier 1 loop-responsiveness watchdog — installed in run_forever(), torn down in before_shutdown().
         self._loop_watchdog: LoopWatchdog | None = None
@@ -535,18 +526,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
         route_service_failure(self, service, exc)
 
     @property
-    def force_terminated_work(self) -> tuple[str, ...]:
-        """What a shutdown deadline force-terminated or left running during this process's life (read-only)."""
-        return tuple(self._force_terminated_work)
-
-    @property
     def shutdown_snapshot_task(self) -> "asyncio.Task[bool] | None":
         """The database shutdown snapshot's copy, once the root started it (read-only)."""
         return self._database_service.shutdown_snapshot_task if self._database_service is not None else None
-
-    def record_force_terminated(self, names: "Iterable[str]") -> None:
-        """Record work a deadline owner walked away from, so the ``hassette run`` path hard-exits."""
-        self._force_terminated_work.extend(names)
 
     def _raise_if_fatal_shutdown(self) -> None:
         """Raise FatalError (after a CRITICAL log) if a fatal reason was recorded.
@@ -557,7 +539,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
             self.logger.critical("Hassette terminated due to a fatal error: %s", self._fatal_shutdown_reason)
             raise FatalError(self._fatal_shutdown_reason)
 
-    async def _shutdown_children(self) -> TeardownReport:
+    async def _shutdown_children(self) -> ShutdownOutcome:
         """Process exit's two stages: the stop stage, then the foundation stage.
 
         The stop stage stops every child but the foundation services, in dependency waves (dependents
@@ -573,14 +555,14 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # a raising stop stage must not cost the foundation stage its drain and finalize, nor either the snapshot;
         # the first exception still propagates
         try:
-            stop_report = await self._run_stop_stage()
+            stop_outcome = await self._run_stop_stage()
         finally:
             try:
-                foundation_report = await self._run_foundation_stage()
+                foundation_outcome = await self._run_foundation_stage()
             finally:
                 if self._database_service is not None:
                     await self._database_service.write_shutdown_snapshot()
-        return merge_teardown_reports(stop_report, foundation_report)
+        return merge_outcomes(stop_outcome, foundation_outcome)
 
     def _foundation_services(self) -> list[Resource]:
         """The children the foundation stage stops, in its order: session, database, executor.
@@ -590,7 +572,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         named = (self._session_manager, self._database_service, self._sync_executor_service)
         return [service for service in named if service is not None]
 
-    async def _run_stop_stage(self) -> TeardownReport:
+    async def _run_stop_stage(self) -> ShutdownOutcome:
         """Stop every non-foundation child in dependency waves under the stop stage's deadline."""
         foundation = {id(service) for service in self._foundation_services()}
         type_to_instance = {type(c): c for c in self.children if id(c) not in foundation}
@@ -601,73 +583,62 @@ class Hassette(HassetteAccessorsMixin, Resource):
         waves = [wave for wave in waves if wave]
         stage_children = [child for wave in waves for child in wave]
 
-        async def run_waves() -> TeardownReport:
-            child_reports: list[TeardownReport] = []
-            causes: list[TeardownCause] = []
-            affected: list[str] = []
+        async def run_waves() -> ShutdownOutcome:
+            outcomes: list[ShutdownOutcome] = []
             for wave in waves:
                 names = ", ".join(c.class_name for c in wave)
                 self.logger.debug("Shutting down wave: [%s]", names)
                 wave_start = asyncio.get_running_loop().time()
-                result = await shutdown_batch(self, wave, deadline=self._shutdown_deadline)
+                outcomes.append(await shutdown_batch(self, wave, deadline=self._shutdown_deadline))
                 self.logger.debug("Shutdown wave [%s] completed in %.2fs", names, elapsed_since(wave_start))
-                child_reports.extend(result.reports)
-                causes.extend(result.causes)
-                affected.extend(result.affected)
-            return finalize_shutdown_report(child_reports, causes, affected)
+            return merge_outcomes(*outcomes)
 
         return await self._run_stage("stop", run_waves(), stage_children, deadline=self._shutdown_deadline)
 
-    async def _run_foundation_stage(self) -> TeardownReport:
+    async def _run_foundation_stage(self) -> ShutdownOutcome:
         """Finalize the session, then stop the database and the executor, under the fixed foundation budget.
 
         Runs even when the stop stage timed out, so the session record gets the fatal reason and the
-        database drains and closes. Executor threads that survive the join are recorded as
-        force-terminated work, since they would otherwise hold the process at interpreter exit.
+        database drains and closes. Executor threads that survive the join are named in one ERROR; under
+        ``hassette run`` the exit watchdog bounds them (``server.exit_after_run()``).
         """
         deadline = deadline_in(FOUNDATION_SHUTDOWN_BUDGET_SECONDS)
         services = self._foundation_services()
         step = "session finalize"
 
-        async def run_steps() -> TeardownReport:
+        async def run_steps() -> ShutdownOutcome:
             nonlocal step
             await self._finalize_session()
-            reports: list[TeardownReport] = []
-            causes: list[TeardownCause] = []
-            affected: list[str] = []
+            outcomes: list[ShutdownOutcome] = []
             for service in services:
                 step = f"{service.class_name} shutdown"
-                result = await shutdown_batch(self, [service], deadline=deadline)
-                reports.extend(result.reports)
-                causes.extend(result.causes)
-                affected.extend(result.affected)
-            return finalize_shutdown_report(reports, causes, affected)
+                outcomes.append(await shutdown_batch(self, [service], deadline=deadline))
+            return merge_outcomes(*outcomes)
 
-        report = await self._run_stage(
+        outcome = await self._run_stage(
             "foundation", run_steps(), services, deadline=deadline, current_step=lambda: step
         )
         surviving = self._sync_executor.surviving_threads()
         if surviving:
             self.logger.error("Sync executor threads still running after the shutdown join: %s", ", ".join(surviving))
-            self.record_force_terminated(f"thread {name}" for name in surviving)
-        return report
+        return outcome
 
     async def _run_stage(
         self,
         stage: str,
-        work: "Coroutine[Any, Any, TeardownReport]",
+        work: "Coroutine[Any, Any, ShutdownOutcome]",
         stage_children: list[Resource],
         *,
         deadline: float | None,
         current_step: "Callable[[], str] | None" = None,
-    ) -> TeardownReport:
+    ) -> ShutdownOutcome:
         """Run one exit stage, walking away from it when ``deadline`` passes.
 
         On expiry the stage's unfinished children are force-terminated (which also cancels their
         coordinators) and named in one ERROR, along with ``current_step()`` when given, and the stage's
-        own task is cancelled without waiting for the cancellation to land. The other walk-away owner,
-        ``AppLifecycleService.walk_away_from_instance()``, follows the same order: force-terminate, cancel,
-        record.
+        own task is cancelled without waiting for the cancellation to land. The stage's outcome is then
+        ``INCOMPLETE``. The other walk-away owner, ``AppLifecycleService.walk_away_from_instance()``, follows
+        the same order: force-terminate, then cancel.
         """
         task = create_lifecycle_task(work, name=f"hassette:shutdown_stage:{stage}")
         stage_start = asyncio.get_running_loop().time()
@@ -685,16 +656,16 @@ class Hassette(HassetteAccessorsMixin, Resource):
             detail,
             ", ".join(f"{child.class_name} ({child.status.value})" for child in unfinished) or "nothing left",
         )
-        reports: list[TeardownReport] = []
+        outcomes: list[ShutdownOutcome] = []
         for child in unfinished:
             child._force_terminal()
-            if (child_report := child.teardown_report) is not None:
-                reports.append(child_report)
-        self.record_force_terminated(child.unique_name for child in unfinished)
+            if (child_outcome := child.shutdown_outcome) is not None:
+                outcomes.append(child_outcome)
         task.cancel()
-        return finalize_shutdown_report(
-            reports, [TeardownCause.CHILD_SHUTDOWN_TIMED_OUT], [child.unique_name for child in unfinished]
+        outcomes.append(
+            incomplete_outcome(f"{self.unique_name}: the shutdown {stage} stage gave up after its deadline passed")
         )
+        return merge_outcomes(*outcomes)
 
     async def _finalize_session(self) -> None:
         """Write the session's final record (status, drop counters, fatal reason) to the database.
@@ -721,7 +692,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.
 
-        Called by the post-hook shutdown stage when the children's aggregated report is restart-safe.
+        Called by the post-hook shutdown stage when the children's merged outcome is restart-safe.
         handle_stop() runs before close_streams(), so the root's STOPPED event is
         delivered if the bus is still draining; once the bus's loop has ended it is dropped.
 
@@ -733,7 +704,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         if self._event_stream_service is not None:
             await self._event_stream_service.close_streams()
 
-    async def _shutdown_body(self) -> "TeardownReport":
+    async def _shutdown_body(self) -> ShutdownOutcome:
         """Run the root shutdown body: hooks/cleanup/children, then stream closing and terminal status.
 
         This is the ordinary hooks/cleanup/children pipeline, with the root owning both exit stages'
@@ -748,9 +719,9 @@ class Hassette(HassetteAccessorsMixin, Resource):
         total = self.config.lifecycle.total_shutdown_timeout_seconds
         tighten_shutdown_deadline(self, deadline_in(total - FOUNDATION_SHUTDOWN_BUDGET_SECONDS))
 
-        report: TeardownReport
+        outcome: ShutdownOutcome
         try:
-            report = await super()._shutdown_body()
+            outcome = await super()._shutdown_body()
         finally:
             # Restore whatever task factory (if any) was installed before run_forever() set
             # its own -- an event loop that outlives this shutdown (an embedded caller, or a
@@ -774,7 +745,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
                 self.status = ResourceStatus.STOPPED
             mark_not_ready(self, "shutdown complete")
 
-        return report
+        return outcome
 
     async def before_shutdown(self) -> None:
         """Stop the loop watchdog and the block-IO guard, and remove bus listeners, before child shutdown.

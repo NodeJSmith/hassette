@@ -105,8 +105,8 @@ class TestCleanupClosesCache:
 
     async def test_cleanup_propagates_cache_close_exception(self, tmp_path: Path, dummy_cache: DummyCache) -> None:
         """cleanup() must not swallow a cache close failure -- the shutdown coordinator's
-        catch-all (_run_post_hook_shutdown_stage()) needs it to record CLEANUP_FAILED rather
-        than report a restart-safe teardown for a cache that never confirmed it closed.
+        catch-all (_run_post_hook_shutdown_stage()) needs it to record a FAILED outcome rather
+        than a clean teardown for a cache that never confirmed it closed.
         """
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         dummy_cache.close = AsyncMock(side_effect=RuntimeError("cache close boom"))  # pyright: ignore[reportAttributeAccessIssue]

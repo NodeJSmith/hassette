@@ -24,12 +24,7 @@ from hassette.events import HassetteServiceEvent
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources.mixins import LifecycleMixin, _LifecycleHostP
 from hassette.resources.shutdown_deadline import elapsed_since, format_bound, shutdown_hook_bound
-from hassette.resources.teardown import (
-    TeardownCause,
-    TeardownReport,
-    add_teardown_evidence,
-    merge_teardown_reports,
-)
+from hassette.resources.shutdown_outcome import ShutdownOutcome, incomplete_outcome, merge_outcomes
 from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
 
 if typing.TYPE_CHECKING:
@@ -136,7 +131,7 @@ def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
     Performs the same synchronous re-entry and restart-refusal checks the coordinator itself
     performs, then spawns a joiner task that calls the public ``initialize()`` front door.
     Deliberately does **not** assign ``_init_task`` here and does **not** reset shutdown
-    state (``shutdown_event``, the stored teardown report) — only an accepted initialization
+    state (``shutdown_event``, the stored shutdown outcome) — only an accepted initialization
     attempt inside the coordinator does that. See ``coordinate_initialize()``.
 
     The joiner is created outside the resource's own TaskBucket (the same lifecycle-owned task
@@ -200,9 +195,9 @@ def start(resource: _LifecycleHostP) -> asyncio.Task[None] | None:
         resource.lifecycle_logger.debug("%s start already pending", resource.unique_name, stacklevel=2)
         return resource._pending_start_task
 
-    report = resource._teardown_report
-    if report is not None and not report.is_restart_safe:
-        raise RestartRefusedError(resource.unique_name, report)
+    outcome = resource._shutdown_outcome
+    if outcome is not None and not outcome.is_restart_safe:
+        raise RestartRefusedError(resource.unique_name, outcome)
 
     resource.lifecycle_logger.debug("%s starting", resource.unique_name)
     joiner = create_lifecycle_task(resource.initialize(), name="resource:resource_initialize")
@@ -529,16 +524,16 @@ async def coordinate_initialize(resource: _LifecycleHostP) -> None:
         # deciding whether a new incarnation may start.
         await asyncio.shield(shutdown_task)
 
-    report = resource._teardown_report
-    if report is not None and not report.is_restart_safe:
-        raise RestartRefusedError(resource.unique_name, report)
+    outcome = resource._shutdown_outcome
+    if outcome is not None and not outcome.is_restart_safe:
+        raise RestartRefusedError(resource.unique_name, outcome)
 
     init_task = resource._init_task
     if init_task is None or init_task.done():
-        if resource._teardown_report is not None:
-            # First accepted initialization after a clean (SAFE) teardown: consume the report
+        if resource._shutdown_outcome is not None:
+            # First accepted initialization after a restart-safe teardown: consume the outcome
             # and reopen the resources that a completed shutdown attempt sealed/cleared.
-            resource._teardown_report = None
+            resource._shutdown_outcome = None
             resource._shutdown_task = None
             resource._shutdown_deadline = None
             resource._skip_own_shutdown_hooks = False
@@ -584,7 +579,7 @@ async def _cancel_pending_start(resource: "LifecycleMixin") -> None:
     resource._pending_start_task = None
 
 
-async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
+async def _observe_active_initializer(resource: "LifecycleMixin") -> str | None:
     """Cancel and bound-observe an active ``_init_task`` before shutdown hooks run.
 
     Also cancels a still-pending ``start()`` joiner (``_pending_start_task``) first, via
@@ -594,15 +589,15 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
     own ``asyncio.shield(init_task)``), so interrupting its outer await never affects ``_init_task``
     itself, which the check below continues to own.
 
-    Returns ``True`` when the initializer was still pending after the bounded wait (adds
-    ``TeardownCause.INITIALIZATION_TASK_PENDING`` to the shutdown report), ``False`` otherwise
-    (including when there was no active initializer to observe).
+    Returns the initializer's task name when it was still pending after the bounded wait (the coordinator
+    names it in the outcome's ``still_running``), ``None`` otherwise (including when there was no active
+    initializer to observe).
     """
     await _cancel_pending_start(resource)
 
     init_task = resource._init_task
     if init_task is None or init_task.done():
-        return False
+        return None
 
     init_task.cancel()
     timeout = shutdown_hook_bound(resource)
@@ -615,37 +610,37 @@ async def _observe_active_initializer(resource: "LifecycleMixin") -> bool:
         format_bound(timeout),
     )
     if pending:
-        return True
+        return init_task.get_name()
 
     # init_task.exception() raises CancelledError if the task was cancelled (the expected
     # outcome here, since it was cancelled a few lines up) -- retrieving it just marks the
     # exception as observed so it doesn't surface as an "exception was never retrieved" warning.
     with suppress(asyncio.CancelledError):
         init_task.exception()
-    return False
+    return None
 
 
-async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownReport:
+async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> ShutdownOutcome:
     """Body of the shutdown coordinator task (``_shutdown_task``).
 
     Cancels and observes an active initializer, transitions status and requests shutdown, then waits
     for the class-specific ``_shutdown_body()`` without a bound of its own: the leaves inside the body
     bound themselves against the attempt's deadline, and only the operation's owner walks away from a
-    body that outlives it (by force-terminating the resource). Stores and returns the merged report.
+    body that outlives it (by force-terminating the resource). Stores and returns the merged outcome.
 
     If something external cancels this coordinator task directly (``_force_terminal()`` does this
     from the operation's owner, or for an unresponsive child from an ancestor's own shutdown body --
-    see ``Resource._force_terminal()``), the cancellation is converted to a normal
-    restart-unsafe (``is_restart_safe`` ``False``) return *only* when force-terminal evidence was already stored
-    before the cancellation was requested. Every joined caller then receives that report rather
-    than ``CancelledError``. A cancellation with no pre-recorded evidence is a genuine error and
-    propagates normally.
+    see ``Resource._force_terminal()``), the cancellation is converted to a normal return *only* when an
+    outcome was already stored before the cancellation was requested -- normally the restart-unsafe one
+    ``_force_terminal()`` stores before it cancels. Every joined caller then receives that outcome rather
+    than ``CancelledError``. A cancellation with no stored outcome is a genuine error and propagates
+    normally.
     """
     try:
         coordinator_start = asyncio.get_running_loop().time()
 
-        initialization_pending = await _observe_active_initializer(resource)
-        if initialization_pending:
+        pending_initializer = await _observe_active_initializer(resource)
+        if pending_initializer is not None:
             resource.lifecycle_logger.warning(
                 "%s: shutdown proceeding while initialization is still running and did not "
                 "observe cancellation -- init and shutdown may now race on shared state",
@@ -666,71 +661,70 @@ async def _run_shutdown_coordinator(resource: "LifecycleMixin") -> TeardownRepor
         # through the await -- the CancelledError branch below decides that.
         await asyncio.wait([body_task])
         try:
-            report = body_task.result()
-        except asyncio.CancelledError:  # noqa: ASYNC103 — body cancellation is evidence for this
-            # coordinator, not a fatal event for it: convert to SHUTDOWN_BODY_FAILED instead of propagating.
-            report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",))
-        except Exception:
+            outcome = body_task.result()
+        except asyncio.CancelledError:  # noqa: ASYNC103 — body cancellation is an outcome for this
+            # coordinator, not a fatal event for it: convert to INCOMPLETE instead of propagating.
+            outcome = incomplete_outcome(f"{resource.unique_name}'s shutdown body was cancelled")
+        except Exception as exc:
             resource.lifecycle_logger.exception("Shutdown body for %s raised", resource.unique_name)
-            report = TeardownReport(causes=(TeardownCause.SHUTDOWN_BODY_FAILED,), failed_operations=("_shutdown_body",))
+            outcome = incomplete_outcome(f"{resource.unique_name}'s shutdown body raised {type(exc).__name__}")
 
-        if initialization_pending:
-            report = add_teardown_evidence(report, causes=(TeardownCause.INITIALIZATION_TASK_PENDING,))
-    except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when no force evidence was stored first
-        existing = resource._teardown_report
+        if pending_initializer is not None:
+            outcome = merge_outcomes(outcome, ShutdownOutcome(still_running=(pending_initializer,)))
+    except asyncio.CancelledError:  # noqa: ASYNC103 — re-raised below when no outcome was stored first
+        existing = resource._shutdown_outcome
         if existing is None:
             raise
         body_task = resource._shutdown_body_task
         if body_task is not None and not body_task.done():
             body_task.cancel()
-        return existing  # noqa: ASYNC104 — FORCED_TERMINAL (or other) evidence was already stored before this
-        # coordinator was cancelled, so every joined caller gets that report instead of CancelledError.
-    except Exception:
+        # An outcome (normally _force_terminal()'s) was stored before this coordinator was cancelled, so
+        # every joined caller gets that outcome instead of CancelledError.
+        return existing  # noqa: ASYNC104
+    except Exception as exc:
         # Anything else escaping the try body (observing the initializer, requesting shutdown,
-        # reading a config value) is itself teardown evidence, not a bare crash -- mirrors how
-        # a raising shutdown body is turned into SHUTDOWN_BODY_FAILED evidence above rather than
-        # left to propagate silently, so the "a completed attempt always produces a report"
+        # reading a config value) makes the outcome INCOMPLETE, not a bare crash -- mirrors how
+        # a raising shutdown body is turned into an INCOMPLETE outcome above rather than
+        # left to propagate silently, so the "a completed attempt always produces an outcome"
         # invariant coordinate_initialize() relies on for its RestartRefusedError guard holds
         # even when the coordinator itself fails outside the body.
         resource.lifecycle_logger.exception("Shutdown coordinator for %s raised", resource.unique_name)
-        report = TeardownReport(
-            causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
-        )
-        existing = resource._teardown_report
+        outcome = incomplete_outcome(f"{resource.unique_name}'s shutdown coordinator raised {type(exc).__name__}")
+        existing = resource._shutdown_outcome
         if existing is not None:
-            report = merge_teardown_reports(existing, report)
-        resource._teardown_report = report
+            outcome = merge_outcomes(existing, outcome)
+        resource._shutdown_outcome = outcome
         raise
 
     # A retained body task (or a concurrent _force_terminal() call) may already have stored
-    # evidence on this attempt (e.g. FORCED_TERMINAL) before this point is reached. Merge
-    # rather than overwrite so a later completion can only add evidence, never remove it.
-    existing = resource._teardown_report
+    # an outcome on this attempt (e.g. a forced terminal) before this point is reached. Merge
+    # rather than overwrite so a later completion can only make it worse, never better.
+    existing = resource._shutdown_outcome
     if existing is not None:
-        report = merge_teardown_reports(existing, report)
+        outcome = merge_outcomes(existing, outcome)
 
     resource.lifecycle_logger.debug(
         "%s: shutdown coordinator completed in %.2fs",
         resource.unique_name,
         elapsed_since(coordinator_start),
     )
-    resource._teardown_report = report
-    return report
+    resource._shutdown_outcome = outcome
+    return outcome
 
 
-async def coordinate_shutdown(resource: _LifecycleHostP) -> TeardownReport:
+async def coordinate_shutdown(resource: _LifecycleHostP) -> ShutdownOutcome:
     """Coordinator front door for ``shutdown()``.
 
     Creates ``_shutdown_task`` exactly once per shutdown attempt; every caller (concurrent or
     repeated) shields and awaits that same task, so a repeated call after completion returns
-    the stored report without rerunning hooks. Task selection and assignment happen without an
+    the stored outcome without rerunning hooks. Task selection and assignment happen without an
     intervening ``await`` so the check-and-create step is atomic on the event loop.
 
     A completed ``_shutdown_task`` is reused as-is *unless* ``start()`` has queued a joiner
     (``_pending_start_task``) that has not run ``coordinate_initialize()`` yet -- ``_shutdown_task``
     only gets cleared once that joiner's accepted attempt actually runs (see
     ``coordinate_initialize()``), which can be a full event-loop turn later. Without cancelling
-    that joiner here too, this call would return the already-stored clean report while the still-
+    that joiner here too, this call would return the already-stored clean outcome while the still-
     queued joiner goes on to initialize the resource behind its back, leaving it running after an
     explicit shutdown already returned. This calls the same ``_cancel_pending_start()`` helper
     ``_observe_active_initializer()`` uses for the *first* shutdown attempt (``_shutdown_task``

@@ -21,7 +21,7 @@ from pathlib import Path
 import httpx2 as httpx
 import pytest
 
-from tests.support.helpers import write_app
+from tests.support.helpers import EXIT_TASK_SURVIVOR_ERROR, EXIT_WATCHDOG_ERROR, write_app
 
 from .conftest import app_entries, free_port, hassette_run_env, spawn_hassette_run
 
@@ -85,15 +85,19 @@ def _spawn_hassette(tmp_path: Path, ha_url: str) -> tuple[subprocess.Popen[str],
     return proc, f"http://127.0.0.1:{port}"
 
 
-def _drain_stdout(proc: subprocess.Popen[str], marker: str, marker_seen: threading.Event) -> None:
+def _drain_stdout(
+    proc: subprocess.Popen[str], marker: str, marker_seen: threading.Event, lines: list[str] | None = None
+) -> None:
     """Continuously read the subprocess's stdout so it never blocks on a full pipe buffer.
 
-    Sets ``marker_seen`` the first time a line containing ``marker`` appears. Runs until the
-    subprocess closes stdout (i.e. exits) so later output (shutdown logs, the force-exit
-    warning) never backs up behind an unread pipe.
+    Sets ``marker_seen`` the first time a line containing ``marker`` appears, and appends every line to
+    ``lines`` when given. Runs until the subprocess closes stdout (i.e. exits) so later output (shutdown
+    logs, the force-exit warning) never backs up behind an unread pipe.
     """
     assert proc.stdout is not None
     for line in proc.stdout:
+        if lines is not None:
+            lines.append(line)
         if marker in line:
             marker_seen.set()
 
@@ -132,7 +136,11 @@ def _cleanup(proc: subprocess.Popen[str], reader: threading.Thread) -> None:
 def test_single_signal_exits_promptly_on_healthy_instance(
     ha_container: str, tmp_path: Path, sig: signal.Signals
 ) -> None:
-    """A single Ctrl+C or ``docker stop`` on a healthy, idle instance exits 0 in a few seconds.
+    """A single Ctrl+C or ``docker stop`` on a healthy, idle instance exits 0 in a few seconds, without a hard exit.
+
+    The readiness polls go through ``RuntimeDep``, a sync dependency FastAPI resolves on an AnyIO worker
+    thread, so AnyIO workers exist at exit. A clean exit must not reach either of the exit check's hard
+    exits (spec 141 D3): those would log an ERROR and exit ``EX_SOFTWARE``.
 
     Regression test for audit finding F1: SIGINT used to fall through to asyncio's default
     disorderly-cancellation path and burn the full ``total_shutdown_timeout_seconds`` with zero
@@ -142,7 +150,8 @@ def test_single_signal_exits_promptly_on_healthy_instance(
     """
     proc, base_url = _spawn_hassette(tmp_path, ha_container)
     marker_seen = threading.Event()
-    reader = threading.Thread(target=_drain_stdout, args=(proc, STALL_MARKER, marker_seen), daemon=True)
+    lines: list[str] = []
+    reader = threading.Thread(target=_drain_stdout, args=(proc, STALL_MARKER, marker_seen, lines), daemon=True)
     reader.start()
     try:
         _wait_ready(base_url, timeout=READY_TIMEOUT)
@@ -159,6 +168,10 @@ def test_single_signal_exits_promptly_on_healthy_instance(
             f"{sig.name} shutdown took {elapsed:.1f}s — expected a graceful exit well under {GRACEFUL_EXIT_TIMEOUT}s"
         )
         assert proc.returncode == 0, f"expected a clean exit, got returncode={proc.returncode}"
+        reader.join(timeout=5)
+        assert not reader.is_alive(), "stdout was still open 5s after the process exited"
+        hard_exit_lines = [line for line in lines if EXIT_TASK_SURVIVOR_ERROR in line or EXIT_WATCHDOG_ERROR in line]
+        assert not hard_exit_lines, f"a clean exit reached the exit check's hard exit: {hard_exit_lines}"
     finally:
         _cleanup(proc, reader)
 

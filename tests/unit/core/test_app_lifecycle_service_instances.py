@@ -11,6 +11,7 @@ instance/all-app shutdown outcomes.
 """
 
 import asyncio
+import re
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
@@ -20,7 +21,7 @@ from hassette_wire import ResourceStatus
 from hassette.core import app_lifecycle_instances
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.resources.shutdown_deadline import deadline_in
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete_outcome, merge_outcomes
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing import EventCapture
@@ -102,9 +103,7 @@ class TestInitializeInstances:
     ) -> None:
         """An init whose teardown left its initializer pending is FAILED and flagged needs-restart."""
         mock_app_instance.initialize.side_effect = TimeoutError("Timed out")
-        mock_app_instance.shutdown = AsyncMock(
-            return_value=TeardownReport(causes=(TeardownCause.INITIALIZATION_TASK_PENDING,))
-        )
+        mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(still_running=("resource:initialize:app",)))
         instances: dict[int, App] = {0: mock_app_instance}
 
         await lifecycle_service.initialize_instances("test_app", instances, mock_manifest, outcomes=AnyIndexOutcomes())
@@ -322,12 +321,12 @@ class TestShutdownInstance:
     ) -> None:
         # dup-ignore-end
         """A raised shutdown doesn't raise here: it is FAILED with a failure entry and flagged, since the
-        coordinator's COORDINATOR_FAILED report leaves its evidence incomplete.
+        coordinator's stored outcome is INCOMPLETE.
         """
         event_capture.install(mock_hassette)
         error = RuntimeError("Shutdown failed")
         mock_app_instance.shutdown.side_effect = error
-        mock_app_instance.teardown_report = TeardownReport(causes=(TeardownCause.COORDINATOR_FAILED,))
+        mock_app_instance.shutdown_outcome = incomplete_outcome("app's shutdown coordinator raised RuntimeError")
 
         await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
@@ -342,9 +341,9 @@ class TestShutdownInstance:
         """Unregistering after the outcome would discard the failure entry the outcome just wrote."""
         order: list[str] = []
 
-        async def teardown() -> TeardownReport:
+        async def teardown() -> ShutdownOutcome:
             order.append("teardown")
-            return TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_TIMED_OUT,))
+            return ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="hook")
 
         mock_app_instance.shutdown = AsyncMock(side_effect=teardown)
         mock_registry.unregister_app.side_effect = lambda *_args: order.append("unregister")
@@ -403,38 +402,39 @@ class TestShutdownInstanceEntryDeadline:
         event_capture: EventCapture,
     ) -> None:
         # dup-ignore-end
-        """On expiry the instance is force-terminated, its listeners and jobs are removed by owner, it is
-        recorded as force-terminated work, and it is reported FAILED with a registry failure entry.
+        """On expiry the instance is force-terminated, its listeners and jobs are removed by owner, and it is
+        reported FAILED with a registry failure entry and a needs-restart reason naming the forced terminal.
         """
         event_capture.install(mock_hassette)
-        mock_hassette.record_force_terminated = Mock()
 
-        async def hang() -> TeardownReport:
+        async def hang() -> ShutdownOutcome:
             await asyncio.Event().wait()
-            return TeardownReport()
+            return ShutdownOutcome()
 
         mock_app_instance.shutdown = AsyncMock(side_effect=hang)
         mock_app_instance._force_terminal = Mock()
-        mock_app_instance.teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+        mock_app_instance.shutdown_outcome = incomplete_outcome("app was force-terminated")
 
-        report = await asyncio.wait_for(
+        outcome = await asyncio.wait_for(
             lifecycle_service.shutdown_instance(
                 mock_app_instance, 3, deadline=deadline_in(0.1), outcomes=AnyIndexOutcomes()
             ),
             timeout=5,
         )
 
-        assert report is not None
-        assert TeardownCause.FORCED_TERMINAL in report.causes
+        assert outcome is not None
+        assert outcome.result is ShutdownResult.INCOMPLETE
         mock_app_instance._force_terminal.assert_called_once()
         mock_app_instance.bus.remove_all_listeners.assert_called_once()
         mock_app_instance.scheduler.remove_all_jobs.assert_called_once()
-        mock_hassette.record_force_terminated.assert_called_once_with([mock_app_instance.unique_name])
         mock_registry.record_failure.assert_called_once()
         app_key, index, exc = mock_registry.record_failure.call_args.args
         assert (app_key, index) == (mock_app_instance.app_key, 3)
         assert isinstance(exc, TimeoutError)
         mock_registry.flag_needs_restart.assert_called_once()
+        reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
+        assert "timed out" in reason
+        assert "app was force-terminated; work may still be running" in reason
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
         assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
 
@@ -449,12 +449,11 @@ class TestShutdownInstanceEntryDeadline:
         """Removing a walked-away instance's registrations is bounded by ``WALK_AWAY_CLEANUP_TIMEOUT_SECONDS``,
         so a wedged scheduler can't hold the stop past its deadline.
         """
-        mock_hassette.record_force_terminated = Mock()
         monkeypatch.setattr(app_lifecycle_instances, "WALK_AWAY_CLEANUP_TIMEOUT_SECONDS", 0.1)
 
-        async def hang(*_args, **_kwargs) -> TeardownReport:
+        async def hang(*_args, **_kwargs) -> ShutdownOutcome:
             await asyncio.Event().wait()
-            return TeardownReport()
+            return ShutdownOutcome()
 
         mock_app_instance.shutdown = AsyncMock(side_effect=hang)
         mock_app_instance._force_terminal = Mock()
@@ -467,7 +466,7 @@ class TestShutdownInstanceEntryDeadline:
             timeout=5,
         )
 
-        mock_hassette.record_force_terminated.assert_called_once_with([mock_app_instance.unique_name])
+        mock_app_instance._force_terminal.assert_called_once()
         mock_registry.record_failure.assert_called_once()
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
@@ -482,9 +481,7 @@ class TestShutdownInstanceEntryDeadline:
         # dup-ignore-end
         """A stop that finished but whose hook was cut off at its bound is FAILED with a registry entry."""
         event_capture.install(mock_hassette)
-        mock_app_instance.shutdown = AsyncMock(
-            return_value=TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_TIMED_OUT,))
-        )
+        mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="hook"))
         mock_app_instance._force_terminal = Mock()
 
         await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
@@ -494,6 +491,59 @@ class TestShutdownInstanceEntryDeadline:
         assert isinstance(mock_registry.record_failure.call_args.args[2], TimeoutError)
         mock_registry.flag_needs_restart.assert_not_called()
         assert len(app_state_payloads(event_capture, ResourceStatus.FAILED)) == 1
+
+    async def test_a_timed_out_hook_with_incomplete_evidence_is_worded_by_its_reason(
+        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_registry: MagicMock
+    ) -> None:
+        """A stop whose hook timed out and whose evidence is also incomplete is INCOMPLETE: it is FAILED and
+        flagged, worded "stopped, but…" with the reason naming the step, not "timed out".
+        """
+        outcome = merge_outcomes(
+            ShutdownOutcome(ShutdownResult.TIMED_OUT, reason="app: shutdown hook on_shutdown timed out after 5s"),
+            incomplete_outcome("app's shutdown body raised RuntimeError"),
+        )
+        mock_app_instance.shutdown = AsyncMock(return_value=outcome)
+
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
+
+        exc = mock_registry.record_failure.call_args.args[2]
+        assert not isinstance(exc, TimeoutError)
+        reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
+        assert reason == "stopped, but app's shutdown body raised RuntimeError; work may still be running"
+
+    @pytest.mark.parametrize(
+        ("result", "hook_reason", "expected_pattern"),
+        [
+            (
+                ShutdownResult.TIMED_OUT,
+                "app: shutdown hook on_shutdown timed out after 5s",
+                r"stop timed out after .+; app: shutdown hook on_shutdown timed out after 5s; "
+                r"work is still running: app:poller",
+            ),
+            (
+                ShutdownResult.FAILED,
+                "app: a shutdown hook raised RuntimeError",
+                r"stopped, but app: a shutdown hook raised RuntimeError; work is still running: app:poller",
+            ),
+        ],
+    )
+    async def test_a_hook_that_left_tasks_behind_is_named_in_the_needs_restart_reason(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_registry: MagicMock,
+        result: ShutdownResult,
+        hook_reason: str,
+        expected_pattern: str,
+    ) -> None:
+        """A restart-unsafe FAILED or TIMED_OUT outcome names the hook behind it, not only the tasks left running."""
+        outcome = ShutdownOutcome(result, ("app:poller",), hook_reason)
+        mock_app_instance.shutdown = AsyncMock(return_value=outcome)
+
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
+
+        reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
+        assert re.fullmatch(expected_pattern, reason), reason
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_a_stop_that_left_tasks_pending_is_failed_and_flagged_without_timing_out(
@@ -507,9 +557,7 @@ class TestShutdownInstanceEntryDeadline:
         # dup-ignore-end
         """A stop that finished in time but left work running is FAILED and flagged, not STOPPED."""
         event_capture.install(mock_hassette)
-        mock_app_instance.shutdown = AsyncMock(
-            return_value=TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=("app:poller",))
-        )
+        mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(still_running=("app:poller",)))
 
         await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
@@ -530,15 +578,13 @@ class TestShutdownInstanceEntryDeadline:
         mock_registry: MagicMock,
     ) -> None:
         """The outcome is recorded before its event; a send failure doesn't re-record it or re-flag it."""
-        mock_app_instance.shutdown = AsyncMock(
-            return_value=TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=("app:poller",))
-        )
+        mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(still_running=("app:poller",)))
         mock_hassette.send_event = AsyncMock(side_effect=RuntimeError("event bus down"))
 
-        report = await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
+        outcome = await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
-        assert report is not None
-        assert report.pending_tasks == ("app:poller",)
+        assert outcome is not None
+        assert outcome.still_running == ("app:poller",)
         mock_registry.record_failure.assert_called_once()
         mock_registry.flag_needs_restart.assert_called_once()
 
@@ -552,11 +598,9 @@ class TestShutdownInstanceEntryDeadline:
         event_capture: EventCapture,
     ) -> None:
         # dup-ignore-end
-        """Only a timed-out stop is FAILED here; a hook that raised is evidence on the report, not a timeout."""
+        """Only a timed-out stop is FAILED here; a hook that raised is evidence on the outcome, not a timeout."""
         event_capture.install(mock_hassette)
-        mock_app_instance.shutdown = AsyncMock(
-            return_value=TeardownReport(causes=(TeardownCause.SHUTDOWN_HOOK_FAILED,))
-        )
+        mock_app_instance.shutdown = AsyncMock(return_value=ShutdownOutcome(ShutdownResult.FAILED, reason="hook"))
 
         await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
 
@@ -573,9 +617,9 @@ class TestShutdownInstances:
         """No instance's hooks wait on another's: two slow stops take about as long as one."""
         stop_seconds = 0.3
 
-        async def slow_stop() -> TeardownReport:
+        async def slow_stop() -> ShutdownOutcome:
             await asyncio.sleep(stop_seconds)
-            return TeardownReport()
+            return ShutdownOutcome()
 
         instances = {}
         for idx in range(2):
@@ -596,10 +640,10 @@ class TestShutdownInstances:
         """A stop that raises doesn't leave its sibling stops running detached."""
         finished: list[int] = []
 
-        async def slow_stop() -> TeardownReport:
+        async def slow_stop() -> ShutdownOutcome:
             await asyncio.sleep(0.1)
             finished.append(1)
-            return TeardownReport()
+            return ShutdownOutcome()
 
         mocks = [make_mock_app_instance(instance_name=f"inst_{idx}") for idx in range(2)]
         mocks[1].shutdown = AsyncMock(side_effect=slow_stop)
