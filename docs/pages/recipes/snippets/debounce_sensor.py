@@ -6,7 +6,7 @@ DEBOUNCE_SECONDS = 10.0
 
 
 class DebounceSensorApp(App[AppConfig]):
-    """Log when a burst of rising temperature readings crosses a threshold."""
+    """Log when a burst of rising temperature readings settles at or above a threshold."""
 
     async def on_initialize(self) -> None:
         await self.bus.on_state_change(
@@ -29,9 +29,9 @@ class DebounceSensorApp(App[AppConfig]):
 
         if new_temp >= THRESHOLD:
             self.logger.info(
-                "Temperature crossed %.1f°C threshold: %s → %.1f°C (no further rise for %ss)",
+                "Temperature rose to %.1f°C (at or above %.1f°C threshold) from %s (no further rise for %ss)",
+                new_temp,
                 THRESHOLD,
                 old_state.value,
-                new_temp,
                 DEBOUNCE_SECONDS,
             )

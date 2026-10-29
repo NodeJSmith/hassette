@@ -33,7 +33,7 @@ The bus (`self.bus`) delivers Home Assistant events to subscribed handlers — e
 
 `name=` on `on_state_change` is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `TypeError` at registration time.
 
-When that last rising reading meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
+When that last rising reading meets or exceeds `THRESHOLD`, a log line records the new value, the previous value, and the debounce duration.
 
 `THRESHOLD`, `DEBOUNCE_SECONDS`, and the entity ID are module-level constants. Promoting them to typed fields on an [`AppConfig`][hassette.app.app_config.AppConfig] subclass — set per instance in `hassette.toml` — covers multiple sensors with a single class.
 
@@ -47,13 +47,13 @@ hassette listener --app debounce_sensor
 
 Expected output shows one listener named `outdoor_temp_debounced` with `debounce=10.0` and `changed=Increased`.
 
-After the sensor emits a rising reading and 10 seconds of quiet pass, check invocations:
+After a burst of rising readings ends at or above `THRESHOLD` and 10 seconds of quiet pass, check invocations:
 
 ```
 hassette log --app debounce_sensor --since 5m
 ```
 
-The log shows one entry per burst of rising readings, not one per raw sensor event. If the sensor rose three times in quick succession, only the last of those rising values appears.
+The log shows one entry per burst of rising readings, not one per raw sensor event. If the sensor rose three times in quick succession, only the last of those rising values appears. A burst that tops out below 25°C logs nothing, even though the debounce fired. If your sensor won't reach 25°C while you test, lower `THRESHOLD` temporarily.
 
 ## Variations
 
