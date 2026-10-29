@@ -21,7 +21,10 @@ class_name = "SensorThresholdApp"
 instance_name = "sensor_threshold"
 entity_id = "sensor.living_room_temperature"
 threshold = 28.0
+notify_target = "mobile_app_your_device_name"
 ```
+
+Set `notify_target` to your phone's notify service name. Find it under **Developer Tools → Actions** by filtering for `notify`, then use the part after `notify.`.
 
 The section name (`sensor_threshold`) is the app key the `hassette` CLI commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.
 
@@ -49,17 +52,19 @@ hassette listener --app sensor_threshold
 
 Expected output shows one listener named `threshold_monitor` with the `> 28.0` condition.
 
-To force a crossing without waiting for the real sensor, set the value by hand in HA under **Developer Tools → States**. Then confirm the handler fired:
+To force a crossing without waiting for the real sensor, set the value by hand in HA under **Developer Tools → States**. First set the state to a value at or below the threshold, such as `25`. Then set it to a value above the threshold, such as `30`. The gate fires only on that upward crossing. This changes only HA's stored state, not the device itself.
+
+Confirm the handler fired:
 
 ```
 hassette log --app sensor_threshold --since 1h
 ```
 
-The log shows the warning line with the sensor name, value, and unit.
+The log shows the warning line with the sensor name, value, and unit. The warning logs before the notify call, so it doesn't prove delivery. Check your phone for the "Sensor Alert" notification to confirm it arrived.
 
 ## Variations
 
-**Below-limit alert.** Change `"gt"` to `"lt"` to alert when a value drops below the threshold. Battery level and water pressure are natural fits. Alert when either falls too low.
+**Below-limit alert.** Flip both conditions to alert when a value drops below the threshold: `changed_from=C.Comparison("ge", threshold)` and `changed_to=C.Comparison("lt", threshold)`. Changing only `changed_to` leaves the gate open on every reading that stays below the limit. Battery level and water pressure are natural fits. Alert when either falls too low.
 
 **Alert once until recovery (hysteresis).** A second listener with `changed_to=C.Comparison("le", threshold)` fires when the sensor recovers back to or below the limit. Store a flag on `self` when recovery fires, and check it in `on_threshold_exceeded` before sending. The notification skips if the sensor has not yet cleared since the last alert.
 
