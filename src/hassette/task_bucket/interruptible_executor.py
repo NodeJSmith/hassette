@@ -62,20 +62,17 @@ def async_raise(tid: int, exctype: type[BaseException]) -> None:
     raise SystemError("PyThreadState_SetAsyncExc failed")
 
 
-def _log_thread_running_at_shutdown(name: str, ident: int) -> None:
+def log_thread_running_at_shutdown(name: str, ident: int) -> None:
     """Log the name and current stack of a thread still alive at shutdown.
 
     Equivalent to HA's ``_log_thread_running_at_shutdown``
-    (``homeassistant/util/executor.py:23-32``).
+    (``homeassistant/util/executor.py:23-32``). A thread with no Python frame (blocked inside a C call made
+    directly, such as ``time.sleep`` registered as an atexit handler) is logged without a stack, since
+    ``traceback.format_stack(None)`` would print the caller's stack instead.
     """
-    frames = sys._current_frames()
-    stack = frames.get(ident)
-    formatted_stack = traceback.format_stack(stack)
-    LOGGER.warning(
-        "Thread[%s] is still running at shutdown: %s",
-        name,
-        "".join(formatted_stack).strip(),
-    )
+    stack = sys._current_frames().get(ident)
+    formatted_stack = "".join(traceback.format_stack(stack)).strip() if stack is not None else "(no Python frames)"
+    LOGGER.warning("Thread[%s] is still running at shutdown: %s", name, formatted_stack)
 
 
 def join_or_interrupt_threads(threads: set[Thread], timeout: float, log: bool) -> set[Thread]:
@@ -108,7 +105,7 @@ def join_or_interrupt_threads(threads: set[Thread], timeout: float, log: bool) -
             continue
 
         if log:
-            _log_thread_running_at_shutdown(thread.name, thread.ident)
+            log_thread_running_at_shutdown(thread.name, thread.ident)
 
         with contextlib.suppress(SystemError, ValueError):
             # SystemError or ValueError at this stage is usually a benign

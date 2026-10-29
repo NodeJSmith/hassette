@@ -191,6 +191,6 @@ async def test_clean_teardown_still_permits_same_instance_reinitialization():
     assert svc._serve_task is not None
     assert svc._serve_task is not old_task, "re-initializing must spawn a fresh serve() task"
     assert not svc._serve_task.done()
-    assert svc.teardown_report is None, "an accepted new initialization consumes the prior SAFE report"
+    assert svc.shutdown_outcome is None, "an accepted new initialization consumes the prior SAFE report"
 
     await svc.shutdown()

@@ -146,10 +146,9 @@ class AsyncCache:
 
         Propagates the first close failure rather than swallowing it: ``App.cleanup()`` relies on
         that to distinguish a clean close from one that left a connection or background thread in
-        an unknown state, so ``_run_post_hook_shutdown_stage()`` records
-        ``TeardownCause.CLEANUP_FAILED`` instead of reporting a restart-safe teardown for a cache
-        that never confirmed it closed. See ``close_connection_pair()`` for the close and
-        cancellation mechanics.
+        an unknown state, so ``_run_post_hook_shutdown_stage()`` records a ``FAILED`` shutdown
+        outcome instead of ``DONE`` for a cache that never confirmed it closed. See
+        ``close_connection_pair()`` for the close and cancellation mechanics.
         """
         await close_connection_pair(self, self.CONN_ATTRS, logger)
 

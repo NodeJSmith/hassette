@@ -116,19 +116,19 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
 
 
 def _reject_if_active_or_reported(resource: "Resource") -> None:
-    """Raise if ``resource`` has an active shutdown task or any stored teardown report.
+    """Raise if ``resource`` has an active shutdown task or any stored shutdown outcome.
 
     Reset is limited to a shutdown request that has never started a teardown attempt — an
-    active shutdown task (in progress) or a completed one (a stored report, restart-safe or
+    active shutdown task (in progress) or a completed one (a stored outcome, restart-safe or
     not) both mean a real teardown attempt happened, and this helper must never clear
     that evidence or fabricate a fresh lifecycle state on top of it. In particular, no
-    test-only reset may clear a report whose ``is_restart_safe`` is ``False`` — it has no
+    test-only reset may clear an outcome whose ``is_restart_safe`` is ``False`` — it has no
     in-process reset path, by design.
     """
-    if resource._shutdown_task is not None or resource._teardown_report is not None:
+    if resource._shutdown_task is not None or resource._shutdown_outcome is not None:
         raise RuntimeError(
             f"reset_hassette_lifecycle() cannot reset '{resource.unique_name}': it has an active "
-            "shutdown task or a stored teardown report. Reset is limited to a shutdown request "
+            "shutdown task or a stored shutdown outcome. Reset is limited to a shutdown request "
             "that has not yet started a teardown attempt; construct a fresh instance instead."
         )
 
@@ -161,7 +161,7 @@ def reset_resource_flags(resource: "Resource") -> None:
     the ``original_children`` restore but before any shutdown/ready state mutation) -- this
     function itself no longer re-validates each descendant, since doing so here is what let a
     deep validation failure leave earlier siblings half-reset. Never clears coordinator fields
-    (``_shutdown_task``, ``_shutdown_body_task``, ``_teardown_report``); those are not
+    (``_shutdown_task``, ``_shutdown_body_task``, ``_shutdown_outcome``); those are not
     test-resettable.
     """
     for child in resource.children:
@@ -176,7 +176,7 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     (``shutdown_event``) that has not yet started a teardown attempt, and marks the instance as
     ready again, optionally restoring the ``children`` list to a previously captured snapshot.
     It does **not** undo the effects of a full ``await hassette.shutdown()`` call (such as
-    closed event streams, a stored teardown report, or fully shut-down children) and must not
+    closed event streams, a stored shutdown outcome, or fully shut-down children) and must not
     be used to revive a Hassette that has been completely shut down.
 
     Args:
@@ -185,11 +185,11 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
         original_children: If provided, restore the children list to this snapshot before
             validating the tree -- so a test that dynamically added its own children (e.g.
             dummy services) can still reset even if those now-discarded children have an
-            active shutdown task or a stored teardown report.
+            active shutdown task or a stored shutdown outcome.
 
     Raises:
         RuntimeError: If event streams were already closed by a full shutdown, or if the root
-            or any descendant has an active shutdown task or a stored teardown report.
+            or any descendant has an active shutdown task or a stored shutdown outcome.
     """
     if hassette.event_streams_closed:
         msg = (
@@ -202,7 +202,7 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     # Restore the children snapshot (if given) *before* validating the tree, not after -- a
     # test that dynamically added its own children (e.g. dummy services registered directly
     # under `hassette`) is exactly what this snapshot exists to discard. Those children are
-    # about to be dropped from the tree entirely, so their own shutdown/report state is
+    # about to be dropped from the tree entirely, so their own shutdown/outcome state is
     # irrelevant to whether reset can proceed; validating before the restore would reject a
     # reset the caller can perfectly well do, over state that is about to become unreachable
     # anyway.

@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 from hassette_wire import ResourceStatus
 
 from hassette.resources.lifecycle import mark_ready
-from hassette.resources.teardown import TeardownCause
+from hassette.resources.shutdown_outcome import ShutdownResult
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource
@@ -64,7 +64,7 @@ class TestShutdownSkipsStoppingWhenTerminal:
         hassette = make_mock_hassette(sealed=False)
         resource = ConcreteResource(hassette=hassette)
         # Force an already-terminal status without going through the normal shutdown path
-        # (no teardown report exists yet, so shutdown() does not early-return).
+        # (no shutdown outcome exists yet, so shutdown() does not early-return).
         resource._status = ResourceStatus.STOPPED
 
         status_during_hook: list[ResourceStatus] = []
@@ -111,9 +111,9 @@ class TestShutdownBodySwallowsHandleStopException:
         # Must not raise despite cleanup() blowing up, and the body must still complete.
         report = await resource._shutdown_body()
 
-        assert TeardownCause.CLEANUP_FAILED in report.causes
+        assert report.result is ShutdownResult.FAILED
         assert report.is_restart_safe is True, "a cleanup that raised has ended; it is diagnostic only"
-        assert "cleanup" in report.failed_operations
+        assert report.reason == f"{resource.unique_name}: cleanup() raised RuntimeError"
 
     async def test_reaches_stopped_when_event_streams_already_closed(self) -> None:
         """With the event streams closed (a dead bus), the shutdown body still moves the resource to STOPPED."""

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 from hassette.resources.base import Resource
 from hassette.resources.service import Service
-from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence
+from hassette.resources.shutdown_outcome import ShutdownOutcome, merge_outcomes
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
@@ -62,15 +62,15 @@ class OrderTrackingChild(Resource):
 
 
 class PendingTaskChild(Resource):
-    """Resource whose teardown reports a task still pending, so its report is restart-unsafe.
+    """Resource whose shutdown outcomes a task still pending, so its report is restart-unsafe.
 
     Stands in for a child whose own work outlived its shutdown without making a test hold a task that
     ignores cancellation.
     """
 
-    async def _shutdown_body(self) -> TeardownReport:
-        report = await super()._shutdown_body()
-        return add_teardown_evidence(report, causes=(TeardownCause.TASKS_PENDING,), pending_tasks=("stuck-task",))
+    async def _shutdown_body(self) -> ShutdownOutcome:
+        outcome = await super()._shutdown_body()
+        return merge_outcomes(outcome, ShutdownOutcome(still_running=("stuck-task",)))
 
 
 class ErrorChild(Resource):
@@ -113,7 +113,7 @@ def make_parent_with_child(
 
 async def shut_down_parent_with_child(
     parent_cls: type[ParentT], child_cls: type[ResourceT]
-) -> tuple[ParentT, ResourceT, TeardownReport]:
+) -> tuple[ParentT, ResourceT, ShutdownOutcome]:
     """Build `parent_cls` with one `child_cls` child, initialize both, shut the parent down, and return
     the parent, the child and the parent's report.
     """

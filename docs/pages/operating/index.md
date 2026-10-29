@@ -212,7 +212,9 @@ Each hook gets `shutdown_timeout_seconds`, or less when its stage has less time 
 
 Stopping or reloading a single app at runtime gets the same limit as the stop stage. A stop that runs past it ends as a failed, timed-out stop: the app's listeners and jobs are removed, and the instance is flagged as [needing a restart](#instances-that-need-a-restart).
 
-When Hassette force-terminated work at any point, or worker threads survived the join, `hassette run` exits as soon as shutdown finishes. It logs one ERROR naming what was left, and doesn't wait for that work. A process supervisor would otherwise have to kill it. An exit whose only problem is abandoned work still exits 0.
+After shutdown and the snapshot, `hassette run` checks what is still alive before it exits. It cancels every remaining task and waits up to 5 seconds for them. A task still running then is named in one ERROR, and the process exits without waiting for it. Anything else that holds the process past that point — a thread that never returns, an exit handler that hangs — gets 1 more second. Then Hassette logs one ERROR naming every live thread with its stack, and exits. A process supervisor would otherwise have to kill it. An exit whose only problem is abandoned work still exits 0, and an exit after a fatal error still exits 1.
+
+A clean exit never waits on this check: finished tasks and idle worker threads end at once. Python's own exit handlers (`atexit`) don't run when Hassette exits this way, as when a supervisor kills the process. Embedded runs and test harnesses don't run the check at all; only `hassette run` does.
 
 !!! warning "Give your supervisor more time than Hassette needs"
     Set your supervisor's stop grace period above `total_shutdown_timeout_seconds` plus time for the snapshot. For Docker, that setting is `stop_grace_period`, and the [compose example](../getting-started/docker/index.md#step-2-create-docker-composeyml) sets it to 60 seconds. A shorter grace period kills Hassette mid-shutdown, which can skip the session record and leave the previous snapshot in place.

@@ -26,7 +26,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import start
 from hassette.resources.service import Service
 from hassette.resources.shutdown_deadline import deadline_in
-from hassette.resources.teardown import TeardownCause
+from hassette.resources.shutdown_outcome import ShutdownResult
 from hassette.testing import wait_for
 from tests.support.factories import wire_dependent_resource
 from tests.support.helpers import (
@@ -289,8 +289,7 @@ class TestServiceShutdownBodyServeTaskPending:
             report = await asyncio.wait_for(svc._shutdown_body(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
 
             assert report.is_restart_safe is False
-            assert TeardownCause.SERVE_TASK_PENDING in report.causes
-            assert old_task.get_name() in report.pending_tasks
+            assert old_task.get_name() in report.still_running
             assert not old_task.done(), "resistant task must remain pending, not be treated as terminated"
         finally:
             svc.release()
@@ -346,9 +345,7 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
         report = await asyncio.wait_for(svc._shutdown_body(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         elapsed = loop.time() - start_time
 
-        assert TeardownCause.SERVE_TASK_PENDING in report.causes, (
-            "the serve task never honoring cancellation must still be recorded as evidence"
-        )
+        assert report.still_running, "the serve task never honoring cancellation must still be recorded as evidence"
         assert elapsed < UNRESPONSIVE_DEADLINE_SECONDS + 0.5, (
             f"the body must finish by the shutdown deadline — took {elapsed:.2f}s"
         )
@@ -383,7 +380,7 @@ class TestServiceResistantServeNeverReplaced:
         try:
             report = await asyncio.wait_for(svc.shutdown(), timeout=BOUNDED_SHUTDOWN_WAIT_SECONDS)
             assert report.is_restart_safe is False
-            assert svc.teardown_report is report
+            assert svc.shutdown_outcome is report
 
             with pytest.raises(RestartRefusedError):
                 start(svc)
@@ -438,7 +435,7 @@ async def test_slow_serve_wait_leaves_later_hooks_only_what_is_left_of_the_deadl
     report = await asyncio.wait_for(svc.shutdown(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
     elapsed = loop.time() - start_time
 
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes, (
+    assert report.result is ShutdownResult.TIMED_OUT, (
         "on_shutdown must be recorded as timed out when the serve-wait used most of the deadline"
     )
     assert elapsed < SLOW_SERVE_DEADLINE_SECONDS + 0.5, f"shutdown ran past its deadline — took {elapsed:.2f}s"

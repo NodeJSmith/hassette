@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.shutdown_outcome import incomplete
 from hassette.testing._reset import _reject_tree_if_active_or_reported, reset_hassette_lifecycle, reset_resource_flags
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource
@@ -35,7 +35,7 @@ class TestRejectTreeIfActiveOrReported:
 
         # Simulate a completed teardown attempt on the grandchild -- validation must refuse to
         # proceed anywhere in the tree once this is found, however deep it is.
-        grandchild._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+        grandchild._shutdown_outcome = incomplete("child was force-terminated")
 
         with pytest.raises(RuntimeError, match=re.escape(grandchild.unique_name)):
             _reject_tree_if_active_or_reported(root)
@@ -68,14 +68,14 @@ class TestResetHassetteLifecycleOriginalChildren:
         """Regression: original_children must be restored BEFORE tree validation runs, not
         after -- a test that dynamically adds its own children (e.g. dummy services) relies on
         reset_hassette_lifecycle() discarding them via original_children. If validation ran first, a
-        test-added child with a stored teardown report (a completely normal outcome for a dummy service
+        test-added child with a stored shutdown outcome (a completely normal outcome for a dummy service
         that was shut down) would make reset_hassette_lifecycle() raise even though that child is about to
         be dropped from the tree entirely and its state is therefore
         irrelevant to whether reset can proceed.
         """
         hassette = make_mock_hassette(sealed=False)
         hassette._shutdown_task = None
-        hassette._teardown_report = None
+        hassette._shutdown_outcome = None
         # reset_hassette_lifecycle() calls mark_ready(hassette, ...), which logs via
         # resource.lifecycle_logger.debug(...). A plain AsyncMock's un-configured attribute chains
         # are themselves AsyncMock (unlike MagicMock, whose children default to MagicMock), so an
@@ -87,10 +87,10 @@ class TestResetHassetteLifecycleOriginalChildren:
         hassette.children.append(original_child)
         snapshot = list(hassette.children)
 
-        # A test dynamically adds its own child with a completed (unsafe) teardown report --
+        # A test dynamically adds its own child with a completed (unsafe) shutdown outcome --
         # e.g. a dummy service whose teardown was forced during the test body.
         test_added_child = ConcreteResource(hassette)
-        test_added_child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+        test_added_child._shutdown_outcome = incomplete("child was force-terminated")
         hassette.children.append(test_added_child)
 
         await reset_hassette_lifecycle(hassette, original_children=snapshot)
@@ -102,14 +102,14 @@ class TestResetHassetteLifecycleOriginalChildren:
 
     async def test_original_child_still_validated(self) -> None:
         """A genuine original child (one that survives the original_children restore) with a
-        stored teardown report must still block reset -- only test-added, about-to-be-discarded
+        stored shutdown outcome must still block reset -- only test-added, about-to-be-discarded
         children are exempt.
         """
         hassette = make_mock_hassette(sealed=False)
         hassette._shutdown_task = None
-        hassette._teardown_report = None
+        hassette._shutdown_outcome = None
         original_child = ConcreteResource(hassette)
-        original_child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+        original_child._shutdown_outcome = incomplete("child was force-terminated")
         hassette.children.append(original_child)
         snapshot = list(hassette.children)
 

@@ -20,22 +20,17 @@ from hassette.resources.lifecycle import (
     mark_not_ready,
 )
 from hassette.resources.operations import (
-    finalize_shutdown_report,
     ordered_children_for_shutdown,
     run_hooks,
     shutdown_batch,
-    shutdown_hook_report,
+    shutdown_hook_outcome,
 )
 from hassette.resources.shutdown_deadline import (
     CLEANUP_SECONDS,
     clamp_to_shutdown_deadline,
     elapsed_since,
 )
-from hassette.resources.teardown import (
-    TeardownCause,
-    TeardownReport,
-    merge_teardown_reports,
-)
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete, merge_outcomes
 from hassette.types.enums import ResourceRole
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX
 
@@ -376,11 +371,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         Cancels tasks for resources that were never given a shutdown signal (grandchildren).
         Service overrides this to also cancel _serve_task.
 
-        Records ``TeardownCause.FORCED_TERMINAL`` on the resource's teardown report before
-        cancelling any work, so restart is refused even if a caller inspects the report before
-        this method's cancellation and terminal-status side effects finish. Leaves an already
-        completed report unchanged — a resource that already proved ``is_restart_safe`` (or
-        already recorded other unsafe evidence) is not retroactively altered.
+        Stores an ``INCOMPLETE`` shutdown outcome on the resource before cancelling any work, so
+        restart is refused even if a caller inspects the outcome before this method's cancellation and
+        terminal-status side effects finish. Leaves an already completed outcome unchanged — a resource
+        that already proved ``is_restart_safe`` (or already recorded an unsafe outcome) is not
+        retroactively altered.
 
         Note: this does NOT call on_shutdown() hooks, so bus subscriptions and scheduler
         jobs owned by force-terminated resources are not cleaned up. This is intentional —
@@ -389,32 +384,30 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         gap because force-terminal is nearly always followed by process exit.
 
         Seals the TaskBucket and takes its synchronous pending-name snapshot before recording
-        the report, so a force-terminal call from a deadline owner walking away (the root's exit
+        the outcome, so a force-terminal call from a deadline owner walking away (the root's exit
         stages, ``AppLifecycleService``'s entry deadline) while ``_shutdown_body()`` never reached its
         own TaskBucket stage -- see ``_run_task_bucket_shutdown_stage()`` -- still records TaskBucket's
         final pending names even though the interrupted body's own stage never returned.
 
-        The "leave an already-completed report unchanged" guard below only skips re-recording
-        that report -- it does NOT skip the recursion into children. A resource whose own report
+        The "leave an already-completed outcome unchanged" guard below only skips re-recording
+        that outcome -- it does NOT skip the recursion into children. A resource whose own outcome
         was already stored (e.g. a clean teardown, or an earlier force-terminal call) can still
         have unresponsive descendants of its own; a deadline owner force-terminates every
         unfinished child of its stage specifically to reach those descendants, so returning early
         here would leave a hung grandchild's tasks alive after shutdown has already declared the
         tree terminal.
         """
-        if self._teardown_report is None:
+        if self._shutdown_outcome is None:
             self.task_bucket.seal()
-            pending = self.task_bucket.pending_task_names()
-            causes: list[TeardownCause] = [TeardownCause.FORCED_TERMINAL]
-            if pending:
-                causes.append(TeardownCause.TASKS_PENDING)
-            self._teardown_report = TeardownReport(causes=tuple(causes), pending_tasks=pending)
+            self._shutdown_outcome = incomplete(
+                f"{self.unique_name} was force-terminated", self.task_bucket.pending_task_names()
+            )
         cancel(self)
         # Cancel an active shutdown coordinator too -- but never the currently running task
         # (self-cancellation mid-synchronous-execution is a footgun and would not take effect
         # until the next suspension point anyway). This is the cross-resource case: a parent's
         # own shutdown body force-terminating an unresponsive child whose shutdown coordinator
-        # is still pending elsewhere. Because the report above is stored first, the child's
+        # is still pending elsewhere. Because the outcome above is stored first, the child's
         # coordinator (`_run_shutdown_coordinator`) treats the resulting cancellation as a
         # restart-unsafe return rather than letting `CancelledError` reach its joined callers.
         current_task = asyncio.current_task()
@@ -430,23 +423,22 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         for child in self.children:
             child._force_terminal()
 
-    async def _shutdown_children(self) -> TeardownReport:
-        """Propagate shutdown to children and aggregate their teardown reports.
+    async def _shutdown_children(self) -> ShutdownOutcome:
+        """Propagate shutdown to children and merge their shutdown outcomes.
 
         Children shut down concurrently, in reverse insertion order
         (``ordered_children_for_shutdown()``), as a single ``shutdown_batch()`` call — see that
-        function for the per-child classification rules (failed/restart-unsafe). The batch has no
+        function for how each child's outcome merges in. The batch has no
         bound of its own: each child inherits this resource's shutdown deadline.
         """
         children = ordered_children_for_shutdown(self)
         if not children:
-            return TeardownReport()
+            return ShutdownOutcome()
 
-        result = await shutdown_batch(self, children, deadline=self._shutdown_deadline)
-        return finalize_shutdown_report(result.reports, result.causes, result.affected)
+        return await shutdown_batch(self, children, deadline=self._shutdown_deadline)
 
-    async def _run_task_bucket_shutdown_stage(self) -> TeardownReport:
-        """Seal the TaskBucket, cancel tracked work, and record final pending-task evidence.
+    async def _run_task_bucket_shutdown_stage(self) -> ShutdownOutcome:
+        """Seal the TaskBucket, cancel tracked work, and name the tasks still pending.
 
         First-class shutdown stage: sealing, cancellation, and the final synchronous pending-name
         snapshot all happen here, before subclass ``cleanup()`` runs (design: "Sealing,
@@ -473,22 +465,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self.unique_name,
             elapsed_since(cancel_start),
         )
-        pending = self.task_bucket.pending_task_names()
-        if pending:
-            return TeardownReport(causes=(TeardownCause.TASKS_PENDING,), pending_tasks=pending)
-        return TeardownReport()
+        return ShutdownOutcome(still_running=self.task_bucket.pending_task_names())
 
-    async def _run_post_hook_shutdown_stage(self) -> TeardownReport:
+    async def _run_post_hook_shutdown_stage(self) -> ShutdownOutcome:
         """Run the post-hook shutdown stage shared by every ``_shutdown_body()`` implementation.
 
         Covers cleanup, child propagation, and terminal event emission for Resource, Service, and Hassette.
 
-        Runs after the class-specific shutdown hooks have already executed. Returns evidence
+        Runs after the class-specific shutdown hooks have already executed. Returns an outcome
         instead of setting flags directly — the shutdown coordinator (``coordinate_shutdown()``
-        in ``hassette.resources.lifecycle``) is the sole owner of the final stored
-        ``TeardownReport``.
+        in ``hassette.resources.lifecycle``) is the sole owner of the stored ``ShutdownOutcome``.
         """
-        reports: list[TeardownReport] = [await self._run_task_bucket_shutdown_stage()]
+        outcomes: list[ShutdownOutcome] = [await self._run_task_bucket_shutdown_stage()]
 
         cleanup_timeout = clamp_to_shutdown_deadline(self, CLEANUP_SECONDS)
         self.lifecycle_logger.debug(
@@ -502,10 +490,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 await self.cleanup()
         except TimeoutError:
             self.lifecycle_logger.warning("cleanup() timed out after %.2fs for %s", cleanup_timeout, self.unique_name)
-            reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_TIMED_OUT,), failed_operations=("cleanup",)))
+            reason = f"{self.unique_name}: cleanup() timed out after {cleanup_timeout:.2f}s"
+            outcomes.append(ShutdownOutcome(ShutdownResult.TIMED_OUT, reason=reason))
         except Exception as exc:
             self.lifecycle_logger.exception("Error during cleanup: %s %s", type(exc).__name__, exc)
-            reports.append(TeardownReport(causes=(TeardownCause.CLEANUP_FAILED,), failed_operations=("cleanup",)))
+            reason = f"{self.unique_name}: cleanup() raised {type(exc).__name__}"
+            outcomes.append(ShutdownOutcome(ShutdownResult.FAILED, reason=reason))
         self.lifecycle_logger.debug(
             "%s: cleanup() stage completed in %.2fs",
             self.unique_name,
@@ -513,15 +503,15 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         )
 
         children_start = asyncio.get_running_loop().time()
-        children_report = await self._shutdown_children()
+        children_outcome = await self._shutdown_children()
         self.lifecycle_logger.debug(
             "%s: child shutdown propagation completed in %.2fs",
             self.unique_name,
             elapsed_since(children_start),
         )
-        reports.append(children_report)
+        outcomes.append(children_outcome)
 
-        if children_report.is_restart_safe:
+        if children_outcome.is_restart_safe:
             await self._on_children_stopped()
 
         # Runs with closed streams too: the transition still happens and only its event is dropped (spec 134 D9).
@@ -530,12 +520,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         except Exception as exc:
             self.lifecycle_logger.exception("Error during stopping %s %s", type(exc).__name__, exc)
 
-        return merge_teardown_reports(*reports)
+        return merge_outcomes(*outcomes)
 
     async def _on_children_stopped(self) -> None:
         """Called after children shut down, before this resource's STOPPED event.
 
-        Runs when the children's aggregated report is restart-safe, meaning no child's work may still
+        Runs when the children's merged outcome is restart-safe, meaning no child's work may still
         be running. A child hook that raised or timed out and has ended doesn't block it. Skipped when a
         child left work pending or its evidence is incomplete (it was force-terminated, or its
         ``shutdown()`` raised); the caller handles fallback teardown then, e.g. Hassette's finally
@@ -612,20 +602,20 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         pass
 
     @final
-    async def shutdown(self) -> TeardownReport:
+    async def shutdown(self) -> ShutdownOutcome:
         """Coordinator front door: joins or creates the resource's one owned shutdown attempt.
 
-        Returns the attempt's stored ``TeardownReport``.
+        Returns the attempt's stored ``ShutdownOutcome``.
 
         This method itself never runs class-specific shutdown work — see ``_shutdown_body()``,
         which the coordinator runs exactly once per attempt. Repeated calls after completion
-        return the same stored report without rerunning hooks. See ``coordinate_shutdown()`` in
+        return the same stored outcome without rerunning hooks. See ``coordinate_shutdown()`` in
         ``hassette.resources.lifecycle`` for the full sequence (re-entry rejection, initializer
-        cancellation/observation, bounded body observation, force-terminal evidence merging).
+        cancellation/observation, bounded body observation, force-terminal outcome merging).
         """
         return await coordinate_shutdown(self)
 
-    async def _shutdown_body(self) -> TeardownReport:
+    async def _shutdown_body(self) -> ShutdownOutcome:
         """Class-specific shutdown work, run exactly once per coordinated attempt.
 
         NOTE: keep hook ordering in sync with Service._shutdown_body().
@@ -635,7 +625,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if self._skip_own_shutdown_hooks:
             self.lifecycle_logger.debug("%s: skipping own shutdown hooks for this attempt", self.unique_name)
-            hook_report = TeardownReport()
+            hook_outcome = ShutdownOutcome()
         else:
             hook_errors = await run_hooks(
                 self,
@@ -643,9 +633,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 continue_on_error=True,
                 shutdown_bound=True,
             )
-            hook_report = shutdown_hook_report(hook_errors, "shutdown_hooks")
-        tail_report = await self._run_post_hook_shutdown_stage()
-        return merge_teardown_reports(hook_report, tail_report)
+            hook_outcome = shutdown_hook_outcome(self.unique_name, hook_errors)
+        tail_outcome = await self._run_post_hook_shutdown_stage()
+        return merge_outcomes(hook_outcome, tail_outcome)
 
     async def before_shutdown(self) -> None:
         """Optional: stop accepting new work, signal loops to wind down, etc."""

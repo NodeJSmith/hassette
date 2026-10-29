@@ -12,7 +12,15 @@ import pytest
 
 from hassette.exceptions import ConfigError, FatalError
 from hassette.resources.lifecycle import request_shutdown
-from hassette.server import EX_CONFIG, _handle_sigint_signal, _sigint_wait_loop, exit_now_if_work_force_terminated, main
+from hassette.server import (
+    EX_CONFIG,
+    _handle_sigint_signal,
+    _sigint_wait_loop,
+    create_core,
+    exit_after_run,
+    run,
+    serve,
+)
 
 
 def make_mock_core_and_config(
@@ -22,7 +30,6 @@ def make_mock_core_and_config(
     """Build a mock Hassette core (run_forever mocked) and a mock config with the given token."""
     mock_core = MagicMock()
     mock_core.run_forever = AsyncMock()
-    mock_core.force_terminated_work = ()
     mock_core.shutdown_snapshot_task = None
 
     mock_config = MagicMock()
@@ -38,13 +45,13 @@ def patch_hassette_and_signal_registration(
     add_signal_handler_side_effect: Any = None,
     pthread_sigmask_side_effect: Any = None,
 ) -> Iterator[tuple[MagicMock, MagicMock, MagicMock]]:
-    """Patch everything main() touches for signal registration.
+    """Patch everything serve() touches for signal registration.
 
     Patches ``hassette.server.Hassette`` (returning ``mock_core``), the running loop's
     ``add_signal_handler`` (SIGTERM), ``signal.pthread_sigmask`` (SIGINT blocking), and
     ``threading.Thread`` (the SIGINT-wait thread). The ``Thread`` mock's ``.start()`` is a
     no-op, so the real ``sigwait()``-based thread never actually runs during unit tests —
-    without this, every test exercising ``main()`` would leave a thread blocked in a real
+    without this, every test exercising ``serve()`` would leave a thread blocked in a real
     ``signal.sigwait()`` call for the life of the test process.
 
     Yields ``(Hassette class mock, threading.Thread class mock, pthread_sigmask mock)``.
@@ -61,7 +68,7 @@ def patch_hassette_and_signal_registration(
 
 
 async def test_main_registers_sigterm_handler() -> None:
-    """main() installs a SIGTERM handler that calls request_shutdown(core, ...) directly."""
+    """serve() installs a SIGTERM handler that calls request_shutdown(core, ...) directly."""
     mock_core, mock_config = make_mock_core_and_config()
 
     registered_handlers: dict[signal.Signals, tuple[Any, tuple[Any, ...]]] = {}
@@ -70,7 +77,7 @@ async def test_main_registers_sigterm_handler() -> None:
         registered_handlers[registered_sig] = (callback, args)
 
     with patch_hassette_and_signal_registration(mock_core, add_signal_handler_side_effect=fake_add_signal_handler):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
     callback, args = registered_handlers[signal.SIGTERM]
@@ -90,7 +97,7 @@ async def test_sigterm_handler_triggers_shutdown_event() -> None:
         registered_handlers[registered_sig] = (callback, args)
 
     with patch_hassette_and_signal_registration(mock_core, add_signal_handler_side_effect=fake_add_signal_handler):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     callback, args = registered_handlers[signal.SIGTERM]
     callback(*args)
@@ -98,17 +105,17 @@ async def test_sigterm_handler_triggers_shutdown_event() -> None:
 
 
 async def test_main_continues_when_sigterm_handler_unsupported() -> None:
-    """main() continues to run_forever when add_signal_handler raises NotImplementedError."""
+    """serve() continues to run_forever when add_signal_handler raises NotImplementedError."""
     mock_core, mock_config = make_mock_core_and_config()
 
     with patch_hassette_and_signal_registration(mock_core, add_signal_handler_side_effect=NotImplementedError):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     mock_core.run_forever.assert_awaited_once()
 
 
 async def test_main_blocks_sigint_before_spawning_the_wait_thread() -> None:
-    """main() blocks SIGINT process-wide before starting the sigwait() thread.
+    """serve() blocks SIGINT process-wide before starting the sigwait() thread.
 
     Ordering matters: every thread created after this point (the sigwait thread here, plus
     any the framework spawns later — the sync executor pool, the logging QueueListener) must
@@ -118,7 +125,7 @@ async def test_main_blocks_sigint_before_spawning_the_wait_thread() -> None:
     mock_core, mock_config = make_mock_core_and_config()
 
     with patch_hassette_and_signal_registration(mock_core) as (_, mock_thread_cls, mock_sigmask):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     mock_sigmask.assert_called_once_with(signal.SIG_BLOCK, {signal.SIGINT})
     mock_thread_cls.assert_called_once()
@@ -126,12 +133,12 @@ async def test_main_blocks_sigint_before_spawning_the_wait_thread() -> None:
 
 
 async def test_main_starts_sigint_wait_thread_as_daemon() -> None:
-    """main() starts a daemon thread running _sigint_wait_loop(core, loop, sigint_seen)."""
+    """serve() starts a daemon thread running _sigint_wait_loop(core, loop, sigint_seen)."""
     mock_core, mock_config = make_mock_core_and_config()
     loop = asyncio.get_running_loop()
 
     with patch_hassette_and_signal_registration(mock_core) as (_, mock_thread_cls, _):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     _, kwargs = mock_thread_cls.call_args
     assert kwargs["target"] is _sigint_wait_loop
@@ -143,7 +150,7 @@ async def test_main_starts_sigint_wait_thread_as_daemon() -> None:
 
 
 async def test_main_continues_when_sigint_handling_unsupported() -> None:
-    """main() continues to run_forever, without starting a thread, when pthread_sigmask is
+    """serve() continues to run_forever, without starting a thread, when pthread_sigmask is
     unavailable (e.g. Windows, where signal.pthread_sigmask doesn't exist at all).
     """
     mock_core, mock_config = make_mock_core_and_config()
@@ -153,7 +160,7 @@ async def test_main_continues_when_sigint_handling_unsupported() -> None:
         mock_thread_cls,
         _,
     ):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     mock_thread_cls.assert_not_called()
     mock_core.run_forever.assert_awaited_once()
@@ -241,78 +248,100 @@ async def test_main_checks_the_token_before_creating_hassette() -> None:
     mock_config.require_token.side_effect = ConfigError("HA token is required")
 
     with patch("hassette.server.Hassette") as mock_hassette, pytest.raises(ConfigError, match="HA token is required"):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     mock_hassette.assert_not_called()
 
 
 async def test_main_proceeds_when_token_is_set() -> None:
-    """main() proceeds to create Hassette when token is not None."""
+    """serve() proceeds to create Hassette when token is not None."""
     mock_core, mock_config = make_mock_core_and_config()
 
     with patch_hassette_and_signal_registration(mock_core):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     mock_core.run_forever.assert_awaited_once()
 
 
 async def test_main_passes_config_to_hassette() -> None:
-    """main() passes the provided HassetteConfig to Hassette."""
+    """serve() passes the provided HassetteConfig to Hassette."""
     mock_core, mock_config = make_mock_core_and_config()
 
     with patch_hassette_and_signal_registration(mock_core) as (mock_hassette_cls, _, _):
-        await main(mock_config)
+        await serve(create_core(mock_config))
 
     mock_hassette_cls.assert_called_once_with(config=mock_config)
 
 
 @contextmanager
-def patch_hard_exit() -> Iterator[MagicMock]:
-    """Patch the hard exit's ``os._exit`` and ``logging.shutdown`` so the test worker survives; yields the exit."""
-    with patch("hassette.server.os._exit") as mock_exit, patch("hassette.server.logging.shutdown"):
-        yield mock_exit
+def patch_exit_halves() -> Iterator[tuple[MagicMock, AsyncMock]]:
+    """Patch the exit watchdog and the task cancellation, which must never run on the shared test loop."""
+    with (
+        patch("hassette.server.start_exit_watchdog") as mock_watchdog,
+        patch("hassette.server.cancel_remaining_tasks", new_callable=AsyncMock, return_value=[]) as mock_cancel,
+    ):
+        yield mock_watchdog, mock_cancel
 
 
-async def test_main_does_not_hard_exit_without_abandoned_work() -> None:
-    """main() returns normally when no shutdown deadline walked away from work."""
+async def test_serve_never_runs_the_exit_check() -> None:
+    """In-process callers of serve() (these tests) never cancel the loop's tasks or arm the watchdog."""
     mock_core, mock_config = make_mock_core_and_config()
-    with patch_hassette_and_signal_registration(mock_core), patch_hard_exit() as mock_exit:
-        await main(mock_config)
+    with patch_hassette_and_signal_registration(mock_core), patch_exit_halves() as (mock_watchdog, mock_cancel):
+        await serve(create_core(mock_config))
 
-    mock_exit.assert_not_called()
+    mock_watchdog.assert_not_called()
+    mock_cancel.assert_not_awaited()
 
 
-async def test_main_hard_exits_zero_when_abandoned_work_is_the_only_problem() -> None:
-    """A clean run_forever() that left force-terminated work behind hard-exits with code 0."""
+async def test_run_calls_the_exit_check_after_a_clean_run() -> None:
+    """``hassette run``'s coroutine runs the exit check once the core stops, with no error."""
     mock_core, mock_config = make_mock_core_and_config()
-    mock_core.force_terminated_work = ("AppHandler",)
-    with patch_hassette_and_signal_registration(mock_core), patch_hard_exit() as mock_exit:
-        await main(mock_config)
+    with (
+        patch_hassette_and_signal_registration(mock_core),
+        patch("hassette.server.exit_after_run", new_callable=AsyncMock) as mock_exit_check,
+    ):
+        await run(mock_config)
 
-    mock_exit.assert_called_once_with(0)
+    mock_exit_check.assert_awaited_once_with(mock_core, None)
+
+
+async def test_run_calls_the_exit_check_with_the_error_and_reraises() -> None:
+    """When the run raises, the exit check gets the error, and the error still reaches ``hassette run``."""
+    mock_core, mock_config = make_mock_core_and_config()
+    error = FatalError("boom")
+    mock_core.run_forever = AsyncMock(side_effect=error)
+    with (
+        patch_hassette_and_signal_registration(mock_core),
+        patch("hassette.server.exit_after_run", new_callable=AsyncMock) as mock_exit_check,
+        pytest.raises(FatalError),
+    ):
+        await run(mock_config)
+
+    mock_exit_check.assert_awaited_once_with(mock_core, error)
 
 
 @pytest.mark.parametrize(
     ("exc", "code"),
-    [(FatalError("boom"), 1), (ConfigError("bad"), EX_CONFIG), (KeyboardInterrupt(), 0), (RuntimeError("bug"), 1)],
+    [
+        (None, 0),
+        (FatalError("boom"), 1),
+        (ConfigError("bad"), EX_CONFIG),
+        (KeyboardInterrupt(), 0),
+        (RuntimeError("bug"), 1),
+    ],
 )
-async def test_main_hard_exits_with_the_code_run_maps_the_failure_to(exc: BaseException, code: int) -> None:
-    """When run_forever() raises and work was abandoned, the hard exit uses ``hassette run``'s exit code."""
-    mock_core, mock_config = make_mock_core_and_config()
-    mock_core.run_forever = AsyncMock(side_effect=exc)
-    mock_core.force_terminated_work = ("thread hassette-sync_0",)
-    with (
-        patch_hassette_and_signal_registration(mock_core),
-        patch_hard_exit() as mock_exit,
-        pytest.raises(type(exc)),
-    ):
-        await main(mock_config)
+async def test_exit_check_arms_the_watchdog_with_the_mapped_code(exc: BaseException | None, code: int) -> None:
+    """The watchdog gets the exit code ``hassette run`` maps the outcome to, on either path."""
+    mock_core = MagicMock()
+    mock_core.shutdown_snapshot_task = None
+    with patch_exit_halves() as (mock_watchdog, _):
+        await exit_after_run(mock_core, exc)
 
-    mock_exit.assert_called_once_with(code)
+    assert mock_watchdog.call_args.args[1] == code
 
 
-async def test_hard_exit_waits_for_an_in_flight_shutdown_snapshot() -> None:
-    """The hard exit lets a running shutdown snapshot finish before exiting."""
+async def test_exit_check_waits_for_an_in_flight_shutdown_snapshot() -> None:
+    """The shutdown snapshot is waited for, and finishes, before any task is cancelled."""
     finished = asyncio.Event()
 
     async def snapshot() -> bool:
@@ -321,10 +350,10 @@ async def test_hard_exit_waits_for_an_in_flight_shutdown_snapshot() -> None:
         return True
 
     mock_core = MagicMock()
-    mock_core.force_terminated_work = ("AppHandler",)
     mock_core.shutdown_snapshot_task = asyncio.create_task(snapshot())
-    with patch_hard_exit() as mock_exit:
-        await exit_now_if_work_force_terminated(mock_core, None)
+    with patch_exit_halves() as (_, mock_cancel):
+        mock_cancel.side_effect = lambda _deadline: [] if finished.is_set() else pytest.fail("snapshot cut short")
+        await exit_after_run(mock_core, None)
 
     assert finished.is_set()
-    mock_exit.assert_called_once_with(0)
+    assert not mock_core.shutdown_snapshot_task.cancelled()

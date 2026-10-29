@@ -1013,3 +1013,20 @@ machinery), #3113 (remaining duplicate guards), #3114 (`TaskBucket` subclassing 
 - **D12: refusals are logged only by callers with no response channel** (bootstrap `start_apps`, and
   `apply_changes`'s restarts and autostarts), through one helper over the returned outcomes. This supersedes
   the interim rule in the item 7 entry above: an HTTP refusal is in its response and isn't logged.
+
+**2026-10-29 — #3395 (spec 141).** Superseded by `design/specs/141-shutdown-outcome/design.md`:
+
+- **D18: the cause vocabulary is replaced by a small outcome** (spec 141 D1, D2, D5): a ranked result
+  (`DONE` < `FAILED` < `TIMED_OUT` < `INCOMPLETE`), the names still running, and one reason for the worst
+  result. Every reader branched on one of those three things, and peers (systemd `Result=`, HA
+  `ConfigEntryState` plus a reason) keep the same shape. `is_restart_safe` keeps its name and its verdict for
+  every former cause.
+- **D5/D15: the timed-out wording narrows.** A stop whose hook timed out and whose evidence is also incomplete is
+  `INCOMPLETE`, so it is worded "stopped, but…" with the outcome's reason, not "timed out". It is still FAILED
+  and flagged. A walk-away at the entry deadline keeps its "timed out" wording.
+- **D19: the hard-exit trigger is a live check at exit, not a recorded list.** `force_terminated_work` missed a
+  flagged instance's pending tasks when no deadline owner walked away, and could name work that had finished
+  (KI-007 in spec 138, F7 here). `hassette run` now cancels the remaining tasks and hard-exits on a survivor
+  after a 5s budget, and a watchdog thread hard-exits 1s later if anything else holds the process (spec 141
+  D3, D4). The rest of D19's "Process exit" bullet holds: the snapshot is waited for, abandoned work exits 0,
+  and embedded and harness loops never hard-exit.

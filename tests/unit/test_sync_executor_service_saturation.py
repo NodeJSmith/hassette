@@ -447,7 +447,7 @@ class TestShutdownInterruptsPythonWorker:
     def test_python_worker_name_and_stack_logged(self) -> None:
         """Straggler thread name and stack are logged before interruption.
 
-        Patches _log_thread_running_at_shutdown directly — avoids structlog/caplog
+        Patches log_thread_running_at_shutdown directly — avoids structlog/caplog
         ordering sensitivity (project uses structlog, which bypasses caplog).
         """
         executor = InterruptibleThreadPoolExecutor(max_workers=1, thread_name_prefix="hassette-sync")
@@ -457,10 +457,10 @@ class TestShutdownInterruptsPythonWorker:
         def capture_log(name: str, ident: int) -> None:
             log_calls.append((name, ident))
 
-        with patch.object(ie_module, "_log_thread_running_at_shutdown", side_effect=capture_log):
+        with patch.object(ie_module, "log_thread_running_at_shutdown", side_effect=capture_log):
             executor.shutdown(join_threads_or_timeout=True, timeout=2.0)
 
-        assert log_calls, "Expected _log_thread_running_at_shutdown to be called for straggler"
+        assert log_calls, "Expected log_thread_running_at_shutdown to be called for straggler"
         assert any("hassette-sync" in name for name, _ in log_calls), (
             f"Expected thread name with 'hassette-sync' prefix; got: {log_calls}"
         )
@@ -520,10 +520,10 @@ class TestShutdownCBlockedWorker:
         def capture_log(name: str, ident: int) -> None:
             log_calls.append((name, ident))
 
-        with patch.object(ie_module, "_log_thread_running_at_shutdown", side_effect=capture_log):
+        with patch.object(ie_module, "log_thread_running_at_shutdown", side_effect=capture_log):
             executor.shutdown(join_threads_or_timeout=True, timeout=0.5)
 
-        assert log_calls, "Expected _log_thread_running_at_shutdown to be called for C-blocked straggler"
+        assert log_calls, "Expected log_thread_running_at_shutdown to be called for C-blocked straggler"
         assert any("hassette-sync" in name for name, _ in log_calls), (
             f"Expected thread name with 'hassette-sync' prefix; got: {log_calls}"
         )

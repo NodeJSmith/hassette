@@ -129,22 +129,22 @@ class TestReinitializeRefusedAfterChildWorkLeftRunning:
 
     async def test_start_raises_and_never_reinitializes(self) -> None:
         parent = await self._make_unsafe_parent()
-        stored_report = parent.teardown_report
+        stored_report = parent.shutdown_outcome
 
         with pytest.raises(RestartRefusedError) as exc_info:
             start(parent)
 
-        assert exc_info.value.report is stored_report
-        assert parent.teardown_report is stored_report
+        assert exc_info.value.outcome is stored_report
+        assert parent.shutdown_outcome is stored_report
         assert parent.status == ResourceStatus.STOPPED
 
     async def test_direct_initialize_raises_and_never_reinitializes(self) -> None:
         parent = await self._make_unsafe_parent()
-        stored_report = parent.teardown_report
+        stored_report = parent.shutdown_outcome
 
         with pytest.raises(RestartRefusedError) as exc_info:
             await parent.initialize()
 
-        assert exc_info.value.report is stored_report
-        assert parent.teardown_report is stored_report
+        assert exc_info.value.outcome is stored_report
+        assert parent.shutdown_outcome is stored_report
         assert parent.status == ResourceStatus.STOPPED

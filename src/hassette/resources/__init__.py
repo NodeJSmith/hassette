@@ -19,11 +19,11 @@ from hassette.resources.operations import (
     run_hooks,
     start_children_and_wait,
 )
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult
 
 __all__ = [
-    "TeardownCause",
-    "TeardownReport",
+    "ShutdownOutcome",
+    "ShutdownResult",
     "cancel",
     "create_service_status_event",
     "handle_crash",

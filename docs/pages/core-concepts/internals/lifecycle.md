@@ -106,51 +106,59 @@ resource still reaches `STOPPED`, because `STOPPED` only means lifecycle orchest
 running. Restarting an object that reached `STOPPED` without that positive proof risks running old
 and new work in the same process at once.
 
-Every completed `shutdown()` call returns a [`TeardownReport`][hassette.resources.teardown.TeardownReport] — an
-immutable record of what shutdown actually observed. A report carries zero or more
-[`TeardownCause`][hassette.resources.teardown.TeardownCause] values (a failed hook, a timed-out child, tasks still
-pending, and so on) and the names of any tasks still pending. Its `is_restart_safe` property derives from
-those pending tasks and causes:
+Every completed `shutdown()` call returns a [`ShutdownOutcome`][hassette.resources.shutdown_outcome.ShutdownOutcome].
+An outcome is an immutable summary of how the attempt ended. It carries three fields:
+
+- `result`, a [`ShutdownResult`][hassette.resources.shutdown_outcome.ShutdownResult]: `DONE`, `FAILED` (a hook
+  or `cleanup()` raised), `TIMED_OUT` (one was cut off at its bound), or `INCOMPLETE` (work may still run).
+- `still_running`, the names of tasks still pending when the attempt ended.
+- `reason`, one line naming the resource and step behind the result, such as
+  `"MyService's shutdown body raised RuntimeError"`. It is `None` for `DONE`.
+
+Its `is_restart_safe` property derives from `result` and `still_running`:
 
 ```python
---8<-- "pages/core-concepts/snippets/internals_teardown_report.py"
+--8<-- "pages/core-concepts/snippets/internals_shutdown_outcome.py"
 ```
 
 `is_restart_safe` answers one question: may work from this attempt still be running? It's `False`
-when a tracked task or the `serve()` task was still pending, when an initializer didn't finish
-being cancelled, when a child's teardown failed, timed out, or was itself restart-unsafe, or when
-the evidence is incomplete (the attempt was force-terminated, its coordinator failed, or its
-shutdown body raised or was cancelled before its later steps ran). A hook
-that raised or timed out and has since ended is still recorded in `causes`, but it leaves the
-report restart-safe: nothing from it is still running. Read `causes` for what went wrong and
-`is_restart_safe` for whether anything may still run. The property is computed from those fields,
-never stored, so the two can't disagree.
+when anything is named in `still_running`, or when `result` is `INCOMPLETE`. A tracked task, the
+`serve()` task, and an initializer that didn't finish being cancelled are named in `still_running`. An
+initializer is named by its task name, `resource:initialize:<unique_name>`.
+
+`INCOMPLETE` means the evidence can't rule out running work. The attempt was force-terminated, its
+coordinator raised, its shutdown body raised or was cancelled, or a child's shutdown raised. A hook or
+`cleanup()` that raised or timed out and has since ended gives `FAILED` or `TIMED_OUT`. That outcome stays
+restart-safe, because nothing from it is still running. The property is computed, never stored, so it
+can't disagree with the fields.
+
+Outcomes merge up the resource tree. A parent's result is the worst of its own and its children's, in the
+order `DONE` < `FAILED` < `TIMED_OUT` < `INCOMPLETE`. Its `still_running` collects every child's names. Its
+`reason` is the first one recorded at that worst result. Lesser problems appear only in the logs, which
+name each one.
 
 An exception raised outside the shutdown body itself — while observing a pending initializer or
-requesting shutdown, for example — also counts as negative evidence. The shutdown coordinator (the
-single shared task that runs one shutdown attempt for the resource) stores it on
-`teardown_report` before re-raising, so `await resource.shutdown()` raises in this case instead of
-returning a report. `teardown_report` retains the same restart-unsafe evidence a normal completion
-would have returned.
+requesting shutdown, for example — also makes the outcome `INCOMPLETE`. The shutdown coordinator (the
+single shared task that runs one shutdown attempt for the resource) stores that outcome on
+`shutdown_outcome` before re-raising, so `await resource.shutdown()` raises in this case instead of
+returning an outcome. `shutdown_outcome` holds the same restart-unsafe outcome a normal completion would
+have returned.
 
-### Inspecting a report
+### Inspecting an outcome
 
-Python callers read the report two ways. The
-[`TeardownReport`][hassette.resources.teardown.TeardownReport] reference lists its fields, such as
-`causes` and `pending_tasks`, and [`TeardownCause`][hassette.resources.teardown.TeardownCause] lists
-every cause value.
+Python callers read the outcome two ways:
 
-- The **return value** of `await resource.shutdown()` — the exact report from that call.
-- The **`teardown_report` property** — the current unconsumed report, or `None`. A report is
-  *consumed* when the resource initializes again: a restart-safe report is cleared at that point.
+- The **return value** of `await resource.shutdown()` — the exact outcome of that call.
+- The **`shutdown_outcome` property** — the current unconsumed outcome, or `None`. An outcome is
+  *consumed* when the resource initializes again: a restart-safe outcome is cleared at that point.
   The property is also `None` before any shutdown attempt completes. Prefer the return value when
-  history matters; `teardown_report` only reflects the current state.
+  history matters; `shutdown_outcome` only reflects the current state.
 
 ```python
---8<-- "pages/core-concepts/snippets/internals_teardown_report_inspect.py"
+--8<-- "pages/core-concepts/snippets/internals_shutdown_outcome_inspect.py"
 ```
 
-The report itself has no WebSocket, REST, or dashboard surface; it is a Python-only inspection
+The outcome itself has no WebSocket, REST, or dashboard surface; it is a Python-only inspection
 point for framework code and embedding hosts. For app instances, a restart-unsafe teardown is what
 sets the [needs-restart flag](../../operating/index.md#instances-that-need-a-restart) in the API,
 CLI, and web UI.
@@ -163,7 +171,7 @@ is called a *joiner*. Joiners include the background task `start()` spawns to ru
 a direct `await resource.initialize()`, and a second concurrent `shutdown()` call.
 Cancelling one caller's *wait* (for example, the caller's own task is cancelled) does not cancel
 the underlying attempt; the shared task keeps running for every other joiner. A repeated
-`shutdown()` call after the attempt has already completed returns the stored report without
+`shutdown()` call after the attempt has already completed returns the stored outcome without
 rerunning any hooks.
 
 If `initialize()` is called while a shutdown is in progress, it waits for that shutdown's outcome
@@ -177,14 +185,14 @@ This refusal belongs to one resource object. App instances get a separate one: H
 new instance over one flagged as [needing a restart](../../operating/index.md#instances-that-need-a-restart),
 and it logs that refusal instead of raising `RestartRefusedError`.
 
-`start()` and a direct `initialize()` call both check the stored report before any initialization
+`start()` and a direct `initialize()` call both check the stored outcome before any initialization
 work starts. The check runs after the [re-entry check](#lifecycle-re-entry). `start()` checks it
 once no initialization or pending start is already in flight; otherwise it returns the
-in-flight task. `initialize()` checks it after any in-progress shutdown finishes. A report with
-`is_restart_safe` `True` authorizes exactly one new attempt and is then cleared. A report with `is_restart_safe` `False` raises
-[`RestartRefusedError`][hassette.exceptions.RestartRefusedError], which carries the resource's name and the
-full report, and no initialization work starts. There is no in-process way to clear a
-restart-unsafe report on the same object, not even a test-reset helper.
+in-flight task. `initialize()` checks it after any in-progress shutdown finishes. An outcome with
+`is_restart_safe` `True` authorizes exactly one new attempt and is then cleared. An outcome with `is_restart_safe`
+`False` raises [`RestartRefusedError`][hassette.exceptions.RestartRefusedError], which carries the resource's name
+and the full outcome as `outcome`, and no initialization work starts. There is no in-process way to clear a
+restart-unsafe outcome on the same object, not even a test-reset helper.
 Once shutdown fails to prove safety, that object is done recovering on its own.
 
 !!! warning

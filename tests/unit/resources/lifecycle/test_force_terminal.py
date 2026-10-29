@@ -23,7 +23,7 @@ from hassette_wire import ResourceStatus
 
 from hassette.cache import AsyncCache
 from hassette.resources.base import Resource
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownResult, incomplete
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from tests.support.factories import make_app, make_scheduled_job
@@ -193,7 +193,7 @@ async def test_force_terminal_still_recurses_into_already_completed_children():
 async def test_force_terminal_stores_forced_terminal_report_before_cancelling_work():
     """_force_terminal() stores its restart-unsafe report (FORCED_TERMINAL) before cancelling
     anything -- ``cancel()``, ``task_bucket.cancel_all_sync()``, and the recursive descendant
-    call all happen strictly after ``self._teardown_report`` already reflects the forced
+    call all happen strictly after ``self._shutdown_outcome`` already reflects the forced
     outcome, so a caller inspecting the report mid-cancellation never sees ``None`` or a report
     that doesn't yet name the forced-terminal cause.
     """
@@ -205,7 +205,7 @@ async def test_force_terminal_stores_forced_terminal_report_before_cancelling_wo
     original_cancel_all_sync = root.task_bucket.cancel_all_sync
 
     def _spy_cancel_all_sync() -> None:
-        assert root._teardown_report is not None, "report must already be stored before cancel_all_sync() runs"
+        assert root._shutdown_outcome is not None, "report must already be stored before cancel_all_sync() runs"
         order.append("cancel_all_sync")
         original_cancel_all_sync()
 
@@ -215,10 +215,10 @@ async def test_force_terminal_stores_forced_terminal_report_before_cancelling_wo
         mock_cancel.side_effect = lambda _r: order.append("cancel")
         root._force_terminal()
 
-    report = root.teardown_report
+    report = root.shutdown_outcome
     assert report is not None
     assert report.is_restart_safe is False
-    assert TeardownCause.FORCED_TERMINAL in report.causes
+    assert report.result is ShutdownResult.INCOMPLETE
     assert order == ["cancel", "cancel_all_sync"], "both cancellation calls must run after the report was stored"
     assert root.status == ResourceStatus.STOPPED
 
@@ -235,13 +235,13 @@ async def test_force_terminal_leaves_completed_safe_child_report_unchanged():
     await root.initialize()
 
     await child.shutdown()
-    safe_report = child.teardown_report
+    safe_report = child.shutdown_outcome
     assert safe_report is not None
     assert safe_report.is_restart_safe is True
 
     root._force_terminal()
 
-    assert child.teardown_report is safe_report, "force-terminal must not touch an already-completed SAFE report"
+    assert child.shutdown_outcome is safe_report, "force-terminal must not touch an already-completed SAFE report"
     assert safe_report.is_restart_safe is True
 
 
@@ -264,7 +264,7 @@ async def test_force_terminal_reaches_grandchild_under_already_reported_child():
 
     await root.initialize()
 
-    child._teardown_report = TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+    child._shutdown_outcome = incomplete("child was force-terminated")
     assert grandchild.shutdown_completed is False
     assert grandchild.status == ResourceStatus.RUNNING
 
@@ -356,7 +356,7 @@ async def test_on_children_stopped_called_after_a_child_hook_timed_out():
 
     report = await parent.shutdown()
 
-    assert TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
+    assert report.result is ShutdownResult.TIMED_OUT
     assert parent.hook_called is True, "a timed-out child hook that ended must not block _on_children_stopped"
 
 

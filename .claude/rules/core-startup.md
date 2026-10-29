@@ -11,7 +11,7 @@ paths:
 
 # Core — Startup, Readiness, and Services
 
-Resource lifecycle mechanics (teardown reports, `_init_task`/`_shutdown_task`, module-level lifecycle functions) live in `.claude/rules/resource-lifecycle.md`.
+Resource lifecycle mechanics (shutdown outcomes, `_init_task`/`_shutdown_task`, module-level lifecycle functions) live in `.claude/rules/resource-lifecycle.md`.
 
 ## Service dependencies
 

@@ -7,7 +7,7 @@ later stages (task cancellation, child shutdown) may never have run and nothing 
 import asyncio
 
 from hassette.resources.base import Resource
-from hassette.resources.teardown import TeardownCause, TeardownReport
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ShutdownCounter, shut_down_parent_with_child
@@ -30,7 +30,7 @@ async def test_cancelled_error_escaping_a_shutdown_hook_leaves_the_report_restar
     """
     _parent, child, report = await shut_down_parent_with_child(CancelAwaitingParent, ShutdownCounter)
 
-    assert TeardownCause.SHUTDOWN_BODY_FAILED in report.causes
+    assert report.result is ShutdownResult.INCOMPLETE
     assert child.shutdown_count == 0, "the aborted body never reached child shutdown"
     assert report.is_restart_safe is False
 
@@ -38,7 +38,7 @@ async def test_cancelled_error_escaping_a_shutdown_hook_leaves_the_report_restar
 class RaisingChildrenStageParent(Resource):
     """Parent whose child-shutdown stage raises, so the body ends without a report of its own."""
 
-    async def _shutdown_children(self) -> TeardownReport:
+    async def _shutdown_children(self) -> ShutdownOutcome:
         raise RuntimeError("child stage boom")
 
 
@@ -52,5 +52,5 @@ async def test_a_shutdown_body_that_raises_leaves_the_report_restart_unsafe():
 
     report = await parent.shutdown()
 
-    assert TeardownCause.SHUTDOWN_BODY_FAILED in report.causes
+    assert report.result is ShutdownResult.INCOMPLETE
     assert report.is_restart_safe is False

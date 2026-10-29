@@ -24,7 +24,7 @@ from hassette.core.app_lifecycle_common import (
 from hassette.events.hassette import HassetteAppStateEvent
 from hassette.resources.lifecycle import create_lifecycle_task, mark_ready, skip_own_shutdown_hooks
 from hassette.resources.shutdown_deadline import deadline_in, tighten_shutdown_deadline
-from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult, incomplete, merge_outcomes
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -191,7 +191,7 @@ class AppInstanceLifecycleMixin:
         deadline: float | None = None,
         cause: Exception | None = None,
         outcomes: ActionOutcomes,
-    ) -> TeardownReport | None:
+    ) -> ShutdownOutcome | None:
         """Shut down a single app instance under its entry deadline and record the outcome.
 
         The teardown gets ``entry_deadline_seconds`` from now, shortened to ``deadline`` when the caller
@@ -206,9 +206,11 @@ class AppInstanceLifecycleMixin:
 
         - ``cause`` given (a failed init, or a failure after registration): FAILED with ``cause`` recorded,
           ``previous_status`` STARTING, since no STOPPING event was sent.
-        - A stop whose report says work may still be running (``TeardownReport.is_restart_safe`` is
+        - A stop whose outcome says work may still be running (``ShutdownOutcome.is_restart_safe`` is
           ``False``: a walk-away, pending tasks, a raised shutdown): FAILED, a failure entry, and one ERROR
-          naming what is left and saying to restart hassette.
+          naming what is left and saying to restart hassette. It is worded "timed out" for a walk-away, or
+          when the outcome's result is ``TIMED_OUT``; an ``INCOMPLETE`` outcome is worded "stopped, but…"
+          even when a hook also timed out.
         - A stop whose hook timed out but left nothing running: FAILED with a "timed out" reason; reloadable.
         - Any other stop: STOPPED.
 
@@ -224,7 +226,7 @@ class AppInstanceLifecycleMixin:
         during ``on_shutdown`` carries it.
 
         Returns:
-            The instance's ``TeardownReport``, or ``None`` when its shutdown raised.
+            The instance's ``ShutdownOutcome``, or ``None`` when its shutdown raised.
         """
         structlog.contextvars.bind_contextvars(
             app_key=inst.app_key,
@@ -242,7 +244,7 @@ class AppInstanceLifecycleMixin:
                 timeout = max(0.0, stop_deadline - asyncio.get_running_loop().time())
                 done, _pending = await asyncio.wait([task], timeout=timeout)
                 force_terminated = task not in done
-                report = await self.walk_away_from_instance(inst, task) if force_terminated else task.result()
+                outcome = await self.walk_away_from_instance(inst, task) if force_terminated else task.result()
             except Exception as exc:
                 failure = cause or exc
                 await self.settle_raised_shutdown(
@@ -250,7 +252,6 @@ class AppInstanceLifecycleMixin:
                     instance_index,
                     failure,
                     is_init_failure=cause is not None,
-                    force_terminated=force_terminated,
                     outcomes=outcomes,
                 )
                 return None
@@ -263,34 +264,32 @@ class AppInstanceLifecycleMixin:
                     inst,
                     instance_index,
                     cause,
-                    report,
-                    force_terminated=force_terminated,
+                    outcome,
                     friendly_time=friendly_time,
                     outcomes=outcomes,
                 )
                 await self.send_outcome_event(inst, status=FAILED, previous_status=STARTING, exception=cause)
-                return report
+                return outcome
 
-            timed_out = force_terminated or TeardownCause.SHUTDOWN_HOOK_TIMED_OUT in report.causes
-            if report.is_restart_safe and not timed_out:
+            timed_out = force_terminated or outcome.result is ShutdownResult.TIMED_OUT
+            if outcome.is_restart_safe and not timed_out:
                 self.logger.debug(
                     "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
                 )
                 outcomes.succeeded(instance_index)
                 await self.send_outcome_event(inst, status=STOPPED, previous_status=STOPPING)
-                return report
+                return outcome
 
             exc = self.settle_failed_stop(
                 inst,
                 instance_index,
-                report,
+                outcome,
                 timed_out=timed_out,
-                force_terminated=force_terminated,
                 friendly_time=friendly_time,
                 outcomes=outcomes,
             )
             await self.send_outcome_event(inst, status=FAILED, previous_status=STOPPING, exception=exc)
-            return report
+            return outcome
         finally:
             structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -301,23 +300,22 @@ class AppInstanceLifecycleMixin:
         failure: Exception,
         *,
         is_init_failure: bool,
-        force_terminated: bool,
         outcomes: ActionOutcomes,
     ) -> None:
-        """Settle a teardown that raised: FAILED with ``failure``, flagged unless its stored report is safe.
+        """Settle a teardown that raised: FAILED with ``failure``, flagged unless its stored outcome is safe.
 
-        The coordinator stores a COORDINATOR_FAILED report before re-raising, so this is normally a
-        needs-restart outcome too; with no report at all, nothing proves the instance's work ended.
+        The coordinator stores an ``INCOMPLETE`` outcome before re-raising, so this is normally a
+        needs-restart outcome too; with no outcome at all, nothing proves the instance's work ended.
         """
         name = inst.app_config.instance_name
         self.logger.error("Failed to stop app '%s':\n%s", name, get_short_traceback())
         self.registry.unregister_app(inst.app_key, instance_index)
         self.registry.record_failure(inst.app_key, instance_index, failure)
-        report = inst.teardown_report
-        if report is None or not report.is_restart_safe:
-            left = describe_left_running(report or TeardownReport(), inst, force_terminated=force_terminated)
+        stored = inst.shutdown_outcome
+        if stored is None or not stored.is_restart_safe:
+            left = describe_left_running(stored or ShutdownOutcome())
             reason = f"shutdown raised; {left}"
-            newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, report)
+            newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, stored)
             self.record_flagged_outcome(outcomes, inst, instance_index, failure_reason(failure), newly_flagged)
         else:
             outcomes.failed(instance_index, failure_reason(failure))
@@ -329,9 +327,8 @@ class AppInstanceLifecycleMixin:
         inst: "App[AppConfig]",
         instance_index: int,
         cause: Exception,
-        report: TeardownReport,
+        outcome: ShutdownOutcome,
         *,
-        force_terminated: bool,
         friendly_time: str,
         outcomes: ActionOutcomes,
     ) -> None:
@@ -341,7 +338,7 @@ class AppInstanceLifecycleMixin:
         ERROR by its caller; a needs-restart flag gets its own ERROR.
         """
         self.registry.record_failure(inst.app_key, instance_index, cause)
-        if report.is_restart_safe:
+        if outcome.is_restart_safe:
             self.logger.debug(
                 "Shut down app '%s' (%s) after its failed start in %s",
                 inst.app_config.instance_name,
@@ -350,19 +347,18 @@ class AppInstanceLifecycleMixin:
             )
             outcomes.failed(instance_index, failure_reason(cause))
             return
-        left = describe_left_running(report, inst, force_terminated=force_terminated)
+        left = describe_left_running(outcome)
         reason = f"failed to start, and {left}"
-        newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, report)
+        newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, outcome)
         self.record_flagged_outcome(outcomes, inst, instance_index, failure_reason(cause), newly_flagged)
 
     def settle_failed_stop(
         self,
         inst: "App[AppConfig]",
         instance_index: int,
-        report: TeardownReport,
+        outcome: ShutdownOutcome,
         *,
         timed_out: bool,
-        force_terminated: bool,
         friendly_time: str,
         outcomes: ActionOutcomes,
     ) -> Exception:
@@ -375,7 +371,7 @@ class AppInstanceLifecycleMixin:
             The exception recorded as the instance's failure.
         """
         name = inst.app_config.instance_name
-        if report.is_restart_safe:
+        if outcome.is_restart_safe:
             # Restart-safe here means the stop timed out (see above) but nothing is still pending.
             exc: Exception = TimeoutError(f"stop of app '{name}' timed out after {friendly_time}")
             self.logger.error(
@@ -385,7 +381,7 @@ class AppInstanceLifecycleMixin:
             outcomes.failed(instance_index, str(exc))
             return exc
 
-        left = describe_left_running(report, inst, force_terminated=force_terminated)
+        left = describe_left_running(outcome)
         if timed_out:
             reason = f"stop timed out after {friendly_time}; {left}"
             exc = TimeoutError(f"stop of app '{name}' timed out after {friendly_time}; {left}")
@@ -393,12 +389,12 @@ class AppInstanceLifecycleMixin:
             reason = f"stopped, but {left}"
             exc = RuntimeError(f"app '{name}' stopped, but {left}")
         self.registry.record_failure(inst.app_key, instance_index, exc)
-        newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, report)
+        newly_flagged = self.flag_instance_needs_restart(inst, instance_index, reason, outcome)
         self.record_flagged_outcome(outcomes, inst, instance_index, str(exc), newly_flagged)
         return exc
 
     def flag_instance_needs_restart(
-        self, inst: "App[AppConfig]", instance_index: int, reason: str, report: TeardownReport | None
+        self, inst: "App[AppConfig]", instance_index: int, reason: str, outcome: ShutdownOutcome | None
     ) -> bool:
         """Log the needs-restart ERROR and write the instance's record; the first record at an index stands.
 
@@ -414,7 +410,7 @@ class AppInstanceLifecycleMixin:
             instance_name=inst.app_config.instance_name,
             class_name=inst.class_name,
             reason=reason,
-            pending_tasks=report.pending_tasks if report is not None else (),
+            pending_tasks=outcome.still_running if outcome is not None else (),
         )
 
     def record_flagged_outcome(
@@ -432,14 +428,13 @@ class AppInstanceLifecycleMixin:
             outcomes.refused(instance_index, refusal)
 
     async def walk_away_from_instance(
-        self, inst: "App[AppConfig]", task: "asyncio.Task[TeardownReport]"
-    ) -> TeardownReport:
+        self, inst: "App[AppConfig]", task: "asyncio.Task[ShutdownOutcome]"
+    ) -> ShutdownOutcome:
         """Stop waiting on an instance whose stop outlived its entry deadline.
 
-        Force-terminates it (which cancels its shutdown coordinator), removes its listeners and jobs by
-        owner (bounded by ``WALK_AWAY_CLEANUP_TIMEOUT_SECONDS``), and records it as force-terminated
-        work for the process's hard exit. Returns the evidence force-termination left, which is incomplete
-        (``FORCED_TERMINAL``).
+        Force-terminates it (which cancels its shutdown coordinator) and removes its listeners and jobs by
+        owner (bounded by ``WALK_AWAY_CLEANUP_TIMEOUT_SECONDS``). Returns the outcome force-termination
+        left, which is ``INCOMPLETE``.
         """
         inst._force_terminal()
         task.cancel()
@@ -451,12 +446,11 @@ class AppInstanceLifecycleMixin:
                 "Cleanup timed out for walked-away instance '%s' — some listeners or jobs may leak until restart",
                 inst.app_config.instance_name,
             )
-        self.hassette.record_force_terminated([inst.unique_name])
-        return inst.teardown_report or TeardownReport(causes=(TeardownCause.FORCED_TERMINAL,))
+        return inst.shutdown_outcome or incomplete(f"{inst.unique_name} was force-terminated")
 
     async def shutdown_instances(
         self, instances: dict[int, "App[AppConfig]"], *, deadline: float | None = None, outcomes: ActionOutcomes
-    ) -> TeardownReport:
+    ) -> ShutdownOutcome:
         """Stop the given app instances concurrently, each under its own entry deadline.
 
         Args:
@@ -466,22 +460,22 @@ class AppInstanceLifecycleMixin:
                 that raises can't erase a sibling's.
 
         Returns:
-            The instances' teardown reports, merged.
+            The instances' shutdown outcomes, merged.
         """
         if not instances:
-            return TeardownReport()
+            return ShutdownOutcome()
 
         self.logger.debug("Stopping %d app instances", len(instances))
 
-        async def stop_one(idx: int, inst: "App[AppConfig]") -> TeardownReport | None:
+        async def stop_one(idx: int, inst: "App[AppConfig]") -> ShutdownOutcome | None:
             event = HassetteAppStateEvent.from_app(app=inst, status=STOPPING, previous_status=inst.status)
             await self.hassette.send_event(event)
             return await self.shutdown_instance(inst, idx, deadline=deadline, outcomes=outcomes)
 
-        reports = await gather_all((stop_one(idx, inst) for idx, inst in instances.items()), name="app:stop_instance")
-        return merge_teardown_reports(*(report for report in reports if report is not None))
+        results = await gather_all((stop_one(idx, inst) for idx, inst in instances.items()), name="app:stop_instance")
+        return merge_outcomes(*(outcome for outcome in results if outcome is not None))
 
-    async def shutdown_all(self, *, deadline: float | None = None) -> TeardownReport:
+    async def shutdown_all(self, *, deadline: float | None = None) -> ShutdownOutcome:
         """Stop every registered app instance concurrently, then clear the registry.
 
         Called from ``AppHandler``'s child stage at process exit, with what is left of its stop stage as
@@ -490,7 +484,7 @@ class AppInstanceLifecycleMixin:
 
         A runtime stop already in flight is still registered (``shutdown_instance`` unregisters after the
         teardown), so it is reached here too: this joins its single shielded shutdown attempt under the
-        tighter deadline, and both owners handle the report.
+        tighter deadline, and both owners handle the outcome.
         """
         self.logger.debug("Shutting down all apps")
         instances = [
@@ -499,7 +493,7 @@ class AppInstanceLifecycleMixin:
             for idx, inst in self.registry.get_running_apps(app_key).items()
         ]
         # Process exit has no response to carry outcomes; each stop gets its own, which nothing reads.
-        reports = await gather_all(
+        results = await gather_all(
             (
                 self.shutdown_instances(
                     {idx: inst},
@@ -511,7 +505,7 @@ class AppInstanceLifecycleMixin:
             name="app:shutdown_all",
         )
         self.registry.clear_all()
-        return merge_teardown_reports(*reports) if reports else TeardownReport()
+        return merge_outcomes(*results)
 
     async def emit_app_state_change(
         self,
@@ -527,13 +521,16 @@ class AppInstanceLifecycleMixin:
         await self.hassette.send_event(event)
 
 
-def describe_left_running(report: TeardownReport, inst: "App[AppConfig]", *, force_terminated: bool) -> str:
-    """Say what a restart-unsafe teardown may have left running, for a needs-restart ERROR and reason."""
-    if report.pending_tasks:
-        return f"work is still running: {', '.join(report.pending_tasks)}"
-    if force_terminated:
-        return f"{inst.unique_name} was force-terminated; its evidence is incomplete, so work may still be running"
-    return "its teardown evidence is incomplete, so work may still be running"
+def describe_left_running(outcome: ShutdownOutcome) -> str:
+    """Say what a restart-unsafe teardown may have left running, for a needs-restart ERROR and reason.
+
+    An ``INCOMPLETE`` outcome's reason names the resource and step behind it, including a walk-away's
+    forced terminal state.
+    """
+    running = f"work is still running: {', '.join(outcome.still_running)}" if outcome.still_running else ""
+    if outcome.result is ShutdownResult.INCOMPLETE and outcome.reason:
+        return f"{outcome.reason}; {running or 'work may still be running'}"
+    return running or "its teardown evidence is incomplete, so work may still be running"
 
 
 async def gather_all(coros: Iterable[Coroutine[typing.Any, typing.Any, T]], *, name: str) -> list[T]:
