@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-22
+Last reviewed: 2026-10-29
 
 ## How the pieces fit
 
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **Resource lifecycle outcomes** | *Resource Lifecycle* | Design: `design/specs/134-resource-lifecycle-outcomes/design.md`. Records each lifecycle outcome instead of inferring it: no in-process service restarts (required services exit, optional ones end dead in place), RUNNING only after init, bus death shuts down cleanly, needs-restart flag for app hooks that outlive their timeout, reloads decided under the app-key lock, typed action outcomes. Deletes the restart machinery and shutdown budget allocation. Carries the lifecycle `epic:correctness` bugs (#3108, #3109) |
+| **Instance identity** | *Instance Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Re-keys DB rows, registry, routes and client on the instance name. Unblocked now that *Log Identity* is closed; #3098's migration needs a challenge before it's built |
 
 ## Next
 
@@ -57,7 +57,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
-| **Instance identity** | *Instance Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Re-keys DB rows, registry, routes and client on the instance name. Unblocked now that *Log Identity* is closed; #3098's migration needs a challenge before it's built |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
