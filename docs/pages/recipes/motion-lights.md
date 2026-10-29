@@ -43,19 +43,28 @@ Trigger your motion sensor (or toggle it manually in Home Assistant) and check t
 hassette log --app motion_lights --since 5m
 ```
 
-Look for `on_motion` entries showing the state transition:
+Look for the `Motion state changed` message that `on_motion` logs on each transition:
 
 ```
-INFO  [motion_lights] on_motion triggered — new state: True
+INFO  Motion state changed: True
+INFO  Motion state changed: False
 ```
 
-To verify the off timer, wait for the delay to elapse and confirm the light turns off:
+To confirm the handler fired, check the listener's invocation count:
 
 ```
 hassette listener --app motion_lights
 ```
 
-The `motion_sensor` listener should show an increasing invocation count each time motion fires.
+The `motion_sensor` listener's invocation count rises each time the sensor changes state.
+
+To verify the off timer, set `off_delay_seconds = 30` in the app's config while testing. After motion clears, list the app's scheduled jobs:
+
+```
+hassette job --app motion_lights
+```
+
+The list shows the pending `motion_lights_off` job. Once the delay passes, confirm the light turns off in Home Assistant.
 
 ## Variations
 
@@ -71,7 +80,9 @@ instance_name = "hallway_motion"
 off_delay_seconds = 60
 ```
 
-**Split handlers with `changed_to`.** `changed_to` is a filter on `on_state_change` — the handler fires only when the state becomes the specified value. When using `changed_to`, the handler does not need a state parameter since the filter already ensures which transition occurred:
+**Split handlers with `changed_to`.** `changed_to` is a filter on `on_state_change` — the handler fires only when the state becomes the specified value. When using `changed_to`, the handler does not need a state parameter since the filter already ensures which transition occurred.
+
+Replace `on_initialize` and the `on_motion` method with:
 
 ```python
 --8<-- "pages/recipes/snippets/motion_lights_split.py:split_handlers"

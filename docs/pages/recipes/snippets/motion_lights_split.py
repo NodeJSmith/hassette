@@ -13,9 +13,9 @@ class MotionLightsConfig(AppConfig):
 class MotionLights(App[MotionLightsConfig]):
     off_job: Job | None
 
+    # --8<-- [start:split_handlers]
     async def on_initialize(self) -> None:
         self.off_job = None
-        # --8<-- [start:split_handlers]
         await self.bus.on_state_change(
             self.app_config.motion_sensor,
             handler=self.on_motion_detected,
@@ -28,7 +28,6 @@ class MotionLights(App[MotionLightsConfig]):
             changed_to="off",
             name="motion_off",
         )
-        # --8<-- [end:split_handlers]
 
     async def on_motion_detected(self):
         if self.off_job is not None:
@@ -42,6 +41,7 @@ class MotionLights(App[MotionLightsConfig]):
             delay=self.app_config.off_delay_seconds,
             name=OFF_JOB_NAME,
         )
+    # --8<-- [end:split_handlers]
 
     async def turn_off_light(self) -> None:
         self.off_job = None

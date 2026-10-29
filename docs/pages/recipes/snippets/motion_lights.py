@@ -22,6 +22,7 @@ class MotionLights(App[MotionLightsConfig]):
         )
 
     async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]):
+        self.logger.info("Motion state changed: %s", new_state.value)
         if new_state.value is True:
             # Motion detected — remove any pending off job and turn the light on.
             if self.off_job is not None:
