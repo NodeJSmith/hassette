@@ -83,7 +83,7 @@ See [Testing](testing.md) for the test harness guide.
 
 ## Step 7: Verify Live
 
-- [ ] Deploy the migrated app alongside (or instead of) the AppDaemon version
+- [ ] Disable the app in AppDaemon (remove or comment out its `apps.yaml` entry), then deploy the migrated Hassette app
 - [ ] Confirm all automations fire as expected in live operation
 - [ ] Check logs for any runtime errors or unexpected behavior
 
@@ -107,7 +107,7 @@ The two APIs you'll use most often after migration are configuration and state a
     ### State
 
     - AppDaemon: `self.get_state()` returns a cached state (string or dict)
-    - Hassette: `self.states.light.get("light.kitchen")` returns a typed cached state. No `await` needed. The domain prefix is optional.
+    - Hassette: `self.states.light.get("light.kitchen")` returns a typed cached state. No `await` needed. Inside a domain accessor the `light.` prefix on the entity ID is optional, so `self.states.light.get("kitchen")` works too.
     - Use `self.api.get_state()` only when you need a fresh read from Home Assistant.
 
 ## Next Steps
