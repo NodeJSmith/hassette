@@ -11,6 +11,7 @@ instance/all-app shutdown outcomes.
 """
 
 import asyncio
+import re
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
@@ -509,6 +510,40 @@ class TestShutdownInstanceEntryDeadline:
         assert not isinstance(exc, TimeoutError)
         reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
         assert reason == "stopped, but app's shutdown body raised RuntimeError; work may still be running"
+
+    @pytest.mark.parametrize(
+        ("result", "hook_reason", "expected_pattern"),
+        [
+            (
+                ShutdownResult.TIMED_OUT,
+                "app: shutdown hook on_shutdown timed out after 5s",
+                r"stop timed out after .+; app: shutdown hook on_shutdown timed out after 5s; "
+                r"work is still running: app:poller",
+            ),
+            (
+                ShutdownResult.FAILED,
+                "app: a shutdown hook raised RuntimeError",
+                r"stopped, but app: a shutdown hook raised RuntimeError; work is still running: app:poller",
+            ),
+        ],
+    )
+    async def test_a_hook_that_left_tasks_behind_is_named_in_the_needs_restart_reason(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_app_instance: AsyncMock,
+        mock_registry: MagicMock,
+        result: ShutdownResult,
+        hook_reason: str,
+        expected_pattern: str,
+    ) -> None:
+        """A restart-unsafe FAILED or TIMED_OUT outcome names the hook behind it, not only the tasks left running."""
+        outcome = ShutdownOutcome(result, ("app:poller",), hook_reason)
+        mock_app_instance.shutdown = AsyncMock(return_value=outcome)
+
+        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
+
+        reason = mock_registry.flag_needs_restart.call_args.kwargs["reason"]
+        assert re.fullmatch(expected_pattern, reason), reason
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_a_stop_that_left_tasks_pending_is_failed_and_flagged_without_timing_out(

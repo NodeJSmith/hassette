@@ -23,6 +23,14 @@ Raised for a `ConfigError` and for a failed app precheck (an app file must be ed
 key on it (systemd ``RestartPreventExitStatus=78``, the add-on's s6 ``finish`` script).
 """
 
+EX_SOFTWARE = 70
+"""sysexits.h ``EX_SOFTWARE``: ``hassette run`` hard-exited after a clean stop, abandoning work still running.
+
+Either hard exit uses it in place of 0, so a supervisor can tell a stop that cut work off from a clean one, as
+systemd does for a stop that runs past ``TimeoutStopSec``. An exit already mapped to 1 or ``EX_CONFIG`` keeps
+that code, since it says more.
+"""
+
 EXIT_BUDGET_SECONDS = 5.0
 """How long ``hassette run``'s exit check waits, after the shutdown snapshot, for cancelled tasks to finish.
 
@@ -38,7 +46,7 @@ def exit_code_for(exc: BaseException | None) -> int:
     """The exit code ``hassette run`` maps a server run's outcome to.
 
     A clean stop or a keyboard interrupt is 0, a config error or failed app precheck ``EX_CONFIG``, and a
-    fatal error or anything else unexpected 1.
+    fatal error or anything else unexpected 1. A hard exit replaces the 0 with ``EX_SOFTWARE`` (``exit_after_run``).
     """
     if exc is None or isinstance(exc, KeyboardInterrupt):
         return 0
@@ -59,10 +67,10 @@ async def exit_after_run(core: Hassette, exc: BaseException | None) -> None:
       is a survivor: it is named in one ERROR, as is ``exc``, and the process hard-exits, because
       ``asyncio.run()``'s own cancel-and-gather would otherwise wait on it forever.
 
-    Either hard exit uses the code ``hassette run`` maps ``exc`` to, so an exit whose only problem is
-    abandoned work exits 0. Only ``hassette run`` calls this, never ``serve()``: unit tests run the server
-    in-process on a shared loop, where cancelling every task or arming the watchdog would hit the whole
-    test worker.
+    Either hard exit uses the code ``hassette run`` maps ``exc`` to, or ``EX_SOFTWARE`` where that code is 0,
+    so an exit that abandoned work never reads as a clean stop. Only ``hassette run`` calls this, never
+    ``serve()``: unit tests run the server in-process on a shared loop, where cancelling every task or arming
+    the watchdog would hit the whole test worker.
     """
     snapshot = core.shutdown_snapshot_task
     if snapshot is not None and not snapshot.done():
@@ -71,8 +79,9 @@ async def exit_after_run(core: Hassette, exc: BaseException | None) -> None:
             await asyncio.shield(snapshot)
 
     deadline = time.monotonic() + EXIT_BUDGET_SECONDS
-    code = exit_code_for(exc)
-    start_exit_watchdog(deadline + EXIT_WATCHDOG_MARGIN_SECONDS, code)
+    # only the hard exits use this code, and one that abandoned work never reports a clean stop's 0
+    hard_exit_code = EX_SOFTWARE if (mapped := exit_code_for(exc)) == 0 else mapped
+    start_exit_watchdog(deadline + EXIT_WATCHDOG_MARGIN_SECONDS, hard_exit_code)
 
     survivors = await cancel_remaining_tasks(deadline)
     if not survivors:
@@ -85,13 +94,15 @@ async def exit_after_run(core: Hassette, exc: BaseException | None) -> None:
         EXIT_BUDGET_SECONDS,
         ", ".join(survivors),
     )
-    hard_exit(code)
+    hard_exit(hard_exit_code)
 
 
 async def cancel_remaining_tasks(deadline: float) -> list[str]:
     """Cancel every task on the loop but the current one, and return the names of those alive at ``deadline``.
 
-    A task that finishes its cancellation in time is not a survivor and logs nothing above DEBUG.
+    A task that finishes its cancellation in time is not a survivor. One whose cancellation ended in an
+    exception other than ``CancelledError`` (a cleanup that raised) is logged at WARNING; a clean cancel logs
+    nothing.
     """
     current = asyncio.current_task()
     tasks = [task for task in asyncio.all_tasks() if task is not current]
@@ -100,10 +111,12 @@ async def cancel_remaining_tasks(deadline: float) -> list[str]:
     if tasks:
         await asyncio.wait(tasks, timeout=max(0.0, deadline - time.monotonic()))
     # Retrieving each finished task's exception keeps asyncio from logging "exception was never retrieved"
-    # for it at exit; the error is still recorded, at DEBUG.
+    # for it at exit, so for an untracked task this WARNING is the only report. A bucket-tracked task's
+    # crash was already logged at ERROR by its bucket, so WARNING keeps the second line from reading as a
+    # second failure.
     for task in tasks:
         if task.done() and not task.cancelled() and (task_exc := task.exception()) is not None:
-            LOGGER.debug("Task %s ended with %r after the exit cancellation", task.get_name(), task_exc)
+            LOGGER.warning("Task %s raised during the exit cancellation", task.get_name(), exc_info=task_exc)
     return [task.get_name() for task in tasks if not task.done()]
 
 

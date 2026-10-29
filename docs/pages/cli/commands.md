@@ -42,6 +42,7 @@ See [Restricting Which Apps Run](../core-concepts/apps/index.md#restricting-whic
 |---|---|---|
 | 78 | The configuration must be edited before a restart can succeed. | Invalid values, unknown keys, invalid app keys, or `config_dir` set in a file (Hassette needs `config_dir` to find the files, so a value inside them is read too late). Also an app failing its precheck, the import-and-validate pass over every app module before startup (`AppPrecheckFailedError`). Fix the config or app code, then restart. |
 | 1 | A runtime failure. | A fatal error such as a bad token or unreachable Home Assistant (see [Troubleshooting](../troubleshooting.md)), the web API port already taken (`Web API could not bind to 0.0.0.0:8126`), or an unexpected exception. |
+| 70 | Hassette stopped, but exited without waiting for work that was still running. | A task that ignored its cancellation for 5 seconds after shutdown, a thread that never returned, or an exit handler that hung. The log names each one in an ERROR. See [How shutdown is bounded](../operating/index.md#how-shutdown-is-bounded). |
 
 Under systemd, `RestartPreventExitStatus=78` keeps a config error from restart-looping. See [Exit Codes](../core-concepts/configuration/index.md#exit-codes).
 

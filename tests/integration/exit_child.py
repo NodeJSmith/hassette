@@ -46,6 +46,13 @@ async def finish_cancellation_slowly() -> None:
         raise
 
 
+async def raise_in_cancellation_cleanup() -> None:
+    try:
+        await asyncio.sleep(1000)
+    except asyncio.CancelledError:
+        raise RuntimeError("flush failed") from None  # noqa: ASYNC104 — a cleanup that fails, by design
+
+
 def hang_at_exit() -> None:
     time.sleep(1000)
 
@@ -84,6 +91,8 @@ async def play_run(core: SimpleNamespace, keep: list[object]) -> None:
         atexit.register(hang_at_exit)
     if SCENARIO == "slow_cancellation":
         keep.append(loop.create_task(finish_cancellation_slowly(), name="slow-cleanup"))
+    if SCENARIO == "raising_cleanup":
+        keep.append(loop.create_task(raise_in_cancellation_cleanup(), name="raiser"))
     if SCENARIO == "snapshot":
         core.shutdown_snapshot_task = loop.create_task(write_snapshot(), name="snapshot")
     await asyncio.sleep(0.1)  # let each task reach its first await

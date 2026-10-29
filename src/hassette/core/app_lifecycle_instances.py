@@ -524,14 +524,15 @@ class AppInstanceLifecycleMixin:
 def describe_left_running(outcome: ShutdownOutcome) -> str:
     """Say what a restart-unsafe teardown may have left running, for a needs-restart ERROR and reason.
 
-    An ``INCOMPLETE`` outcome's reason names the resource and step behind it, including a walk-away's
-    forced terminal state.
+    Any result can reach here, since a restart-unsafe outcome is one with tasks still running. Its reason,
+    when set, comes first and names the resource and step behind it: a walk-away's forced terminal state,
+    or the hook that timed out or raised. Without a reason, only the running work is described.
     """
     if outcome.still_running:
         running = f"work is still running: {', '.join(outcome.still_running)}"
     else:
         running = "work may still be running"
-    if outcome.result is ShutdownResult.INCOMPLETE and outcome.reason:
+    if outcome.reason:
         return f"{outcome.reason}; {running}"
     return running
 

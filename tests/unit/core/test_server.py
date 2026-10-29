@@ -14,6 +14,7 @@ from hassette.exceptions import ConfigError, FatalError
 from hassette.resources.lifecycle import request_shutdown
 from hassette.server import (
     EX_CONFIG,
+    EX_SOFTWARE,
     _handle_sigint_signal,
     _sigint_wait_loop,
     create_core,
@@ -323,15 +324,15 @@ async def test_run_calls_the_exit_check_with_the_error_and_reraises() -> None:
 @pytest.mark.parametrize(
     ("exc", "code"),
     [
-        (None, 0),
+        (None, EX_SOFTWARE),
         (FatalError("boom"), 1),
         (ConfigError("bad"), EX_CONFIG),
-        (KeyboardInterrupt(), 0),
+        (KeyboardInterrupt(), EX_SOFTWARE),
         (RuntimeError("bug"), 1),
     ],
 )
-async def test_exit_check_arms_the_watchdog_with_the_mapped_code(exc: BaseException | None, code: int) -> None:
-    """The watchdog gets the exit code ``hassette run`` maps the outcome to, on either path."""
+async def test_exit_check_arms_the_watchdog_with_the_hard_exit_code(exc: BaseException | None, code: int) -> None:
+    """The watchdog gets the mapped exit code, with ``EX_SOFTWARE`` in place of a clean stop's 0."""
     mock_core = MagicMock()
     mock_core.shutdown_snapshot_task = None
     with patch_exit_halves() as (mock_watchdog, _):

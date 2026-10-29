@@ -63,4 +63,4 @@ When the [file watcher](#file-watcher) reloads a config that introduces a bad ke
 
 ### Exit Codes {#exit-codes}
 
-`hassette run` exits with 78 for configuration problems: invalid values, unknown keys, `config_dir` set in a file, a config location you named that doesn't exist, a missing token, invalid app entries, and a failed app precheck. Everything else exits with 1, including a port already in use. Under systemd, `RestartPreventExitStatus=78` stops a config error from restart-looping.
+`hassette run` exits with 78 for configuration problems: invalid values, unknown keys, `config_dir` set in a file, a config location you named that doesn't exist, a missing token, invalid app entries, and a failed app precheck. Everything else exits with 1, including a port already in use. A stop that leaves work running past the exit check exits with 70 (see [How shutdown is bounded](../../operating/index.md#how-shutdown-is-bounded)). Under systemd, `RestartPreventExitStatus=78` stops a config error from restart-looping.
