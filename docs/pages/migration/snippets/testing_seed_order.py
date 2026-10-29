@@ -20,11 +20,3 @@ async def test_correct_order():
         await harness.simulate_state_change(
             "binary_sensor.motion", old_value="off", new_value="on"
         )
-
-        # Wrong: set_state() after simulate_state_change() overwrites the simulated state
-        await harness.simulate_state_change(
-            "binary_sensor.motion", old_value="off", new_value="on"
-        )
-        await harness.set_state(
-            "binary_sensor.motion", "off"
-        )  # clobbers the simulated state

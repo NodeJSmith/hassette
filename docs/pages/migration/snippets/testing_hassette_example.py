@@ -1,4 +1,4 @@
-from hassette import App, AppConfig, D, states
+from hassette import App, AppConfig
 from hassette.testing import AppTestHarness
 
 
@@ -15,7 +15,7 @@ class MotionLightApp(App[MyConfig]):
             name="motion_on",
         )
 
-    async def on_motion(self, new_state: D.StateNew[states.BinarySensorState]):
+    async def on_motion(self):
         await self.api.turn_on(self.app_config.light_entity)
 
 
