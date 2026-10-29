@@ -43,7 +43,7 @@ All Hassette bus, scheduler, and API calls are `async` and need `await`. In AppD
 | HADashboard | Not planned |
 | Notification helpers (`notify`, `call_action`) | Use `await self.api.call_service("notify", ...)` directly |
 | MQTT plugin | Not yet supported. No workaround available. |
-| Global variables / inter-app communication | Send with `await self.bus.emit(topic, data)`; receive in another app with `self.bus.on(...)`. See [Cross-app Communication](../core-concepts/bus/handlers.md#cross-app-communication). |
+| Global variables / inter-app communication | Send with `await self.bus.emit(topic, data)`; receive in another app with `await self.bus.on(...)`. See [Cross-app Communication](../core-concepts/bus/handlers.md#cross-app-communication). |
 
 If a feature you depend on is missing, [open an issue](https://github.com/NodeJSmith/hassette/issues) or check [GitHub discussions](https://github.com/NodeJSmith/hassette/discussions).
 
