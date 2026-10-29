@@ -322,13 +322,7 @@ async def test_hanging_hook_is_cut_off_by_its_own_bound_and_recorded_as_timed_ou
     """A hook that outlives ``shutdown_timeout_seconds`` is cancelled and recorded as timed out, not
     raised, and the body carries on through its later stages without being force-terminated.
     """
-    hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
-
-    resource = HangingChild(hassette)
-    await resource.initialize()
-
-    outcome = await resource.shutdown()
+    resource, outcome = await shut_down_with_short_hook_bound(HangingChild)
 
     assert outcome.result is ShutdownResult.TIMED_OUT
     assert resource.status == ResourceStatus.STOPPED
@@ -378,13 +372,7 @@ class CancelSwallowingChild(Resource):
 
 async def test_hook_that_swallows_its_cancellation_and_returns_is_recorded_as_timed_out():
     """A hook cut off by its bound times out even when it catches the cancellation and returns."""
-    hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
-
-    resource = CancelSwallowingChild(hassette)
-    await resource.initialize()
-
-    outcome = await resource.shutdown()
+    _, outcome = await shut_down_with_short_hook_bound(CancelSwallowingChild)
 
     assert outcome.result is ShutdownResult.TIMED_OUT
 
@@ -720,13 +708,7 @@ async def test_coordinator_waits_for_the_body_without_a_bound_of_its_own():
     """Only leaves bound themselves: a body that outlasts ``shutdown_timeout_seconds`` without any hook
     hanging is waited for and completes restart-safe.
     """
-    hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
-
-    resource = SlowBodyResource(hassette)
-    await resource.initialize()
-
-    outcome = await resource.shutdown()
+    _, outcome = await shut_down_with_short_hook_bound(SlowBodyResource)
 
     assert outcome.is_restart_safe is True, f"expected a clean outcome, got {outcome}"
 
@@ -893,3 +875,12 @@ async def test_hooks_share_the_deadline_once_it_is_closer_than_their_bounds():
 
     assert outcome.result is ShutdownResult.TIMED_OUT
     assert elapsed < 3.0, f"hooks ran past the 0.3s deadline ({elapsed:.2f}s)"
+
+
+async def shut_down_with_short_hook_bound(resource_cls: type[Resource]) -> tuple[Resource, ShutdownOutcome]:
+    """Initialize a ``resource_cls`` with ``SHORT_SHUTDOWN_TIMEOUT_SECONDS`` as its hook bound, then shut it down."""
+    hassette = make_mock_hassette(sealed=False)
+    hassette.config.lifecycle.shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    resource = resource_cls(hassette)
+    await resource.initialize()
+    return resource, await resource.shutdown()
