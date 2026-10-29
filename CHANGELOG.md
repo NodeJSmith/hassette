@@ -5,6 +5,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.61.0](https://github.com/NodeJSmith/hassette/compare/v0.60.0...v0.61.0) (2026-10-29)
+
+This release completes the **Resource Lifecycle** milestone ([milestone 19](https://github.com/NodeJSmith/hassette/milestone/19), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/134-resource-lifecycle-outcomes/design.md)). Hassette now records what happened to each service and app instead of inferring it. Hassette no longer restarts failed services in-process: a required service's failure exits the process for your supervisor to restart, and an optional one stays dead with one ERROR. A service is RUNNING only once its initialization finishes, and a failure at boot fails startup. If the event bus dies, the process shuts down without hanging. If a timed-out hook may have left an app's work running, that instance is flagged as needing a restart, and nothing replaces it until Hassette restarts. App actions report each instance's own outcome, and every app gets its full shutdown timeout at exit. The breaking changes come first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps. Instance Identity, which re-keys stored history and routes on the instance name, comes next.
+
+### Breaking Changes
+
+- **Services are no longer restarted in-process** — when a **required** service fails after startup, the process exits with a nonzero code and a CRITICAL line naming the reason, so run Hassette under a restart policy (Docker `restart:`, systemd, the HA add-on watchdog). An **optional** service's failure, including a `FatalError`, leaves it FAILED (or CRASHED) in place with one ERROR log. A failed app-owned optional service shows up only in that log until its app reloads. `RestartSpec`/`restart_spec` are replaced by a `required` class attribute that every concrete `Service` subclass must declare: an app-owned `Service` must set `required = False`, and a required service under any parent other than `Hassette` raises at `add_child`. `Resource.restart()` is removed. `ResourceStatus.EXHAUSTED_DEAD`, `ResourceStatus.EXHAUSTED_COOLING` and `retry_at` are removed from `hassette`, `hassette-wire` and `hassette-client`, and session rows no longer record `error_type` or `error_traceback`. (#3524)
+- **Shutdown timeouts are per hook and per stage** — `app_shutdown_timeout_seconds`, `resource_shutdown_timeout_seconds` and `sync_executor_shutdown_timeout_seconds` are removed, and a config that still sets one fails to load. Use `[hassette.lifecycle] shutdown_timeout_seconds`, which now bounds each hook on its own. `total_shutdown_timeout_seconds` now includes a fixed 20-second foundation stage (finalizing the session and draining the database), and its default rises from 30 to 45. An explicit value therefore leaves 20 seconds less for stopping apps: 30 now gives a 10-second stop stage. Give your supervisor a stop grace period of at least 60 seconds (Docker `stop_grace_period`, systemd `TimeoutStopSec`); 45 can kill Hassette before the shutdown snapshot is written. (#3403)
+- **`hassette run` hard-exits if work outlives shutdown** — after shutdown, `hassette run` cancels any task still alive and hard-exits if one survives 5 seconds. A watchdog hard-exits 1 second later if the process still hasn't ended, skipping atexit handlers. Either hard exit uses exit code **70** instead of 0, so your supervisor can tell a stop that cut work off from a clean one. A fatal error still exits 1, and a config error 78. `hassette.server.main()` is replaced by `create_core()`, `serve()` and `run()`. See "How shutdown is bounded" in the operating docs. (#3587)
+- **`TeardownReport` is replaced by `ShutdownOutcome`** — `TeardownReport` and `TeardownCause` are replaced by `ShutdownOutcome` and `ShutdownResult` (`hassette.resources`). `ShutdownResult` is ranked `DONE` < `FAILED` < `TIMED_OUT` < `INCOMPLETE`, and an outcome carries the names of tasks still running plus one reason. `Resource.teardown_report` is now `Resource.shutdown_outcome`, and `RestartRefusedError.report` is now `RestartRefusedError.outcome`. Read `.outcome` instead of parsing the error message. `is_restart_safe` now means "no work may still be running": an outcome with only diagnostic problems, such as a hook that raised but finished, is restart-safe, so code that read it as "no errors" should check `result` instead. `Hassette.force_terminated_work` and `record_force_terminated()` are removed. (#3587, #3550)
+- **App start, stop and reload endpoints wait and report per-instance outcomes** — they answer 200 instead of 202, once the action has finished. `ActionResponse.status` is removed, and the required `ActionResponse.outcomes` has one entry per targeted instance: `instance_index`, `instance_name`, `result` (`succeeded`, `failed` or `refused`), `needs_restart` and `reason`. A 409 `needs_restart` means an instance was already flagged as needing a Hassette restart, so the action refused it (its siblings were still acted on). A 500 `action_failed` now also covers a failed stop and an action that leaves an instance needing a restart. Both error bodies carry `outcomes`. `hassette-client` requires a server at API schema 4; if you retry on 409, catch the new `NeedsRestartError` before a generic `ConflictError`. `hassette app start|stop|reload --json` prints `outcomes` and no longer prints `status`. (#3575)
+- **Removed settings** — each of these is now an unknown-key `ConfigError` at load; delete them from `hassette.toml` and from `HASSETTE__*` environment variables:
+    - `strict_lifecycle`. Startup registry validation always logs warnings. (#3483)
+    - `[hassette.websocket]` `authentication_timeout_seconds`, `response_timeout_seconds`, `total_timeout_seconds` and `cleanup_timeout_seconds`. These were internal protocol timeouts and keep their old values. (#3449)
+    - `[hassette.lifecycle] failed_instance_cleanup_timeout_seconds`. (#3550)
+    - `[hassette.logging] service_watcher`. Hassette refuses to start (exit 78) until it is deleted. (#3524)
+- **`InvalidLifecycleTransitionError` is removed** — assigning a `ResourceStatus` now always applies (logged at DEBUG) instead of being checked against a transition table. Drop any `except InvalidLifecycleTransitionError` handlers. (#3480)
+
+### For App Authors: You Can Now Delete
+
+- **A raised `total_shutdown_timeout_seconds`, or `on_shutdown` hooks kept artificially short, so later apps weren't cancelled at exit** — every app's shutdown hooks now get their full `shutdown_timeout_seconds` however many apps there are. Re-check any explicit total against the new foundation stage (see Breaking Changes). (#3403)
+- **A raised `[hassette.lifecycle] startup_timeout_seconds` to let a long database migration finish** — the database startup phase now gets `startup_timeout_seconds` plus `database.migration_timeout_seconds` on its own. (#3505)
+- **A raised `database.max_consecutive_heartbeat_failures` to stop `DatabaseService` restarting during long retention passes** — a heartbeat failure no longer counts while writes are still completing. (#3457)
+- **Warning filters or `IGNORE` entries for one-off `HassetteBlockingIOWarning` loop stalls** — Tier 1 stalls now warn only when the same place stalls twice, and the blocking findings list hides one-off stalls (`blocking_io.min_events`). (#3439, #3441)
+
+### Lifecycle
+
+- A service is marked RUNNING only after its whole initialization, including its children and `after_initialize()`, has finished. Any service that fails to initialize during boot fails startup at once, and the fatal reason names each failed service and its error. Startup no longer waits out the full timeout. Each startup wave's `startup_timeout_seconds` covers initialization plus readiness. When a wave times out, the log lists each unfinished service and the line it is waiting on. (#3507)
+- When the event bus dies, Hassette now shuts down cleanly instead of blocking on a full event channel until the shutdown deadlines force-terminate everything. Every resource still reaches STOPPED. (#3537)
+- An app instance whose teardown may have left work running (a hook past its timeout, tasks still pending, a shutdown that raised) is now flagged as needing a restart. It stays FAILED, with one ERROR naming what was left running, until Hassette restarts. The flag shows in the web UI, in a `Restart` column in `hassette app`, in a `hassette status` table, and as `needs_restart` on `AppInstance`, `AppSummary.needs_restart_count` and the `app_status_changed` event. An instance whose init failed is now shut down through the normal path, so its listeners and jobs are removed the same way as on a stop. (#3550)
+- Start, reload, autostart and config changes never create an instance over one flagged as needing a restart. Instead they log one ERROR telling you to restart Hassette, and sibling instances start as usual. Config and file-change reloads now decide each app's plan while holding its lock, so a stop that finishes mid-reload can no longer bring back the instances it just stopped. (#3566)
+- An app hook cut off by its timeout now leaves the instance FAILED with a "timed out" reason instead of STOPPED, even if the hook catches the cancellation and returns. (#3403)
+
+### Blocking I/O Detection
+
+- The Tier 1 loop watchdog warns only when the same place (app plus innermost app frame, or the handler or job) stalls the loop a second time. The first stall is still recorded in telemetry and logged at DEBUG. (#3439)
+- New `[hassette.blocking_io] min_events` (default `2`) hides Tier 1 findings with fewer events from the findings list. Set it to `1` for the old behavior. Tier 2 findings are never hidden. The Apps list's blocking badge counts the same findings, so it no longer shows for an app whose findings list is empty. (#3441, #3445)
+
+### Scheduler
+
+- Scheduled jobs store `next_run`, `fire_at` and `jitter` in the database at registration and keep them current after each fire and reschedule. Rows for jobs not registered this session are cleared, so DB-backed (degraded) responses, the UI and the CLI no longer show stale or phantom timing. (#3407, #3411, #3415)
+- Jitter is rolled when a job's next run is set, so `fire_at` is final before the job is registered or persisted. (#3400)
+- A listener or job registered at runtime (for example `run_in(..., if_exists="replace")` from a handler) no longer re-parses the source file on the event loop each time. (#3372)
+
+### Database & Telemetry
+
+- A busy database worker is no longer restarted during a long retention pass, and a genuinely stalled one is caught in about 90 seconds instead of about 15 minutes: the `database.heartbeat_interval_seconds` default drops from 300 to 30. (#3457)
+- Fire-and-forget telemetry writes no longer starve awaited database writes. (#3453)
+- Slow database migrations can finish within `database.migration_timeout_seconds` at startup, and a migration timeout now names that setting. (#3505)
+- The default log view uses a new partial index, so it stays fast when app lines are sparse among framework lines. (#3381)
+
+### Logging
+
+- Stack traces, tracebacks and structlog lines keep their shape on the background log queue. Previously, stdlib tracebacks were folded into the message, and some native structlog lines were lost with `--- Logging error ---`. JSON output uses one `stack` and one `exception` key. Stored log rows keep the traceback separately, so the dashboard log drawer's exception panel shows it. `hassette log` and `hassette execution` tables show the exception's `Type: message` line under the message. (#3220)
+- Stdlib log lines are stamped with the time they were created, not the time the log queue rendered them, so lines no longer reorder under load. (#3486)
+- A failed service initialization logs its traceback once instead of three times. (#3508)
+
+### Bug Fixes
+
+- Bus, scheduler and websocket invariant checks now raise explicit errors instead of using `assert`, so they still fire under `python -O`. (#3378, #3380, #3382)
+- Database error handlers catch only storage errors, so a programming error now surfaces instead of being logged as a storage failure and swallowed. (#3463, #3488, #3490)
+- The CLI rejects a `server_url` with `user:password@` userinfo when a Hassette token is also configured, instead of silently dropping the token and failing authentication. (#3430)
+- The Docker `latest` tag only moves for the highest stable release, so a patch to an older release line no longer moves `latest` backwards. (#3423)
+
+### Documentation
+
+- The operating guide explains how shutdown is bounded, error handler registration, the shutdown snapshot and Docker grace period, instances that need a restart, HA-restart, reconnect and degraded-database handling, and how to pick and update a pinned Docker image tag. (#3512, #3555, #3556, #3566, #3587)
+- The AppDaemon migration guide clarifies app config brackets, when the state cache is populated, handler-signature imports, the forgotten-await claim, `emit`, the missing-name error and testing examples. It also says to disable the AppDaemon app before deploying its Hassette migration. (#3564, #3569, #3572, #3578, #3579, #3580, #3583)
+- The lifecycle and internals pages were corrected: the CRASHED event vs status, when `start()`/`initialize()` check the shutdown outcome, StateProxy's event source and listener priority, scheduler missed jobs, and cleaning up app-owned resources when `on_initialize` fails. (#3402, #3517, #3528, #3530, #3540, #3576)
+- Bus, scheduler and state docs: glob topics for `bus.on()`, `mode=` on every subscription method, execution-mode guidance, scheduler mode values, every accessor in the predicate reference, `Topic` in the raw-event example, the climate attribute and debounce sensor recipes, testing the daily notification recipe, and custom state value types. (#3467, #3469, #3478, #3487, #3489, #3525, #3529, #3531, #3532, #3535, #3538, #3588, #3590)
+- Logging and configuration docs: where an app's logs go, every setting needed to see an app's framework debug lines, the log-level and blocking-I/O tables, file-watcher log levels, backpressure, the app shutdown hook timeout, and restarting after setting `trusted_proxies`. (#3377, #3379, #3385, #3388, #3545, #3554, #3560, #3585)
+- Getting started, Docker and CLI docs: upgrade steps, the first automation's verify step, Docker timezone, compose and troubleshooting snippets, the add-on example app, running the CLI, `homeassistant_started` ordering, troubleshooting setup steps, and test harness identifiers and examples. (#3383, #3393, #3396, #3398, #3482, #3485, #3533, #3542, #3547, #3549, #3557, #3558, #3562)
+- Public `api`, `utils`, `bus`, `scheduler`, trigger, sync facade, task bucket, history, entrypoint and config methods now have docstrings. (#3384, #3387, #3410, #3416)
+
 ## [0.60.0](https://github.com/NodeJSmith/hassette/compare/v0.59.0...v0.60.0) (2026-10-22)
 
 This release completes the **Log Identity** milestone ([milestone 17](https://github.com/NodeJSmith/hassette/milestone/17), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/133-log-identity-axes/design.md)). Every app instance now has one name you choose, and that name drives its logger names and owner identity. Every log line records who wrote it, which app it is about, and which handler or job run produced it, as separate facts. Log views default to your apps' lines plus Hassette's errors. The rest are one opt-in away, and framework lines are marked. The milestone's breaking changes are listed first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps. Instance Identity, which re-keys stored history and routes on the instance name, comes next.
