@@ -19,10 +19,11 @@ shadow one or the other. `test_database_service.py`, `test_database_service_toct
 `test_database_service_retention.py`, `test_database_heartbeat_progress.py`, and `test_database_storage_error_handlers.py` import `mock_hassette`/`service`/`initialized_service_with_worker` directly from
 `._fixtures_database_service` instead.
 
-`_fixtures_retention.py` (in-memory telemetry `db`, `mock_hassette_for_db`, `retention_service`, plus the
-`run_size_failsafe` and `count_rows` helpers) is
-likewise imported directly, by `test_log_records_retention.py`, `test_retention_batch_failure.py`, and
-`test_size_failsafe_write_progress.py`,
+`_fixtures_retention.py` (in-memory telemetry `db`, `mock_hassette_for_db`, `retention_service`,
+`db_service_writer`, plus the `run_size_failsafe`, `count_rows`, `make_log_record_row` and
+`insert_blocking_event` helpers) is likewise imported directly, by `test_log_records_retention.py`,
+`test_retention_batch_failure.py`, `test_size_failsafe_write_progress.py`, and the
+`test_size_failsafe_{priority,iteration_cap,failure_isolation}.py` files,
 to keep its generic `db` fixture name out of the directory-wide namespace.
 
 ## Available fixtures (re-exported from this directory's conftest.py)
