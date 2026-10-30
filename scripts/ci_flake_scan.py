@@ -202,8 +202,8 @@ def fetch_tracked_flakes() -> list[KnownFlake]:
 
 def lookback_dates(days: int) -> list[str]:
     """Return each UTC date in the lookback window: today plus the `days` before it."""
-    now = Instant.now()
-    return [now.subtract(hours=24 * day).to_stdlib().date().isoformat() for day in range(days + 1)]
+    today = Instant.now().to_tz("UTC").date()
+    return [today.subtract(days=day).format_iso() for day in range(days + 1)]
 
 
 def list_runs(workflow: str, date: str) -> list[dict]:
