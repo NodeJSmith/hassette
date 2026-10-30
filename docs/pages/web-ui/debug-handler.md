@@ -36,7 +36,7 @@ Find your handler by searching the name box or filtering by app with the **App**
 
 Rows with any failure are highlighted in red. Click the handler name to go straight to the handler detail in the app's Handlers tab.
 
-The time window for all counts comes from the preset selector in the status bar. If you see zero runs for a handler you expect to have fired, widen the window to **Since restart**. A narrow window hides older invocations.
+The time window for all counts comes from the preset selector in the status bar. If you see zero runs for a handler you expect to have fired, select **7d**, the widest fixed preset. **Since restart**, the default, covers only the time since Hassette last started. After a recent restart, it hides older invocations.
 
 ## Drilling into Handler History
 
