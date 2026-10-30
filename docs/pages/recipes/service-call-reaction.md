@@ -63,6 +63,13 @@ The listener named `primary_light_on` should show a non-zero invocation count af
 --8<-- "pages/recipes/snippets/service_call_where.py:where"
 ```
 
+!!! warning "The glob also matches the accent light"
+    `light.living_room_*` matches the accent light too, so the handler's own `light.turn_on` call fires it again. The handler then loops without end. Return early when the call targets the accent light — make this the first lines of the handler:
+
+    ```python
+    --8<-- "pages/recipes/snippets/service_call_where.py:guard"
+    ```
+
 **React to turn-off too.** Add a second subscription for `service="turn_off"` with its own handler, and call `light.turn_off` on the accent light there. The two subscriptions are independent. Each fires only for its own service type.
 
 ## See Also
