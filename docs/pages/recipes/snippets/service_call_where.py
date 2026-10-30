@@ -1,8 +1,16 @@
+from pydantic_settings import SettingsConfigDict
+
 from hassette import App, AppConfig, P
 from hassette.events import CallServiceEvent
 
 
-class MyApp(App[AppConfig]):
+class LightGroupConfig(AppConfig):
+    model_config = SettingsConfigDict(env_prefix="light_group_")
+
+    accent_light: str = "light.living_room_accent"
+
+
+class LightGroupApp(App[LightGroupConfig]):
     async def on_initialize(self) -> None:
         await self.bus.on_call_service(
             domain="light",
@@ -14,4 +22,9 @@ class MyApp(App[AppConfig]):
             # --8<-- [end:where]
         )
 
-    async def on_turn_on(self, event: CallServiceEvent) -> None: ...
+    async def on_turn_on(self, event: CallServiceEvent) -> None:
+        # --8<-- [start:guard]
+        service_data = event.payload.data.service_data
+        if service_data.get("entity_id") == self.app_config.accent_light:
+            return
+        # --8<-- [end:guard]
