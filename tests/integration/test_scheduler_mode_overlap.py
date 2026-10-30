@@ -20,6 +20,12 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.testing import AppTestHarness
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
+from tests.support.scheduler_dispatch_helpers import (
+    freeze_and_dispatch,
+    get_job_by_name,
+    scheduler_service_for,
+    start_overrun,
+)
 
 if TYPE_CHECKING:
     from whenever import ZonedDateTime
@@ -74,22 +80,17 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         app = harness.app
         app.run_gate.clear()  # block the job so it overruns
 
-        scheduler = app.scheduler
-        jobs = scheduler.list_jobs()
-        job = next(j for j in jobs if j.name == "overrun_job")
-
-        # Freeze time past the job's due time
-        harness.freeze_time(job.next_run.add(seconds=1))
+        job = await get_job_by_name(harness, "overrun_job")
 
         # Start dispatch without waiting for completion — job will block on gate
-        dispatch_task = asyncio.create_task(harness._harness.hassette._scheduler_service.dispatch_and_log(job))
+        dispatch_task = await freeze_and_dispatch(harness, job)
 
         # Wait until the job has started
         await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # At this point, the job is still running (gate is closed).
         # The next occurrence should already be on the heap.
-        all_queued = await harness._harness.hassette._scheduler_service.get_all_jobs()
+        all_queued = await scheduler_service_for(harness).get_all_jobs()
         assert any(j is job for j in all_queued), "Next occurrence should be on the heap before current run completes"
 
         # Unblock and clean up
@@ -114,9 +115,7 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
             fire_times.append(date_utils.now())
 
     async with AppTestHarness(_QuickApp, config={"instance_name": "quick_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "quick_job")
+        job = await get_job_by_name(harness, "quick_job")
 
         # Fire job at t=0, t=10, t=20 — all complete quickly
         t0 = job.next_run
@@ -125,9 +124,7 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
         await asyncio.sleep(0)
 
         # Re-get job after reschedule
-        jobs2 = await scheduler_service.get_all_jobs()
-        job2 = next((j for j in jobs2 if j.name == "quick_job"), None)
-        assert job2 is not None, "Job should still be scheduled after one fire"
+        job2 = await get_job_by_name(harness, "quick_job")
 
         # Next fire should be ~10s after first fire, not 10s after completion
         delta = (job2.next_run - t0).total("seconds")
@@ -151,27 +148,15 @@ async def test_single_mode_suppresses_overrun() -> None:
         app = harness.app
         app.run_gate.clear()  # keep job running
 
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "single_job")
-
-        # Dispatch first fire (will block)
-        harness.freeze_time(job.next_run.add(seconds=1))
-        dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Wait for next occurrence to be on heap
-        await asyncio.sleep(0)
-        jobs2 = await scheduler_service.get_all_jobs()
-        next_job = next((j for j in jobs2 if j.name == "single_job"), None)
-        assert next_job is not None, "Next occurrence should be on heap"
+        # First fire blocks, so the next occurrence overruns it
+        job, dispatch1, next_job = await start_overrun(harness, "single_job", app.started)
 
         # Reset started event so we can detect second attempt
         app.started.clear()
 
         # Dispatch the second (overrunning) occurrence — guard should suppress
-        harness.freeze_time(next_job.next_run.add(seconds=1))
-        await scheduler_service.dispatch_and_log(next_job)
+        dispatch2 = await freeze_and_dispatch(harness, next_job)
+        await dispatch2
 
         # Guard should have suppressed the second invocation
         assert job.guard.suppressed >= 1, f"Expected guard.suppressed >= 1 (single mode), got {job.guard.suppressed}"
@@ -202,23 +187,17 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
             concurrent_count[0] -= 1
 
     async with AppTestHarness(_ParallelApp, config={"instance_name": "parallel_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "parallel_job")
+        job = await get_job_by_name(harness, "parallel_job")
 
         # Dispatch first fire (blocks on gate) — via create_task to allow concurrent
-        harness.freeze_time(job.next_run.add(seconds=1))
-        dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
+        dispatch1 = await freeze_and_dispatch(harness, job)
         await asyncio.sleep(0)
 
         # Job should now be running (concurrently); get next occurrence
-        jobs2 = await scheduler_service.get_all_jobs()
-        next_job = next((j for j in jobs2 if j.name == "parallel_job"), None)
-        assert next_job is not None, "Next occurrence should be on heap"
+        next_job = await get_job_by_name(harness, "parallel_job")
 
         # Dispatch second (overrunning) occurrence — should run concurrently (not suppress)
-        harness.freeze_time(next_job.next_run.add(seconds=1))
-        dispatch2 = asyncio.create_task(scheduler_service.dispatch_and_log(next_job))
+        dispatch2 = await freeze_and_dispatch(harness, next_job)
         await asyncio.sleep(0)
 
         # Allow both to start
@@ -259,25 +238,12 @@ async def test_queued_mode_serializes_overrun() -> None:
             run_order.append(num)
 
     async with AppTestHarness(_QueuedApp, config={"instance_name": "queued_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "queued_job")
-
-        # Dispatch first fire — it will block
-        harness.freeze_time(job.next_run.add(seconds=1))
-        dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Get next occurrence off heap
-        await asyncio.sleep(0)
-        jobs2 = await scheduler_service.get_all_jobs()
-        next_job = next((j for j in jobs2 if j.name == "queued_job"), None)
-        assert next_job is not None, "Next occurrence should be on heap"
+        # First fire blocks, so the next occurrence overruns it
+        job, dispatch1, next_job = await start_overrun(harness, "queued_job", first_started)
 
         # Dispatch second — should be queued (QUEUED_ACCEPTED), not suppressed
-        harness.freeze_time(next_job.next_run.add(seconds=1))
-        # Use create_task so we don't block waiting for bridge resolution on QUEUED_ACCEPTED
-        dispatch2 = asyncio.create_task(scheduler_service.dispatch_and_log(next_job))
+        # Not awaited to completion: that would block waiting for bridge resolution on QUEUED_ACCEPTED
+        dispatch2 = await freeze_and_dispatch(harness, next_job)
         await asyncio.sleep(0)
 
         # Guard should have accepted the queued invocation
@@ -317,25 +283,12 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
             await gate.wait()
 
     async with AppTestHarness(_QueuedHangApp, config={"instance_name": "queued_hang_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "queued_hang_job")
-
-        # Dispatch first fire — blocks on gate (first invocation is now running)
-        harness.freeze_time(job.next_run.add(seconds=1))
-        dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Get next occurrence off heap
-        await asyncio.sleep(0)
-        jobs2 = await scheduler_service.get_all_jobs()
-        next_job = next((j for j in jobs2 if j.name == "queued_hang_job"), None)
-        assert next_job is not None, "Next occurrence should be on heap"
+        # First fire blocks, so the next occurrence overruns it
+        job, dispatch1, next_job = await start_overrun(harness, "queued_hang_job", first_started)
 
         # Dispatch second — queued mode accepts it (QUEUED_ACCEPTED).
         # dispatch2 now parks on ``await done`` waiting for the queued factory to drain.
-        harness.freeze_time(next_job.next_run.add(seconds=1))
-        dispatch2 = asyncio.create_task(scheduler_service.dispatch_and_log(next_job))
+        dispatch2 = await freeze_and_dispatch(harness, next_job)
         await asyncio.sleep(0)  # let dispatch2 park on await done
 
         # Remove the job while dispatch2 is parked on QUEUED_ACCEPTED.
@@ -386,7 +339,6 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
                 raise
 
     async with AppTestHarness(_RestartApp, config={"instance_name": "restart_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
         mock_executor = harness._harness.mock_executor
 
         # Wrap execute() to capture CancelledError exits — this is the signal the real
@@ -402,24 +354,12 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
 
         mock_executor.execute.side_effect = _tracking_execute
 
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "restart_job")
-
-        # Dispatch first fire — will block
-        harness.freeze_time(job.next_run.add(seconds=1))
-        dispatch1 = asyncio.create_task(scheduler_service.dispatch_and_log(job))
-        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Get next occurrence
-        await asyncio.sleep(0)
-        jobs2 = await scheduler_service.get_all_jobs()
-        next_job = next((j for j in jobs2 if j.name == "restart_job"), None)
-        assert next_job is not None, "Next occurrence should be on heap"
+        # First fire blocks, so the next occurrence overruns it
+        _, dispatch1, next_job = await start_overrun(harness, "restart_job", first_started)
 
         # Dispatch second — restart should cancel first
         first_started.clear()
-        harness.freeze_time(next_job.next_run.add(seconds=1))
-        dispatch2 = asyncio.create_task(scheduler_service.dispatch_and_log(next_job))
+        dispatch2 = await freeze_and_dispatch(harness, next_job)
 
         # Let restart logic run
         await asyncio.sleep(0.1)
