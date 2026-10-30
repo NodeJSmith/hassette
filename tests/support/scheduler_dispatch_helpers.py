@@ -10,6 +10,7 @@ import asyncio
 from hassette.core.scheduler_service import SchedulerService
 from hassette.scheduler.classes import Job
 from hassette.testing import AppTestHarness
+from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 
 
 def scheduler_service_for(harness: AppTestHarness) -> SchedulerService:
@@ -38,3 +39,19 @@ async def freeze_and_dispatch(harness: AppTestHarness, job: Job) -> asyncio.Task
     assert job.next_run is not None, f"Job {job.name!r} has no next run to dispatch"
     harness.freeze_time(job.next_run.add(seconds=1))
     return asyncio.create_task(scheduler_service_for(harness).dispatch_and_log(job))
+
+
+async def start_overrun(
+    harness: AppTestHarness, name: str, started: asyncio.Event
+) -> tuple[Job, asyncio.Task[None], Job]:
+    """Fire the job called ``name``, wait until it is running, then look up its next occurrence.
+
+    ``started`` is the event the job's handler sets on entry. Returns the job, the task still
+    dispatching it, and the next occurrence. The test then does its own setup before firing that
+    occurrence with ``freeze_and_dispatch()``.
+    """
+    job = await get_job_by_name(harness, name)
+    dispatch = await freeze_and_dispatch(harness, job)
+    await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+    await asyncio.sleep(0)
+    return job, dispatch, await get_job_by_name(harness, name)

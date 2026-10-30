@@ -20,7 +20,12 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.testing import AppTestHarness
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
-from tests.support.scheduler_dispatch_helpers import freeze_and_dispatch, get_job_by_name, scheduler_service_for
+from tests.support.scheduler_dispatch_helpers import (
+    freeze_and_dispatch,
+    get_job_by_name,
+    scheduler_service_for,
+    start_overrun,
+)
 
 if TYPE_CHECKING:
     from whenever import ZonedDateTime
@@ -143,15 +148,8 @@ async def test_single_mode_suppresses_overrun() -> None:
         app = harness.app
         app.run_gate.clear()  # keep job running
 
-        job = await get_job_by_name(harness, "single_job")
-
-        # Dispatch first fire (will block)
-        dispatch1 = await freeze_and_dispatch(harness, job)
-        await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Wait for next occurrence to be on heap
-        await asyncio.sleep(0)
-        next_job = await get_job_by_name(harness, "single_job")
+        # First fire blocks, so the next occurrence overruns it
+        job, dispatch1, next_job = await start_overrun(harness, "single_job", app.started)
 
         # Reset started event so we can detect second attempt
         app.started.clear()
@@ -240,15 +238,8 @@ async def test_queued_mode_serializes_overrun() -> None:
             run_order.append(num)
 
     async with AppTestHarness(_QueuedApp, config={"instance_name": "queued_app"}) as harness:
-        job = await get_job_by_name(harness, "queued_job")
-
-        # Dispatch first fire — it will block
-        dispatch1 = await freeze_and_dispatch(harness, job)
-        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Get next occurrence off heap
-        await asyncio.sleep(0)
-        next_job = await get_job_by_name(harness, "queued_job")
+        # First fire blocks, so the next occurrence overruns it
+        job, dispatch1, next_job = await start_overrun(harness, "queued_job", first_started)
 
         # Dispatch second — should be queued (QUEUED_ACCEPTED), not suppressed
         # Not awaited to completion: that would block waiting for bridge resolution on QUEUED_ACCEPTED
@@ -292,15 +283,8 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
             await gate.wait()
 
     async with AppTestHarness(_QueuedHangApp, config={"instance_name": "queued_hang_app"}) as harness:
-        job = await get_job_by_name(harness, "queued_hang_job")
-
-        # Dispatch first fire — blocks on gate (first invocation is now running)
-        dispatch1 = await freeze_and_dispatch(harness, job)
-        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Get next occurrence off heap
-        await asyncio.sleep(0)
-        next_job = await get_job_by_name(harness, "queued_hang_job")
+        # First fire blocks, so the next occurrence overruns it
+        job, dispatch1, next_job = await start_overrun(harness, "queued_hang_job", first_started)
 
         # Dispatch second — queued mode accepts it (QUEUED_ACCEPTED).
         # dispatch2 now parks on ``await done`` waiting for the queued factory to drain.
@@ -370,15 +354,8 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
 
         mock_executor.execute.side_effect = _tracking_execute
 
-        job = await get_job_by_name(harness, "restart_job")
-
-        # Dispatch first fire — will block
-        dispatch1 = await freeze_and_dispatch(harness, job)
-        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
-
-        # Get next occurrence
-        await asyncio.sleep(0)
-        next_job = await get_job_by_name(harness, "restart_job")
+        # First fire blocks, so the next occurrence overruns it
+        _, dispatch1, next_job = await start_overrun(harness, "restart_job", first_started)
 
         # Dispatch second — restart should cancel first
         first_started.clear()

@@ -82,6 +82,7 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 `tests/support/scheduler_dispatch_helpers.py` — dispatch scheduled jobs by hand from `AppTestHarness` tests:
 
 - `get_job_by_name(harness, name)`, `freeze_and_dispatch(harness, job)`, `scheduler_service_for(harness)`
+- `start_overrun(harness, name, started)` — first fire held open and running, next occurrence resolved; returns `(job, dispatch_task, next_job)`
 
 `tests/support/web_manifest_helpers.py` — app manifest and snapshot models:
 
