@@ -31,11 +31,21 @@ Add this to your `pyproject.toml`:
 
 ## Write the Test
 
-```python
+Save this as `my_apps/motion_lights.py`:
+
+```python title="my_apps/motion_lights.py"
+--8<-- "pages/testing/snippets/testing_motion_lights_app.py"
+```
+
+When `motion_entity` changes to `on`, the app turns on `light_entity`. The test below checks that behavior.
+
+Save this as `test_my_app.py` in your project root, next to `my_apps/` and `pyproject.toml`, and run the command in [Run It](#run-it) from that directory.
+
+```python title="test_my_app.py"
 --8<-- "pages/testing/snippets/testing_quick_start.py"
 ```
 
-[`AppTestHarness`][hassette.testing.AppTestHarness] runs your app against a test environment. The harness wires in a `RecordingApi` automatically — it replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`. The `config` dict maps to your `AppConfig` fields — the same keys you would set in `hassette.toml`.
+[`AppTestHarness`][hassette.testing.AppTestHarness] runs your app against a test environment. The harness wires in a `RecordingApi` automatically — it replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`. The `config` dict maps to your `AppConfig` fields — the same keys you would set in `hassette.toml`. `instance_name` comes from the `AppConfig` base class and names this app instance (see [Instance Names](../core-concepts/apps/configuration.md#instance-names)).
 
 ```python
 --8<-- "pages/testing/snippets/testing_quick_start.py:harness_setup"
