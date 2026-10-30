@@ -110,6 +110,10 @@ def failed_job(job_id: int, name: str = "test (3.14)") -> dict:
     return {"databaseId": job_id, "name": name, "conclusion": "failure"}
 
 
+def flag_value(args: list[str], flag: str) -> str | None:
+    return args[args.index(flag) + 1] if flag in args else None
+
+
 @dataclass
 class FakeGh:
     """Stands in for the `gh` CLI at the subprocess boundary, as observed against real reruns.
@@ -130,7 +134,9 @@ class FakeGh:
         return next(key for key, jobs in self.jobs.items() if any(j["databaseId"] == job_id for j in jobs))
 
     def job_log_stdout(self, args: list[str]) -> str:
-        job_id = int(flag_value(args, "--job") or 0)
+        job_flag = flag_value(args, "--job")
+        assert job_flag is not None
+        job_id = int(job_flag)
         run_id, attempt = self.job_location(job_id)
         requested = flag_value(args, "--attempt")
         if requested is None and attempt != self.latest_attempt(run_id):
@@ -155,10 +161,6 @@ class FakeGh:
             attempt = int(flag_value(args, "--attempt") or self.latest_attempt(run_id))
             stdout = json.dumps({"jobs": self.jobs.get((run_id, attempt), [])})
         return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
-
-
-def flag_value(args: list[str], flag: str) -> str | None:
-    return args[args.index(flag) + 1] if flag in args else None
 
 
 def scan_report(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], gh: FakeGh) -> str:
@@ -274,3 +276,74 @@ def test_run_listed_twice_is_scanned_once(monkeypatch: pytest.MonkeyPatch, capsy
     report = scan_report(monkeypatch, capsys, gh)
 
     assert f"1x -- {SINGLE_COMMIT}" in report
+
+
+@pytest.mark.parametrize(
+    ("attempt", "conclusion", "expected"),
+    [
+        (1, "success", []),
+        (1, "cancelled", []),
+        (1, "failure", [1]),
+        (2, "success", [1]),
+        (2, "cancelled", [1]),
+        (2, "failure", [1, 2]),
+        (3, "", [1, 2]),
+    ],
+)
+def test_attempts_to_scan(attempt: int, conclusion: str, expected: list[int]) -> None:
+    assert ci_flake_scan.attempts_to_scan(gh_run(1, attempt, conclusion)) == expected
+
+
+def test_green_first_attempt_fetches_no_jobs(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    gh = FakeGh(runs=[gh_run(1, attempt=1, conclusion="success")])
+
+    scan_report(monkeypatch, capsys, gh)
+
+    assert not [args for args in gh.calls if args[1:3] == ["run", "view"]]
+
+
+def test_each_attempt_is_attributed_to_the_runs_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+    gh = FakeGh(
+        runs=[gh_run(1, attempt=2, conclusion="failure", sha="sha-a")],
+        jobs={(1, 1): [failed_job(10)], (1, 2): [failed_job(20)]},
+        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - bang")},
+    )
+    monkeypatch.setattr(ci_flake_scan.subprocess, "run", gh.run)
+
+    test_failures, infra_failures = ci_flake_scan.scan_run(gh.runs[0])
+
+    assert [(o.attempt, o.commit_sha, o.error) for o in test_failures[FLAKY_TEST]] == [
+        (1, "sha-a", "boom"),
+        (2, "sha-a", "bang"),
+    ]
+    assert not infra_failures
+
+
+def test_latest_error_comes_from_the_latest_attempt_of_a_run(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    gh = FakeGh(
+        runs=[gh_run(1, attempt=2, conclusion="failure")],
+        jobs={(1, 1): [failed_job(10)], (1, 2): [failed_job(20)]},
+        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - bang")},
+    )
+
+    report = scan_report(monkeypatch, capsys, gh)
+
+    assert "latest error: bang" in report
+
+
+def test_lookback_is_listed_one_day_at_a_time(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    gh = FakeGh(runs=[])
+    monkeypatch.setattr(ci_flake_scan.subprocess, "run", gh.run)
+
+    main(days=2, workflow=["Tests"])
+    capsys.readouterr()
+
+    created = [flag_value(args, "--created") for args in gh.calls if args[1:3] == ["run", "list"]]
+    assert created == ci_flake_scan.lookback_dates(2)
+    assert len(set(created)) == 3

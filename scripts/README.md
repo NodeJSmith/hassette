@@ -21,6 +21,7 @@ Operational scripts for building, running, and demoing hassette.
 - **`ci_flake_scan.py`** — scan recent GitHub Actions runs (`Tests`, `E2E Tests`
   by default) for recurring pytest failures, separating real flaky tests from
   GitHub Actions infra noise (network hiccups, artifact-permission errors).
+  Earlier attempts count too, so a failure a rerun cleared still shows up.
   Cross-references open `topic:flaky-test` issues (titled `Fix flaky <test name>`)
   so already-tracked flakes are reported as known rather than resurfacing every scan. `--days N` to change the
   lookback window, `--workflow` (repeatable) to scope to specific workflows.

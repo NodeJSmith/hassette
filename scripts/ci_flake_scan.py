@@ -6,15 +6,17 @@ Usage:
     uv run python scripts/ci_flake_scan.py --days 14
     uv run python scripts/ci_flake_scan.py --workflow Tests --workflow "E2E Tests"
 
-Pulls failed GitHub Actions runs for the given workflow(s) over the lookback
-window, downloads each failed job's log, and extracts pytest FAILED lines.
-Failures are grouped by test id; anything appearing 2+ times across
-independent runs is flagged as recurring and worth a look. Already-tracked
+Pulls GitHub Actions runs for the given workflow(s) over the lookback window,
+downloads the log of each failed job, and extracts pytest FAILED and ERROR
+lines. That covers earlier attempts as well as the latest one: rerunning a job
+is the normal response to a flake, so a failure a rerun cleared still counts,
+toward the commit it ran on. Failures are grouped by test id; anything
+recurring across independent commits is flagged as worth a look. Already-tracked
 flakes are read from open issues labeled `topic:flaky-test`, whose titles
 start with `Fix flaky <test name>`, so they're reported as known instead of
 resurfacing every scan.
 
-Job failures with no pytest FAILED line in their log (network hiccups,
+Job failures with no pytest FAILED or ERROR line in their log (network hiccups,
 artifact-permission errors, and other GitHub Actions infra noise) are
 reported separately, not mixed into the test-failure table.
 
@@ -94,8 +96,8 @@ RECURRING_THRESHOLD = 2
 # call stall the whole scan.
 GH_TIMEOUT_SECONDS = 30
 
-# Comfortably above this repo's actual weekly failed-run volume (tens, not
-# hundreds) -- see `gh run list --help` for the underlying API page cap.
+# Per day of lookback, since list_runs() lists one day at a time. Comfortably
+# above this repo's daily run volume, cancelled and green runs included.
 GH_RUN_LIST_LIMIT = 500
 
 # Truncation lengths for the "latest error" line in the report. Test failures
@@ -108,6 +110,7 @@ INFRA_ERROR_TRUNCATE_LEN = 120
 @dataclass
 class Occurrence:
     run_id: str
+    attempt: int
     commit_sha: str
     branch: str
     created_at: str
@@ -126,8 +129,9 @@ def latest_occurrence(occurrences: list[Occurrence]) -> Occurrence:
     `gh run list` returns newest-first, and results are combined across
     multiple workflows -- occurrences[-1] would silently pick whichever
     occurrence happened to be appended last, not the actual latest one.
+    Every attempt of a run shares the run's created_at, so attempt breaks the tie.
     """
-    return max(occurrences, key=lambda o: Instant.parse_iso(o.created_at))
+    return max(occurrences, key=lambda o: (Instant.parse_iso(o.created_at), o.attempt))
 
 
 def gh_json(*args: str) -> Any | None:
@@ -196,51 +200,78 @@ def fetch_tracked_flakes() -> list[KnownFlake]:
     return known
 
 
-def list_failed_runs(workflow: str, since_date: str) -> list[dict]:
+def lookback_dates(days: int) -> list[str]:
+    """Return each UTC date in the lookback window: today plus the `days` before it."""
+    now = Instant.now()
+    return [now.subtract(hours=24 * day).to_stdlib().date().isoformat() for day in range(days + 1)]
+
+
+def list_runs(workflow: str, date: str) -> list[dict]:
+    """List one day of a workflow's runs, whatever their conclusion.
+
+    `--status failure` can't be used: it filters on a run's latest conclusion,
+    so it hides a run whose rerun went green. Listing every run is what makes a
+    day at a time necessary -- a window of several weeks would exceed the API's
+    1000-result cap on filtered searches and silently lose its oldest runs.
+    """
     runs = gh_json(
         "run",
         "list",
         "--workflow",
         workflow,
-        "--status",
-        "failure",
         "--created",
-        f">={since_date}",
+        date,
         "--limit",
         str(GH_RUN_LIST_LIMIT),
         "--json",
-        "databaseId,headBranch,headSha,createdAt",
+        "databaseId,attempt,conclusion,headBranch,headSha,createdAt",
     )
     if runs is None:
-        print(f"warning: could not list failed runs for workflow {workflow!r}, skipping it", file=sys.stderr)
+        print(f"warning: could not list {date} runs for workflow {workflow!r}, skipping that day", file=sys.stderr)
         return []
     if len(runs) == GH_RUN_LIST_LIMIT:
         print(
-            f"warning: hit the {GH_RUN_LIST_LIMIT}-run cap for workflow {workflow!r} -- "
-            "results for this lookback window may be truncated",
+            f"warning: hit the {GH_RUN_LIST_LIMIT}-run cap for workflow {workflow!r} on {date} -- "
+            "results for that day may be truncated",
             file=sys.stderr,
         )
     return runs
 
 
-def failed_jobs(run_id: str) -> list[dict]:
-    data = gh_json("run", "view", run_id, "--json", "jobs")
+def attempts_to_scan(run: dict) -> list[int]:
+    """Return the attempts of a run that can hold failures worth scanning.
+
+    Every attempt before the latest was rerun for a reason, whatever the run
+    concluded with in the end. The latest attempt counts only if the run
+    concluded `failure`: in progress, it may still pass, and a cancelled run
+    is skipped.
+    """
+    latest = run["attempt"]
+    earlier = list(range(1, latest))
+    return [*earlier, latest] if run["conclusion"] == "failure" else earlier
+
+
+def failed_jobs(run_id: str, attempt: int) -> list[dict]:
+    data = gh_json("run", "view", run_id, "--attempt", str(attempt), "--json", "jobs")
     if data is None:
-        print(f"warning: could not fetch jobs for run {run_id}, skipping it", file=sys.stderr)
+        print(f"warning: could not fetch jobs for run {run_id} attempt {attempt}, skipping it", file=sys.stderr)
         return []
     jobs = data["jobs"]
     return [j for j in jobs if j["conclusion"] == "failure" and j["name"] not in SKIP_JOB_NAMES]
 
 
-def job_log(job_id: str) -> str | None:
+def job_log(job_id: str, attempt: int) -> str | None:
     """Return a failed job's log text, or None if the `gh` call itself failed.
 
     Kept distinct from "log fetched but had no FAILED/##[error] line" -- a
     failed `gh` call (auth hiccup, expired log retention, rate limit) must not
     be silently treated as "this job's failure has no signal."
+
+    `--attempt` is required even with a job id: without it, `gh` prints the log
+    of the run's latest attempt rather than the attempt that job belongs to.
     """
     result = subprocess.run(
-        ["gh", "run", "view", "--job", job_id, "--log-failed"],
+        ["gh", "run", "view", "--job", job_id, "--attempt", str(attempt), "--log-failed"],
         capture_output=True,
         text=True,
         timeout=GH_TIMEOUT_SECONDS,
@@ -251,7 +282,7 @@ def job_log(job_id: str) -> str | None:
 
 
 def scan_run(run: dict) -> tuple[dict[str, list[Occurrence]], dict[str, list[Occurrence]]]:
-    """Scan one run's failed jobs and return (test_failures, infra_failures) for it.
+    """Scan the failed jobs of one run's attempts and return (test_failures, infra_failures) for it.
 
     Returns fresh dicts rather than mutating caller-owned state -- the caller
     merges them into its running totals.
@@ -260,15 +291,17 @@ def scan_run(run: dict) -> tuple[dict[str, list[Occurrence]], dict[str, list[Occ
     infra_failures: dict[str, list[Occurrence]] = defaultdict(list)
 
     run_id = str(run["databaseId"])
-    for job in failed_jobs(run_id):
+    jobs = [(attempt, job) for attempt in attempts_to_scan(run) for job in failed_jobs(run_id, attempt)]
+    for attempt, job in jobs:
         occurrence_base = {
             "run_id": run_id,
+            "attempt": attempt,
             "commit_sha": run["headSha"],
             "branch": run["headBranch"],
             "created_at": run["createdAt"],
         }
 
-        log = job_log(str(job["databaseId"]))
+        log = job_log(str(job["databaseId"]), attempt)
         if log is None:
             infra_failures[job["name"]].append(
                 Occurrence(error="(gh CLI call failed fetching this job's log)", **occurrence_base)
@@ -306,12 +339,13 @@ def classify_verdict(
     suite-wide flake.
 
     Recurrence is counted by distinct commit SHA, not by run or occurrence
-    count, for two reasons: a single run fans a test out across multiple
+    count, for three reasons: a single run fans a test out across multiple
     job-level occurrences (one per Python version in the test matrix) while
-    still being one commit's worth of signal, and both workflows also support
-    `workflow_dispatch` -- a manual rerun gets a new run id but the same SHA,
-    so run-id counting alone would still misread repeated manual reruns of one
-    main commit as independent recurrence.
+    still being one commit's worth of signal, every attempt of a run shares the
+    run's SHA, and both workflows also support `workflow_dispatch` -- a manual
+    rerun gets a new run id but the same SHA, so run-id counting alone would
+    still misread repeated manual reruns of one main commit as independent
+    recurrence.
     """
     match = next((k for k in known if k.pattern.search(test_id)), None)
     if match:
@@ -368,20 +402,21 @@ def main(*, days: int = 7, workflow: list[str] | None = None) -> None:
             Defaults to "Tests" and "E2E Tests".
     """
     workflows = workflow if workflow else ["Tests", "E2E Tests"]
-    lookback_start = Instant.now().subtract(hours=24 * days)
-    since_date = lookback_start.to_stdlib().date().isoformat()
     known = fetch_tracked_flakes()
 
     test_failures: dict[str, list[Occurrence]] = defaultdict(list)
     infra_failures: dict[str, list[Occurrence]] = defaultdict(list)
 
-    for wf in workflows:
-        for run in list_failed_runs(wf, since_date):
-            run_test_failures, run_infra_failures = scan_run(run)
-            for test_id, occurrences in run_test_failures.items():
-                test_failures[test_id].extend(occurrences)
-            for job_name, occurrences in run_infra_failures.items():
-                infra_failures[job_name].extend(occurrences)
+    dates = lookback_dates(days)
+    # Keyed by run id so each run is scanned once: a run started mid-listing shifts
+    # gh's pagination and can repeat one, and --workflow can be given twice.
+    runs = {run["databaseId"]: run for wf in workflows for date in dates for run in list_runs(wf, date)}
+    for run in runs.values():
+        run_test_failures, run_infra_failures = scan_run(run)
+        for test_id, occurrences in run_test_failures.items():
+            test_failures[test_id].extend(occurrences)
+        for job_name, occurrences in run_infra_failures.items():
+            infra_failures[job_name].extend(occurrences)
 
     render_report(days, workflows, test_failures, infra_failures, known)
 
