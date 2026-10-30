@@ -163,6 +163,28 @@ class FakeGh:
         return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
 
 
+def twice_failed_gh(first_error: str, second_error: str, *, test_id: str = FLAKY_TEST) -> FakeGh:
+    """One main-branch run whose attempts 1 and 2 both failed `test_id`, with different errors."""
+    return FakeGh(
+        runs=[gh_run(1, attempt=2, conclusion="failure", branch="main")],
+        jobs={(1, 1): [failed_job(10)], (1, 2): [failed_job(20)]},
+        logs={
+            10: summary_log(f"FAILED {test_id} - {first_error}"),
+            20: summary_log(f"FAILED {test_id} - {second_error}"),
+        },
+    )
+
+
+def failed_in_both_runs_gh(first_run: dict, second_run: dict) -> FakeGh:
+    """Two runs that each failed FLAKY_TEST on their attempt 1."""
+    first_id, second_id = first_run["databaseId"], second_run["databaseId"]
+    return FakeGh(
+        runs=[first_run, second_run],
+        jobs={(first_id, 1): [failed_job(10)], (second_id, 1): [failed_job(20)]},
+        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - boom")},
+    )
+
+
 def scan_report(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], gh: FakeGh) -> str:
     """Run the whole scan against `gh` and return the printed report."""
     monkeypatch.setattr(ci_flake_scan.subprocess, "run", gh.run)
@@ -219,11 +241,7 @@ def test_attempts_failing_differently_are_both_reported(
 def test_same_failure_in_two_attempts_counts_as_one_commit(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    gh = FakeGh(
-        runs=[gh_run(1, attempt=2, conclusion="failure", branch="main")],
-        jobs={(1, 1): [failed_job(10)], (1, 2): [failed_job(20)]},
-        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - boom")},
-    )
+    gh = twice_failed_gh("boom", "boom")
 
     report = scan_report(monkeypatch, capsys, gh)
 
@@ -234,13 +252,9 @@ def test_same_failure_in_two_attempts_counts_as_one_commit(
 def test_rerun_cleared_failures_on_two_commits_are_recurring(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    gh = FakeGh(
-        runs=[
-            gh_run(1, attempt=2, conclusion="success", sha="sha-a", branch="feature-a"),
-            gh_run(2, attempt=2, conclusion="success", sha="sha-b", branch="feature-b"),
-        ],
-        jobs={(1, 1): [failed_job(10)], (2, 1): [failed_job(20)]},
-        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - boom")},
+    gh = failed_in_both_runs_gh(
+        gh_run(1, attempt=2, conclusion="success", sha="sha-a", branch="feature-a"),
+        gh_run(2, attempt=2, conclusion="success", sha="sha-b", branch="feature-b"),
     )
 
     report = scan_report(monkeypatch, capsys, gh)
@@ -251,13 +265,9 @@ def test_rerun_cleared_failures_on_two_commits_are_recurring(
 def test_rerun_cleared_failure_joins_the_commit_it_ran_on(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    gh = FakeGh(
-        runs=[
-            gh_run(1, attempt=2, conclusion="success", sha="sha-a"),
-            gh_run(2, attempt=1, conclusion="failure", sha="sha-a"),
-        ],
-        jobs={(1, 1): [failed_job(10)], (2, 1): [failed_job(20)]},
-        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - boom")},
+    gh = failed_in_both_runs_gh(
+        gh_run(1, attempt=2, conclusion="success", sha="sha-a"),
+        gh_run(2, attempt=1, conclusion="failure", sha="sha-a"),
     )
 
     report = scan_report(monkeypatch, capsys, gh)
@@ -305,11 +315,7 @@ def test_green_first_attempt_fetches_no_jobs(
 
 
 def test_each_attempt_is_attributed_to_the_runs_commit(monkeypatch: pytest.MonkeyPatch) -> None:
-    gh = FakeGh(
-        runs=[gh_run(1, attempt=2, conclusion="failure", sha="sha-a")],
-        jobs={(1, 1): [failed_job(10)], (1, 2): [failed_job(20)]},
-        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - bang")},
-    )
+    gh = twice_failed_gh("boom", "bang")
     monkeypatch.setattr(ci_flake_scan.subprocess, "run", gh.run)
 
     test_failures, infra_failures = ci_flake_scan.scan_run(gh.runs[0])
@@ -324,11 +330,7 @@ def test_each_attempt_is_attributed_to_the_runs_commit(monkeypatch: pytest.Monke
 def test_latest_error_comes_from_the_latest_attempt_of_a_run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    gh = FakeGh(
-        runs=[gh_run(1, attempt=2, conclusion="failure")],
-        jobs={(1, 1): [failed_job(10)], (1, 2): [failed_job(20)]},
-        logs={10: summary_log(f"FAILED {FLAKY_TEST} - boom"), 20: summary_log(f"FAILED {FLAKY_TEST} - bang")},
-    )
+    gh = twice_failed_gh("boom", "bang")
 
     report = scan_report(monkeypatch, capsys, gh)
 
