@@ -44,7 +44,6 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
 - `make_change_set(**buckets)` — `ChangeSet` from plain iterables, every unlisted bucket defaulting to empty
 - `make_log_record_entry(**kw)` — `hassette.logging_.LogRecordEntry` with every required field defaulted (distinct from the web-layer `make_log_entry()`)
-- `make_closing_task_bucket()` — task_bucket stub whose `spawn()` closes coroutines instead of scheduling them (contrast `make_task_bucket()` in `helpers.py`, which spawns real tasks)
 - `make_bus_service_with_mock_executor(hassette, registration_id=...)` — `(BusService, executor mock)` wired to a stubbed task bucket
 - `make_scheduler_service_with_mock_executor(hassette, registration_id=...)` — `(SchedulerService, executor mock)`, job queue stubbed too
 - `make_log_record(**kw)` — `logging.LogRecord` with keyword defaults (name, level, pathname, lineno, msg, args, exc_info)
@@ -53,6 +52,7 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `make_execution_record(*, kind="handler", session_id=1, ...)` — `ExecutionRecord` for a handler or job execution
 - `make_sync_executor(*, max_workers=2)` — standalone `SyncExecutor` for tests that need `run_in_thread`
 - `make_app(*, cls=App, instance_name="kitchen", app_key="kitchen_lights", index=0, hassette=None, **kw)` — bare `App`/`AppSync` on an unsealed `make_mock_hassette()` (or the `hassette` passed in); extra kwargs pass through to the constructor
+- `make_probe_app(schedule_fn, *, counter=False)` — throwaway `App` subclass for single-job "did it fire?" tests with `AppTestHarness`; `schedule_fn(app)` schedules against `app.task`, which records `fired` (or `fired_count`)
 - `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — dependent `Resource`/`Service` plus its declared `depends_on` types instantiated into `hassette.children`
 
 `hassette.testing` (public; defined in `src/hassette/testing/_factories.py`) — event/state builders:
@@ -60,6 +60,10 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `create_state_change_event(**kw)`, `create_call_service_event(**kw)`
 - `make_state_dict(**kw)`, `make_light_state_dict(**kw)`, `make_sensor_state_dict(**kw)`, `make_switch_state_dict(**kw)`
 - `make_typed_state(state_class, state_dict)`
+
+`tests/support/task_buckets.py` — TaskBucket arrangements:
+
+- `make_closing_task_bucket()` — task_bucket stub whose `spawn()` closes coroutines instead of scheduling them (contrast `make_task_bucket()` in `helpers.py`, which spawns real tasks)
 
 `tests/support/helpers.py` — misc test helpers:
 

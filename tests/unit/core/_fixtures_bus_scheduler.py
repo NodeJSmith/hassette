@@ -9,7 +9,7 @@ from hassette.core.bus_service import BusService, compute_elapsed, make_syntheti
 from hassette.core.event_filter import EventFilter
 from hassette.core.scheduler_service import SchedulerService
 from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
-from tests.support.factories import make_closing_task_bucket
+from tests.support.task_buckets import make_closing_task_bucket
 
 
 def make_bus_service(

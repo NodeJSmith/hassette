@@ -6,7 +6,7 @@ a sensible default; callers pass only the fields they care about.
 
 import asyncio
 import logging
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from unittest.mock import AsyncMock, MagicMock, Mock
 
@@ -44,6 +44,7 @@ from hassette.types.enums import DEFAULT_OVERLAP_MODE
 from hassette.types.types import SchedulerPredicate
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
+from tests.support.task_buckets import make_closing_task_bucket
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -542,35 +543,6 @@ def make_mock_executor() -> MagicMock:
     return executor
 
 
-def make_closing_task_bucket() -> MagicMock:
-    """Build a task_bucket stub whose ``spawn()`` closes coroutines instead of running them.
-
-    Every coroutine handed to ``spawn()`` is closed immediately so it is never reported as
-    "never awaited", and the returned task mock reports ``done() is True``.
-
-    Nothing is ever scheduled on the event loop, so reach for this when a test asserts on what
-    was spawned rather than on its effects. Contrast ``tests.support.helpers.make_task_bucket``,
-    which spawns real tasks.
-
-    Timing caveat: ``add_done_callback`` invokes its callback synchronously, where a real
-    completed future defers it through ``loop.call_soon``. A caller that decrements bookkeeping
-    from that callback (e.g. ``BusService``'s dispatch-pending counter) still ends up balanced,
-    but the ordering relative to surrounding awaits differs.
-    """
-    bucket = MagicMock()
-    task = MagicMock()
-    task.done.return_value = True
-    task.add_done_callback.side_effect = lambda callback: callback(task)
-
-    def _spawn(coro: object, **kwargs: object) -> MagicMock:  # noqa: ARG001
-        if asyncio.iscoroutine(coro):
-            coro.close()
-        return task
-
-    bucket.spawn.side_effect = _spawn
-    return bucket
-
-
 def make_bus_service_with_mock_executor(
     hassette: "Hassette",
     *,
@@ -804,3 +776,31 @@ def make_app(
     if hassette is None:
         hassette = make_mock_hassette(sealed=False)
     return cls(hassette, app_config=AppConfig(instance_name=instance_name), index=index, app_key=app_key, **kwargs)
+
+
+def make_probe_app(schedule_fn: Callable[[Any], Awaitable[Any]], *, counter: bool = False) -> type[Any]:
+    """Build a throwaway ``App`` subclass that records whether its scheduled job ran.
+
+    ``on_initialize`` resets the probe (bool ``fired``, or int ``fired_count`` with ``counter=True``), then
+    awaits ``schedule_fn(app)``, the one per-test difference, which schedules the job against ``app.task``::
+
+        _OnceApp = make_probe_app(lambda app: app.scheduler.run_once(app.task, at=when, name="once_job"))
+
+    Returns ``type[Any]`` so tests can read the probe attribute off ``harness.app`` without a cast.
+    """
+
+    class ProbeApp(App[AppConfig]):
+        async def on_initialize(self) -> None:
+            if counter:
+                self.fired_count = 0
+            else:
+                self.fired = False
+            await schedule_fn(self)
+
+        async def task(self) -> None:
+            if counter:
+                self.fired_count += 1
+            else:
+                self.fired = True
+
+    return ProbeApp
