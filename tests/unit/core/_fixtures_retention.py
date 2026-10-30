@@ -6,8 +6,9 @@ Also holds the shared size-failsafe arrange/act helpers (``run_size_failsafe``) 
 
 Not re-exported from ``conftest.py`` -- a directory-wide ``db`` fixture name would shadow too
 easily. Consumers import directly from this module instead: ``test_log_records_retention.py``,
-``test_retention_batch_failure.py``, ``test_size_failsafe_error_scope.py`` and
-``test_app_manifest_retention.py``.
+``test_retention_batch_failure.py``, ``test_size_failsafe_error_scope.py``,
+``test_size_failsafe_priority.py``, ``test_size_failsafe_iteration_cap.py``,
+``test_size_failsafe_failure_isolation.py`` and ``test_app_manifest_retention.py``.
 """
 
 import logging
@@ -157,3 +158,44 @@ async def count_rows(db: aiosqlite.Connection, table: str, **filters: object) ->
     row = await cursor.fetchone()
     assert row is not None
     return row[0]
+
+
+def make_log_record_row(seq: int, timestamp: float, message: str) -> dict[str, Any]:
+    """Build a log_records row dict with fixed metadata fields; only seq/timestamp/message vary.
+
+    ``lineno`` mirrors ``seq`` — every call site in this file already uses the same value for
+    both.
+    """
+    return {
+        "seq": seq,
+        "timestamp": timestamp,
+        "level": "INFO",
+        "logger_name": "x",
+        "func_name": "f",
+        "lineno": seq,
+        "message": message,
+        "exc_info": None,
+        "app_key": "a",
+        "instance_name": "a_0",
+        "instance_index": 0,
+        "execution_id": None,
+        "author": "app",
+    }
+
+
+async def insert_blocking_event(db: aiosqlite.Connection, detected_ts: float) -> None:
+    """Insert a minimal blocking_events row (tier='watchdog', source_tier=app)."""
+    await db.execute(
+        "INSERT INTO blocking_events (tier, detected_ts, source_tier) VALUES ('watchdog', ?, 'app')",
+        (detected_ts,),
+    )
+
+
+@pytest.fixture
+def db_service_writer(db: aiosqlite.Connection) -> DatabaseService:
+    """DatabaseService with an in-memory test DB connection for seeding records."""
+    mock_hassette = MagicMock()
+    svc = DatabaseService.__new__(DatabaseService)
+    svc.hassette = mock_hassette
+    svc._db = db  # pyright: ignore[reportPrivateUsage]
+    return svc
