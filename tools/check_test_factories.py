@@ -63,7 +63,7 @@ SHARED_FACTORIES = {
     "make_invoke_handler_cmd": "tests.support.factories",
     "make_mock_listener": "tests.support.factories",
     "make_scheduler": "tests.support.factories",
-    "make_closing_task_bucket": "tests.support.factories",
+    "make_closing_task_bucket": "tests.support.task_buckets",
     "make_bus_service_with_mock_executor": "tests.support.factories",
     "make_bypassed_service": "tests.support.factories",
     "make_scheduler_service_with_mock_executor": "tests.support.factories",

@@ -23,8 +23,8 @@ from hassette.schemas.summary_models import AppHealthAggregates
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.trusted_proxies import TrustedProxySet
-from tests.support.factories import make_closing_task_bucket
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
+from tests.support.task_buckets import make_closing_task_bucket
 from tests.support.web_manifest_helpers import make_full_snapshot
 
 TEST_START_EPOCH = 1704067200.0

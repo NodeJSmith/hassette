@@ -21,7 +21,7 @@ from hassette.exceptions import ConfigError
 from hassette.schemas.log_models import LogRecord
 from hassette.testing.config import LATEST_MIGRATION_VERSION
 from hassette.utils.aiosqlite_utils import connect_daemon
-from tests.support.sql import make_log_record_dict
+from tests.support.factories import make_log_record_dict
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
 
