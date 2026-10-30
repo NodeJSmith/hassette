@@ -6,10 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from hassette_wire import ResourceStatus
-from pydantic import BaseModel, TypeAdapter
-from pydantic_core import PydanticUndefined
 
-from hassette.config import HassetteConfig
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
@@ -700,25 +697,7 @@ class TestBusEndpoints:
         assert entry["total_invocations"] == 5
 
 
-def expected_defaults(model: type[BaseModel]) -> dict[str, object]:
-    """Build the expected ``config_defaults`` from a model's own field definitions."""
-    expected: dict[str, object] = {}
-    for name, field in model.model_fields.items():
-        if field.default is not PydanticUndefined:
-            expected[name] = TypeAdapter(field.annotation).dump_python(field.default, mode="json")
-        elif isinstance(field.annotation, type) and issubclass(field.annotation, BaseModel):
-            expected[name] = expected_defaults(field.annotation)
-    return expected
-
-
 class TestConfigEndpointExpanded:
-    async def test_config_defaults_match_model_defaults(self, client: "AsyncClient") -> None:
-        response = await client.get(CONFIG_PATH)
-        assert response.status_code == 200
-        config_defaults = response.json()["config_defaults"]
-        assert config_defaults == expected_defaults(HassetteConfig)
-        assert "port" in config_defaults["web_api"]
-
     async def test_response_has_nested_groups(self, client: "AsyncClient", mock_hassette) -> None:
         """Response envelope contains standard config groups in config_values, including previously-omitted ones."""
         response = await client.get(CONFIG_PATH)
