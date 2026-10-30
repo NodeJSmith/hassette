@@ -43,7 +43,7 @@ class HangingChild(Resource):
     The hook is cut off at its own bound (``shutdown_timeout_seconds``, clamped to any shutdown deadline)
     and recorded as ``TIMED_OUT``, so it is useful anywhere a test wants a hook-timeout
     outcome. For a hook that swallows its cancellation and holds the shutdown until the owner
-    force-terminates it, see ``TrulyResistantChild`` in ``test_shutdown.py``.
+    force-terminates it, see ``TrulyResistantChild`` in ``test_shutdown_coordinator.py``.
     """
 
     async def on_shutdown(self) -> None:
