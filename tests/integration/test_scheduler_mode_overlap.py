@@ -387,7 +387,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
 
     async with AppTestHarness(_RestartApp, config={"instance_name": "restart_app"}) as harness:
         scheduler_service = harness._harness.hassette._scheduler_service
-        mock_executor = scheduler_service._executor
+        mock_executor = harness._harness.mock_executor
 
         # Wrap execute() to capture CancelledError exits — this is the signal the real
         # CommandExecutor uses to enqueue a status='cancelled' execution row.
