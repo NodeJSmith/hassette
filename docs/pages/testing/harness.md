@@ -18,8 +18,9 @@ The sections below cover each piece of this pattern in detail.
 
 ## Prerequisites
 
-The harness ships in the `hassette[test]` extra. [Write Your First
-Test](index.md) covers installation and `pyproject.toml` setup.
+The harness is part of the `hassette` package and needs no separate install.
+Tests also need pytest and pytest-asyncio: [Write Your First Test](index.md)
+covers installing them and the `pyproject.toml` setup.
 
 Every example on this page is an `async def` test, so pytest-asyncio must run
 with `asyncio_mode = "auto"`. Without it, async tests silently pass without
