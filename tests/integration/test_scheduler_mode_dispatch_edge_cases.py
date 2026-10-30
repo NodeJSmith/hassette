@@ -24,6 +24,7 @@ from hassette.app.app_config import AppConfig
 from hassette.scheduler import Job
 from hassette.testing import AppTestHarness
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
+from tests.support.scheduler_dispatch_helpers import freeze_and_dispatch, get_job_by_name, scheduler_service_for
 
 
 class _OverlapConfig(AppConfig):
@@ -79,14 +80,11 @@ async def test_trigger_error_runs_current_fire_then_completes_job() -> None:
             fired.set()
 
     async with AppTestHarness(_BadTriggerApp, config={"instance_name": "bad_trigger_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next((j for j in jobs if j.name == "bad_trigger_job"), None)
-        assert job is not None, "bad_trigger_job should be registered"
+        job = await get_job_by_name(harness, "bad_trigger_job")
 
         # Freeze past job's due time and dispatch
         harness.freeze_time(job.next_run.add(seconds=1))
-        await scheduler_service.dispatch_and_log(job)
+        await scheduler_service_for(harness).dispatch_and_log(job)
         await asyncio.sleep(0)
 
         # Current fire should have run
@@ -125,10 +123,8 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
             pass
 
     async with AppTestHarness(_RacingApp, config={"instance_name": "racing_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "race_job")
+        scheduler_service = scheduler_service_for(harness)
+        job = await get_job_by_name(harness, "race_job")
 
         # Simulate: serve loop popped the job from the heap — remove it directly
         scheduler_service._job_queue.remove_item_sync(job)
@@ -188,14 +184,10 @@ async def test_guard_release_on_remove_clears_in_flight() -> None:
     async with AppTestHarness(_HoldingApp, config={"instance_name": "holding_app"}) as harness:
         app = harness.app
         scheduler = app.scheduler
-        scheduler_service = harness._harness.hassette._scheduler_service
-
-        jobs = scheduler.list_jobs()
-        job = next(j for j in jobs if j.name == "hold_job")
+        job = await get_job_by_name(harness, "hold_job")
 
         # Dispatch the job — it will block
-        harness.freeze_time(job.next_run.add(seconds=1))
-        dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
+        dispatch_task = await freeze_and_dispatch(harness, job)
         await asyncio.wait_for(app.started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         # Guard should be holding current_task
@@ -236,9 +228,8 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
             await gate.wait()
 
     async with AppTestHarness(_StalledApp, config={"instance_name": "stalled_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "stalled_job")
+        scheduler_service = scheduler_service_for(harness)
+        job = await get_job_by_name(harness, "stalled_job")
 
         # Patch STALL_THRESHOLD_SECONDS to a tiny value so the watchdog fires quickly.
         # Spy on warn_stalled_job to assert the watchdog actually fires —
@@ -249,8 +240,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
             unittest.mock.patch.object(scheduler_dispatch_module, "STALL_THRESHOLD_SECONDS", 0.05),
             unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,
         ):
-            harness.freeze_time(job.next_run.add(seconds=1))
-            dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
+            dispatch_task = await freeze_and_dispatch(harness, job)
             await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
             # Wait longer than patched threshold for watchdog to fire
@@ -280,9 +270,8 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
             await gate.wait()
 
     async with AppTestHarness(_ParallelStalledApp, config={"instance_name": "parallel_stalled_app"}) as harness:
-        scheduler_service = harness._harness.hassette._scheduler_service
-        jobs = await scheduler_service.get_all_jobs()
-        job = next(j for j in jobs if j.name == "parallel_stalled_job")
+        scheduler_service = scheduler_service_for(harness)
+        job = await get_job_by_name(harness, "parallel_stalled_job")
 
         # Parallel runs inline (no stall watch installed). Spy on warn_stalled_job to assert
         # it is never called even when the invocation outlasts the patched threshold.
@@ -290,8 +279,7 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
             unittest.mock.patch.object(scheduler_dispatch_module, "STALL_THRESHOLD_SECONDS", 0.05),
             unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,
         ):
-            harness.freeze_time(job.next_run.add(seconds=1))
-            dispatch_task = asyncio.create_task(scheduler_service.dispatch_and_log(job))
+            dispatch_task = await freeze_and_dispatch(harness, job)
             await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
             # dispatch_task is still pending because run_job awaits the callable inline
             assert not dispatch_task.done(), "Dispatch should be pending while job runs"

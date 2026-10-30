@@ -79,6 +79,10 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `first_json_record_containing(stream, text)` — parse the first JSON log record whose raw line contains `text`
 - `prime_guard(guard, spawn, pending_done, *, invoke_queued=None, hang_guard_timeout=10.0)` — start one running invocation through an `ExecutionModeGuard`, optionally park a queued one behind it; returns `PrimedGuard(gate, running_task, queued_task)` with the deterministic waits already completed
 
+`tests/support/scheduler_dispatch_helpers.py` — dispatch scheduled jobs by hand from `AppTestHarness` tests:
+
+- `get_job_by_name(harness, name)`, `freeze_and_dispatch(harness, job)`, `scheduler_service_for(harness)`
+
 `tests/support/web_manifest_helpers.py` — app manifest and snapshot models:
 
 - `make_manifest(**kw)` — `AppManifestInfo`; `make_full_snapshot(manifests)` — `AppFullSnapshot`
