@@ -1453,7 +1453,7 @@
           "config"
         ],
         "summary": "Get Config",
-        "description": "Return the complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema derived from the\n``HassetteConfig`` class (all ``$ref``/``$defs`` resolved server-side).\n``config_values`` is the current configuration serialized to JSON with\nany ``SecretStr`` field replaced by a masked placeholder \u2014 the plaintext\nvalue is never sent over the wire. Every field and nested group is present;\nnothing is omitted.",
+        "description": "Return the complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema derived from the\n``HassetteConfig`` class (all ``$ref``/``$defs`` resolved server-side).\n``config_values`` is the current configuration serialized to JSON with\nany ``SecretStr`` field replaced by a masked placeholder \u2014 the plaintext\nvalue is never sent over the wire. Every field and nested group is present;\nnothing is omitted. ``config_defaults`` mirrors the shape of ``config_values``\nand holds each field's schema default, omitting fields that have none.",
         "operationId": "get_config_api_config_get",
         "responses": {
           "200": {
@@ -3762,6 +3762,11 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Config Values"
+          },
+          "config_defaults": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config Defaults"
           }
         },
         "type": "object",
@@ -3770,7 +3775,7 @@
           "config_values"
         ],
         "title": "ConfigSchemaResponse",
-        "description": "Complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)\nderived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current\nconfiguration serialized to JSON with ``SecretStr`` fields replaced by a masked\nplaceholder.  Every field and nested group is present \u2014 nothing is omitted."
+        "description": "Complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)\nderived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current\nconfiguration serialized to JSON with ``SecretStr`` fields replaced by a masked\nplaceholder.  Every field and nested group is present \u2014 nothing is omitted.\n``config_defaults`` mirrors the shape of ``config_values`` and holds each field's schema\ndefault; a field with no schema default (including ``default_factory`` fields) is omitted."
       },
       "Execution": {
         "properties": {

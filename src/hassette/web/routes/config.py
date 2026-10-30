@@ -24,7 +24,8 @@ async def get_config(hassette: HassetteDep) -> ConfigSchemaResponse:
     ``config_values`` is the current configuration serialized to JSON with
     any ``SecretStr`` field replaced by a masked placeholder — the plaintext
     value is never sent over the wire. Every field and nested group is present;
-    nothing is omitted.
+    nothing is omitted. ``config_defaults`` mirrors the shape of ``config_values``
+    and holds each field's schema default, omitting fields that have none.
     """
     schema = HassetteConfig.model_json_schema()
     values = hassette.config.model_dump(mode="json")

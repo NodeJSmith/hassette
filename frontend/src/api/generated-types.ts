@@ -415,7 +415,8 @@ export interface paths {
          *     ``config_values`` is the current configuration serialized to JSON with
          *     any ``SecretStr`` field replaced by a masked placeholder — the plaintext
          *     value is never sent over the wire. Every field and nested group is present;
-         *     nothing is omitted.
+         *     nothing is omitted. ``config_defaults`` mirrors the shape of ``config_values``
+         *     and holds each field's schema default, omitting fields that have none.
          */
         get: operations["get_config_api_config_get"];
         put?: never;
@@ -1331,6 +1332,8 @@ export interface components {
          *     derived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current
          *     configuration serialized to JSON with ``SecretStr`` fields replaced by a masked
          *     placeholder.  Every field and nested group is present — nothing is omitted.
+         *     ``config_defaults`` mirrors the shape of ``config_values`` and holds each field's schema
+         *     default; a field with no schema default (including ``default_factory`` fields) is omitted.
          */
         ConfigSchemaResponse: {
             /** Config Schema */
@@ -1339,6 +1342,10 @@ export interface components {
             };
             /** Config Values */
             config_values: {
+                [key: string]: unknown;
+            };
+            /** Config Defaults */
+            config_defaults?: {
                 [key: string]: unknown;
             };
         };

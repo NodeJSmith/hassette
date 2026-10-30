@@ -1,15 +1,19 @@
 """Shared view builder for config endpoints: schema deref and type-driven value masking.
 
 The global config endpoint calls ``build_config_view`` to produce a
-``{config_schema, config_values}`` pair. The per-app endpoint calls ``deref_schema`` and
+``{config_schema, config_values, config_defaults}`` payload. The per-app endpoint calls ``deref_schema`` and
 ``mask_values`` directly so a multi-instance config derefs its schema once and masks each
-instance against it. Both paths produce a pair where:
+instance against it. Both paths produce a schema and values where:
 
 - ``config_schema`` is the JSON schema with all ``$ref``/``$defs`` resolved inline so the
   frontend never needs to walk a reference.
 - ``config_values`` is the values dict with any field marked ``writeOnly: true`` or
   ``format: "password"`` (i.e. ``SecretStr``-typed) replaced by ``MASK_SENTINEL`` when
   set, and left ``None``/absent when unset.
+
+The global payload also carries ``config_defaults``: a dict mirroring ``config_values``'s
+shape that holds each field's schema ``default``, masked the same way so a default and a
+value that was never overridden compare equal.
 
 Masking is type-driven — it reads the schema markers, not the field names.
 
@@ -252,7 +256,7 @@ def mask_all_values(values: dict[str, Any]) -> dict[str, Any]:
     return {k: _mask_leaf(v) for k, v in values.items()}
 
 
-def deref_schema(schema: dict[str, Any]) -> dict[str, Any]:
+def deref_schema(schema: dict[str, Any], *, merge_ref_siblings: bool = False) -> dict[str, Any]:
     """Resolve every ``$ref``/``$defs`` in a JSON schema inline and return a plain dict.
 
     ``jsonref.replace_refs`` returns lazy proxy objects; ``_materialize`` converts them to
@@ -261,12 +265,34 @@ def deref_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
     Split out of ``build_config_view`` so the multi-instance app path can deref a schema
     once and reuse it across instances, rather than re-running the deref per instance.
+
+    Args:
+        schema: A JSON schema that may contain ``$ref``/``$defs``.
+        merge_ref_siblings: Keep keywords written beside a ``$ref``, overriding the target's.
+            Off by default, so the referenced model's own ``description`` is what gets served.
     """
-    plain_schema = _materialize(jsonref.replace_refs(schema))
+    plain_schema = _materialize(jsonref.replace_refs(schema, merge_props=merge_ref_siblings))
     if not isinstance(plain_schema, dict):
         return {}
     plain_schema.pop("$defs", None)
     return plain_schema
+
+
+def collect_defaults(schema_props: dict[str, Any]) -> dict[str, Any]:
+    """Return the schema ``default`` of each field, recursing into nested groups.
+
+    A field's own ``default`` wins over its nested properties: ``group: G = G(retries=9)`` yields
+    ``{"retries": 9}`` whatever ``G`` declares for ``retries``. A field with no ``default``
+    is omitted, which includes every ``default_factory`` field, as is a group with no defaults
+    anywhere inside it. Secret defaults are masked exactly as ``config_values`` masks secrets.
+    """
+    defaults: dict[str, Any] = {}
+    for key, node in schema_props.items():
+        if "default" in node:
+            defaults[key] = _mask_node(node, node["default"])
+        elif nested := collect_defaults(node.get("properties", {})):
+            defaults[key] = nested
+    return defaults
 
 
 def build_config_view(schema: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
@@ -280,15 +306,20 @@ def build_config_view(schema: dict[str, Any], values: dict[str, Any]) -> dict[st
             (both paths end up with ``MASK_SENTINEL``).
 
     Returns:
-        ``{"config_schema": <deref'd, materialized>, "config_values": <masked>}``
+        ``{"config_schema": <deref'd, materialized>, "config_values": <masked>,
+        "config_defaults": <masked>}``
 
         ``config_schema`` contains no ``$ref`` or ``$defs`` — all references are inlined.
         ``config_values`` has any field marked ``writeOnly: true`` or ``format: "password"``
         replaced with ``MASK_SENTINEL`` when set, left ``None``/absent when unset.
+        ``config_defaults`` is described by ``collect_defaults``.
     """
     plain_schema = deref_schema(schema)
     masked_values = mask_values(plain_schema.get("properties", {}), values)
-    return {"config_schema": plain_schema, "config_values": masked_values}
+    # The plain deref drops a default written beside a $ref (an enum or model-instance default), but merging
+    # would also replace each group's served description with its field-level one, so defaults get their own deref.
+    defaults = collect_defaults(deref_schema(schema, merge_ref_siblings=True).get("properties", {}))
+    return {"config_schema": plain_schema, "config_values": masked_values, "config_defaults": defaults}
 
 
 def resolve_app_config_cls(

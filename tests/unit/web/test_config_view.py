@@ -1,5 +1,6 @@
 """Unit tests for the shared config view builder (schema deref + type-driven masking)."""
 
+import enum
 import json
 from typing import Annotated, Literal
 
@@ -567,3 +568,80 @@ class TestMaskAllValues:
         values = {"password": "hunter2"}
         mask_all_values(values)
         assert values["password"] == "hunter2"
+
+
+class _DefaultsColor(enum.Enum):
+    RED = "red"
+    BLUE = "blue"
+
+
+class _DefaultsGroup(BaseModel):
+    retries: int = 3
+    tags: list[str] = Field(default_factory=list)
+
+
+class _FactoryOnlyGroup(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+
+
+class _DefaultsConfig(BaseModel):
+    name: str = "hassette"
+    required_field: str
+    optional_field: str | None = None
+    token: SecretStr = SecretStr("hunter2")
+    unset_token: SecretStr | None = None
+    color: _DefaultsColor = _DefaultsColor.BLUE
+    group: _DefaultsGroup = Field(default_factory=_DefaultsGroup)
+    instance_group: _DefaultsGroup = _DefaultsGroup(retries=9)
+    factory_only: _FactoryOnlyGroup = Field(default_factory=_FactoryOnlyGroup)
+    factory_list: list[str] = Field(default_factory=list)
+
+
+class TestConfigDefaults:
+    """config_defaults mirrors config_values's shape and holds each field's schema default."""
+
+    def defaults(self) -> dict:
+        return build_config_view(_DefaultsConfig.model_json_schema(), {})["config_defaults"]
+
+    def test_scalar_default_is_included(self) -> None:
+        assert self.defaults()["name"] == "hassette"
+
+    def test_none_default_is_included(self) -> None:
+        assert self.defaults()["optional_field"] is None
+
+    def test_required_field_is_omitted(self) -> None:
+        assert "required_field" not in self.defaults()
+
+    def test_default_factory_field_is_omitted(self) -> None:
+        assert "factory_list" not in self.defaults()
+
+    def test_nested_group_recurses_and_omits_its_factory_fields(self) -> None:
+        assert self.defaults()["group"] == {"retries": 3}
+
+    def test_group_with_no_defaults_is_omitted(self) -> None:
+        assert "factory_only" not in self.defaults()
+
+    def test_secret_default_is_masked_like_a_value(self) -> None:
+        defaults = self.defaults()
+        assert defaults["token"] == MASK_SENTINEL
+        assert defaults["unset_token"] is None
+
+    def test_default_beside_a_ref_is_kept(self) -> None:
+        defaults = self.defaults()
+        assert defaults["color"] == "blue"
+        assert defaults["instance_group"] == {"retries": 9, "tags": []}
+
+    def test_config_schema_keeps_the_referenced_description(self) -> None:
+        """Reading defaults from a sibling-merging deref must not change the served schema."""
+
+        class Inner(BaseModel):
+            """Inner description."""
+
+            x: int = 1
+
+        class Outer(BaseModel):
+            inner: Inner = Field(default_factory=Inner, description="Field description.")
+
+        view = build_config_view(Outer.model_json_schema(), {})
+        assert view["config_schema"]["properties"]["inner"]["description"] == "Inner description."
+        assert view["config_defaults"] == {"inner": {"x": 1}}
