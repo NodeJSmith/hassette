@@ -231,7 +231,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
     ``test_queued_trigger_pending_done_resolved_on_release`` below).
 
     Mirrors ``test_stall_watchdog_emits_warning_for_non_parallel`` in
-    ``tests/integration/test_scheduler_mode.py``. Spies on
+    ``tests/integration/test_scheduler_mode_dispatch_edge_cases.py``. Spies on
     ``HandlerInvoker.warn_stalled`` so a deleted ``call_later`` registration
     (which would still pass a "dispatch is still pending" check) fails the spy
     assertion — the robust check.
