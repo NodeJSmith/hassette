@@ -1,6 +1,4 @@
 import asyncio
-from typing import cast
-from unittest.mock import MagicMock
 
 from hassette_wire import ExecutionStatus, ScheduleStatus
 from whenever import SYSTEM_TZ, ZonedDateTime
@@ -8,16 +6,10 @@ from whenever import SYSTEM_TZ, ZonedDateTime
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.commands import ExecuteJob
-from hassette.core.scheduler_service import SchedulerService
 from hassette.scheduler import Job
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness, HassetteHarness
 from hassette.utils.date_utils import now
-
-
-def mock_executor(scheduler_service: SchedulerService) -> MagicMock:
-    """The harness's mocked ``CommandExecutor`` behind ``scheduler_service``."""
-    return cast("MagicMock", scheduler_service._executor)
 
 
 async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: HassetteHarness) -> None:
@@ -87,9 +79,7 @@ async def test_run_job_calls_executor(hassette_with_scheduler: HassetteHarness) 
         hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
     # Reset the mock call history and set up a stub that also runs the job
-    scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
 
     executed_cmds: list[ExecuteJob] = []
 
@@ -122,8 +112,7 @@ async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: 
     async def target() -> None:
         hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
-    scheduler_service = hassette_with_scheduler.scheduler_service
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
     executor.execute.reset_mock()
 
     scheduled_job = await hassette_with_scheduler.scheduler.run_in(
@@ -149,9 +138,7 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: HassetteHarn
 
     scheduler = hassette_with_scheduler.scheduler
     assert scheduler is not None
-    scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
     # The executor is shared across the module — restore mock fields so pytest-randomly
     # ordering doesn't leave register_job returning a fixed value for later tests.
     original_side_effect = executor.register_job.side_effect
@@ -423,9 +410,7 @@ async def test_job_remove_via_back_reference_persists_removed_at(hassette_with_s
     (removed_at IS NOT NULL). Verified via the mock_executor call record since
     the integration harness uses a mock executor at the repository boundary.
     """
-    scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
 
     # Reset call history so we only see calls from this test
     executor.mark_job_removed.reset_mock()
@@ -462,9 +447,7 @@ async def test_remove_before_db_id_set_does_not_raise(hassette_with_scheduler: H
     The cancel path is safe to call before DB registration completes.
     No mark_job_removed DB write should be spawned when db_id is None.
     """
-    scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
 
     executor.mark_job_removed.reset_mock()
 
@@ -510,8 +493,7 @@ async def test_recurring_job_skip_records_and_reschedules(hassette_with_schedule
         handler_called = True
 
     scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
     executor.enqueue_record.reset_mock()
 
     job = await hassette_with_scheduler.scheduler.run_every(
@@ -548,8 +530,7 @@ async def test_one_shot_job_skip_records_and_completes(hassette_with_scheduler: 
         handler_called = True
 
     scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
     executor.enqueue_record.reset_mock()
 
     job = await hassette_with_scheduler.scheduler.run_in(
@@ -591,8 +572,7 @@ async def test_predicate_exception_records_failure_and_does_not_run(
         pass
 
     scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
     executor.enqueue_record.reset_mock()
     executor.invoke_error_handler.reset_mock()
 
@@ -636,8 +616,7 @@ async def test_predicate_receives_scheduled_job(hassette_with_scheduler: Hassett
         return job.kwargs.get("key") == "expected"
 
     scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
     executor.enqueue_record.reset_mock()
 
     job = await hassette_with_scheduler.scheduler.run_in(
@@ -658,8 +637,7 @@ async def test_job_without_predicate_executes_unconditionally(hassette_with_sche
         hassette_with_scheduler.task_bucket.post_to_loop(job_ran.set)
 
     scheduler_service = hassette_with_scheduler.scheduler_service
-    assert scheduler_service is not None
-    executor = mock_executor(scheduler_service)
+    executor = hassette_with_scheduler.mock_executor
     executor.enqueue_record.reset_mock()
 
     job = await hassette_with_scheduler.scheduler.run_in(target, delay=10, name="no_predicate_job")

@@ -114,6 +114,14 @@ class HassetteHarness:
         return ss
 
     @property
+    def mock_executor(self) -> AsyncMock:
+        """The mock CommandExecutor that with_scheduler() injects into the SchedulerService."""
+        ss = self.hassette._scheduler_service
+        if ss is None:
+            raise RuntimeError("CommandExecutor mock is not available; ensure with_scheduler() was called")
+        return cast("AsyncMock", ss._executor)
+
+    @property
     def bus(self) -> "Bus":
         """The Bus instance managed by this harness."""
         b = self.hassette._bus
