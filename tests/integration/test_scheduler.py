@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 from hassette_wire import ExecutionStatus, ScheduleStatus
 from whenever import SYSTEM_TZ, ZonedDateTime
@@ -10,6 +11,7 @@ from hassette.scheduler import Job
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness, HassetteHarness
 from hassette.utils.date_utils import now
+from tests.support.factories import make_probe_app
 
 
 async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: HassetteHarness) -> None:
@@ -225,32 +227,13 @@ class _ExhaustionConfig(AppConfig):
     """Minimal config for exhaustion tests."""
 
 
-class _OnceExhaustionApp(App[_ExhaustionConfig]):
-    """App that schedules a Once job for exhaustion testing."""
+# Schedules a Once job at a time far in the future (tests freeze past it)
+_OnceExhaustionApp = make_probe_app(
+    lambda app: app.scheduler.run_once(app.task, at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ), name="once_job")
+)
 
-    fired: bool
-
-    async def on_initialize(self) -> None:
-        self.fired = False
-        # Schedule a Once job at a time far in the future (we'll freeze past it)
-        await self.scheduler.run_once(self.task, at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ), name="once_job")
-
-    async def task(self) -> None:
-        self.fired = True
-
-
-class _AfterExhaustionApp(App[_ExhaustionConfig]):
-    """App that schedules an After job for exhaustion testing."""
-
-    fired: bool
-
-    async def on_initialize(self) -> None:
-        self.fired = False
-        # After(seconds=10) — will fire when we freeze 10+ seconds into the future
-        await self.scheduler.run_in(self.task, delay=10, name="after_job")
-
-    async def task(self) -> None:
-        self.fired = True
+# After(seconds=10) — fires when tests freeze 10+ seconds into the future
+_AfterExhaustionApp = make_probe_app(lambda app: app.scheduler.run_in(app.task, delay=10, name="after_job"))
 
 
 class _GroupApp(App[_ExhaustionConfig]):
@@ -262,24 +245,18 @@ class _GroupApp(App[_ExhaustionConfig]):
         await self.scheduler.run_every(lambda: None, hours=3, name="g3", group="morning")
 
 
-class _OnceGroupApp(App[_ExhaustionConfig]):
-    """App that schedules a Once job in a named group."""
+async def _schedule_once_in_group(app: Any) -> None:
+    await app.scheduler.run_once(
+        app.task,
+        at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ),
+        name="once_in_group",
+        group="morning",
+    )
+    # Add a recurring job so the group isn't empty after exhaustion
+    await app.scheduler.run_every(lambda: None, hours=1, name="recurring_in_group", group="morning")
 
-    fired: bool
 
-    async def on_initialize(self) -> None:
-        self.fired = False
-        await self.scheduler.run_once(
-            self.task,
-            at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ),
-            name="once_in_group",
-            group="morning",
-        )
-        # Add a recurring job so the group isn't empty after exhaustion
-        await self.scheduler.run_every(lambda: None, hours=1, name="recurring_in_group", group="morning")
-
-    async def task(self) -> None:
-        self.fired = True
+_OnceGroupApp = make_probe_app(_schedule_once_in_group)
 
 
 async def test_once_job_exhausts_after_firing() -> None:

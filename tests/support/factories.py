@@ -6,7 +6,7 @@ a sensible default; callers pass only the fields they care about.
 
 import asyncio
 import logging
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from unittest.mock import AsyncMock, MagicMock, Mock
 
@@ -424,44 +424,6 @@ def make_log_record_entry(
     )
 
 
-def make_log_record_dict(
-    *,
-    seq: int = 1,
-    timestamp: float = 0.0,
-    level: str = "INFO",
-    logger_name: str = "hassette.test",
-    func_name: str = "fn",
-    lineno: int = 1,
-    message: str = "msg",
-    exc_info: str | None = None,
-    app_key: str | None = None,
-    instance_name: str | None = None,
-    instance_index: int | None = None,
-    execution_id: str | None = None,
-    author: LogAuthor = "app",
-) -> dict[str, Any]:
-    """Build the 13-key record dict shape ``_insert_log_records()`` expects.
-
-    Every field is an explicit keyword with a neutral default so callers spell out only
-    what they assert on.
-    """
-    return {
-        "seq": seq,
-        "timestamp": timestamp,
-        "level": level,
-        "logger_name": logger_name,
-        "func_name": func_name,
-        "lineno": lineno,
-        "message": message,
-        "exc_info": exc_info,
-        "app_key": app_key,
-        "instance_name": instance_name,
-        "instance_index": instance_index,
-        "execution_id": execution_id,
-        "author": author,
-    }
-
-
 def make_log_record(
     *,
     name: str = "test",
@@ -804,3 +766,32 @@ def make_app(
     if hassette is None:
         hassette = make_mock_hassette(sealed=False)
     return cls(hassette, app_config=AppConfig(instance_name=instance_name), index=index, app_key=app_key, **kwargs)
+
+
+def make_probe_app(schedule_fn: Callable[[Any], Awaitable[Any]], *, counter: bool = False) -> type[Any]:
+    """Build a throwaway ``App`` subclass that records whether its scheduled job ran.
+
+    ``on_initialize`` resets the probe (bool ``fired``, or int ``fired_count`` with ``counter=True``) and
+    awaits ``schedule_fn(app)``, which schedules the job against ``app.task``, the probe-recording task.
+    ``schedule_fn`` is the only thing that varies per test::
+
+        _OnceApp = make_probe_app(lambda app: app.scheduler.run_once(app.task, at=when, name="once_job"))
+
+    Returns ``type[Any]`` so tests can read the probe attribute off ``harness.app`` without a cast.
+    """
+
+    class ProbeApp(App[AppConfig]):
+        async def on_initialize(self) -> None:
+            if counter:
+                self.fired_count = 0
+            else:
+                self.fired = False
+            await schedule_fn(self)
+
+        async def task(self) -> None:
+            if counter:
+                self.fired_count += 1
+            else:
+                self.fired = True
+
+    return ProbeApp

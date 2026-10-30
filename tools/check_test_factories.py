@@ -69,6 +69,7 @@ SHARED_FACTORIES = {
     "make_scheduler_service_with_mock_executor": "tests.support.factories",
     "make_execution_record": "tests.support.factories",
     "make_app": "tests.support.factories",
+    "make_probe_app": "tests.support.factories",
     "wire_dependent_resource": "tests.support.factories",
     "make_manifest": "tests.support.web_manifest_helpers",
     "make_manifest_db_row": "tests.support.web_manifest_helpers",

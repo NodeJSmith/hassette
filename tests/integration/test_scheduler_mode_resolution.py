@@ -18,50 +18,30 @@ import pytest
 from hassette_wire import ExecutionMode, ScheduleStatus
 from whenever import SYSTEM_TZ, ZonedDateTime
 
-from hassette.app.app import App
-from hassette.app.app_config import AppConfig
 from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness
+from tests.support.factories import make_probe_app
 from tests.support.helpers import noop
 
 # App for one-shot mode tests: verifies mode= is accepted and fires exactly once
 
 
-class _OneShotModeConfig(AppConfig):
-    """Minimal config for one-shot mode acceptance tests."""
+# mode= accepted on one-shots — no overlap effect, fires once
+_RunInModeApp = make_probe_app(
+    lambda app: app.scheduler.run_in(app.task, delay=10, name="oneshot_mode_job", mode="parallel"),
+    counter=True,
+)
 
-
-class _RunInModeApp(App[_OneShotModeConfig]):
-    """Schedules a run_in job with mode= set; records invocation count."""
-
-    fired_count: int
-
-    async def on_initialize(self) -> None:
-        self.fired_count = 0
-        # mode= accepted on one-shots — no overlap effect, fires once
-        await self.scheduler.run_in(self.task, delay=10, name="oneshot_mode_job", mode="parallel")
-
-    async def task(self) -> None:
-        self.fired_count += 1
-
-
-class _RunOnceModeApp(App[_OneShotModeConfig]):
-    """Schedules a run_once job with mode= set; records invocation count."""
-
-    fired_count: int
-
-    async def on_initialize(self) -> None:
-        self.fired_count = 0
-        await self.scheduler.run_once(
-            self.task,
-            at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ),
-            name="runonce_mode_job",
-            mode=ExecutionMode.QUEUED,
-        )
-
-    async def task(self) -> None:
-        self.fired_count += 1
+_RunOnceModeApp = make_probe_app(
+    lambda app: app.scheduler.run_once(
+        app.task,
+        at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ),
+        name="runonce_mode_job",
+        mode=ExecutionMode.QUEUED,
+    ),
+    counter=True,
+)
 
 
 # One-shot mode acceptance: run_in / run_once with mode= fire exactly once

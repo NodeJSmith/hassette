@@ -53,6 +53,7 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `make_execution_record(*, kind="handler", session_id=1, ...)` — `ExecutionRecord` for a handler or job execution
 - `make_sync_executor(*, max_workers=2)` — standalone `SyncExecutor` for tests that need `run_in_thread`
 - `make_app(*, cls=App, instance_name="kitchen", app_key="kitchen_lights", index=0, hassette=None, **kw)` — bare `App`/`AppSync` on an unsealed `make_mock_hassette()` (or the `hassette` passed in); extra kwargs pass through to the constructor
+- `make_probe_app(schedule_fn, *, counter=False)` — throwaway `App` subclass for single-job "did it fire?" tests with `AppTestHarness`; `schedule_fn(app)` schedules against `app.task`, which records `fired` (or `fired_count`)
 - `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — dependent `Resource`/`Service` plus its declared `depends_on` types instantiated into `hassette.children`
 
 `hassette.testing` (public; defined in `src/hassette/testing/_factories.py`) — event/state builders:
