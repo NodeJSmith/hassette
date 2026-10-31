@@ -1,10 +1,10 @@
+# --8<-- [start:sender]
 from dataclasses import dataclass
 
 from hassette import App, AppConfig, D
 from hassette.models import states
 
 
-# --8<-- [start:sender]
 @dataclass(frozen=True, slots=True)
 class LightsSyncedData:
     source: str
