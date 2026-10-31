@@ -14,7 +14,7 @@ import json
 import os
 import re
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import Any
@@ -44,6 +44,7 @@ from hassette.cli.formatters import (
 PIPE_FALLBACK_WIDTH = 1000
 
 JSON_INDENT = 2
+DEFAULT_MARKER = " (default)"
 CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z])(?=[A-Z])")
 CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {
     "duration_ms": fmt_duration_ms,
@@ -276,7 +277,7 @@ def render_detail(
     _render_detail_panel(data, display_title, field_meta)
 
 
-def render_detail_dict(data: dict[str, Any], title: str, json_mode: bool) -> None:
+def render_detail_dict(data: dict[str, Any], title: str, json_mode: bool, default_keys: Collection[str] = ()) -> None:
     """Render a plain dict as a key-value panel or JSON object.
 
     Nested dicts render as labeled sections with indented key-value rows.
@@ -287,12 +288,13 @@ def render_detail_dict(data: dict[str, Any], title: str, json_mode: bool) -> Non
         data: The values dict to render.
         title: Panel title shown in human mode.
         json_mode: When ``True``, serialize ``data`` as JSON on stdout.
+        default_keys: Top-level keys to mark as defaults in human mode. JSON output ignores it.
     """
     if json_mode:
         _write_json(json.dumps(data, indent=JSON_INDENT))
         return
 
-    _render_detail_panel(data, title)
+    _render_detail_panel(data, title, default_keys=default_keys)
 
 
 def _write_json(document: str) -> None:
@@ -305,6 +307,7 @@ def _render_detail_panel(
     data: dict[str, Any],
     title: str,
     field_meta: dict[str, CliFormat] | None = None,
+    default_keys: Collection[str] = (),
 ) -> None:
     """Render a values dict as a key-value Rich panel (shared human-mode body).
 
@@ -312,7 +315,8 @@ def _render_detail_panel(
     empty dicts are skipped so no orphaned section header appears. When sections
     exist, scalar fields are indented under a "General" header. Fields whose key is
     in ``field_meta`` are formatted via the matching :class:`CliFormat` in place of
-    the default.
+    the default. Keys in ``default_keys`` get ``DEFAULT_MARKER`` after their value, or
+    after the section header for a nested dict, which has no value cell of its own.
     """
     meta_map = field_meta or {}
 
@@ -324,11 +328,12 @@ def _render_detail_panel(
     general_header_emitted = False
 
     for key, value in data.items():
+        marker = DEFAULT_MARKER if key in default_keys else ""
         if isinstance(value, dict):
             if not value:
                 continue
             table.add_row("", "")
-            table.add_row(f"[bold cyan]{_humanize_key(key)}[/bold cyan]", "")
+            table.add_row(f"[bold cyan]{_humanize_key(key)}[/bold cyan]{marker}", "")
             for sub_key, sub_value in value.items():
                 table.add_row(f"  {sub_key}", _format_detail_value(sub_value))
         else:
@@ -340,7 +345,7 @@ def _render_detail_panel(
                 formatted = _apply_cli_format(value, meta, none_default=_format_detail_value(None))
             else:
                 formatted = _format_detail_value(value)
-            table.add_row(f"  {key}" if has_sections else key, formatted)
+            table.add_row(f"  {key}" if has_sections else key, f"{formatted}{marker}")
 
     panel = Panel(table, title=title, expand=False)
     stdout_console.print(panel)

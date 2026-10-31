@@ -446,6 +446,8 @@ The resolved Hassette configuration, as loaded from all sources (TOML, env vars,
 hassette config
 ```
 
+The panel appends `(default)` to each top-level entry that equals its schema default. A nested group carries the mark on its section header, and only when the whole group matches. Fields with no schema default, such as `default_factory` fields, never get the mark, and neither does a group containing one. The `--json` output holds the raw values with no marks.
+
 **API endpoint:** `GET /api/config`
 
 ## `hassette telemetry`
