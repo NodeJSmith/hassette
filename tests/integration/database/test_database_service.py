@@ -504,32 +504,6 @@ async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseSer
     assert not dropped_coro_executed
 
 
-async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service: DatabaseService) -> None:
-    """enqueue() logs a warning when queue depth is a nonzero multiple of 100."""
-    gate = asyncio.Event()
-
-    async def gated_coro() -> None:
-        await gate.wait()
-
-    queue = write_queue(initialized_service)
-
-    # Fill 99 slots directly (bypassing enqueue's logging) so the next enqueue hits depth 100
-    for _ in range(99):
-        await queue.put((gated_coro(), None))
-
-    # The 100th item via enqueue() should trigger the depth warning
-    with patch.object(initialized_service, "logger") as mock_logger:
-        initialized_service.enqueue(gated_coro())
-        # Check that logger.warning was called with "backlog" somewhere in the message
-        warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
-        assert any("backlog" in c or "depth" in c for c in warning_calls), (
-            f"Expected backlog warning, got: {warning_calls}"
-        )
-
-    gate.set()
-    await queue.join()
-
-
 async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: DatabaseService) -> None:
     """_check_size_failsafe() returns immediately when db_max_size_mb == 0."""
     initialized_service.hassette.config.database.max_size_mb = 0

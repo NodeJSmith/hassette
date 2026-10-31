@@ -497,7 +497,8 @@ async def test_rollover_replaces_the_pending_offset_run(entity_time_harness: Has
 async def test_daily_rollover_to_the_same_time_of_day_keeps_the_run(entity_time_harness: HassetteHarness) -> None:
     """A daily job's run is a time-of-day slot, so rolling to tomorrow's same-time alarm leaves it in place."""
     rang = iso_in(-1)
-    tomorrow = date_utils.convert_datetime_str_to_tz(rang).add(hours=24).format_iso()
+    # days=1, not hours=24: 24 elapsed hours land on a different time of day across a DST transition.
+    tomorrow = date_utils.convert_datetime_str_to_tz(rang).add(days=1).format_iso()
     await seed_alarm(entity_time_harness, rang)
 
     job = await entity_time_harness.scheduler.schedule(
