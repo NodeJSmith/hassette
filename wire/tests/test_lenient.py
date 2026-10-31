@@ -40,7 +40,7 @@ def problem_body(code: Any) -> dict[str, Any]:
     return {"title": "Conflict", "status": 409, "detail": "d", "code": code}
 
 
-def manifest_body(status: str, instance_status: str = "running") -> dict[str, Any]:
+def manifest_body(status: Any, instance_status: str = "running") -> dict[str, Any]:
     return {
         "app_key": "a",
         "class_name": "A",

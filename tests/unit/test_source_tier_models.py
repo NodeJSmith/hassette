@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ExecutionStatus
 from whenever import ZonedDateTime
 
 from hassette.commands import ExecuteJob, InvokeHandler
@@ -79,7 +80,7 @@ class TestExecutionRecordHandlerNullable:
             session_id=1,
             execution_start_ts=TEST_EPOCH_A,
             duration_ms=5.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
             source_tier="framework",
         )
 
@@ -94,7 +95,7 @@ class TestExecutionRecordHandlerNullable:
             session_id=1,
             execution_start_ts=TEST_EPOCH_A,
             duration_ms=5.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
             source_tier="app",
         )
 
@@ -174,7 +175,7 @@ class TestExecutionRecordJobNullable:
             session_id=1,
             execution_start_ts=TEST_EPOCH_A,
             duration_ms=10.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
             source_tier="framework",
         )
 
@@ -189,7 +190,7 @@ class TestExecutionRecordJobNullable:
             session_id=1,
             execution_start_ts=TEST_EPOCH_A,
             duration_ms=10.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
             source_tier="app",
         )
 

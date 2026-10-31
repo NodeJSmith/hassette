@@ -17,8 +17,6 @@
         "tests/pyright_probes",
         // Test files with known type errors (#1271). Each fix issue removes its own entries;
         // test files not listed here are type-checked.
-        "client/tests/test_openapi_coverage.py",
-        "codegen/tests/test_ha_source.py",
         "tests/e2e/mock_fixtures/telemetry.py",
         "tests/e2e/test_navigation.py",
         "tests/e2e/test_websocket.py",
@@ -50,18 +48,10 @@
         "tests/unit/core/test_unified_execution.py",
         "tests/unit/resources/test_lifecycle_transitions.py",
         "tests/unit/resources/test_logger_identity.py",
-        "tests/unit/test_api_notify.py",
-        "tests/unit/test_app_manifest.py",
         "tests/unit/test_execution_mode_helpers.py",
-        "tests/unit/test_factories.py",
-        "tests/unit/test_model_types.py",
         "tests/unit/test_scheduler_job_names.py",
         "tests/unit/test_scheduler_resource.py",
-        "tests/unit/test_source_tier_models.py",
-        "tests/unit/test_structural_resource_mark_ready.py",
-        "tests/unit/test_ws_models.py",
-        "tests/unit/web/test_mappers.py",
-        "wire/tests/test_lenient.py"
+        "tests/unit/web/test_mappers.py"
     ],
     // pytest fixtures are registered by decorator and never referenced by name.
     // extraPaths keeps the repo root importable, so `import tests.support...` still resolves

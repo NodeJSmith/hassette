@@ -63,7 +63,7 @@ class TestAppStatusChangedDataMatchesDataclass:
         assert data.class_name == "MyApp"
 
     def test_optional_fields_default_to_none(self) -> None:
-        data = AppStatusChangedData(app_key="test", index=0, status="running")
+        data = AppStatusChangedData(app_key="test", index=0, status=ResourceStatus.RUNNING)
         assert data.previous_status is None
         assert data.instance_name is None
         assert data.class_name is None
