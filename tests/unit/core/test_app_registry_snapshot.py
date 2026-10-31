@@ -147,7 +147,7 @@ class TestAppRegistryGetFullSnapshot:
         snap = reg.get_full_snapshot()
         assert snap.total == 1
         assert snap.status_counts[AppStatus.RUNNING] == 1
-        assert snap.manifests[0].status == "running"
+        assert snap.manifests[0].status is AppStatus.RUNNING
         assert snap.manifests[0].instance_count == 1
 
     def test_stopped_app(self) -> None:
@@ -156,7 +156,7 @@ class TestAppRegistryGetFullSnapshot:
         # No instances registered — status is "stopped"
         snap = reg.get_full_snapshot()
         assert snap.status_counts[AppStatus.STOPPED] == 1
-        assert snap.manifests[0].status == "stopped"
+        assert snap.manifests[0].status is AppStatus.STOPPED
 
     def test_failed_app(self) -> None:
         reg = self.make_registry()
@@ -164,7 +164,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.record_failure("my_app", 0, RuntimeError("init error"))
         snap = reg.get_full_snapshot()
         assert snap.status_counts[AppStatus.FAILED] == 1
-        assert snap.manifests[0].status == "failed"
+        assert snap.manifests[0].status is AppStatus.FAILED
         assert snap.manifests[0].error_message == "init error"
 
     def test_disabled_app(self) -> None:
@@ -172,7 +172,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.set_manifests({"my_app": make_manifest_obj("my_app", enabled=False)})
         snap = reg.get_full_snapshot()
         assert snap.status_counts[AppStatus.DISABLED] == 1
-        assert snap.manifests[0].status == "disabled"
+        assert snap.manifests[0].status is AppStatus.DISABLED
 
     def test_blocked_app(self) -> None:
         reg = self.make_registry()
@@ -180,7 +180,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.block_app("my_app", BlockReason.ONLY_APP)
         snap = reg.get_full_snapshot()
         assert snap.status_counts[AppStatus.BLOCKED] == 1
-        assert snap.manifests[0].status == "blocked"
+        assert snap.manifests[0].status is AppStatus.BLOCKED
         assert snap.manifests[0].block_reason == "only_app"
 
     def test_mixed_states(self) -> None:
@@ -207,11 +207,11 @@ class TestAppRegistryGetFullSnapshot:
         assert snap.status_counts[AppStatus.BLOCKED] == 1
 
         statuses = {m.app_key: m.status for m in snap.manifests}
-        assert statuses["running_app"] == "running"
-        assert statuses["stopped_app"] == "stopped"
-        assert statuses["failed_app"] == "failed"
-        assert statuses["disabled_app"] == "disabled"
-        assert statuses["blocked_app"] == "blocked"
+        assert statuses["running_app"] is AppStatus.RUNNING
+        assert statuses["stopped_app"] is AppStatus.STOPPED
+        assert statuses["failed_app"] is AppStatus.FAILED
+        assert statuses["disabled_app"] is AppStatus.DISABLED
+        assert statuses["blocked_app"] is AppStatus.BLOCKED
 
     def test_get_full_snapshot_running_failed_stopped_counts_and_manifest_info(self) -> None:
         """Characterization pin: manifests + running + failed instances produce correct
@@ -242,18 +242,18 @@ class TestAppRegistryGetFullSnapshot:
         by_key = {m.app_key: m for m in snap.manifests}
 
         running_info = by_key["running_app"]
-        assert running_info.status == "running"
+        assert running_info.status is AppStatus.RUNNING
         assert running_info.instance_count == 1
         assert running_info.instances[0].status == ResourceStatus.RUNNING
 
         failed_info = by_key["failed_app"]
-        assert failed_info.status == "failed"
+        assert failed_info.status is AppStatus.FAILED
         assert failed_info.instance_count == 1
         assert failed_info.error_message == "startup failed"
         assert failed_info.instances[0].status == ResourceStatus.FAILED
 
         stopped_info = by_key["stopped_app"]
-        assert stopped_info.status == "stopped"
+        assert stopped_info.status is AppStatus.STOPPED
         # A configured-but-never-started instance is a synthetic STOPPED placeholder, not
         # omitted — instance_count reflects the configured count, not the tracked count.
         assert stopped_info.instance_count == 1
@@ -266,7 +266,7 @@ class TestAppRegistryGetFullSnapshot:
         reg.register_app("my_app", 0, make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         # Disabled takes priority
-        assert snap.manifests[0].status == "disabled"
+        assert snap.manifests[0].status is AppStatus.DISABLED
 
     def test_snapshot_includes_autostart_field(self) -> None:
         """get_full_snapshot() sets autostart on each AppManifestInfo from the manifest."""
@@ -287,7 +287,7 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         reg.set_manifests({"manual_app": make_manifest_obj("manual_app", enabled=True, autostart=False)})
         snap = reg.get_full_snapshot()
-        assert snap.manifests[0].status == "stopped"
+        assert snap.manifests[0].status is AppStatus.STOPPED
         assert snap.manifests[0].autostart is False
         assert snap.status_counts[AppStatus.STOPPED] == 1
         assert snap.status_counts[AppStatus.DISABLED] == 0
@@ -371,27 +371,27 @@ class TestBuildManifestInfoStatusDerivation:
     def test_disabled(self, registry: AppRegistry) -> None:
         manifest = make_manifest_obj("my_app", enabled=False)
         info = registry.build_manifest_info("my_app", manifest)
-        assert info.status == "disabled"
+        assert info.status is AppStatus.DISABLED
 
     def test_blocked(self, registry: AppRegistry) -> None:
         manifest = make_manifest_obj("my_app")
         registry.block_app("my_app", BlockReason.ONLY_APP)
         info = registry.build_manifest_info("my_app", manifest)
-        assert info.status == "blocked"
+        assert info.status is AppStatus.BLOCKED
         assert info.block_reason == "only_app"
 
     def test_running(self, registry: AppRegistry) -> None:
         manifest = make_manifest_obj("my_app")
         registry.register_app("my_app", 0, make_app_instance("my_app"))
         info = registry.build_manifest_info("my_app", manifest)
-        assert info.status == "running"
+        assert info.status is AppStatus.RUNNING
         assert info.instance_count == 1
 
     def test_failed(self, registry: AppRegistry) -> None:
         manifest = make_manifest_obj("my_app")
         registry.record_failure("my_app", 0, ValueError("bad config"))
         info = registry.build_manifest_info("my_app", manifest)
-        assert info.status == "failed"
+        assert info.status is AppStatus.FAILED
         assert info.error_message == "bad config"
 
     def test_stopped(self, registry: AppRegistry) -> None:
@@ -400,7 +400,7 @@ class TestBuildManifestInfoStatusDerivation:
         """
         manifest = make_manifest_obj("my_app")
         info = registry.build_manifest_info("my_app", manifest)
-        assert info.status == "stopped"
+        assert info.status is AppStatus.STOPPED
         assert info.instance_count == 1
         assert info.instances[0].status == ResourceStatus.STOPPED
 
@@ -417,7 +417,7 @@ class TestBuildManifestInfoStatusDerivation:
         info = registry.build_manifest_info("my_app", manifest)
 
         assert info.instance_count == 2
-        assert info.status == "running"
+        assert info.status is AppStatus.RUNNING
         by_index = {inst.index: inst for inst in info.instances}
         assert by_index[0].status == ResourceStatus.RUNNING
         assert by_index[1].status == ResourceStatus.STOPPED
@@ -482,7 +482,7 @@ class TestBuildManifestInfoStatusDerivation:
 
         info = registry.build_manifest_info("my_app", manifest)
 
-        assert info.status == "degraded"
+        assert info.status is AppStatus.DEGRADED
         assert info.instance_count == 3
 
     def test_all_failed_is_failed_not_degraded(self, registry: AppRegistry) -> None:
@@ -493,7 +493,7 @@ class TestBuildManifestInfoStatusDerivation:
 
         info = registry.build_manifest_info("my_app", manifest)
 
-        assert info.status == "failed"
+        assert info.status is AppStatus.FAILED
 
     @pytest.mark.parametrize(
         ("app_config", "index", "expected_name"),

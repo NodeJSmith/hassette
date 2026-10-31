@@ -6,7 +6,7 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 
 import pytest
-from hassette_wire import ExecutionCompletedData, ExecutionStatus, ResourceStatus, SystemStatusResponse
+from hassette_wire import AppStatus, ExecutionCompletedData, ExecutionStatus, ResourceStatus, SystemStatusResponse
 from pydantic import TypeAdapter, ValidationError
 
 from hassette.core.app_handler import AppHandler
@@ -157,7 +157,7 @@ class TestPreBootstrapAppState:
         db_row = make_manifest_db_row(app_key=manifest.app_key, class_name=manifest.class_name)
         [info] = runtime.overlay_manifest_rows([db_row])
 
-        assert info.status == "stopped"
+        assert info.status is AppStatus.STOPPED
         assert info.in_current_config is True
 
     def test_get_registry_only_apps_reflects_configured_filter_before_bootstrap(
@@ -283,7 +283,7 @@ class TestConcurrentAppHandlerTeardown:
         assert runtime.collect_boot_issues() == []
         assert runtime.get_registry_only_apps() == []
         [info] = runtime.overlay_manifest_rows([make_manifest_db_row(app_key=manifest.app_key)])
-        assert info.status == "stopped"
+        assert info.status is AppStatus.STOPPED
 
     async def test_on_app_state_changed_is_idempotent_when_registry_entry_is_gone(
         self, runtime: RuntimeQueryService

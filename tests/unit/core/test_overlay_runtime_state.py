@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from hassette_wire import ResourceStatus
+from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.core.app_registry import AppRegistry, overlay_runtime_state
 from hassette.types.enums import BlockReason
@@ -35,7 +35,7 @@ class TestOverlayRuntimeState:
 
         assert len(results) == 1
         info = results[0]
-        assert info.status == "stopped"
+        assert info.status is AppStatus.STOPPED
         assert info.instance_count == 0
         assert info.instances == ()
         assert info.in_current_config is False
@@ -57,7 +57,7 @@ class TestOverlayRuntimeState:
         results = overlay_runtime_state(rows, registry)
 
         info = results[0]
-        assert info.status == "running"
+        assert info.status is AppStatus.RUNNING
         assert info.instance_count == 1
         assert info.in_current_config is True
         # Metadata still comes from the DB row, not the in-memory manifest.
@@ -74,20 +74,20 @@ class TestOverlayRuntimeState:
 
         assert len(results) == 2
         by_key = {info.app_key: info for info in results}
-        assert by_key[manifest.app_key].status == "running"
+        assert by_key[manifest.app_key].status is AppStatus.RUNNING
         assert by_key[manifest.app_key].in_current_config is True
-        assert by_key["removed_app"].status == "stopped"
+        assert by_key["removed_app"].status is AppStatus.STOPPED
         assert by_key["removed_app"].in_current_config is False
         assert by_key["removed_app"].instance_count == 0
 
     @pytest.mark.parametrize(
         ("running", "failed", "blocked", "enabled", "expected_status", "expected_block_reason"),
         [
-            (False, False, False, True, "stopped", None),
-            (False, True, False, True, "failed", None),
-            (True, True, False, True, "degraded", None),
-            (True, True, True, True, "blocked", BlockReason.ONLY_APP.value),
-            (True, True, True, False, "disabled", BlockReason.ONLY_APP.value),
+            (False, False, False, True, AppStatus.STOPPED, None),
+            (False, True, False, True, AppStatus.FAILED, None),
+            (True, True, False, True, AppStatus.DEGRADED, None),
+            (True, True, True, True, AppStatus.BLOCKED, BlockReason.ONLY_APP.value),
+            (True, True, True, False, AppStatus.DISABLED, BlockReason.ONLY_APP.value),
         ],
         ids=[
             "nothing_tracked_is_stopped",
@@ -106,7 +106,7 @@ class TestOverlayRuntimeState:
         failed: bool,
         blocked: bool,
         enabled: bool,
-        expected_status: str,
+        expected_status: AppStatus,
         expected_block_reason: str | None,
     ) -> None:
         """Derived status follows a strict precedence: disabled > blocked > degraded > failed > stopped.
@@ -130,7 +130,7 @@ class TestOverlayRuntimeState:
 
         results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
 
-        assert results[0].status == expected_status
+        assert results[0].status is expected_status
         assert results[0].block_reason == expected_block_reason
 
     def test_enabled_agrees_with_status_when_db_row_is_stale(
@@ -147,7 +147,7 @@ class TestOverlayRuntimeState:
         stale_row = make_manifest_db_row(manifest.app_key, enabled=1)
         results = overlay_runtime_state([stale_row], registry)
 
-        assert results[0].status == "disabled"
+        assert results[0].status is AppStatus.DISABLED
         assert results[0].enabled is False
 
     def test_enabled_comes_from_db_row_for_db_only_app(self, registry: AppRegistry) -> None:
