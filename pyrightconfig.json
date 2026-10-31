@@ -34,9 +34,6 @@
         "tests/integration/web_api/test_telemetry.py",
         "tests/support/web_job_helpers.py",
         "tests/support/web_manifest_helpers.py",
-        "tests/unit/test_execution_mode_helpers.py",
-        "tests/unit/test_scheduler_job_names.py",
-        "tests/unit/test_scheduler_resource.py",
         "tests/unit/web/test_mappers.py"
     ],
     // pytest fixtures are registered by decorator and never referenced by name.

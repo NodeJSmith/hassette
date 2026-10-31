@@ -1,6 +1,7 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from hassette_wire import ScheduleStatus
@@ -34,6 +35,7 @@ class TestScheduleEntryPoint:
         after = now()
         expected_min = trigger.first_run_time(before)
         expected_max = trigger.first_run_time(after)
+        assert job.next_run is not None
         assert expected_min <= job.next_run <= expected_max
 
     async def test_schedule_group_tracked(self) -> None:
@@ -73,9 +75,10 @@ class TestRegisterEntryPoint:
     async def test_register_does_not_touch_heap(self) -> None:
         """register() never calls scheduler_service.enqueue_job (no heap entry)."""
         scheduler = make_scheduler()
-        scheduler.scheduler_service.enqueue_job = AsyncMock()
+        service = cast("Mock", scheduler.scheduler_service)
+        service.enqueue_job = AsyncMock()
         await scheduler.register(noop, name="register_does_not_touch_heap")
-        scheduler.scheduler_service.enqueue_job.assert_not_called()
+        service.enqueue_job.assert_not_called()
 
     async def test_register_requires_name(self) -> None:
         """register() with an empty name raises SchedulerNameRequiredError."""
@@ -130,15 +133,11 @@ class TestRegisterEntryPoint:
         """register() has no trigger/jitter/where parameters at all (TypeError if passed)."""
         scheduler = make_scheduler()
         with pytest.raises(TypeError):
-            await scheduler.register(  # pyright: ignore[reportCallIssue]
-                noop, name="n", trigger=Every(hours=1)
-            )
+            await scheduler.register(noop, name="n", trigger=Every(hours=1))  # pyright: ignore[reportCallIssue]
         with pytest.raises(TypeError):
             await scheduler.register(noop, name="n", jitter=5.0)  # pyright: ignore[reportCallIssue]
         with pytest.raises(TypeError):
-            await scheduler.register(  # pyright: ignore[reportCallIssue]
-                noop, name="n", where=lambda: True
-            )
+            await scheduler.register(noop, name="n", where=lambda: True)  # pyright: ignore[reportCallIssue]
 
 
 class TestRemoveGroup:
@@ -149,7 +148,7 @@ class TestRemoveGroup:
         job2 = await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
         scheduler.remove_group("morning")
         # Verify dequeue_job was called for each member
-        calls = scheduler.scheduler_service.dequeue_job.call_args_list
+        calls = cast("Mock", scheduler.scheduler_service).dequeue_job.call_args_list
         dequeued_jobs = {c.args[0] for c in calls}
         assert job1 in dequeued_jobs
         assert job2 in dequeued_jobs
@@ -178,7 +177,7 @@ class TestRemoveGroup:
         await scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
         scheduler.remove_group("morning")
         # dequeue_job called twice
-        assert scheduler.scheduler_service.dequeue_job.call_count == 2
+        assert cast("Mock", scheduler.scheduler_service).dequeue_job.call_count == 2
 
     async def test_remove_group_reaches_service_with_registered_jobs(self) -> None:
         """remove_group delegates every group member (with its assigned db_id) to the
@@ -201,7 +200,7 @@ class TestRemoveGroup:
 
         scheduler.remove_group("morning")
 
-        calls = scheduler.scheduler_service.dequeue_job.call_args_list
+        calls = cast("Mock", scheduler.scheduler_service).dequeue_job.call_args_list
         dequeued_jobs = {c.args[0] for c in calls}
         assert {job1, job2} <= dequeued_jobs
 
@@ -222,7 +221,7 @@ class TestRemoveGroup:
         scheduler.remove_group("morning")
 
         # task_bucket.spawn must NOT be called (no db_ids set)
-        scheduler.scheduler_service.task_bucket.spawn.assert_not_called()
+        cast("Mock", scheduler.scheduler_service).task_bucket.spawn.assert_not_called()
 
 
 class TestListJobs:
@@ -441,7 +440,11 @@ class TestScheduleTypeError:
 
         scheduler = make_scheduler()
         with pytest.raises(TypeError, match="trigger must implement TriggerProtocol"):
-            await scheduler.schedule(noop, NotATrigger(), name="schedule_raises_typeerror_for_non_protoc_schedule")
+            await scheduler.schedule(
+                noop,
+                NotATrigger(),  # pyright: ignore[reportArgumentType]
+                name="schedule_raises_typeerror_for_non_protoc_schedule",
+            )
 
 
 class TestCallbackRegistration:
@@ -514,15 +517,15 @@ class TestRemoveJob:
 
         # First removal
         scheduler.remove_job(job)
-        first_spawn_count = scheduler.scheduler_service.task_bucket.spawn.call_count
-        first_dequeue_count = scheduler.scheduler_service.dequeue_job.call_count
+        first_spawn_count = cast("Mock", scheduler.scheduler_service).task_bucket.spawn.call_count
+        first_dequeue_count = cast("Mock", scheduler.scheduler_service).dequeue_job.call_count
 
         # Second removal — must be a no-op
         scheduler.remove_job(job)
-        assert scheduler.scheduler_service.task_bucket.spawn.call_count == first_spawn_count, (
+        assert cast("Mock", scheduler.scheduler_service).task_bucket.spawn.call_count == first_spawn_count, (
             "No additional DB write on second removal"
         )
-        assert scheduler.scheduler_service.dequeue_job.call_count == first_dequeue_count, (
+        assert cast("Mock", scheduler.scheduler_service).dequeue_job.call_count == first_dequeue_count, (
             "No additional dequeue on second removal"
         )
 
@@ -556,7 +559,7 @@ class TestRemoveJob:
 
         job = await scheduler.schedule(noop, Every(hours=1), name="job1")
         scheduler.remove_job(job)
-        scheduler.scheduler_service.dequeue_job.assert_called_once_with(job)
+        cast("Mock", scheduler.scheduler_service).dequeue_job.assert_called_once_with(job)
 
     async def test_remove_job_dequeued_set_by_dequeue_job(self) -> None:
         """job._dequeued is False when dequeue_job runs (set True afterward by SchedulerService)."""
@@ -617,16 +620,17 @@ class TestIdentityPassThrough:
     async def test_job_inherits_parent_instance_index(self) -> None:
         """schedule() sets job.instance_index from parent.index."""
         scheduler = make_scheduler()
-        scheduler.parent.index = 5
+        cast("MagicMock", scheduler.parent).index = 5
         job = await scheduler.schedule(noop, Every(hours=1), name="job_inherits_parent_instance_index_schedule")
         assert job.instance_index == 5
 
     async def test_framework_scheduler_inherits_framework_tier(self) -> None:
         """A Scheduler with a framework parent produces jobs with source_tier='framework'."""
         scheduler = make_scheduler()
-        scheduler.parent.source_tier = "framework"
-        scheduler.parent.app_key = "__hassette__.TestComponent"
-        scheduler.parent.class_name = "TestComponent"
+        parent = cast("MagicMock", scheduler.parent)
+        parent.source_tier = "framework"
+        parent.app_key = "__hassette__.TestComponent"
+        parent.class_name = "TestComponent"
         job = await scheduler.schedule(noop, Every(hours=1), name="framework_scheduler_inherits_framework_t_schedule")
         assert job.source_tier == "framework"
         assert job.app_key == "__hassette__.TestComponent"
@@ -634,7 +638,7 @@ class TestIdentityPassThrough:
     async def test_source_tier_assertion_rejects_invalid_value(self) -> None:
         """schedule() raises ValueError for invalid source_tier values."""
         scheduler = make_scheduler()
-        scheduler.parent.source_tier = "invalid"
+        cast("MagicMock", scheduler.parent).source_tier = "invalid"
         with pytest.raises(ValueError, match="Invalid source_tier"):
             await scheduler.schedule(noop, Every(hours=1), name="source_tier_assertion_rejects_invalid_va_schedule")
 
@@ -684,4 +688,6 @@ class TestDbIdSetImmediately:
         await scheduler.add_job(job)
 
         assert job.db_id is not None, "db_id must be set after add_job returns (no spawn)"
-        assert scheduler.scheduler_service.add_job.await_count == 1, "add_job must be awaited exactly once"
+        assert cast("Mock", scheduler.scheduler_service).add_job.await_count == 1, (
+            "add_job must be awaited exactly once"
+        )

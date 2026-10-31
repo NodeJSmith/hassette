@@ -1,6 +1,7 @@
 """Tests for Scheduler job name uniqueness validation."""
 
-from unittest.mock import AsyncMock
+from typing import cast
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -214,7 +215,7 @@ class TestIfExistsReplace:
 
         # Rollback ran for the failed new job specifically (identity, not just name),
         # through the unified removal operation.
-        scheduler.scheduler_service.remove_job.assert_any_call(new_job)
+        cast("Mock", scheduler.scheduler_service).remove_job.assert_any_call(new_job)
 
     async def test_rollback_removes_generic_job_after_post_persist_failure(self) -> None:
         """Generic (non-EntityTime, non-replace) rollback path: a plain registration whose
@@ -240,8 +241,9 @@ class TestIfExistsReplace:
         assert job.db_id == 42
         assert "flaky_job" not in scheduler._jobs_by_name
         assert job not in scheduler._jobs_by_group.get("monitors", set())
-        scheduler.scheduler_service.remove_job.assert_awaited_once_with(job)
-        scheduler.scheduler_service.mark_job_removed.assert_awaited_once_with(42)
+        service = cast("Mock", scheduler.scheduler_service)
+        service.remove_job.assert_awaited_once_with(job)
+        service.mark_job_removed.assert_awaited_once_with(42)
 
 
 class TestSchedulerNameRequired:
@@ -301,9 +303,7 @@ class TestSchedulerKeywordOnlyParams:
     async def test_schedule_positional_name_raises_typeerror(self) -> None:
         scheduler = make_scheduler()
         with pytest.raises(TypeError):
-            await scheduler.schedule(  # pyright: ignore[reportCallIssue]
-                noop, After(seconds=5), "positional_name"
-            )
+            await scheduler.schedule(noop, After(seconds=5), "positional_name")  # pyright: ignore[reportCallIssue]
 
     async def test_run_in_positional_name_raises_typeerror(self) -> None:
         scheduler = make_scheduler()
@@ -318,20 +318,14 @@ class TestSchedulerKeywordOnlyParams:
     async def test_run_every_positional_jitter_raises_typeerror(self) -> None:
         scheduler = make_scheduler()
         with pytest.raises(TypeError):
-            await scheduler.run_every(  # pyright: ignore[reportCallIssue]
-                noop, 1, 0, 0, "n", None, 1.0
-            )
+            await scheduler.run_every(noop, 1, 0, 0, "n", None, 1.0)  # pyright: ignore[reportCallIssue]
 
     async def test_run_daily_positional_timeout_raises_typeerror(self) -> None:
         scheduler = make_scheduler()
         with pytest.raises(TypeError):
-            await scheduler.run_daily(  # pyright: ignore[reportCallIssue]
-                noop, "07:00", "n", None, None, 5.0
-            )
+            await scheduler.run_daily(noop, "07:00", "n", None, None, 5.0)  # pyright: ignore[reportCallIssue]
 
     async def test_run_hourly_positional_timeout_disabled_raises_typeerror(self) -> None:
         scheduler = make_scheduler()
         with pytest.raises(TypeError):
-            await scheduler.run_hourly(  # pyright: ignore[reportCallIssue]
-                noop, 1, "n", None, None, None, True
-            )
+            await scheduler.run_hourly(noop, 1, "n", None, None, None, True)  # pyright: ignore[reportCallIssue]

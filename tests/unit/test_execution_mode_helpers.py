@@ -220,6 +220,7 @@ class TestRunThroughGuard:
 
         primed.gate.set()
         await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        assert primed.queued_task is not None
         await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     async def test_ran_awaits_done_future(self) -> None:
@@ -308,6 +309,7 @@ class TestRunThroughGuard:
         primed.gate.set()
 
         await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        assert primed.queued_task is not None
         await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         assert len(pending_done) == 0
         assert len(guard.pending) == 0
@@ -353,6 +355,7 @@ class TestRunThroughGuard:
         drain_pending_done(pending_done)
 
         # Both futures should now be resolved; second_task should complete.
+        assert primed.queued_task is not None
         await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         assert len(pending_done) == 0
