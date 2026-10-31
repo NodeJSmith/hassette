@@ -35,7 +35,7 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `app_not_found` | 404 | No app with this key is configured. |
 | `instance_not_found` | 404 | The instance index is out of range for the app's current config. |
 | `bootstrap_not_released` | 409 | App bootstrap prerequisites aren't ready yet. Retry the start or reload later. |
-| `app_blocked` | 409 | The `--app` filter excludes this app. Retrying won't help until the filter changes. |
+| `app_blocked` | 409 | The app is excluded by the [`--app` option of `hassette run`](../cli/commands.md#hassette-run), which runs only the named apps. Retrying won't help: restart Hassette with this app included in `--app`, or without the option. |
 | `action_in_progress` | 409 | Another start, stop, or reload on this app is still running, so this one was rejected without running. |
 | `needs_restart` | 409 | A targeted instance needs a Hassette restart, so the start, stop, or reload did nothing to it. Retrying won't help until Hassette restarts. |
 | `action_failed` | 500 | A start, stop, or reload failed on at least one targeted instance. `detail` names each one with its failure. |
