@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from hassette.api.service_calls import normalize_notifier
-from tests.unit.conftest import make_api
+from tests.unit.conftest import as_async_mock, make_api
 
 
 @pytest.fixture(autouse=True)
@@ -88,7 +88,7 @@ async def test_notify_rejects_invalid_notifier(notifier: str) -> None:
     with pytest.raises(ValueError, match="notifier"):
         await api.notify("hello", notifier)
 
-    assert api.ws_send_json.await_count == 0, "No service call should be sent for an invalid notifier"
+    assert as_async_mock(api.ws_send_json).await_count == 0, "No service call should be sent for an invalid notifier"
 
 
 @pytest.mark.parametrize(

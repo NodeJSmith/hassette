@@ -203,7 +203,7 @@ class TestExecutionStatus:
         with pytest.raises(ValidationError):
             ActivityFeedEntry(
                 row_id="h-1",
-                status="bogus",
+                status="bogus",  # pyright: ignore[reportArgumentType]
                 timestamp=1.0,
                 app_key="my_app",
                 handler_id=1,
@@ -296,7 +296,7 @@ class TestResourceStatus:
 
     def test_rejects_value_not_in_resource_status_on_service_info(self) -> None:
         with pytest.raises(ValidationError):
-            ServiceInfo(name="bus", status="active")
+            ServiceInfo(name="bus", status="active")  # pyright: ignore[reportArgumentType]
 
     def test_accepts_running_on_service_info(self) -> None:
         obj = ServiceInfo(name="bus", status=ResourceStatus.RUNNING)

@@ -72,6 +72,7 @@ class TestDiscoverEntityModule:
     def test_entity_class_in_init_py(self, tmp_path: Path) -> None:
         core = _write_domain(tmp_path, {"__init__.py": _ENTITY_MODULE_SOURCE})
         (widget,) = discover_domains(core)
+        assert widget.entity_module is not None
         assert widget.entity_module.name == "__init__.py"
 
     def test_entity_class_in_entity_py(self, tmp_path: Path) -> None:
@@ -81,6 +82,7 @@ class TestDiscoverEntityModule:
         )
         (widget,) = discover_domains(core)
         assert widget.name == "widget"
+        assert widget.entity_module is not None
         assert widget.entity_module.name == "entity.py"
         assert [p.name for p in extract_properties(widget.entity_module)] == ["items"]
 
@@ -109,6 +111,7 @@ class TestDiscoverDomains:
     def test_finds_todo_with_entity_class_in_entity_py(self) -> None:
         domains = discover_domains(_HA_CORE)
         todo = next(d for d in domains if d.name == "todo")
+        assert todo.entity_module is not None
         assert todo.entity_module.name == "entity.py"
 
     def test_discovers_expected_count(self) -> None:

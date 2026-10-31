@@ -25,6 +25,7 @@ PACKAGE_DIR = SRC_ROOT / "hassette"
 RESOURCE_ROOT = "hassette.resources.base.Resource"
 MARK_READY_NAME = "hassette.resources.lifecycle.mark_ready"
 IGNORE_MARKER = "# structural: ignore[mark-ready]"
+NOTHING_SEEN: frozenset[str] = frozenset()
 
 ALLOWLIST: dict[str, str] = {
     "hassette.app.app.App": "AppLifecycleService marks each app instance ready after its initialize() returns",
@@ -113,7 +114,7 @@ def scan_source(source: str, module: str, path: Path, is_package: bool = False) 
     for node in tree.body:
         if not isinstance(node, ast.ClassDef):
             continue
-        bases = tuple(
+        bases: tuple[str, ...] = tuple(
             name for base in node.bases if (name := dotted_name(base, info.aliases, module, local_names)) is not None
         )
         call_names = frozenset(
@@ -140,7 +141,7 @@ class ClassIndex:
         self.modules = modules
         self.classes = {cls.qualname: cls for mod in modules.values() for cls in mod.classes.values()}
 
-    def resolve(self, name: str, seen: frozenset[str] = frozenset()) -> str:
+    def resolve(self, name: str, seen: frozenset[str] = NOTHING_SEEN) -> str:
         """Follow re-exports (``from x import Y`` in a package ``__init__``) to the defining module."""
         if name in self.classes or name in seen:
             return name

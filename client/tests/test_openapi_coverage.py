@@ -180,9 +180,7 @@ async def all_requests(client: HassetteClient, server: FakeServer) -> dict[str, 
 
 def test_calls_cover_every_public_client_method() -> None:
     public = {
-        name
-        for name, member in inspect.getmembers(HassetteClient, inspect.iscoroutinefunction)
-        if not name.startswith("_")
+        name for name, _ in inspect.getmembers(HassetteClient, inspect.iscoroutinefunction) if not name.startswith("_")
     }
 
     assert public == set(CALLS)

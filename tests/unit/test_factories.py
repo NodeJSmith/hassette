@@ -119,6 +119,7 @@ class TestMakeHassEvent:
             context_id="ctx-custom",
         )
         assert event.topic == "hass.zha_event"
+        assert isinstance(event.payload, HassPayload)
         assert event.payload.event_type == "zha_event"
         assert event.payload.data == {"device": "switch"}
         assert event.payload.origin == "REMOTE"
