@@ -119,12 +119,14 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
 
         # Fire job at t=0, t=10, t=20 — all complete quickly
         t0 = job.next_run
+        assert t0 is not None
         harness.freeze_time(t0.add(seconds=1))
         await harness.trigger_due_jobs()
         await asyncio.sleep(0)
 
         # Re-get job after reschedule
         job2 = await get_job_by_name(harness, "quick_job")
+        assert job2.next_run is not None
 
         # Next fire should be ~10s after first fire, not 10s after completion
         delta = (job2.next_run - t0).total("seconds")
@@ -339,7 +341,7 @@ async def test_restart_mode_cancels_and_starts_fresh() -> None:
                 raise
 
     async with AppTestHarness(_RestartApp, config={"instance_name": "restart_app"}) as harness:
-        mock_executor = harness._harness.mock_executor
+        mock_executor = harness.require_harness().mock_executor
 
         # Wrap execute() to capture CancelledError exits — this is the signal the real
         # CommandExecutor uses to enqueue a status='cancelled' execution row.

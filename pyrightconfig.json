@@ -18,12 +18,7 @@
         // Test files with known type errors (#1271). Each fix issue removes its own entries;
         // test files not listed here are type-checked.
         "tests/e2e/test_navigation.py",
-        "tests/e2e/test_websocket.py",
-        "tests/integration/test_scheduler_entity_time.py",
-        "tests/integration/test_scheduler_error_handler.py",
-        "tests/integration/test_scheduler_mode_dispatch_edge_cases.py",
-        "tests/integration/test_scheduler_mode_overlap.py",
-        "tests/integration/test_scheduler_mode_resolution.py"
+        "tests/e2e/test_websocket.py"
     ],
     // pytest fixtures are registered by decorator and never referenced by name.
     // extraPaths keeps the repo root importable, so `import tests.support...` still resolves

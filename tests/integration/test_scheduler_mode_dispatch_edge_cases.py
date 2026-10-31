@@ -81,6 +81,7 @@ async def test_trigger_error_runs_current_fire_then_completes_job() -> None:
 
     async with AppTestHarness(_BadTriggerApp, config={"instance_name": "bad_trigger_app"}) as harness:
         job = await get_job_by_name(harness, "bad_trigger_job")
+        assert job.next_run is not None
 
         # Freeze past job's due time and dispatch
         harness.freeze_time(job.next_run.add(seconds=1))
@@ -142,6 +143,7 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
 
         try:
             # Freeze time past the job's due time so dispatch proceeds normally
+            assert job.next_run is not None
             harness.freeze_time(job.next_run.add(seconds=1))
             await scheduler_service.dispatch_and_log(job)
             await asyncio.sleep(0)
