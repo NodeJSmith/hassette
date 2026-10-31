@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.62.0](https://github.com/NodeJSmith/hassette/compare/v0.61.0...v0.62.0) (2026-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* `auto_loaded` is gone from `GET /api/apps`, `GET /api/apps/{app_key}` and `GET /api/telemetry/app-grid` responses and from the `hassette_wire` `AppSummary` model. Code reading it should drop the read; the value has always been false since autodetection was removed. Installs still on hass-hassette v0.3.0 pin hassette-client 0.59.0, which requires the field, so they create no app devices until updated to hass-hassette v0.4.0 or later.
+
+### Features
+
+* **cli:** mark default values in hassette config output ([#3634](https://github.com/NodeJSmith/hassette/issues/3634)) ([5371b68](https://github.com/NodeJSmith/hassette/commit/5371b686f8b12fc321e2c43d78c752ff83ae96ea))
+* remove the deprecated auto_loaded field from app API responses ([#3640](https://github.com/NodeJSmith/hassette/issues/3640)) ([d3de6df](https://github.com/NodeJSmith/hassette/commit/d3de6dffe02e06d1c914535ded51efb830635cb9))
+* report each config field's default in the config API ([#3628](https://github.com/NodeJSmith/hassette/issues/3628)) ([b99149f](https://github.com/NodeJSmith/hassette/commit/b99149fb8214af28a3f4903c1c582a1e17209b1b))
+
+
+### Documentation
+
+* correct the app config env override claim and broadcast example imports ([#3645](https://github.com/NodeJSmith/hassette/issues/3645)) ([2fb7422](https://github.com/NodeJSmith/hassette/commit/2fb74226037bb0af5f7cc97fbb14f256d7c289e7))
+* correct the test harness install prerequisite ([#3626](https://github.com/NodeJSmith/hassette/issues/3626)) ([b654547](https://github.com/NodeJSmith/hassette/commit/b654547d012d34bd0b5d01f785942a5f858b9d7f))
+* explain how to clear the app_blocked error ([#3632](https://github.com/NodeJSmith/hassette/issues/3632)) ([766bbd3](https://github.com/NodeJSmith/hassette/commit/766bbd3d5ca2f64aa59a4de5ebd115d32d861b26))
+* fix below-limit variation and crossing verification in sensor-threshold recipe ([#3598](https://github.com/NodeJSmith/hassette/issues/3598)) ([6c72cd6](https://github.com/NodeJSmith/hassette/commit/6c72cd62d9966dfb8c901386a283cd8f02238acf))
+* fix the verify step and light setup in the vacation mode recipe ([#3641](https://github.com/NodeJSmith/hassette/issues/3641)) ([8754694](https://github.com/NodeJSmith/hassette/commit/8754694158193975779320b5bca00a46b64b5440))
+* make the motion-lights recipe's log output, timer check, and split-handler variation match the code ([#3595](https://github.com/NodeJSmith/hassette/issues/3595)) ([8987e8b](https://github.com/NodeJSmith/hassette/commit/8987e8b2363073876ed4da1feaad734f872903d3))
+* point readers seeing zero handler runs to the 7d preset ([#3630](https://github.com/NodeJSmith/hassette/issues/3630)) ([1e0a0c3](https://github.com/NodeJSmith/hassette/commit/1e0a0c3f2c508c6d444b51d701cd3e3e3d48d4c0))
+* show how to use state dicts with make_typed_state ([#3635](https://github.com/NodeJSmith/hassette/issues/3635)) ([eb72725](https://github.com/NodeJSmith/hassette/commit/eb727253eb2dbb8ac3146843b816891bbb5d2563))
+* show the app under test and where to save files in the testing quick start ([#3623](https://github.com/NodeJSmith/hassette/issues/3623)) ([b6465ed](https://github.com/NodeJSmith/hassette/commit/b6465ed413c371d75764c334a5ba0d23395749c4))
+* show the command that runs tests in parallel with pytest-xdist ([#3639](https://github.com/NodeJSmith/hassette/issues/3639)) ([ae32dca](https://github.com/NodeJSmith/hassette/commit/ae32dca452c3743ca5ddbed3d30c1413b7e00ff9))
+* update the Home Assistant token guide for the new Profile layout ([#3637](https://github.com/NodeJSmith/hassette/issues/3637)) ([3777119](https://github.com/NodeJSmith/hassette/commit/3777119bb4638f8e83d917c723ef3badc1b032e4))
+* warn about the handler feedback loop in the service-call glob recipe ([#3600](https://github.com/NodeJSmith/hassette/issues/3600)) ([011cc17](https://github.com/NodeJSmith/hassette/commit/011cc17d897f6c46b677d82da8142aeb121d5d2f))
+* warn that the app env-var override breaks multi-instance apps ([#3642](https://github.com/NodeJSmith/hassette/issues/3642)) ([c22b056](https://github.com/NodeJSmith/hassette/commit/c22b056f4ec6e6536483ed010fa28ddbaad9442b))
+
 ## [0.61.0](https://github.com/NodeJSmith/hassette/compare/v0.60.0...v0.61.0) (2026-10-29)
 
 This release completes the **Resource Lifecycle** milestone ([milestone 19](https://github.com/NodeJSmith/hassette/milestone/19), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/134-resource-lifecycle-outcomes/design.md)). Hassette now records what happened to each service and app instead of inferring it. Hassette no longer restarts failed services in-process: a required service's failure exits the process for your supervisor to restart, and an optional one stays dead with one ERROR. A service is RUNNING only once its initialization finishes, and a failure at boot fails startup. If the event bus dies, the process shuts down without hanging. If a timed-out hook may have left an app's work running, that instance is flagged as needing a restart, and nothing replaces it until Hassette restarts. App actions report each instance's own outcome, and every app gets its full shutdown timeout at exit. The breaking changes come first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps. Instance Identity, which re-keys stored history and routes on the instance name, comes next.
