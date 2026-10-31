@@ -61,7 +61,9 @@ lights = ["light.entry"]
 !!! note "Two TOML paths, two purposes"
     App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields, including `instance_name`, live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
 
-Environment variables override individual `config` values at startup. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
+Environment variables override individual `config` values at startup on an app with a single `config` table. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
+
+This override breaks an app with `[[hassette.apps.<key>.config]]` blocks ([Multiple Instances](#multiple-instances)). The variable replaces every block with one table holding only that field. That table has no `instance_name`, so config load fails. No variable targets a single block, so per-instance values belong in `hassette.toml`.
 
 ## Multiple Instances
 
