@@ -54,7 +54,7 @@ Clicking the app's own name opens its app-wide overview instead: a card per inst
 
 ![An expanded instance row with its own action buttons](../../_static/web_ui_instance_action_buttons.png)
 
-The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), a config change to just one instance in `hassette.toml` triggers a selective reload: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
+The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), a config change to just one instance in `hassette.toml` triggers a selective reload: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
 
 ## Start, Stop, and Reload
 
@@ -72,7 +72,7 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 
 An action finishes before it answers. When it fails on one instance, the error message names that instance with its failure, after a count of the instances it acted on.
 
-**Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs a Hassette restart. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
+**Reload** picks up changes to the app's own module file only. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs a Hassette restart. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
 
 These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /api/apps/{key}/instances/{index}/start`, `/stop`, `/reload` for a single instance. The CLI exposes the same three actions as `hassette app start|stop|reload`, with `--instance` routing to the per-instance endpoint. See [CLI Commands](../cli/commands.md) for the full command reference.
 
