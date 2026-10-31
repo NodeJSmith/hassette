@@ -155,7 +155,7 @@ A running handler holds its slot until it returns or reaches `event_handler_time
 
 ### File Watcher
 
-The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). A reload re-imports only the app's own module file, so edits to modules it imports need a Hassette restart ([What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)). The watcher groups a burst of changes into one reload. That reload fires after 500ms of quiet, or 3 seconds after the first change at the latest. `watch_files = false` in `[hassette.file_watcher]` disables watching entirely.
+The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). A reload re-imports only the app's own module file, so edits to modules it imports need a Hassette restart ([What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)). The watcher groups a burst of changes into one reload. It checks for changes every 500ms and reloads when a check finds no newly changed files, or about 3 seconds into a burst that keeps touching new files. `watch_files = false` in `[hassette.file_watcher]` disables watching entirely.
 
 ### State Proxy Polling
 
@@ -191,7 +191,7 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
 - **`watchdog_enabled`** (bool): Whether to run the Tier 1 loop-responsiveness watchdog. Default: `true`.
 
-- **`lag_threshold_seconds`** (float): Tier 1 minimum stall duration in seconds before detection fires. The watchdog's heartbeat runs about every 83ms, so a lower value can report a responsive loop as stalled. Values of `0.1` and above avoid this. Default: `0.1` (100ms).
+- **`lag_threshold_seconds`** (float): Tier 1 minimum stall duration in seconds before detection fires. The watchdog's heartbeat runs about every 83ms, so a lower value can report a responsive loop as stalled. The default leaves about 17ms of headroom, so a scheduling delay longer than that can also report a stall. A higher value absorbs those delays but misses shorter stalls. Default: `0.1` (100ms).
 
 - **`min_events`** (int): Tier 1 minimum number of stalls at one call site before it shows up as a finding in the UI and CLI. A single stall can be a fluke, so the default hides it until it recurs. A value of `1` lists every Tier 1 stall. Tier 2 findings always show. Default: `2`.
 

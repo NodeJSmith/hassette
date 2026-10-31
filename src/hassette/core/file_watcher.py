@@ -11,9 +11,10 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.resources.service import Service
 
 DEBOUNCE_MILLISECONDS = 3000
-"""Longest the watcher groups changes into one event."""
+"""Longest the watcher keeps grouping changes into one event, from the first poll that saw a change."""
 STEP_MILLISECONDS = 500
-"""Quiet period after the last change before the watcher emits the event."""
+"""Poll period. The watcher emits once a poll finds no newly changed path, which doesn't require quiet:
+repeated writes to one already-seen file count as no new change."""
 
 
 class FileWatcherService(Service):
