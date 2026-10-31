@@ -140,10 +140,11 @@ async def test_shutdown_stopping_then_stopped_sequence():
 
     # Monkey-patch status setter to capture all transitions
     original_setter = type(resource).status.fset
+    assert original_setter is not None
 
     def _capturing_setter(self, value: ResourceStatus) -> None:
         seen_statuses.append(value)
-        original_setter(self, value)  # pyright: ignore[reportCallIssue]
+        original_setter(self, value)
 
     type(resource).status = property(type(resource).status.fget, _capturing_setter)  # pyright: ignore[reportAttributeAccessIssue]
     try:
@@ -408,15 +409,14 @@ async def test_cancel_stops_pending_start_joiner_same_turn():
     # so _init_task is still None at the moment cancel() runs.
     start(resource)
     assert resource._init_task is None
-    assert resource._pending_start_task is not None
+    pending_task = resource._pending_start_task
+    assert pending_task is not None
 
     cancel(resource)
 
     # Let the cancelled joiner actually run and settle.
-    pending_task = resource._pending_start_task
-    if pending_task is not None:
-        with pytest.raises(asyncio.CancelledError):
-            await pending_task
+    with pytest.raises(asyncio.CancelledError):
+        await pending_task
 
     await asyncio.sleep(0)
 

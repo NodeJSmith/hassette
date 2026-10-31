@@ -4,7 +4,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from hassette_wire import ExecutionStatus
+from hassette_wire import ExecutionStatus, SourceTier
 
 from hassette.commands import ExecuteJob
 from hassette.core.execution_record import ExecutionRecord
@@ -27,7 +27,7 @@ def make_cmd_execute_job(source_tier: str, trigger_mode: str | None = None) -> M
     return cmd
 
 
-async def run_execute(source_tier: str, exc: BaseException) -> ExecutionResult:
+async def run_execute(source_tier: SourceTier, exc: BaseException) -> ExecutionResult:
     """Run CommandExecutor._execute() against a handler that raises ``exc``, for the
     source_tier branching tests below — every occurrence shared the same executor/cmd/
     log_error/execution_id setup, differing only in source_tier and the raised exception.
@@ -83,7 +83,7 @@ class TestCommandExecutorSourceTierBranching:
     async def test_unexpected_source_tier_raises(self) -> None:
         """Unexpected source_tier value raises AssertionError."""
         executor = make_executor()
-        cmd = make_invoke_handler_cmd(source_tier="unknown_tier")
+        cmd = make_invoke_handler_cmd(source_tier="unknown_tier")  # pyright: ignore[reportArgumentType]
 
         async def fn() -> None:
             pass
@@ -106,7 +106,7 @@ class TestCommandExecutorSourceTierBranching:
 
 def make_result(
     *,
-    status: str = "success",
+    status: ExecutionStatus = ExecutionStatus.SUCCESS,
     error_type: str | None = None,
     error_message: str | None = None,
     error_traceback: str | None = None,

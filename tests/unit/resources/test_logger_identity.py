@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from logging.handlers import BufferingHandler
 
 import pytest
+from hassette_wire import LogLevel
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -44,8 +45,8 @@ def build_identity_app(
     *,
     index: int = 0,
     app_key: str = "identity_app",
-    log_level: str | None = None,
-    framework_log_level: str | None = None,
+    log_level: LogLevel | None = None,
+    framework_log_level: LogLevel | None = None,
 ) -> App:
     hassette = make_mock_hassette(sealed=False)
     hassette.config.logging.app_handler = "WARNING"

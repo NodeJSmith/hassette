@@ -89,7 +89,7 @@ def build_execution_record_minimal(*, kind: Literal["handler", "job"] = "handler
         session_id=1,
         execution_start_ts=TEST_EPOCH_B,
         duration_ms=5.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
     )
 
 
@@ -253,7 +253,7 @@ class TestExecutionRecordNewColumns:
             kind="job",
             execution_start_ts=TEST_EPOCH_B,
             duration_ms=5.0,
-            status="error",
+            status=ExecutionStatus.ERROR,
             listener_id=None,
             job_id=99,
             trigger_mode="interval",

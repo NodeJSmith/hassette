@@ -24,12 +24,13 @@ OWNER = "sealed_owner"
 class TestListenerCancelWithSealedBucket:
     async def test_cancel_does_not_raise_on_sealed_bucket(self) -> None:
         """Listener.cancel() must never raise out — the bulk-removal loop depends on it."""
-        listener = create_listener(owner_id=OWNER, task_bucket=make_rejecting_task_bucket())
+        bucket = make_rejecting_task_bucket()
+        listener = create_listener(owner_id=OWNER, task_bucket=bucket)
 
         listener.cancel()
 
         assert listener.is_cancelled is True
-        listener.invoker.task_bucket.spawn.assert_called_once()
+        bucket.spawn.assert_called_once()
 
     async def test_remove_listeners_by_owner_completes_full_loop(self) -> None:
         """Every listener is cancelled and every removal callback fires despite the seal."""
