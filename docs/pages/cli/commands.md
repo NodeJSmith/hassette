@@ -20,7 +20,7 @@ hassette run
 | ----------------- | ----------------------------------------------------------------------- |
 | `--token`, `-t`   | Home Assistant access token. Overrides config file and environment.   |
 | `--ha-url`, `-u`  | URL of the Home Assistant instance to connect to.                     |
-| `--ha-verify-ssl` | Whether to verify SSL certificates for the Home Assistant connection. |
+| `--ha-verify-ssl` | Whether to verify SSL certificates for the Home Assistant connection. Overrides `verify_ssl` from the config. Pass `--ha-verify-ssl=false` to accept a self-signed certificate. The `=` is required: a separate `false` is read as the token. |
 | `--dev-mode`      | Enables developer mode: extra logging, automatic app reloads on file changes, and deeper blocking-call detection. See [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging). |
 | `--app`, `-a`     | Run only this app key, excluding all others. Repeatable.              |
 | `--check`         | Validates the configuration, prints the resolved locations, and exits without starting. See [Checking the Resolved Locations](../core-concepts/configuration/index.md#check-config). |
