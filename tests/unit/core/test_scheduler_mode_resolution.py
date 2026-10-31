@@ -14,6 +14,7 @@ from hassette_wire import ExecutionMode
 import hassette.utils.date_utils as date_utils
 from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler.classes import Job
+from tests.support.helpers import noop
 
 # Helpers
 
@@ -23,7 +24,7 @@ def _make_raw_job(**kwargs) -> Job:
     return Job(
         owner_id="test_owner",
         next_run=date_utils.now(),
-        job=lambda: None,
+        job=noop,
         **kwargs,
     )
 
@@ -51,8 +52,8 @@ class TestJobModeAndGuard:
     def test_mode_does_not_affect_heap_ordering(self) -> None:
         """mode=compare=False: two jobs differing only in mode can coexist in a heap."""
         now = date_utils.now()
-        job_single = Job(owner_id="a", next_run=now, job=lambda: None, mode=ExecutionMode.SINGLE)
-        job_parallel = Job(owner_id="b", next_run=now, job=lambda: None, mode=ExecutionMode.PARALLEL)
+        job_single = Job(owner_id="a", next_run=now, job=noop, mode=ExecutionMode.SINGLE)
+        job_parallel = Job(owner_id="b", next_run=now, job=noop, mode=ExecutionMode.PARALLEL)
         heap: list[Job] = []
         heapq.heappush(heap, job_single)
         heapq.heappush(heap, job_parallel)  # must not raise TypeError
@@ -60,8 +61,8 @@ class TestJobModeAndGuard:
     def test_guard_does_not_affect_heap_ordering(self) -> None:
         """guard=compare=False: two jobs can coexist in a heap without guard comparison."""
         now = date_utils.now()
-        job_a = Job(owner_id="a", next_run=now, job=lambda: None)
-        job_b = Job(owner_id="b", next_run=now, job=lambda: None)
+        job_a = Job(owner_id="a", next_run=now, job=noop)
+        job_b = Job(owner_id="b", next_run=now, job=noop)
         heap: list[Job] = []
         heapq.heappush(heap, job_a)
         heapq.heappush(heap, job_b)  # must not raise TypeError about ExecutionModeGuard comparison
@@ -80,30 +81,26 @@ class TestJobModeAndGuard:
 
     def test_matches_includes_mode(self) -> None:
         """matches() returns False when mode differs — prevents if_exists='skip' ignoring mode changes."""
-        fn = lambda: None  # noqa: E731
-        job_single = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.SINGLE)
-        job_parallel = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.PARALLEL)
+        job_single = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.SINGLE)
+        job_parallel = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.PARALLEL)
         assert not job_single.matches(job_parallel)
 
     def test_matches_same_mode_returns_true(self) -> None:
         """matches() returns True when all fields including mode are identical."""
-        fn = lambda: None  # noqa: E731
-        job_a = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.QUEUED)
-        job_b = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.QUEUED)
+        job_a = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.QUEUED)
+        job_b = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.QUEUED)
         assert job_a.matches(job_b)
 
     def test_diff_fields_includes_mode(self) -> None:
         """diff_fields() includes 'mode' when mode differs."""
-        fn = lambda: None  # noqa: E731
-        job_single = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.SINGLE)
-        job_parallel = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.PARALLEL)
+        job_single = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.SINGLE)
+        job_parallel = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.PARALLEL)
         diff = job_single.diff_fields(job_parallel)
         assert "mode" in diff
 
     def test_diff_fields_excludes_mode_when_same(self) -> None:
         """diff_fields() does not include 'mode' when mode is identical."""
-        fn = lambda: None  # noqa: E731
-        job_a = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.RESTART)
-        job_b = Job(owner_id="x", next_run=date_utils.now(), job=fn, mode=ExecutionMode.RESTART)
+        job_a = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.RESTART)
+        job_b = Job(owner_id="x", next_run=date_utils.now(), job=noop, mode=ExecutionMode.RESTART)
         diff = job_a.diff_fields(job_b)
         assert "mode" not in diff
