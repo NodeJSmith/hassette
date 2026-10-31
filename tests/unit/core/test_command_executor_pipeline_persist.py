@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 import pytest
-from hassette_wire import SourceTier
+from hassette_wire import ExecutionStatus, SourceTier
 
 from hassette.commands import InvokeHandler
 from hassette.core import execution_pipeline
@@ -80,7 +80,9 @@ def test_build_record_reads_is_di_failure():
     executor = init_executor()
 
     cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="app")
-    result = make_result(status="error", error_type="DependencyError", error_message="dep failed", is_di_failure=True)
+    result = make_result(
+        status=ExecutionStatus.ERROR, error_type="DependencyError", error_message="dep failed", is_di_failure=True
+    )
 
     record = build_execution_record(
         cmd, result, time.time(), "test-exec-id", session_id=executor.hassette.try_session_id()
@@ -96,7 +98,7 @@ def test_build_record_reads_thread_leaked():
 
     cmd = make_real_invoke_handler_cmd(listener_id=1, source_tier="app")
 
-    result = make_result(status="timed_out", thread_leaked=True)
+    result = make_result(status=ExecutionStatus.TIMED_OUT, thread_leaked=True)
 
     record = build_execution_record(cmd, result, time.time(), "exec-id", session_id=executor.hassette.try_session_id())
     assert record.thread_leaked is True
@@ -286,7 +288,7 @@ CREATE TABLE executions (
             session_id=1,
             execution_start_ts=time.time(),
             duration_ms=1.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
             source_tier="framework",
             is_di_failure=False,
         )

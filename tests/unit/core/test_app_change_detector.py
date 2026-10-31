@@ -122,7 +122,7 @@ class TestChangeSet:
         changes = make_change_set(orphans={"a"})
 
         with pytest.raises(AttributeError):
-            changes.orphans = frozenset({"b"})  # pyright: ignore[reportCallIssue]
+            changes.orphans = frozenset({"b"})  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class TestAppChangeDetector:
