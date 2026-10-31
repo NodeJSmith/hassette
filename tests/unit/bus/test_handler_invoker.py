@@ -1,7 +1,7 @@
 """Unit tests for HandlerInvoker sub-struct.
 
 These tests exercise the create/once-guard/invoke flow, not overlap behavior, so dispatch tests
-use ``mode="parallel"`` (the inline pass-through that never asks ``task_bucket`` to spawn a child).
+use ``ExecutionMode.PARALLEL`` (the inline pass-through that never asks ``task_bucket`` to spawn a child).
 ``make_task_bucket`` is imported from the shared helpers so it stays in sync with the production
 factory the integration tests rely on.
 """
@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ExecutionMode
 
 from hassette import TaskBucket
 from hassette.bus.listeners import HandlerInvoker, ListenerOptions
@@ -123,18 +124,18 @@ class TestHandlerInvokerSetAppErrorHandlerResolver:
 
 class TestHandlerInvokerDispatch:
     # These tests exercise the once-guard + invoke flow, not overlap behavior. They use
-    # ``mode="parallel"`` (the byte-for-byte inline pass-through) so the MagicMock task_bucket
+    # ``ExecutionMode.PARALLEL`` (the byte-for-byte inline pass-through) so the MagicMock task_bucket
     # is never asked to spawn a real child task. Overlap-mode dispatch is covered by the
     # ExecutionModeGuard unit tests and the bus integration tests.
     async def test_dispatch_calls_invoke_fn(self) -> None:
-        invoker = make_invoker(options=ListenerOptions(mode="parallel"))
+        invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.PARALLEL))
         invoke_fn = AsyncMock()
         await invoker.dispatch(invoke_fn)
         invoke_fn.assert_awaited_once()
 
     async def test_dispatch_once_guard_prevents_double_fire(self) -> None:
         """Once-guard: if once=True and fired=True, dispatch is skipped."""
-        invoker = make_invoker(options=ListenerOptions(once=True, mode="parallel"))
+        invoker = make_invoker(options=ListenerOptions(once=True, mode=ExecutionMode.PARALLEL))
         invoke_fn = AsyncMock()
 
         # First dispatch — should fire and mark fired
@@ -148,7 +149,7 @@ class TestHandlerInvokerDispatch:
 
     async def test_dispatch_once_false_allows_multiple(self) -> None:
         """once=False allows multiple dispatches."""
-        invoker = make_invoker(options=ListenerOptions(once=False, mode="parallel"))
+        invoker = make_invoker(options=ListenerOptions(once=False, mode=ExecutionMode.PARALLEL))
         invoke_fn = AsyncMock()
         await invoker.dispatch(invoke_fn)
         await invoker.dispatch(invoke_fn)
@@ -193,8 +194,8 @@ class TestHandlerInvokerInvoke:
 class TestHandlerInvokerWarnStalled:
     """Tests for the stall watchdog wired through run_with_mode -> run_through_guard.
 
-    ``mode="parallel"`` awaits inline and never arms the watchdog, so these tests use
-    ``mode="single"`` (a real task_bucket spawn is required for the watchdog's
+    ``ExecutionMode.PARALLEL`` awaits inline and never arms the watchdog, so these tests use
+    ``ExecutionMode.SINGLE`` (a real task_bucket spawn is required for the watchdog's
     ``call_later`` to race against the handler).
     """
 
@@ -214,7 +215,7 @@ class TestHandlerInvokerWarnStalled:
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
-        invoker = make_invoker(options=ListenerOptions(mode="single"))
+        invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.SINGLE))
 
         async def slow_invoke() -> None:
             await asyncio.sleep(0.2)
@@ -233,7 +234,7 @@ class TestHandlerInvokerWarnStalled:
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
-        invoker = make_invoker(options=ListenerOptions(mode="single"))
+        invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.SINGLE))
 
         async def fast_invoke() -> None:
             return

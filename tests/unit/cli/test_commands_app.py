@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import AppInstance, AppListResponse, AppStatus, ExecutionStatus
+from hassette_wire import AppInstance, AppListResponse, AppStatus, ExecutionStatus, ResourceStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -204,14 +204,10 @@ class TestCmdAppHealth:
         """App health --instance office resolves the name to an index."""
         health = make_app_health()
         instance_resp = AppInstance(
-            app_key="my-app",
-            index=2,
-            instance_name="office",
-            class_name="MyApp",
-            status="running",  # pyright: ignore[reportArgumentType]
+            app_key="my-app", index=2, instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING
         )
         app_summary = make_app_summary(app_key="my-app", instances=[instance_resp])
-        app_list = AppListResponse(total=1, status_counts={"running": 1}, apps=[app_summary])
+        app_list = AppListResponse(total=1, status_counts={AppStatus.RUNNING: 1}, apps=[app_summary])
         client = cli_client_factory.build_with_routes(
             [
                 ("GET", APPS_ENDPOINT, 200, app_list.model_dump()),

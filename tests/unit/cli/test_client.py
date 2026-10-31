@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx2 as httpx
 import pytest
-from hassette_wire import ActionResponse, AppInstance, AppListResponse
+from hassette_wire import ActionResponse, AppInstance, AppListResponse, ResourceStatus
 from pydantic import BaseModel
 
 from hassette.cli.client import HassetteCLIClient
@@ -576,8 +576,12 @@ class TestInstanceRouting:
 
     def test_name_instance_resolves_to_index(self) -> None:
         instances = [
-            AppInstance(app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"),
-            AppInstance(app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="running"),
+            AppInstance(
+                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING
+            ),
+            AppInstance(
+                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING
+            ),
         ]
         client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")
@@ -585,7 +589,9 @@ class TestInstanceRouting:
 
     def test_unknown_instance_name_exits_nonzero(self) -> None:
         instances = [
-            AppInstance(app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"),
+            AppInstance(
+                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING
+            ),
         ]
         client, _ = url_capturing_client(instances)
         with pytest.raises(SystemExit) as exc_info:
@@ -611,8 +617,12 @@ class TestInstanceRouting:
         not filter by status, so a stopped instance stays addressable by name.
         """
         instances = [
-            AppInstance(app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"),
-            AppInstance(app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"),
+            AppInstance(
+                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING
+            ),
+            AppInstance(
+                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status=ResourceStatus.STOPPED
+            ),
         ]
         client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")

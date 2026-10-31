@@ -5,7 +5,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppInstance, InstanceOutcome
+from hassette_wire import ActionResponse, AppAction, AppInstance, InstanceOutcome, ResourceStatus
 
 from hassette.cli.commands.app import (
     cmd_app_reload,
@@ -37,7 +37,7 @@ _ACTION_CASES = [
 
 
 def _action_response(
-    app_key: str = "my_app", action: str = "start", instance_index: int | None = None
+    app_key: str = "my_app", action: AppAction = "start", instance_index: int | None = None
 ) -> ActionResponse:
     return ActionResponse(app_key=app_key, action=action, instance_index=instance_index, outcomes=[])
 
@@ -48,7 +48,7 @@ def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstance:
         index=index,
         instance_name=name,
         class_name="MyApp",
-        status="running",  # pyright: ignore[reportArgumentType]
+        status=ResourceStatus.RUNNING,
     )
 
 
@@ -60,7 +60,7 @@ def apps_route(instances: list[AppInstance], app_key: str = "my_app") -> tuple[s
 
 
 def _instance_action_routes(
-    action: str,
+    action: AppAction,
     *,
     app_key: str = "my_app",
     instances: list[AppInstance] | None = None,
@@ -115,7 +115,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_no_instance_hits_app_level_route(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """Without --instance, sends POST /api/apps/{key}/{action}."""
         client = cli_client_factory.build_with_routes(
@@ -129,7 +129,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_with_instance_resolves_and_hits_instance_route(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """--instance 1 resolves the index and sends POST /api/apps/{key}/instances/1/{action}."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
@@ -141,7 +141,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_success_message_app_level(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """Success message uses app-level text without --instance."""
         client = cli_client_factory.build_with_routes(
@@ -152,7 +152,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_success_message_instance_level(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """Success message includes the resolved instance name when --instance is provided."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
@@ -161,7 +161,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_json_output_includes_instance_index_app_level(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """App-level (no --instance) JSON output includes instance_index: null."""
         client = cli_client_factory.build_with_routes(
@@ -172,7 +172,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_json_output_includes_instance_index_instance_level(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """Instance-scoped JSON output includes the server-confirmed instance_index."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
@@ -181,7 +181,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_success_message_falls_back_to_raw_selector_when_instance_unresolvable(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """A numeric --instance with no matching app list entry falls back to the raw selector."""
         client = cli_client_factory.build_with_routes(
@@ -192,7 +192,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_numeric_instance_succeeds_when_app_list_fetch_returns_503(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """A numeric --instance still succeeds when /api/apps 503s (telemetry outage).
 
@@ -207,7 +207,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_warns_on_server_instance_index_mismatch(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """A server-confirmed instance_index that disagrees with the requested one prints a warning."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action, confirmed_index=2))
@@ -217,7 +217,7 @@ class TestCmdAppActionRouting:
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_no_warning_when_server_instance_index_matches(
-        self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
+        self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
         """No mismatch warning when the server echoes the same instance_index that was requested."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
