@@ -1,16 +1,15 @@
-# Screenshot manifest for docs/_static/web_ui_*.png
+# Screenshot manifest for the docs/_static/web_ui_*.png and docs/_static/ha-*.png images
 #
 # Format
 # ------
 # Each entry is a shot-scraper "multi" entry. Supported fields:
 #
-#   url        Required. Full URL to load. Use {port} as a placeholder; the
-#              wrapper script resolves it to the Vite dev server port at
-#              capture time.
+#   url        Required. Full URL to load. Use {port} or {ha_port} as a
+#              placeholder; the wrapper script resolves them at capture time.
 #
 #   output     Required. Output file path relative to the repo root.
 #
-#   width      Viewport width in pixels. All doc screenshots use 1400px —
+#   width      Viewport width in pixels. All web UI screenshots use 1400px —
 #              wider than the e2e desktop viewport (1024px) to match the
 #              existing screenshot dimensions and give the sidebar room.
 #
@@ -27,7 +26,9 @@
 #   javascript Optional JS to execute before capture. The wrapper
 #              prepends animation-disabling CSS injection to every entry's
 #              javascript field, so entry-specific JS runs after animations
-#              are already disabled.
+#              are already disabled. It also prepends
+#              scripts/screenshot_page_helpers.js, so entries can call
+#              window.docShot to reach into shadow DOM (Home Assistant pages).
 #
 #   wait       Milliseconds to wait after page load before capturing.
 #              Default 2000ms gives fonts and async data time to settle.
@@ -59,9 +60,58 @@
 #
 # Port placeholder
 # ----------------
-# The {port} placeholder in url fields is replaced by the wrapper script
-# with the Vite dev server port allocated dynamically at startup. Never
-# hardcode a port number here.
+# The wrapper script replaces {port} in url fields with the Vite dev server
+# port and {ha_port} with the demo Home Assistant port. Never hardcode a port
+# number here.
+
+# ===========================================================================
+# Home Assistant token walkthrough (docs/pages/getting-started/ha_token.md)
+# Viewport: 1000px wide so the dialogs stay legible in the docs column.
+# Each entry loads a fresh page and replays the flow up to its own step, so the
+# ha-copy-token entry creates a real token in DemoStack's throwaway copy of the
+# fixture config. Each script's last expression must be the docShot promise:
+# shot-scraper captures once that promise settles.
+# ===========================================================================
+
+- url: "http://localhost:{ha_port}/profile"
+  output: docs/_static/ha-profile-page.png
+  width: 1000
+  height: 780
+  javascript: |
+    docShot.circle({ tag: "ha-list-item-button", text: "Security" });
+
+- url: "http://localhost:{ha_port}/profile/security"
+  output: docs/_static/ha-create-token.png
+  width: 1000
+  height: 1120
+  javascript: |
+    docShot.circle({ tag: "ha-button", text: "Create token" });
+
+- url: "http://localhost:{ha_port}/profile/security"
+  output: docs/_static/ha-token-name.png
+  width: 1000
+  height: 700
+  javascript: |
+    (async () => {
+      const dialog = "ha-long-lived-access-token-dialog";
+      // The page button and the dialog button share a label; `within` picks the dialog's.
+      await docShot.click({ tag: "ha-button", text: "Create token" });
+      await docShot.fill({ tag: "input", within: dialog }, "Hassette");
+      await docShot.circle({ tag: "ha-button", text: "Create token", within: dialog });
+    })();
+
+- url: "http://localhost:{ha_port}/profile/security"
+  output: docs/_static/ha-copy-token.png
+  width: 1000
+  height: 700
+  javascript: |
+    (async () => {
+      const dialog = "ha-long-lived-access-token-dialog";
+      await docShot.click({ tag: "ha-button", text: "Create token" });
+      await docShot.fill({ tag: "input", within: dialog }, "Hassette");
+      await docShot.click({ tag: "ha-button", text: "Create token", within: dialog });
+      await docShot.circle({ tag: "ha-button", text: "Copy", within: dialog });
+    })();
 
 # ===========================================================================
 # Full-page screenshots

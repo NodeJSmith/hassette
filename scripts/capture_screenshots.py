@@ -15,16 +15,19 @@ Flow:
     1. Delete stale demo DB files
     2. Start the demo stack (HA + hassette + Vite) via DemoStack
     3. Poll until demo_stimulator has generated error data (up to 90 seconds)
-    4. Resolve {port} placeholders and inject animation-disabling CSS
-    5. Mint a session cookie for the demo auth token and save it as Playwright
-       storage state (see _mint_auth_storage_state)
+    4. Resolve {port} and {ha_port} placeholders and inject animation-disabling
+       CSS and the window.docShot page helpers
+    5. Mint a session cookie for the demo auth token, add a Home Assistant login
+       for HA_ACCESS_TOKEN, and save both as Playwright storage state
+       (see _mint_auth_storage_state)
     6. Run shot-scraper twice: once with that storage state for every
        authenticated page, once with no auth for pages marked
        `unauthenticated: true` in the manifest (currently only /login)
     7. Tear down the demo stack
 
 Output:
-    All docs/_static/web_ui_*.png files defined in docs/screenshots.yml.
+    All docs/_static/web_ui_*.png and docs/_static/ha-*.png files defined in
+    docs/screenshots.yml.
 
 Adding a new screenshot:
     Add an entry to docs/screenshots.yml with the URL path, output filename,
@@ -55,6 +58,11 @@ HTTP_SOCKET_TIMEOUT_SECONDS = 5
 SCREENSHOT_CAPTURE_TIMEOUT_SECONDS = 600
 DEFAULT_SESSION_MAX_AGE_SECONDS = 3600  # WebApiConfig.session_ttl's own default, used only if a
 # Set-Cookie response is somehow missing Max-Age
+HA_LOGIN_TTL_SECONDS = 86400
+HA_FRONTEND_TOKENS_KEY = "hassTokens"
+"""localStorage key where the Home Assistant frontend keeps its login."""
+
+PAGE_HELPERS_JS = (Path(__file__).resolve().parent / "screenshot_page_helpers.js").read_text()
 
 # Single source of truth: scripts/docker/.env, also read by ha-demo.yml (via docker-compose's
 # auto env-file loading) and .mise/tasks/demo-verify (via grep).
@@ -63,6 +71,11 @@ _DEMO_ENV = dotenv_values(_DEMO_ENV_PATH)
 DEMO_AUTH_TOKEN = _DEMO_ENV.get("DEMO_AUTH_TOKEN")
 if not DEMO_AUTH_TOKEN:
     print(f"ERROR: DEMO_AUTH_TOKEN not found in {_DEMO_ENV_PATH}", file=sys.stderr, flush=True)
+    sys.exit(1)
+
+HA_ACCESS_TOKEN = _DEMO_ENV.get("HA_ACCESS_TOKEN")
+if not HA_ACCESS_TOKEN:
+    print(f"ERROR: HA_ACCESS_TOKEN not found in {_DEMO_ENV_PATH}", file=sys.stderr, flush=True)
     sys.exit(1)
 
 EXPECTED_COOKIE_COUNT = 1
@@ -135,8 +148,23 @@ def _wait_for_error_data(hassette_port: int) -> None:
         )
 
 
-def _mint_auth_storage_state(hassette_port: int) -> dict[str, object]:
-    """Exchange the demo auth token for a session cookie and shape it as Playwright storage state.
+def _ha_login_origin(ha_port: int) -> dict[str, object]:
+    """Build the storage-state origin that logs the Home Assistant frontend in with HA_ACCESS_TOKEN."""
+    ha_url = f"http://localhost:{ha_port}"
+    tokens = {
+        "access_token": HA_ACCESS_TOKEN,
+        "token_type": "Bearer",
+        "expires_in": HA_LOGIN_TTL_SECONDS,
+        "hassUrl": ha_url,
+        "clientId": f"{ha_url}/",
+        "expires": int((time.time() + HA_LOGIN_TTL_SECONDS) * 1000),
+        "refresh_token": "",
+    }
+    return {"origin": ha_url, "localStorage": [{"name": HA_FRONTEND_TOKENS_KEY, "value": json.dumps(tokens)}]}
+
+
+def _mint_auth_storage_state(hassette_port: int, ha_port: int) -> dict[str, object]:
+    """Build Playwright storage state holding a hassette session cookie and a Home Assistant login.
 
     shot-scraper's ``--auth`` flag loads its argument file's JSON directly as Playwright's
     ``storage_state`` context argument (``shot_scraper.cli._browser_context``), so building that
@@ -146,7 +174,8 @@ def _mint_auth_storage_state(hassette_port: int) -> dict[str, object]:
     cookies are not port-scoped, and every doc screenshot is captured against
     ``http://localhost:{vite_port}``, which Vite proxies to hassette server-side (see
     ``VITE_PROXY_TARGET`` in ``scripts/docker/ha-demo.yml``) — so the browser only ever talks to
-    one origin, ``localhost``, regardless of which port is behind it.
+    one origin, ``localhost``, regardless of which port is behind it. Home Assistant ignores that
+    cookie and reads its login from localStorage, which is keyed by port (``_ha_login_origin``).
     """
     session_url = f"http://localhost:{hassette_port}/api/auth/session"
     body = json.dumps({"token": DEMO_AUTH_TOKEN}).encode("utf-8")
@@ -192,7 +221,7 @@ def _mint_auth_storage_state(hassette_port: int) -> dict[str, object]:
                 "sameSite": "Strict",
             }
         ],
-        "origins": [],
+        "origins": [_ha_login_origin(ha_port)],
     }
 
 
@@ -212,8 +241,8 @@ def _needs_xvfb() -> bool:
         return True
 
 
-def _resolve_manifest(entries: list[object], port: str) -> list[dict[str, object]]:
-    """Replace {port} placeholders and prepend the animation-disabling JS."""
+def _resolve_manifest(entries: list[object], port: str, ha_port: str) -> list[dict[str, object]]:
+    """Replace {port} and {ha_port} placeholders and prepend the animation-disabling JS and page helpers."""
     resolved: list[dict[str, object]] = []
     for i, entry in enumerate(entries):
         if not isinstance(entry, dict):
@@ -224,9 +253,9 @@ def _resolve_manifest(entries: list[object], port: str) -> list[dict[str, object
             print(f"ERROR: Manifest entry {i} has invalid 'url': {url!r}", file=sys.stderr, flush=True)
             sys.exit(1)
         e = dict(entry)
-        e["url"] = url.replace("{port}", port)
+        e["url"] = url.replace("{port}", port).replace("{ha_port}", ha_port)
         existing_js = e.get("javascript") or ""
-        e["javascript"] = ANIMATION_DISABLE_JS + str(existing_js)
+        e["javascript"] = ANIMATION_DISABLE_JS + PAGE_HELPERS_JS + str(existing_js)
         resolved.append(e)
     return resolved
 
@@ -320,7 +349,7 @@ def main() -> None:
     with DemoStack() as demo:
         _wait_for_error_data(demo.hassette_port)
 
-        resolved = _resolve_manifest(entries, str(demo.vite_port))
+        resolved = _resolve_manifest(entries, str(demo.vite_port), str(demo.ha_port))
 
         if args.only:
             filters = [f.strip() for f in args.only.split(",")]
@@ -337,7 +366,7 @@ def main() -> None:
         unauthenticated_entries = [e for e in resolved if e.get("unauthenticated")]
         authenticated_entries = [e for e in resolved if not e.get("unauthenticated")]
 
-        auth_storage_state = _mint_auth_storage_state(demo.hassette_port)
+        auth_storage_state = _mint_auth_storage_state(demo.hassette_port, demo.ha_port)
         with tempfile.NamedTemporaryFile(
             mode="w",
             suffix=".json",

@@ -11,6 +11,10 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 MANIFEST_PATH = REPO_ROOT / "docs" / "screenshots.yml"
+PORT_PLACEHOLDER_BY_OUTPUT_PREFIX = {
+    "docs/_static/web_ui_": "{port}",
+    "docs/_static/ha-": "{ha_port}",
+}
 
 
 @pytest.fixture
@@ -34,17 +38,20 @@ def test_output_paths_follow_convention(manifest: list[dict[str, object]]):
     for i, entry in enumerate(manifest):
         output = entry["output"]
         assert isinstance(output, str)
-        assert output.startswith("docs/_static/web_ui_"), (
-            f"Entry {i} output '{output}' must start with 'docs/_static/web_ui_'"
+        assert output.startswith(tuple(PORT_PLACEHOLDER_BY_OUTPUT_PREFIX)), (
+            f"Entry {i} output '{output}' must start with one of {list(PORT_PLACEHOLDER_BY_OUTPUT_PREFIX)}"
         )
         assert output.endswith(".png"), f"Entry {i} output '{output}' must end with '.png'"
 
 
-def test_all_urls_contain_port_placeholder(manifest: list[dict[str, object]]):
+def test_all_urls_contain_port_placeholder_for_their_output(manifest: list[dict[str, object]]):
     for i, entry in enumerate(manifest):
         url = entry["url"]
+        output = entry["output"]
         assert isinstance(url, str)
-        assert "{port}" in url, f"Entry {i} url '{url}' must contain the {{port}} placeholder"
+        assert isinstance(output, str)
+        placeholder = next(p for prefix, p in PORT_PLACEHOLDER_BY_OUTPUT_PREFIX.items() if output.startswith(prefix))
+        assert placeholder in url, f"Entry {i} url '{url}' must contain the {placeholder} placeholder"
 
 
 def test_selector_values_are_non_empty_strings(manifest: list[dict[str, object]]):

@@ -32,17 +32,20 @@ Gotchas:
 
 ## Screenshots (docs and PR evidence)
 
-The docs site embeds `docs/_static/web_ui_*.png`, generated from the manifest `docs/screenshots.yml`. Always capture screenshots — for docs or PR visual evidence — via `scripts/capture_screenshots.py`, never via raw Playwright MCP/browser automation. The script owns auth (session cookie minting), animation-disabling, viewport sizing, and demo-stack lifecycle. Needs Docker + Playwright + shot-scraper (`uv sync --group dev`).
+The docs site embeds `docs/_static/web_ui_*.png` and `docs/_static/ha-*.png`, generated from the manifest `docs/screenshots.yml`. Always capture screenshots — for docs or PR visual evidence — via `scripts/capture_screenshots.py`, never via raw Playwright MCP/browser automation. The script owns auth (session cookie minting, Home Assistant login), animation-disabling, viewport sizing, and demo-stack lifecycle. Needs Docker + Playwright + shot-scraper (`uv sync --group dev`).
 
 ```bash
 uv run python scripts/capture_screenshots.py                                   # all
 uv run python scripts/capture_screenshots.py --only web_ui_apps,web_ui_config  # substring match on output filename
+uv run python scripts/capture_screenshots.py --only ha-                        # the Home Assistant token walkthrough
 ```
 
 New screenshot:
 1. Add an entry to `docs/screenshots.yml` (URL path, output filename, optional `selector` crop and `wait_for` gate). Crop via `data-testid`, not class names.
 2. Embed `![alt](../../_static/web_ui_<name>.png)` in the relevant `docs/pages/` page.
 3. Run the capture tool scoped with `--only`.
+
+Home Assistant pages render in shadow DOM, which `selector` and `wait_for` can't reach. Their entries use `{ha_port}` and the `window.docShot` helpers in `scripts/screenshot_page_helpers.js` to wait for targets, drive the UI, and draw the green circle. HA's own UI text and layout change between releases, so rerun `--only ha-` when an HA bump changes the token flow.
 
 If a UI state isn't config-driven (e.g. it needs a crashed instance), add a demo fixture in `scripts/demo_apps/` (see `degraded_demo.py` and its entry in `scripts/demo_apps/hassette.toml`) rather than faking the state. Never add one to `examples/`: that directory holds only apps users copy as templates.
 
