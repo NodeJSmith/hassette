@@ -16,8 +16,13 @@ This recipe needs an `input_boolean` helper named `vacation_mode` — create one
 [hassette.apps.vacation_mode]
 filename = "vacation_mode.py"
 class_name = "VacationMode"
-config = { instance_name = "vacation_mode" }
+
+[hassette.apps.vacation_mode.config]
+instance_name = "vacation_mode"
+lights = ["light.living_room", "light.kitchen", "light.bedroom"]
 ```
+
+Set `lights` to your own light entity IDs.
 
 The section name (`vacation_mode`) is the app key the `hassette` CLI commands below take via `--app`. [App Configuration](../core-concepts/apps/configuration.md) covers registration in full.
 
@@ -43,7 +48,7 @@ Run these from your project directory while Hassette is running. Toggle `input_b
 hassette log --app vacation_mode --since 5m
 ```
 
-The app logs when vacation mode enables and each time a light toggles. To confirm the subscriptions registered, toggle the boolean on and then off again, then run:
+The app logs when vacation mode enables, then each time a light toggles. The first toggle comes one `check_interval` later, 15 minutes by default, so set `check_interval = 60` in the app's config while you test. To confirm the subscriptions registered, toggle the boolean on and then off again, then run:
 
 ```
 hassette listener --app vacation_mode
