@@ -258,6 +258,14 @@ logger:
 
 `parse_response(model, body)`, also exported from `hassette_client`, parses a JSON body exactly the way the client's methods do. It checks saved responses against a client release without a running server.
 
+This example parses a `get_health()` response saved as `health.json`, then prints the server's status:
+
+```python
+--8<-- "pages/web-ui/snippets/python_client_parse.py"
+```
+
+`body` is the raw JSON as `str` or `bytes`, not a decoded dict. Pass the model the matching method returns, or a type built from one, such as `list[Execution]`.
+
 ## Next steps
 
 - [API Error Responses](api-errors.md) lists every problem code and the endpoints that return it.
