@@ -13,7 +13,3 @@ run_sync_timeout_seconds = 12
 [hassette.websocket]
 connection_timeout_seconds = 10
 heartbeat_interval_seconds = 60
-
-[hassette.file_watcher]
-debounce_milliseconds = 6000
-step_milliseconds = 1000

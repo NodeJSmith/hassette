@@ -6,9 +6,11 @@ from collections.abc import Iterator
 from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 
+from hassette.core import file_watcher as file_watcher_module
 from hassette.core.core import Hassette
 from hassette.core.startup_tasks import run_startup_tasks
 from hassette.core.sync_executor import SyncExecutor
@@ -140,6 +142,11 @@ async def hassette_with_file_watcher(
     test_config_with_apps,
     request: pytest.FixtureRequest,
 ) -> HassetteHarness:
+    patcher = patch.multiple(file_watcher_module, DEBOUNCE_MILLISECONDS=1, STEP_MILLISECONDS=5)
+    patcher.start()
+    # PT021: not `yield`, for the reason in _start_module_harness. Registered before the harness's
+    # finalizer, so the constants stay patched until after it runs.
+    request.addfinalizer(patcher.stop)  # noqa: PT021
     return await _start_module_harness(
         hassette_harness(test_config_with_apps).with_bus().with_file_watcher().with_api_mock(), request
     )

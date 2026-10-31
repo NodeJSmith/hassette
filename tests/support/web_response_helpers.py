@@ -149,7 +149,7 @@ def make_config_schema_response() -> ConfigSchemaResponse:
             },
             "apps": {"warn_unconfigured": True, "directory": "apps"},
             "scheduler": {"behind_schedule_threshold_seconds": 5, "job_timeout_seconds": 600.0},
-            "file_watcher": {"watch_files": True, "debounce_milliseconds": 500},
+            "file_watcher": {"watch_files": True},
             "database": {"retention_days": 7, "max_size_mb": 500},
             "websocket": {"reconnect_delay_seconds": 5, "max_reconnect_attempts": 10},
             "blocking_io": {"enabled": True, "warn_threshold_ms": 100},

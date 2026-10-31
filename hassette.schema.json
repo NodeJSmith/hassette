@@ -403,13 +403,6 @@
           "title": "Min Events",
           "type": "integer"
         },
-        "watchdog_interval_seconds": {
-          "default": 0.25,
-          "description": "Tier 1: interval in seconds between watchdog heartbeat checks.\nDefaults to 250ms \u2014 trades detection latency for overhead.",
-          "exclusiveMinimum": 0,
-          "title": "Watchdog Interval Seconds",
-          "type": "number"
-        },
         "capture_stack_on_block": {
           "default": true,
           "description": "Whether to capture a stack snapshot of the loop thread when a severe stall is detected.\nDefaults to True. Set to False to reduce overhead on low-memory systems.",
@@ -695,20 +688,8 @@
       "type": "object"
     },
     "FileWatcherConfig": {
-      "description": "File watcher debounce, step, and enable/disable settings.",
+      "description": "File watcher enable/disable setting.",
       "properties": {
-        "debounce_milliseconds": {
-          "default": 3000,
-          "description": "Debounce time for file watcher events in milliseconds.",
-          "title": "Debounce Milliseconds",
-          "type": "integer"
-        },
-        "step_milliseconds": {
-          "default": 500,
-          "description": "Time to wait for additional file changes before emitting event in milliseconds.",
-          "title": "Step Milliseconds",
-          "type": "integer"
-        },
         "watch_files": {
           "default": true,
           "description": "Whether to watch files for changes and reload apps automatically.",

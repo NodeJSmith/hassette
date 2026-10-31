@@ -56,6 +56,9 @@ class TestFlagged:
             pytest.param("HASSETTE__APPS__AUTODETECT", "false", id="removed-autodetect"),
             pytest.param("HASSETTE__APPS__EXCLUDE_DIRS", '["lib"]', id="removed-exclude-dirs"),
             pytest.param("HASSETTE__WEBSOCKET__RESPONSE_TIMEOUT_SECONDS", "5", id="removed-websocket-response-timeout"),
+            pytest.param("HASSETTE__FILE_WATCHER__DEBOUNCE_MILLISECONDS", "5", id="removed-file-watcher-debounce"),
+            pytest.param("HASSETTE__FILE_WATCHER__STEP_MILLISECONDS", "5", id="removed-file-watcher-step"),
+            pytest.param("HASSETTE__BLOCKING_IO__WATCHDOG_INTERVAL_SECONDS", "1", id="removed-watchdog-interval"),
         ],
     )
     def test_removed_apps_env_var(self, cfg: Path, name: str, value: str) -> None:
@@ -128,6 +131,21 @@ class TestFlagged:
                 "[websocket]\ncleanup_timeout_seconds = 10\n",
                 "websocket.cleanup_timeout_seconds",
                 id="removed-websocket-cleanup-timeout",
+            ),
+            pytest.param(
+                "[file_watcher]\ndebounce_milliseconds = 10\n",
+                "file_watcher.debounce_milliseconds",
+                id="removed-file-watcher-debounce",
+            ),
+            pytest.param(
+                "[file_watcher]\nstep_milliseconds = 10\n",
+                "file_watcher.step_milliseconds",
+                id="removed-file-watcher-step",
+            ),
+            pytest.param(
+                "[blocking_io]\nwatchdog_interval_seconds = 1\n",
+                "blocking_io.watchdog_interval_seconds",
+                id="removed-watchdog-interval",
             ),
         ],
     )
