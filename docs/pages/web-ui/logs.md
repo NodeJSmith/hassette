@@ -28,7 +28,7 @@ The footer shows how many entries match. When the result exceeds 200, the footer
 
 ## Trace a Single Execution
 
-Appending `?execution_id=<id>` to the URL filters the table to entries from one handler or job execution. The [Debug Handler](debug-handler.md) page links here automatically from execution history. The URL can also be constructed manually from an execution ID found in logs or the CLI.
+Appending `?execution_id=<id>` to the URL filters the table to entries from one handler or job execution. The [Debug Handler](debug-handler.md) page links here automatically from execution history. To build the URL by hand, use the full execution ID. The Execution column, console output, and the `hassette listener <id>` and `hassette job <id>` tables all shorten it, and a shortened ID matches nothing. Copy the full ID from the [log detail drawer](#log-detail-drawer), or add `--json` to either command.
 
 When an execution ID filter is active, the other filters use local state. They do not modify the URL, so the execution ID stays intact as the view is refined.
 
