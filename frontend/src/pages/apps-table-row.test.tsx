@@ -43,7 +43,6 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     status: "running",
     block_reason: null,
     enabled: true,
-    auto_loaded: false,
     autostart: true,
     instance_count: 1,
     instances: [],
