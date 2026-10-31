@@ -53,7 +53,7 @@ class VacationMode(App[VacationModeConfig]):
         state = await self.api.get_state(light)
         if state.value is True:
             await self.api.turn_off(light, domain="light")
-            self.logger.debug("Presence sim: turned off %s", light)
+            self.logger.info("Presence sim: turned off %s", light)
         else:
             await self.api.turn_on(light, domain="light")
-            self.logger.debug("Presence sim: turned on %s", light)
+            self.logger.info("Presence sim: turned on %s", light)
