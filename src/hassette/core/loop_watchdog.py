@@ -66,6 +66,11 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor, ExecutionMarker
 
+# Base period of the in-loop tick and daemon poll, which each run every interval / _POLL_SUBDIVISIONS.
+# Must keep that period below lag_threshold_seconds, or a responsive loop can look stalled. A smaller
+# value detects stalls sooner at more overhead. Read once, in LoopWatchdog.__init__.
+WATCHDOG_INTERVAL_SECONDS = 0.25
+
 # The daemon polls several times per watchdog interval so it notices a stall promptly
 # without the in-loop tick and the poll aliasing into a missed detection.
 _POLL_SUBDIVISIONS = 3
@@ -179,7 +184,7 @@ class LoopWatchdog:
 
         cfg = hassette.config.blocking_io
         self._lag_threshold = cfg.lag_threshold_seconds
-        self._check_interval = cfg.watchdog_interval_seconds / _POLL_SUBDIVISIONS
+        self._check_interval = WATCHDOG_INTERVAL_SECONDS / _POLL_SUBDIVISIONS
         self._capture_stack = cfg.capture_stack_on_block
 
         # Tick timestamp — written by the in-loop callback, read by the daemon thread.

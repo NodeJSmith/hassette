@@ -154,7 +154,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Scheduler threshold and job-timeout settings."""
 
     file_watcher: FileWatcherConfig = Field(default_factory=FileWatcherConfig)
-    """File watcher debounce, step, and enable/disable settings."""
+    """File watcher enable/disable setting."""
 
     blocking_io: BlockingIODetectionConfig = Field(default_factory=BlockingIODetectionConfig)
     """Blocking-call detection settings for the shared event loop."""

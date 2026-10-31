@@ -278,8 +278,6 @@ class TestFileWatcherConfig:
     def test_defaults(self):
         """FileWatcherConfig constructs with all defaults."""
         cfg = FileWatcherConfig()
-        assert cfg.debounce_milliseconds == 3000
-        assert cfg.step_milliseconds == 500
         assert cfg.watch_files is True
 
 
