@@ -27,6 +27,7 @@ from tests.support.web_mocks import create_mock_runtime_query_service
 
 WS_QUEUE_MAX = 256
 SUCCESS = ExecutionStatus.SUCCESS
+STATE_TIMESTAMP = "2024-01-01T00:00:00"
 
 
 async def assert_flushed_single_message(
@@ -72,15 +73,15 @@ def mock_hassette():
             "entity_id": "light.kitchen",
             "state": "on",
             "attributes": {"brightness": 255},
-            "last_changed": "2024-01-01T00:00:00",
-            "last_updated": "2024-01-01T00:00:00",
+            "last_changed": STATE_TIMESTAMP,
+            "last_updated": STATE_TIMESTAMP,
         },
         "sensor.temp": {
             "entity_id": "sensor.temp",
             "state": "21.5",
             "attributes": {"unit_of_measurement": "°C"},
-            "last_changed": "2024-01-01T00:00:00",
-            "last_updated": "2024-01-01T00:00:00",
+            "last_changed": STATE_TIMESTAMP,
+            "last_updated": STATE_TIMESTAMP,
         },
     }
     hassette._state_proxy.is_ready = Mock(return_value=True)

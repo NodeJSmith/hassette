@@ -37,6 +37,8 @@ from tests.support.harness import preserve_config
 from tests.support.helpers import write_app
 from tests.support.run_forever import stub_run_forever_collaborators
 
+TOTAL_SHUTDOWN_TIMEOUT_SECONDS = 0.5
+
 # wire_services() creates anyio memory streams that are closed explicitly in the
 # fixture teardown. However, pytest holds internal references to fixture results,
 # so the Hassette object's refcount doesn't reach zero until a later GC cycle.
@@ -553,7 +555,9 @@ class TestRootShutdown:
 
         loop = asyncio.get_running_loop()
         with preserve_config(hassette.config):
-            object.__setattr__(hassette.config.lifecycle, "total_shutdown_timeout_seconds", 0.5)
+            object.__setattr__(
+                hassette.config.lifecycle, "total_shutdown_timeout_seconds", TOTAL_SHUTDOWN_TIMEOUT_SECONDS
+            )
             start = loop.time()
             outcome = await hassette.shutdown()
             elapsed = loop.time() - start
