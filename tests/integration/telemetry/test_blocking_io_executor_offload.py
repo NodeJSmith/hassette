@@ -229,26 +229,26 @@ class TestExecutorOffloadProducesNoBlocking:
         try:
             await loop.run_in_executor(pool, lambda: None)
 
-            # A short lag threshold so the watchdog is sensitive. The interval must be SMALLER than
-            # the threshold: otherwise the gap between ticks alone exceeds the threshold and a
-            # responsive loop can look stale, producing false positives that would mask a real
-            # regression here.
+            # A short lag threshold so the watchdog is sensitive.
             orig_lag = mock_hassette.config.blocking_io.lag_threshold_seconds
-            orig_interval = mock_hassette.config.blocking_io.watchdog_interval_seconds
             # CI scheduling jitter produces 58-71ms loop lag even with no blocking I/O;
             # 50ms tripped false positives. 150ms tolerates jitter while still detecting
             # real stalls (multi-hundred-ms).
             mock_hassette.config.blocking_io.lag_threshold_seconds = 0.15
-            mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.03
 
             stall_events: list[object] = []
-            watchdog = LoopWatchdog(
-                mock_hassette,
-                loop=loop,
-                loop_thread_id=loop_thread_id,
-                executor=executor,
-                on_stall=stall_events.append,
-            )
+            # The interval must be SMALLER than the threshold: otherwise the gap between ticks alone
+            # exceeds the threshold and a responsive loop can look stale, producing false positives
+            # that would mask a real regression here. The constant is read only in __init__, so the
+            # patch needs to cover construction alone.
+            with patch("hassette.core.loop_watchdog.WATCHDOG_INTERVAL_SECONDS", 0.03):
+                watchdog = LoopWatchdog(
+                    mock_hassette,
+                    loop=loop,
+                    loop_thread_id=loop_thread_id,
+                    executor=executor,
+                    on_stall=stall_events.append,
+                )
             watchdog.start()
 
             caught_warnings: list[warnings.WarningMessage] = []
@@ -288,7 +288,6 @@ class TestExecutorOffloadProducesNoBlocking:
             finally:
                 watchdog.stop()
                 mock_hassette.config.blocking_io.lag_threshold_seconds = orig_lag
-                mock_hassette.config.blocking_io.watchdog_interval_seconds = orig_interval
         finally:
             pool.shutdown(wait=True)
 
@@ -385,7 +384,6 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         # loop lag; 50ms tripped false positives. 150ms tolerates jitter while still
         # detecting real stalls (multi-hundred-ms). See #1593 / sibling test above.
         mock_hassette.config.blocking_io.lag_threshold_seconds = 0.15
-        mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.1
 
         # The watchdog only acts when an execution marker is live (it attributes the stall to the
         # running execution). Set one so the stall is actually detected and attributed — without
@@ -402,13 +400,15 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         )
 
         stall_events: list[object] = []
-        watchdog = LoopWatchdog(
-            mock_hassette,
-            loop=loop,
-            loop_thread_id=loop_thread_id,
-            executor=ignore_executor,
-            on_stall=stall_events.append,
-        )
+        # The constant is read only in __init__, so the patch needs to cover construction alone.
+        with patch("hassette.core.loop_watchdog.WATCHDOG_INTERVAL_SECONDS", 0.1):
+            watchdog = LoopWatchdog(
+                mock_hassette,
+                loop=loop,
+                loop_thread_id=loop_thread_id,
+                executor=ignore_executor,
+                on_stall=stall_events.append,
+            )
 
         caught_warnings: list[warnings.WarningMessage] = []
         # Spy on (without replacing) the watchdog's behavior resolver: a call proves the daemon

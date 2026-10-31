@@ -94,7 +94,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 | `[hassette.websocket]` | WebSocket connection and per-operation timeouts |
 | `[hassette.logging]` | Log level, format, queue, and per-service overrides |
 | `[hassette.lifecycle]` | Startup, shutdown, and per-operation timeouts |
-| `[hassette.file_watcher]` | Debounce, step timing, and enable/disable |
+| `[hassette.file_watcher]` | Enable or disable file watching |
 | `[hassette.scheduler]` | Job delay thresholds and execution timeouts |
 
 App definitions live inside `[hassette.apps]` as named subsections, as shown in the opening example. [App Configuration](../apps/configuration.md) covers registration details and multi-instance configuration.
@@ -155,7 +155,7 @@ A running handler holds its slot until it returns or reaches `event_handler_time
 
 ### File Watcher
 
-The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). A reload re-imports only the app's own module file, so edits to modules it imports need a Hassette restart ([What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)). `[hassette.file_watcher]` tunes it: `debounce_milliseconds` (default 3000, or 6000 in `dev_mode`) is the longest the watcher groups changes into one reload, `step_milliseconds` (default 500, or 1000 in `dev_mode`) is the quiet period after the last change before that reload fires, and `watch_files = false` disables watching entirely.
+The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). A reload re-imports only the app's own module file, so edits to modules it imports need a Hassette restart ([What Reload Re-imports](../../web-ui/manage-apps.md#what-reload-re-imports)). The watcher groups a burst of changes into one reload. It checks for changes every 500ms and reloads when a check finds no newly changed files, or about 3 seconds into a burst that keeps touching new files. `watch_files = false` in `[hassette.file_watcher]` disables watching entirely.
 
 ### State Proxy Polling
 
@@ -191,11 +191,9 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
 - **`watchdog_enabled`** (bool): Whether to run the Tier 1 loop-responsiveness watchdog. Default: `true`.
 
-- **`lag_threshold_seconds`** (float): Tier 1 minimum stall duration in seconds before detection fires. Default: `0.1` (100ms).
+- **`lag_threshold_seconds`** (float): Tier 1 minimum stall duration in seconds before detection fires. The watchdog's heartbeat runs about every 83ms, so a lower value can report a responsive loop as stalled. The default leaves about 17ms of headroom, so a scheduling delay longer than that can also report a stall. A higher value absorbs those delays but misses shorter stalls. Default: `0.1` (100ms).
 
 - **`min_events`** (int): Tier 1 minimum number of stalls at one call site before it shows up as a finding in the UI and CLI. A single stall can be a fluke, so the default hides it until it recurs. A value of `1` lists every Tier 1 stall. Tier 2 findings always show. Default: `2`.
-
-- **`watchdog_interval_seconds`** (float): How often the Tier 1 watchdog polls in seconds. Smaller values reduce detection latency at a small overhead cost. Default: `0.25` (250ms).
 
 - **`capture_stack_on_block`** (bool): Whether to capture a loop-thread stack snapshot when a Tier 1 stall is detected. Disable on memory-constrained systems. Default: `true`.
 

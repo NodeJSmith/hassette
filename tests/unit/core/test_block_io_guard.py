@@ -184,7 +184,6 @@ def test_blocking_io_detection_config_defaults() -> None:
     assert cfg.behavior is None
     assert cfg.watchdog_enabled is True
     assert cfg.lag_threshold_seconds == pytest.approx(0.1)
-    assert cfg.watchdog_interval_seconds == pytest.approx(0.25)
     assert cfg.capture_stack_on_block is True
     assert cfg.deep_detection_enabled is None
     assert cfg.allow_deep_detection_in_prod is False

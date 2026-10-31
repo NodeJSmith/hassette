@@ -29,7 +29,7 @@ from hassette_wire import StackFrame
 
 from hassette.core import loop_watchdog as loop_watchdog_module
 from hassette.core.command_executor import ExecutionMarker
-from hassette.core.loop_watchdog import LoopWatchdog, WatchdogEvent
+from hassette.core.loop_watchdog import WATCHDOG_INTERVAL_SECONDS, LoopWatchdog, WatchdogEvent
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import BlockingAttributionReason
@@ -37,7 +37,7 @@ from hassette.types.types import BlockingAttributionReason
 from .conftest import make_blocking_io_hassette, make_marker_executor
 
 _LAG = 0.10  # threshold: 100ms
-_INTERVAL = 0.25  # watchdog_interval_seconds: 250ms (check_interval = /3 ≈ 83ms)
+_INTERVAL = WATCHDOG_INTERVAL_SECONDS  # 250ms (check_interval = /3 ≈ 83ms)
 _BLOCK = 0.55  # sync-sleep duration > threshold — reliably triggers detection
 
 

@@ -78,7 +78,7 @@ class TestConfig:
         assert dump["lifecycle"]["startup_timeout_seconds"] == cfg.lifecycle.startup_timeout_seconds
         assert dump["apps"] == {"warn_unconfigured": cfg.apps.warn_unconfigured, "directory": cfg.apps.directory}
         assert dump["scheduler"]["behind_schedule_threshold_seconds"] == cfg.scheduler.behind_schedule_threshold_seconds
-        assert dump["file_watcher"]["debounce_milliseconds"] == cfg.file_watcher.debounce_milliseconds
+        assert dump["file_watcher"]["watch_files"] == cfg.file_watcher.watch_files
         assert set(dump) >= {"database", "websocket", "blocking_io"}
 
 

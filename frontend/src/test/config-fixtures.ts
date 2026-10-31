@@ -82,7 +82,6 @@ const MINIMAL_CONFIG_SCHEMA = {
       title: "File Watcher",
       properties: {
         watch_files: { type: "boolean", title: "Watch Files" },
-        debounce_milliseconds: { type: "integer", title: "Debounce Milliseconds" },
       },
     },
   },
@@ -124,7 +123,6 @@ const DEFAULT_CONFIG_VALUES: Record<string, unknown> = {
   },
   file_watcher: {
     watch_files: true,
-    debounce_milliseconds: 3000,
   },
 };
 

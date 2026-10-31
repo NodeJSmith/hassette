@@ -611,13 +611,7 @@ class SchedulerConfig(ExcludeExtrasMixin, BaseModel):
 
 
 class FileWatcherConfig(ExcludeExtrasMixin, BaseModel):
-    """File watcher debounce, step, and enable/disable settings."""
-
-    debounce_milliseconds: int = Field(default=3000)
-    """Debounce time for file watcher events in milliseconds."""
-
-    step_milliseconds: int = Field(default=500)
-    """Time to wait for additional file changes before emitting event in milliseconds."""
+    """File watcher enable/disable setting."""
 
     watch_files: bool = Field(default=True)
     """Whether to watch files for changes and reload apps automatically."""
@@ -653,10 +647,6 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     """Tier 1: minimum number of lag events at one call site before it is reported as a finding.
     Defaults to 2 — a single stray stall is evidence, not proof, so it stays hidden until it
     recurs. Set to 1 to report every stall. Tier 2 findings are exact and are never gated."""
-
-    watchdog_interval_seconds: float = Field(default=0.25, gt=0)
-    """Tier 1: interval in seconds between watchdog heartbeat checks.
-    Defaults to 250ms — trades detection latency for overhead."""
 
     capture_stack_on_block: bool = Field(default=True)
     """Whether to capture a stack snapshot of the loop thread when a severe stall is detected.

@@ -21,7 +21,6 @@ import hassette.core.block_io_guard as block_io_guard
 from hassette import HassetteConfig
 from hassette.config.models import (
     AppsConfig,
-    FileWatcherConfig,
     LifecycleConfig,
     LoggingConfig,
     WebApiConfig,
@@ -150,10 +149,6 @@ def _propagate_hassette_logger() -> None:
     logging.getLogger(HASSETTE_LOGGER_NAME).propagate = True
 
 
-def build_file_watcher_config() -> FileWatcherConfig:
-    return FileWatcherConfig(debounce_milliseconds=1, step_milliseconds=5)
-
-
 def build_websocket_config() -> WebSocketConfig:
     return WebSocketConfig(
         connection_timeout_seconds=1,
@@ -199,7 +194,6 @@ class TestConfig(HassetteConfig):
     token: SecretStr = SecretStr("test-token")
     data_dir: Path = Field(default_factory=scratch_data_dir)
 
-    file_watcher: FileWatcherConfig = Field(default_factory=build_file_watcher_config)
     websocket: WebSocketConfig = Field(default_factory=build_websocket_config)
     lifecycle: LifecycleConfig = Field(default_factory=build_lifecycle_config)
     logging: LoggingConfig = Field(default_factory=build_logging_config)

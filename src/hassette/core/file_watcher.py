@@ -10,6 +10,12 @@ from hassette.events.hassette import HassetteFileWatcherEvent
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.service import Service
 
+DEBOUNCE_MILLISECONDS = 3000
+"""Longest the watcher keeps grouping changes into one event, from the first poll that saw a change."""
+STEP_MILLISECONDS = 500
+"""Poll period. The watcher emits once a poll finds no newly changed path, which doesn't require quiet:
+repeated writes to one already-seen file count as no new change."""
+
 
 class FileWatcherService(Service):
     """Background task to watch for file changes and reload apps."""
@@ -48,8 +54,8 @@ class FileWatcherService(Service):
         async for changes in awatch(
             *paths,
             stop_event=self.shutdown_event,
-            step=self.hassette.config.file_watcher.step_milliseconds,
-            debounce=self.hassette.config.file_watcher.debounce_milliseconds,
+            step=STEP_MILLISECONDS,
+            debounce=DEBOUNCE_MILLISECONDS,
         ):
             if self.shutdown_event.is_set():
                 break

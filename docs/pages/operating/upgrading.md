@@ -220,6 +220,9 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 | `[hassette.websocket] response_timeout_seconds` | Removed; the timeout is fixed at 15s |
 | `[hassette.websocket] total_timeout_seconds` | Removed; the timeout is fixed at 30s |
 | `[hassette.websocket] cleanup_timeout_seconds` | Removed; the timeout is fixed at 2s |
+| `[hassette.file_watcher] debounce_milliseconds` | Removed; the value is fixed at 3000ms, including in `dev_mode` |
+| `[hassette.file_watcher] step_milliseconds` | Removed; the value is fixed at 500ms, including in `dev_mode` |
+| `[hassette.blocking_io] watchdog_interval_seconds` | Removed; the interval is fixed at 250ms |
 | `run_app_precheck` | Removed; the precheck always runs. Set `allow_startup_if_app_precheck_fails = true` to start despite a failure |
 | `disable_state_proxy_polling` | Removed; the state cache poll always runs. Tune it with `state_proxy_poll_interval_seconds` |
 | `config_file` / `env_file` settings | the `--config-file` / `--env-file` CLI flags |

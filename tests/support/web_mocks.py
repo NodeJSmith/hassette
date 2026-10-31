@@ -38,7 +38,6 @@ STUB_APP_STARTUP_TIMEOUT = 20
 STUB_SHUTDOWN_TIMEOUT = 10
 STUB_APPS_DIR = "/srv/hassette/apps"
 STUB_BEHIND_SCHEDULE_THRESHOLD = 5
-STUB_DEBOUNCE_MS = 3000
 STUB_CORS_ORIGINS = ("http://localhost:3000",)
 STUB_RETENTION_DAYS = 7
 
@@ -146,7 +145,6 @@ def wire_config(
     config.scheduler.behind_schedule_threshold_seconds = STUB_BEHIND_SCHEDULE_THRESHOLD
     # file_watcher group
     config.file_watcher.watch_files = True
-    config.file_watcher.debounce_milliseconds = STUB_DEBOUNCE_MS
 
     # model_dump return value — mirrors the attribute assignments above so the config
     # endpoint (which calls hassette.config.model_dump(mode="json")) receives a real dict
@@ -178,7 +176,7 @@ def wire_config(
         },
         "apps": {"warn_unconfigured": True, "directory": STUB_APPS_DIR},
         "scheduler": {"behind_schedule_threshold_seconds": STUB_BEHIND_SCHEDULE_THRESHOLD},
-        "file_watcher": {"watch_files": True, "debounce_milliseconds": STUB_DEBOUNCE_MS},
+        "file_watcher": {"watch_files": True},
         "database": {"retention_days": STUB_RETENTION_DAYS},
         "websocket": {},
         "blocking_io": {},

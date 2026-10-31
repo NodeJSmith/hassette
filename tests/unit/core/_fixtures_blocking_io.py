@@ -13,7 +13,6 @@ def make_blocking_io_hassette(
     behavior: BlockingIOBehavior | None = None,
     watchdog_enabled: bool = True,
     lag_threshold_seconds: float = 0.10,
-    watchdog_interval_seconds: float = 0.25,
     capture_stack_on_block: bool = False,
     dev_mode: bool = True,
     deep_detection_enabled: bool | None = None,
@@ -24,7 +23,6 @@ def make_blocking_io_hassette(
     cfg.dev_mode = dev_mode
     cfg.blocking_io.watchdog_enabled = watchdog_enabled
     cfg.blocking_io.lag_threshold_seconds = lag_threshold_seconds
-    cfg.blocking_io.watchdog_interval_seconds = watchdog_interval_seconds
     cfg.blocking_io.capture_stack_on_block = capture_stack_on_block
     cfg.blocking_io.deep_detection_enabled = deep_detection_enabled
     cfg.blocking_io.allow_deep_detection_in_prod = allow_deep_detection_in_prod
