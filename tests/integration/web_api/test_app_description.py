@@ -50,6 +50,7 @@ async def test_description_served_by_app_list_and_detail(
     assert detail_resp.status_code == 200
     listed = next(a for a in list_resp.json()["apps"] if a["app_key"] == APP_KEY)
     for body in (listed, detail_resp.json()):
+        assert "auto_loaded" not in body
         assert "description" in body
         assert body["description"] == description
         assert body["in_current_config"] is True

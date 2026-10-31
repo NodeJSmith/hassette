@@ -59,6 +59,7 @@ class TestAppGrid:
         assert entry["app"]["filename"] == "my_app.py"
         assert entry["app"]["in_current_config"] is False
         assert "recent_invocations_1h" not in entry["app"]
+        assert "auto_loaded" not in entry["app"]
         # No summary for the app: zero counts and an all-zero health record with no averages.
         assert entry["activity"]["stats"]["total_invocations"] == 0
         assert entry["activity"]["stats"]["health"] == {
