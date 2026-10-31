@@ -8,7 +8,7 @@ All factory functions listed here are exported from `hassette.testing`.
 
 ## State Factories
 
-State factories build raw HA-format state dicts. The harness calls them internally for `set_state()`. Tests that need precise attribute control call them directly.
+State factories build raw HA-format state dicts. The harness calls them internally for `set_state()`. Each one returns a plain dict. `make_typed_state(state_class, state_dict)` converts that dict into a typed state object through the production conversion path. `harness.set_state()` takes a state string and attributes, not one of these dicts.
 
 ### `make_state_dict`
 
@@ -72,6 +72,21 @@ State factories build raw HA-format state dicts. The harness calls them internal
 | `entity_id` | `"switch.outlet"` | Switch entity ID. |
 | `state` | `"on"` | `"on"` or `"off"`. |
 | `**kwargs` | | Extra attributes or top-level state dict fields. |
+
+### `make_typed_state`
+
+`make_typed_state` converts a state dict from any factory above into a typed state object.
+
+```python
+--8<-- "pages/testing/snippets/testing_make_typed_state.py"
+```
+
+The result is a `LightState` with `value` set to `True` and `attributes.brightness` set to `200`. Typed states convert the raw state string, so `"on"` becomes `True` for a light. Tests pass the result to code that takes a typed state, such as a handler called directly.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `state_class` | required | State model class, e.g. `states.LightState`. |
+| `state_dict` | required | State dict from `make_state_dict` or a domain factory. |
 
 ## Event Factories
 

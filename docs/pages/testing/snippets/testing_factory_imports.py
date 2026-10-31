@@ -5,4 +5,5 @@ from hassette.testing import (
     make_sensor_state_dict,
     make_state_dict,
     make_switch_state_dict,
+    make_typed_state,
 )
