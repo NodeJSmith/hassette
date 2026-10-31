@@ -24,11 +24,11 @@ See [Configuration](../core-concepts/configuration/index.md) for the full settin
 
 The **Config** tab on an app detail page shows the configuration values from `hassette.toml` for that app instance. Secret fields (`SecretStr`) are masked server-side and displayed as `🔒 ••••••••` — the plaintext never reaches the browser. When a schema is available for the app's `AppConfig`, the tab uses the shared schema renderer (same groups and formatting as the global Config page); apps without a schema fall back to a flat key-value table.
 
-Environment variable overrides and [`AppConfig`](../core-concepts/apps/index.md) field defaults are applied when the app is instantiated, but the tab shows the raw TOML values, not the merged result. Validation still happens at startup — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
+The tab shows the `config` values Hassette loaded for the app: `hassette.toml` plus any `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` environment overrides. It omits [`AppConfig`](../core-concepts/apps/index.md) field defaults and values read through `env_prefix`, the prefix an `AppConfig` uses to read environment variables directly. Hassette applies those when it validates the app's config, so their absence from the tab is normal. Validation still happens at startup — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
 
 The tab is on the app detail page, accessible by selecting an app from the sidebar.
 
-If an environment variable override is not reflected, the env var name does not match the config class field name — the expected name is the `env_prefix` from the app's `AppConfig` plus the uppercased field name (see [App Configuration](../core-concepts/apps/configuration.md)). The tab shows exactly what the app received, making it the fastest way to confirm an override took effect.
+If a `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` override doesn't appear in the tab, its name doesn't match the app key and field (see [App Configuration](../core-concepts/apps/configuration.md)). The tab can't confirm an `env_prefix` variable (see [Environment Variables](../core-concepts/apps/index.md#environment-variables)). A value set in `hassette.toml` takes precedence over an `env_prefix` variable. To check what the app received, log `self.app_config.<field>` in `on_initialize`.
 
 ## Read App Source Code
 
