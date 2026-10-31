@@ -1,9 +1,10 @@
 """Integration tests for telemetry web API endpoints."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import BackpressurePolicy, ExecutionMode
 
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.summary_models import AppHealthAggregates
@@ -139,8 +140,8 @@ class TestTelemetryListeners:
                 make_listener_summary_row(
                     **LISTENER_DEFAULTS,
                     listener_id=7,
-                    mode="single",
-                    backpressure="drop_newest",
+                    mode=ExecutionMode.SINGLE,
+                    backpressure=BackpressurePolicy.DROP_NEWEST,
                     total_invocations=3,
                     successful=3,
                     total_duration_ms=30.0,
@@ -169,7 +170,7 @@ class TestTelemetryListeners:
     async def test_listener_with_no_live_guard_reports_zero_counts(self, client: "AsyncClient", mock_hassette) -> None:
         """A listener absent from the live snapshot (retired) reports zero counts."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
-            return_value=[make_listener_summary_row(**LISTENER_DEFAULTS, listener_id=7, mode="restart")]
+            return_value=[make_listener_summary_row(**LISTENER_DEFAULTS, listener_id=7, mode=ExecutionMode.RESTART)]
         )
         mock_hassette.bus_service.live_execution_counts = MagicMock(return_value={})
 
@@ -399,11 +400,17 @@ class TestExecutionListEndpoints:
         [("/api/telemetry/listener/1", "listener_id", "handler"), ("/api/telemetry/job/1", "job_id", "job")],
     )
     async def test_limit_param_respected(
-        self, client: "AsyncClient", mock_hassette: MagicMock, path_prefix: str, id_kwarg: str, kind: str
+        self,
+        client: "AsyncClient",
+        mock_hassette: MagicMock,
+        path_prefix: str,
+        id_kwarg: str,
+        kind: Literal["handler", "job"],
     ) -> None:
         """When limit=2, the service is called with limit=2 and at most 2 results come back."""
+        id_fields: dict[str, Any] = {id_kwarg: 1}
         executions = [
-            make_execution(kind=kind, **{id_kwarg: 1}, execution_start_ts=float(1000 + i), duration_ms=float(10 + i))
+            make_execution(kind=kind, **id_fields, execution_start_ts=float(1000 + i), duration_ms=float(10 + i))
             for i in range(5)
         ]
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=executions[:2])
@@ -427,12 +434,18 @@ class TestExecutionListEndpoints:
         [("/api/telemetry/listener/1", "listener_id", "handler"), ("/api/telemetry/job/1", "job_id", "job")],
     )
     async def test_ordering_descending_by_execution_start_ts(
-        self, client: "AsyncClient", mock_hassette: MagicMock, path_prefix: str, id_kwarg: str, kind: str
+        self,
+        client: "AsyncClient",
+        mock_hassette: MagicMock,
+        path_prefix: str,
+        id_kwarg: str,
+        kind: Literal["handler", "job"],
     ) -> None:
         """Results are returned in descending execution_start_ts order (newest first)."""
+        id_fields: dict[str, Any] = {id_kwarg: 1}
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(
             return_value=[
-                make_execution(kind=kind, **{id_kwarg: 1}, execution_start_ts=ts, duration_ms=10.0)
+                make_execution(kind=kind, **id_fields, execution_start_ts=ts, duration_ms=10.0)
                 for ts in [1000003.0, 1000002.0, 1000001.0]
             ]
         )

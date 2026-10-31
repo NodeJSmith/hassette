@@ -1,13 +1,16 @@
 """Unit tests for web/mappers.py — domain-to-wire model conversions."""
 
 import dataclasses
+from typing import Any
 
 import pytest
 from hassette_wire import (
     AppInstance,
     AppListResponse,
     AppStatus,
+    BackpressurePolicy,
     ConnectedData,
+    ExecutionMode,
     ListenerSummary,
     LivenessResponse,
     ReadinessResponse,
@@ -151,7 +154,7 @@ def test_app_list_response_from_coerces_resource_status_enum():
     ],
 )
 def test_app_list_response_from_passes_manifest_field_through(
-    manifest_kwargs: dict[str, AppStatus | bool], response_attr: str, expected: bool | str
+    manifest_kwargs: dict[str, Any], response_attr: str, expected: bool | str
 ):
     """Single-value manifest fields are carried from AppManifestInfo to AppSummary.
 
@@ -180,11 +183,11 @@ def test_app_list_response_from_preserves_counts():
     result = app_list_response_from(full)
 
     assert result.total == 5
-    assert result.status_counts["running"] == 1
-    assert result.status_counts["failed"] == 1
-    assert result.status_counts["stopped"] == 1
-    assert result.status_counts["disabled"] == 1
-    assert result.status_counts["blocked"] == 1
+    assert result.status_counts[AppStatus.RUNNING] == 1
+    assert result.status_counts[AppStatus.FAILED] == 1
+    assert result.status_counts[AppStatus.STOPPED] == 1
+    assert result.status_counts[AppStatus.DISABLED] == 1
+    assert result.status_counts[AppStatus.BLOCKED] == 1
 
 
 def make_system_status(**overrides) -> SystemStatusResponse:
@@ -255,7 +258,7 @@ def test_listener_summary_from_none_traceback_when_no_error():
 
 def test_listener_summary_from_mode_passthrough():
     """Mode passes through from the DB summary to the response model."""
-    summary = make_listener_summary_row(mode="queued")
+    summary = make_listener_summary_row(mode=ExecutionMode.QUEUED)
 
     result = listener_summary_from(summary)
 
@@ -325,7 +328,7 @@ def test_listener_summary_from_raises_on_wrong_typed_computed_value():
 
 def test_listener_summary_from_backpressure_passthrough():
     """Backpressure policy passes through from the DB summary to the response model."""
-    summary = make_listener_summary_row(backpressure="drop_newest")
+    summary = make_listener_summary_row(backpressure=BackpressurePolicy.DROP_NEWEST)
 
     result = listener_summary_from(summary)
 

@@ -30,11 +30,7 @@
         "tests/integration/test_scheduler_mode_overlap.py",
         "tests/integration/test_scheduler_mode_resolution.py",
         "tests/integration/test_scheduler_stale_job_timing.py",
-        "tests/integration/test_thread_leaked_observability.py",
-        "tests/integration/web_api/test_telemetry.py",
-        "tests/support/web_job_helpers.py",
-        "tests/support/web_manifest_helpers.py",
-        "tests/unit/web/test_mappers.py"
+        "tests/integration/test_thread_leaked_observability.py"
     ],
     // pytest fixtures are registered by decorator and never referenced by name.
     // extraPaths keeps the repo root importable, so `import tests.support...` still resolves
