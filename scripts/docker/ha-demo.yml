@@ -89,7 +89,8 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
-      start_period: 10s
+      # The container runs `npm install` into an empty anonymous volume on every start.
+      start_period: 90s
 
 volumes:
   hass-hassette:
