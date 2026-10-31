@@ -30,10 +30,11 @@ A second harness that attempts to acquire the time lock raises `RuntimeError: fr
 
 ## Parallel Test Suites (pytest-xdist)
 
-Install `pytest-xdist` to enable parallel test execution:
+Install `pytest-xdist`, then pass `-n` to choose the number of worker processes:
 
 ```bash
 pip install pytest-xdist   # or: uv add --dev pytest-xdist
+pytest -n 4
 ```
 
 Each xdist worker runs in its own process with its own `threading.Lock`. Workers cannot interfere with each other's frozen clock, and a single worker runs its assigned tests one at a time. `freeze_time` tests need no special marker or distribution mode under xdist.
