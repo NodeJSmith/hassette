@@ -9,9 +9,12 @@ Operational scripts for building, running, and demoing hassette.
   config to a tmpdir, runs `docker compose up -d --wait` / `down --remove-orphans`
   for the HA + hassette + Vite stack, and handles signal/atexit teardown. Imported
   by `hassette_demo.py` and `capture_screenshots.py`; not run directly.
-- **`capture_screenshots.py`** — regenerate `docs/_static/web_ui_*.png` from
-  `docs/screenshots.yml` (`--only <name>` to scope). Starts the demo stack via
-  `DemoStack`, runs shot-scraper, tears down. See `.claude/rules/demo-and-screenshots.md`.
+- **`capture_screenshots.py`** — regenerate `docs/_static/web_ui_*.png` and
+  `docs/_static/ha-*.png` from `docs/screenshots.yml` (`--only <name>` to scope). Starts
+  the demo stack via `DemoStack`, runs shot-scraper, tears down. See
+  `.claude/rules/demo-and-screenshots.md`.
+- **`screenshot_page_helpers.js`** — `window.docShot` helpers that `capture_screenshots.py`
+  injects into each page, for entries that drive shadow-DOM UI and draw the green circle.
 - **`hassette_demo.py`** — thin wrapper around `DemoStack` for interactive visual
   QA: starts the compose stack, prints URLs, blocks until signaled; also
   `mise run demo`. See `.claude/rules/demo-and-screenshots.md`.

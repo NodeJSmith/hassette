@@ -4,21 +4,21 @@ Hassette authenticates to Home Assistant using a long-lived access token (one th
 
 ## Steps
 
-1. Go to the [Profile](https://my.home-assistant.io/redirect/profile/) page in your Home Assistant instance. Click the **Security** tab.
+1. Go to the [Profile](https://my.home-assistant.io/redirect/profile/) page in your Home Assistant instance. Click the **Security** row.
 
-   ![Home Assistant Profile Security Tab](../../_static/ha-profile-page.png)
+   ![Home Assistant Profile page with the Security row circled](../../_static/ha-profile-page.png)
 
-2. Scroll down to **Long-Lived Access Tokens** and click **Create Token**.
+2. On the **Security** page, scroll down to **Long-lived access tokens** and click **Create token**.
 
-   ![Create Long-Lived Access Token](../../_static/ha-create-token.png)
+   ![Security page with the Create token button circled](../../_static/ha-create-token.png)
 
-3. Enter a name, for example [`Hassette`][hassette.core.core.Hassette], and click **OK**.
+3. Enter a name, for example [`Hassette`][hassette.core.core.Hassette], and click **Create token**.
 
-   ![Name Long-Lived Access Token](../../_static/ha-token-name.png)
+   ![Create token dialog with the name filled in](../../_static/ha-token-name.png)
 
-4. Copy the token. Home Assistant shows it only once. If you lose it, revoke it from the Security tab and create a new one.
+4. In the **Token created** dialog, click **Copy**. Home Assistant shows the token only once. If you lose it, revoke it from the **Security** page and create a new one.
 
-   ![Copy Long-Lived Access Token](../../_static/ha-copy-token.png)
+   ![Token created dialog with the Copy button circled](../../_static/ha-copy-token.png)
 
 ## What to Do with the Token
 
@@ -33,4 +33,4 @@ If you have not started the [Quickstart](index.md) yet, head there next for the 
 To verify the token works, complete the Quickstart and run `hassette status`. If the token is valid, you see `websocket_connected: true`. An authentication error means the token was not copied in full or has been revoked.
 
 !!! warning "Token security"
-    A long-lived access token has the same permissions as your Home Assistant user account. Never commit it to version control or share it publicly. If a token is exposed, revoke it immediately from the Security tab and generate a new one.
+    A long-lived access token has the same permissions as your Home Assistant user account. Never commit it to version control or share it publicly. If a token is exposed, revoke it immediately from the **Security** page and generate a new one.
