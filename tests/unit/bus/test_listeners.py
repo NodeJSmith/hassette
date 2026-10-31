@@ -164,6 +164,7 @@ class TestListenerImmediateField:
     def test_listener_create_with_immediate_true(self) -> None:
         """Listener.create(immediate=True) stores immediate=True."""
         listener = create_listener(topic="test.topic", immediate=True, entity_id="light.kitchen")
+        assert listener.duration_config is not None
         assert listener.duration_config.immediate is True
 
     def test_listener_create_default_immediate_false(self) -> None:
@@ -176,6 +177,7 @@ class TestListenerDurationField:
     def test_listener_create_with_duration(self) -> None:
         """Listener.create(duration=5.0) stores duration=5.0."""
         listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen")
+        assert listener.duration_config is not None
         assert listener.duration_config.duration == 5.0
 
     def test_listener_create_default_duration_none(self) -> None:
@@ -188,6 +190,7 @@ class TestListenerEntityIdField:
     def test_listener_create_with_entity_id(self) -> None:
         """entity_id is stored on the Listener."""
         listener = create_listener(topic="test.topic", entity_id="light.kitchen")
+        assert listener.duration_config is not None
         assert listener.duration_config.entity_id == "light.kitchen"
 
     def test_listener_create_default_entity_id_none(self) -> None:
@@ -221,6 +224,7 @@ class TestListenerDurationValidation:
         """once=True combined with duration is allowed (no ValueError)."""
         listener = create_listener(topic="test.topic", once=True, duration=5.0, entity_id="light.kitchen")
         assert listener.options.once is True
+        assert listener.duration_config is not None
         assert listener.duration_config.duration == 5.0
 
 
@@ -318,18 +322,18 @@ class TestBackpressurePolicy:
 
     def test_string_coercion_block(self) -> None:
         """backpressure='block' string is coerced to BackpressurePolicy.BLOCK."""
-        opts = ListenerOptions(backpressure="block")
+        opts = ListenerOptions(backpressure="block")  # pyright: ignore[reportArgumentType]
         assert opts.backpressure is BackpressurePolicy.BLOCK
 
     def test_string_coercion_drop_newest(self) -> None:
         """backpressure='drop_newest' string is coerced to BackpressurePolicy.DROP_NEWEST."""
-        opts = ListenerOptions(backpressure="drop_newest")
+        opts = ListenerOptions(backpressure="drop_newest")  # pyright: ignore[reportArgumentType]
         assert opts.backpressure is BackpressurePolicy.DROP_NEWEST
 
     def test_invalid_backpressure_string_raises_value_error(self) -> None:
         """An invalid backpressure string raises ValueError naming the valid policies."""
         with pytest.raises(ValueError, match="bogus") as exc_info:
-            ListenerOptions(backpressure="bogus")
+            ListenerOptions(backpressure="bogus")  # pyright: ignore[reportArgumentType]
         error_msg = str(exc_info.value)
         assert "block" in error_msg
         assert "drop_newest" in error_msg
@@ -337,7 +341,7 @@ class TestBackpressurePolicy:
     def test_invalid_backpressure_string_lists_valid_values(self) -> None:
         """The ValueError message lists all valid policy values."""
         with pytest.raises(ValueError, match="invalid_policy") as exc_info:
-            ListenerOptions(backpressure="invalid_policy")
+            ListenerOptions(backpressure="invalid_policy")  # pyright: ignore[reportArgumentType]
         error_msg = str(exc_info.value)
         for policy in BackpressurePolicy:
             assert repr(policy.value) in error_msg
