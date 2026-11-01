@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-29
+Last reviewed: 2026-11-01
 
 ## How the pieces fit
 
@@ -57,6 +57,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
+| **Diagnostic evidence** | *Diagnostic Evidence* | Records what "why did this happen" and "why didn't it" need: filtered events, triggering events, service call outcomes, a framework timeline and runtime debug capture. Starts after #3098. Needs a sketch first; the UI redesign needs this data |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
@@ -69,7 +70,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | **HACS webhooks & templates** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store |
 | **DB as source of truth** | *DB as Source of Truth* | Design: `design/specs/132-db-source-of-truth/design.md`. #2695 lands first; the tail (WS invalidations, snapshot mode) is frontend-heavy. Makes the seed scripts servable to the UI |
 | **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS app-entities API) |
-| **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
+| **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | After *Diagnostic Evidence*, which records the data the UI will show. Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
 | **Frontend quality & facelift** | pool: `area:ui` | Same. Rescope from scratch into a milestone with a Done-when if promoted. Individual UI *bugs* can still come in as interrupts |
 | **Feature ideas** | unlabeled `type:enhancement` | The icebox. Promote an idea by making it an initiative, not by starting it |
 
@@ -86,6 +87,7 @@ testing redesign + all breaking changes ──> v1.0 tag
 #1446 projector ──> #2890 mixed-instance scenario ──> #2996 snapshot mode
 #2989 seed anchor ──> #2996 snapshot mode
 Log Identity milestone closed ──> #3098 DB keyed by name, #3099 registry by name ──> #3100 routes by name
+#3098 DB keyed by name ──> Diagnostic Evidence telemetry tables ──> UI redesign
 ```
 
 Remove a chain once every step on it has closed.
