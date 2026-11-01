@@ -279,7 +279,8 @@ async def test_still_unavailable_change_does_not_disturb_a_waiting_job(entity_ti
 async def test_daily_mode_ignores_the_entity_date(entity_time_harness: HassetteHarness) -> None:
     """daily=True keeps only the time of day, so a stale date still schedules today or tomorrow."""
     target = date_utils.now().add(minutes=90).round("second")
-    stale = target.add(hours=-24 * 400)
+    # Calendar days keep the wall clock; exact hours would shift it when the two dates have different UTC offsets.
+    stale = target.add(days=-400)
     await seed_alarm(entity_time_harness, stale.format_iso())
 
     job = await entity_time_harness.scheduler.schedule(
