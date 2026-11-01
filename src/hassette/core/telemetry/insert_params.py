@@ -86,12 +86,15 @@ def stored_instance_name(app_key: str, instance_name: str | None, source_tier: S
     restart would insert a duplicate row. Framework resources have no instance name, so they store
     ``FRAMEWORK_APP_KEY``, which the instance-name charset makes impossible for an app.
 
+    An empty name counts as missing, because ``AppConfig`` defaults to ``""`` when an App is constructed directly.
+    Two such apps under one key would otherwise overwrite each other's rows.
+
     Raises:
-        ValueError: An app-tier registration has no instance name.
+        ValueError: An app-tier registration's instance name is ``None`` or empty.
     """
     if source_tier == "framework":
         return FRAMEWORK_APP_KEY
-    if instance_name is None:
+    if not instance_name:
         raise ValueError(f"App-tier registration for {app_key!r} has no instance name")
     return instance_name
 

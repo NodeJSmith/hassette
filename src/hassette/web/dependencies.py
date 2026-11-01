@@ -115,8 +115,8 @@ def instance_name_filter(hassette: "Hassette", app_key: str | None, index: int |
     """Translate a route's instance index to the name telemetry queries filter on; ``None`` means no filter.
 
     A framework key has exactly one instance, so its queries need no instance filter. An index with no
-    configured name resolves to a display label that can't pass name validation, so it matches no stored row
-    and the query answers empty rather than another instance's history.
+    configured name resolves to a display label no validated name can equal, so the query answers empty rather
+    than another instance's history. Log and blocking rows stored before names were validated can hold that label.
     """
     if app_key is None or index is None or is_framework_key(app_key):
         return None

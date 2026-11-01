@@ -103,6 +103,12 @@ def test_stored_instance_name(instance_name: str | None, source_tier, expected: 
     assert stored_instance_name("my_app", instance_name, source_tier) == expected
 
 
+@pytest.mark.parametrize("instance_name", [None, ""])
+def test_stored_instance_name_refuses_an_unnamed_app(instance_name: str | None) -> None:
+    with pytest.raises(ValueError, match="my_app"):
+        stored_instance_name("my_app", instance_name, "app")
+
+
 async def test_reconcile_scoped_to_a_name_leaves_sibling_rows_alone(
     telemetry_repo: TelemetryRepository, telemetry_db: aiosqlite.Connection
 ) -> None:

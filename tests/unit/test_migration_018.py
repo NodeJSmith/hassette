@@ -5,6 +5,7 @@ are named in place and keep their history. Parents are altered in place, so exec
 """
 
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -126,23 +127,26 @@ def test_indexes_key_on_the_name(migrated_db: Path, table: str, columns: list[st
         assert [row[2] for row in conn.execute(f"PRAGMA index_info({table})").fetchall()] == columns
 
 
-def test_framework_resources_cannot_collide_under_the_new_key(tmp_path: Path) -> None:
-    """Framework resources register at index 0, so each natural key already has one row to name in place.
+@pytest.mark.parametrize(("table", "insert"), [("listeners", _insert_listener), ("scheduled_jobs", _insert_job)])
+def test_framework_rows_differing_only_by_index_fail_atomically(
+    tmp_path: Path, table: str, insert: Callable[..., None]
+) -> None:
+    """Naming framework rows in place assumes they sit at index 0, so two at different indexes must fail the upgrade.
 
-    Two rows differing only by index would fail the unique index and with it the startup, so this pins the
-    assumption the migration relies on.
+    The failure is intended: startup stops loudly and the database stays at schema version 17, with nothing half-done.
     """
     db_path = tmp_path / "test.db"
     run_migrations(db_path, target=17)
     with sqlite_conn(db_path) as conn:
-        _insert_listener(conn, FRAMEWORK_KEY, 0, tier="framework")
-        _insert_listener(conn, f"{FRAMEWORK_APP_KEY}.SchedulerService", 0, tier="framework")
-        _insert_job(conn, FRAMEWORK_KEY, 0, tier="framework")
+        insert(conn, FRAMEWORK_KEY, 0, tier="framework")
+        insert(conn, FRAMEWORK_KEY, 1, tier="framework")
         conn.commit()
 
-    run_migrations(db_path)
+    with pytest.raises(RuntimeError, match="Migration 18"):
+        run_migrations(db_path)
 
     with sqlite_conn(db_path) as conn:
-        assert conn.execute(
-            "SELECT COUNT(*) FROM listeners WHERE instance_name = ?", (FRAMEWORK_APP_KEY,)
-        ).fetchone() == (2,)
+        assert conn.execute("PRAGMA user_version").fetchone() == (17,)
+        assert conn.execute(f"SELECT instance_index FROM {table} ORDER BY instance_index").fetchall() == [(0,), (1,)]
+        columns = [row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    assert "instance_name" not in columns

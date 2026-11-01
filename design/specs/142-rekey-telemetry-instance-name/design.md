@@ -1,7 +1,7 @@
 # Design: Key telemetry rows by instance name
 
 **Date:** 2026-11-01
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3098
 **Parent:** design/specs/133-log-identity-axes/design.md
@@ -14,7 +14,7 @@
 Where each piece lives:
 
 - **Schema:** new `src/hassette/migrations_sql/018.sql` adds the column and retires pre-migration app rows (D2), and swaps the natural-key indexes `idx_listeners_natural`, `idx_scheduled_jobs_natural` and the lookup indexes `idx_listeners_app`, `idx_scheduled_jobs_app` to the name.
-- **Write path:** `instance_name` on `ListenerRegistration` and `ScheduledJobRegistration` (`src/hassette/core/registration.py`), filled by `bus_service.py` and `scheduler_service.py`, written through `core/telemetry/insert_params.py`. One function there, shared by both tables' inserts, is the only code that knows the reserved framework name (D2): framework tier stores `__hassette__`, app tier stores its name, and an app-tier `None` raises. `Resource.instance_name` stays `None` for framework resources, so framework log and blocking rows keep their NULL. Both `ON CONFLICT` targets in `core/telemetry/repository.py` change to match the new indexes exactly. Both upserts also set `instance_index = excluded.instance_index`, so a reorder refreshes the display value on the surviving row.
+- **Write path:** `instance_name` on `ListenerRegistration` and `ScheduledJobRegistration` (`src/hassette/core/registration.py`), filled by `bus_service.py` and `scheduler_service.py`, written through `core/telemetry/insert_params.py`. One function there, shared by both tables' inserts, is the only code that knows the reserved framework name (D2): framework tier stores `__hassette__`, app tier stores its name, and an app-tier `None` or `""` raises. `Resource.instance_name` stays `None` for framework resources, so framework log and blocking rows keep their NULL. Both `ON CONFLICT` targets in `core/telemetry/repository.py` change to match the new indexes exactly. Both upserts also set `instance_index = excluded.instance_index`, so a reorder refreshes the display value on the surviving row.
 - **Reconcile:** `instance_index_clause` in `core/telemetry/reconcile_sql.py` becomes a name clause, and the parameter threads through `reconcile_registrations` (`repository.py`), `CommandExecutor.reconcile_registrations`, `reconcile_app_registrations` (`core/app_lifecycle_registrations.py`) and `initialize_instances` (`core/app_lifecycle_instances.py`).
 - **Retiring unconfigured names:** `build_retire_removed_apps_query` in `reconcile_sql.py` and a new live-pairs builder beside `live_app_keys` in `core/database_retention.py` (D1). The manifest prune keeps using `live_app_keys`.
 - **Fixtures and doubles:** `scripts/seed_scenarios/` sets `instance_name` on seeded registrations with `make_instance_name`. `tests/e2e/mock_fixtures/` and `tools/client_compat_live_state.py` wire `registry.instance_name` to those same names, so the Posture's `client_compat` claim holds without responses going empty. `tests/integration/telemetry/helpers.py` takes `instance_name` as a required parameter, and hand-written `INSERT INTO listeners` and `INSERT INTO scheduled_jobs` statements in tests name the column.
@@ -29,7 +29,7 @@ Where each piece lives:
 ## Posture
 
 - **Failure handling:** loud and minimal, as in the parent. A failed migration fails startup. An index with no name returns an empty result and never falls back to another instance.
-- **Compatibility:** break freely for stored history (pre-v1, accepted by parent D11). No API or wire change, since those belong to #3100, so `client_compat` needs no ignore entries.
+- **Compatibility:** break freely for stored history (pre-v1, accepted by parent D11). No API or wire change, since those belong to #3100, so `client_compat` needs no ignore entries. One deliberate exception: `GET /logs/recent` with `instance_index` and no `app_key` now answers `validation_failed` (see Build).
 - **Scope:** minimal. Schema, write path, reconcile, telemetry queries, the temporary route lookup, tests, and the rename docs. No backfill, rename tooling or surrogate ID.
 - **Rollout:** one PR with one migration, shipped outright. No flag.
 - **Hardening:** project defaults. The issue's required challenge runs against the schema and startup reconciliation at the sketch-time challenge.
@@ -125,7 +125,7 @@ No release ships between #3098 and #3100, so K's in-between state reaches only `
 - Names are unique across the config, in a charset that excludes `_` as a first character and uppercase. Evidence: parent D5 and D11, shipped in #3095 (`430130ea`).
 - `executions` keep their FKs because the parent rows are altered in place and never rebuilt. Evidence: `src/hassette/migrations_sql/001.sql`.
 - Retired rows are deleted only after their executions age out, and an upsert clears `retired_at`, so a name that returns gets its history back. Evidence: `_run_parent_guard_deletes` in `src/hassette/core/database_retention.py`; `repository.py` upserts.
-- Framework resources register at index 0, so naming framework rows in place can't collide under the new unique index. Evidence: `Resource.index` default in `src/hassette/resources/base.py`; no framework row with a non-zero index in the local and demo telemetry databases (2026-11-01). The migration test must pin the non-collision.
+- Framework resources register at index 0, so naming framework rows in place can't collide under the new unique index. Evidence: `Resource.index` default in `src/hassette/resources/base.py`; no framework row with a non-zero index in the local and demo telemetry databases (2026-11-01); `self.index =` appears only in the app-tier `App` at v0.37.0, v0.40.0, v0.50.0 and v0.59.0. If this were wrong, 018 fails loudly and atomically and the database stays at 017, so a fixed 018 in a later release could still apply; `tests/unit/test_migration_018.py` pins that failure.
 - `log_records` and `blocking_events` have no natural key, so a NULL `instance_name` loses nothing there and correctly means "no app subject". They keep it nullable. Evidence: `001.sql`, `005.sql`; framework log and blocking rows with NULL names in those databases.
 - `SQLite` requires each `ON CONFLICT` target to match a unique index. Evidence: `repository.py` already relies on this; SQLite upsert documentation.
 
@@ -133,12 +133,13 @@ No release ships between #3098 and #3100, so K's in-between state reaches only `
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `build_retire_removed_apps_query` renamed to `build_retire_unconfigured_instances_query`, and its log line now names removed or renamed instances: it no longer only concerns removed apps.
 - `TelemetryFilters.query_kwargs` became a method taking `app_key`, and the dataclass gained a `HassetteDep` field: the lookup needs both, and FastAPI keeps the OpenAPI schema unchanged.
-- `GET /logs/recent` with `instance_index` and no `app_key` now answers `validation_failed` instead of ignoring the index: the Posture's failure stance rules out silently returning every instance, and no name can be resolved without an app. Other no-app paths (`/bus/listeners`) already ignored the index before this change.
+- `GET /logs/recent` with `instance_index` and no `app_key` now answers `validation_failed`. It used to filter on `lr.instance_index` across every app, so this is a deliberate wire change and the one exception to the Posture's "no API or wire change". Keeping that filter would add a path #3100 deletes, for a query no in-repo caller sends and whose meaning (position N in any app) is dubious. `validation_failed` is a global problem code, so the route doesn't declare it.
+- `stored_instance_name` also refuses `""`, not only `None`: an App built outside config loading carries `AppConfig`'s empty default, and two under one key would merge rows. A hand-built App must now pass an `instance_name` before it registers anything.
 - Blocking finding instance refs key on the name, falling back to the index for a row stored without one: one name at two indexes after a reorder is one instance, even though `instance_index` stays a display value (D3).
 - Hand-written `INSERT INTO listeners`/`scheduled_jobs` in tests name `instance_name` only where the test filters by it; the others take the column default, and changing them would add noise to tests that don't exercise identity. This narrows the Summary's "name the column".
 - D1's claim that renames are the only path leaving old rows active holds: `app_lifecycle_changes.py` reloads the whole app on a count change and each changed index otherwise, and only the latter reconciles by name.
