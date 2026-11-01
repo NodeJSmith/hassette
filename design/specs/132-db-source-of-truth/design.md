@@ -56,6 +56,7 @@ Delivery and the disposition of every related issue (pulled in, closed, or linke
 **Pick deferring instead if** the table had a real write or retention cost; writes are one row per observed change (D18) and retention ages it out (D25).
 **Reversibility:** easy
 **Ratified:** Chose shipping `app_status_events` with the projector over deferring it, to start accumulating history now, accepting a table with no UI yet. (Ratified in conversation.)
+**Amended by spec 142 D1 and D2:** the Diagnostic Evidence milestone ships this table first, generalized with a `kind` column so it also carries connection rows, written from events. When the projector lands it replaces the event writer for app rows, and connection rows keep their writer.
 
 ### D3: What cadence do the heartbeat and the resync use, and are they one loop?
 
@@ -435,7 +436,7 @@ Context: process-wide counters have accumulated one at a time, each with its own
 2. The projector (D1) writes the registry's values to `session_counters(session_id, name, value)` on each run and in the final run (D7); the `sessions.dropped_*` columns are dropped by migration. Seeds write counter rows.
 3. Reads come from the DB through D8's session join. `SystemStatusResponse` and `TelemetryStatusResponse` lose their bespoke counter fields; `/health` carries a `counters` list of `{name, stage, reason, kind, value}`, and the UI renders loss and sampling separately. This ships through D14's break path in the milestone's release.
 4. `/telemetry/status` keeps only the probe: `degraded` from the DB health query (503 when it fails, as today), plus defaulted `projection_lag_seconds: float | None = None` (D8.3) and `database: Literal["ready", "restarting", "cooling", "failed"] = "ready"`, the `DatabaseService` state D23 reads: `restarting` between restarts, `cooling` in `EXHAUSTED_COOLING` (budget exhausted, a retry scheduled after `cooldown_seconds`; `DatabaseService`'s `max_cooldown_cycles` is the default 0, unlimited, `resources/restart.py:46`), and `failed` only in `EXHAUSTED_DEAD`. Both 200 and 503 bodies carry `database`. Projector lag never changes its HTTP status. The zero-fallback catches are deleted (#2844).
-5. Not in the registry: per-listener and per-job guard counters (D6's per-session tables, because they belong to entity rows), gauges such as `pending_wait_for_count` (#2806 issues per D12), and private escalation state (heartbeat strikes, parent-guard skips).
+5. Not in the registry: per-listener and per-job guard counters (D6's per-session tables, because they belong to entity rows), gauges such as `pending_wait_for_count` (#2806 issues per D12), and private escalation state (heartbeat strikes, parent-guard skips). Spec 142 D3's near-miss rollups hold the per-entity, per-reason detail behind these exact session totals; they aren't a second owner of the totals.
 
 **Pick A2 instead if** drop counts must be exact to the second in live mode. **Pick B instead if** the counter set were closed; the uncounted paths show it isn't.
 **Reversibility:** easy
@@ -458,6 +459,7 @@ Context: append-only tables (`executions`, `blocking_events`, `log_records`) age
 **Pick B instead if** runtime rows of old sessions should disappear before the session row does. **Pick C instead if** the schema moves to cascading FKs in general, a larger change than this.
 **Reversibility:** easy
 **Ratified:** Chose deleting snapshot-state rows with their session and ageing `app_status_events` as its own retention target, over per-table targets or cascading FKs, to match each table's deletion to how it grows on the existing parent-guard pattern, accepting more statements in parent-guard step 4. (Added by the ledger comb.)
+**Amended by spec 142 D1:** the target covers the generalized lifecycle table, which ships before this ledger's other tables.
 
 ## Assumed
 
