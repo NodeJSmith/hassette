@@ -211,6 +211,23 @@ Seeded records are stored as deep copies. Later mutations to the record passed i
     | `Create{Domain}Params` | Required and optional fields for a create call | `"forbid"`: typos raise `ValidationError` at construction |
     | `Update{Domain}Params` | Partial update payload with all fields optional | `"ignore"`: extra fields from round-tripped records are silently dropped |
 
+    The create model for each domain takes these fields:
+
+    | Domain | Create model | Required | Optional |
+    |---|---|---|---|
+    | `input_boolean` | `CreateInputBooleanParams` | `name` | `icon`, `initial` |
+    | `input_number` | `CreateInputNumberParams` | `name`, `min`, `max` | `initial`, `step`, `icon`, `unit_of_measurement`, `mode` |
+    | `input_text` | `CreateInputTextParams` | `name` | `min`, `max`, `initial`, `icon`, `unit_of_measurement`, `pattern`, `mode` |
+    | `input_select` | `CreateInputSelectParams` | `name`, `options` | `initial`, `icon` |
+    | `input_datetime` | `CreateInputDatetimeParams` | `name` | `has_date`, `has_time`, `icon`, `initial` |
+    | `input_button` | `CreateInputButtonParams` | `name` | `icon` |
+    | `counter` | `CreateCounterParams` | `name` | `icon`, `initial`, `minimum`, `maximum`, `step`, `restore` |
+    | `timer` | `CreateTimerParams` | `name` | `icon`, `duration`, `restore` |
+
+    Each `Update{Domain}Params` model has the same fields as its create model, all optional.
+    `CreateInputDatetimeParams` also needs `has_date=True` or `has_time=True`.
+    `counter` spells its bounds `minimum` and `maximum`, while `input_number` and `input_text` use `min` and `max`.
+
     The two CRUD methods that accept a params object (`helpers.create` and `helpers.update`) serialize it with
     `model_dump(exclude_unset=True)`, not `exclude_none`. Omitting a field and explicitly
     setting it to `None` produce different wire payloads.
