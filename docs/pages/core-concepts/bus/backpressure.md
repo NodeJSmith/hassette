@@ -8,8 +8,9 @@ use. Two policies are available: `"block"` and `"drop_newest"`.
 --8<-- "pages/core-concepts/bus/snippets/backpressure_drop.py:drop_newest_basic"
 ```
 
-All four bus registration methods — `on_state_change`, `on_attribute_change`,
-`on_call_service`, and `on()` — accept `backpressure=`.
+`on()` and its shorthands accept `backpressure=`: `on_state_change`,
+`on_attribute_change`, `on_call_service`, and the others listed on
+[Subscription Methods](methods.md). The one-shot `wait_for` does not.
 
 ## The Two Policies
 
@@ -84,12 +85,13 @@ is reached." Which listener drops within one event depends on dispatch order:
 matching listeners run in priority order (highest first), then in registration
 order for equal priorities.
 
-### Signal type: latency vs. silent loss
+### Signal type: latency vs. loss
 
-`block` converts bus saturation into **latency**: handlers start later, and
-Hassette logs a rate-limited `Event dispatch saturated` warning the operator
-can react to. `drop_newest` converts it into **silent
-loss** visible only as a rising drop count.
+`block` converts bus saturation into **latency**: handlers start later.
+`drop_newest` converts it into **loss**: the handler never runs for that event.
+Under either policy, Hassette logs a rate-limited `Event dispatch saturated`
+warning, but the warning doesn't name a listener. A rising drop count shows
+which `drop_newest` listener lost events.
 
 A non-zero drop count in the [monitoring UI](../../web-ui/index.md) means the bus was saturated when
 that listener's events arrived. Addressing the root cause — raising
