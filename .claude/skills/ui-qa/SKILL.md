@@ -26,7 +26,7 @@ Use when the user says: "ui qa", "visual QA the frontend", "polish pass on the U
 
 Read `references/harness.md` and follow it: start the demo stack in the background, wait
 for "Demo ready." on its output, then **wait ~2 minutes more** for failure/activity data
-before capturing anything. Get a tmpdir via `get-skill-tmpdir ui-qa`.
+before capturing anything. Get a tmpdir via `mktemp -d <scratchpad>/ui-qa-XXXXXX`.
 
 Skip the wait only when the stack is already running from earlier in the session.
 
