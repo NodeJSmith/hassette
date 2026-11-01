@@ -253,6 +253,7 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
         trigger = Every(hours=1)
         live_job = make_real_job(name="test_job", trigger=trigger, jitter=10.0)
         live_job.mark_registered(42)
+        assert live_job.next_run is not None
         live_job.fire_at = live_job.next_run.add(seconds=5.0)
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
 
@@ -385,12 +386,12 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
 
 class TestServiceInfoExtension:
     def test_service_info_has_ready_phase(self) -> None:
-        service_info = ServiceInfo(name="WebSocketService", status="running", ready_phase="connected")
+        service_info = ServiceInfo(name="WebSocketService", status=ResourceStatus.RUNNING, ready_phase="connected")
         assert service_info.ready_phase == "connected"
 
     def test_service_info_defaults(self) -> None:
         """ServiceInfo defaults ready_phase to None when omitted."""
-        service_info = ServiceInfo(name="SomeService", status="running")
+        service_info = ServiceInfo(name="SomeService", status=ResourceStatus.RUNNING)
         assert service_info.ready_phase is None
 
     def test_get_system_status_populates_service_info_fields(self) -> None:

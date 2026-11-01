@@ -31,6 +31,7 @@ from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
 from hassette import context as hassette_context
+from hassette.config.models import AppsConfig, WebApiConfig
 from hassette.core.session_manager import SESSION_STATUS_FAILURE
 from hassette.exceptions import FatalError
 from hassette.testing import make_light_state_dict, wait_for
@@ -196,17 +197,17 @@ class TestInitialStateSyncBeforeApps:
 
         config = TestConfig(
             data_dir=tmp_path / "data",
-            web_api={"run": True, "port": unused_tcp_port_factory()},
-            apps={
-                "directory": app_dir,
-                "apps": {
+            web_api=WebApiConfig(run=True, port=unused_tcp_port_factory()),
+            apps=AppsConfig(
+                directory=app_dir,
+                apps={
                     "state_reader": {
                         "filename": "state_reader.py",
                         "class_name": "StateReaderApp",
                         "config": {"instance_name": "state_reader", "test_entity": "light.office"},
                     },
                 },
-            },
+            ),
         )
 
         hassette = Hassette(config)

@@ -251,7 +251,7 @@ async def test_thread_leaked_round_trips_through_db(
         session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=55.0,
-        status="timed_out",
+        status=ExecutionStatus.TIMED_OUT,
         thread_leaked=thread_leaked,
         error_type="TimeoutError",
         error_message="execution timed out",
