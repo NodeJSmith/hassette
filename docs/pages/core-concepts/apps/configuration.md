@@ -98,10 +98,10 @@ Names are modelled on Home Assistant's entity object ID rule:
 
 Names are unique across the whole config. No two instances, under any app key and enabled or not, share a name. A duplicate fails at config load with an error that lists every instance using the name.
 
-An instance's telemetry history (its handlers, jobs, and their runs) is stored under its name, so reordering `config` blocks or inserting a new one leaves each instance's history with it. Renaming an instance starts a new history. Its old handlers and jobs drop out of the web UI within one retention cycle, and renaming it back restores them as long as retention hasn't deleted the old rows.
+Hassette stores an instance's telemetry history (its handlers, jobs, and their runs) under its name, so reordering `config` blocks or inserting a new one leaves each instance's history with it. Renaming an instance starts a new history. Its old handlers and jobs drop out of the web UI within one retention cycle, and renaming it back restores them as long as retention hasn't deleted the old rows.
 
 !!! warning "Upgrading resets per-instance views"
-    History recorded before names became the key can't be attributed to a name, so per-instance views start empty after upgrading. App-wide totals still count the older runs, and those rows are deleted on the normal retention schedule.
+    History recorded before names became the key can't be attributed to a name, so per-instance views start empty after upgrading. App-wide totals still count the older runs, and retention deletes those rows on its normal schedule.
 
 !!! note "Web routes and the CLI still use the index"
     Web routes and the CLI still address an instance by its app key and index (its zero-based position among the app's `config` blocks). The CLI's `--instance` flag resolves a name to its index.
