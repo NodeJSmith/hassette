@@ -267,7 +267,7 @@ flowchart TD
 | `ws_send_json()` | WebSocket | Raw message, fire-and-forget |
 | `rest_request()` | REST | Raw `aiohttp` request |
 
-`Api.rest_request()` and `Api.ws_send_and_wait()` are escape hatches for HA API surface not covered by the typed methods.
+`ws_send_and_wait()`, `ws_send_json()`, and `rest_request()` are the internal transport behind the typed methods. They are unsupported for app code.
 
 ### Authentication
 

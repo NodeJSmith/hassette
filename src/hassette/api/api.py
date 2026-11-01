@@ -126,21 +126,6 @@ Examples:
     self.api.sync.call_service("light", "turn_on", entity_id="light.kitchen")
     ```
 
-    WebSocket direct access
-
-    ```python
-    # Send WebSocket message and wait for response
-    result = await self.api.ws_send_and_wait(
-        type="config/device_registry/list"
-    )
-
-    # Send WebSocket message without waiting
-    await self.api.ws_send_json(
-        type="subscribe_events",
-        event_type="state_changed"
-    )
-    ```
-
     Handling missing entities
 
     ```python
@@ -255,8 +240,8 @@ if typing.TYPE_CHECKING:
 class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
     """API service for interacting with Home Assistant.
 
-    This service provides methods to interact with the Home Assistant API, including making REST requests,
-    managing WebSocket connections, and handling entity states.
+    This service provides methods to interact with the Home Assistant API, including reading and writing
+    entity states, calling services, and firing events.
     """
 
     sync: ApiSyncFacade
@@ -288,13 +273,15 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
     async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response.
 
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
         Args:
             retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
                 Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
                 effect Home Assistant may already have applied. A timeout then raises
                 ``ResponseTimeoutError``. See :meth:`WebsocketService.send_and_wait`.
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
-                policy and is consumed here, so it is the one name this escape hatch cannot
+                policy and is consumed here, so it is the one name this method cannot
                 forward as a payload field.
         """
         if not self._api_service.ws_conn.is_connected:
@@ -302,7 +289,10 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         return await self._api_service.ws_conn.send_and_wait(retry_on_timeout=retry_on_timeout, **data)
 
     async def ws_send_json(self, **data: Any) -> None:
-        """Send a WebSocket message without waiting for a response."""
+        """Send a WebSocket message without waiting for a response.
+
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+        """
         if not self._api_service.ws_conn.is_connected:
             raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
         await self._api_service.ws_conn.send_json(**data)
@@ -317,6 +307,8 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         **kwargs: Any,
     ) -> aiohttp.ClientResponse:
         """Make a REST request to the Home Assistant API.
+
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
 
         Args:
             method: The HTTP method to use (e.g., "GET", "POST").
@@ -338,6 +330,8 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
     ) -> aiohttp.ClientResponse:
         """Make a GET request to the Home Assistant API.
 
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
         Args:
             url: The URL endpoint for the request.
             params: Query parameters for the request.
@@ -353,6 +347,8 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
     ) -> aiohttp.ClientResponse:
         """Make a POST request to the Home Assistant API.
 
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
         Args:
             url: The URL endpoint for the request.
             data: JSON payload for the request.
@@ -365,6 +361,8 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
 
     async def delete_rest_request(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a DELETE request to the Home Assistant API.
+
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
 
         Args:
             url: The URL endpoint for the request.
