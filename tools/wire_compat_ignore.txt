@@ -195,3 +195,9 @@ POST /api/apps/{app_key}/instances/{index}/stop removed the success response wit
 POST /api/apps/{app_key}/reload removed the success response with the status `202`
 POST /api/apps/{app_key}/start removed the success response with the status `202`
 POST /api/apps/{app_key}/stop removed the success response with the status `202`
+
+# #3098: a negative instance_index read the configured instances from the end or answered 500, so routes reject it.
+GET /api/bus/listeners for the `query` request parameter `instance_index`, the min was set to `0.00`
+GET /api/telemetry/app/{app_key}/health for the `query` request parameter `instance_index`, the min was set to `0.00`
+GET /api/telemetry/app/{app_key}/jobs for the `query` request parameter `instance_index`, the min was set to `0.00`
+GET /api/telemetry/app/{app_key}/listeners for the `query` request parameter `instance_index`, the min was set to `0.00`

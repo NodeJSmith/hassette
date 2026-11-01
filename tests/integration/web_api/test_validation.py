@@ -227,6 +227,7 @@ class TestInstanceIndexBounds:
     @pytest.mark.parametrize(
         "path",
         [
+            "/api/bus/listeners",
             "/api/logs/recent",
             "/api/telemetry/app/my_app/activity",
             "/api/telemetry/app/my_app/blocking",
