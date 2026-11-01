@@ -9,6 +9,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import uvicorn
 from httpx2 import ASGITransport, AsyncClient
 
 from hassette.config.models import WebApiConfig
@@ -151,6 +152,36 @@ class TestCancelDuringStartup:
 
         with pytest.raises(asyncio.CancelledError):
             await serve_task
+
+        assert not port_is_bound(service.port)
+
+    async def test_repeated_cancel_during_startup_waits_for_startup_and_releases_port(
+        self, unused_tcp_port_factory, tmp_path
+    ) -> None:
+        """A second cancel must not end serve() while startup can still bind with nobody left to close it."""
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+        real_startup = uvicorn.Server.startup
+        startup_entered = asyncio.Event()
+        release_startup = asyncio.Event()
+
+        async def gated_startup(server: uvicorn.Server, sockets: list[socket.socket] | None = None) -> None:
+            startup_entered.set()
+            await release_startup.wait()
+            await real_startup(server, sockets=sockets)
+
+        with patch.object(uvicorn.Server, "startup", gated_startup):
+            serve_task = asyncio.create_task(service.serve())
+            await startup_entered.wait()
+
+            serve_task.cancel()
+            await asyncio.sleep(0)
+            serve_task.cancel()
+            await asyncio.sleep(0)
+            assert not serve_task.done(), "serve() ended while startup was still in progress"
+
+            release_startup.set()
+            with pytest.raises(asyncio.CancelledError):
+                await serve_task
 
         assert not port_is_bound(service.port)
 

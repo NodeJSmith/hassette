@@ -3,6 +3,7 @@
 import asyncio
 import socket
 import typing
+from contextlib import suppress
 from typing import ClassVar
 
 import uvicorn
@@ -66,7 +67,10 @@ class _ShieldedStartupServer(uvicorn.Server):
         try:
             exit_exc = await asyncio.shield(task)
         except asyncio.CancelledError:
-            await asyncio.wait({task})  # startup must finish so the caller can see `started` and shut down
+            # Startup must finish so the caller can see `started` and shut down, however many cancels arrive.
+            while not task.done():
+                with suppress(asyncio.CancelledError):
+                    await asyncio.wait({task})
             raise
         if exit_exc is not None:
             raise exit_exc
