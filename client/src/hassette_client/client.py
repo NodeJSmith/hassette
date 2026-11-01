@@ -200,7 +200,8 @@ class HassetteClient:
         Args:
             limit: The most records to return.
             app_key: Only records emitted by this app.
-            instance_index: Only records emitted by this app instance. ``None`` covers every instance.
+            instance_index: Only records emitted by this app instance; requires ``app_key``. ``None`` covers every
+                instance.
             level: Only records at this level. Without ``author``, framework lines below ERROR stay excluded
                 whatever level this asks for; pass ``author="all"`` to see them.
             since: Only records at or after this Unix timestamp.

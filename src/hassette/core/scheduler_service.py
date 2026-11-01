@@ -238,6 +238,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         reg = ScheduledJobRegistration(
             app_key=job.app_key,
             instance_index=job.instance_index,
+            instance_name=job.instance_name,
             job_name=job.name,
             handler_method=getattr(job.job, "__qualname__", str(job.job)),
             trigger_type=trigger_type,

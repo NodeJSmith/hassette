@@ -17,6 +17,11 @@ from hassette.logging_ import LogIdentity
 from hassette.testing.config import TEST_WS_URL, make_test_config
 
 
+def fake_instance_name(_app_key: str, index: int) -> str:
+    """Stand in for ``AppRegistry.instance_name``: index-addressed telemetry routes bind the result into SQL."""
+    return f"instance_{index}"
+
+
 def make_mock_hassette(
     *,
     data_dir: Path | str | None = None,
@@ -70,7 +75,9 @@ def make_mock_hassette(
         - ``.bus_service.register_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.bus_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.app_handler.get``: :class:`~unittest.mock.Mock` returning ``None`` (no app running)
-        - ``.app_handler.registry.app_keys``: :class:`~unittest.mock.Mock` returning ``[]`` (no app running)
+        - ``.app_handler.registry.app_keys``, ``.all_apps``: :class:`~unittest.mock.Mock` returning ``[]``
+          (no app running)
+        - ``.app_handler.registry.instance_name``: :class:`~unittest.mock.Mock` returning ``instance_<index>``
         - ``.app_bootstrap_coordinator.is_released``: :class:`~unittest.mock.Mock` returning ``True``
         - ``.app_bootstrap_coordinator.wait_released``: :class:`~unittest.mock.AsyncMock` returning
             ``True``
@@ -145,6 +152,8 @@ def make_mock_hassette(
     # App handler stubs — get() is synchronous; return None (no app running by default)
     hassette.app_handler.get = Mock(return_value=None)
     hassette.app_handler.registry.app_keys = Mock(return_value=[])
+    hassette.app_handler.registry.all_apps = Mock(return_value=[])
+    hassette.app_handler.registry.instance_name = Mock(side_effect=fake_instance_name)
 
     # App bootstrap coordinator stubs — released by default so lifecycle admission passes.
     hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)

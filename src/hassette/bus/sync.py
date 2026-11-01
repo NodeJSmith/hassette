@@ -112,7 +112,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
                 `hassette.event_handling.predicates`. They will receive the full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. Stable string identifier for this listener. Forms part of the natural
-                key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
+                key ``(app_key, instance_name, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
@@ -170,7 +170,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
             duration: Fire only after the state has held for this many seconds continuously.
                 Not supported with glob patterns.
             name: Required. A stable string identifier for this listener. Forms part of the natural
-                key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
+                key ``(app_key, instance_name, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.

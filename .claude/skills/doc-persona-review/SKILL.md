@@ -27,10 +27,10 @@ A single page is used as given; the assembler reports it if the path doesn't exi
 ## Phase 2: Assemble Briefings
 
 ```bash
-get-skill-tmpdir doc-persona-review
+mktemp -d <scratchpad>/doc-persona-review-XXXXXX
 ```
 
-This prints a path like `/tmp/claude-doc-persona-review-a8Kx3Q`. Substitute that literal path for `<tmpdir>` below. A shell variable won't survive to the next command. Then, once per page:
+This prints the new directory's path. Substitute that literal path for `<tmpdir>` below. A shell variable won't survive to the next command. Then, once per page:
 
 ```bash
 uv run tools/docs/assemble_persona_briefing.py <page> <tmpdir>/briefings

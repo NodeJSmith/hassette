@@ -338,6 +338,17 @@ def wire_busy_app(hassette: MagicMock) -> None:
     hassette._app_handler.is_action_in_progress.side_effect = lambda app_key: app_key == APP_KEY_BUSY_APP
 
 
+def wire_seeded_instance_names(hassette: MagicMock, class_names: Mapping[str, str]) -> None:
+    """Answer the registry's index-to-name lookup with the names the seed scenarios store.
+
+    The seeded app keys aren't the e2e manifests', so the lookup reads the scenario's own ``app_manifests``.
+    An unknown key gets the same kind of label the real registry gives: one no stored row holds.
+    """
+    hassette._app_handler.registry.instance_name.side_effect = lambda app_key, index: make_instance_name(
+        class_names.get(app_key, "Unknown"), index
+    )
+
+
 def wire_multi_app_config(hassette: MagicMock, multi_app: AppManifestInfo) -> None:
     """The multi-instance app's config lists one entry per instance.
 

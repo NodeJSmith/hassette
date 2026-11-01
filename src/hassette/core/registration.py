@@ -15,7 +15,10 @@ class ListenerRegistration:
     """Unique key for the app that owns this listener."""
 
     instance_index: int
-    """Instance index of the app."""
+    """Display order of the instance in config, refreshed on each registration; not part of its identity."""
+
+    instance_name: str | None
+    """Name of the owning app instance, or None for a framework resource. See ``stored_instance_name``."""
 
     handler_method: str
     """Fully qualified name of the handler method."""
@@ -81,7 +84,10 @@ class ScheduledJobRegistration:
     """Unique key for the app that owns this job."""
 
     instance_index: int
-    """Instance index of the app."""
+    """Display order of the instance in config, refreshed on each registration; not part of its identity."""
+
+    instance_name: str | None
+    """Name of the owning app instance, or None for a framework resource. See ``stored_instance_name``."""
 
     job_name: str
     """Human-readable name for the job."""

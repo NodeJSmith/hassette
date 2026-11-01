@@ -124,7 +124,7 @@ For each page, use the writer prompt from `references/writing-prompt-template.md
 
 1. Fill `{{variables}}` from the outline, snippet inventory, and page type.
 2. For `{{technical_facts}}`: read the relevant source files listed in the writer prompt's "Key source files" section. Extract method signatures, parameter names, and behavioral notes. Pass these as the value.
-3. Dispatch to a **Sonnet** writer subagent. Use `get-skill-tmpdir docs` for the output directory.
+3. Dispatch to a **Sonnet** writer subagent. Use `mktemp -d <scratchpad>/docs-XXXXXX` for the output directory.
 4. Read the output. Verify snippet files were created and `--8<--` includes match.
 5. Copy pages and snippets to their final locations in `docs/pages/` (overwrite for rewrites; create for new pages).
 

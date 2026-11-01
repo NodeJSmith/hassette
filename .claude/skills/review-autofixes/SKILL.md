@@ -35,7 +35,7 @@ For each PR, run these steps in sequence. Complete one PR before starting the ne
 
 An autofix PR that won't converge usually has several findings pointing at one flawed mechanism, where each fix spawns the next finding. Fixing findings one at a time never shows that. This gate compares every finding from every review round before anything is patched again.
 
-Check out the PR branch first (`gh pr checkout {PR}`). The ledger is built from the code at the PR head, and the fixes in 2c land on this checkout too. Then fetch all review feedback, resolved threads included, into `<tmpdir>` from `get-skill-tmpdir review-autofixes`. Both this gate and 2b read it:
+Check out the PR branch first (`gh pr checkout {PR}`). The ledger is built from the code at the PR head, and the fixes in 2c land on this checkout too. Then fetch all review feedback, resolved threads included, into `<tmpdir>` from `mktemp -d <scratchpad>/review-autofixes-XXXXXX`. Both this gate and 2b read it:
 
 ```bash
 gh-pr-threads {PR} --json --all > <tmpdir>/feedback.json
@@ -135,13 +135,13 @@ If fixes were applied in 2c (CI fixes included):
 
 ### 2f. Ensure the PR Closes Its Issue
 
-A PR that started as a draft carries "Partial progress on #{N} — needs human review" in its body, not a GitHub closing keyword. Merging it as-is leaves the issue open with a stale `autofix:pr-open` label — nothing else in the pipeline clears either.
+A PR that started as a draft carries "Partial progress on #{N} — needs human review" in its body, not a GitHub closing keyword. Merging it as-is leaves the issue open, and with no open PR left to hold it out of selection, the issue becomes eligible for autofix again.
 
-If the branch name matches `autofix/issue-{N}` (optionally followed by `-slug` — see `_AUTOFIX_BRANCH_RE` in `dfl`'s `hassette.py` for the exact pattern):
+If the branch name matches `autofix/issue-{N}` (optionally followed by `-slug` — see `AUTOFIX_BRANCH_RE` in `dfl_common` for the exact pattern):
 
 1. Check the current body (`gh pr view {PR} --json body --jq .body`) for a closing keyword referencing that issue (`close(s/d)`, `fix(es/ed)`, or `resolve(s/d)` followed by `#{N}`, case-insensitive). If one is already there, skip to 2g.
-2. If the body reads "Partial progress on #{N}...", don't assume the review fixes closed the gap — they address code quality, not whether the issue's original ask is met. Read the issue (`gh issue view {N} --repo {REPO}`) and confirm what the draft named as unfinished is actually done now. If scope is genuinely still missing, leave the body untouched and go to 2g without a closing keyword — the issue should stay open and `pr-open`-labeled.
-3. If it's actually complete, keep the rest of the description: read the full current body, replace the "Partial progress on #{N}..." line with `Closes #{N}`, run `get-tmp-filename` and write the modified body to that path, then push it back with `gh pr edit {PR} --body-file {tmpfile}` — never `--body "<full body>"` (arbitrary body content interpolated into a shell argument can break or execute unexpectedly) and never `--body "Closes #{N}"` alone, which would wipe the description.
+2. If the body reads "Partial progress on #{N}...", don't assume the review fixes closed the gap — they address code quality, not whether the issue's original ask is met. Read the issue (`gh issue view {N} --repo {REPO}`) and confirm what the draft named as unfinished is actually done now. If scope is genuinely still missing, leave the body untouched and park the issue so it stays open but out of selection: `gh issue edit {N} --repo {REPO} --add-label autofix:needs-human`, then comment on the issue what is still missing, starting the comment with `Autofix judged this needs a human decision` (`NEEDS_HUMAN_COMMENT_PREFIX` in the pipeline's `constants.py`) so triage recognizes it as a bail comment. Go to 2g without a closing keyword.
+3. If it's actually complete, keep the rest of the description: read the full current body, replace the "Partial progress on #{N}..." line with `Closes #{N}`, run `mktemp <scratchpad>/pr-body-XXXXXX` and write the modified body to that path, then push it back with `gh pr edit {PR} --body-file {tmpfile}` — never `--body "<full body>"` (arbitrary body content interpolated into a shell argument can break or execute unexpectedly) and never `--body "Closes #{N}"` alone, which would wipe the description.
 
 If the branch name doesn't match the pattern, skip this step and go to 2g.
 

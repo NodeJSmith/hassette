@@ -8,7 +8,7 @@ package docstring in ``__init__.py`` for the duplicate-detector rationale behind
 
 import sqlite3
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from hassette_wire import ExecutionStatus, LogAuthor, LogLevel, SourceTier
@@ -18,6 +18,7 @@ from hassette.core.database_service import LOG_RECORD_COLUMNS
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.insert_params import execution_insert_params, job_insert_params, listener_insert_params
+from hassette.types.types import is_framework_key
 from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
 
 REFERENCE_INSTANT = Instant.from_utc(2026, 1, 15, 12, 0)
@@ -94,7 +95,7 @@ def make_execution_id(scenario: str, app_key: str, index: int) -> str:
 
 
 def make_instance_name(class_name: str, instance_index: int) -> str:
-    """Build a seeded instance name. Telemetry rows store it as an opaque display string, never parsed as config."""
+    """Build a seeded instance name. Telemetry rows store it as an opaque string, never parsed as config."""
     return f"{class_name}.{instance_index}"
 
 
@@ -163,6 +164,14 @@ class SeedContext:
     """
 
     cursor: sqlite3.Cursor
+    class_names: dict[str, str] = field(default_factory=dict)
+    """Class name of each app key added so far, for ``instance_name_of``."""
+
+    def instance_name_of(self, app_key: str, instance_index: int) -> str | None:
+        """The name a seeded registration stores; ``None`` for a framework key, which has no instance name."""
+        if is_framework_key(app_key):
+            return None
+        return make_instance_name(self.class_names[app_key], instance_index)
 
     def add_session(
         self,
@@ -250,6 +259,7 @@ class SeedContext:
         explicitly to override it (e.g. when ``app_key`` isn't a valid filename, like the
         Unicode/emoji scenario).
         """
+        self.class_names[app_key] = class_name
         display_name = display_name if display_name is not None else class_name
         filename = filename if filename is not None else f"{app_key}.py"
         params = {
@@ -554,7 +564,12 @@ def seed_listener(
     ``predicate_description``/``human_description``) vary per listener.
     """
     return ctx.add_listener(
-        make_listener_registration(app_key=app_key, instance_index=instance_index, **kwargs),
+        make_listener_registration(
+            app_key=app_key,
+            instance_index=instance_index,
+            instance_name=ctx.instance_name_of(app_key, instance_index),
+            **kwargs,
+        ),
         retired_at=retired_at,
         removed_at=removed_at,
     )
@@ -571,7 +586,12 @@ def seed_job(
 ) -> int:
     """Insert a scheduled job via ``make_job_registration``, forwarding scenario-specific fields."""
     return ctx.add_job(
-        make_job_registration(app_key=app_key, instance_index=instance_index, **kwargs),
+        make_job_registration(
+            app_key=app_key,
+            instance_index=instance_index,
+            instance_name=ctx.instance_name_of(app_key, instance_index),
+            **kwargs,
+        ),
         retired_at=retired_at,
         removed_at=removed_at,
     )

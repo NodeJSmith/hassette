@@ -78,7 +78,7 @@ def get_bus_removal_callback(bus: "Bus"):
     return None
 
 
-async def register_once_listener(bus: "Bus") -> "tuple[tuple[str, int, str, str], Listener]":
+async def register_once_listener(bus: "Bus") -> "tuple[tuple[str, str | None, str, str], Listener]":
     """Register the `once_listener` once-listener on `test.topic`; return its natural key and `Listener`."""
     await bus.on(topic="test.topic", handler=handler_a, name=ONCE_NAME, once=True)
     key = listener_key(bus, name=ONCE_NAME)

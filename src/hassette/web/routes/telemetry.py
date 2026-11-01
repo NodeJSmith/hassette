@@ -55,6 +55,7 @@ from hassette.web.dependencies import (
     SourceTierQuery,
     TelemetryDep,
     TelemetryFiltersDep,
+    instance_name_filter,
 )
 from hassette.web.errors import problem_responses
 from hassette.web.mappers import app_summary_from, listener_summary_from
@@ -130,7 +131,7 @@ async def app_health(
     filters: TelemetryFiltersDep,
 ) -> AppHealth:
     """Health strip metrics for a single app instance."""
-    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs)
+    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs(app_key))
     return build_app_health(agg)
 
 
@@ -146,7 +147,7 @@ async def app_listeners(
     filters: TelemetryFiltersDep,
 ) -> list[ListenerSummary]:
     """Listener metrics with human-readable handler summaries."""
-    listeners = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs)
+    listeners = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs(app_key))
     live_counts = hassette.bus_service.live_execution_counts()
     return [listener_summary_from(row, live_counts) for row in listeners]
 
@@ -159,6 +160,7 @@ async def app_listeners(
 async def app_activity(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
+    hassette: HassetteDep,
     instance_index: OptionalInstanceIndexQuery = None,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
@@ -167,7 +169,7 @@ async def app_activity(
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
     return await telemetry.get_app_recent_activity(
         app_key=app_key,
-        instance_index=instance_index,
+        instance_name=instance_name_filter(hassette, app_key, instance_index),
         limit=limit,
         since=since,
         source_tier=source_tier,
@@ -193,7 +195,7 @@ async def app_jobs(
     and a warning is logged. If the telemetry DB can't be read, the route answers
     ``telemetry_unavailable``.
     """
-    db_jobs = list(await telemetry.get_job_summary(app_key=app_key, **filters.query_kwargs))
+    db_jobs = list(await telemetry.get_job_summary(app_key=app_key, **filters.query_kwargs(app_key)))
     return await enrich_jobs_with_live_data(db_jobs, scheduler_service)
 
 
@@ -205,6 +207,7 @@ async def app_jobs(
 async def app_blocking_findings(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
+    hassette: HassetteDep,
     instance_index: OptionalInstanceIndexQuery = None,
     since: SinceQuery = None,
 ) -> BlockingFindingsResponse:
@@ -213,7 +216,9 @@ async def app_blocking_findings(
     Without ``instance_index``, findings cover every instance, which is what the multi-instance
     parent overview shows; with it, only that instance's events are counted.
     """
-    return await telemetry.get_blocking_findings(app_key=app_key, instance_index=instance_index, since=since)
+    return await telemetry.get_blocking_findings(
+        app_key=app_key, instance_name=instance_name_filter(hassette, app_key, instance_index), since=since
+    )
 
 
 @router.get(
@@ -223,7 +228,7 @@ async def app_blocking_findings(
 )
 async def all_blocking_findings(telemetry: TelemetryDep, since: SinceQuery = None) -> BlockingFindingsResponse:
     """Blocking findings for every app and instance, in one response."""
-    return await telemetry.get_blocking_findings(app_key=None, instance_index=None, since=since)
+    return await telemetry.get_blocking_findings(app_key=None, instance_name=None, since=since)
 
 
 @router.get(

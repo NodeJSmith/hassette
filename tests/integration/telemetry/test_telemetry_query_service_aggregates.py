@@ -317,7 +317,7 @@ class TestAppHealthAcrossScopes:
         await set_job_removed_at(db_svc, removed_job, BASE_TS + 20.0)
 
         per_instance = build_app_health(
-            await query_service.get_app_health_aggregates(app_key="app_one", instance_index=0, since=since_ts)
+            await query_service.get_app_health_aggregates(app_key="app_one", instance_name="instance_0", since=since_ts)
         )
         per_app = build_app_health((await query_service.get_all_app_summaries(since=since_ts))["app_one"].aggregates)
 
@@ -356,7 +356,7 @@ class TestAppHealthAcrossScopes:
         await db_svc.db.execute("UPDATE listeners SET source_tier = 'framework' WHERE id = ?", (listener,))
         await db_svc.db.commit()
 
-        per_instance = await query_service.get_app_health_aggregates(app_key="app_tier", instance_index=0)
+        per_instance = await query_service.get_app_health_aggregates(app_key="app_tier", instance_name="instance_0")
         per_app = (await query_service.get_all_app_summaries())["app_tier"].aggregates
 
         assert per_app == per_instance
@@ -371,7 +371,7 @@ class TestAppHealthAcrossScopes:
         await insert_execution(db_svc, job, session_id, status="skipped", duration_ms=0.0)
         await insert_execution(db_svc, job, session_id, status="skipped", duration_ms=0.0)
 
-        per_instance = await query_service.get_app_health_aggregates(app_key="app_skip", instance_index=0)
+        per_instance = await query_service.get_app_health_aggregates(app_key="app_skip", instance_name="instance_0")
         per_app = (await query_service.get_all_app_summaries())["app_skip"].aggregates
 
         for agg in (per_instance, per_app):
@@ -426,16 +426,13 @@ class TestCrossSessionAndRetiredRows:
         await insert_invocation(db_svc, listener_id, session_2, status="success")
 
         # All-time query must aggregate across both sessions
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.total_invocations == 5
         assert row.successful == 4
         assert row.failed == 1
 
-    async def test_listener_summary_includes_retired(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        """get_listener_summary queries base tables and includes retired rows.
-
-        A retired listener with invocation history must still appear in the summary.
-        """
+    async def test_listener_summary_excludes_retired(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
+        """Retired listeners leave summaries, as retired jobs do, while their runs still count in health."""
         db_svc, session_id = db
 
         retired_id = await insert_listener(db_svc, handler_method="on_retired")
@@ -444,11 +441,9 @@ class TestCrossSessionAndRetiredRows:
 
         await set_listener_retired_at(db_svc, retired_id, time.time())
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
-        assert row.handler_method == "on_retired"
-        assert row.total_invocations == 2
-        assert row.successful == 1
-        assert row.failed == 1
+        assert await query_service.get_listener_summary("test_app", "instance_0") == []
+        health = await query_service.get_app_health_aggregates("test_app", "instance_0")
+        assert (health.total_invocations, health.handler_errors) == (2, 1)
 
     async def test_retention_cleanup_deletes_old_retired_rows(self, db: DbFixture) -> None:
         """_do_run_retention_cleanup deletes retired registration rows older than retention_days.
@@ -643,7 +638,7 @@ class TestDiFailureFlag:
             db_svc, listener_id, session_id, status="error", error_type="ValueError", is_di_failure=0
         )
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.di_failures == 2
         assert row.failed == 3
 
@@ -661,7 +656,7 @@ class TestDiFailureFlag:
             db_svc, listener_id, session_id, status="error", error_type="DependencyInjectionError", is_di_failure=1
         )
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         # Only the one with is_di_failure=1 should count
         assert row.di_failures == 1
 

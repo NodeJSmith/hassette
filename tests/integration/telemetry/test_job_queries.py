@@ -30,7 +30,7 @@ class TestGetJobSummary:
         await insert_execution(db_svc, job_id_1, session_id, status="error", duration_ms=50.0)
         await insert_execution(db_svc, job_id_2, session_id, status="success", duration_ms=200.0)
 
-        rows = await query_service.get_job_summary("test_app", 0)
+        rows = await query_service.get_job_summary("test_app", "instance_0")
         assert len(rows) == 2
 
         assert all(isinstance(r, JobSummary) for r in rows)
@@ -81,7 +81,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 10.0,
         )
 
-        row = await only_row(query_service.get_job_summary("test_app", 0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert row.last_error_type == "ValueError"
         assert row.last_error_message == "something went wrong"
         assert row.last_error_ts == pytest.approx(base_ts + 10.0)
@@ -96,7 +96,7 @@ class TestGetJobSummary:
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=10.0)
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=20.0)
 
-        row = await only_row(query_service.get_job_summary("test_app", 0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert_no_last_error(row)
 
     async def test_get_job_summary_last_error_execution_id(
@@ -119,7 +119,7 @@ class TestGetJobSummary:
             db_svc, failing_id, session_id, execution_start_ts=BASE_TS + 2.0, execution_id="exec-later-ok"
         )
 
-        row = await only_row(query_service.get_job_summary("test_app", 0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert row.last_error_execution_id == "exec-failed"
 
     async def test_get_job_summary_error_fields_none_when_no_executions(
@@ -130,7 +130,7 @@ class TestGetJobSummary:
 
         await insert_job(db_svc, job_name="idle_job")
 
-        row = await only_row(query_service.get_job_summary("test_app", 0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert_no_last_error(row)
         assert row.min_duration_ms is None
         assert row.max_duration_ms is None
@@ -146,7 +146,7 @@ class TestGetJobSummary:
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=200.0)
         await insert_execution(db_svc, job_id, session_id, status="error", duration_ms=10.0)
 
-        row = await only_row(query_service.get_job_summary("test_app", 0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert row.min_duration_ms == pytest.approx(10.0)
         assert row.max_duration_ms == pytest.approx(200.0)
         assert row.avg_duration_ms == pytest.approx((50.0 + 200.0 + 10.0) / 3)
@@ -170,7 +170,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 5.0,
         )
 
-        row = await only_row(query_service.get_job_summary("test_app", 0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert row.last_error_type == "TimeoutError"
         assert row.last_error_message == "exceeded limit"
         assert row.last_error_ts == pytest.approx(base_ts + 5.0)
@@ -194,7 +194,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 1.0,
         )
 
-        row = await only_row(query_service.get_job_summary("test_app", 0, since=base_ts + 50.0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0", since=base_ts + 50.0))
         assert_no_last_error(row)
 
 
@@ -220,7 +220,7 @@ class TestGetJobSummarySinceScoped:
             db_svc, j1, session_id, status="success", duration_ms=30.0, execution_start_ts=base_ts + 1.0
         )
 
-        row = await only_row(query_service.get_job_summary("test_app", 0, since=since_ts))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0", since=since_ts))
         assert row.total_executions == 2
         assert row.successful == 1
         assert row.failed == 1
@@ -240,7 +240,7 @@ class TestJobSummaryLastErrorRowCoherence:
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
-            lambda: query_service.get_job_summary("test_app", 0),
+            lambda: query_service.get_job_summary("test_app", "instance_0"),
             [
                 error_row("OldError", "old message", "old traceback", base_ts + 1.0),
                 error_row("NewError", "new message", "new traceback", base_ts + 10.0),
@@ -255,7 +255,7 @@ class TestJobSummaryLastErrorRowCoherence:
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
-            lambda: query_service.get_job_summary("test_app", 0),
+            lambda: query_service.get_job_summary("test_app", "instance_0"),
             [
                 error_row("RuntimeError", "runtime boom", "tb: boom at line 1", BASE_TS + 5.0),
             ],
@@ -269,7 +269,7 @@ class TestJobSummaryLastErrorRowCoherence:
         await insert_execution(db_svc, job_id, session_id, status="success")
         await insert_execution(db_svc, job_id, session_id, status="success")
 
-        row = await only_row(query_service.get_job_summary("test_app", 0))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert_no_last_error(row)
 
     async def test_since_filter_scopes_error_cte(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
@@ -282,7 +282,7 @@ class TestJobSummaryLastErrorRowCoherence:
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
-            lambda: query_service.get_job_summary("test_app", 0, since=since_ts),
+            lambda: query_service.get_job_summary("test_app", "instance_0", since=since_ts),
             SINCE_WINDOW_ERROR_ROWS,
         )
 
@@ -307,5 +307,5 @@ class TestJobSummaryLastErrorRowCoherence:
             execution_start_ts=base_ts + 1.0,
         )
 
-        row = await only_row(query_service.get_job_summary("test_app", 0, since=since_ts))
+        row = await only_row(query_service.get_job_summary("test_app", "instance_0", since=since_ts))
         assert_no_last_error(row)
