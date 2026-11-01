@@ -43,6 +43,7 @@ async def test_listener_registration_persists_correct_app_key(
     """register_listener() on CommandExecutor persists the correct app_key and instance_index."""
     db_service, _ = initialized_db
     reg = make_listener_registration(
+        instance_name="instance_2",
         app_key="my_app",
         instance_index=2,
         handler_method="MyApp.on_event",
@@ -117,6 +118,7 @@ async def test_job_registration_persists_correct_app_key(
     """register_job() on CommandExecutor persists the correct app_key and instance_index."""
     db_service, _ = initialized_db
     reg = make_job_registration(
+        instance_name="instance_3",
         app_key="my_app",
         instance_index=3,
         handler_method="MyApp.my_job",

@@ -141,7 +141,7 @@ class TestMigration001LogRecords:
         SQL_DEFAULT_LOG_VIEW and migration 016's index predicate drift apart.
         """
         clauses, params = log_record_filter_clauses(
-            since=None, app_key=None, level=None, execution_id=None, author=None, instance_index=None
+            since=None, app_key=None, level=None, execution_id=None, author=None, instance_name=None
         )
         query = f"""
             EXPLAIN QUERY PLAN {LOG_RECORD_SELECT}

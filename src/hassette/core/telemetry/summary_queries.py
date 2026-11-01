@@ -53,7 +53,7 @@ class SummaryQueriesMixin:
     async def get_app_health_aggregates(
         self,
         app_key: str,
-        instance_index: int,
+        instance_name: str | None,
         since: float | None = None,
         source_tier: QuerySourceTier = "app",
     ) -> AppHealthAggregates:
@@ -65,20 +65,19 @@ class SummaryQueriesMixin:
 
         Args:
             app_key: The app key to filter by.
-            instance_index: The app instance index to filter by.
+            instance_name: The instance to filter by, or ``None`` for every instance of the app.
             since: When provided, restrict counts to records with
                 ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter by source tier.
         """
         tier_e_clause, tier_params = source_tier_clause(source_tier, "e")
         since_sql, since_params = since_clause(since, "e.execution_start_ts")
+        listener_instance = "" if instance_name is None else "AND l.instance_name = :instance_name"
+        job_instance = "" if instance_name is None else "AND sj.instance_name = :instance_name"
 
-        params: dict[str, Any] = {
-            "app_key": app_key,
-            "instance_index": instance_index,
-            **tier_params,
-            **since_params,
-        }
+        params: dict[str, Any] = {"app_key": app_key, **tier_params, **since_params}
+        if instance_name is not None:
+            params["instance_name"] = instance_name
 
         query = f"""
             SELECT
@@ -97,9 +96,9 @@ class SummaryQueriesMixin:
             LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = 'handler'
             LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = 'job'
             WHERE (
-                (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index)
+                (e.kind = 'handler' AND l.app_key = :app_key {listener_instance})
                 OR
-                (e.kind = 'job' AND sj.app_key = :app_key AND sj.instance_index = :instance_index)
+                (e.kind = 'job' AND sj.app_key = :app_key {job_instance})
             )
             {tier_e_clause}
             {since_sql}
@@ -193,7 +192,7 @@ class SummaryQueriesMixin:
         level: str | None = None,
         execution_id: str | None = None,
         author: QueryAuthor | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
     ) -> list[dict[str, Any]]:
         """Fetch log records with optional filters, ordered by timestamp DESC.
 
@@ -209,7 +208,7 @@ class SummaryQueriesMixin:
             level=level,
             execution_id=execution_id,
             author=author,
-            instance_index=instance_index,
+            instance_name=instance_name,
         )
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
@@ -240,7 +239,7 @@ class SummaryQueriesMixin:
             level=None,
             execution_id=execution_id,
             author=author,
-            instance_index=None,
+            instance_name=None,
         )
         params["limit"] = limit + 1
         query = f"""

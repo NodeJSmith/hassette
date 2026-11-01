@@ -27,13 +27,14 @@ WEB_API_TEST_TOKEN = "test-token-value"
 TEST_SESSION_TTL = 3600
 
 DEFAULT_TEST_APP_KEY = "test_app"
+DEFAULT_TEST_INSTANCE_NAME = "instance_0"
 TEST_EPOCH_A = 1_234_567_890.0
 TEST_EPOCH_B = 1_700_000_000.0
 TEST_ISO_TIMESTAMP = "2024-01-01T00:00:00.000000"
 """ISO-format counterpart to TEST_EPOCH_* for DB rows whose timestamp columns are TEXT
 (e.g. app_manifests.created_at/updated_at) rather than epoch floats."""
 
-LATEST_MIGRATION_VERSION = 17
+LATEST_MIGRATION_VERSION = 18
 """PRAGMA user_version after a fresh DB is migrated to head. Bump alongside adding a new
 numbered file to migrations_sql/."""
 

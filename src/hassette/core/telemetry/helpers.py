@@ -113,7 +113,7 @@ def log_record_filter_clauses(
     level: str | None,
     execution_id: str | None,
     author: QueryAuthor | None,
-    instance_index: int | None,
+    instance_name: str | None,
 ) -> tuple[list[str], dict[str, Any]]:
     """Return a (clauses, params) tuple for the log_records filter set.
 
@@ -128,7 +128,7 @@ def log_record_filter_clauses(
         execution_id: When provided, adds ``lr.execution_id = :execution_id``.
         author: The author filter; see ``log_author_clause``. ``None`` is the default view, not "no filter":
             only ``'all'`` returns every line.
-        instance_index: When provided, adds ``lr.instance_index = :instance_index``. ``None`` matches
+        instance_name: When provided, adds ``lr.instance_name = :instance_name``. ``None`` matches
             every instance.
     """
     clauses: list[str] = []
@@ -149,9 +149,9 @@ def log_record_filter_clauses(
     if author_sql is not None:
         clauses.append(author_sql)
         params.update(author_params)
-    if instance_index is not None:
-        clauses.append("lr.instance_index = :instance_index")
-        params["instance_index"] = instance_index
+    if instance_name is not None:
+        clauses.append("lr.instance_name = :instance_name")
+        params["instance_name"] = instance_name
     return clauses, params
 
 
@@ -222,7 +222,7 @@ def handler_job_union_arms(
     extra_job_where: str = "",
     since: float | None = None,
     source_tier: QuerySourceTier = APP_SOURCE_TIER,
-    instance_index: int | None = None,
+    instance_name: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Build handler UNION ALL job SQL fragment with merged params.
 
@@ -250,12 +250,12 @@ def handler_job_union_arms(
             the ``since_clause`` filter (e.g. when the caller expresses time bounds itself
             via ``extra_handler_where``/``extra_job_where``).
         source_tier: Filter by source tier.
-        instance_index: When provided, restricts each arm to that instance only.
+        instance_name: When provided, restricts each arm to that instance only.
 
     Returns:
         A ``(sql_fragment, params)`` tuple. ``sql_fragment`` is the two-arm ``UNION ALL``
         body (no enclosing ``SELECT ... FROM (`` wrapper); ``params`` merges the
-        deduplicated ``since``/``source_tier`` bind values with the ``instance_index`` value
+        deduplicated ``since``/``source_tier`` bind values with the ``instance_name`` value
         when applicable.
     """
     tier_handler_clause, tier_params = source_tier_clause(source_tier, "e_h")
@@ -265,11 +265,11 @@ def handler_job_union_arms(
 
     instance_handler_clause = ""
     instance_job_clause = ""
-    instance_params: dict[str, int] = {}
-    if instance_index is not None:
-        instance_handler_clause = "AND l.instance_index = :instance_index"
-        instance_job_clause = "AND sj.instance_index = :instance_index"
-        instance_params = {"instance_index": instance_index}
+    instance_params: dict[str, str] = {}
+    if instance_name is not None:
+        instance_handler_clause = "AND l.instance_name = :instance_name"
+        instance_job_clause = "AND sj.instance_name = :instance_name"
+        instance_params = {"instance_name": instance_name}
 
     fragment = f"""
         {handler_select}

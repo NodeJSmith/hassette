@@ -376,7 +376,7 @@ Every registration method requires `name=`. The parameter has no default, so omi
 --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
 ```
 
-The `name` forms a natural key together with the app identifier, instance index, and topic. The instance index tells apart [multiple instances](../apps/configuration.md#multiple-instances) of one app class, each configured by its own `[[hassette.apps.<key>.config]]` block. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert — Hassette persists listener metadata to a local SQLite [telemetry database](../database-telemetry.md), and the existing record is updated, not duplicated.
+The `name` forms a natural key together with the app identifier, instance name, and topic. The instance name tells apart [multiple instances](../apps/configuration.md#multiple-instances) of one app class, each configured by its own `[[hassette.apps.<key>.config]]` block. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert — Hassette persists listener metadata to a local SQLite [telemetry database](../database-telemetry.md), and the existing record is updated, not duplicated.
 
 ### Synchronous completion
 

@@ -83,17 +83,17 @@ class BlockingQueriesMixin:
         execute: "Callable[..., AbstractAsyncContextManager[aiosqlite.Cursor]]"
 
     async def get_blocking_findings(
-        self, *, app_key: str | None, instance_index: int | None, since: float | None
+        self, *, app_key: str | None, instance_name: str | None, since: float | None
     ) -> BlockingFindingsResponse:
         """Attributed blocking events grouped into findings, for one app or (``app_key=None``) all apps.
 
         Args:
             app_key: Restrict to this app, or ``None`` for every app.
-            instance_index: Restrict to this instance, or ``None`` for every instance (one finding per
+            instance_name: Restrict to this instance, or ``None`` for every instance (one finding per
                 call site, listing the instances it came from).
             since: Only events detected at or after this Unix epoch time; ``None`` for all time.
         """
-        findings = await self.get_reportable_findings(app_key=app_key, instance_index=instance_index, since=since)
+        findings = await self.get_reportable_findings(app_key=app_key, instance_name=instance_name, since=since)
         # Findings are ordered by their newest stack and already exclude Tier 1 findings below the
         # recurrence minimum, so the cap and truncated flag count only reportable findings.
         return BlockingFindingsResponse(
@@ -101,7 +101,7 @@ class BlockingQueriesMixin:
         )
 
     async def get_reportable_findings(
-        self, *, app_key: str | None, instance_index: int | None, since: float | None
+        self, *, app_key: str | None, instance_name: str | None, since: float | None
     ) -> list[BlockingFinding]:
         """Every finding that passes the Tier 1 recurrence gate, most recently seen first, uncapped.
 
@@ -112,9 +112,9 @@ class BlockingQueriesMixin:
         if app_key is not None:
             filters += " AND be.app_key = :app_key"
             params["app_key"] = app_key
-        if instance_index is not None:
-            filters += " AND be.instance_index = :instance_index"
-            params["instance_index"] = instance_index
+        if instance_name is not None:
+            filters += " AND be.instance_name = :instance_name"
+            params["instance_name"] = instance_name
         since_sql, since_params = since_clause(since, "be.detected_ts")
         groups = await fetch_all_as_dicts(
             self.execute(
@@ -151,7 +151,7 @@ class BlockingQueriesMixin:
         events the app's findings list hides. Apps with no reportable findings are absent.
         """
         counts: dict[str, int] = {}
-        for finding in await self.get_reportable_findings(app_key=None, instance_index=None, since=since):
+        for finding in await self.get_reportable_findings(app_key=None, instance_name=None, since=since):
             counts[finding.app_key] = counts.get(finding.app_key, 0) + finding.event_count
         return counts
 

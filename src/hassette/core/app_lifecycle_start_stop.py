@@ -470,7 +470,7 @@ class AppStartStopMixin:
             await self.hassette.send_event(HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED))
             init_started = True
             await self.initialize_instances(
-                app_key, {index: inst}, app_manifest, instance_index=index, outcomes=outcomes
+                app_key, {index: inst}, app_manifest, instance_name=inst.app_config.instance_name, outcomes=outcomes
             )
         except Exception as exc:
             phantom = self.registry.get(app_key, index)

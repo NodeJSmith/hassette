@@ -60,10 +60,12 @@ def mock_add_listener(bus: "Bus") -> Generator[Mock]:
         bus.bus_service.add_listener = original
 
 
-def listener_key(bus: "Bus", *, name: str = "my_listener", topic: str = "test.topic") -> tuple[str, int, str, str]:
+def listener_key(
+    bus: "Bus", *, name: str = "my_listener", topic: str = "test.topic"
+) -> tuple[str, str | None, str, str]:
     """Return the natural key `bus._registered_listeners` stores a listener under."""
     assert bus.parent is not None
-    return (bus.parent.app_key, bus.parent.index, name, topic)
+    return (bus.parent.app_key, bus.parent.instance_name, name, topic)
 
 
 @contextlib.contextmanager

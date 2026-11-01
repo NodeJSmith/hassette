@@ -250,7 +250,7 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
         level: str | None = None,
         execution_id: str | None = None,
         author: QueryAuthor | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
     ) -> list[dict]:
         # dup-ignore-end
         entries: list[LogRecordEntry] = handler.captured
@@ -270,8 +270,8 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
             result = [r for r in result if r["author"] == "app" or r["level"] in ERROR_AND_ABOVE_LEVEL_NAMES]
         elif author != "all":
             result = [r for r in result if r["author"] == author]
-        if instance_index is not None:
-            result = [r for r in result if r.get("instance_index") == instance_index]
+        if instance_name is not None:
+            result = [r for r in result if r.get("instance_name") == instance_name]
         result.sort(key=lambda r: r["timestamp"], reverse=True)
         return result[:limit]
 

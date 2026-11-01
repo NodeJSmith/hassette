@@ -12,7 +12,7 @@ The autofix pipeline picks up small, well-specified issues and gives up on the o
 
 ## Arguments
 
-$ARGUMENTS: optional issue numbers, or one short label name (`needs-decision`, `stale-spec`, `needs-human`, `blocked`), which maps to `autofix:<name>`. With no argument, triage every open issue in scope.
+$ARGUMENTS: optional issue numbers, or one short label name (`needs-decision`, `stale-spec`, `needs-human`, `blocked`, `maybe-obsolete`), which maps to `autofix:<name>`. With no argument, triage every open issue in scope.
 
 ## The labels
 
@@ -21,14 +21,15 @@ $ARGUMENTS: optional issue numbers, or one short label name (`needs-decision`, `
 | `autofix:stale-spec` | The issue text is wrong or outdated against the code | Rewrite pass (Phase 3) |
 | `autofix:needs-decision` | The issue leaves a design, API, product or visual choice open | Walk-through (Phase 4) |
 | `autofix:needs-human` | Anything else | Classify it first; many are really one of the above |
-| `autofix:blocked` (+ `autofix:maybe-obsolete`) | It failed twice, or found nothing to change (with `maybe-obsolete`) | Check whether it already shipped; usually a close or a requeue |
+| `autofix:blocked` | It failed twice | Check whether it already shipped; usually a close or a requeue |
+| `autofix:maybe-obsolete` | It found nothing to change | Check whether it already shipped; usually a close or a requeue |
 
 A "blocked by" bail adds no label: autofix creates a GitHub dependency link and skips the issue until the blocker closes. Issues labeled `epic:ui-redesign` or `area:ui` are parked and skipped too (`PARKED_LABELS` in `dfl_common`). Neither needs triage unless it also carries a label above.
 
 ## Phase 1: Gather
 
 1. For issue numbers, `gh issue view <n> --json number,title,labels,body,comments,state` each. Otherwise, for each label in scope, `gh issue list --label <label> --state open --limit 200 --json number,title,labels,body,comments` into a file in the scratchpad. If a result has exactly 200 entries, it may be truncated: rerun with a higher `--limit`. Dedupe by issue number, since one issue can carry two labels.
-2. For each issue, find autofix's latest bail comment. Its text starts with one of the `*_COMMENT_PREFIX` strings in the pipeline's `constants.py` (`~/Dotfiles/packages/hassette-pipeline/src/hassette_pipeline/`; if that path is absent, recognize the comment by its "Autofix …" opening). No bail comment on an `autofix:blocked` issue without `maybe-obsolete` means autofix failed it twice: look at its last autofix PR or branch, if any, for why. No bail comment on any other label means someone labeled it by hand: classify from the issue itself and say so. Check blockers with `gh api repos/NodeJSmith/hassette/issues/<n>/dependencies/blocked_by --jq '[.[] | select(.state == "open") | .number]'`; the endpoint lists closed blockers too.
+2. For each issue, find autofix's latest bail comment. Its text starts with one of the `*_COMMENT_PREFIX` strings in the pipeline's `constants.py` (`~/Dotfiles/packages/hassette-pipeline/src/hassette_pipeline/`; if that path is absent, recognize the comment by its "Autofix …" opening). No bail comment on an `autofix:blocked` issue means autofix failed it twice: look at its last autofix PR or branch, if any, for why. No bail comment on any other label means someone labeled it by hand: classify from the issue itself and say so. Check blockers with `gh api repos/NodeJSmith/hassette/issues/<n>/dependencies/blocked_by --jq '[.[] | select(.state == "open") | .number]'`; the endpoint lists closed blockers too.
 3. Group the issues by what is really blocking them, not by label, and show the user the counts with example numbers. The grouping is a hypothesis built from bail comments, which can be wrong. If a group of three or more seems to share one cause, verify every issue in it (Phase 2) first, then propose the batch decision (Phase 4, "Batch decisions") before walking through the rest one at a time. Drop any issue that verification shows doesn't belong.
 
 ## Phase 2: Verify before deciding

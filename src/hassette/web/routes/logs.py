@@ -11,9 +11,11 @@ from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import (
     VALID_LOG_LEVEL_NAMES,
     AuthorQuery,
+    HassetteDep,
     OptionalInstanceIndexQuery,
     SinceQuery,
     TelemetryDep,
+    instance_name_filter,
     is_log_level,
 )
 from hassette.web.errors import WebApiError, problem_responses
@@ -56,6 +58,7 @@ def validate_log_level(level: str | None) -> str | None:
 )
 async def get_logs(
     telemetry: TelemetryDep,
+    hassette: HassetteDep,
     limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[
@@ -72,6 +75,8 @@ async def get_logs(
 ) -> list[LogEntry]:
     """Return recent log records from the database with optional filtering."""
     level = validate_log_level(level)
+    if instance_index is not None and app_key is None:
+        raise WebApiError(ProblemCode.VALIDATION_FAILED, "instance_index requires app_key")
     raw = await telemetry.get_log_records(
         limit=limit,
         since=since,
@@ -79,7 +84,7 @@ async def get_logs(
         level=level,
         execution_id=execution_id,
         author=author,
-        instance_index=instance_index,
+        instance_name=instance_name_filter(hassette, app_key, instance_index),
     )
     return [LogEntry.model_validate(r) for r in raw]
 

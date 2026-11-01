@@ -44,7 +44,7 @@ class TestIdPreservationAndForeignKeys:
     def test_foreign_key_check_passes_after_migration(self, tmp_path: Path) -> None:
         """PRAGMA foreign_key_check reports no violations after the scheduled_jobs rebuild."""
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path, foreign_keys=True) as conn:
             violations = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -53,7 +53,7 @@ class TestIdPreservationAndForeignKeys:
     def test_executions_job_id_still_resolves(self, tmp_path: Path) -> None:
         """executions.job_id inserted before the migration still resolves to the same job row."""
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             row = conn.execute(
@@ -64,7 +64,7 @@ class TestIdPreservationAndForeignKeys:
     def test_executions_listener_id_still_resolves(self, tmp_path: Path) -> None:
         """executions.listener_id inserted before the migration still resolves after the listeners rename."""
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             row = conn.execute(
@@ -76,7 +76,7 @@ class TestIdPreservationAndForeignKeys:
 class TestRemovedAtRename:
     def test_scheduled_jobs_has_removed_at_not_cancelled_at(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(scheduled_jobs)")}
@@ -85,7 +85,7 @@ class TestRemovedAtRename:
 
     def test_listeners_has_removed_at_not_cancelled_at(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(listeners)")}
@@ -101,7 +101,7 @@ class TestRemovedAtRename:
             conn.execute("UPDATE listeners SET cancelled_at = 888.5 WHERE name = 'my_listener'")
             conn.commit()
 
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             job_removed_at = conn.execute("SELECT removed_at FROM scheduled_jobs WHERE job_name = 'my_job'").fetchone()[
@@ -118,7 +118,7 @@ class TestRemovedAtRename:
 class TestLegacyBackfill:
     def test_existing_rows_backfill_scheduled_legacy_unknown(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             row = conn.execute(
@@ -136,7 +136,7 @@ class TestRemovedRowsExcludedFromActiveViews:
             conn.execute("UPDATE scheduled_jobs SET cancelled_at = 500.0 WHERE job_name = 'my_job'")
             conn.commit()
 
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             active = conn.execute("SELECT * FROM active_scheduled_jobs").fetchall()
@@ -152,7 +152,7 @@ class TestRemovedRowsExcludedFromActiveViews:
             conn.execute("UPDATE listeners SET cancelled_at = 500.0 WHERE name = 'my_listener'")
             conn.commit()
 
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             active = conn.execute("SELECT * FROM active_listeners").fetchall()
@@ -164,7 +164,7 @@ class TestRemovedRowsExcludedFromActiveViews:
     def test_non_removed_row_still_active(self, tmp_path: Path) -> None:
         """A row that was never removed remains in the active views after migration."""
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             active_jobs = conn.execute("SELECT job_name FROM active_scheduled_jobs").fetchall()
@@ -180,7 +180,7 @@ class TestReRegistrationClearsLegacyUnknown:
         overwrites schedule_status and schedule_status_reason, clearing the legacy placeholder.
         """
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             before = conn.execute(
@@ -218,7 +218,7 @@ class TestReRegistrationClearsLegacyUnknown:
 class TestCheckConstraints:
     def test_rejects_invalid_schedule_status(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn, pytest.raises(sqlite3.IntegrityError):
             conn.execute(
@@ -230,7 +230,7 @@ class TestCheckConstraints:
 
     def test_rejects_invalid_schedule_status_reason(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn, pytest.raises(sqlite3.IntegrityError):
             conn.execute(
@@ -244,7 +244,7 @@ class TestCheckConstraints:
     def test_null_schedule_status_reason_is_accepted(self, tmp_path: Path) -> None:
         """schedule_status_reason is nullable -- a fresh manual registration has no reason."""
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             conn.execute(
@@ -264,7 +264,7 @@ class TestCheckConstraints:
     def test_missing_schedule_status_rejected_as_not_null(self, tmp_path: Path) -> None:
         """schedule_status has no DEFAULT -- every insert must supply it explicitly."""
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn, pytest.raises(sqlite3.IntegrityError):
             conn.execute(
@@ -277,7 +277,7 @@ class TestCheckConstraints:
 class TestManualTriggerType:
     def test_trigger_type_manual_is_accepted(self, tmp_path: Path) -> None:
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             conn.execute(
@@ -297,7 +297,7 @@ class TestManualTriggerType:
     def test_other_trigger_types_still_accepted(self, tmp_path: Path) -> None:
         """The pre-existing trigger_type values are still valid after extending the CHECK."""
         db_path = _pre_migration_db(tmp_path)
-        run_migrations(db_path)
+        run_migrations(db_path, target=12)
 
         with sqlite_conn(db_path) as conn:
             for trigger_type in ("interval", "cron", "once", "after", "custom"):

@@ -14,8 +14,8 @@ async def test_on_conflict_target_matches_index(db: DbFixture) -> None:
     """idx_listeners_natural columns exactly match the ON CONFLICT target in register_listener().
 
     Queries sqlite_master for idx_listeners_natural and asserts:
-    (a) its column list is exactly (app_key, instance_index, name, topic)
-    (b) the repository's ON CONFLICT target is verbatim (app_key, instance_index, name, topic)
+    (a) its column list is exactly (app_key, instance_name, name, topic)
+    (b) the repository's ON CONFLICT target is verbatim (app_key, instance_name, name, topic)
     """
     db_service, _ = db
     conn = db_service.db
@@ -25,16 +25,16 @@ async def test_on_conflict_target_matches_index(db: DbFixture) -> None:
     assert row is not None, "idx_listeners_natural index must exist in schema"
 
     index_sql: str = row[0]
-    assert "app_key, instance_index, name, topic" in index_sql, (
-        f"idx_listeners_natural must index (app_key, instance_index, name, topic), got: {index_sql!r}"
+    assert "app_key, instance_name, name, topic" in index_sql, (
+        f"idx_listeners_natural must index (app_key, instance_name, name, topic), got: {index_sql!r}"
     )
     assert "COALESCE" not in index_sql, "idx_listeners_natural must not use COALESCE expression"
     assert "WHERE" not in index_sql, "idx_listeners_natural must not be a partial index"
     assert "handler_method" not in index_sql, "idx_listeners_natural must not include handler_method"
 
     source = inspect.getsource(TelemetryRepository.register_listener)
-    assert "ON CONFLICT(app_key, instance_index, name, topic)" in source, (
-        "register_listener() ON CONFLICT target must be (app_key, instance_index, name, topic) "
+    assert "ON CONFLICT(app_key, instance_name, name, topic)" in source, (
+        "register_listener() ON CONFLICT target must be (app_key, instance_name, name, topic) "
         "to match idx_listeners_natural"
     )
     assert "COALESCE" not in source or "ON CONFLICT" not in source.split("COALESCE")[0], (
@@ -43,7 +43,7 @@ async def test_on_conflict_target_matches_index(db: DbFixture) -> None:
 
 
 async def test_unique_index_enforced(db: DbFixture) -> None:
-    """Two listeners with the same natural key (app_key, instance_index, name, topic) raise IntegrityError."""
+    """Two listeners with the same natural key (app_key, instance_name, name, topic) raise IntegrityError."""
     db_service, _ = db
     conn = db_service.db
 

@@ -134,8 +134,8 @@ class TestGetAppRecentActivity:
         assert len(results) == 1
         assert results[0].handler_name == "on_fw"
 
-    async def test_instance_index_scoping(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        """instance_index filters to entries for that instance only."""
+    async def test_instance_name_scoping(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
+        """instance_name filters to entries for that instance only."""
         db_svc, session_id = db
 
         base_ts = BASE_TS
@@ -145,7 +145,7 @@ class TestGetAppRecentActivity:
         await insert_invocation(db_svc, listener_0, session_id, status="success", execution_start_ts=base_ts + 10.0)
         await insert_invocation(db_svc, listener_1, session_id, status="success", execution_start_ts=base_ts + 20.0)
 
-        results = await recent_activity(query_service, instance_index=0)
+        results = await recent_activity(query_service, instance_name="instance_0")
 
         assert len(results) == 1
         assert results[0].timestamp == pytest.approx(base_ts + 10.0)

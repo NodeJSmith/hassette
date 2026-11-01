@@ -4,11 +4,12 @@ import sqlite3
 from logging import Logger
 from typing import TYPE_CHECKING, Any
 
-from hassette_wire import ExecutionStatus
+from hassette_wire import ExecutionStatus, SourceTier
 
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.types.types import FRAMEWORK_APP_KEY
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -78,6 +79,26 @@ def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     return "FOREIGN KEY" in str(exc).upper()
 
 
+def stored_instance_name(app_key: str, instance_name: str | None, source_tier: SourceTier) -> str:
+    """Return the ``instance_name`` a registration row stores, the only code that knows the reserved framework name.
+
+    SQLite treats NULLs as distinct in a unique index, so a NULL name would never hit ``ON CONFLICT`` and every
+    restart would insert a duplicate row. Framework resources have no instance name, so they store
+    ``FRAMEWORK_APP_KEY``, which the instance-name charset makes impossible for an app.
+
+    An empty name counts as missing, because ``AppConfig`` defaults to ``""`` when an App is constructed directly.
+    Two such apps under one key would otherwise overwrite each other's rows.
+
+    Raises:
+        ValueError: An app-tier registration's instance name is ``None`` or empty.
+    """
+    if source_tier == "framework":
+        return FRAMEWORK_APP_KEY
+    if not instance_name:
+        raise ValueError(f"App-tier registration for {app_key!r} has no instance name")
+    return instance_name
+
+
 def listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]:
     """Build the named-parameter dict for a listeners INSERT.
 
@@ -90,6 +111,9 @@ def listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]
     return {
         "app_key": registration.app_key,
         "instance_index": registration.instance_index,
+        "instance_name": stored_instance_name(
+            registration.app_key, registration.instance_name, registration.source_tier
+        ),
         "handler_method": registration.handler_method,
         "topic": registration.topic,
         "debounce": registration.debounce,
@@ -122,6 +146,9 @@ def job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]:
     return {
         "app_key": registration.app_key,
         "instance_index": registration.instance_index,
+        "instance_name": stored_instance_name(
+            registration.app_key, registration.instance_name, registration.source_tier
+        ),
         "job_name": registration.job_name,
         "handler_method": registration.handler_method,
         "trigger_type": registration.trigger_type,

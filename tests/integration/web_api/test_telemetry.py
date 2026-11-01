@@ -101,12 +101,12 @@ class TestTelemetryAppHealth:
         assert data["handler_avg_duration_ms"] is None
         assert data["job_avg_duration_ms"] is None
 
-    async def test_instance_index_param(self, client: "AsyncClient", mock_hassette) -> None:
+    async def test_instance_index_param_resolves_to_its_name(self, client: "AsyncClient", mock_hassette) -> None:
         await get_json(client, f"{APP_HEALTH_PATH}?instance_index=1")
 
         mock_hassette.telemetry_query_service.get_app_health_aggregates.assert_called_once()
         call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args
-        assert call_kwargs.kwargs.get("instance_index") == 1 or call_kwargs[1].get("instance_index") == 1
+        assert call_kwargs.kwargs.get("instance_name") == "instance_1"
 
 
 class TestTelemetryListeners:
@@ -185,12 +185,12 @@ class TestTelemetryBlocking:
     @pytest.mark.parametrize(
         ("path", "expected"),
         [
-            ("/api/telemetry/app/my_app/blocking", {"app_key": "my_app", "instance_index": None, "since": None}),
+            ("/api/telemetry/app/my_app/blocking", {"app_key": "my_app", "instance_name": None, "since": None}),
             (
                 "/api/telemetry/app/my_app/blocking?instance_index=2&since=1700000000.0",
-                {"app_key": "my_app", "instance_index": 2, "since": pytest.approx(1700000000.0)},
+                {"app_key": "my_app", "instance_name": "instance_2", "since": pytest.approx(1700000000.0)},
             ),
-            ("/api/telemetry/blocking/findings", {"app_key": None, "instance_index": None, "since": None}),
+            ("/api/telemetry/blocking/findings", {"app_key": None, "instance_name": None, "since": None}),
         ],
     )
     async def test_findings_routes_forward_filters(

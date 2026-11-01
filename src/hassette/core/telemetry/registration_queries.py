@@ -57,7 +57,7 @@ LISTENER_SUMMARY_SOURCE = RegistrationSummarySource(
     alias="l",
     fk_column="listener_id",
     kind=SQL_KIND_HANDLER,
-    tombstone_columns=("removed_at",),
+    tombstone_columns=("removed_at", "retired_at"),
     select_columns=f"""
                 l.id AS listener_id,
                 l.app_key,
@@ -153,19 +153,19 @@ class RegistrationQueriesMixin:
     async def get_listener_summary(
         self,
         app_key: str | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> list[ListenerSummaryRow]:
         """Return per-listener summaries, optionally filtered to a specific app instance.
 
-        When ``app_key`` is ``None``, returns all listeners across all apps (no WHERE filter
-        on app_key or instance_index). When ``app_key`` is provided, returns only listeners
-        for that app and instance (``instance_index`` defaults to 0).
+        When ``app_key`` is ``None``, returns all listeners across all apps. When ``app_key`` is
+        provided, returns only listeners for that app, narrowed to ``instance_name`` when given.
 
         Args:
             app_key: The app key to filter by. ``None`` returns all apps.
-            instance_index: The app instance index to filter by. Ignored when ``app_key`` is ``None``.
+            instance_name: The instance to filter by, or ``None`` for every instance of the app.
+                Ignored when ``app_key`` is ``None``.
             since: When provided, restrict invocation counts to records with
                 ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter listeners by source tier.
@@ -173,7 +173,7 @@ class RegistrationQueriesMixin:
         query, params = build_registration_summary_query(
             LISTENER_SUMMARY_SOURCE,
             app_key=app_key,
-            instance_index=instance_index,
+            instance_name=instance_name,
             since=since,
             source_tier=source_tier,
         )
@@ -184,19 +184,19 @@ class RegistrationQueriesMixin:
     async def get_job_summary(
         self,
         app_key: str | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> list[JobSummary]:
         """Return per-job summaries, optionally filtered to a specific app instance.
 
-        When ``app_key`` is ``None``, returns all jobs across all apps (no WHERE filter
-        on app_key or instance_index). When ``app_key`` is provided, returns only jobs
-        for that app and instance (``instance_index`` defaults to 0).
+        When ``app_key`` is ``None``, returns all jobs across all apps. When ``app_key`` is
+        provided, returns only jobs for that app, narrowed to ``instance_name`` when given.
 
         Args:
             app_key: The app key to filter by. ``None`` returns all apps.
-            instance_index: The app instance index to filter by. Ignored when ``app_key`` is ``None``.
+            instance_name: The instance to filter by, or ``None`` for every instance of the app.
+                Ignored when ``app_key`` is ``None``.
             since: When provided, restrict execution counts to records with
                 ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter jobs by source tier.
@@ -204,7 +204,7 @@ class RegistrationQueriesMixin:
         query, params = build_registration_summary_query(
             JOB_SUMMARY_SOURCE,
             app_key=app_key,
-            instance_index=instance_index,
+            instance_name=instance_name,
             since=since,
             source_tier=source_tier,
         )
@@ -254,7 +254,7 @@ def build_registration_summary_query(
     source: RegistrationSummarySource,
     *,
     app_key: str | None,
-    instance_index: int | None,
+    instance_name: str | None,
     since: float | None,
     source_tier: QuerySourceTier,
 ) -> tuple[str, dict[str, Any]]:
@@ -262,8 +262,8 @@ def build_registration_summary_query(
 
     Every live registration row is left-joined to its executions (restricted by ``since``) for the
     aggregate columns, and to its most recent failed execution (via the ``ranked_errors`` CTE) for
-    the ``last_err`` columns. When ``app_key`` is ``None`` no app/instance filter is applied;
-    otherwise ``instance_index`` defaults to 0.
+    the ``last_err`` columns. When ``app_key`` is ``None`` no app/instance filter is applied; otherwise
+    ``instance_name`` narrows to one instance, and ``None`` covers every instance of the app.
     """
     alias = source.alias
     tier_clause, tier_params = source_tier_clause(source_tier, alias)
@@ -271,13 +271,11 @@ def build_registration_summary_query(
     since_err_clause, _ = since_clause(since, "e_err.execution_start_ts")
 
     if app_key is not None:
-        where_clause = f"{alias}.app_key = :app_key AND {alias}.instance_index = :instance_index"
-        params: dict[str, Any] = {
-            "app_key": app_key,
-            "instance_index": instance_index if instance_index is not None else 0,
-            **tier_params,
-            **since_params,
-        }
+        where_clause = f"{alias}.app_key = :app_key"
+        params: dict[str, Any] = {"app_key": app_key, **tier_params, **since_params}
+        if instance_name is not None:
+            where_clause += f" AND {alias}.instance_name = :instance_name"
+            params["instance_name"] = instance_name
     else:
         where_clause = SQL_NO_FILTER
         params = {**tier_params, **since_params}

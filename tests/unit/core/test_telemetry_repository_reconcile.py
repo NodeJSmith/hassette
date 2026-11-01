@@ -221,105 +221,111 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     await assert_listener_count(telemetry_db, live_id, 1, "Live listener should be preserved")
 
 
-async def test_reconcile_once_true_cleanup_respects_instance_index(
+async def test_reconcile_once_true_cleanup_respects_instance_name(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """reconcile_registrations(instance_index=...) scopes the once=True cleanup block.
+    """reconcile_registrations(instance_name=...) scopes the once=True cleanup block.
 
     Leaves a sibling instance's once=True row untouched. This is the exact regression the
     instance-scoped reconciliation feature exists to prevent — the once=True block bypasses
     the builder functions and must be scoped independently.
     """
-    once_reg_0 = make_listener_registration(once=True, name=ONCE_LISTENER_NAME, instance_index=0)
+    once_reg_0 = make_listener_registration(
+        instance_name="instance_0", once=True, name=ONCE_LISTENER_NAME, instance_index=0
+    )
     once_id_0 = await telemetry_repo.register_listener(once_reg_0)
 
-    once_reg_1 = make_listener_registration(once=True, name=ONCE_LISTENER_NAME, instance_index=1)
+    once_reg_1 = make_listener_registration(
+        instance_name="instance_1", once=True, name=ONCE_LISTENER_NAME, instance_index=1
+    )
     once_id_1 = await telemetry_repo.register_listener(once_reg_1)
 
     new_session_id = await insert_new_session(telemetry_db)
 
     await telemetry_repo.reconcile_registrations(
-        DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id, instance_index=0
+        DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id, instance_name="instance_0"
     )
 
     await assert_listener_count(
-        telemetry_db, once_id_0, 0, "once=True listener for the target instance_index should be deleted"
+        telemetry_db, once_id_0, 0, "once=True listener for the target instance_name should be deleted"
     )
     await assert_listener_count(
-        telemetry_db, once_id_1, 1, "once=True listener for the sibling instance_index should be preserved"
+        telemetry_db, once_id_1, 1, "once=True listener for the sibling instance_name should be preserved"
     )
 
 
-async def test_reconcile_scopes_listener_deletion_by_instance_index(
+async def test_reconcile_scopes_listener_deletion_by_instance_name(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """reconcile_registrations(instance_index=...) scopes non-once listener deletion.
+    """reconcile_registrations(instance_name=...) scopes non-once listener deletion.
 
     A stale sibling-instance row (without execution history) is not deleted alongside the
     target instance.
     """
     stale_instance_0 = await telemetry_repo.register_listener(
-        make_listener_registration(name="test_app.on_a", instance_index=0)
+        make_listener_registration(instance_name="instance_0", name="test_app.on_a", instance_index=0)
     )
     stale_instance_1 = await telemetry_repo.register_listener(
-        make_listener_registration(name="test_app.on_a", instance_index=1)
+        make_listener_registration(instance_name="instance_1", name="test_app.on_a", instance_index=1)
     )
 
-    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_index=0)
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_name="instance_0")
 
     await assert_listener_count(
-        telemetry_db, stale_instance_0, 0, "Stale listener for the target instance_index should be deleted"
+        telemetry_db, stale_instance_0, 0, "Stale listener for the target instance_name should be deleted"
     )
     await assert_listener_count(
         telemetry_db, stale_instance_1, 1, "Sibling instance's listener should be unaffected by scoped reconciliation"
     )
 
 
-async def test_reconcile_without_instance_index_affects_all_instances(
+async def test_reconcile_without_instance_name_affects_all_instances(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """reconcile_registrations() without instance_index is unaffected by instance boundaries.
+    """reconcile_registrations() without instance_name is unaffected by instance boundaries.
 
     Matches pre-existing app_key-only-scoped behavior — every instance's stale rows are
     reconciled together.
     """
     listener_instance_0 = await telemetry_repo.register_listener(
-        make_listener_registration(name="test_app.on_a", instance_index=0)
+        make_listener_registration(instance_name="instance_0", name="test_app.on_a", instance_index=0)
     )
     listener_instance_1 = await telemetry_repo.register_listener(
-        make_listener_registration(name="test_app.on_a", instance_index=1)
+        make_listener_registration(instance_name="instance_1", name="test_app.on_a", instance_index=1)
     )
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
+    await assert_listener_count(telemetry_db, listener_instance_0, 0, "Stale listener for instance_0 should be deleted")
     await assert_listener_count(
-        telemetry_db, listener_instance_0, 0, "Stale listener for instance_index=0 should be deleted"
-    )
-    await assert_listener_count(
-        telemetry_db, listener_instance_1, 0, "Stale listener for instance_index=1 should also be deleted"
+        telemetry_db, listener_instance_1, 0, "Stale listener for instance_1 should also be deleted"
     )
 
 
-async def test_reconcile_scopes_job_deletion_by_instance_index(
+async def test_reconcile_scopes_job_deletion_by_instance_name(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """reconcile_registrations(instance_index=...) scopes scheduled_jobs deletion.
+    """reconcile_registrations(instance_name=...) scopes scheduled_jobs deletion.
 
     A stale sibling-instance job (without execution history) is not deleted alongside the
     target instance — the scheduled_jobs analogue of
-    test_reconcile_scopes_listener_deletion_by_instance_index.
+    test_reconcile_scopes_listener_deletion_by_instance_name.
     """
-    stale_job_instance_0 = await telemetry_repo.register_job(make_job_registration(job_name="job_a", instance_index=0))
-    stale_job_instance_1 = await telemetry_repo.register_job(make_job_registration(job_name="job_a", instance_index=1))
+    stale_job_instance_0 = await telemetry_repo.register_job(
+        make_job_registration(instance_name="instance_0", job_name="job_a", instance_index=0)
+    )
+    stale_job_instance_1 = await telemetry_repo.register_job(
+        make_job_registration(instance_name="instance_1", job_name="job_a", instance_index=1)
+    )
 
-    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_index=0)
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_name="instance_0")
 
     await assert_job_count(
-        telemetry_db, stale_job_instance_0, 0, "Stale job for the target instance_index should be deleted"
+        telemetry_db, stale_job_instance_0, 0, "Stale job for the target instance_name should be deleted"
     )
     await assert_job_count(
         telemetry_db,

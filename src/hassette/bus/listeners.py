@@ -66,7 +66,7 @@ class ListenerIdentity:
     """Configuration-level app key for DB registration (e.g., 'my_app'). Empty for non-App owners."""
 
     instance_index: int = 0
-    """App instance index for DB registration. 0 for non-App owners."""
+    """Display order of the instance in config; ``instance_name`` is its identity. 0 for non-App owners."""
 
     instance_name: str | None = None
     """App instance name, precomputed at registration time from the owning app's app_config.instance_name.

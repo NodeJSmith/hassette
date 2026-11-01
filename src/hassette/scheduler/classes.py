@@ -185,7 +185,7 @@ class Job:
     """Configuration-level app key for DB registration (e.g., 'my_app'). Empty for non-App owners."""
 
     instance_index: int = field(default=0, compare=False)
-    """App instance index for DB registration. 0 for non-App owners."""
+    """Display order of the instance in config; ``instance_name`` is its identity. 0 for non-App owners."""
 
     instance_name: str | None = field(default=None, compare=False)
     """App instance name, precomputed at registration time from the owning app's app_config.instance_name.

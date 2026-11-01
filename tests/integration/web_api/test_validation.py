@@ -218,3 +218,25 @@ class TestLimitParameterValidation:
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
         response = await client.get(f"{path}?limit={limit}")
         assert response.status_code == 200
+
+
+class TestInstanceIndexBounds:
+    """A negative index would wrap through Python indexing, so every route that takes one rejects it."""
+
+    @pytest.mark.parametrize("index", [-1, -3])
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/bus/listeners",
+            "/api/logs/recent",
+            "/api/telemetry/app/my_app/activity",
+            "/api/telemetry/app/my_app/blocking",
+            "/api/telemetry/app/my_app/health",
+            "/api/telemetry/app/my_app/listeners",
+            "/api/telemetry/app/my_app/jobs",
+        ],
+    )
+    async def test_negative_instance_index_is_rejected(self, client: "AsyncClient", path: str, index: int) -> None:
+        data = await get_json(client, f"{path}?app_key=my_app&instance_index={index}", expect_status=422)
+
+        assert data["code"] == "validation_failed"
