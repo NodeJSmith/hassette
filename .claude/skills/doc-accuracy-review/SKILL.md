@@ -26,7 +26,7 @@ Two scripts handle all file preparation. Run them, don't read their output. Do N
 ### Step 1: Get a tmp directory
 
 ```bash
-get-skill-tmpdir doc-accuracy-review
+mktemp -d <scratchpad>/doc-accuracy-review-XXXXXX
 ```
 
 Use the printed path as `$TMPDIR` below.

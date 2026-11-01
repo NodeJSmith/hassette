@@ -35,7 +35,7 @@ For each PR, run these steps in sequence. Complete one PR before starting the ne
 
 An autofix PR that won't converge usually has several findings pointing at one flawed mechanism, where each fix spawns the next finding. Fixing findings one at a time never shows that. This gate compares every finding from every review round before anything is patched again.
 
-Check out the PR branch first (`gh pr checkout {PR}`). The ledger is built from the code at the PR head, and the fixes in 2c land on this checkout too. Then fetch all review feedback, resolved threads included, into `<tmpdir>` from `get-skill-tmpdir review-autofixes`. Both this gate and 2b read it:
+Check out the PR branch first (`gh pr checkout {PR}`). The ledger is built from the code at the PR head, and the fixes in 2c land on this checkout too. Then fetch all review feedback, resolved threads included, into `<tmpdir>` from `mktemp -d <scratchpad>/review-autofixes-XXXXXX`. Both this gate and 2b read it:
 
 ```bash
 gh-pr-threads {PR} --json --all > <tmpdir>/feedback.json
