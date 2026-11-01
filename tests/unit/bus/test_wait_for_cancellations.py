@@ -15,7 +15,7 @@ LOGGER_NAME = "hassette.test.wait_for_cancellations"
 
 
 def _listener(name: str) -> "Listener":
-    identity = types.SimpleNamespace(name=name, app_key="test_app", instance_index=0)
+    identity = types.SimpleNamespace(name=name, app_key="test_app", instance_name="instance_0")
     return typing.cast("Listener", types.SimpleNamespace(identity=identity, topic="test.topic", db_id=1))
 
 

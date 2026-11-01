@@ -153,7 +153,7 @@ class Bus(Resource):
             raise RuntimeError("Bus requires a parent Resource for telemetry identity (app_key/source_tier)")
         self.bus_service = self.hassette.bus_service
         self.priority = priority
-        self._registered_listeners: dict[tuple[str, int, str, str], Listener] = {}
+        self._registered_listeners: dict[tuple[str, str | None, str, str], Listener] = {}
         self._error_handler: BusErrorHandlerType | None = None
         self.sync = self.add_child(BusSyncFacade, bus=self)
 
@@ -408,18 +408,16 @@ class Bus(Resource):
             raise
         return Subscription(listener, lambda: self.remove_listener(listener))
 
-    def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str]:
+    def _listener_natural_key(self, listener: "Listener") -> tuple[str, str | None, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking).
 
-        CANONICAL form: ``(app_key, instance_index, name, topic)``.
-        Matches the SQL unique index defined in 001.sql and the repository upsert ON CONFLICT target.
+        CANONICAL form: ``(app_key, instance_name, name, topic)``.
+        Matches the SQL unique index defined in 018.sql and the repository upsert ON CONFLICT target.
+        A framework listener's instance name is None here; only its stored row holds the reserved value
+        (``stored_instance_name``).
         """
-        return (
-            listener.identity.app_key,
-            listener.identity.instance_index,
-            listener.identity.name or "",
-            listener.topic,
-        )
+        identity = listener.identity
+        return (identity.app_key, identity.instance_name, identity.name or "", listener.topic)
 
     def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus and persist cancellation to the database.
@@ -488,7 +486,7 @@ class Bus(Resource):
                 `hassette.event_handling.predicates`. They will receive the full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. Stable string identifier for this listener. Forms part of the natural
-                key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
+                key ``(app_key, instance_name, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
@@ -779,7 +777,7 @@ class Bus(Resource):
             duration: Fire only after the state has held for this many seconds continuously.
                 Not supported with glob patterns.
             name: Required. A stable string identifier for this listener. Forms part of the natural
-                key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
+                key ``(app_key, instance_name, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
@@ -1287,7 +1285,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
-                natural key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across restarts.
+                natural key ``(app_key, instance_name, name, topic)`` used for upsert deduplication across restarts.
                 Omitting it entirely raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
@@ -1341,7 +1339,7 @@ class Bus(Resource):
             where: Additional predicates to filter events.
             kwargs: Keyword arguments to pass to the handler.
             name: Required. A stable string identifier for this listener. Forms part of the
-                natural key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across restarts.
+                natural key ``(app_key, instance_name, name, topic)`` used for upsert deduplication across restarts.
                 Omitting it entirely raises ``TypeError`` (no default value); passing an empty string raises
                 ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
@@ -1717,7 +1715,7 @@ class Bus(Resource):
                 " loop that never lets prior waits resolve or time out). Per-Bus count; BusService warns on the total",
                 len(self._wait_for_futures),
                 subscription.listener.identity.app_key,
-                subscription.listener.identity.instance_index,
+                subscription.listener.identity.instance_name,
             )
 
         try:

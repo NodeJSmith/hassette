@@ -1,8 +1,10 @@
 """Unit tests for retention cleanup pruning ``app_manifests`` rows of apps removed from config."""
 
+import logging
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, PropertyMock
 
 import aiosqlite
@@ -19,9 +21,22 @@ from ._fixtures_retention import db, make_failing_execute, mock_hassette_for_db,
 __all__ = ["db", "mock_hassette_for_db", "retention_service"]  # re-exposed as fixtures
 
 REMOVED_APP = "removed_app"
+INSTANCE_NAME = "upstairs"
 RECENT_TS = time.time() - 60
 # Past the default database.retention_days, so rows stamped with it are outside the window.
 OLD_TS = time.time() - (30 * SECONDS_PER_DAY)
+
+
+def running_app(app_key: str, instance_name: str) -> SimpleNamespace:
+    """The two attributes ``live_instances()`` reads off a running ``App``."""
+    return SimpleNamespace(app_key=app_key, app_config=SimpleNamespace(instance_name=instance_name))
+
+
+async def retired_at_of(db: aiosqlite.Connection, table: str, row_id: int) -> float | None:
+    cursor = await db.execute(f"SELECT retired_at FROM {table} WHERE id = ?", (row_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[0]
 
 
 async def insert_manifest(db: aiosqlite.Connection, app_key: str) -> None:
@@ -41,11 +56,16 @@ async def manifest_exists(db: aiosqlite.Connection, app_key: str) -> bool:
 
 
 async def insert_listener(
-    db: aiosqlite.Connection, app_key: str, retired_at: float | None, source_tier: str = "app"
+    db: aiosqlite.Connection,
+    app_key: str,
+    retired_at: float | None,
+    source_tier: str = "app",
+    instance_name: str = INSTANCE_NAME,
 ) -> int:
     cursor = await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, name, retired_at, source_tier) VALUES (?, 1, 'l', ?, ?)",
-        (app_key, retired_at, source_tier),
+        "INSERT INTO listeners (app_key, instance_index, instance_name, name, retired_at, source_tier) "
+        "VALUES (?, 1, ?, 'l', ?, ?)",
+        (app_key, instance_name, retired_at, source_tier),
     )
     assert cursor.lastrowid is not None
     return cursor.lastrowid
@@ -57,9 +77,10 @@ async def seed_recent_execution(db: aiosqlite.Connection, app_key: str) -> None:
     await insert_execution_row(db, listener_id=listener_id, execution_start_ts=RECENT_TS)
 
 
-async def insert_job(db: aiosqlite.Connection, app_key: str) -> int:
+async def insert_job(db: aiosqlite.Connection, app_key: str, instance_name: str = INSTANCE_NAME) -> int:
     cursor = await db.execute(
-        "INSERT INTO scheduled_jobs (app_key, instance_index, job_name) VALUES (?, 1, 'j')", (app_key,)
+        "INSERT INTO scheduled_jobs (app_key, instance_index, instance_name, job_name) VALUES (?, 1, ?, 'j')",
+        (app_key, instance_name),
     )
     assert cursor.lastrowid is not None
     return cursor.lastrowid
@@ -169,6 +190,7 @@ async def test_removed_app_still_running_keeps_unretired_registrations(
 ) -> None:
     """A hot reload swaps the config before stopping removed apps; a still-running app is live."""
     mock_hassette_for_db.app_handler.registry.app_keys.return_value = [REMOVED_APP]
+    mock_hassette_for_db.app_handler.registry.all_apps.return_value = [running_app(REMOVED_APP, INSTANCE_NAME)]
     await insert_manifest(db, REMOVED_APP)
     await insert_listener(db, REMOVED_APP, retired_at=None)
     await insert_job(db, REMOVED_APP)
@@ -212,12 +234,91 @@ async def test_configured_app_keeps_its_unretired_registrations(
     manifest = create_app_manifest("kept", tmp_path)
     mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
     await insert_manifest(db, manifest.app_key)
-    await insert_listener(db, manifest.app_key, retired_at=None)
-    await insert_job(db, manifest.app_key)
+    await insert_listener(db, manifest.app_key, retired_at=None, instance_name=manifest.app_key)
+    await insert_job(db, manifest.app_key, instance_name=manifest.app_key)
     await run_cleanup(db, retention_service)
 
     assert await retired_at_values(db, "listeners") == [None]
     assert await retired_at_values(db, "scheduled_jobs") == [None]
+
+
+async def test_renamed_instance_rows_are_retired_while_its_new_name_stays_live(
+    db: aiosqlite.Connection,
+    retention_service: DatabaseService,
+    mock_hassette_for_db: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Reconcile only covers an instance's new name, so the sweep retires the old one, and says so."""
+    manifest = create_app_manifest("renamed", tmp_path, app_config={"instance_name": "new_name"})
+    mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
+    retention_service.logger = logging.getLogger("test_retention_sweep")
+    await insert_manifest(db, manifest.app_key)
+    old_listener = await insert_listener(db, manifest.app_key, retired_at=None, instance_name="old_name")
+    new_listener = await insert_listener(db, manifest.app_key, retired_at=None, instance_name="new_name")
+    old_job = await insert_job(db, manifest.app_key, instance_name="old_name")
+
+    with caplog.at_level(logging.INFO, logger="test_retention_sweep"):
+        await run_cleanup(db, retention_service)
+
+    assert await retired_at_of(db, "listeners", old_listener) is not None
+    assert await retired_at_of(db, "listeners", new_listener) is None
+    assert await retired_at_of(db, "scheduled_jobs", old_job) is not None
+    assert f"{manifest.app_key}/old_name" in caplog.text
+
+
+async def test_rename_mid_reload_keeps_the_running_old_name_live(
+    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
+) -> None:
+    """A reload installs the new config before stopping the instance running under its old name."""
+    manifest = create_app_manifest("renamed", tmp_path, app_config={"instance_name": "new_name"})
+    mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
+    mock_hassette_for_db.app_handler.registry.all_apps.return_value = [running_app(manifest.app_key, "old_name")]
+    await insert_listener(db, manifest.app_key, retired_at=None, instance_name="old_name")
+    await run_cleanup(db, retention_service)
+
+    assert await retired_at_values(db, "listeners") == [None]
+
+
+@pytest.mark.parametrize("settings", [{"autostart": False}, {"enabled": False}], ids=["no_autostart", "disabled"])
+async def test_configured_instance_that_never_started_stays_live(
+    db: aiosqlite.Connection,
+    retention_service: DatabaseService,
+    mock_hassette_for_db: MagicMock,
+    tmp_path: Path,
+    settings: dict[str, bool],
+) -> None:
+    """Configured is enough: a section that isn't running keeps its history active."""
+    manifest = create_app_manifest("idle", tmp_path).model_copy(update=settings)
+    mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
+    await insert_listener(db, manifest.app_key, retired_at=None, instance_name=manifest.app_key)
+    await run_cleanup(db, retention_service)
+
+    assert await retired_at_values(db, "listeners") == [None]
+
+
+async def test_sibling_instance_names_are_matched_within_their_app_key(
+    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
+) -> None:
+    """A name configured under another app key doesn't keep this app's row live."""
+    manifest = create_app_manifest("other", tmp_path, app_config={"instance_name": "shared"})
+    mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
+    await insert_listener(db, REMOVED_APP, retired_at=None, instance_name="shared")
+    await run_cleanup(db, retention_service)
+
+    assert all(ts is not None for ts in await retired_at_values(db, "listeners"))
+
+
+def test_live_instances_lists_every_configured_block_plus_running_instances(
+    retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
+) -> None:
+    configured = create_app_manifest("multi", tmp_path, app_config=[{"instance_name": "one"}, {"instance_name": "two"}])
+    mock_hassette_for_db.config.apps.manifests = {configured.app_key: configured}
+    mock_hassette_for_db.app_handler.registry.all_apps.return_value = [running_app("orphan", "still_up")]
+
+    assert retention_service.live_instances() == sorted(
+        [(configured.app_key, "one"), (configured.app_key, "two"), ("orphan", "still_up")]
+    )
 
 
 async def test_framework_registrations_are_not_retired(

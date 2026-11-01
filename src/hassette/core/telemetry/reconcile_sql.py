@@ -15,22 +15,22 @@ def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:
         raise ValueError(f"Refusing to build SQL for unknown identifiers: table={table!r}, history_fk={history_fk!r}")
 
 
-def instance_index_clause(instance_index: int | None) -> tuple[str, dict]:
-    """Build the ``AND instance_index = :instance_index`` WHERE fragment and its bind param.
+def instance_name_clause(instance_name: str | None) -> tuple[str, dict]:
+    """Build the ``AND instance_name = :instance_name`` WHERE fragment and its bind param.
 
     Single-sources the instance-scoping fragment so every reconciliation SQL path (the
     ``build_delete_query``/``build_retire_query`` builders and the hand-written ``once=True``
     cleanup block) applies the same clause instead of five independent, driftable copies.
 
     Args:
-        instance_index: The instance index to scope by, or ``None`` for no scoping.
+        instance_name: The instance name to scope by, or ``None`` for no scoping.
 
     Returns:
-        A ``(clause, params)`` tuple. Both are empty when ``instance_index`` is ``None``.
+        A ``(clause, params)`` tuple. Both are empty when ``instance_name`` is ``None``.
     """
-    if instance_index is None:
+    if instance_name is None:
         return "", {}
-    return " AND instance_index = :instance_index", {"instance_index": instance_index}
+    return " AND instance_name = :instance_name", {"instance_name": instance_name}
 
 
 def not_in_clause(live_ids: list[int]) -> tuple[str, dict]:
@@ -58,7 +58,7 @@ def build_delete_query(
     live_ids: list[int],
     history_fk: str,
     extra_where: str = "",
-    instance_index: int | None = None,
+    instance_name: str | None = None,
 ) -> tuple[str, dict]:
     """Build a DELETE query that removes rows not in ``live_ids`` without history.
 
@@ -68,7 +68,7 @@ def build_delete_query(
         live_ids: IDs to exclude from deletion.
         history_fk: FK column in the executions table (e.g. ``"listener_id"``).
         extra_where: Optional additional WHERE fragment (leading ``AND`` included).
-        instance_index: When provided, additionally scopes the DELETE to this instance so
+        instance_name: When provided, additionally scopes the DELETE to this instance so
             reconciling one instance does not affect sibling instances' rows.
 
     Returns:
@@ -79,7 +79,7 @@ def build_delete_query(
     live_ids_clause, live_ids_params = not_in_clause(live_ids)
     params.update(live_ids_params)
 
-    instance_clause, instance_params = instance_index_clause(instance_index)
+    instance_clause, instance_params = instance_name_clause(instance_name)
     params.update(instance_params)
 
     sql = f"""
@@ -100,7 +100,7 @@ def build_retire_query(
     history_fk: str,
     now: float,
     extra_where: str = "",
-    instance_index: int | None = None,
+    instance_name: str | None = None,
 ) -> tuple[str, dict]:
     """Build an UPDATE query that sets ``retired_at`` for rows not in ``live_ids`` with history.
 
@@ -111,7 +111,7 @@ def build_retire_query(
         history_fk: FK column in the executions table (e.g. ``"listener_id"``).
         now: Epoch timestamp for ``retired_at``.
         extra_where: Optional additional WHERE fragment (leading ``AND`` included).
-        instance_index: When provided, additionally scopes the UPDATE to this instance so
+        instance_name: When provided, additionally scopes the UPDATE to this instance so
             reconciling one instance does not affect sibling instances' rows.
 
     Returns:
@@ -122,7 +122,7 @@ def build_retire_query(
     live_ids_clause, live_ids_params = not_in_clause(live_ids)
     params.update(live_ids_params)
 
-    instance_clause, instance_params = instance_index_clause(instance_index)
+    instance_clause, instance_params = instance_name_clause(instance_name)
     params.update(instance_params)
 
     sql = f"""
@@ -137,17 +137,20 @@ def build_retire_query(
     return sql, params
 
 
-def build_retire_removed_apps_query(table: str, live_app_keys: list[str], now: float) -> tuple[str, dict]:
-    """Build an UPDATE that sets ``retired_at`` on every unretired app-tier row of an app that isn't live.
+def build_retire_unconfigured_instances_query(
+    table: str, live_instances: list[tuple[str, str]], now: float
+) -> tuple[str, dict]:
+    """Build an UPDATE that sets ``retired_at`` on every unretired app-tier row of an instance that isn't live.
 
-    Removed apps are never reconciled again, so this is the only thing that retires their rows.
-    Framework registrations are ``source_tier = 'framework'`` and never match. Unlike
-    ``build_retire_query``, rows are retired whether or not they have execution history. Returns
-    the ``app_key`` of each retired row.
+    Removed apps are never reconciled again, and reconciling a renamed instance only covers its new
+    name, so this is the only thing that retires those rows. Framework registrations are
+    ``source_tier = 'framework'`` and never match. Unlike ``build_retire_query``, rows are retired
+    whether or not they have execution history. Returns the ``app_key`` and ``instance_name`` of each
+    retired row.
 
     Args:
         table: Table to update (``"listeners"`` or ``"scheduled_jobs"``).
-        live_app_keys: Every app key in the current config or with a running instance.
+        live_instances: Every ``(app_key, instance_name)`` in the current config or running.
         now: Epoch timestamp for ``retired_at``.
 
     Returns:
@@ -159,10 +162,14 @@ def build_retire_removed_apps_query(table: str, live_app_keys: list[str], now: f
         UPDATE {table} SET retired_at = :now
         WHERE retired_at IS NULL
           AND source_tier = 'app'
-          AND app_key NOT IN (SELECT value FROM json_each(:live_keys))
-        RETURNING app_key
+          AND NOT EXISTS (
+              SELECT 1 FROM json_each(:live_instances) live
+              WHERE json_extract(live.value, '$[0]') = {table}.app_key
+                AND json_extract(live.value, '$[1]') = {table}.instance_name
+          )
+        RETURNING app_key, instance_name
     """
-    return sql, {"now": now, "live_keys": encode_app_keys(live_app_keys)}
+    return sql, {"now": now, "live_instances": json.dumps(live_instances)}
 
 
 def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[str, dict]:
@@ -170,7 +177,7 @@ def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[s
 
     Executions always belong to a listener or scheduled_job, so "no listeners, jobs, log records
     or blocking events for the app_key" also means no executions. ``app_key`` is the bare key in
-    every table, so the match covers all instance indexes. Returns the ``app_key`` of each
+    every table, so the match covers all instances. Returns the ``app_key`` of each
     deleted row.
 
     Args:

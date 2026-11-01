@@ -33,7 +33,7 @@ class TestGetListenerSummary:
             db_svc, listener_id_1, session_id, status="error", duration_ms=5.0, error_type="ValueError"
         )
 
-        rows = await query_service.get_listener_summary("test_app", 0)
+        rows = await query_service.get_listener_summary("test_app", "instance_0")
         assert len(rows) == 2
 
         assert all(isinstance(r, ListenerSummaryRow) for r in rows)
@@ -48,7 +48,7 @@ class TestGetListenerSummary:
         db_svc, _session_id = db
         await insert_listener(db_svc, handler_method="on_idle")
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.total_invocations == 0
         assert row.successful == 0
         assert row.failed == 0
@@ -62,7 +62,7 @@ class TestGetListenerSummary:
         cancelled = await insert_listener(db_svc, handler_method="on_cancelled")
         await set_listener_removed_at(db_svc, cancelled, BASE_TS)
 
-        scoped = await query_service.get_listener_summary("test_app", 0)
+        scoped = await query_service.get_listener_summary("test_app", "instance_0")
         assert {r.listener_id for r in scoped} == {live}
 
     async def test_get_listener_summary_global_excludes_cancelled(
@@ -91,7 +91,7 @@ class TestGetListenerSummary:
         # One invocation before since_ts — should NOT count
         await insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0, since=since_ts))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0", since=since_ts))
         assert row.total_invocations == 2
         assert row.successful == 2
         assert row.failed == 0
@@ -103,7 +103,7 @@ class TestGetListenerSummary:
         db_svc, _session_id = db
         await insert_listener(db_svc, handler_method="on_idle")
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.min_duration_ms is None
         assert row.max_duration_ms is None
 
@@ -118,7 +118,7 @@ class TestGetListenerSummary:
         await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=5.0)
         await insert_invocation(db_svc, listener_id, session_id, status="error", duration_ms=100.0)
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.min_duration_ms == pytest.approx(5.0)
         assert row.max_duration_ms == pytest.approx(100.0)
 
@@ -153,7 +153,7 @@ class TestGetListenerSummary:
             execution_start_ts=base_ts + 10.0,
         )
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert (
             row.last_error_traceback == "Traceback (most recent call last):\n  File test.py, line 42\nValueError: oops"
         )
@@ -170,7 +170,7 @@ class TestGetListenerSummary:
         await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=20.0)
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.last_error_traceback is None
         assert row.last_error_ts is None
 
@@ -194,7 +194,7 @@ class TestGetListenerSummary:
             db_svc, failing_id, session_id, execution_start_ts=BASE_TS + 2.0, execution_id="exec-later-ok"
         )
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.last_error_execution_id == "exec-failed"
 
 
@@ -212,7 +212,7 @@ class TestListenerSummaryLastErrorRowCoherence:
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
-            lambda: query_service.get_listener_summary("test_app", 0),
+            lambda: query_service.get_listener_summary("test_app", "instance_0"),
             [
                 error_row("OldError", "old message", "old traceback", base_ts + 1.0),
                 error_row("MiddleError", "middle message", "middle traceback", base_ts + 5.0),
@@ -237,7 +237,7 @@ class TestListenerSummaryLastErrorRowCoherence:
             execution_start_ts=BASE_TS + 1.0,
         )
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert row.last_error_type == "ValueError"
         assert row.last_error_message == "bad value"
         assert row.last_error_traceback == "tb line 1\ntb line 2"
@@ -250,7 +250,7 @@ class TestListenerSummaryLastErrorRowCoherence:
         await insert_invocation(db_svc, listener_id, session_id, status="success")
         await insert_invocation(db_svc, listener_id, session_id, status="success")
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert_no_last_error(row)
 
     async def test_since_filter_scopes_error_cte(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
@@ -263,7 +263,7 @@ class TestListenerSummaryLastErrorRowCoherence:
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
-            lambda: query_service.get_listener_summary("test_app", 0, since=since_ts),
+            lambda: query_service.get_listener_summary("test_app", "instance_0", since=since_ts),
             SINCE_WINDOW_ERROR_ROWS,
         )
 
@@ -288,5 +288,5 @@ class TestListenerSummaryLastErrorRowCoherence:
             execution_start_ts=base_ts + 1.0,
         )
 
-        row = await only_row(query_service.get_listener_summary("test_app", 0, since=since_ts))
+        row = await only_row(query_service.get_listener_summary("test_app", "instance_0", since=since_ts))
         assert_no_last_error(row)

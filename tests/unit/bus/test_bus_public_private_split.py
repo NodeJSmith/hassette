@@ -110,12 +110,12 @@ async def test_hold_preds_none_no_mutation(bus: "Bus") -> None:
 
 
 async def test_listener_natural_key_uses_identity_fields(bus: "Bus") -> None:
-    """_listener_natural_key returns (app_key, instance_index, name, topic) — canonical 4-tuple."""
+    """_listener_natural_key returns (app_key, instance_name, name, topic) — canonical 4-tuple."""
     with mock_add_listener(bus):
         sub = await bus.on(topic="test.topic", handler=handler, name="key_test")
         key = bus._listener_natural_key(sub.listener)
         assert len(key) == 4
         assert key[0] == sub.listener.identity.app_key
-        assert key[1] == sub.listener.identity.instance_index
+        assert key[1] == sub.listener.identity.instance_name
         assert key[2] == sub.listener.identity.name
         assert key[3] == sub.listener.topic

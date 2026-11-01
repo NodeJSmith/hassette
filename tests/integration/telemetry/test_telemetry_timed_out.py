@@ -26,7 +26,7 @@ class TestListenerSummaryTimedOut:
         await insert_invocation(db_svc, listener_id, session_id, status="timed_out")
         await insert_invocation(db_svc, listener_id, session_id, status="timed_out")
 
-        s = await only_row(query_service.get_listener_summary("test_app", 0))
+        s = await only_row(query_service.get_listener_summary("test_app", "instance_0"))
         assert s.total_invocations == 4
         assert s.successful == 1
         assert s.failed == 1
@@ -48,7 +48,7 @@ class TestListenerSummaryThreadLeaked:
         await insert_invocation(db_svc, listener_id, session_id, status="timed_out", thread_leaked=0)
         await insert_invocation(db_svc, listener_id, session_id, status="success")
 
-        summaries = await query_service.get_listener_summary("test_app", 0)
+        summaries = await query_service.get_listener_summary("test_app", "instance_0")
         assert len(summaries) == 1
         assert summaries[0].thread_leaked == 2
 
@@ -79,7 +79,7 @@ class TestJobSummaryTimedOut:
         await insert_execution(db_svc, job_id, session_id, status="error")
         await insert_execution(db_svc, job_id, session_id, status="timed_out")
 
-        s = await only_row(query_service.get_job_summary("test_app", 0))
+        s = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert s.total_executions == 4
         assert s.successful == 2
         assert s.failed == 1
@@ -98,7 +98,7 @@ class TestJobSummaryThreadLeaked:
         await insert_execution(db_svc, job_id, session_id, status="timed_out", thread_leaked=0)
         await insert_execution(db_svc, job_id, session_id, status="success")
 
-        summaries = await query_service.get_job_summary("test_app", 0)
+        summaries = await query_service.get_job_summary("test_app", "instance_0")
         assert len(summaries) == 1
         assert summaries[0].thread_leaked == 2
 

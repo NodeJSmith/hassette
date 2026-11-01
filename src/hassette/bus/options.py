@@ -49,7 +49,7 @@ class Options(TypedDict, total=False):
     """
 
     if_exists: IfExistsPolicy
-    """Behavior when a listener with the same natural key ``(app_key, instance_index, name, topic)`` already exists.
+    """Behavior when a listener with the same natural key ``(app_key, instance_name, name, topic)`` already exists.
 
     ``"error"`` (default) raises ``DuplicateListenerError``.
     ``"skip"`` returns the existing listener's subscription when the configuration matches;

@@ -517,16 +517,36 @@ class TestPerInstanceSelectiveRestart:
         assert lifecycle.registry.get(app_key, 1) is not None, "Precondition: instance 1 should be running"
 
         listener0_id = await executor.register_listener(
-            make_listener_registration(app_key=app_key, instance_index=0, name="sibling_listener")
+            make_listener_registration(
+                instance_name=lifecycle.registry.instance_name(app_key, 0),
+                app_key=app_key,
+                instance_index=0,
+                name="sibling_listener",
+            )
         )
         job0_id = await executor.register_job(
-            make_job_registration(app_key=app_key, instance_index=0, job_name="sibling_job")
+            make_job_registration(
+                instance_name=lifecycle.registry.instance_name(app_key, 0),
+                app_key=app_key,
+                instance_index=0,
+                job_name="sibling_job",
+            )
         )
         listener1_id = await executor.register_listener(
-            make_listener_registration(app_key=app_key, instance_index=1, name="reloaded_listener")
+            make_listener_registration(
+                instance_name=lifecycle.registry.instance_name(app_key, 1),
+                app_key=app_key,
+                instance_index=1,
+                name="reloaded_listener",
+            )
         )
         job1_id = await executor.register_job(
-            make_job_registration(app_key=app_key, instance_index=1, job_name="reloaded_job")
+            make_job_registration(
+                instance_name=lifecycle.registry.instance_name(app_key, 1),
+                app_key=app_key,
+                instance_index=1,
+                job_name="reloaded_job",
+            )
         )
 
         await lifecycle.reload_instance(app_key, 1)

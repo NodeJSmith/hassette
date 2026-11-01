@@ -38,7 +38,7 @@ injected dependency, and splat it into the query call:
 from hassette.web.dependencies import TelemetryFiltersDep
 
 async def app_health(app_key: AppKeyPath, telemetry: TelemetryDep, filters: TelemetryFiltersDep) -> ...:
-    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs)
+    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs(app_key))
 ```
 
 FastAPI flattens a dependency's parameters into the operation, so the OpenAPI schema is identical

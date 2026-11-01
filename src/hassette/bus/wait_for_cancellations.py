@@ -43,7 +43,7 @@ class WaitForCancellationLog:
             listener.identity.name,
             listener.topic,
             listener.identity.app_key,
-            listener.identity.instance_index,
+            listener.identity.instance_name,
             listener.db_id,
             still_pending,
         )

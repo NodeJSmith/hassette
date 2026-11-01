@@ -171,6 +171,10 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
         stubs[manifest.app_key] = stub
 
     hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: stubs.get(app_key)
+    # The name the seed scenarios store (make_instance_name), so index-addressed routes find seeded rows.
+    hassette._app_handler.registry.instance_name.side_effect = lambda app_key, index: (
+        f"{stubs[app_key].class_name}.{index}" if app_key in stubs else f"Unknown.{index}"
+    )
 
     manifest_info_by_key = {manifest.app_key: manifest for manifest in manifests}
 
