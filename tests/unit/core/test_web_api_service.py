@@ -51,11 +51,23 @@ def patch_uvicorn_serve() -> Iterator[tuple[MagicMock, MagicMock]]:
     """Patch hassette.core.web_api_service.uvicorn so serve() runs against a fake Server
     instance, without binding a real socket. Yields (mock_uvicorn, mock_server).
     """
-    with patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn:
-        mock_server = MagicMock()
-        mock_server.serve = AsyncMock()
-        mock_uvicorn.Server.return_value = mock_server
+    mock_server = MagicMock()
+    mock_server.serve = AsyncMock()
+    with (
+        patch("hassette.core.web_api_service.uvicorn") as mock_uvicorn,
+        patch("hassette.core.web_api_service._ShieldedStartupServer", return_value=mock_server),
+    ):
         yield mock_uvicorn, mock_server
+
+
+def port_is_bound(port: int) -> bool:
+    """Return whether anything holds 127.0.0.1:port, probing with a bind so no connection is accepted."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            return True
+    return False
 
 
 class TestUvicornConfig:
@@ -115,6 +127,32 @@ class TestShutdownSocketCleanup:
                 await web_api_service.serve()
 
             mock_server.shutdown.assert_awaited_once()
+
+
+class TestCancelDuringStartup:
+    async def test_cancel_during_create_server_final_tick_releases_port(
+        self, unused_tcp_port_factory, tmp_path
+    ) -> None:
+        """A cancel landing on the tick where create_server is listening but hasn't returned closes the listener.
+
+        Steps the loop one tick at a time: create_server yields once right after it starts
+        listening, so a polling helper that sleeps would step past that window.
+        """
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+
+        serve_task = asyncio.create_task(service.serve())
+        for _ in range(100):  # a numeric host needs no resolver thread, so this takes a handful of ticks
+            if port_is_bound(service.port):
+                break
+            await asyncio.sleep(0)
+        else:
+            pytest.fail("serve() never started listening")
+        serve_task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await serve_task
+
+        assert not port_is_bound(service.port)
 
 
 class TestBindFailure:
