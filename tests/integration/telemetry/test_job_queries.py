@@ -23,8 +23,8 @@ class TestGetJobSummary:
         """2 jobs, mixed results — correct aggregate totals."""
         db_svc, session_id = db
 
-        job_id_1 = await insert_job(db_svc, instance_name="instance_0", job_name="job_a")
-        job_id_2 = await insert_job(db_svc, instance_name="instance_0", job_name="job_b")
+        job_id_1 = await insert_job(db_svc, job_name="job_a")
+        job_id_2 = await insert_job(db_svc, job_name="job_b")
 
         await insert_execution(db_svc, job_id_1, session_id, status="success", duration_ms=100.0)
         await insert_execution(db_svc, job_id_1, session_id, status="error", duration_ms=50.0)
@@ -55,7 +55,7 @@ class TestGetJobSummary:
         """A job with at least one error execution returns last_error_message, last_error_type, last_error_ts."""
         db_svc, session_id = db
 
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="failing_job")
+        job_id = await insert_job(db_svc, job_name="failing_job")
 
         base_ts = BASE_TS
         # Older error — not the most recent
@@ -92,7 +92,7 @@ class TestGetJobSummary:
         """A job with only successful executions has None for all error fields."""
         db_svc, session_id = db
 
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="clean_job")
+        job_id = await insert_job(db_svc, job_name="clean_job")
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=10.0)
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=20.0)
 
@@ -104,7 +104,7 @@ class TestGetJobSummary:
     ) -> None:
         """last_error_execution_id is the timed-out execution's id, even after a later success."""
         db_svc, session_id = db
-        failing_id = await insert_job(db_svc, instance_name="instance_0", job_name="failing_job")
+        failing_id = await insert_job(db_svc, job_name="failing_job")
 
         await insert_execution(
             db_svc,
@@ -128,7 +128,7 @@ class TestGetJobSummary:
         """A job with no executions has None for all error fields AND duration fields."""
         db_svc, _session_id = db
 
-        await insert_job(db_svc, instance_name="instance_0", job_name="idle_job")
+        await insert_job(db_svc, job_name="idle_job")
 
         row = await only_row(query_service.get_job_summary("test_app", "instance_0"))
         assert_no_last_error(row)
@@ -141,7 +141,7 @@ class TestGetJobSummary:
         """A job with multiple executions at different durations returns correct min and max."""
         db_svc, session_id = db
 
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="varied_job")
+        job_id = await insert_job(db_svc, job_name="varied_job")
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=50.0)
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=200.0)
         await insert_execution(db_svc, job_id, session_id, status="error", duration_ms=10.0)
@@ -157,7 +157,7 @@ class TestGetJobSummary:
         """A timed-out execution is surfaced as the last error."""
         db_svc, session_id = db
 
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="timeout_job")
+        job_id = await insert_job(db_svc, job_name="timeout_job")
         base_ts = BASE_TS
         await insert_execution(
             db_svc,
@@ -181,7 +181,7 @@ class TestGetJobSummary:
         """Error outside the since window returns None for error fields."""
         db_svc, session_id = db
 
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="old_error_job")
+        job_id = await insert_job(db_svc, job_name="old_error_job")
         base_ts = BASE_TS
         await insert_execution(
             db_svc,
@@ -206,7 +206,7 @@ class TestGetJobSummarySinceScoped:
         base_ts = BASE_TS
         since_ts = base_ts + 5.0
 
-        j1 = await insert_job(db_svc, instance_name="instance_0", job_name="job_a")
+        j1 = await insert_job(db_svc, job_name="job_a")
 
         # 2 executions after since_ts — should count
         await insert_execution(
@@ -234,7 +234,7 @@ class TestJobSummaryLastErrorRowCoherence:
     ) -> None:
         """Multiple errors at different timestamps — all error columns from the most recent row."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="multi_err_job")
+        job_id = await insert_job(db_svc, job_name="multi_err_job")
 
         base_ts = BASE_TS
 
@@ -251,7 +251,7 @@ class TestJobSummaryLastErrorRowCoherence:
     async def test_single_error_returned(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Single error execution — all error columns are populated from that row."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="single_err_job")
+        job_id = await insert_job(db_svc, job_name="single_err_job")
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_execution(db_svc, job_id, session_id, **kw),
@@ -264,7 +264,7 @@ class TestJobSummaryLastErrorRowCoherence:
     async def test_no_errors_returns_none(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """No errors — all last_error_* fields are None."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="clean_job")
+        job_id = await insert_job(db_svc, job_name="clean_job")
 
         await insert_execution(db_svc, job_id, session_id, status="success")
         await insert_execution(db_svc, job_id, session_id, status="success")
@@ -275,7 +275,7 @@ class TestJobSummaryLastErrorRowCoherence:
     async def test_since_filter_scopes_error_cte(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Error before the since window is excluded; error inside the window is returned."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="windowed_job")
+        job_id = await insert_job(db_svc, job_name="windowed_job")
 
         base_ts = BASE_TS
         since_ts = base_ts + 50.0
@@ -291,7 +291,7 @@ class TestJobSummaryLastErrorRowCoherence:
     ) -> None:
         """All errors before since window — last_error_* fields are None."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0", job_name="stale_job")
+        job_id = await insert_job(db_svc, job_name="stale_job")
 
         base_ts = BASE_TS
         since_ts = base_ts + 500.0

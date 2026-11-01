@@ -20,7 +20,7 @@ FRAMEWORK_KEY = f"{FRAMEWORK_APP_KEY}.BusService"
 EARLIER_RETIREMENT = 100.0
 
 
-def _insert_listener(
+def insert_listener(
     conn: sqlite3.Connection, app_key: str, index: int, tier: str = "app", retired_at: float | None = None
 ) -> None:
     conn.execute(
@@ -30,7 +30,7 @@ def _insert_listener(
     )
 
 
-def _insert_job(
+def insert_job(
     conn: sqlite3.Connection, app_key: str, index: int, tier: str = "app", retired_at: float | None = None
 ) -> None:
     conn.execute(
@@ -47,7 +47,7 @@ def migrated_db(tmp_path: Path) -> Path:
     run_migrations(db_path, target=17)
     with sqlite_conn(db_path) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
-        for insert in (_insert_listener, _insert_job):
+        for insert in (insert_listener, insert_job):
             insert(conn, "my_app", 0)
             insert(conn, "my_app", 1)
             insert(conn, "my_app", 2, retired_at=EARLIER_RETIREMENT)
@@ -114,7 +114,7 @@ def test_executions_keep_their_parents(migrated_db: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("table", "columns"),
+    ("index_name", "columns"),
     [
         ("idx_listeners_natural", ["app_key", "instance_name", "name", "topic"]),
         ("idx_scheduled_jobs_natural", ["app_key", "instance_name", "job_name"]),
@@ -122,12 +122,12 @@ def test_executions_keep_their_parents(migrated_db: Path) -> None:
         ("idx_scheduled_jobs_app", ["app_key", "instance_name"]),
     ],
 )
-def test_indexes_key_on_the_name(migrated_db: Path, table: str, columns: list[str]) -> None:
+def test_indexes_key_on_the_name(migrated_db: Path, index_name: str, columns: list[str]) -> None:
     with sqlite_conn(migrated_db) as conn:
-        assert [row[2] for row in conn.execute(f"PRAGMA index_info({table})").fetchall()] == columns
+        assert [row[2] for row in conn.execute(f"PRAGMA index_info({index_name})").fetchall()] == columns
 
 
-@pytest.mark.parametrize(("table", "insert"), [("listeners", _insert_listener), ("scheduled_jobs", _insert_job)])
+@pytest.mark.parametrize(("table", "insert"), [("listeners", insert_listener), ("scheduled_jobs", insert_job)])
 def test_framework_rows_differing_only_by_index_fail_atomically(
     tmp_path: Path, table: str, insert: Callable[..., None]
 ) -> None:

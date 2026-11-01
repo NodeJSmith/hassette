@@ -78,9 +78,9 @@ class AppInstanceLifecycleMixin:
             instance_name: When provided, scopes post-ready reconciliation to this instance
                 only, so restarting one instance does not retire sibling instances' rows.
                 When None (default), reconciliation is app_key-scoped only — unchanged behavior.
-            only_indices: When provided, only instances at these indices are initialized. Unrelated to
-                ``instance_name``, which scopes the stored rows reconciliation may touch.
-                Others are skipped but still included in reconciliation.
+            only_indices: When provided, only instances at these indices are initialized. Others are
+                skipped but still included in reconciliation. Unrelated to ``instance_name``, which
+                scopes the stored rows reconciliation may touch.
             outcomes: The request's outcomes; must target every initialized index.
         """
         class_name = manifest.class_name

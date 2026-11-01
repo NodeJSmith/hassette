@@ -27,6 +27,7 @@ from hassette.testing import create_state_change_event
 from hassette.types.enums import Topic
 from tests.support.factories import make_hassette_event
 
+from .conftest import listener_key
 from .test_once_listener_tracking import get_bus_removal_callback
 
 if typing.TYPE_CHECKING:
@@ -197,8 +198,7 @@ async def test_wait_for_listener_is_once_and_removed_after_firing(bus: "Bus") ->
         listener = registered[0]
         assert listener.invoker.once is True
 
-        assert bus.parent is not None
-        key = (bus.parent.app_key, bus.parent.instance_name, "once_check", "test.topic")
+        key = listener_key(bus, name="once_check")
         assert key in bus._registered_listeners
 
         event = make_hassette_event(topic="test.topic")

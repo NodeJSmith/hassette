@@ -47,19 +47,13 @@ class TestGetAllAppSummariesFrameworkTier:
 
         # Framework-tier listener and job under __hassette__
         fw_listener = await insert_listener(
-            db_svc, instance_name="instance_0", app_key="__hassette__", handler_method="on_fw", source_tier="framework"
+            db_svc, app_key="__hassette__", handler_method="on_fw", source_tier="framework"
         )
-        fw_job = await insert_job(
-            db_svc, instance_name="instance_0", app_key="__hassette__", job_name="fw_job", source_tier="framework"
-        )
+        fw_job = await insert_job(db_svc, app_key="__hassette__", job_name="fw_job", source_tier="framework")
 
         # App-tier listener and job (should NOT appear for framework query)
-        _app_listener = await insert_listener(
-            db_svc, instance_name="instance_0", app_key="my_app", handler_method="on_app", source_tier="app"
-        )
-        _app_job = await insert_job(
-            db_svc, instance_name="instance_0", app_key="my_app", job_name="app_job", source_tier="app"
-        )
+        _app_listener = await insert_listener(db_svc, app_key="my_app", handler_method="on_app", source_tier="app")
+        _app_job = await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
 
         await insert_invocation(
             db_svc, fw_listener, session_id, status="success", duration_ms=5.0, source_tier="framework"
@@ -86,12 +80,8 @@ class TestGetAllAppSummariesFrameworkTier:
         db_svc, session_id = db
 
         # A regular app with mixed-tier listeners
-        fw_listener = await insert_listener(
-            db_svc, instance_name="instance_0", app_key="my_app", handler_method="on_fw", source_tier="framework"
-        )
-        await insert_listener(
-            db_svc, instance_name="instance_0", app_key="my_app", handler_method="on_app", source_tier="app"
-        )
+        fw_listener = await insert_listener(db_svc, app_key="my_app", handler_method="on_fw", source_tier="framework")
+        await insert_listener(db_svc, app_key="my_app", handler_method="on_app", source_tier="app")
 
         await insert_invocation(
             db_svc, fw_listener, session_id, status="success", duration_ms=5.0, source_tier="framework"

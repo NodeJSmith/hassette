@@ -71,9 +71,7 @@ class TestGetAppRecentActivity:
         db_svc, session_id = db
 
         base_ts = BASE_TS
-        listener_id = await insert_listener(
-            db_svc, instance_name="instance_0", app_key="test_app", handler_method="on_event"
-        )
+        listener_id = await insert_listener(db_svc, app_key="test_app", handler_method="on_event")
 
         for i in range(10):
             await insert_invocation(
@@ -141,12 +139,8 @@ class TestGetAppRecentActivity:
         db_svc, session_id = db
 
         base_ts = BASE_TS
-        listener_0 = await insert_listener(
-            db_svc, instance_name="instance_0", app_key="test_app", instance_index=0, handler_method="on_event"
-        )
-        listener_1 = await insert_listener(
-            db_svc, instance_name="instance_1", app_key="test_app", instance_index=1, handler_method="on_event"
-        )
+        listener_0 = await insert_listener(db_svc, app_key="test_app", instance_index=0, handler_method="on_event")
+        listener_1 = await insert_listener(db_svc, app_key="test_app", instance_index=1, handler_method="on_event")
 
         await insert_invocation(db_svc, listener_0, session_id, status="success", execution_start_ts=base_ts + 10.0)
         await insert_invocation(db_svc, listener_1, session_id, status="success", execution_start_ts=base_ts + 20.0)
@@ -159,7 +153,7 @@ class TestGetAppRecentActivity:
     async def test_empty_app_returns_empty_list(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """App with no invocations or executions returns an empty list."""
         db_svc, _session_id = db
-        await insert_listener(db_svc, instance_name="instance_0", app_key="test_app", handler_method="on_event")
+        await insert_listener(db_svc, app_key="test_app", handler_method="on_event")
 
         results = await recent_activity(query_service)
 
@@ -226,9 +220,9 @@ class TestGetPerAppActivityBuckets:
         db_svc, session_id = db
 
         base_ts = BASE_TS
-        listener_a = await insert_listener(db_svc, instance_name="instance_0", app_key="app_a", handler_method="on_a")
-        job_a = await insert_job(db_svc, instance_name="instance_0", app_key="app_a", job_name="job_a")
-        listener_b = await insert_listener(db_svc, instance_name="instance_0", app_key="app_b", handler_method="on_b")
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        job_a = await insert_job(db_svc, app_key="app_a", job_name="job_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
 
         since = base_ts
         now = base_ts + 100.0
@@ -266,7 +260,7 @@ class TestGetPerAppActivityBuckets:
     ) -> None:
         """Now <= since short-circuits to an empty dict without querying."""
         db_svc, session_id = db
-        listener_a = await insert_listener(db_svc, instance_name="instance_0", app_key="app_a", handler_method="on_a")
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
         await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=BASE_TS + 5.0)
 
         result = await query_service.get_per_app_activity_buckets(since=BASE_TS + 50.0, now=BASE_TS + 50.0)
@@ -280,7 +274,7 @@ class TestGetPerAppActivityBuckets:
         db_svc, session_id = db
 
         base_ts = BASE_TS
-        listener_a = await insert_listener(db_svc, instance_name="instance_0", app_key="app_a", handler_method="on_a")
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
 
         await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=base_ts + 5.0)
         await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=base_ts + 50.0)
@@ -467,7 +461,7 @@ class TestGetPerAppLastErrors:
         """An app with no errors at all does not appear in the result."""
         db_svc, session_id = db
 
-        listener_a = await insert_listener(db_svc, instance_name="instance_0", app_key="app_a", handler_method="on_a")
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
         await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=BASE_TS + 5.0)
 
         result = await query_service.get_per_app_last_errors()

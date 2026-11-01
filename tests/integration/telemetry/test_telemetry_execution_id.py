@@ -68,7 +68,7 @@ class TestHandlerInvocationExecutionId:
     ) -> None:
         """Persist a handler ExecutionRecord with all three new fields and query them back."""
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc, instance_name="instance_0")
+        listener_id = await insert_listener(db_svc)
         record = make_inv_record(
             listener_id,
             session_id,
@@ -89,7 +89,7 @@ class TestHandlerInvocationExecutionId:
     ) -> None:
         """Persist a record with execution_id=None and confirm it comes back as None (not empty string)."""
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc, instance_name="instance_0")
+        listener_id = await insert_listener(db_svc)
         record = make_inv_record(listener_id, session_id, execution_id=None)
 
         await repo.persist_execution_batch([record])
@@ -130,7 +130,7 @@ class TestHandlerInvocationExecutionId:
     async def test_shared_params_match_persist_batch_columns(self, db: DbFixture) -> None:
         """execution_insert_params() keys must match the executions table columns used in persist_batch()."""
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc, instance_name="instance_0")
+        listener_id = await insert_listener(db_svc)
         record = make_inv_record(
             listener_id, session_id, execution_id="abc-test", trigger_context_id="ctx-test", trigger_origin="LOCAL"
         )
@@ -169,7 +169,7 @@ class TestJobExecutionExecutionId:
     ) -> None:
         """Persist a job ExecutionRecord with execution_id and query it back."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0")
+        job_id = await insert_job(db_svc)
         record = make_job_record(job_id, session_id, execution_id="def-789")
 
         await repo.persist_execution_batch([record])
@@ -181,7 +181,7 @@ class TestJobExecutionExecutionId:
     async def test_job_shared_params_match_persist_batch_columns(self, db: DbFixture) -> None:
         """execution_insert_params() keys for kind=job must match the executions table columns."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0")
+        job_id = await insert_job(db_svc)
         record = make_job_record(job_id, session_id, execution_id="def-test")
         params = execution_insert_params(record)
 
@@ -217,7 +217,7 @@ class TestGetExecutionById:
         self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc, instance_name="instance_0")
+        listener_id = await insert_listener(db_svc)
         record = make_inv_record(
             listener_id,
             session_id,
@@ -244,7 +244,7 @@ class TestGetExecutionById:
         self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0")
+        job_id = await insert_job(db_svc)
         record = make_job_record(job_id, session_id, execution_id="job-exec-001")
         await repo.persist_execution_batch([record])
 

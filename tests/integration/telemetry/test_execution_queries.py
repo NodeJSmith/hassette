@@ -17,7 +17,7 @@ class TestGetExecutionsForListener:
     async def test_get_executions_handler_ordered(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """5 invocations at different timestamps — most recent first, limit respected."""
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc, instance_name="instance_0")
+        listener_id = await insert_listener(db_svc)
 
         base_ts = time.time()
         for i in range(5):
@@ -36,7 +36,7 @@ class TestGetExecutionsForJob:
     async def test_get_executions_job_ordered(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """3 executions — ordered DESC, respects limit."""
         db_svc, session_id = db
-        job_id = await insert_job(db_svc, instance_name="instance_0")
+        job_id = await insert_job(db_svc)
 
         base_ts = time.time()
         for i in range(3):
@@ -53,7 +53,7 @@ class TestGetSlowHandlers:
     async def test_get_slow_handlers(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """Mix of fast + slow invocations — only above threshold returned, ordered by duration."""
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc, instance_name="instance_0")
+        listener_id = await insert_listener(db_svc)
 
         await insert_invocation(db_svc, listener_id, session_id, duration_ms=5.0)
         await insert_invocation(db_svc, listener_id, session_id, duration_ms=100.0)

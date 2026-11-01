@@ -293,11 +293,11 @@ class DatabaseRetentionMixin:
         retired_listener_cursor = await self.db.execute(
             *build_retire_unconfigured_instances_query("listeners", live_instances, now)
         )
-        retired_listener_instances = [f"{row[0]}/{row[1]}" for row in await retired_listener_cursor.fetchall()]
+        retired_listener_instances = [f"{key}/{name}" for key, name in await retired_listener_cursor.fetchall()]
         retired_job_cursor = await self.db.execute(
             *build_retire_unconfigured_instances_query("scheduled_jobs", live_instances, now)
         )
-        retired_job_instances = [f"{row[0]}/{row[1]}" for row in await retired_job_cursor.fetchall()]
+        retired_job_instances = [f"{key}/{name}" for key, name in await retired_job_cursor.fetchall()]
         deleted_listener_cursor = await self.db.execute(
             """
             DELETE FROM listeners

@@ -181,7 +181,7 @@ class TestGetLogRecordsFilters:
     ) -> None:
         """Log records JOIN executions to get execution_kind, listener_id, job_id."""
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc, instance_name="instance_0")
+        listener_id = await insert_listener(db_svc)
         # Insert an execution row so the JOIN has something to match
         await db_svc.db.execute(
             """INSERT INTO executions

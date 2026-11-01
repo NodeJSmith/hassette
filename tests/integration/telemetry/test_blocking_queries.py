@@ -91,12 +91,8 @@ class TestBlockingFindings:
     ) -> None:
         """Rows from a listener and a job at one call site → one finding naming both, via execution_id."""
         db_svc, session_id = db
-        listener_id = await insert_listener(
-            db_svc, instance_name="instance_0", app_key="my_app", name="kitchen", handler_method="on_event"
-        )
-        job_id = await insert_job(
-            db_svc, instance_name="instance_0", app_key="my_app", job_name="nightly", handler_method="run_job"
-        )
+        listener_id = await insert_listener(db_svc, app_key="my_app", name="kitchen", handler_method="on_event")
+        job_id = await insert_job(db_svc, app_key="my_app", job_name="nightly", handler_method="run_job")
         await tag_execution(db_svc, await insert_invocation(db_svc, listener_id, session_id), "exec-l")
         await tag_execution(db_svc, await insert_execution(db_svc, job_id, session_id), "exec-j")
         await insert_event(db_svc, execution_id="exec-l", detected_ts=2000.0, stall_duration_ms=500.0)
@@ -133,9 +129,7 @@ class TestBlockingFindings:
     ) -> None:
         """The multi-instance parent overview: one finding per call site, listing each instance it came from."""
         db_svc, session_id = db
-        listener_id = await insert_listener(
-            db_svc, instance_name="instance_0", app_key="my_app", name="refresh", handler_method="refresh"
-        )
+        listener_id = await insert_listener(db_svc, app_key="my_app", name="refresh", handler_method="refresh")
         await tag_execution(db_svc, await insert_invocation(db_svc, listener_id, session_id), "exec-1")
         await insert_event(db_svc, instance_index=1, instance_name="office", execution_id="exec-1", detected_ts=2000.0)
         await insert_event(db_svc, instance_index=0, instance_name="bedroom", detected_ts=1000.0)

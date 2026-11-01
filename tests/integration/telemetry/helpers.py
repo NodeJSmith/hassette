@@ -73,17 +73,17 @@ async def insert_listener(
     db_svc: DatabaseService,
     *,
     app_key: str = "test_app",
-    instance_name: str,
+    instance_name: str | None = None,
     instance_index: int = 0,
     name: str | None = None,
     handler_method: str = "on_event",
     topic: str = "hass.event.state_changed",
     source_tier: str = "app",
 ) -> int:
-    # Default the natural-key name to handler_method so callers that vary handler_method
-    # (the pre-unification discriminator) get distinct names and don't collide on the
-    # (app_key, instance_name, name, topic) unique index.
+    # Default the natural-key name to handler_method so callers that vary handler_method get
+    # distinct names and don't collide on the (app_key, instance_name, name, topic) unique index.
     name = name if name is not None else handler_method
+    instance_name = instance_name if instance_name is not None else f"instance_{instance_index}"
     cursor = await db_svc.db.execute(
         """INSERT INTO listeners
                (app_key, instance_index, instance_name, name, handler_method, topic,
@@ -99,13 +99,14 @@ async def insert_job(
     db_svc: DatabaseService,
     *,
     app_key: str = "test_app",
-    instance_name: str,
+    instance_name: str | None = None,
     instance_index: int = 0,
     job_name: str = "my_job",
     handler_method: str = "run_job",
     source_tier: str = "app",
     schedule_status: str = "scheduled",
 ) -> int:
+    instance_name = instance_name if instance_name is not None else f"instance_{instance_index}"
     cursor = await db_svc.db.execute(
         """INSERT INTO scheduled_jobs
                (app_key, instance_index, instance_name, job_name, handler_method,
@@ -197,10 +198,8 @@ async def insert_listener_and_job(db_svc: DatabaseService, *, app_key: str = "te
     Returns:
         Tuple of (listener_id, job_id).
     """
-    listener_id = await insert_listener(db_svc, instance_name="instance_0", app_key=app_key, handler_method="on_event")
-    job_id = await insert_job(
-        db_svc, instance_name="instance_0", app_key=app_key, job_name="my_job", handler_method="run_job"
-    )
+    listener_id = await insert_listener(db_svc, app_key=app_key, handler_method="on_event")
+    job_id = await insert_job(db_svc, app_key=app_key, job_name="my_job", handler_method="run_job")
     return listener_id, job_id
 
 
@@ -210,12 +209,8 @@ async def insert_tiered_listeners(db_svc: DatabaseService, *, app_key: str = "te
     Returns:
         Tuple of (app_tier_listener_id, framework_tier_listener_id).
     """
-    app_listener = await insert_listener(
-        db_svc, instance_name="instance_0", app_key=app_key, handler_method="on_app", source_tier="app"
-    )
-    fw_listener = await insert_listener(
-        db_svc, instance_name="instance_0", app_key=app_key, handler_method="on_fw", source_tier="framework"
-    )
+    app_listener = await insert_listener(db_svc, app_key=app_key, handler_method="on_app", source_tier="app")
+    fw_listener = await insert_listener(db_svc, app_key=app_key, handler_method="on_fw", source_tier="framework")
     return app_listener, fw_listener
 
 
@@ -253,8 +248,8 @@ async def insert_app_listener_pair(db_svc: DatabaseService) -> tuple[int, int]:
     Returns:
         Tuple of (app_a_listener_id, app_b_listener_id).
     """
-    listener_a = await insert_listener(db_svc, instance_name="instance_0", app_key="app_a", handler_method="on_a")
-    listener_b = await insert_listener(db_svc, instance_name="instance_0", app_key="app_b", handler_method="on_b")
+    listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+    listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
     return listener_a, listener_b
 
 
