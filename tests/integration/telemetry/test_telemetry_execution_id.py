@@ -6,6 +6,7 @@ Covers the new columns added to the unified executions table (001.sql).
 import time
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.insert_params import execution_insert_params
@@ -41,7 +42,7 @@ def make_inv_record(
         session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=10.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
         execution_id=execution_id,
         trigger_context_id=trigger_context_id,
         trigger_origin=trigger_origin,
@@ -56,7 +57,7 @@ def make_job_record(job_id: int | None, session_id: int, *, execution_id: str | 
         session_id=session_id,
         execution_start_ts=time.time(),
         duration_ms=20.0,
-        status="success",
+        status=ExecutionStatus.SUCCESS,
         execution_id=execution_id,
     )
 

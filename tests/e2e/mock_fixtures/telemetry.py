@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping
 from typing import TypeVar
 from unittest.mock import AsyncMock
 
-from hassette_wire import Execution, JobSummary
+from hassette_wire import Execution, ExecutionStatus, JobSummary, ScheduleStatus
 
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
@@ -178,7 +178,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     """Build per-app job summaries for e2e tests."""
     telemetry_jobs_my_app = [
         JobSummary(
-            schedule_status="scheduled",
+            schedule_status=ScheduleStatus.SCHEDULED,
             job_id=1,
             app_key=APP_KEY_MY_APP,
             instance_index=0,
@@ -197,7 +197,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             avg_duration_ms=3.5,
         ),
         JobSummary(
-            schedule_status="scheduled",
+            schedule_status=ScheduleStatus.SCHEDULED,
             job_id=2,
             app_key=APP_KEY_MY_APP,
             instance_index=0,
@@ -234,12 +234,12 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             last_executed_at=None,
             total_duration_ms=0.0,
             avg_duration_ms=0.0,
-            schedule_status="manual",
+            schedule_status=ScheduleStatus.MANUAL,
         ),
     ]
     telemetry_jobs_broken_app = [
         JobSummary(
-            schedule_status="scheduled",
+            schedule_status=ScheduleStatus.SCHEDULED,
             job_id=3,
             app_key=APP_KEY_BROKEN_APP,
             instance_index=0,
@@ -261,7 +261,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     # nosource_app jobs — empty source fields for testing hidden source display.
     telemetry_jobs_nosource_app = [
         JobSummary(
-            schedule_status="scheduled",
+            schedule_status=ScheduleStatus.SCHEDULED,
             job_id=100,
             app_key=APP_KEY_NOSOURCE_APP,
             instance_index=0,
@@ -305,7 +305,7 @@ def build_executions() -> list[Execution]:
             listener_id=1,
             execution_start_ts=TS_BASE,
             duration_ms=2.5,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
             error_type=None,
             error_message=None,
             error_traceback=None,
@@ -315,7 +315,7 @@ def build_executions() -> list[Execution]:
             listener_id=1,
             execution_start_ts=TS_RECENT,
             duration_ms=3.1,
-            status="error",
+            status=ExecutionStatus.ERROR,
             error_type="ValueError",
             error_message="Bad state value",
             error_traceback=(
@@ -328,7 +328,7 @@ def build_executions() -> list[Execution]:
             job_id=7,
             execution_start_ts=TS_BASE,
             duration_ms=3.0,
-            status="success",
+            status=ExecutionStatus.SUCCESS,
             error_type=None,
             error_message=None,
         ),
@@ -337,7 +337,7 @@ def build_executions() -> list[Execution]:
             job_id=7,
             execution_start_ts=TS_RECENT,
             duration_ms=4.2,
-            status="error",
+            status=ExecutionStatus.ERROR,
             error_type="TimeoutError",
             error_message="Light service unavailable",
         ),

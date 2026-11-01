@@ -60,11 +60,13 @@ async def test_listener_registration_persists_correct_app_key(
     assert row[1] == 2, f"Expected instance_index=2, got {row[1]}"
 
 
-@pytest.mark.parametrize("mode", ["single", "restart", "queued", "parallel"])
+@pytest.mark.parametrize(
+    "mode", [ExecutionMode.SINGLE, ExecutionMode.RESTART, ExecutionMode.QUEUED, ExecutionMode.PARALLEL]
+)
 async def test_listener_registration_persists_mode(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
-    mode: str,
+    mode: ExecutionMode,
 ) -> None:
     """register_listener() persists the resolved execution mode."""
     db_service, _ = initialized_db
@@ -89,7 +91,7 @@ async def test_listener_mode_updates_on_reregistration(
     """A mode-only change updates the persisted mode on the same row via the upsert."""
     db_service, _ = initialized_db
 
-    def make_reg(mode: str) -> ListenerRegistration:
+    def make_reg(mode: ExecutionMode) -> ListenerRegistration:
         return make_listener_registration(
             app_key="my_app",
             handler_method="MyApp.on_event",
@@ -97,8 +99,8 @@ async def test_listener_mode_updates_on_reregistration(
             mode=mode,
         )
 
-    first_id = await executor.register_listener(make_reg("single"))
-    second_id = await executor.register_listener(make_reg("queued"))
+    first_id = await executor.register_listener(make_reg(ExecutionMode.SINGLE))
+    second_id = await executor.register_listener(make_reg(ExecutionMode.QUEUED))
 
     # Same natural key -> same row preserved, mode updated in place.
     assert second_id == first_id
