@@ -10,7 +10,6 @@ from hassette.utils import date_utils
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, settle
 
 if TYPE_CHECKING:
-    from hassette import Hassette
     from hassette.scheduler import Scheduler
     from hassette.testing import HassetteHarness
 
@@ -18,7 +17,7 @@ if TYPE_CHECKING:
 class _SchedulerErrorCollector:
     """Records the `SchedulerErrorContext` values an `on_error` handler receives."""
 
-    def __init__(self, hassette: "Hassette") -> None:
+    def __init__(self, hassette: "HassetteHarness") -> None:
         self.hassette = hassette
         self.contexts: list[SchedulerErrorContext] = []
         self.ran = asyncio.Event()

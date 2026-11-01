@@ -21,6 +21,7 @@ from tests.support.helpers import entity_topic, noop
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.events import HassStateDict
 
 ALARM_ENTITY = "sensor.phone_next_alarm"
 CHANGE_DISPATCH_TIMEOUT_SECONDS = 5.0
@@ -43,7 +44,7 @@ async def entity_time_harness(test_config) -> AsyncIterator[HassetteHarness]:
 
 async def seed_alarm(harness: HassetteHarness, value: str) -> None:
     """Put an alarm time into the StateProxy cache."""
-    await harness.seed_state(ALARM_ENTITY, make_state_dict(ALARM_ENTITY, value))
+    await harness.seed_state(ALARM_ENTITY, typing.cast("HassStateDict", make_state_dict(ALARM_ENTITY, value)))
 
 
 async def change_alarm(
@@ -90,7 +91,7 @@ def iso_in(minutes: int) -> str:
     return date_utils.now().add(minutes=minutes).round("second").format_iso()
 
 
-def watch_listener_names(hassette: "Hassette") -> list[str]:
+def watch_listener_names(hassette: "Hassette") -> list[str | None]:
     """Return the names of the scheduler's entity-watch listeners for the alarm entity."""
     topic = entity_topic(ALARM_ENTITY)
     return [listener.identity.name for listener in hassette.bus_service.router.get_topic_listeners(topic)]
@@ -287,6 +288,7 @@ async def test_daily_mode_ignores_the_entity_date(entity_time_harness: HassetteH
         noop, EntityTime(ALARM_ENTITY, daily=True), name="entity_time_daily_ignores_date"
     )
 
+    assert job.next_run is not None
     # Cron granularity is whole minutes, so compare the wall-clock minute.
     assert (job.next_run.hour, job.next_run.minute) == (target.hour, target.minute)
     assert job.next_run > date_utils.now()
@@ -521,7 +523,7 @@ async def test_attribute_only_change_moves_the_job(entity_time_harness: Hassette
     """With attribute=, a change to that attribute moves the job even when the state stays the same."""
     first = iso_in(60)
     await entity_time_harness.seed_state(
-        ALARM_ENTITY, make_state_dict(ALARM_ENTITY, "on", attributes={"next_time": first})
+        ALARM_ENTITY, typing.cast("HassStateDict", make_state_dict(ALARM_ENTITY, "on", attributes={"next_time": first}))
     )
 
     job = await entity_time_harness.scheduler.schedule(
