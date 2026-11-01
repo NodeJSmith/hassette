@@ -29,7 +29,15 @@ Tier 1 warns only when a stall repeats. A single lag event is weak evidence, so 
 
 The warning integrates with standard Python filter machinery: `filterwarnings("error")`, `-W error`, and `pytest.warns` all work as expected.
 
-Tier 2 emits this warning *before* the blocking call runs. On its own the call still proceeds — the warning is informational. Escalating the warning to an error turns Tier 2 into an interceptor: with `filterwarnings("error", category=HassetteBlockingIOWarning)` active, the emit raises, and the blocking call never runs. Adding that filter to a pytest config or to application startup is the recommended way to make blocking I/O fail fast during development and CI. Tier 1 never raises — it reports a stall after the fact, regardless of the filter.
+Tier 2 emits this warning *before* the blocking call runs. On its own the call still proceeds — the warning is informational. Escalating the warning to an error turns Tier 2 into an interceptor: with `filterwarnings("error", category=HassetteBlockingIOWarning)` active, the emit raises, and the blocking call never runs. Tier 1 never raises — it reports a stall after the fact, regardless of the filter.
+
+The error filter makes blocking I/O fail fast during development. It belongs at the top of the app's module, which Hassette imports at startup. Warning filters apply to the whole process, so the filter affects every app:
+
+```python
+--8<-- "pages/core-concepts/blocking-io-detection/snippets/fail_fast_filter.py"
+```
+
+The filter takes effect only while Tier 2 is active. `AppTestHarness` doesn't install Tier 2, so the filter won't catch blocking calls in harness tests. A `hassette run` in `dev_mode` catches them instead.
 
 ## Finding Blocking Calls
 
