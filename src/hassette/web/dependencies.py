@@ -28,13 +28,14 @@ AppKeyPath = Annotated[str, Path(description="Use `__hassette__` to query framew
 InstanceIndexQuery = Annotated[
     int,
     Query(
+        ge=0,
         description=f"App instance index. Defaults to {DEFAULT_INSTANCE_INDEX}. "
-        "Multi-instance apps have indices 0..N-1."
+        "Multi-instance apps have indices 0..N-1.",
     ),
 ]
 """Instance index for routes that view one instance; pair it with ``= DEFAULT_INSTANCE_INDEX``."""
 OptionalInstanceIndexQuery = Annotated[
-    int | None, Query(description="App instance index. Omit for every instance of the app.")
+    int | None, Query(ge=0, description="App instance index. Omit for every instance of the app.")
 ]
 """Instance index for routes that serve the multi-instance parent overview, where omitting it means every instance."""
 SinceQuery = Annotated[float | None, Query(allow_inf_nan=False)]
@@ -114,13 +115,18 @@ AuthDep = Annotated[str | None, Depends(get_resolved_auth_token)]
 def instance_name_filter(hassette: "Hassette", app_key: str | None, instance_index: int | None) -> str | None:
     """Translate a route's instance index to the name telemetry queries filter on; ``None`` means no filter.
 
-    A framework key has exactly one instance, so its queries need no instance filter. An index with no
-    configured name resolves to a display label no validated name can equal, so the query answers empty rather
-    than another instance's history. Log and blocking rows stored before names were validated can hold that label.
+    A framework key has exactly one instance, so its queries need no instance filter. An app that is neither
+    loaded nor tracked (removed from config, its history still browsable) has no instance to name, so an index
+    on it means every former instance. For any other app, including a still-running orphan, an index with no
+    name resolves to a display label no validated name can equal, so the query answers empty rather than another
+    instance's history. Log and blocking rows stored before names were validated can hold that label.
     """
     if app_key is None or instance_index is None or is_framework_key(app_key):
         return None
-    return hassette.app_handler.registry.instance_name(app_key, instance_index)
+    registry = hassette.app_handler.registry
+    if registry.get_manifest(app_key) is None and not registry.tracked_indices(app_key):
+        return None
+    return registry.instance_name(app_key, instance_index)
 
 
 class TelemetryFilterKwargs(TypedDict):

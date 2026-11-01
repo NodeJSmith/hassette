@@ -1149,7 +1149,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": 0
                 },
                 {
                   "type": "null"
@@ -1366,6 +1367,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
@@ -1527,6 +1529,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
@@ -1630,6 +1633,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
@@ -1738,7 +1742,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": 0
                 },
                 {
                   "type": "null"
@@ -1862,6 +1867,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
@@ -1970,7 +1976,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": 0
                 },
                 {
                   "type": "null"
