@@ -1,6 +1,6 @@
 """Integration tests for get_log_records filter clauses (summary_queries.py).
 
-Covers the execution_id, author, level, since, app_key, and instance_index filter branches
+Covers the execution_id, author, level, since, app_key, and instance_name filter branches
 that are uncovered by the web API mock layer.
 """
 
@@ -34,7 +34,7 @@ async def insert_log_record(
         """INSERT INTO log_records
                (seq, timestamp, level, logger_name, func_name, lineno, message,
                 exc_info, app_key, instance_name, instance_index, execution_id, author)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)""",
         (
             next(SEQ_COUNTER),
             ts,
@@ -44,6 +44,7 @@ async def insert_log_record(
             1,
             message,
             app_key,
+            f"instance_{instance_index}",
             instance_index,
             execution_id,
             author,
@@ -153,12 +154,12 @@ class TestGetLogRecordsFilters:
         assert len(results) == 1
         assert results[0]["message"] == "a"
 
-    async def test_filter_by_instance_index(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
+    async def test_filter_by_instance_name(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, app_key="multi", instance_index=0, message="zero")
         await insert_log_record(db_svc, app_key="multi", instance_index=1, message="one")
 
-        filtered = await query_service.get_log_records(app_key="multi", instance_index=1)
+        filtered = await query_service.get_log_records(app_key="multi", instance_name="instance_1")
         unfiltered = await query_service.get_log_records(app_key="multi")
 
         assert [(r["message"], r["instance_index"]) for r in filtered] == [("one", 1)]
@@ -180,7 +181,7 @@ class TestGetLogRecordsFilters:
     ) -> None:
         """Log records JOIN executions to get execution_kind, listener_id, job_id."""
         db_svc, session_id = db
-        listener_id = await insert_listener(db_svc)
+        listener_id = await insert_listener(db_svc, instance_name="instance_0")
         # Insert an execution row so the JOIN has something to match
         await db_svc.db.execute(
             """INSERT INTO executions

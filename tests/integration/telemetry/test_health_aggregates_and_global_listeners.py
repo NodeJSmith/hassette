@@ -38,20 +38,24 @@ class TestGetAppHealthAggregates:
         db_svc, session_id = db
 
         # Two listeners with mixed statuses
-        listener_id_1 = await insert_listener(db_svc, app_key="test_app", handler_method="on_a")
-        listener_id_2 = await insert_listener(db_svc, app_key="test_app", handler_method="on_b")
+        listener_id_1 = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="test_app", handler_method="on_a"
+        )
+        listener_id_2 = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="test_app", handler_method="on_b"
+        )
         await insert_invocation(db_svc, listener_id_1, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, listener_id_1, session_id, status="error", duration_ms=20.0)
         await insert_invocation(db_svc, listener_id_1, session_id, status="timed_out", duration_ms=5.0)
         await insert_invocation(db_svc, listener_id_2, session_id, status="success", duration_ms=30.0)
 
         # One job with mixed statuses
-        job_id_1 = await insert_job(db_svc, app_key="test_app", job_name="my_job")
+        job_id_1 = await insert_job(db_svc, instance_name="instance_0", app_key="test_app", job_name="my_job")
         await insert_execution(db_svc, job_id_1, session_id, status="success", duration_ms=100.0)
         await insert_execution(db_svc, job_id_1, session_id, status="error", duration_ms=50.0)
         await insert_execution(db_svc, job_id_1, session_id, status="timed_out", duration_ms=25.0)
 
-        agg = await query_service.get_app_health_aggregates(app_key="test_app", instance_index=0)
+        agg = await query_service.get_app_health_aggregates(app_key="test_app", instance_name="instance_0")
 
         assert isinstance(agg, AppHealthAggregates)
         # Handler totals: 4 invocations across listener_id_1 and listener_id_2
@@ -77,16 +81,18 @@ class TestGetAppHealthAggregates:
         """Executions of handlers and jobs removed after they ran still count toward health."""
         db_svc, session_id = db
 
-        live = await insert_listener(db_svc, app_key="test_app", handler_method="on_live")
-        removed = await insert_listener(db_svc, app_key="test_app", handler_method="on_removed")
-        removed_job = await insert_job(db_svc, app_key="test_app", job_name="removed_job")
+        live = await insert_listener(db_svc, instance_name="instance_0", app_key="test_app", handler_method="on_live")
+        removed = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="test_app", handler_method="on_removed"
+        )
+        removed_job = await insert_job(db_svc, instance_name="instance_0", app_key="test_app", job_name="removed_job")
         await insert_invocation(db_svc, live, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, removed, session_id, status="error", duration_ms=20.0)
         await insert_execution(db_svc, removed_job, session_id, status="error", duration_ms=40.0)
         await set_listener_removed_at(db_svc, removed, 1000.0)
         await set_job_removed_at(db_svc, removed_job, 1000.0)
 
-        agg = await query_service.get_app_health_aggregates(app_key="test_app", instance_index=0)
+        agg = await query_service.get_app_health_aggregates(app_key="test_app", instance_name="instance_0")
 
         assert agg.total_invocations == 2
         assert agg.handler_errors == 1
@@ -99,7 +105,7 @@ class TestGetAppHealthAggregates:
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """App with no invocations or executions returns zero counts and None averages and last_activity_ts."""
-        result = await query_service.get_app_health_aggregates(app_key="no_such_app", instance_index=0)
+        result = await query_service.get_app_health_aggregates(app_key="no_such_app", instance_name="instance_0")
 
         assert isinstance(result, AppHealthAggregates)
         assert result.total_invocations == 0
@@ -116,11 +122,13 @@ class TestGetAppHealthAggregates:
         """App with handlers but no jobs returns correct handler totals, zero job totals, no job average."""
         db_svc, session_id = db
 
-        listener_id = await insert_listener(db_svc, app_key="handler_only", handler_method="on_event")
+        listener_id = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="handler_only", handler_method="on_event"
+        )
         await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=15.0)
         await insert_invocation(db_svc, listener_id, session_id, status="error", duration_ms=8.0)
 
-        agg = await query_service.get_app_health_aggregates(app_key="handler_only", instance_index=0)
+        agg = await query_service.get_app_health_aggregates(app_key="handler_only", instance_name="instance_0")
 
         assert agg.total_invocations == 2
         assert agg.handler_errors == 1
@@ -134,11 +142,11 @@ class TestGetAppHealthAggregates:
         """App with jobs but no listeners returns correct job totals, zero handler totals, no handler average."""
         db_svc, session_id = db
 
-        job_id = await insert_job(db_svc, app_key="job_only", job_name="scheduled")
+        job_id = await insert_job(db_svc, instance_name="instance_0", app_key="job_only", job_name="scheduled")
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=40.0)
         await insert_execution(db_svc, job_id, session_id, status="timed_out", duration_ms=90.0)
 
-        agg = await query_service.get_app_health_aggregates(app_key="job_only", instance_index=0)
+        agg = await query_service.get_app_health_aggregates(app_key="job_only", instance_name="instance_0")
 
         assert agg.total_invocations == 0
         assert agg.handler_errors == 0
@@ -156,7 +164,9 @@ class TestGetAppHealthAggregates:
 
         since_ts = BASE_TS + 50.0
 
-        listener_id = await insert_listener(db_svc, app_key="windowed_app", handler_method="on_event")
+        listener_id = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="windowed_app", handler_method="on_event"
+        )
         # Before since: should not count
         await insert_invocation(
             db_svc, listener_id, session_id, status="error", duration_ms=5.0, execution_start_ts=BASE_TS + 10.0
@@ -166,7 +176,7 @@ class TestGetAppHealthAggregates:
             db_svc, listener_id, session_id, status="success", duration_ms=20.0, execution_start_ts=BASE_TS + 100.0
         )
 
-        job_id = await insert_job(db_svc, app_key="windowed_app", job_name="windowed_job")
+        job_id = await insert_job(db_svc, instance_name="instance_0", app_key="windowed_app", job_name="windowed_job")
         # Before since: should not count
         await insert_execution(
             db_svc, job_id, session_id, status="timed_out", duration_ms=15.0, execution_start_ts=BASE_TS + 5.0
@@ -176,7 +186,9 @@ class TestGetAppHealthAggregates:
             db_svc, job_id, session_id, status="success", duration_ms=60.0, execution_start_ts=BASE_TS + 200.0
         )
 
-        agg = await query_service.get_app_health_aggregates(app_key="windowed_app", instance_index=0, since=since_ts)
+        agg = await query_service.get_app_health_aggregates(
+            app_key="windowed_app", instance_name="instance_0", since=since_ts
+        )
 
         # Only post-since records counted
         assert agg.total_invocations == 1
@@ -193,8 +205,10 @@ class TestGetAppHealthAggregates:
         """last_activity_ts is the max of handler and job timestamps."""
         db_svc, session_id = db
 
-        listener_id = await insert_listener(db_svc, app_key="ts_app", handler_method="on_event")
-        job_id = await insert_job(db_svc, app_key="ts_app", job_name="ts_job")
+        listener_id = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="ts_app", handler_method="on_event"
+        )
+        job_id = await insert_job(db_svc, instance_name="instance_0", app_key="ts_app", job_name="ts_job")
 
         await insert_invocation(
             db_svc, listener_id, session_id, status="success", duration_ms=5.0, execution_start_ts=BASE_TS + 10.0
@@ -203,20 +217,20 @@ class TestGetAppHealthAggregates:
             db_svc, job_id, session_id, status="success", duration_ms=5.0, execution_start_ts=BASE_TS + 99.0
         )
 
-        agg = await query_service.get_app_health_aggregates(app_key="ts_app", instance_index=0)
+        agg = await query_service.get_app_health_aggregates(app_key="ts_app", instance_name="instance_0")
 
         # Max of the two timestamps
         assert agg.last_activity_ts == pytest.approx(BASE_TS + 99.0)
 
-    async def test_instance_index_scoping(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        """Only records for the specified instance_index are counted."""
+    async def test_instance_name_scoping(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
+        """Only records for the specified instance_name are counted."""
         db_svc, session_id = db
 
         listener_id_inst0 = await insert_listener(
-            db_svc, app_key="multi_inst", instance_index=0, handler_method="on_event"
+            db_svc, instance_name="instance_0", app_key="multi_inst", instance_index=0, handler_method="on_event"
         )
         listener_id_inst1 = await insert_listener(
-            db_svc, app_key="multi_inst", instance_index=1, handler_method="on_event"
+            db_svc, instance_name="instance_1", app_key="multi_inst", instance_index=1, handler_method="on_event"
         )
 
         await insert_invocation(db_svc, listener_id_inst0, session_id, status="success", duration_ms=10.0)
@@ -224,12 +238,12 @@ class TestGetAppHealthAggregates:
         await insert_invocation(db_svc, listener_id_inst1, session_id, status="error", duration_ms=50.0)
 
         # Query instance 0 only — should see 2 successes, no errors
-        agg = await query_service.get_app_health_aggregates(app_key="multi_inst", instance_index=0)
+        agg = await query_service.get_app_health_aggregates(app_key="multi_inst", instance_name="instance_0")
         assert agg.total_invocations == 2
         assert agg.handler_errors == 0
 
         # Query instance 1 only — should see 1 error
-        agg1 = await query_service.get_app_health_aggregates(app_key="multi_inst", instance_index=1)
+        agg1 = await query_service.get_app_health_aggregates(app_key="multi_inst", instance_name="instance_1")
         assert agg1.total_invocations == 1
         assert agg1.handler_errors == 1
 
@@ -242,11 +256,13 @@ class TestGetListenerSummaryGlobal:
         db_svc, session_id = db
 
         listener_id_alpha = await insert_listener(
-            db_svc, app_key="app_alpha", instance_index=0, handler_method="on_alpha"
+            db_svc, instance_name="instance_0", app_key="app_alpha", instance_index=0, handler_method="on_alpha"
         )
-        listener_id_beta = await insert_listener(db_svc, app_key="app_beta", instance_index=0, handler_method="on_beta")
+        listener_id_beta = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="app_beta", instance_index=0, handler_method="on_beta"
+        )
         listener_id_alpha_1 = await insert_listener(
-            db_svc, app_key="app_alpha", instance_index=1, handler_method="on_alpha_1"
+            db_svc, instance_name="instance_1", app_key="app_alpha", instance_index=1, handler_method="on_alpha_1"
         )
 
         await insert_invocation(db_svc, listener_id_alpha, session_id, status="success", duration_ms=5.0)
@@ -269,8 +285,12 @@ class TestGetListenerSummaryGlobal:
         """Results match the union of per-instance get_listener_summary() calls."""
         db_svc, session_id = db
 
-        listener_id_x = await insert_listener(db_svc, app_key="app_x", instance_index=0, handler_method="on_x0")
-        listener_id_y = await insert_listener(db_svc, app_key="app_y", instance_index=0, handler_method="on_y0")
+        listener_id_x = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="app_x", instance_index=0, handler_method="on_x0"
+        )
+        listener_id_y = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="app_y", instance_index=0, handler_method="on_y0"
+        )
 
         await insert_invocation(db_svc, listener_id_x, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, listener_id_x, session_id, status="success", duration_ms=20.0)
@@ -278,8 +298,8 @@ class TestGetListenerSummaryGlobal:
 
         global_results = await query_service.get_listener_summary(source_tier="all")
 
-        per_x = await query_service.get_listener_summary(app_key="app_x", instance_index=0, source_tier="all")
-        per_y = await query_service.get_listener_summary(app_key="app_y", instance_index=0, source_tier="all")
+        per_x = await query_service.get_listener_summary(app_key="app_x", instance_name="instance_0", source_tier="all")
+        per_y = await query_service.get_listener_summary(app_key="app_y", instance_name="instance_0", source_tier="all")
         combined = {r.listener_id: r for r in per_x + per_y}
 
         assert len(global_results) == len(combined)
@@ -293,7 +313,9 @@ class TestGetListenerSummaryGlobal:
         """Multiple errors — all last_error_* columns come from the same (most recent) error row."""
         db_svc, session_id = db
 
-        listener_id = await insert_listener(db_svc, app_key="coh_app", handler_method="on_event")
+        listener_id = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="coh_app", handler_method="on_event"
+        )
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),
@@ -310,9 +332,15 @@ class TestGetListenerSummaryGlobal:
         """source_tier='app' excludes framework-tier listeners."""
         db_svc, _ = db
 
-        await insert_listener(db_svc, app_key="my_app", handler_method="on_event", source_tier="app")
         await insert_listener(
-            db_svc, app_key="__hassette__Internal", handler_method="on_internal", source_tier="framework"
+            db_svc, instance_name="instance_0", app_key="my_app", handler_method="on_event", source_tier="app"
+        )
+        await insert_listener(
+            db_svc,
+            instance_name="instance_0",
+            app_key="__hassette__Internal",
+            handler_method="on_internal",
+            source_tier="framework",
         )
 
         results = await query_service.get_listener_summary(source_tier="app")
@@ -326,9 +354,15 @@ class TestGetListenerSummaryGlobal:
         """source_tier='all' returns both app and framework tier listeners."""
         db_svc, _ = db
 
-        await insert_listener(db_svc, app_key="my_app", handler_method="on_event", source_tier="app")
         await insert_listener(
-            db_svc, app_key="__hassette__Internal", handler_method="on_internal", source_tier="framework"
+            db_svc, instance_name="instance_0", app_key="my_app", handler_method="on_event", source_tier="app"
+        )
+        await insert_listener(
+            db_svc,
+            instance_name="instance_0",
+            app_key="__hassette__Internal",
+            handler_method="on_internal",
+            source_tier="framework",
         )
 
         results = await query_service.get_listener_summary(source_tier="all")
@@ -344,7 +378,9 @@ class TestGetListenerSummaryGlobal:
         db_svc, session_id = db
 
         since_ts = BASE_TS + 50.0
-        listener_id = await insert_listener(db_svc, app_key="windowed", handler_method="on_event")
+        listener_id = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="windowed", handler_method="on_event"
+        )
 
         # Before since: should not count in aggregates
         await insert_invocation(
@@ -372,7 +408,9 @@ class TestGetListenerSummaryGlobal:
         db_svc, session_id = db
         since_ts = BASE_TS + 50.0
 
-        listener_id = await insert_listener(db_svc, app_key="my_app", handler_method="on_event")
+        listener_id = await insert_listener(
+            db_svc, instance_name="instance_0", app_key="my_app", handler_method="on_event"
+        )
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_invocation(db_svc, listener_id, session_id, **kw),

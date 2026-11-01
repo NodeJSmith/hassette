@@ -174,15 +174,15 @@ async def test_once_listeners_collide_like_durable_listeners(bus: "Bus") -> None
 
 
 async def test_listener_natural_key_is_canonical_4_tuple(bus: "Bus") -> None:
-    """_listener_natural_key returns exactly (app_key, instance_index, name, topic)."""
+    """_listener_natural_key returns exactly (app_key, instance_name, name, topic)."""
     with mock_add_listener(bus):
         sub = await bus.on(topic="hass.state_changed.light.kitchen", handler=handler_a, name="kitchen")
         key = bus._listener_natural_key(sub.listener)
 
     assert len(key) == 4, f"Natural key must be a 4-tuple, got {len(key)}-tuple: {key}"
 
-    app_key, instance_index, name, topic = key
+    app_key, instance_name, name, topic = key
     assert app_key == sub.listener.identity.app_key
-    assert instance_index == sub.listener.identity.instance_index
+    assert instance_name == sub.listener.identity.instance_name
     assert name == "kitchen"
     assert topic == "hass.state_changed.light.kitchen"

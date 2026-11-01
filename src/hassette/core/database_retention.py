@@ -13,8 +13,9 @@ from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, 
 from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.core.telemetry.reconcile_sql import (
     build_prune_removed_app_manifests_query,
-    build_retire_removed_apps_query,
+    build_retire_unconfigured_instances_query,
 )
+from hassette.schemas.app_config_shape import normalize_app_config
 
 if typing.TYPE_CHECKING:
     import logging
@@ -101,7 +102,8 @@ class ParentGuardResult:
 
     listeners_retired: int = 0
     jobs_retired: int = 0
-    retired_app_keys: tuple[str, ...] = ()
+    retired_instances: tuple[str, ...] = ()
+    """``app_key/instance_name`` labels of the instances whose rows were retired, for the log line."""
     listeners_deleted: int = 0
     jobs_deleted: int = 0
     pruned_manifest_keys: tuple[str, ...] = ()
@@ -223,19 +225,44 @@ class DatabaseRetentionMixin:
             keys.update(app_handler.registry.app_keys())
         return sorted(keys)
 
+    def live_instances(self) -> list[tuple[str, str]]:
+        """Return every ``(app_key, instance_name)`` retention must treat as present: configured, or running.
+
+        Every configured block counts, whether or not it is enabled or started. The running half matters for
+        the same reason as in ``live_app_keys()``: a rename mid-reload installs the new config before it stops
+        the instance under its old name.
+        """
+        pairs = {
+            (app_key, instance_config["instance_name"])
+            for app_key, manifest in self.hassette.config.apps.manifests.items()
+            for instance_config in normalize_app_config(manifest.app_config)
+        }
+        try:
+            app_handler = self.hassette.app_handler
+        except RuntimeError:
+            self.logger.debug("AppHandler not wired; treating config instances as the live set")
+        else:
+            pairs.update((app.app_key, app.app_config.instance_name) for app in app_handler.registry.all_apps())
+        return sorted(pairs)
+
     async def _run_parent_guard_deletes(
-        self, cutoff: float, now: float, live_app_keys: list[str], current_session_id: int | None
+        self,
+        cutoff: float,
+        now: float,
+        live_app_keys: list[str],
+        live_instances: list[tuple[str, str]],
+        current_session_id: int | None,
     ) -> ParentGuardResult:
-        """Retire removed apps' registrations, run the NOT EXISTS-guarded deletes, then prune manifests.
+        """Retire unconfigured instances' registrations, run the NOT EXISTS-guarded deletes, then prune manifests.
 
         "Parent-guard" names the whole second phase of a cleanup cycle; all of it runs in one
         transaction:
 
-        1. Retire unretired app-tier listener/scheduled_job rows of apps not in
-           ``live_app_keys`` (``build_retire_removed_apps_query``). Removed apps are never
-           reconciled again, so without this their rows would never age out. Rows are retired
-           rather than deleted, so an execution still waiting in the write queue keeps a valid
-           parent.
+        1. Retire unretired app-tier listener/scheduled_job rows of instances not in
+           ``live_instances`` (``build_retire_unconfigured_instances_query``). Removed apps are
+           never reconciled again, and reconciling a renamed instance only covers its new name, so
+           without this those rows would never age out. Rows are retired rather than deleted, so an
+           execution still waiting in the write queue keeps a valid parent.
         2. Delete retired listeners/scheduled_jobs only once ALL their child executions have
            also aged out. This prevents orphaning recent executions whose parent row would be
            deleted because retired_at (set at restart time) diverges from last execution time.
@@ -252,24 +279,25 @@ class DatabaseRetentionMixin:
         Args:
             cutoff: Retention cutoff for step 2's and step 4's deletes.
             now: Timestamp step 1 stamps into ``retired_at``.
-            live_app_keys: App keys to leave alone (see ``live_app_keys()``).
+            live_app_keys: App keys whose manifests to keep (see ``live_app_keys()``).
+            live_instances: Instances whose rows to leave active (see ``live_instances()``).
             current_session_id: The live session's id, never deleted; None if no session exists yet.
 
         Returns:
-            ParentGuardResult: Rows retired and deleted, and the app keys retired and pruned.
+            ParentGuardResult: Rows retired and deleted, the instances retired, and the app keys pruned.
 
         Raises:
             Exception: Propagates any DB error from the statements.
         """
         await self.db.execute(SQL_BEGIN)
         retired_listener_cursor = await self.db.execute(
-            *build_retire_removed_apps_query("listeners", live_app_keys, now)
+            *build_retire_unconfigured_instances_query("listeners", live_instances, now)
         )
-        retired_listener_keys = [row[0] for row in await retired_listener_cursor.fetchall()]
+        retired_listener_instances = [f"{row[0]}/{row[1]}" for row in await retired_listener_cursor.fetchall()]
         retired_job_cursor = await self.db.execute(
-            *build_retire_removed_apps_query("scheduled_jobs", live_app_keys, now)
+            *build_retire_unconfigured_instances_query("scheduled_jobs", live_instances, now)
         )
-        retired_job_keys = [row[0] for row in await retired_job_cursor.fetchall()]
+        retired_job_instances = [f"{row[0]}/{row[1]}" for row in await retired_job_cursor.fetchall()]
         deleted_listener_cursor = await self.db.execute(
             """
             DELETE FROM listeners
@@ -309,9 +337,9 @@ class DatabaseRetentionMixin:
         )
         await self.db.commit()
         return ParentGuardResult(
-            listeners_retired=len(retired_listener_keys),
-            jobs_retired=len(retired_job_keys),
-            retired_app_keys=tuple(sorted(set(retired_listener_keys) | set(retired_job_keys))),
+            listeners_retired=len(retired_listener_instances),
+            jobs_retired=len(retired_job_instances),
+            retired_instances=tuple(sorted(set(retired_listener_instances) | set(retired_job_instances))),
             listeners_deleted=deleted_listener_cursor.rowcount or 0,
             jobs_deleted=deleted_job_cursor.rowcount or 0,
             pruned_manifest_keys=pruned_manifest_keys,
@@ -393,7 +421,7 @@ class DatabaseRetentionMixin:
                 # Use the standard retention window for parent-guard deletes.
                 cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
                 guard = await self._run_parent_guard_deletes(
-                    cutoff, now, self.live_app_keys(), self.hassette.try_session_id()
+                    cutoff, now, self.live_app_keys(), self.live_instances(), self.hassette.try_session_id()
                 )
             # Storage errors are logged; anything else is a bug and propagates. Cancellation needs no
             # rollback here: every cancellation path either rolls back itself (the startup
@@ -422,12 +450,12 @@ class DatabaseRetentionMixin:
                 parts or "nothing",
                 f" ({'; '.join(tags)})" if tags else "",
             )
-        if guard.retired_app_keys:
+        if guard.retired_instances:
             self.logger.info(
-                "Retention cleanup: retired %d listeners, %d scheduled_jobs of apps no longer in config: %s",
+                "Retention cleanup: retired %d listeners, %d scheduled_jobs of removed or renamed instances: %s",
                 guard.listeners_retired,
                 guard.jobs_retired,
-                ", ".join(guard.retired_app_keys),
+                ", ".join(guard.retired_instances),
             )
         if guard.listeners_deleted or guard.jobs_deleted:
             self.logger.info(

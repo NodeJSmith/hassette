@@ -57,7 +57,7 @@ class AppInstanceLifecycleMixin:
         app_key: str,
         instances: dict[int, "App[AppConfig]"],
         manifest: "AppManifest",
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         only_indices: set[int] | None = None,
         *,
         outcomes: ActionOutcomes,
@@ -75,10 +75,11 @@ class AppInstanceLifecycleMixin:
                 by ``only_indices`` when provided) and post-ready reconciliation (always uses
                 the full dict so that pre-existing instances' listener/job rows are not retired).
             manifest: The app manifest
-            instance_index: When provided, scopes post-ready reconciliation to this instance
+            instance_name: When provided, scopes post-ready reconciliation to this instance
                 only, so restarting one instance does not retire sibling instances' rows.
                 When None (default), reconciliation is app_key-scoped only — unchanged behavior.
-            only_indices: When provided, only instances at these indices are initialized.
+            only_indices: When provided, only instances at these indices are initialized. Unrelated to
+                ``instance_name``, which scopes the stored rows reconciliation may touch.
                 Others are skipped but still included in reconciliation.
             outcomes: The request's outcomes; must target every initialized index.
         """
@@ -99,7 +100,7 @@ class AppInstanceLifecycleMixin:
 
         # Post-ready reconciliation: retire stale rows from previous sessions.
         # Runs after the instance loop to ensure all registrations are complete.
-        await self.reconcile_app_registrations(app_key, instances, instance_index=instance_index)
+        await self.reconcile_app_registrations(app_key, instances, instance_name=instance_name)
 
     async def initialize_instance(
         self, inst: "App[AppConfig]", index: int, class_name: str, *, outcomes: ActionOutcomes

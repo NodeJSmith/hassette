@@ -7,7 +7,7 @@ from fastapi import Depends, Path, Query, Request
 from hassette_wire import LogLevel, QueryAuthor, QuerySourceTier
 
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
-from hassette.types.types import APP_SOURCE_TIER, LOG_LEVELS
+from hassette.types.types import APP_SOURCE_TIER, LOG_LEVELS, is_framework_key
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -111,10 +111,22 @@ ApiDep = Annotated["Api", Depends(get_api)]
 AuthDep = Annotated[str | None, Depends(get_resolved_auth_token)]
 
 
+def instance_name_filter(hassette: "Hassette", app_key: str | None, index: int | None) -> str | None:
+    """Translate a route's instance index to the name telemetry queries filter on; ``None`` means no filter.
+
+    A framework key has exactly one instance, so its queries need no instance filter. An index with no
+    configured name resolves to a display label that can't pass name validation, so it matches no stored row
+    and the query answers empty rather than another instance's history.
+    """
+    if app_key is None or index is None or is_framework_key(app_key):
+        return None
+    return hassette.app_handler.registry.instance_name(app_key, index)
+
+
 class TelemetryFilterKwargs(TypedDict):
     """Keyword arguments accepted by every per-app ``TelemetryQueryService`` filter method."""
 
-    instance_index: int
+    instance_name: str | None
     since: float | None
     source_tier: QuerySourceTier
 
@@ -123,19 +135,25 @@ class TelemetryFilterKwargs(TypedDict):
 class TelemetryFilters:
     """The instance/time/tier query parameters shared by the per-app telemetry routes.
 
+    ``hassette`` is an injected dependency for resolving the index to its name, not a query parameter.
+
     Declared once here and injected via ``TelemetryFiltersDep`` so a route signature names the
     filter set instead of restating all three parameters. FastAPI flattens a dependency's
     parameters into the operation, so the OpenAPI schema is the same as declaring them inline.
     """
 
+    hassette: HassetteDep
     instance_index: InstanceIndexQuery = DEFAULT_INSTANCE_INDEX
     since: SinceQuery = None
     source_tier: SourceTierQuery = APP_SOURCE_TIER
 
-    @property
-    def query_kwargs(self) -> TelemetryFilterKwargs:
-        """Splat into a ``TelemetryQueryService`` method that accepts these three filters."""
-        return {"instance_index": self.instance_index, "since": self.since, "source_tier": self.source_tier}
+    def query_kwargs(self, app_key: str | None) -> TelemetryFilterKwargs:
+        """Splat into a ``TelemetryQueryService`` method that accepts these three filters for ``app_key``."""
+        return {
+            "instance_name": instance_name_filter(self.hassette, app_key, self.instance_index),
+            "since": self.since,
+            "source_tier": self.source_tier,
+        }
 
 
 TelemetryFiltersDep = Annotated[TelemetryFilters, Depends()]

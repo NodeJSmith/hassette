@@ -60,6 +60,7 @@ from client_compat_live_state import (  # noqa: E402
     read_seed_ids,
     seed_live_state,
     wire_app_outcomes,
+    wire_seeded_instance_names,
 )
 from client_compat_release import PYPI_CLIENT_URL, choose_release, published_client_versions  # noqa: E402
 from client_compat_requests import (  # noqa: E402
@@ -245,7 +246,7 @@ def head_json_routes(app: FastAPI) -> set[tuple[str, str]]:
     return set(routes)
 
 
-def build_app(read_db: aiosqlite.Connection, tweak: StubTweak | None = None) -> FastAPI:
+def build_app(read_db: aiosqlite.Connection, class_names: Mapping[str, str], tweak: StubTweak | None = None) -> FastAPI:
     """HEAD's FastAPI app over a stub ``Hassette`` whose telemetry reads ``read_db``.
 
     ``tweak``, when given, changes the stub once it's wired (see :data:`STUB_VARIANTS`).
@@ -261,6 +262,7 @@ def build_app(read_db: aiosqlite.Connection, tweak: StubTweak | None = None) -> 
     # Replaces the stub's whole config, so auth is switched on here rather than on the stub.
     wire_config(hassette, auth_enabled=True)
     wire_scheduler_trigger(hassette, {MANUAL_JOB_ID: "send_notification"})
+    wire_seeded_instance_names(hassette, class_names)
     hassette.database_service.read_db = read_db
     hassette.config.database.read_timeout_seconds = READ_TIMEOUT_SECONDS
     hassette.telemetry_query_service = TelemetryQueryService(hassette)
@@ -325,10 +327,15 @@ async def serve_scenario(
     read_db = await aiosqlite.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         read_db.row_factory = aiosqlite.Row
-        async with AsyncClient(transport=ASGITransport(app=build_app(read_db)), base_url=BASE_URL) as client:
+        class_names = {
+            row["app_key"]: row["class_name"]
+            for row in await read_db.execute_fetchall("SELECT app_key, class_name FROM app_manifests")
+        }
+        app = build_app(read_db, class_names)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url=BASE_URL) as client:
             exchanges = await send_all(client, requests)
             if with_failure_paths:
-                exchanges += await serve_failure_paths(client, read_db)
+                exchanges += await serve_failure_paths(client, read_db, class_names)
     finally:
         # Covers every exit. After the failure paths have closed read_db this second close is harmless:
         # aiosqlite's close() returns at once on a closed connection.
@@ -336,23 +343,25 @@ async def serve_scenario(
     return exchanges
 
 
-async def serve_failure_paths(client: AsyncClient, read_db: aiosqlite.Connection) -> list[Exchange]:
+async def serve_failure_paths(
+    client: AsyncClient, read_db: aiosqlite.Connection, class_names: Mapping[str, str]
+) -> list[Exchange]:
     """Send the failure-path requests, in the only order that works.
 
     The problem requests and the stub variants need ``read_db`` open; the telemetry-unavailable requests need
     it closed, so closing it is the last phase.
     """
     exchanges = await send_all(client, PROBLEM_REQUESTS)
-    exchanges += await serve_stub_variants(read_db)
+    exchanges += await serve_stub_variants(read_db, class_names)
     exchanges += await serve_with_telemetry_closed(client, read_db)
     return exchanges
 
 
-async def serve_stub_variants(read_db: aiosqlite.Connection) -> list[Exchange]:
+async def serve_stub_variants(read_db: aiosqlite.Connection, class_names: Mapping[str, str]) -> list[Exchange]:
     """Send each :data:`STUB_VARIANTS` entry's requests to its own app over the still-open ``read_db``."""
     exchanges: list[Exchange] = []
     for variant in STUB_VARIANTS:
-        app = build_app(read_db, variant.tweak)
+        app = build_app(read_db, class_names, variant.tweak)
         transport = ASGITransport(app=app, raise_app_exceptions=variant.raise_app_exceptions)
         async with AsyncClient(transport=transport, base_url=BASE_URL) as variant_client:
             exchanges += await send_all(variant_client, variant.requests)

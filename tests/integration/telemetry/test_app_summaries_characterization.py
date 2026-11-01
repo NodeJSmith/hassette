@@ -25,9 +25,9 @@ async def seed_dataset(db: DbFixture) -> None:
     db_svc, session_id = db
 
     # app_a: one handler identity registered on two instances, plus one job.
-    a_l0 = await insert_listener(db_svc, app_key="app_a", instance_index=0, name="on_a")
-    a_l1 = await insert_listener(db_svc, app_key="app_a", instance_index=1, name="on_a")
-    a_job = await insert_job(db_svc, app_key="app_a", job_name="job_a")
+    a_l0 = await insert_listener(db_svc, instance_name="instance_0", app_key="app_a", instance_index=0, name="on_a")
+    a_l1 = await insert_listener(db_svc, instance_name="instance_1", app_key="app_a", instance_index=1, name="on_a")
+    a_job = await insert_job(db_svc, instance_name="instance_0", app_key="app_a", job_name="job_a")
     await insert_invocation(
         db_svc, a_l0, session_id, status="success", duration_ms=10.0, execution_start_ts=BASE_TS + 10
     )
@@ -44,8 +44,10 @@ async def seed_dataset(db: DbFixture) -> None:
     await insert_execution(db_svc, a_job, session_id, status="error", duration_ms=50.0, execution_start_ts=BASE_TS + 2)
 
     # app_b: an app-tier and a framework-tier listener under the same app key.
-    b_app = await insert_listener(db_svc, app_key="app_b", name="on_b")
-    b_fw = await insert_listener(db_svc, app_key="app_b", name="on_b_fw", source_tier="framework")
+    b_app = await insert_listener(db_svc, instance_name="instance_0", app_key="app_b", name="on_b")
+    b_fw = await insert_listener(
+        db_svc, instance_name="instance_0", app_key="app_b", name="on_b_fw", source_tier="framework"
+    )
     await insert_invocation(db_svc, b_app, session_id, duration_ms=4.0, execution_start_ts=BASE_TS + 12)
     await insert_invocation(
         db_svc,
@@ -58,10 +60,12 @@ async def seed_dataset(db: DbFixture) -> None:
     )
 
     # app_idle: registered but never ran.
-    await insert_listener(db_svc, app_key="app_idle", name="on_idle")
+    await insert_listener(db_svc, instance_name="instance_0", app_key="app_idle", name="on_idle")
 
     # __hassette__: framework-only job.
-    fw_job = await insert_job(db_svc, app_key="__hassette__", job_name="fw_job", source_tier="framework")
+    fw_job = await insert_job(
+        db_svc, instance_name="instance_0", app_key="__hassette__", job_name="fw_job", source_tier="framework"
+    )
     await insert_execution(
         db_svc,
         fw_job,

@@ -106,7 +106,7 @@ class ExecutionQueriesMixin:
     async def get_app_recent_activity(
         self,
         app_key: str,
-        instance_index: int | None,
+        instance_name: str | None,
         limit: int,
         since: float | None,
         source_tier: QuerySourceTier,
@@ -119,7 +119,7 @@ class ExecutionQueriesMixin:
 
         Args:
             app_key: The app to query.
-            instance_index: When provided, restrict to that instance only.
+            instance_name: When provided, restrict to that instance only.
             limit: Maximum number of entries to return (1-500).
             since: Unix epoch float lower bound for ``execution_start_ts``, or ``None``.
             source_tier: Filter by source tier.
@@ -159,7 +159,7 @@ class ExecutionQueriesMixin:
             extra_job_where="AND sj.app_key = :app_key",
             since=since,
             source_tier=source_tier,
-            instance_index=instance_index,
+            instance_name=instance_name,
         )
 
         query = f"""

@@ -288,8 +288,8 @@ The database has seven tables:
 | Table | Purpose |
 |---|---|
 | `sessions` | One row per Hassette process run; tracks start/stop time and error info |
-| `listeners` | One row per registered bus listener; natural key `(app_key, instance_index, name, topic)` |
-| `scheduled_jobs` | One row per registered scheduler job; natural key `(app_key, instance_index, job_name)` |
+| `listeners` | One row per registered bus listener; natural key `(app_key, instance_name, name, topic)` |
+| `scheduled_jobs` | One row per registered scheduler job; natural key `(app_key, instance_name, job_name)` |
 | `executions` | Handler/job execution outcomes, including predicate failures and skipped scheduler predicates; unified with `kind` discriminator |
 | `log_records` | Captured log lines with `execution_id` linkage |
 | `blocking_events` | Detected blocking-event records from watchdog and monkeypatch tiers |

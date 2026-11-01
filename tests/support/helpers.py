@@ -26,7 +26,7 @@ from hassette.execution_mode import run_through_guard
 from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._factories import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._factories import create_service_registered_event as create_service_registered_event
-from hassette.testing.config import TEST_SOURCE_LOCATION
+from hassette.testing.config import DEFAULT_TEST_INSTANCE_NAME, TEST_SOURCE_LOCATION
 from hassette.types.enums import Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 from tests.support.factories import make_hassette_event
@@ -535,6 +535,7 @@ def create_listener(
         owner_id=owner_id,
         app_key=app_key,
         instance_index=instance_index,
+        instance_name=DEFAULT_TEST_INSTANCE_NAME,
         name=name,
         source_tier=source_tier,
         handler_name=handler_name,

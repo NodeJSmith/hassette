@@ -238,6 +238,7 @@ class BusService(Service):
         return ListenerRegistration(
             app_key=listener.identity.app_key,
             instance_index=listener.identity.instance_index,
+            instance_name=listener.identity.instance_name,
             handler_method=listener.identity.handler_name,
             topic=listener.topic,
             debounce=listener.options.debounce,

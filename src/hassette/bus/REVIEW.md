@@ -1,9 +1,9 @@
 # REVIEW.md — bus/
 
 ## Natural Key Consistency
-The natural key `(app_key, instance_index, name, topic)` is defined in
+The natural key `(app_key, instance_name, name, topic)` is defined in
 `_listener_natural_key()` in `src/hassette/bus/bus.py`, matches the SQL unique
-index in `src/hassette/migrations_sql/001.sql`, and is replicated in the
+index in `src/hassette/migrations_sql/018.sql`, and is replicated in the
 `INSERT ... ON CONFLICT` upsert in `src/hassette/core/telemetry/repository.py`.
 When any of these three definitions changes, do the other two still match?
 

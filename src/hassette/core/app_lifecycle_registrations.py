@@ -95,7 +95,7 @@ class AppRegistrationReconcilerMixin:
         self,
         app_key: str,
         instances: "dict[int, App[AppConfig]]",
-        instance_index: int | None = None,
+        instance_name: str | None = None,
     ) -> None:
         """Run post-ready reconciliation for an app after all instances are initialized.
 
@@ -106,7 +106,7 @@ class AppRegistrationReconcilerMixin:
         Args:
             app_key: The app key to reconcile.
             instances: Dict of instance index -> App (may include failed instances).
-            instance_index: When provided, scopes reconciliation to this instance only, so
+            instance_name: When provided, scopes reconciliation to this instance only, so
                 restarting one instance does not retire sibling instances' rows. When None
                 (default), reconciliation is app_key-scoped only — unchanged behavior.
         """
@@ -123,7 +123,7 @@ class AppRegistrationReconcilerMixin:
                 list(live_listener_ids),
                 live_job_ids,
                 session_id=session_id,
-                instance_index=instance_index,
+                instance_name=instance_name,
             )
             self.logger.debug("Post-ready reconciliation complete for app '%s'", app_key)
         except Exception:

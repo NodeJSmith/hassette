@@ -353,8 +353,8 @@ async def test_on_conflict_target_matches_index(telemetry_db: aiosqlite.Connecti
     """Structural test: idx_listeners_natural columns exactly match ON CONFLICT target.
 
     Queries sqlite_master for idx_listeners_natural and asserts:
-    (a) its column list is exactly (app_key, instance_index, name, topic)
-    (b) the repository's ON CONFLICT target is verbatim (app_key, instance_index, name, topic)
+    (a) its column list is exactly (app_key, instance_name, name, topic)
+    (b) the repository's ON CONFLICT target is verbatim (app_key, instance_name, name, topic)
     """
     # (a) Verify the index SQL from sqlite_master
     cursor = await telemetry_db.execute(
@@ -365,8 +365,8 @@ async def test_on_conflict_target_matches_index(telemetry_db: aiosqlite.Connecti
 
     index_sql: str = row[0]
     # The SQL should contain exactly these four columns in this order
-    assert "app_key, instance_index, name, topic" in index_sql, (
-        f"idx_listeners_natural must index (app_key, instance_index, name, topic), got: {index_sql!r}"
+    assert "app_key, instance_name, name, topic" in index_sql, (
+        f"idx_listeners_natural must index (app_key, instance_name, name, topic), got: {index_sql!r}"
     )
     # Must NOT have the old partial/expression form
     assert "COALESCE" not in index_sql, "idx_listeners_natural must not use COALESCE expression"
@@ -375,9 +375,9 @@ async def test_on_conflict_target_matches_index(telemetry_db: aiosqlite.Connecti
 
     # (b) Verify the repository ON CONFLICT target matches the index verbatim
     source = inspect.getsource(telemetry_repository_module.TelemetryRepository.register_listener)
-    # The ON CONFLICT clause must contain exactly (app_key, instance_index, name, topic)
-    assert "ON CONFLICT(app_key, instance_index, name, topic)" in source, (
-        "register_listener() ON CONFLICT target must be (app_key, instance_index, name, topic) "
+    # The ON CONFLICT clause must contain exactly (app_key, instance_name, name, topic)
+    assert "ON CONFLICT(app_key, instance_name, name, topic)" in source, (
+        "register_listener() ON CONFLICT target must be (app_key, instance_name, name, topic) "
         "to match idx_listeners_natural"
     )
     # Must NOT contain the old partial/expression form

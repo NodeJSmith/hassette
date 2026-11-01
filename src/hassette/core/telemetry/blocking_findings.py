@@ -44,7 +44,8 @@ class _FindingBuilder:
     last_seen_ts: float
     latest_stack: list[StackFrame]
     handlers: dict[tuple[str, int], BlockingHandlerRef] = field(default_factory=dict)
-    instances: dict[int, BlockingInstanceRef] = field(default_factory=dict)
+    instances: dict[str | int, BlockingInstanceRef] = field(default_factory=dict)
+    """One ref per instance: keyed by name, or by index for an older row stored without one."""
     event_count: int = 0
     max_stall_ms: float | None = None
     stall_sum_ms: float = 0.0
@@ -62,8 +63,8 @@ class _FindingBuilder:
         handler = handler_ref(group)
         if handler is not None:
             self.handlers.setdefault((handler.kind, handler.id), handler)
-        index = group["instance_index"]
-        self.instances.setdefault(index, BlockingInstanceRef(index=index, name=group["instance_name"]))
+        index, name = group["instance_index"], group["instance_name"]
+        self.instances.setdefault(name if name is not None else index, BlockingInstanceRef(index=index, name=name))
 
     def build(self) -> BlockingFinding:
         return BlockingFinding(

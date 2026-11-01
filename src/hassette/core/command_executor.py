@@ -687,7 +687,7 @@ class CommandExecutor(Service):
         live_job_ids: list[int],
         *,
         session_id: int | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
     ) -> None:
         """Reconcile listener and job registrations for an app after initialization.
 
@@ -700,7 +700,7 @@ class CommandExecutor(Service):
             live_listener_ids: IDs of currently active listener rows.
             live_job_ids: IDs of currently active scheduled_job rows.
             session_id: Current session ID, used to guard once=True row deletion.
-            instance_index: When provided, scopes reconciliation to this instance only, so
+            instance_name: When provided, scopes reconciliation to this instance only, so
                 restarting one instance does not retire sibling instances' rows. When None
                 (default), reconciliation is app_key-scoped only — unchanged behavior.
         """
@@ -711,7 +711,7 @@ class CommandExecutor(Service):
                 live_listener_ids,
                 live_job_ids,
                 session_id=session_id,
-                instance_index=instance_index,
+                instance_name=instance_name,
             )
         )
 

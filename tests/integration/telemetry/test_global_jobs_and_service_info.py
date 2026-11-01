@@ -43,8 +43,8 @@ class TestGetJobSummaryGlobal:
         """get_job_summary() aggregates jobs from multiple apps without app_key filter."""
         db_svc, session_id = db
 
-        j1 = await insert_job(db_svc, app_key="app_alpha", job_name="alpha_job")
-        j2 = await insert_job(db_svc, app_key="app_beta", job_name="beta_job")
+        j1 = await insert_job(db_svc, instance_name="instance_0", app_key="app_alpha", job_name="alpha_job")
+        j2 = await insert_job(db_svc, instance_name="instance_0", app_key="app_beta", job_name="beta_job")
 
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=10.0)
         await insert_execution(db_svc, j2, session_id, status="error", duration_ms=50.0, error_type="ValueError")
@@ -61,7 +61,7 @@ class TestGetJobSummaryGlobal:
         db_svc, _ = db
 
         for i in range(5):
-            await insert_job(db_svc, app_key=f"app_{i}", job_name=f"job_{i}")
+            await insert_job(db_svc, instance_name="instance_0", app_key=f"app_{i}", job_name=f"job_{i}")
 
         results = await query_service.get_job_summary()
         assert len(results) == 5
@@ -70,7 +70,7 @@ class TestGetJobSummaryGlobal:
         """Jobs with failed executions have last_error_type, last_error_message populated."""
         db_svc, session_id = db
 
-        j1 = await insert_job(db_svc, app_key="my_app", job_name="failing_job")
+        j1 = await insert_job(db_svc, instance_name="instance_0", app_key="my_app", job_name="failing_job")
         await insert_execution(
             db_svc,
             j1,
@@ -89,7 +89,7 @@ class TestGetJobSummaryGlobal:
         """min_duration_ms and max_duration_ms are populated from executions."""
         db_svc, session_id = db
 
-        j1 = await insert_job(db_svc, app_key="my_app", job_name="timed_job")
+        j1 = await insert_job(db_svc, instance_name="instance_0", app_key="my_app", job_name="timed_job")
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=5.0)
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=50.0)
@@ -102,7 +102,7 @@ class TestGetJobSummaryGlobal:
         """Jobs with no executions have min/max duration as None (never executed)."""
         db_svc, _ = db
 
-        await insert_job(db_svc, app_key="my_app", job_name="idle_job")
+        await insert_job(db_svc, instance_name="instance_0", app_key="my_app", job_name="idle_job")
 
         row = await only_row(query_service.get_job_summary())
         assert row.min_duration_ms is None
@@ -117,7 +117,7 @@ class TestGetJobSummaryGlobal:
         base_ts = 1_000_000.0
         since_ts = base_ts + 5.0
 
-        j1 = await insert_job(db_svc, app_key="my_app", job_name="my_job")
+        j1 = await insert_job(db_svc, instance_name="instance_0", app_key="my_app", job_name="my_job")
         # Before since: counts should not include this
         await insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 1.0)
         # After since: should count
@@ -132,8 +132,10 @@ class TestGetJobSummaryGlobal:
         """source_tier='app' excludes framework-tier jobs."""
         db_svc, _ = db
 
-        await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
-        await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
+        await insert_job(db_svc, instance_name="instance_0", app_key="my_app", job_name="app_job", source_tier="app")
+        await insert_job(
+            db_svc, instance_name="instance_0", app_key="fw_app", job_name="fw_job", source_tier="framework"
+        )
 
         results = await query_service.get_job_summary(source_tier="app")
         assert len(results) == 1
@@ -145,8 +147,10 @@ class TestGetJobSummaryGlobal:
         """source_tier='all' returns both app and framework tier jobs."""
         db_svc, _ = db
 
-        await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
-        await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
+        await insert_job(db_svc, instance_name="instance_0", app_key="my_app", job_name="app_job", source_tier="app")
+        await insert_job(
+            db_svc, instance_name="instance_0", app_key="fw_app", job_name="fw_job", source_tier="framework"
+        )
 
         results = await query_service.get_job_summary(source_tier="all")
         assert len(results) == 2
@@ -156,7 +160,7 @@ class TestGetJobSummaryGlobal:
         db_svc, session_id = db
         base_ts = 1_000_000.0
 
-        j1 = await insert_job(db_svc, app_key="coh_app", job_name="coherent_job")
+        j1 = await insert_job(db_svc, instance_name="instance_0", app_key="coh_app", job_name="coherent_job")
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_execution(db_svc, j1, session_id, **kw),
@@ -173,7 +177,7 @@ class TestGetJobSummaryGlobal:
         base_ts = 1_000_000.0
         since_ts = base_ts + 50.0
 
-        j1 = await insert_job(db_svc, app_key="my_app", job_name="windowed_job")
+        j1 = await insert_job(db_svc, instance_name="instance_0", app_key="my_app", job_name="windowed_job")
 
         await assert_last_error_row_coherence(
             lambda **kw: insert_execution(db_svc, j1, session_id, **kw),

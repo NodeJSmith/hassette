@@ -37,7 +37,7 @@ from hassette.logging_processors import persisted_exc_text, persisted_message
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
-from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
+from hassette.testing.config import DEFAULT_TEST_APP_KEY, DEFAULT_TEST_INSTANCE_NAME, TEST_SOURCE_LOCATION
 from hassette.testing.recording_api import RecordingApi
 from hassette.types import JobCallable, SchedulerErrorHandlerType, TriggerProtocol
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
@@ -56,6 +56,7 @@ def make_listener_registration(
     *,
     app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
+    instance_name: str | None = DEFAULT_TEST_INSTANCE_NAME,
     handler_method: str = "test_app.on_event",
     topic: str = "hass.event.state_changed",
     debounce: float | None = None,
@@ -73,6 +74,7 @@ def make_listener_registration(
     return ListenerRegistration(
         app_key=app_key,
         instance_index=instance_index,
+        instance_name=instance_name,
         handler_method=handler_method,
         topic=topic,
         debounce=debounce,
@@ -93,6 +95,7 @@ def make_job_registration(
     *,
     app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
+    instance_name: str | None = DEFAULT_TEST_INSTANCE_NAME,
     job_name: str = "test_job",
     handler_method: str = "test_app.my_job",
     trigger_type: str = "custom",
@@ -112,6 +115,7 @@ def make_job_registration(
         schedule_status=ScheduleStatus.SCHEDULED,
         app_key=app_key,
         instance_index=instance_index,
+        instance_name=instance_name,
         job_name=job_name,
         handler_method=handler_method,
         trigger_type=trigger_type,
@@ -254,6 +258,7 @@ def make_scheduled_job(
     else:
         resolved_next_run = None
     return Job(
+        instance_name=DEFAULT_TEST_INSTANCE_NAME,
         owner_id=owner_id,
         next_run=resolved_next_run,
         schedule_status=schedule_status,

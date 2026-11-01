@@ -253,6 +253,8 @@ def wire_app_handler(
     # "currently configured" overlay result should replace `registry` with a real AppRegistry.
     registry.manifests = {}
     registry.only_apps = frozenset()
+    # Index-addressed telemetry routes bind this into SQL, so it can't be a bare MagicMock.
+    registry.instance_name = MagicMock(side_effect=lambda _app_key, index: f"instance_{index}")
     # The DB-only branch also asks the registry for needs-restart records; no app has one here.
     registry.build_orphaned_flag_info = MagicMock(return_value=None)
 

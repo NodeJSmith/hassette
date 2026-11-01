@@ -198,7 +198,7 @@ async def test_wait_for_listener_is_once_and_removed_after_firing(bus: "Bus") ->
         assert listener.invoker.once is True
 
         assert bus.parent is not None
-        key = (bus.parent.app_key, bus.parent.index, "once_check", "test.topic")
+        key = (bus.parent.app_key, bus.parent.instance_name, "once_check", "test.topic")
         assert key in bus._registered_listeners
 
         event = make_hassette_event(topic="test.topic")

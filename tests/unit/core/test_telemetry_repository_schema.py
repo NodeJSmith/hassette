@@ -203,36 +203,38 @@ async def test_active_views_exist(telemetry_db: aiosqlite.Connection) -> None:
 
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_delete_query_includes_instance_index_clause(table: str, history_fk: str) -> None:
-    """build_delete_query() with instance_index adds the AND instance_index clause and bind param."""
-    sql, params = build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, instance_index=2)
+def test_build_delete_query_includes_instance_name_clause(table: str, history_fk: str) -> None:
+    """build_delete_query() with instance_name adds the AND instance_name clause and bind param."""
+    sql, params = build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, instance_name="instance_2")
 
-    assert "AND instance_index = :instance_index" in sql
-    assert params["instance_index"] == 2
+    assert "AND instance_name = :instance_name" in sql
+    assert params["instance_name"] == "instance_2"
 
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_delete_query_omits_instance_index_clause_when_none(table: str, history_fk: str) -> None:
-    """build_delete_query() with instance_index=None (default) adds no clause — backward compatible."""
+def test_build_delete_query_omits_instance_name_clause_when_none(table: str, history_fk: str) -> None:
+    """build_delete_query() with instance_name=None (default) adds no clause — backward compatible."""
     sql, params = build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk)
 
-    assert "instance_index" not in sql
-    assert "instance_index" not in params
+    assert "instance_name" not in sql
+    assert "instance_name" not in params
 
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_retire_query_includes_instance_index_clause(table: str, history_fk: str) -> None:
-    """build_retire_query() with instance_index adds the AND instance_index clause and bind param."""
-    sql, params = build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time(), instance_index=3)
+def test_build_retire_query_includes_instance_name_clause(table: str, history_fk: str) -> None:
+    """build_retire_query() with instance_name adds the AND instance_name clause and bind param."""
+    sql, params = build_retire_query(
+        table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time(), instance_name="instance_3"
+    )
 
-    assert "AND instance_index = :instance_index" in sql
-    assert params["instance_index"] == 3
+    assert "AND instance_name = :instance_name" in sql
+    assert params["instance_name"] == "instance_3"
 
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_retire_query_omits_instance_index_clause_when_none(table: str, history_fk: str) -> None:
-    """build_retire_query() with instance_index=None (default) adds no clause — backward compatible."""
+def test_build_retire_query_omits_instance_name_clause_when_none(table: str, history_fk: str) -> None:
+    """build_retire_query() with instance_name=None (default) adds no clause — backward compatible."""
     sql, params = build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time())
 
-    assert "instance_index" not in sql
-    assert "instance_index" not in params
+    assert "instance_name" not in sql
+    assert "instance_name" not in params

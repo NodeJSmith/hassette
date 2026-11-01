@@ -22,7 +22,7 @@ from hassette.core.telemetry.reconcile_sql import (
     build_clear_stale_job_timing_query,
     build_delete_query,
     build_retire_query,
-    instance_index_clause,
+    instance_name_clause,
     not_in_clause,
 )
 from hassette.schemas.log_models import BlockingEvent
@@ -54,7 +54,7 @@ class TelemetryRepository:
 
         Uses ``INSERT ... ON CONFLICT DO UPDATE`` to preserve the row ID across
         restarts (FK preservation). The conflict target exactly matches the unique
-        index ``idx_listeners_natural ON listeners(app_key, instance_index, name, topic)``.
+        index ``idx_listeners_natural ON listeners(app_key, instance_name, name, topic)``.
         Mutable fields are updated on conflict; identity fields are left unchanged.
         ``retired_at`` is reset to NULL when a retired row is re-registered.
 
@@ -76,20 +76,21 @@ class TelemetryRepository:
         cursor = await db.execute(
             """
             INSERT INTO listeners (
-                app_key, instance_index, handler_method, topic,
+                app_key, instance_index, instance_name, handler_method, topic,
                 debounce, throttle, once, priority,
                 predicate_description, human_description,
                 source_location, registration_source, name, source_tier,
                 immediate, duration, entity_id, mode, backpressure
             ) VALUES (
-                :app_key, :instance_index, :handler_method, :topic,
+                :app_key, :instance_index, :instance_name, :handler_method, :topic,
                 :debounce, :throttle, :once, :priority,
                 :predicate_description, :human_description,
                 :source_location, :registration_source, :name, :source_tier,
                 :immediate, :duration, :entity_id, :mode, :backpressure
             )
-            ON CONFLICT(app_key, instance_index, name, topic)
+            ON CONFLICT(app_key, instance_name, name, topic)
             DO UPDATE SET
+                instance_index = excluded.instance_index,
                 debounce = excluded.debounce,
                 throttle = excluded.throttle,
                 priority = excluded.priority,
@@ -139,7 +140,7 @@ class TelemetryRepository:
         cursor = await db.execute(
             """
             INSERT INTO scheduled_jobs (
-                app_key, instance_index, job_name, handler_method,
+                app_key, instance_index, instance_name, job_name, handler_method,
                 trigger_type,
                 trigger_label, trigger_detail,
                 repeat,
@@ -150,7 +151,7 @@ class TelemetryRepository:
                 schedule_status, schedule_status_reason,
                 next_run, fire_at, jitter
             ) VALUES (
-                :app_key, :instance_index, :job_name, :handler_method,
+                :app_key, :instance_index, :instance_name, :job_name, :handler_method,
                 :trigger_type,
                 :trigger_label, :trigger_detail,
                 :repeat,
@@ -161,8 +162,9 @@ class TelemetryRepository:
                 :schedule_status, :schedule_status_reason,
                 :next_run, :fire_at, :jitter
             )
-            ON CONFLICT(app_key, instance_index, job_name)
+            ON CONFLICT(app_key, instance_name, job_name)
             DO UPDATE SET
+                instance_index = excluded.instance_index,
                 handler_method = excluded.handler_method,
                 trigger_type = excluded.trigger_type,
                 trigger_label = excluded.trigger_label,
@@ -331,7 +333,7 @@ class TelemetryRepository:
         live_job_ids: list[int],
         *,
         session_id: int | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
     ) -> None:
         """Reconcile listener and job registrations for an app after initialization.
 
@@ -348,7 +350,7 @@ class TelemetryRepository:
             live_job_ids: IDs of currently active scheduled_job rows.
             session_id: Current session ID, used to guard once=True row deletion.
                 When None, once=True row cleanup is skipped and deferred to the next successful restart.
-            instance_index: When provided, scopes all five SQL paths (both listener queries,
+            instance_name: When provided, scopes all five SQL paths (both listener queries,
                 the once=True cleanup block, and both scheduled_jobs queries) to this instance
                 so restarting one instance does not delete or retire sibling instances' rows.
                 When None (default), reconciliation is app_key-scoped only — unchanged behavior.
@@ -375,7 +377,7 @@ class TelemetryRepository:
                 live_listener_ids,
                 "listener_id",
                 extra_where=" AND once = 0",
-                instance_index=instance_index,
+                instance_name=instance_name,
             )
             await db.execute(sql, params)
 
@@ -386,7 +388,7 @@ class TelemetryRepository:
                 "listener_id",
                 now,
                 extra_where=" AND once = 0",
-                instance_index=instance_index,
+                instance_name=instance_name,
             )
             await db.execute(sql, params)
 
@@ -394,7 +396,7 @@ class TelemetryRepository:
                 params_once: dict = {"app_key": app_key, "source_tier": "app", "session_id": session_id}
                 live_ids_clause, live_ids_params = not_in_clause(live_listener_ids)
                 params_once.update(live_ids_params)
-                instance_clause, instance_params = instance_index_clause(instance_index)
+                instance_clause, instance_params = instance_name_clause(instance_name)
                 params_once.update(instance_params)
                 await db.execute(
                     f"""
@@ -424,7 +426,7 @@ class TelemetryRepository:
                 app_key,
                 live_job_ids,
                 "job_id",
-                instance_index=instance_index,
+                instance_name=instance_name,
             )
             await db.execute(sql, params)
 
@@ -434,7 +436,7 @@ class TelemetryRepository:
                 live_job_ids,
                 "job_id",
                 now,
-                instance_index=instance_index,
+                instance_name=instance_name,
             )
             await db.execute(sql, params)
 

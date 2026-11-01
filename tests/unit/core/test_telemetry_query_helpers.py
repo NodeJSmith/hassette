@@ -86,15 +86,15 @@ class TestHandlerJobUnionArms:
         assert ":source_tier" not in fragment
         assert params == {}
 
-    def test_instance_index_adds_clause_and_param(self) -> None:
-        """instance_index adds a per-arm instance filter and a single bind param."""
-        fragment, params = handler_job_union_arms("SELECT 1", "SELECT 1", instance_index=2, source_tier="all")
-        assert "AND l.instance_index = :instance_index" in fragment
-        assert "AND sj.instance_index = :instance_index" in fragment
-        assert params == {"instance_index": 2}
+    def test_instance_name_adds_clause_and_param(self) -> None:
+        """instance_name adds a per-arm instance filter and a single bind param."""
+        fragment, params = handler_job_union_arms("SELECT 1", "SELECT 1", instance_name="instance_2", source_tier="all")
+        assert "AND l.instance_name = :instance_name" in fragment
+        assert "AND sj.instance_name = :instance_name" in fragment
+        assert params == {"instance_name": "instance_2"}
 
-    def test_instance_index_none_omits_clause(self) -> None:
-        """instance_index=None (default) adds no instance filter or param."""
+    def test_instance_name_none_omits_clause(self) -> None:
+        """instance_name=None (default) adds no instance filter or param."""
         fragment, params = handler_job_union_arms("SELECT 1", "SELECT 1", source_tier="all")
-        assert "instance_index" not in fragment
+        assert "instance_name" not in fragment
         assert params == {}
