@@ -245,7 +245,8 @@ Whenever `call_service` waits, through either flag, it sends the call exactly on
 confirmation never arrives, it raises
 [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] rather than re-sending, because
 a service call can have side effects and Home Assistant may already have applied it. The outcome is
-unknown, not skipped. [Low-level access](#low-level-access) covers how to check what happened.
+unknown, not skipped. [Errors and unknown outcomes](#errors-and-unknown-outcomes) covers how to
+check what happened.
 
 #### Targeting entities
 
@@ -475,7 +476,7 @@ subscribed to that event type receives it.
 `fire_event` waits for Home Assistant's confirmation and sends the event exactly once. If the
 confirmation never arrives, it raises
 [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError]. The event may or may not have
-fired; see [Low-level access](#low-level-access).
+fired; see [Errors and unknown outcomes](#errors-and-unknown-outcomes).
 
 !!! note "Broadcasting between Hassette apps"
     `fire_event` leaves the framework. The event travels to Home Assistant and back. For
@@ -584,31 +585,11 @@ Removes an entity from the Home Assistant state machine. Raises `RuntimeError` w
 ```
 
 `delete_entity` removes the entity from Home Assistant's state machine. It does not remove a
-device or integration-backed entity from the HA entity registry. The HA UI or the registry
-WebSocket API handles that.
+device or integration-backed entity from the HA entity registry. The HA UI handles that.
 
-### Low-level access
+---
 
-For HA endpoints without a typed method — the device registry, area registry, or custom integration APIs — the escape hatches below send raw requests. Prefer the typed methods when one exists; the escape hatches skip Hassette's model conversion entirely.
-
-| Method | Sends | Returns |
-|---|---|---|
-| `ws_send_and_wait(retry_on_timeout=True, **data)` | A WebSocket command (e.g., `type="config/device_registry/list"`) | The command's result |
-| `ws_send_json(**data)` | A WebSocket command, without waiting | Nothing |
-| `rest_request(method, url, ...)` | A request to any REST path | The raw `aiohttp` response |
-| `get_rest_request` / `post_rest_request` / `delete_rest_request` | Method-specific wrappers around `rest_request` | The raw `aiohttp` response |
-
-!!! warning "`ws_send_and_wait` re-sends on timeout by default"
-    When Home Assistant's response never arrives, `ws_send_and_wait` re-sends the command under a
-    fresh message id. That suits a read, but a write Home Assistant already applied before the
-    response was lost gets applied a second time. A command that must not run twice — creating a
-    registry entry, a custom integration's write — carries `retry_on_timeout=False` instead. With
-    that flag set, `ws_send_and_wait` raises
-    [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] on the first timeout rather
-    than duplicating the effect. A safe recovery checks state before re-sending anything.
-
-`retry_on_timeout` is the one keyword this escape hatch reads itself rather than forwarding, so it
-cannot double as a raw payload field name.
+## Errors and unknown outcomes
 
 The typed writes never re-send: `call_service` when it waits, `fire_event`, and helper
 `create`/`update`/`delete`. A command that was sent but never answered raises a subclass of

@@ -57,19 +57,24 @@ class ApiSyncFacade(Resource):
     def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
         """Send a WebSocket message and wait for a response.
 
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
         Args:
             retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
                 Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
                 effect Home Assistant may already have applied. A timeout then raises
                 ``ResponseTimeoutError``. See :meth:`WebsocketService.send_and_wait`.
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
-                policy and is consumed here, so it is the one name this escape hatch cannot
+                policy and is consumed here, so it is the one name this method cannot
                 forward as a payload field.
         """
         return self.task_bucket.run_sync(self._api.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **data))
 
     def ws_send_json(self, **data: Any) -> None:
-        """Send a WebSocket message without waiting for a response."""
+        """Send a WebSocket message without waiting for a response.
+
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+        """
         return self.task_bucket.run_sync(self._api.ws_send_json(**data))
 
     def rest_request(
@@ -82,6 +87,8 @@ class ApiSyncFacade(Resource):
         **kwargs: Any,
     ) -> aiohttp.ClientResponse:
         """Make a REST request to the Home Assistant API.
+
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
 
         Args:
             method: The HTTP method to use (e.g., "GET", "POST").
@@ -101,6 +108,8 @@ class ApiSyncFacade(Resource):
     def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a GET request to the Home Assistant API.
 
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
         Args:
             url: The URL endpoint for the request.
             params: Query parameters for the request.
@@ -114,6 +123,8 @@ class ApiSyncFacade(Resource):
     def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a POST request to the Home Assistant API.
 
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
         Args:
             url: The URL endpoint for the request.
             data: JSON payload for the request.
@@ -126,6 +137,8 @@ class ApiSyncFacade(Resource):
 
     def delete_rest_request(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         """Make a DELETE request to the Home Assistant API.
+
+        Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
 
         Args:
             url: The URL endpoint for the request.

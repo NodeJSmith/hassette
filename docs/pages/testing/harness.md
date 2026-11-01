@@ -353,7 +353,7 @@ outcome is unknown, patch the recorder method with an `AsyncMock` that raises
 [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] (or
 [`ResponseLostError`][hassette.exceptions.ResponseLostError]). Both are
 subclasses of [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError];
-see [Low-level access](../core-concepts/api/methods.md#low-level-access).
+see [Errors and unknown outcomes](../core-concepts/api/methods.md#errors-and-unknown-outcomes).
 
 ```python
 --8<-- "pages/testing/snippets/testing_outcome_unknown.py"

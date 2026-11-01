@@ -153,10 +153,9 @@ When `old_value` or `new_value` is `None`, the corresponding state dict is `None
 
 - `get_history()`
 - `render_template()`
-- `ws_send_and_wait()`
-- `ws_send_json()`
-- `rest_request()`
 - `delete_entity()`
+
+`ws_send_and_wait()`, `ws_send_json()`, and `rest_request()` also raise `NotImplementedError`. These transport methods are internal and unsupported for app code.
 
 Any other public name not defined on `RecordingApi` also falls through to `__getattr__` and raises `NotImplementedError`.
 
