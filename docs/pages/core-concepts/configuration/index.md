@@ -8,7 +8,7 @@ A minimal `hassette.toml` declares the Home Assistant URL, the apps directory, a
 --8<-- "pages/core-concepts/configuration/snippets/basic_config.toml"
 ```
 
-The token is the only required credential. `HASSETTE__TOKEN` supplies it via environment variable — put it in a `.env` file next to `hassette.toml` (the recommended setup, covered under Configuration Sources below), keeping the credential out of version control. [Create a Long-Lived Access Token](../../getting-started/ha_token.md) covers token generation.
+The token is the only required credential. `HASSETTE__TOKEN` supplies it via environment variable — put it in a `.env` file next to `hassette.toml` (the recommended setup, shown under [Authentication](#authentication) below), keeping the credential out of version control. [Create a Long-Lived Access Token](../../getting-started/ha_token.md) covers token generation.
 
 ## Configuration Sources
 
@@ -125,7 +125,7 @@ Hassette runs only the apps named by a `[hassette.apps.<key>]` section. At start
 
 `apps.warn_unconfigured = false` turns the scan and its warnings off, for a directory that holds app classes on purpose that shouldn't run.
 
-Before starting, Hassette always runs the app precheck: it imports and validates every app module and logs each failure. A failed precheck stops startup. `allow_startup_if_app_precheck_fails` lets startup continue instead, so healthy apps still run. Development environments may enable it; production environments benefit from leaving it disabled.
+Before starting, Hassette always runs the app precheck: it imports and validates every app module and logs each failure. A failed precheck stops startup. `allow_startup_if_app_precheck_fails` in `[hassette]` lets startup continue instead, so healthy apps still run. Development environments may enable it; production environments benefit from leaving it disabled.
 
 ### Event Filtering
 
@@ -137,11 +137,11 @@ Before starting, Hassette always runs the app precheck: it imports and validates
 
 Filtering at this level removes the events from every app simultaneously. Per-handler filtering using predicates is more selective. The [`Bus`](../bus/index.md) page covers handler-level options.
 
-`hassette_event_buffer_size` (default 1000) sets the capacity of the internal channel that carries events from the WebSocket to the bus. When the buffer fills, event intake pauses until handlers catch up — events are delayed, not dropped. Raising the buffer absorbs longer bursts; excluding noisy domains is usually the better first move.
+`hassette_event_buffer_size` in `[hassette]` (default 1000) sets the capacity of the internal channel that carries events from the WebSocket to the bus. When the buffer fills, event intake pauses until handlers catch up — events are delayed, not dropped. Raising the buffer absorbs longer bursts; excluding noisy domains is usually the better first move.
 
 `lifecycle.max_concurrent_dispatches` (default 50) caps how many handler invocations run at once. The bus delivers each event to every matching handler as a separate task, so an event that matches many handlers would otherwise spawn that many tasks at once. When the cap is reached, the bus waits for a running handler to finish before starting the next (listeners with the `DROP_NEWEST` backpressure policy skip the event instead) — and that wait flows back through the event buffer to the WebSocket reader, so a slow handler throttles intake instead of exhausting memory.
 
-A running handler holds its slot until it returns or reaches `event_handler_timeout_seconds`. Raise the cap for workloads with many fast handlers; lower it to bound peak concurrency on constrained hardware.
+A running handler holds its slot until it returns or reaches `lifecycle.event_handler_timeout_seconds`. Raise the cap for workloads with many fast handlers; lower it to bound peak concurrency on constrained hardware.
 
 ### Development and Debugging
 
@@ -159,7 +159,7 @@ The file watcher reloads apps when their source files change (in `dev_mode`, or 
 
 ### State Proxy Polling
 
-The [`StateManager`](../states/index.md) — the local entity-state cache apps access via `self.states` — keeps a copy of all entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. The poll always runs, because it recovers state changes the event stream missed.
+The [`StateManager`](../states/index.md) — the local entity-state cache apps access via `self.states` — keeps a copy of all entity states. `state_proxy_poll_interval_seconds` in `[hassette]` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. The poll always runs, because it recovers state changes the event stream missed.
 
 ## Developer Settings {#developer-settings}
 
