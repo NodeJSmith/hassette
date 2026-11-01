@@ -248,19 +248,14 @@ def make_scheduled_job(
     ``next_run`` defaults to ``now()`` when ``schedule_status`` is ``SCHEDULED`` (the common
     case across existing tests) and to ``None`` for any other status, matching ``Job``'s own
     SCHEDULED-requires-``next_run`` invariant — pass ``schedule_status=ScheduleStatus.WAITING``/
-    ``COMPLETED``/``MANUAL`` to build a non-scheduled job without also having to pass
-    ``next_run=None`` explicitly.
+    ``COMPLETED``/``MANUAL`` to build a non-scheduled job without also passing ``next_run=None``.
     """
-    if next_run is not None:
-        resolved_next_run = next_run
-    elif schedule_status is ScheduleStatus.SCHEDULED:
-        resolved_next_run = date_utils.now()
-    else:
-        resolved_next_run = None
+    if next_run is None and schedule_status is ScheduleStatus.SCHEDULED:
+        next_run = date_utils.now()
     return Job(
         instance_name=DEFAULT_TEST_INSTANCE_NAME,
         owner_id=owner_id,
-        next_run=resolved_next_run,
+        next_run=next_run,
         schedule_status=schedule_status,
         job=job if job is not None else (lambda: None),
         name=name,

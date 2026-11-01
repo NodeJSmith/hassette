@@ -416,12 +416,8 @@ class Bus(Resource):
         A framework listener's instance name is None here; only its stored row holds the reserved value
         (``stored_instance_name``).
         """
-        return (
-            listener.identity.app_key,
-            listener.identity.instance_name,
-            listener.identity.name or "",
-            listener.topic,
-        )
+        identity = listener.identity
+        return (identity.app_key, identity.instance_name, identity.name or "", listener.topic)
 
     def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus and persist cancellation to the database.

@@ -230,7 +230,6 @@ class BusService(Service):
 
     def build_registration(self, listener: Listener) -> ListenerRegistration:
         """Build a ``ListenerRegistration`` struct from listener identity and options."""
-        source_location = listener.identity.source_location
         registration_source: str | None = listener.identity.registration_source or None
         human_description: str | None = None
         if listener.predicate is not None:
@@ -247,7 +246,7 @@ class BusService(Service):
             priority=listener.options.priority,
             predicate_description=describe_predicate(listener.predicate) if listener.predicate else None,
             human_description=human_description,
-            source_location=source_location,
+            source_location=listener.identity.source_location,
             registration_source=registration_source,
             name=listener.identity.name,
             source_tier=listener.identity.source_tier,
