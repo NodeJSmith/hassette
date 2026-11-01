@@ -4,7 +4,7 @@ import json
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import JobTriggerResponse, ScheduleStatus
+from hassette_wire import JobTriggerResponse, ScheduleStatus, ScheduleStatusReason
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.job import (
@@ -113,18 +113,18 @@ class TestCmdJob:
     @pytest.mark.parametrize(
         ("schedule_status", "schedule_status_reason", "expected_text"),
         [
-            ("scheduled", None, "Timing unavailable."),
-            ("scheduled", "legacy_unknown", "Legacy status unknown."),
-            ("waiting", None, "Waiting for entity time."),
-            ("completed", None, "Schedule completed."),
-            ("completed", "trigger_error", "Schedule stopped after trigger error."),
-            ("manual", None, "Manual only."),
+            (ScheduleStatus.SCHEDULED, None, "Timing unavailable."),
+            (ScheduleStatus.SCHEDULED, ScheduleStatusReason.LEGACY_UNKNOWN, "Legacy status unknown."),
+            (ScheduleStatus.WAITING, None, "Waiting for entity time."),
+            (ScheduleStatus.COMPLETED, None, "Schedule completed."),
+            (ScheduleStatus.COMPLETED, ScheduleStatusReason.TRIGGER_ERROR, "Schedule stopped after trigger error."),
+            (ScheduleStatus.MANUAL, None, "Manual only."),
         ],
     )
     def test_null_next_run_renders_status_aware_text(
         self,
-        schedule_status: str,
-        schedule_status_reason: str | None,
+        schedule_status: ScheduleStatus,
+        schedule_status_reason: ScheduleStatusReason | None,
         expected_text: str,
     ) -> None:
         """A null next_run renders truthful, status-aware text instead of generic 'done'.
@@ -145,7 +145,7 @@ class TestCmdJob:
 
     def test_concrete_next_run_renders_relative_time(self) -> None:
         """A concrete next_run still renders via fmt_relative_time, not status text."""
-        job = make_job_summary(job_id=1, next_run=SINCE_EPOCH, schedule_status="scheduled")
+        job = make_job_summary(job_id=1, next_run=SINCE_EPOCH, schedule_status=ScheduleStatus.SCHEDULED)
 
         assert _next_run_display(job) != ""
         assert _next_run_display(job) not in _SCHEDULE_STATUS_TEXT.values()

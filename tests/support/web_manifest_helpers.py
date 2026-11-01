@@ -24,7 +24,7 @@ from hassette.schemas.app_snapshots import (
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 
 
-def _tally_statuses(manifests: Sequence[AppManifestInfo | AppSummary]) -> dict[str, int]:
+def _tally_statuses(manifests: Sequence[AppManifestInfo | AppSummary]) -> dict[AppStatus, int]:
     """Count manifests by status.
 
     Delegates to ``tally_app_statuses()`` (schemas.app_snapshots), which only needs
@@ -171,5 +171,6 @@ def make_app_list_response(
     return AppListResponse(
         apps=apps,
         total=len(apps),
-        status_counts=counts,
+        # items(), not the dict itself: dict keys are invariant, so dict[AppStatus, int] can't widen to OpenAppStatus.
+        status_counts=dict(counts.items()),
     )

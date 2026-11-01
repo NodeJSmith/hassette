@@ -310,8 +310,8 @@ class TestGlobalJobsEndpointLegacyUnknown:
             job_id=77,
             app_key="legacy_app",
             next_run=None,
-            schedule_status="scheduled",
-            schedule_status_reason="legacy_unknown",
+            schedule_status=ScheduleStatus.SCHEDULED,
+            schedule_status_reason=ScheduleStatusReason.LEGACY_UNKNOWN,
         )
         stub_job_sources(mock_hassette_scheduler, db_rows=[db_summary])
 
@@ -332,8 +332,8 @@ class TestGlobalJobsEndpointLegacyUnknown:
             job_id=77,
             app_key="legacy_app",
             next_run=None,
-            schedule_status="scheduled",
-            schedule_status_reason="legacy_unknown",
+            schedule_status=ScheduleStatus.SCHEDULED,
+            schedule_status_reason=ScheduleStatusReason.LEGACY_UNKNOWN,
         )
         mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
@@ -370,8 +370,8 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         db_summary = make_job_summary(
             job_id=88,
             next_run=None,
-            schedule_status="completed",
-            schedule_status_reason="trigger_error",
+            schedule_status=ScheduleStatus.COMPLETED,
+            schedule_status_reason=ScheduleStatusReason.TRIGGER_ERROR,
         )
         mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
