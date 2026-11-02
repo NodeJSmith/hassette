@@ -15,7 +15,7 @@ from hassette.core.telemetry.reconcile_sql import (
     build_prune_removed_app_manifests_query,
     build_retire_unconfigured_instances_query,
 )
-from hassette.schemas.app_config_shape import normalize_app_config
+from hassette.schemas.app_config_shape import configured_instance_names
 
 if typing.TYPE_CHECKING:
     import logging
@@ -125,6 +125,60 @@ class DatabaseRetentionMixin:
         """Enqueue a retention cleanup; False if dropped (no database, or write queue full)."""
         return self.enqueue_if_ready(self._do_run_retention_cleanup)
 
+    def enqueue_retire_unconfigured_instances(self) -> bool:
+        """Enqueue the sweep's retire step on its own; False if dropped, which leaves it to the next sweep.
+
+        For a live reload that stopped a name the config no longer has, whose rows would otherwise stay active
+        for up to one retention cycle. Reads the live set when the write runs, so it never retires an instance
+        that started in the meantime.
+        """
+        return self.enqueue_if_ready(self._do_retire_unconfigured_instances)
+
+    async def _do_retire_unconfigured_instances(self) -> None:
+        """Retire the rows of instances neither configured nor running, in their own transaction."""
+        try:
+            await self.db.execute(SQL_BEGIN)
+            listeners, jobs = await self._retire_unconfigured_instances(self.live_instances(), time.time())
+            await self.db.commit()
+        except STORAGE_ERRORS:
+            await safe_rollback(self.db, self, "retiring unconfigured instances")
+            self.logger.exception("Failed to retire removed instances' rows; the next retention cycle retries")
+            return
+        except Exception:
+            # Same as a failed batch: roll back so the bug doesn't leave the transaction open.
+            await safe_rollback(self.db, self, "retiring unconfigured instances")
+            raise
+        self._write_progress_count += 1
+        if listeners or jobs:
+            self.logger.info(
+                "Retired %d listeners, %d scheduled_jobs of removed or renamed instances: %s",
+                len(listeners),
+                len(jobs),
+                ", ".join(sorted({*listeners, *jobs})),
+            )
+
+    async def _retire_unconfigured_instances(
+        self, live_instances: list[tuple[str, str]], now: float
+    ) -> tuple[list[str], list[str]]:
+        """Retire unretired app-tier listener/scheduled_job rows of instances not in ``live_instances``.
+
+        Removed apps are never reconciled again, and reconciling a renamed instance only covers its new name, so
+        without this those rows would never age out. Rows are retired rather than deleted, so an execution still
+        waiting in the write queue keeps a valid parent. Does not manage transactions -- the caller owns
+        BEGIN/commit/rollback.
+
+        Returns:
+            The ``app_key/instance_name`` label of each retired row group: for listeners, then for scheduled jobs.
+        """
+        listener_cursor = await self.db.execute(
+            *build_retire_unconfigured_instances_query("listeners", live_instances, now)
+        )
+        listeners = [f"{key}/{name}" for key, name in await listener_cursor.fetchall()]
+        job_cursor = await self.db.execute(
+            *build_retire_unconfigured_instances_query("scheduled_jobs", live_instances, now)
+        )
+        return listeners, [f"{key}/{name}" for key, name in await job_cursor.fetchall()]
+
     async def _delete_target_batched(
         self, target: RetentionTarget, now: float, config: "HassetteConfig"
     ) -> TargetDeleteResult:
@@ -233,9 +287,9 @@ class DatabaseRetentionMixin:
         the instance under its old name.
         """
         pairs = {
-            (app_key, instance_config["instance_name"])
+            (app_key, name)
             for app_key, manifest in self.hassette.config.apps.manifests.items()
-            for instance_config in normalize_app_config(manifest.app_config)
+            for name in configured_instance_names(manifest.app_config)
         }
         try:
             app_handler = self.hassette.app_handler
@@ -259,10 +313,7 @@ class DatabaseRetentionMixin:
         transaction:
 
         1. Retire unretired app-tier listener/scheduled_job rows of instances not in
-           ``live_instances`` (``build_retire_unconfigured_instances_query``). Removed apps are
-           never reconciled again, and reconciling a renamed instance only covers its new name, so
-           without this those rows would never age out. Rows are retired rather than deleted, so an
-           execution still waiting in the write queue keeps a valid parent.
+           ``live_instances`` (``_retire_unconfigured_instances``).
         2. Delete retired listeners/scheduled_jobs only once ALL their child executions have
            also aged out. This prevents orphaning recent executions whose parent row would be
            deleted because retired_at (set at restart time) diverges from last execution time.
@@ -290,14 +341,9 @@ class DatabaseRetentionMixin:
             Exception: Propagates any DB error from the statements.
         """
         await self.db.execute(SQL_BEGIN)
-        retired_listener_cursor = await self.db.execute(
-            *build_retire_unconfigured_instances_query("listeners", live_instances, now)
+        retired_listener_instances, retired_job_instances = await self._retire_unconfigured_instances(
+            live_instances, now
         )
-        retired_listener_instances = [f"{key}/{name}" for key, name in await retired_listener_cursor.fetchall()]
-        retired_job_cursor = await self.db.execute(
-            *build_retire_unconfigured_instances_query("scheduled_jobs", live_instances, now)
-        )
-        retired_job_instances = [f"{key}/{name}" for key, name in await retired_job_cursor.fetchall()]
         deleted_listener_cursor = await self.db.execute(
             """
             DELETE FROM listeners

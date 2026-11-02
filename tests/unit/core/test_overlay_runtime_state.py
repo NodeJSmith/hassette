@@ -51,7 +51,7 @@ class TestOverlayRuntimeState:
     ) -> None:
         manifest = create_app_manifest("running", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
-        registry.register_app(manifest.app_key, 0, mock_app)
+        registry.register_app(manifest.app_key, manifest.app_key, mock_app)
 
         rows = [make_manifest_db_row(manifest.app_key)]
         results = overlay_runtime_state(rows, registry)
@@ -67,7 +67,7 @@ class TestOverlayRuntimeState:
     def test_mixed_in_config_and_db_only_apps(self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path) -> None:
         manifest = create_app_manifest("live", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
-        registry.register_app(manifest.app_key, 0, mock_app)
+        registry.register_app(manifest.app_key, manifest.app_key, mock_app)
 
         rows = [make_manifest_db_row(manifest.app_key), make_manifest_db_row("removed_app")]
         results = overlay_runtime_state(rows, registry)
@@ -118,13 +118,11 @@ class TestOverlayRuntimeState:
         manifest = create_app_manifest(expected_status, tmp_path, enabled=enabled)
         registry.set_manifests({manifest.app_key: manifest})
         if running:
-            registry.register_app(manifest.app_key, 0, mock_app)
+            registry.register_app(manifest.app_key, manifest.app_key, mock_app)
         if failed:
-            # record_failure only replaces the entry at the matching index, so the failure has to
-            # land on a different index than the running instance to produce the running/failed
-            # mix "degraded" requires. With nothing running, index 0 is free to hold it.
-            failed_index = 1 if running else 0
-            registry.record_failure(manifest.app_key, failed_index, ValueError("boom"))
+            # record_failure replaces the entry under the matching name, so the failure has to land on a
+            # different name than the running instance to produce the running/failed mix "degraded" requires.
+            registry.record_failure(manifest.app_key, "failed_instance", ValueError("boom"))
         if blocked:
             registry.block_app(manifest.app_key, BlockReason.ONLY_APP)
 

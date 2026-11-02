@@ -267,6 +267,51 @@ async def test_renamed_instance_rows_are_retired_while_its_new_name_stays_live(
     assert f"{manifest.app_key}/old_name" in caplog.text
 
 
+async def test_retire_step_alone_retires_unconfigured_rows_and_deletes_nothing(
+    db: aiosqlite.Connection,
+    retention_service: DatabaseService,
+    mock_hassette_for_db: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The step a live reload queues: same retirement as the sweep, none of its deletes."""
+    manifest = create_app_manifest("renamed", tmp_path, app_config={"instance_name": "new_name"})
+    mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
+    old_listener = await insert_listener(db, manifest.app_key, retired_at=None, instance_name="old_name")
+    new_listener = await insert_listener(db, manifest.app_key, retired_at=None, instance_name="new_name")
+    old_job = await insert_job(db, manifest.app_key, instance_name="old_name")
+    long_retired = await insert_listener(db, manifest.app_key, retired_at=OLD_TS, instance_name="older_name")
+    await db.commit()
+
+    await retention_service._do_retire_unconfigured_instances()  # pyright: ignore[reportPrivateUsage]
+
+    assert await retired_at_of(db, "listeners", old_listener) is not None
+    assert await retired_at_of(db, "listeners", new_listener) is None
+    assert await retired_at_of(db, "scheduled_jobs", old_job) is not None
+    assert await retired_at_of(db, "listeners", long_retired) == OLD_TS, "the sweep's parent-guard delete didn't run"
+
+
+async def test_retire_step_storage_failure_rolls_back_and_leaves_it_to_the_next_sweep(
+    db: aiosqlite.Connection,
+    retention_service: DatabaseService,
+    mock_hassette_for_db: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = create_app_manifest("renamed", tmp_path, app_config={"instance_name": "new_name"})
+    mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
+    old_listener = await insert_listener(db, manifest.app_key, retired_at=None, instance_name="old_name")
+    old_job = await insert_job(db, manifest.app_key, instance_name="old_name")
+    await db.commit()
+    monkeypatch.setattr(db, "execute", make_failing_execute(db, "UPDATE scheduled_jobs"))
+
+    await retention_service._do_retire_unconfigured_instances()  # pyright: ignore[reportPrivateUsage]
+
+    monkeypatch.undo()
+    assert db.in_transaction is False
+    assert await retired_at_of(db, "listeners", old_listener) is None
+    assert await retired_at_of(db, "scheduled_jobs", old_job) is None
+
+
 async def test_rename_mid_reload_keeps_the_running_old_name_live(
     db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
 ) -> None:
@@ -360,11 +405,11 @@ def test_live_app_keys_counts_only_apps_with_a_running_instance(
     configured = create_app_manifest("configured", tmp_path)
     mock_hassette_for_db.config.apps.manifests = {configured.app_key: configured}
     registry = AppRegistry()
-    registry.register_app("running", 0, MagicMock())
-    registry.register_app("multi", 0, MagicMock())
-    registry.register_app("multi", 1, MagicMock())
-    registry.record_failure("failed_only", 0, RuntimeError("boom"))
-    registry.register_app("stopping", 0, MagicMock())
+    registry.register_app("running", "running", MagicMock())
+    registry.register_app("multi", "multi", MagicMock())
+    registry.register_app("multi", "multi_1", MagicMock())
+    registry.record_failure("failed_only", "failed_only", RuntimeError("boom"))
+    registry.register_app("stopping", "stopping", MagicMock())
     registry.unregister_app("stopping")
     mock_hassette_for_db.app_handler.registry = registry
 

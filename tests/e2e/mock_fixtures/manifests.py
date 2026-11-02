@@ -17,6 +17,9 @@ from tests.e2e.mock_fixtures.constants import (
 )
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest, make_manifest_db_row
 
+MY_APP_INSTANCE_NAME = "MyApp.0"
+"""The name the seed scenarios store for ``my_app``'s one instance (``make_instance_name``)."""
+
 BROKEN_APP_ERROR = "Init error: bad config"
 BROKEN_APP_TRACEBACK = (
     'Traceback (most recent call last):\n  File "broken_app.py", line 10, in on_initialize\n'
@@ -207,8 +210,10 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
 def wire_owner_resolution(hassette) -> None:
     """Wire app instance owner resolution onto the mock app handler."""
     hassette._app_handler.registry.get_running_apps.return_value = {
-        0: SimpleNamespace(unique_name="MyApp.MyApp[0]"),
+        MY_APP_INSTANCE_NAME: SimpleNamespace(unique_name="MyApp.MyApp[0]"),
     }
-    hassette._app_handler.registry.get.side_effect = lambda app_key, index=0: (
-        SimpleNamespace(unique_name="MyApp.MyApp[0]") if app_key == APP_KEY_MY_APP and index == 0 else None
+    hassette._app_handler.registry.get.side_effect = lambda app_key, instance_name=None: (
+        SimpleNamespace(unique_name="MyApp.MyApp[0]")
+        if app_key == APP_KEY_MY_APP and instance_name in (None, MY_APP_INSTANCE_NAME)
+        else None
     )

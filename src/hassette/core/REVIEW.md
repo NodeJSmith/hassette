@@ -60,11 +60,12 @@ shutdown) set `_recv_task` to `None` first? A site that cancels while the task i
 still attached turns a deliberate teardown into a spurious DISCONNECTED transition.
 
 ## Needs-Restart Flag Sourcing
-`AppRegistry.resolve_instance_info()` in `src/hassette/core/app_registry.py` is the one place an
-instance entry and its needs-restart record are combined; a flagged index can outlive its entry.
+`AppRegistry.resolve_instance_info()` in `src/hassette/core/app_registry.py` is the one reader of an
+instance entry and its needs-restart record combined; a flagged name can outlive its entry.
 Does a new reader of per-instance state go through it (or `resolve_instance_infos()`) rather than
-reading the instance map directly, which drops flagged indices? And does every new FAILED outcome in
+reading the instance map directly, which drops flagged names? And does every new FAILED outcome in
 `src/hassette/core/app_lifecycle_instances.py` whose `ShutdownOutcome` is not restart-safe flag the
-index before the status event is sent? Does a new path that creates an instance go through
+instance before the status event is sent? Does a new path that creates an instance go through
 `AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,
-whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged index?
+whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged name? That gate covers `(app_key, name)` only: a renamed instance
+or a name moved to another app passes it by design (see the `refusal_reason` docstring).

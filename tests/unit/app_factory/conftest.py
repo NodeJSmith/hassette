@@ -48,9 +48,9 @@ def mock_manifest():
     return manifest
 
 
-def flag_indices(mock_registry: Mock, *flagged: int) -> None:
-    """Make ``mock_registry`` refuse each index in ``flagged``, with the refusal text ``refused <index>``."""
-    mock_registry.refusal_reason = Mock(side_effect=lambda _key, idx: f"refused {idx}" if idx in flagged else None)
+def flag_names(mock_registry: Mock, *flagged: str) -> None:
+    """Make ``mock_registry`` refuse each name in ``flagged``, with the refusal text ``refused <name>``."""
+    mock_registry.refusal_reason = Mock(side_effect=lambda _key, name: f"refused {name}" if name in flagged else None)
 
 
 @pytest.fixture

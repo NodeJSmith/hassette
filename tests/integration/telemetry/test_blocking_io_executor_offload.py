@@ -327,9 +327,9 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         mock_hassette.config.dev_mode = True
         mock_hassette.config.blocking_io.deep_detection_enabled = True
 
-        # Live execution: marker.app_key drives app_handler.get(app_key) → the IGNORE owner.
+        # Live execution: the marker's app_key and instance_name drive app_handler.get → the IGNORE owner.
         _exec_id, token = ignore_executor.bind_execution_context(
-            ExecutionContext(app_key="ignored_app", instance_index=0, instance_name=None)
+            ExecutionContext(app_key="ignored_app", instance_index=0, instance_name="ignored_app_0")
         )
 
         assert not guard_mod.is_installed()
@@ -357,7 +357,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
                 ignore_executor.unbind_execution_context(token)
 
         assert resolve_spy.called, "guard must reach per-app behavior resolution (test not vacuous)"
-        mock_hassette.app_handler.get.assert_called_with("ignored_app", 0)
+        mock_hassette.app_handler.get.assert_called_with("ignored_app", "ignored_app_0")
 
         blocking_warnings = [w for w in caught_warnings if issubclass(w.category, HassetteBlockingIOWarning)]
         assert blocking_warnings == [], (

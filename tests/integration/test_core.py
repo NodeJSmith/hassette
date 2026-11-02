@@ -143,18 +143,6 @@ async def test_loop_property_returns_running_loop(hassette_instance: Hassette) -
     assert hassette_instance.loop is running_loop, "loop property should return the configured loop"
 
 
-def test_get_app_forwards_to_handler(hassette_instance: Hassette) -> None:
-    """get_app delegates to the handler's get method."""
-    handler = SimpleNamespace()
-    handler.get = Mock(return_value="app-instance")
-    hassette_instance._app_handler = handler  # pyright: ignore[reportAttributeAccessIssue]  # coordinator-internal
-
-    retrieved = hassette_instance.get_app("demo", index=2)
-
-    handler.get.assert_called_once_with("demo", 2)
-    assert retrieved == "app-instance", "get_app should return the handler's result"
-
-
 async def test_send_event_writes_to_stream(hassette_instance: Hassette) -> None:
     """send_event pushes the event onto the internal stream."""
     payload = SimpleNamespace(topic="topic.demo", value=123)

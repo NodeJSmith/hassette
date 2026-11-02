@@ -16,17 +16,17 @@ Every data method on `self.cache` is `async` and must be awaited:
 
 ## Instance-Scoped Directories
 
-Each app instance gets its own cache directory and its own SQLite file. Two instances of the same `WeatherApp` class — say, one per city — do not share cache data, so a key like `"last_forecast"` in instance 0 never collides with instance 1's copy.
+Each app instance gets its own cache directory and its own SQLite file. Two instances of the same `WeatherApp` class — say, one per city — do not share cache data, so a key like `"last_forecast"` in one instance never collides with another's copy.
 
-The default directory is `{data_dir}/{app_key}/{index}/cache/cache.db`. Set `cache_key` on an app's section in `hassette.toml` to override this — the most common reason is preserving cache data across an app rename:
+The default directory is `{data_dir}/{app_key}/{instance_name}/cache/cache.db`, so reordering `config` blocks leaves each instance's cache with it, and renaming an instance starts a new cache. Set `cache_key` on an app's section in `hassette.toml` to override this — the most common reason is preserving cache data across an app rename:
 
 ```toml
 [hassette.apps.weather]
 config = { instance_name = "weather" }
-cache_key = "weather_v1/0"  # keep the cache from before the app was renamed
+cache_key = "weather_v1/weather"  # keep the cache from before the app was renamed
 ```
 
-When `cache_key` is set, Hassette uses it as-is with no index appended. Two apps that resolve to the same `cache_key` share one cache file. Sharing is usually a mistake, so Hassette logs a startup warning when different `app_key` values resolve to the same `cache_key`.
+When `cache_key` is set, Hassette uses it as-is with no instance name appended. Two apps that resolve to the same `cache_key` share one cache file. Sharing is usually a mistake, so Hassette logs a startup warning when different `app_key` values resolve to the same `cache_key`.
 
 Intentional sharing is declared with `cache_shared = true` on every app that shares the key:
 

@@ -22,7 +22,7 @@ from hassette.exceptions import (
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
-from hassette.schemas.app_config_shape import normalize_app_config
+from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.types.types import AppDict, RawAppDict
 
 if typing.TYPE_CHECKING:
@@ -632,9 +632,7 @@ def app_startup_warnings(apps: "AppsConfig", *, config_files: Iterable[Path], cw
     # raw entries include ones that failed validation; setting names share the [hassette.apps] table
     taken = {*apps.apps, *apps.manifests, *type(apps).model_fields}
     taken.update(
-        config["instance_name"]
-        for manifest in apps.manifests.values()
-        for config in normalize_app_config(manifest.app_config)
+        name for manifest in apps.manifests.values() for name in configured_instance_names(manifest.app_config)
     )
     warnings: list[str] = []
     for path, class_name in scan.unconfigured:

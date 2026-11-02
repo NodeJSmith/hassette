@@ -14,6 +14,7 @@ from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_common import ActionOutcomes, log_refusals
 from hassette.events.hassette import HassetteSimpleEvent
 from hassette.exceptions import AppBlockedError, AppRemovedError, ConfigError
+from hassette.schemas.app_config_shape import configs_by_name, configured_instance_names
 from hassette.types import Topic
 from hassette.utils.exception_utils import get_short_traceback
 
@@ -34,10 +35,11 @@ class AppRestart:
     """One app's part of a config or file change: which of its instances to stop and recreate."""
 
     app_key: str
-    indices: tuple[int, ...] | None = None
-    """The instance indices to restart, or None for every instance of the app."""
+    names: tuple[str, ...] | None = None
+    """The instance names to touch, or None for every instance of the app. Each one is stopped if tracked, and
+    created if still configured, so a removed name is only stopped and an added one only created."""
     force_reload: bool = False
-    """Re-import the app class from disk before recreating (a file change). Only set with ``indices=None``:
+    """Re-import the app class from disk before recreating (a file change). Only set with ``names=None``:
     a re-import always restarts every instance."""
 
 
@@ -66,10 +68,9 @@ class AppChangeReconcilerMixin:
     stop_app: Callable[[str], Awaitable[tuple["InstanceOutcome", ...]]]
     _start_app_unlocked: Callable[..., Awaitable[None]]
     _stop_app_unlocked: Callable[..., Awaitable[None]]
-    _stop_targets: Callable[[str], set[int]]
-    _outcomes_for: Callable[[str, Iterable[int]], ActionOutcomes]
-    _configured_indices: Callable[["AppManifest"], range]
-    _instance_index_in_range: Callable[[str, int, "AppManifest"], bool]
+    _stop_targets: Callable[[str], set[str]]
+    _outcomes_for: Callable[[str, Iterable[str]], ActionOutcomes]
+    _instance_in_config: Callable[[str, str, "AppManifest"], bool]
     _create_instance_unlocked: Callable[..., Awaitable[None]]
     _stop_instance_unlocked: Callable[..., Awaitable[None]]
     persist_manifests: Callable[[], Awaitable[None]]
@@ -175,9 +176,10 @@ class AppChangeReconcilerMixin:
     ) -> "AppRestart | None":
         """Plan the restart a config change needs, or return None when no instance changed.
 
-        The plan covers only the instances whose ``app_config`` dict changed, or every instance
-        when the app has none running (dormant), the instance count changed, or a manifest is
-        missing on either side.
+        Instances compare by name, so moving a block restarts nothing, and a rename is one stop and
+        one create. The plan covers the names only in the old config, the names only in the new one,
+        and the names in both whose ``app_config`` dict changed. It covers every instance when the app
+        has none running (dormant) or a manifest is missing on either side.
 
         A dormant app (no running instances) that reaches here via should_auto_reconcile
         (autostart just flipped to True) needs all instances created, not just the changed ones,
@@ -188,22 +190,17 @@ class AppChangeReconcilerMixin:
         if app_key not in self.registry or old_manifest is None or new_manifest is None:
             return AppRestart(app_key)
 
-        old_instances = self.factory.normalize_configs(old_manifest.app_config)
-        new_instances = self.factory.normalize_configs(new_manifest.app_config)
-        if len(old_instances) != len(new_instances):
-            self.logger.debug(
-                "Instance count changed for app %s (%d -> %d) - reloading all instances",
-                app_key,
-                len(old_instances),
-                len(new_instances),
-            )
-            return AppRestart(app_key)
-
-        changed = tuple(i for i in range(len(new_instances)) if old_instances[i] != new_instances[i])
+        old_instances = configs_by_name(old_manifest.app_config)
+        new_instances = configs_by_name(new_manifest.app_config)
+        changed = tuple(
+            name
+            for name in old_instances | new_instances
+            if name not in old_instances or name not in new_instances or old_instances[name] != new_instances[name]
+        )
         if not changed:
             self.logger.debug("No per-instance config changes detected for app %s", app_key)
             return None
-        return AppRestart(app_key, indices=changed)
+        return AppRestart(app_key, names=changed)
 
     async def _restart_apps_unlocked(self, restarts: list["AppRestart"]) -> None:
         """Stop every instance the restarts replace, then create every replacement.
@@ -217,43 +214,64 @@ class AppChangeReconcilerMixin:
         Caller must hold the app-key lock of every restart's key (``apply_changes`` takes them while
         deciding the restarts, and ``asyncio.Lock`` is not reentrant).
 
-        No response carries these outcomes, so each restart's refusals are logged here, once per index.
+        A name that left the config is gone once its stop ends, but its listeners stay active until something
+        retires them, so the sweep's retire step is queued right after the stops. It runs on the database's write
+        queue, which the reload doesn't wait on; if it is dropped, the next retention cycle retires them.
+
+        No response carries these outcomes, so each restart's refusals are logged here, once per instance.
         """
         outcomes = {
             restart.app_key: self._outcomes_for(
                 restart.app_key,
-                self._stop_targets(restart.app_key) if restart.indices is None else restart.indices,
+                self._stop_targets(restart.app_key) if restart.names is None else restart.names,
             )
             for restart in restarts
         }
         for restart in restarts:
             await self._stop_for_restart(restart, outcomes[restart.app_key])
+        if any(self._stopped_name_left_config(restart.app_key, outcomes[restart.app_key]) for restart in restarts):
+            self._queue_retire_unconfigured_instances()
         for restart in restarts:
             await self._start_for_restart(restart, outcomes[restart.app_key])
         for restart in restarts:
             log_refusals(self.logger, restart.app_key, outcomes[restart.app_key].snapshot())
 
+    def _queue_retire_unconfigured_instances(self) -> None:
+        try:
+            database = self.hassette.database_service
+        except RuntimeError:
+            # The accessor raises only when no DatabaseService is wired (a test harness); there are no rows to retire.
+            self.logger.debug("DatabaseService not wired; no removed instance's rows to retire")
+            return
+        database.enqueue_retire_unconfigured_instances()
+
+    def _stopped_name_left_config(self, app_key: str, outcomes: ActionOutcomes) -> bool:
+        """Whether a restart's stop half targeted a name its app's current config doesn't have."""
+        manifest = self.registry.get_manifest(app_key)
+        configured = configured_instance_names(manifest.app_config) if manifest is not None else []
+        return not set(outcomes.names).issubset(configured)
+
     async def _stop_for_restart(self, restart: "AppRestart", outcomes: ActionOutcomes) -> None:
         # Both stop bodies catch and log their own failures, so one app's failed stop can't abort the batch.
-        if restart.indices is None:
+        if restart.names is None:
             self.logger.debug("Stopping app %s for reload", restart.app_key)
             await self._stop_app_unlocked(restart.app_key, outcomes=outcomes)
             return
-        self.logger.debug("Stopping changed instance(s) %s of app %s", list(restart.indices), restart.app_key)
+        self.logger.debug("Stopping changed instance(s) %s of app %s", list(restart.names), restart.app_key)
         await asyncio.gather(
-            *(self._stop_instance_unlocked(restart.app_key, idx, outcomes=outcomes) for idx in restart.indices)
+            *(self._stop_instance_unlocked(restart.app_key, name, outcomes=outcomes) for name in restart.names)
         )
 
     async def _start_for_restart(self, restart: "AppRestart", outcomes: ActionOutcomes) -> None:
-        # AppRestart carries only the key and indices, so the manifest is read from the registry here.
+        # AppRestart carries only the key and names, so the manifest is read from the registry here.
         app_key = restart.app_key
         app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
             self.logger.warning("App %s has no manifest any more; not restarting it", app_key)
             return
 
-        if restart.indices is None:
-            outcomes.begin_create_half(self._configured_indices(app_manifest))
+        if restart.names is None:
+            outcomes.begin_create_half(configured_instance_names(app_manifest.app_config))
             try:
                 await self._start_app_unlocked(app_key, app_manifest, restart.force_reload, outcomes=outcomes)
             except AppBlockedError:
@@ -262,16 +280,16 @@ class AppChangeReconcilerMixin:
                 self.logger.error("Failed to reload app %s:\n%s", app_key, get_short_traceback())
             return
 
-        async def create_one(idx: int) -> None:
-            # A failure at one index must not abort the other indices, or the other apps in the batch.
+        async def create_one(name: str) -> None:
+            # A failure of one instance must not abort the other instances, or the other apps in the batch.
             try:
-                await self._create_instance_unlocked(app_key, idx, app_manifest, outcomes=outcomes)
+                await self._create_instance_unlocked(app_key, name, app_manifest, outcomes=outcomes)
             except Exception:
-                self.logger.error("Failed to reload instance %d of app %s:\n%s", idx, app_key, get_short_traceback())
+                self.logger.error("Failed to reload instance %s of app %s:\n%s", name, app_key, get_short_traceback())
 
-        valid = [idx for idx in restart.indices if self._instance_index_in_range(app_key, idx, app_manifest)]
+        valid = [name for name in restart.names if self._instance_in_config(app_key, name, app_manifest)]
         outcomes.begin_create_half(valid)
-        await asyncio.gather(*(create_one(idx) for idx in valid))
+        await asyncio.gather(*(create_one(name) for name in valid))
 
     async def handle_change_event(
         self,

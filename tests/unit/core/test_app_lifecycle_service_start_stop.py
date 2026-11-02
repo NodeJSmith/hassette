@@ -17,7 +17,7 @@ from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
 from hassette.resources.shutdown_outcome import ShutdownOutcome
 from hassette.testing import EventCapture, wait_for
-from tests.support.outcomes import AnyIndexOutcomes
+from tests.support.outcomes import AnyNameOutcomes
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
 
@@ -93,7 +93,7 @@ class TestStartApp:
         """Emits NOT_STARTED event for each created instance."""
         event_capture.install(mock_hassette)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_running_apps = Mock(return_value={0: mock_app_instance})
+        mock_registry.get_running_apps = Mock(return_value={"test_instance": mock_app_instance})
 
         await lifecycle_service.start_app("test_app")
 
@@ -121,7 +121,7 @@ class TestStartApp:
         mock_hassette.command_executor.reconcile_registrations = AsyncMock(side_effect=_track_reconcile)
 
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_registry.get_running_apps = Mock(return_value={0: mock_app_instance})
+        mock_registry.get_running_apps = Mock(return_value={"test_instance": mock_app_instance})
 
         await lifecycle_service.start_app("test_app")
 
@@ -162,27 +162,25 @@ class TestStartApp:
 
         mock_factory.create_instances.assert_not_called()
 
-    async def test_prunes_stale_failed_indices_before_creating_instances(
+    async def test_prunes_stale_failed_instances_before_creating_instances(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
         mock_manifest: MagicMock,
         mock_factory: MagicMock,
     ) -> None:
-        """A config shrink (e.g. 3 configured instances -> 1) must prune failed entries at the
-        now-removed indices before create_instances() runs. Pruning happens here (not inside
+        """A config shrink (e.g. 3 configured instances -> 1) must prune failed entries of the
+        now-removed names before create_instances() runs. Pruning happens here (not inside
         AppFactory.create_instances()) so it applies uniformly even when class-loading itself
         fails, and so pruned entries can be reported to WS subscribers as STOPPED (see the next
         test) instead of discarded silently.
         """
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_running_apps = Mock(return_value={})
-        mock_factory.normalize_configs = Mock(return_value=[{"instance_name": "test_instance"}])
 
         await lifecycle_service.start_app("test_app")
 
-        mock_registry.prune_stale_failed_indices.assert_called_once_with("test_app", 1)
-        mock_factory.normalize_configs.assert_called_with(mock_manifest.app_config)
+        mock_registry.prune_stale_failed.assert_called_once_with("test_app", ["test_instance"])
 
     async def test_prunes_before_creating_instances_not_after(
         self,
@@ -199,14 +197,14 @@ class TestStartApp:
         mock_registry.get_running_apps = Mock(return_value={})
         call_order: list[str] = []
 
-        def _record_prune(*_args: object, **_kwargs: object) -> dict[int, object]:
+        def _record_prune(*_args: object, **_kwargs: object) -> dict[str, object]:
             call_order.append("prune")
             return {}
 
         def _record_create_instances(*_args: object, **_kwargs: object) -> None:
             call_order.append("create_instances")
 
-        mock_registry.prune_stale_failed_indices = Mock(side_effect=_record_prune)
+        mock_registry.prune_stale_failed = Mock(side_effect=_record_prune)
         mock_factory.create_instances = Mock(side_effect=_record_create_instances)
 
         await lifecycle_service.start_app("test_app")
@@ -224,7 +222,7 @@ class TestStartApp:
     ) -> None:
         # dup-ignore-end
         """Pruned entries must not be discarded silently — without a STOPPED event, the WS
-        status cache for that index stays on FAILED forever, and if the config shrinks to a
+        status cache for that instance stays on FAILED forever, and if the config shrinks to a
         single remaining instance, appLiveStatus() falls back to reading exactly that stale
         cache entry (frontend/src/utils/app-data.ts's instances.length <= 1 branch) — the same
         vulnerability shape as the discarded-on-stop bug this mirrors.
@@ -235,14 +233,14 @@ class TestStartApp:
         pruned_info = make_app_instance_info(
             app_key="test_app",
             index=2,
-            instance_name="test_app.2",
+            instance_name="stale_instance",
             class_name="TestApp",
             status=ResourceStatus.FAILED,
-            error=ValueError("stale - index removed from config"),
-            error_message="stale - index removed from config",
+            error=ValueError("stale - instance removed from config"),
+            error_message="stale - instance removed from config",
             error_traceback="Traceback...",
         )
-        mock_registry.prune_stale_failed_indices = Mock(return_value={2: pruned_info})
+        mock_registry.prune_stale_failed = Mock(return_value={"stale_instance": pruned_info})
 
         await lifecycle_service.start_app("test_app")
 
@@ -283,7 +281,7 @@ class TestStartApp:
             error_message="bad config",
             error_traceback="Traceback (most recent call last)...",
         )
-        mock_registry.get_failed_instance_infos = Mock(return_value={0: failure_info})
+        mock_registry.get_failed_instance_infos = Mock(return_value={"test_app.0": failure_info})
 
         await lifecycle_service.start_app("test_app")
 
@@ -320,7 +318,7 @@ class TestStartApp:
         mock_factory: MagicMock,
         mock_hassette: MagicMock,
     ) -> None:
-        """Calling start_app() when some indices are already running must not re-initialize
+        """Calling start_app() when some instances are already running must not re-initialize
         the pre-existing instances — only newly created ones get on_initialize(). Without this
         guard, the preserved instance would have listeners, jobs, and tasks duplicated (#1688).
         """
@@ -329,11 +327,11 @@ class TestStartApp:
         existing_app = make_mock_app_instance(instance_name="existing")
         new_app = make_mock_app_instance(instance_name="new")
 
-        # Factory reports only index 2 was created; index 0 was pre-existing.
-        mock_factory.create_instances = Mock(return_value={2})
+        # Factory reports only "new" was created; "existing" was pre-existing.
+        mock_factory.create_instances = Mock(return_value={"new"})
 
-        # Registry returns both: index 0 (pre-existing) and index 2 (newly created).
-        mock_registry.get_running_apps = Mock(return_value={0: existing_app, 2: new_app})
+        # Registry returns both: "existing" (pre-existing) and "new" (newly created).
+        mock_registry.get_running_apps = Mock(return_value={"existing": existing_app, "new": new_app})
 
         await lifecycle_service.start_app("test_app")
 
@@ -395,12 +393,12 @@ class TestStartAppStaleManifestRace:
         mock_factory.create_instances.assert_not_called()
 
 
-def register_mock_instance(registry: AppRegistry, app_key: str, index: int) -> AsyncMock:
-    """Register a mock app instance at ``(app_key, index)`` in a real registry and return it."""
-    inst = make_mock_app_instance(instance_name=f"{app_key}.{index}")
+def register_mock_instance(registry: AppRegistry, app_key: str, name: str) -> AsyncMock:
+    """Register a mock app instance under ``(app_key, name)`` in a real registry and return it."""
+    inst = make_mock_app_instance(instance_name=name)
     inst.app_key = app_key
     inst.status = ResourceStatus.RUNNING
-    registry.register_app(app_key, index, inst)
+    registry.register_app(app_key, name, inst)
     return inst
 
 
@@ -408,23 +406,23 @@ class TestStopApp:
     async def test_shuts_down_and_unregisters(self, real_registry_service: AppLifecycleService) -> None:
         """Shuts down the app's instances and leaves nothing registered."""
         registry = real_registry_service.registry
-        inst = register_mock_instance(registry, "test_app", 0)
+        inst = register_mock_instance(registry, "test_app", "test_app.0")
 
         await real_registry_service.stop_app("test_app")
 
         inst.shutdown.assert_awaited_once()
-        assert registry.tracked_indices("test_app") == set()
+        assert registry.tracked_names("test_app") == set()
 
     async def test_instance_stays_registered_until_its_teardown_finishes(
         self, real_registry_service: AppLifecycleService
     ) -> None:
         """While ``on_shutdown`` runs, readers see the instance itself, not a STOPPED placeholder."""
         registry = real_registry_service.registry
-        inst = register_mock_instance(registry, "test_app", 0)
+        inst = register_mock_instance(registry, "test_app", "test_app.0")
         seen_during_teardown: list[object] = []
 
         async def teardown() -> ShutdownOutcome:
-            seen_during_teardown.append(registry.get("test_app", 0))
+            seen_during_teardown.append(registry.get("test_app", "test_app.0"))
             return ShutdownOutcome()
 
         inst.shutdown = AsyncMock(side_effect=teardown)
@@ -432,7 +430,7 @@ class TestStopApp:
         await real_registry_service.stop_app("test_app")
 
         assert seen_during_teardown == [inst]
-        assert registry.get("test_app", 0) is None
+        assert registry.get("test_app", "test_app.0") is None
 
     async def test_warns_if_not_found(self, real_registry_service: AppLifecycleService) -> None:
         """An app key with nothing tracked is "not found" and shuts nothing down."""
@@ -447,13 +445,13 @@ class TestStopApp:
     ) -> None:
         """A failed-only app is not "not found": its entries are discarded and nothing is shut down."""
         registry = real_registry_service.registry
-        registry.record_failure("failed_only_app", 0, ValueError("bad config"))
+        registry.record_failure("failed_only_app", "failed_only_app.0", ValueError("bad config"))
         real_registry_service.shutdown_instances = AsyncMock()
 
         await real_registry_service.stop_app("failed_only_app")
 
         real_registry_service.shutdown_instances.assert_not_called()
-        assert registry.tracked_indices("failed_only_app") == set()
+        assert registry.tracked_names("failed_only_app") == set()
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
     # signature between separate test functions (see .claude/rules/tests-unit-core.md).
@@ -468,8 +466,8 @@ class TestStopApp:
         """
         event_capture.install(mock_hassette)
         registry = real_registry_service.registry
-        register_mock_instance(registry, "mixed_app", 0)
-        registry.record_failure("mixed_app", 1, ValueError("bad config"))
+        register_mock_instance(registry, "mixed_app", "mixed_app.0")
+        registry.record_failure("mixed_app", "mixed_app.1", ValueError("bad config"))
 
         await real_registry_service.stop_app("mixed_app")
 
@@ -479,26 +477,24 @@ class TestStopApp:
         assert stopped_payloads[0].previous_status == ResourceStatus.FAILED
         # dup-ignore-end
 
-    async def test_flagged_index_emits_failed_not_stopped_and_stays_flagged(
+    async def test_flagged_instance_emits_failed_not_stopped_and_stays_flagged(
         self,
         real_registry_service: AppLifecycleService,
         mock_hassette: MagicMock,
         event_capture: EventCapture,
     ) -> None:
-        """A stop discards a flagged index's failure entry, but it keeps reporting FAILED until restart."""
+        """A stop discards a flagged instance's failure entry, but it keeps reporting FAILED until restart."""
         event_capture.install(mock_hassette)
         registry = real_registry_service.registry
-        registry.record_failure("test_app", 0, TimeoutError("stop timed out"))
-        registry.flag_needs_restart(
-            "test_app", 0, instance_name="test_app.0", class_name="TestApp", reason="work still running"
-        )
+        registry.record_failure("test_app", "test_app.0", TimeoutError("stop timed out"))
+        registry.flag_needs_restart("test_app", "test_app.0", class_name="TestApp", reason="work still running")
 
         await real_registry_service.stop_app("test_app")
 
         assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
         failed = app_state_payloads(event_capture, ResourceStatus.FAILED)
         assert [p.index for p in failed] == [0]
-        info = registry.resolve_instance_info("test_app", 0)
+        info = registry.resolve_instance_info("test_app", "test_app.0")
         assert info is not None
         assert info.status == ResourceStatus.FAILED
         assert info.needs_restart is not None
@@ -513,7 +509,7 @@ class TestExitReachesInFlightStops:
         coordinator's job and is pinned by the resource lifecycle tests; the mock here counts calls only.
         """
         registry = real_registry_service.registry
-        inst = register_mock_instance(registry, "test_app", 0)
+        inst = register_mock_instance(registry, "test_app", "test_app.0")
         entered = asyncio.Event()
         release = asyncio.Event()
 
@@ -531,7 +527,7 @@ class TestExitReachesInFlightStops:
         release.set()
         await asyncio.wait_for(asyncio.gather(runtime_stop, exit_stop), timeout=5)
 
-        assert registry.tracked_indices("test_app") == set()
+        assert registry.tracked_names("test_app") == set()
 
 
 class TestShutdownInstanceLogContext:
@@ -539,6 +535,7 @@ class TestShutdownInstanceLogContext:
         """Log records emitted while an instance shuts down carry its real app_key, not None."""
         inst = make_mock_app_instance(instance_name="inst_0")
         inst.app_key = "my_app"
+        inst.index = 0
         bound: dict[str, object] = {}
 
         async def capture_context() -> ShutdownOutcome:
@@ -547,7 +544,7 @@ class TestShutdownInstanceLogContext:
 
         inst.shutdown = AsyncMock(side_effect=capture_context)
 
-        await lifecycle_service.shutdown_instance(inst, 0, outcomes=AnyIndexOutcomes())
+        await lifecycle_service.shutdown_instance(inst, "inst_0", outcomes=AnyNameOutcomes())
 
         assert bound["app_key"] == "my_app"
         assert bound["instance_name"] == "inst_0"

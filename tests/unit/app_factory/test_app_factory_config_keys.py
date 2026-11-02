@@ -9,7 +9,7 @@ from pydantic_settings import SettingsConfigDict
 
 from hassette import AppConfig
 from hassette.core.app_factory import AppFactory, accepted_config_keys
-from tests.support.outcomes import AnyIndexOutcomes
+from tests.support.outcomes import AnyNameOutcomes
 
 from .conftest import as_app_class, make_app_class
 
@@ -57,9 +57,10 @@ class AliasChoicesConfig(AppConfig):
 
 
 def create_instance(factory: AppFactory, manifest: Mock, config: dict, config_cls: type[AppConfig]) -> None:
-    """Create instance 0 of ``test_app`` from ``config`` with an app class whose config class is ``config_cls``."""
+    """Create ``test_instance`` of ``test_app`` from ``config``, with an app class using ``config_cls``."""
+    manifest.app_config = config
     factory.create_single_instance(
-        "test_app", manifest, 0, config, as_app_class(make_app_class(config_cls)), outcomes=AnyIndexOutcomes()
+        "test_app", manifest, "test_instance", as_app_class(make_app_class(config_cls)), outcomes=AnyNameOutcomes()
     )
 
 
@@ -86,10 +87,10 @@ def test_accepted_config_keys_follow_pydantic_lookup(
 class TestAppFactoryUnrecognizedConfigKeyWarning:
     def test_bare_app_config_does_not_warn_on_extras(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """A bare AppConfig takes arbitrary keys as intended extras, so none of them warn."""
-        config = {"instance_name": "test_instance", "anything": 1, "off_dealy": 5}
+        mock_manifest.app_config = {"instance_name": "test_instance", "anything": 1, "off_dealy": 5}
 
         factory.create_single_instance(
-            "test_app", mock_manifest, 0, config, as_app_class(make_app_class()), outcomes=AnyIndexOutcomes()
+            "test_app", mock_manifest, "test_instance", as_app_class(make_app_class()), outcomes=AnyNameOutcomes()
         )
 
         mock_registry.register_app.assert_called_once()
@@ -98,11 +99,11 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
     def test_typed_config_typo_warns_with_suggestion(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """A typo'd key on a typed subclass warns once, names the key, and suggests the field."""
         mock_app_class = make_app_class(MotionLightConfig)
-        config = {"instance_name": "test_instance", "off_dealy": 5}
+        mock_manifest.app_config = {"instance_name": "test_instance", "off_dealy": 5}
 
         with pytest.warns(UserWarning, match="Unrecognized configuration key") as record:
             factory.create_single_instance(
-                "test_app", mock_manifest, 0, config, as_app_class(mock_app_class), outcomes=AnyIndexOutcomes()
+                "test_app", mock_manifest, "test_instance", as_app_class(mock_app_class), outcomes=AnyNameOutcomes()
             )
 
         assert len(record) == 1
@@ -200,12 +201,12 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         """Unrelated .env entries folded into model_extra by pydantic-settings never warn."""
         (tmp_path / ".env").write_text("SOME_OTHER_SECRET=1\n")
         monkeypatch.chdir(tmp_path)
-        config = {"instance_name": "test_instance", "off_delay": 5}
+        mock_manifest.app_config = {"instance_name": "test_instance", "off_delay": 5}
 
         mock_app_class = make_app_class(MotionLightConfig)
 
         factory.create_single_instance(
-            "test_app", mock_manifest, 0, config, as_app_class(mock_app_class), outcomes=AnyIndexOutcomes()
+            "test_app", mock_manifest, "test_instance", as_app_class(mock_app_class), outcomes=AnyNameOutcomes()
         )
 
         assert "some_other_secret" in mock_app_class.call_args.kwargs["app_config"].model_extra

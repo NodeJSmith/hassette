@@ -237,7 +237,7 @@ class TestValidateApps:
     def test_validate_apps_warns_on_multi_instance_default_key_collision(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A multi-instance app's default `{app_key}/{idx}` key can collide with another
+        """A multi-instance app's default `{app_key}/{instance_name}` key can collide with another
         app's explicit cache_key — the collision check must expand multi-instance app_config
         lists to each instance's resolved key, not just check the manifest as a whole.
         """
@@ -254,13 +254,13 @@ class TestValidateApps:
                 "filename": "other_app.py",
                 "class_name": "OtherApp",
                 "config": {"instance_name": "other_app"},
-                "cache_key": "weather/1",
+                "cache_key": "weather/weather_sf",
             },
         }
         messages = self.warning_messages(tmp_path, app_dir, caplog, apps)
 
-        assert any("weather/1" in message for message in messages), (
-            f"Expected a WARNING mentioning the colliding cache_key 'weather/1', got: {messages}"
+        assert any("weather/weather_sf" in message for message in messages), (
+            f"Expected a WARNING mentioning the colliding cache_key 'weather/weather_sf', got: {messages}"
         )
 
     def test_validate_apps_no_warning_when_all_sharers_opt_in(

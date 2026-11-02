@@ -88,14 +88,14 @@ If values do not survive a restart, check five common causes:
 - **Write targets a local variable instead of `self.cache`.** Verify the call is `await self.cache.set("key", value)`, not an assignment to a local dict.
 - **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs — no error, no write, no log message. Every data method on `self.cache` is a coroutine.
 - **Exception during initialization.** The app may raise before the write executes. Check `hassette log --app <key>` for errors.
-- **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{app_key}/{index}/cache/` — the Hassette process must own the directory.
+- **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{app_key}/{instance_name}/cache/` — the Hassette process must own the directory.
 - **Stored value is not picklable.** Unpicklable objects raise at write time: usually `TypeError` (file handles, locks, sockets, generators) or `pickle.PicklingError` (lambdas and other functions pickle cannot reference).
 
 ### Cache Grows Large
 
 The cache has no size limit — entries persist until deleted, expired, or explicitly cleared. Set a `ttl` on entries that don't need to live forever, and call `await self.cache.clear()` to delete all entries and reclaim disk space (it runs `VACUUM` and truncates the WAL after deleting, so the file actually shrinks). `await self.cache.invalidate(*keys)` deletes a specific set of keys in one call.
 
-The cache directory at `{data_dir}/{app_key}/{index}/cache/` should contain a `cache.db` file after the first successful write.
+The cache directory at `{data_dir}/{app_key}/{instance_name}/cache/` should contain a `cache.db` file after the first successful write.
 
 ## See Also
 

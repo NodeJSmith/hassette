@@ -339,8 +339,8 @@ def unsafe_cache_path_reason(value: str) -> str | None:
     # an ordinary name on POSIX but drive- or root-anchored on Windows, where joining it discards data_dir.
     posix, windows = PurePosixPath(value), PureWindowsPath(value)
     if not posix.parts:
-        # "" and "." resolve to data_dir itself; an empty app key would also turn "{app_key}/{index}"
-        # into the absolute "/{index}".
+        # "" and "." resolve to data_dir itself; an empty app key would also turn "{app_key}/{instance_name}"
+        # into the absolute "/{instance_name}".
         return "must name a subdirectory of data_dir (not be empty or '.')"
     if posix.anchor or windows.anchor:
         return "must be a relative path"

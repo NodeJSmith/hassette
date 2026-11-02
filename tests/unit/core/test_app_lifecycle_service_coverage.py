@@ -531,7 +531,7 @@ async def reconcile_one_instance(
     `command_executor.reconcile_registrations` call, so returning `call_args` directly keeps each
     test to its own arrangement plus its own assertion.
     """
-    await lifecycle_service.reconcile_app_registrations("test_app", {0: instance})
+    await lifecycle_service.reconcile_app_registrations("test_app", {"test_instance": instance})
     return mock_hassette.command_executor.reconcile_registrations.call_args
 
 

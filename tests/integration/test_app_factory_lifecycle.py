@@ -18,7 +18,7 @@ from hassette.exceptions import AppPrecheckFailedError, InvalidInheritanceError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.utils import app_utils
 from tests.support.app_staging_helpers import clear_loaded_class_caches
-from tests.support.outcomes import AnyIndexOutcomes
+from tests.support.outcomes import AnyNameOutcomes
 
 if TYPE_CHECKING:
     from hassette import HassetteConfig
@@ -30,9 +30,10 @@ if TYPE_CHECKING:
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
 
-def get_app(registry: AppRegistry, key: str, index: int = 0) -> "App[AppConfig]":
-    app = registry.get(key, index)
-    assert app is not None, f"expected app {key!r}[{index}] to be registered"
+def get_app(registry: AppRegistry, key: str, instance_name: str | None = None) -> "App[AppConfig]":
+    """The named running instance of ``key``, or its first running one."""
+    app = registry.get(key, instance_name)
+    assert app is not None, f"expected app {key!r}[{instance_name}] to be registered"
     return app
 
 
@@ -83,19 +84,19 @@ def make_manifest(  # factory-local: returns AppManifest, not AppManifestInfo
 
 def create_app(
     app_factory: AppFactory, app_registry: AppRegistry, manifest: AppManifest
-) -> dict[int, "App[AppConfig]"]:
+) -> dict[str, "App[AppConfig]"]:
     """Register ``manifest``, create its instances, and return the running ones."""
     app_registry.set_manifests({manifest.app_key: manifest})
-    app_factory.create_instances(manifest.app_key, manifest, outcomes=AnyIndexOutcomes())
+    app_factory.create_instances(manifest.app_key, manifest, outcomes=AnyNameOutcomes())
     return app_registry.get_running_apps(manifest.app_key)
 
 
 async def bring_up_app(
     app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry, manifest: AppManifest
-) -> dict[int, "App[AppConfig]"]:
+) -> dict[str, "App[AppConfig]"]:
     """Create ``manifest``'s instances and initialize them, returning the created instances."""
     instances = create_app(app_factory, app_registry, manifest)
-    await app_lifecycle.initialize_instances(manifest.app_key, instances, manifest, outcomes=AnyIndexOutcomes())
+    await app_lifecycle.initialize_instances(manifest.app_key, instances, manifest, outcomes=AnyNameOutcomes())
     return instances
 
 
@@ -117,7 +118,7 @@ async def running_multi_instance(
     app_lifecycle: AppLifecycleService,
     app_registry: AppRegistry,
     multi_instance_manifest: AppManifest,
-) -> dict[int, "App[AppConfig]"]:
+) -> dict[str, "App[AppConfig]"]:
     """``MultiInstanceApp`` created and initialized; returns its instances."""
     return await bring_up_app(app_factory, app_lifecycle, app_registry, multi_instance_manifest)
 
@@ -128,7 +129,7 @@ async def initialized_failing(
     app_lifecycle: AppLifecycleService,
     app_registry: AppRegistry,
     failing_manifest: AppManifest,
-) -> dict[int, "App[AppConfig]"]:
+) -> dict[str, "App[AppConfig]"]:
     """``FailingInitApp`` created and put through its (failing) initialization; returns its instances."""
     return await bring_up_app(app_factory, app_lifecycle, app_registry, failing_manifest)
 
@@ -151,7 +152,7 @@ class TestAppFactoryIntegration:
         create_app(app_factory, app_registry, manifest)
 
         assert "my_app" in app_registry
-        app_instance = get_app(app_registry, "my_app", 0)
+        app_instance = get_app(app_registry, "my_app")
         assert app_instance.__class__.__name__ == "MyApp"
 
     def test_load_class_from_empty_context(self, app_factory: AppFactory):
@@ -173,7 +174,7 @@ class TestAppFactoryIntegration:
 
         create_app(app_factory, app_registry, manifest)
 
-        app_instance = get_app(app_registry, "my_app", 0)
+        app_instance = get_app(app_registry, "my_app")
         # Verify it has expected App attributes
         assert hasattr(app_instance, "bus")
         assert hasattr(app_instance, "scheduler")
@@ -191,7 +192,7 @@ class TestAppFactoryIntegration:
 
         create_app(app_factory, app_registry, manifest)
 
-        app_instance = get_app(app_registry, "my_app", 0)
+        app_instance = get_app(app_registry, "my_app")
         assert app_instance.app_config.model_dump()["test_entity"] == "light.kitchen"
 
     def test_factory_creates_multiple_instances(self, app_factory: AppFactory, app_registry: AppRegistry):
@@ -209,8 +210,8 @@ class TestAppFactoryIntegration:
         create_app(app_factory, app_registry, manifest)
 
         assert len(app_registry.get_running_apps("multi_instance")) == 2
-        assert app_registry.get("multi_instance", 0) is not None
-        assert app_registry.get("multi_instance", 1) is not None
+        assert app_registry.get("multi_instance", "instance_0") is not None
+        assert app_registry.get("multi_instance", "instance_1") is not None
 
     def test_factory_instances_have_unique_configs(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Each instance has its own validated config."""
@@ -226,8 +227,8 @@ class TestAppFactoryIntegration:
 
         create_app(app_factory, app_registry, manifest)
 
-        instance_0 = app_registry.get("multi_instance", 0)
-        instance_1 = app_registry.get("multi_instance", 1)
+        instance_0 = app_registry.get("multi_instance", "instance_0")
+        instance_1 = app_registry.get("multi_instance", "instance_1")
         assert instance_0 is not None
         assert instance_1 is not None
         assert instance_0.app_config.model_dump()["value"] == "first"
@@ -276,14 +277,14 @@ class TestAppFactoryIntegration:
         manifest = make_manifest("my_app", "my_app.py", "MyApp")
 
         create_app(app_factory, app_registry, manifest)
-        first_instance = get_app(app_registry, "my_app", 0)
+        first_instance = get_app(app_registry, "my_app")
         first_class = first_instance.__class__
 
         # Clear registry but keep class cache
         app_registry.unregister_app("my_app")
 
-        app_factory.create_instances("my_app", manifest, outcomes=AnyIndexOutcomes())
-        second_instance = get_app(app_registry, "my_app", 0)
+        app_factory.create_instances("my_app", manifest, outcomes=AnyNameOutcomes())
+        second_instance = get_app(app_registry, "my_app")
         second_class = second_instance.__class__
 
         assert first_class is second_class
@@ -293,14 +294,14 @@ class TestAppFactoryIntegration:
         manifest = make_manifest("my_app", "my_app.py", "MyApp")
 
         create_app(app_factory, app_registry, manifest)
-        first_instance = get_app(app_registry, "my_app", 0)
+        first_instance = get_app(app_registry, "my_app")
         first_class = first_instance.__class__
 
         # Clear registry
         app_registry.unregister_app("my_app")
 
-        app_factory.create_instances("my_app", manifest, force_reload=True, outcomes=AnyIndexOutcomes())
-        second_instance = get_app(app_registry, "my_app", 0)
+        app_factory.create_instances("my_app", manifest, force_reload=True, outcomes=AnyNameOutcomes())
+        second_instance = get_app(app_registry, "my_app")
         second_class = second_instance.__class__
 
         # After force reload, it should be a different class object
@@ -326,7 +327,7 @@ class TestAppFactoryIntegration:
             assert cache_key in app_utils.FAILED_TO_LOAD_CLASSES
 
             # With force_reload the failure is evicted and the app loads from disk.
-            app_factory.create_instances("my_app", manifest, force_reload=True, outcomes=AnyIndexOutcomes())
+            app_factory.create_instances("my_app", manifest, force_reload=True, outcomes=AnyNameOutcomes())
             assert "my_app" in app_registry
             assert cache_key not in app_utils.FAILED_TO_LOAD_CLASSES
         finally:
@@ -340,7 +341,7 @@ class TestAppLifecycleServiceIntegration:
     async def test_lifecycle_initializes_real_app(self, app_registry: AppRegistry):
         """Calls real on_initialize() hook."""
         # Verify the app was initialized (status should be RUNNING after mark_ready)
-        app_instance = get_app(app_registry, "multi_instance", 0)
+        app_instance = get_app(app_registry, "multi_instance")
         assert app_instance.status == ResourceStatus.RUNNING
 
     async def test_lifecycle_marks_app_ready(
@@ -354,11 +355,11 @@ class TestAppLifecycleServiceIntegration:
         instances = create_app(app_factory, app_registry, multi_instance_manifest)
 
         # Before initialization
-        app_instance = get_app(app_registry, "multi_instance", 0)
+        app_instance = get_app(app_registry, "multi_instance")
         assert app_instance.status != ResourceStatus.RUNNING
 
         await app_lifecycle.initialize_instances(
-            "multi_instance", instances, multi_instance_manifest, outcomes=AnyIndexOutcomes()
+            "multi_instance", instances, multi_instance_manifest, outcomes=AnyNameOutcomes()
         )
 
         # After initialization
@@ -380,21 +381,21 @@ class TestAppLifecycleServiceIntegration:
         await bring_up_app(app_factory, app_lifecycle, app_registry, manifest)
 
         # Both instances should be running
-        instance_0 = app_registry.get("multi_instance", 0)
-        instance_1 = app_registry.get("multi_instance", 1)
+        instance_0 = app_registry.get("multi_instance", "instance_0")
+        instance_1 = app_registry.get("multi_instance", "instance_1")
         assert instance_0 is not None
         assert instance_1 is not None
         assert instance_0.status == ResourceStatus.RUNNING
         assert instance_1.status == ResourceStatus.RUNNING
 
     async def test_lifecycle_handles_init_exception(
-        self, app_registry: AppRegistry, initialized_failing: dict[int, "App[AppConfig]"]
+        self, app_registry: AppRegistry, initialized_failing: dict[str, "App[AppConfig]"]
     ):
         """App raising in on_initialize() is caught (the fixture's initialization did not raise)."""
         # App should be marked as stopped
-        app_instance = app_registry.get("failing", 0)
+        app_instance = app_registry.get("failing", "failing")
         assert app_instance is None, "Failed app instance should be removed from registry after init failure"
-        assert initialized_failing[0].status == ResourceStatus.STOPPED, (
+        assert initialized_failing["failing"].status == ResourceStatus.STOPPED, (
             "Failed app instance should be marked as STOPPED after init failure"
         )
 
@@ -439,9 +440,7 @@ class TestAppLifecycleServiceIntegration:
         app_lifecycle.logger.setLevel(logging.DEBUG)
 
         with caplog.at_level(logging.DEBUG, logger="hassette"):
-            await app_lifecycle.initialize_instances(
-                "failing", instances, failing_manifest, outcomes=AnyIndexOutcomes()
-            )
+            await app_lifecycle.initialize_instances("failing", instances, failing_manifest, outcomes=AnyNameOutcomes())
 
         # Only count records from the loggers involved in this init failure. The module-scoped
         # harness autostarts the configured test apps (MyAppSync schedules a job ~1s after boot),
@@ -486,40 +485,42 @@ class TestAppLifecycleServiceIntegration:
         """Other instances still initialize after one fails."""
         # Create failing app first
         app_registry.set_manifests({"failing": failing_manifest})
-        app_factory.create_instances("failing", failing_manifest, outcomes=AnyIndexOutcomes())
+        app_factory.create_instances("failing", failing_manifest, outcomes=AnyNameOutcomes())
 
         # Create succeeding app
         app_registry.set_manifests({"failing": failing_manifest, "multi_instance": multi_instance_manifest})
-        app_factory.create_instances("multi_instance", multi_instance_manifest, outcomes=AnyIndexOutcomes())
+        app_factory.create_instances("multi_instance", multi_instance_manifest, outcomes=AnyNameOutcomes())
 
         # Initialize all together
         failing_instances = app_registry.get_running_apps("failing")
         success_instances = app_registry.get_running_apps("multi_instance")
 
         await app_lifecycle.initialize_instances(
-            "failing", failing_instances, failing_manifest, outcomes=AnyIndexOutcomes()
+            "failing", failing_instances, failing_manifest, outcomes=AnyNameOutcomes()
         )
         await app_lifecycle.initialize_instances(
-            "multi_instance", success_instances, multi_instance_manifest, outcomes=AnyIndexOutcomes()
+            "multi_instance", success_instances, multi_instance_manifest, outcomes=AnyNameOutcomes()
         )
 
         # Failing app should be stopped
-        assert failing_instances[0].status == ResourceStatus.STOPPED
-        assert app_registry.get("failing", 0) is None, (
+        assert failing_instances["failing"].status == ResourceStatus.STOPPED
+        assert app_registry.get("failing", "failing") is None, (
             "Failed app instance should be removed from registry after init failure"
         )
         # Success app should be running
-        success_instance = get_app(app_registry, "multi_instance", 0)
+        success_instance = get_app(app_registry, "multi_instance")
         assert success_instance.status == ResourceStatus.RUNNING
 
     @pytest.mark.usefixtures("running_multi_instance")
     async def test_lifecycle_shuts_down_real_app(self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry):
         """Calls real shutdown() and cleanup() methods."""
-        app_instance = get_app(app_registry, "multi_instance", 0)
+        app_instance = get_app(app_registry, "multi_instance")
         assert app_instance.status == ResourceStatus.RUNNING
 
         # Shutdown should not raise
-        await app_lifecycle.shutdown_instance(app_instance, 0, outcomes=AnyIndexOutcomes())
+        await app_lifecycle.shutdown_instance(
+            app_instance, app_instance.app_config.instance_name, outcomes=AnyNameOutcomes()
+        )
 
     @pytest.mark.usefixtures("running_multi_instance")
     async def test_lifecycle_shutdown_all_clears_registry(
@@ -545,7 +546,7 @@ class TestFailedInitShutdown:
     ):
         manifest = make_manifest("registers_then_fails", "registers_then_fails_app.py", "RegistersThenFailsApp")
         instances = await bring_up_app(app_factory, app_lifecycle, app_registry, manifest)
-        inst = instances[0]
+        inst = instances["registers_then_fails"]
         hassette = hassette_with_app_handler.hassette
 
         assert hassette.bus_service.get_listeners_by_owner(inst.bus.owner_id) == []
@@ -553,7 +554,7 @@ class TestFailedInitShutdown:
         assert [job for job in jobs if job.owner_id == inst.scheduler.owner_id] == []
         assert getattr(inst, "shutdown_called", None) is False, "an app whose init failed must not run on_shutdown"
 
-        info = app_registry.resolve_instance_info("registers_then_fails", 0)
+        info = app_registry.resolve_instance_info("registers_then_fails", "registers_then_fails")
         assert info is not None
         assert info.status == ResourceStatus.FAILED
         assert info.needs_restart is None, "a failed init whose work ended stays reloadable"
@@ -576,11 +577,11 @@ class TestFullIntegrationFlow:
 
         # Initialize
         await app_lifecycle.initialize_instances(
-            "multi_instance", instances, multi_instance_manifest, outcomes=AnyIndexOutcomes()
+            "multi_instance", instances, multi_instance_manifest, outcomes=AnyNameOutcomes()
         )
 
         # Verify running
-        app = get_app(app_registry, "multi_instance", 0)
+        app = get_app(app_registry, "multi_instance")
         assert app.status == ResourceStatus.RUNNING
 
     async def test_full_flow_with_registry_state(
@@ -592,23 +593,23 @@ class TestFullIntegrationFlow:
     ):
         """Verify registry state at each step."""
         # Before creation
-        assert app_registry.get("multi_instance", 0) is None
+        assert app_registry.get("multi_instance", "multi_instance") is None
 
         # After creation
         instances = create_app(app_factory, app_registry, multi_instance_manifest)
-        app = get_app(app_registry, "multi_instance", 0)
+        app = get_app(app_registry, "multi_instance")
         assert app.status == ResourceStatus.NOT_STARTED
 
         # After initialization
         await app_lifecycle.initialize_instances(
-            "multi_instance", instances, multi_instance_manifest, outcomes=AnyIndexOutcomes()
+            "multi_instance", instances, multi_instance_manifest, outcomes=AnyNameOutcomes()
         )
         assert app.status == ResourceStatus.RUNNING
 
         # After shutdown — asserted here (not deferred to fixture teardown), so the
         # explicit call stays; the fixture's own shutdown_all() afterward is a harmless no-op.
         await app_lifecycle.shutdown_all()
-        assert app_registry.get("multi_instance", 0) is None
+        assert app_registry.get("multi_instance", "multi_instance") is None
 
     async def test_full_flow_multiple_apps(
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
@@ -625,8 +626,8 @@ class TestFullIntegrationFlow:
         app_registry.set_manifests({"multi1": manifest1, "my_app": manifest2})
 
         # Create both
-        app_factory.create_instances("multi1", manifest1, outcomes=AnyIndexOutcomes())
-        app_factory.create_instances("my_app", manifest2, outcomes=AnyIndexOutcomes())
+        app_factory.create_instances("multi1", manifest1, outcomes=AnyNameOutcomes())
+        app_factory.create_instances("my_app", manifest2, outcomes=AnyNameOutcomes())
 
         assert "multi1" in app_registry
         assert "my_app" in app_registry
@@ -634,12 +635,12 @@ class TestFullIntegrationFlow:
         # Initialize both
         instances1 = app_registry.get_running_apps("multi1")
         instances2 = app_registry.get_running_apps("my_app")
-        await app_lifecycle.initialize_instances("multi1", instances1, manifest1, outcomes=AnyIndexOutcomes())
-        await app_lifecycle.initialize_instances("my_app", instances2, manifest2, outcomes=AnyIndexOutcomes())
+        await app_lifecycle.initialize_instances("multi1", instances1, manifest1, outcomes=AnyNameOutcomes())
+        await app_lifecycle.initialize_instances("my_app", instances2, manifest2, outcomes=AnyNameOutcomes())
 
         # Both should be running
-        multi1_instance = app_registry.get("multi1", 0)
-        my_app_instance = app_registry.get("my_app", 0)
+        multi1_instance = app_registry.get("multi1", "multi1_inst")
+        my_app_instance = app_registry.get("my_app", "my_app")
         assert multi1_instance is not None
         assert my_app_instance is not None
         assert multi1_instance.status == ResourceStatus.RUNNING
@@ -666,7 +667,7 @@ class TestAppRestartPreservesChildren:
     @pytest.mark.usefixtures("running_multi_instance")
     async def test_restart_round_trip(self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry):
         """Shutdown propagates to children, re-initialize restores them all to ready."""
-        app_instance = get_app(app_registry, "multi_instance", 0)
+        app_instance = get_app(app_registry, "multi_instance")
         assert app_instance.status == ResourceStatus.RUNNING
 
         # All four children should be ready after init
@@ -676,7 +677,9 @@ class TestAppRestartPreservesChildren:
         assert app_instance.states.is_ready(), "StateManager should be ready after initialize"
 
         # Shutdown
-        await app_lifecycle.shutdown_instance(app_instance, 0, outcomes=AnyIndexOutcomes())
+        await app_lifecycle.shutdown_instance(
+            app_instance, app_instance.app_config.instance_name, outcomes=AnyNameOutcomes()
+        )
 
         assert app_instance.status == ResourceStatus.STOPPED
         assert not app_instance.bus.is_ready(), "Bus should not be ready after shutdown"

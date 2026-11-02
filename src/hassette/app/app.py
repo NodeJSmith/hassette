@@ -236,11 +236,11 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """Key used to scope this app instance's cache directory.
 
         Returns the manifest's explicit ``cache_key`` when set; otherwise defaults to
-        ``f"{app_key}/{index}"`` so each app instance gets its own cache directory.
+        ``f"{app_key}/{instance_name}"`` so each app instance gets its own cache directory.
         """
         if self.app_manifest and self.app_manifest.cache_key:
             return self.app_manifest.cache_key
-        return f"{self.app_key}/{self.index}"
+        return f"{self.app_key}/{self.instance_name}"
 
     @property
     def state_registry(self) -> StateRegistry:

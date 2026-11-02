@@ -49,7 +49,7 @@ from hassette.config.sources import (
     anchor_paths,
 )
 from hassette.exceptions import ConfigError
-from hassette.schemas.app_config_shape import normalize_app_config
+from hassette.schemas.app_config_shape import configured_instance_names, normalize_app_config
 from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, AppDict, is_framework_key
 from hassette.utils.app_utils import clean_app
@@ -618,7 +618,7 @@ def check_unique_instance_names(manifests: Mapping[str, AppManifest]) -> None:
 def unsafe_app_key_reason(app_key: str) -> str | None:
     r"""Return why *app_key* can't be used as a cache directory name, or None if it is safe.
 
-    The default cache key is ``{app_key}/{index}``, so an app key must be a single path segment
+    The default cache key is ``{app_key}/{instance_name}``, so an app key must be a single path segment
     (no ``/`` or ``\``) and must also pass the same checks as an explicit ``cache_key``.
     """
     if "/" in app_key or "\\" in app_key:
@@ -630,14 +630,13 @@ def resolve_cache_keys(app_key: str, manifest: AppManifest) -> list[str]:
     """Return the resolved cache_key(s) for every instance of *manifest*.
 
     When ``manifest.cache_key`` is explicitly set, all instances share that single value
-    (the index is not appended). When unset, each instance gets its own default key
-    ``{app_key}/{idx}`` derived from its position in ``app_config``.
+    (the instance name is not appended). When unset, each instance gets its own default key
+    ``{app_key}/{instance_name}``.
     """
     if manifest.cache_key:
         return [manifest.cache_key]
 
-    instance_count = len(manifest.app_config) if isinstance(manifest.app_config, list) else 1
-    return [f"{app_key}/{idx}" for idx in range(instance_count)]
+    return [f"{app_key}/{name}" for name in configured_instance_names(manifest.app_config)]
 
 
 def warn_on_cache_key_collisions(manifests: dict[str, AppManifest]) -> None:

@@ -93,7 +93,7 @@ class TestApps:
 
     def test_get_app_instance(self) -> None:
         """Test getting a specific app instance."""
-        app = self.app_handler.get("my_app", 0)
+        app = self.app_handler.get("my_app")
         assert app is not None, "App instance should be found"
         assert app.app_manifest is not None, "Factory-created app should carry its manifest"
 
@@ -178,7 +178,7 @@ class TestApps:
         """Verify that editing hassette.toml to change an app's config reloads the instance."""
         assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
 
-        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))
+        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app"))
         assert my_app_instance is not None, "Precondition: my_app instance should exist"
 
         assert my_app_instance.app_config.test_entity == "input_button.test", (
@@ -197,14 +197,14 @@ class TestApps:
         await wait_for(
             lambda: (
                 "my_app" in self.app_handler.registry
-                and self.app_handler.get("my_app", 0) is not None
-                and typing.cast("MyApp", self.app_handler.get("my_app", 0)).app_config.test_entity == "light.office"
+                and self.app_handler.get("my_app") is not None
+                and typing.cast("MyApp", self.app_handler.get("my_app")).app_config.test_entity == "light.office"
             ),
             desc="app reload completed with updated config",
         )
 
         assert "my_app" in self.app_handler.registry, "my_app should still be running after reload"
-        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))
+        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app"))
         assert my_app_instance is not None, "my_app instance should still exist after reload"
         assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"
 
@@ -212,7 +212,7 @@ class TestApps:
         """Test that an app with a specific instance_name in config starts correctly."""
         assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
 
-        my_app_instance = self.app_handler.get("my_app", 0)
+        my_app_instance = self.app_handler.get("my_app", "unique_instance_name")
         assert my_app_instance is not None, "my_app instance should exist"
         assert my_app_instance.app_config.instance_name == "unique_instance_name", (
             "my_app instance should have the specified instance_name"
@@ -222,7 +222,7 @@ class TestApps:
         """A configured app runs under exactly the instance_name its config sets, which is also its unique_name."""
         assert "my_app_sync" in self.app_handler.registry, "Precondition: my_app_sync starts enabled"
 
-        instance = self.app_handler.get("my_app_sync", 0)
+        instance = self.app_handler.get("my_app_sync", "my_app_sync")
         assert instance is not None, "my_app_sync instance should exist"
         assert instance.app_config.instance_name == "my_app_sync"
         assert instance.unique_name == "my_app_sync"
@@ -270,13 +270,13 @@ class TestApps:
         instance, not restarted) across a post-release disconnect.
         """
         assert "my_app" in self.app_handler.registry, "Precondition: my_app is running"
-        my_app_instance_before = self.app_handler.get("my_app", 0)
+        my_app_instance_before = self.app_handler.get("my_app")
         assert my_app_instance_before is not None
 
         await self.hassette.state_proxy.on_disconnect()
 
         assert "my_app" in self.app_handler.registry, "my_app must remain registered after disconnect"
-        my_app_instance_after = self.app_handler.get("my_app", 0)
+        my_app_instance_after = self.app_handler.get("my_app")
         assert my_app_instance_after is my_app_instance_before, "The same running instance must be preserved"
         assert my_app_instance_after is not None
         assert my_app_instance_after.is_ready()
@@ -462,13 +462,13 @@ class TestPerInstanceSelectiveRestart:
 
         await lifecycle.start_app(app_key)
 
-        instance0_before = lifecycle.registry.get(app_key, 0)
-        instance1_before = lifecycle.registry.get(app_key, 1)
-        assert instance0_before is not None, "Precondition: instance 0 should be running"
-        assert instance1_before is not None, "Precondition: instance 1 should be running"
+        alpha_before = lifecycle.registry.get(app_key, "alpha")
+        beta_before = lifecycle.registry.get(app_key, "beta")
+        assert alpha_before is not None, "Precondition: alpha should be running"
+        assert beta_before is not None, "Precondition: beta should be running"
 
         original_config = deepcopy(lifecycle.registry.manifests)
-        # Mutate instance 1's config only — instance 0's dict stays identical.
+        # Mutate beta's config only — alpha's dict stays identical.
         lifecycle.registry.manifests[app_key].app_config = [
             {"value": "a", "instance_name": "alpha"},
             {"value": "changed", "instance_name": "beta"},
@@ -479,20 +479,130 @@ class TestPerInstanceSelectiveRestart:
 
         await wait_for(
             lambda: (
-                (instance1 := lifecycle.registry.get(app_key, 1)) is not None
-                and instance1.app_config.model_dump()["value"] == "changed"
+                (beta := lifecycle.registry.get(app_key, "beta")) is not None
+                and beta.app_config.model_dump()["value"] == "changed"
             ),
-            desc="instance 1 reloaded with updated config",
+            desc="beta reloaded with updated config",
         )
 
-        instance0_after = lifecycle.registry.get(app_key, 0)
-        instance1_after = lifecycle.registry.get(app_key, 1)
-        assert instance0_after is instance0_before, (
-            "instance 0 should not have been recreated — sibling instance must stay undisturbed"
+        alpha_after = lifecycle.registry.get(app_key, "alpha")
+        beta_after = lifecycle.registry.get(app_key, "beta")
+        assert alpha_after is alpha_before, (
+            "alpha should not have been recreated — sibling instance must stay undisturbed"
         )
-        assert instance1_after is not None
-        assert instance1_after is not instance1_before, "instance 1 should have been recreated"
-        assert instance1_after.app_config.model_dump()["value"] == "changed", "instance 1 should reflect the new config"
+        assert beta_after is not None
+        assert beta_after is not beta_before, "beta should have been recreated"
+        assert beta_after.app_config.model_dump()["value"] == "changed", "beta should reflect the new config"
+
+    async def _apply_config(self, lifecycle: AppLifecycleService, app_config: list[dict]) -> None:
+        """Change the multi-instance app's config and apply it the way a live config reload does."""
+        original_config = deepcopy(lifecycle.registry.manifests)
+        lifecycle.registry.manifests[self.MULTI_INSTANCE_APP_KEY].app_config = app_config
+        changes = make_change_set(reload_apps={self.MULTI_INSTANCE_APP_KEY})
+        await lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests)
+
+    async def test_reorder_restarts_nothing_and_each_instance_keeps_its_records(
+        self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
+    ) -> None:
+        """Moving config blocks leaves every instance running; only the display order changes."""
+        lifecycle, _executor, _db_service = real_db_lifecycle
+        app_key = self.MULTI_INSTANCE_APP_KEY
+        alpha_config = {"value": "a", "instance_name": "alpha"}
+        beta_config = {"value": "b", "instance_name": "beta"}
+        lifecycle.set_apps_configs({app_key: self._make_manifest([alpha_config, beta_config])})
+        await lifecycle.start_app(app_key)
+        alpha, beta = lifecycle.registry.get(app_key, "alpha"), lifecycle.registry.get(app_key, "beta")
+        assert alpha is not None
+        assert beta is not None
+
+        await self._apply_config(lifecycle, [beta_config, alpha_config])
+
+        assert lifecycle.registry.get(app_key, "alpha") is alpha
+        assert lifecycle.registry.get(app_key, "beta") is beta
+        assert alpha.index == 0, "a running instance's index stays as constructed until #3100 decides its future"
+        manifest = lifecycle.registry.get_manifest(app_key)
+        assert manifest is not None
+        instances = lifecycle.registry.build_manifest_info(app_key, manifest).instances
+        assert [(info.index, info.instance_name) for info in instances] == [(0, "beta"), (1, "alpha")]
+
+    async def test_adding_an_instance_starts_only_it(
+        self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
+    ) -> None:
+        lifecycle, _executor, _db_service = real_db_lifecycle
+        app_key = self.MULTI_INSTANCE_APP_KEY
+        alpha_config = {"value": "a", "instance_name": "alpha"}
+        lifecycle.set_apps_configs({app_key: self._make_manifest([alpha_config])})
+        await lifecycle.start_app(app_key)
+        alpha = lifecycle.registry.get(app_key, "alpha")
+
+        await self._apply_config(lifecycle, [{"value": "b", "instance_name": "beta"}, alpha_config])
+
+        assert lifecycle.registry.get(app_key, "alpha") is alpha, "the unchanged sibling keeps running"
+        beta = lifecycle.registry.get(app_key, "beta")
+        assert beta is not None
+        assert beta.index == 0, "a new instance is constructed with its position in the config"
+
+    @pytest.mark.parametrize(
+        "new_config",
+        [
+            [{"value": "a", "instance_name": "alpha"}],
+            [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta_renamed"}],
+        ],
+        ids=["removed", "renamed"],
+    )
+    async def test_a_name_leaving_the_config_stops_alone_and_its_rows_retire_at_the_reload(
+        self,
+        real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService],
+        monkeypatch: pytest.MonkeyPatch,
+        new_config: list[dict],
+    ) -> None:
+        """Its listener stops counting as active without waiting for a retention cycle, and is not deleted."""
+        lifecycle, executor, db_service = real_db_lifecycle
+        app_key = self.MULTI_INSTANCE_APP_KEY
+        lifecycle.set_apps_configs(
+            {
+                app_key: self._make_manifest(
+                    [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
+                )
+            }
+        )
+        await lifecycle.start_app(app_key)
+        alpha = lifecycle.registry.get(app_key, "alpha")
+        registered = {
+            name: await executor.register_listener(
+                make_listener_registration(instance_name=name, app_key=app_key, instance_index=0, name=f"{name}_l")
+            )
+            for name in ("alpha", "beta")
+        }
+        # This lifecycle's registry isn't the harness's, so the database reads this app's live set from it.
+        monkeypatch.setattr(
+            db_service,
+            "live_instances",
+            lambda: (
+                [(app_key, config["instance_name"]) for config in new_config]
+                + [(app_key, name) for name in lifecycle.registry.get_running_apps(app_key)]
+            ),
+        )
+
+        await self._apply_config(lifecycle, new_config)
+
+        assert lifecycle.registry.get(app_key, "alpha") is alpha, "the unchanged sibling keeps running"
+        assert lifecycle.registry.get(app_key, "beta") is None
+
+        async def retired_at(listener_id: int | None) -> float | None:
+            cursor = await db_service.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
+            row = await cursor.fetchone()
+            assert row is not None, "retiring must keep the row, so a queued execution keeps its parent"
+            return row["retired_at"]
+
+        beta_retired_at = None
+        for _ in range(200):
+            beta_retired_at = await retired_at(registered["beta"])
+            if beta_retired_at is not None:
+                break
+            await asyncio.sleep(0.01)
+        assert beta_retired_at is not None
+        assert await retired_at(registered["alpha"]) is None
 
     async def test_reload_instance_preserves_sibling_db_rows(
         self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
@@ -501,9 +611,9 @@ class TestPerInstanceSelectiveRestart:
 
         MultiInstanceApp registers no listeners/jobs of its own, so both instances' rows are
         seeded directly via CommandExecutor to give the reconciliation SQL real rows to scope
-        against. After reload_instance(app_key, 1), instance 0's rows must survive unchanged
-        while instance 1's stale rows (nothing "live" after its own reload) are cleaned up —
-        proving the reconciliation SQL is scoped by instance_index, not just app_key.
+        against. After reload_instance(app_key, "beta"), alpha's rows must survive unchanged
+        while beta's stale rows (nothing "live" after its own reload) are cleaned up —
+        proving the reconciliation SQL is scoped by instance_name, not just app_key.
         """
         lifecycle, executor, db_service = real_db_lifecycle
         app_key = self.MULTI_INSTANCE_APP_KEY
@@ -513,8 +623,8 @@ class TestPerInstanceSelectiveRestart:
         lifecycle.set_apps_configs({app_key: manifest})
 
         await lifecycle.start_app(app_key)
-        assert lifecycle.registry.get(app_key, 0) is not None, "Precondition: instance 0 should be running"
-        assert lifecycle.registry.get(app_key, 1) is not None, "Precondition: instance 1 should be running"
+        assert lifecycle.registry.get(app_key, "alpha") is not None, "Precondition: alpha should be running"
+        assert lifecycle.registry.get(app_key, "beta") is not None, "Precondition: beta should be running"
 
         listener0_id = await executor.register_listener(
             make_listener_registration(
@@ -549,48 +659,43 @@ class TestPerInstanceSelectiveRestart:
             )
         )
 
-        await lifecycle.reload_instance(app_key, 1)
+        await lifecycle.reload_instance(app_key, "beta")
 
         listener0_cursor = await db_service.db.execute(
             "SELECT id, retired_at FROM listeners WHERE id = ?", (listener0_id,)
         )
         listener0_row = await listener0_cursor.fetchone()
-        assert listener0_row is not None, "sibling instance 0's listener row must survive reload of instance 1"
-        assert listener0_row["retired_at"] is None, "sibling instance 0's listener row must not be retired"
+        assert listener0_row is not None, "sibling alpha's listener row must survive reload of beta"
+        assert listener0_row["retired_at"] is None, "sibling alpha's listener row must not be retired"
 
         job0_cursor = await db_service.db.execute("SELECT id, retired_at FROM scheduled_jobs WHERE id = ?", (job0_id,))
         job0_row = await job0_cursor.fetchone()
-        assert job0_row is not None, "sibling instance 0's job row must survive reload of instance 1"
-        assert job0_row["retired_at"] is None, "sibling instance 0's job row must not be retired"
+        assert job0_row is not None, "sibling alpha's job row must survive reload of beta"
+        assert job0_row["retired_at"] is None, "sibling alpha's job row must not be retired"
 
         listener1_cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (listener1_id,))
         assert await listener1_cursor.fetchone() is None, (
-            "instance 1's stale listener row should be cleaned up by its own reload"
+            "beta's stale listener row should be cleaned up by its own reload"
         )
 
         job1_cursor = await db_service.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (job1_id,))
-        assert await job1_cursor.fetchone() is None, "instance 1's stale job row should be cleaned up by its own reload"
+        assert await job1_cursor.fetchone() is None, "beta's stale job row should be cleaned up by its own reload"
 
-    async def test_batch_reload_stops_every_index_before_creating_any_replacement(
+    async def test_batch_reload_stops_every_instance_before_creating_any_replacement(
         self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
     ) -> None:
-        """Regression test for PR #1687 review finding: a batch reload that renames multiple
-        instances can make a *new* instance take an ``instance_name`` (and therefore
-        ``App.unique_name``/owner_id) still held by *another* instance in the same batch — e.g.
-        index 0's name changes "alpha" -> "beta" while index 1's changes "beta" -> "gamma". Since
-        Bus owner registries (``BusService.router``, ``BusService._removal_callbacks``) are keyed
-        by that name string alone, interleaving each index's stop-then-create concurrently could
-        let index 0's new "beta" register its listener before index 1's old "beta" finished
-        tearing down — the old teardown would then call ``remove_listeners_by_owner("beta")`` and
-        rip out the new instance's freshly-registered listener too, since both are indistinguishable
-        by owner_id alone.
+        """Regression test for PR #1687 review finding: a batch reload can make a *new* instance take an
+        ``instance_name`` (and therefore ``App.unique_name``/owner_id) still held by a running instance —
+        here ``beta`` keeps its name with a new config while ``alpha`` leaves and ``gamma`` arrives. Bus owner
+        registries (``BusService.router``, ``BusService._removal_callbacks``) are keyed by that name string
+        alone, so a create that ran before the old ``beta`` finished tearing down could register a listener
+        that the old teardown's ``remove_listeners_by_owner("beta")`` then rips out too, since both are
+        indistinguishable by owner_id alone.
 
-        Proven deterministically by delaying index 1's stop and observing that no create is ever
-        attempted while that stop is still pending — the fix's stop-all-then-create-all split
-        makes this ordering structural, not timing-dependent. This test fails against the
-        pre-fix implementation (which reloads each index fully concurrently, stop-then-create
-        per index) because index 0's create would proceed immediately, well before index 1's
-        delayed stop of the name-colliding old "beta" instance completes.
+        Proven deterministically by delaying ``beta``'s stop and observing that no create is ever attempted
+        while that stop is still pending — the stop-all-then-create-all split makes this ordering structural,
+        not timing-dependent. A reload that interleaved each instance's stop-then-create would start
+        ``gamma``'s create immediately, well before ``beta``'s delayed stop completes.
         """
         lifecycle, _executor, _db_service = real_db_lifecycle
         app_key = self.MULTI_INSTANCE_APP_KEY
@@ -603,36 +708,41 @@ class TestPerInstanceSelectiveRestart:
         lifecycle.set_apps_configs({app_key: original_manifest})
 
         await lifecycle.start_app(app_key)
-        instance1_before = lifecycle.registry.get(app_key, 1)
-        assert instance1_before is not None, "Precondition: instance 1 should be running"
-        assert instance1_before.unique_name == "beta"
+        beta_before = lifecycle.registry.get(app_key, "beta")
+        assert beta_before is not None, "Precondition: beta should be running"
+        assert beta_before.unique_name == "beta"
 
         original_config = deepcopy(lifecycle.registry.manifests)
-        # Rename both indices in one edit — index 0 takes the name index 1 is about to vacate.
+        # One edit: alpha leaves the config, beta takes a new config, gamma arrives.
         lifecycle.registry.manifests[app_key].app_config = [
-            {"value": "a2", "instance_name": "beta"},
-            {"value": "b2", "instance_name": "gamma"},
+            {"value": "b2", "instance_name": "beta"},
+            {"value": "c", "instance_name": "gamma"},
         ]
 
         call_order: list[str] = []
-        index_1_stop_entered = asyncio.Event()
-        release_index_1_stop = asyncio.Event()
+        beta_stop_entered = asyncio.Event()
+        release_beta_stop = asyncio.Event()
 
         orig_stop = lifecycle._stop_instance_unlocked
         orig_create = lifecycle._create_instance_unlocked
 
-        async def instrumented_stop(app_key: str, index: int, *, outcomes: ActionOutcomes) -> None:
-            if index == 1:
-                index_1_stop_entered.set()
-                await release_index_1_stop.wait()
-            await orig_stop(app_key, index, outcomes=outcomes)
-            call_order.append(f"stop_{index}_done")
+        async def instrumented_stop(app_key: str, instance_name: str, *, outcomes: ActionOutcomes) -> None:
+            if instance_name == "beta":
+                beta_stop_entered.set()
+                await release_beta_stop.wait()
+            await orig_stop(app_key, instance_name, outcomes=outcomes)
+            call_order.append(f"stop_{instance_name}_done")
 
         async def instrumented_create(
-            app_key: str, index: int, app_manifest: AppManifest, force_reload: bool = False, *, outcomes: ActionOutcomes
+            app_key: str,
+            instance_name: str,
+            app_manifest: AppManifest,
+            force_reload: bool = False,
+            *,
+            outcomes: ActionOutcomes,
         ) -> None:
-            call_order.append(f"create_{index}_start")
-            await orig_create(app_key, index, app_manifest, force_reload, outcomes=outcomes)
+            call_order.append(f"create_{instance_name}_start")
+            await orig_create(app_key, instance_name, app_manifest, force_reload, outcomes=outcomes)
 
         lifecycle._stop_instance_unlocked = instrumented_stop
         lifecycle._create_instance_unlocked = instrumented_create
@@ -640,17 +750,17 @@ class TestPerInstanceSelectiveRestart:
         changes = make_change_set(reload_apps={app_key})
         task = asyncio.create_task(lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests))
 
-        await asyncio.wait_for(index_1_stop_entered.wait(), timeout=1)
-        # While index 1's stop of the old, name-colliding "beta" instance is still pending, no
-        # create for either index may have started yet — the fix's stop-all-then-create-all
-        # split forbids it structurally, not just by timing luck.
+        await asyncio.wait_for(beta_stop_entered.wait(), timeout=1)
+        # While beta's stop of the old, name-colliding instance is still pending, no create for any
+        # instance may have started yet — the stop-all-then-create-all split forbids it structurally,
+        # not just by timing luck.
         await asyncio.sleep(0)  # let any wrongly-scheduled create task get a chance to run
         assert not any(entry.startswith("create_") for entry in call_order), (
-            f"a create started before index 1's stop finished: {call_order}"
+            f"a create started before beta's stop finished: {call_order}"
         )
         assert not task.done()
 
-        release_index_1_stop.set()
+        release_beta_stop.set()
         await asyncio.wait_for(task, timeout=2)
 
         # Every stop finished strictly before every create started.
@@ -660,14 +770,14 @@ class TestPerInstanceSelectiveRestart:
         assert create_start_positions
         assert max(stop_done_positions) < min(create_start_positions), call_order
 
-        # Sanity: the new index-0 instance ("beta") came out of the reload fully usable — it can
-        # register a listener under the now-uncontested "beta" owner_id. The ordering assertions
-        # above are what actually prove the race is closed; this just confirms the fixed flow
-        # doesn't leave the replacement instance in a broken state.
-        instance0_after = lifecycle.registry.get(app_key, 0)
-        assert instance0_after is not None
-        assert instance0_after.unique_name == "beta"
+        # Sanity: the new "beta" came out of the reload fully usable — it can register a listener under
+        # the now-uncontested "beta" owner_id. The ordering assertions above are what actually prove the
+        # race is closed; this just confirms the flow doesn't leave the replacement in a broken state.
+        beta_after = lifecycle.registry.get(app_key, "beta")
+        assert beta_after is not None
+        assert beta_after is not beta_before
+        assert beta_after.unique_name == "beta"
 
-        sub = await instance0_after.bus.on(topic="test.race_topic", handler=noop, name="post_reload_listener")
+        sub = await beta_after.bus.on(topic="test.race_topic", handler=noop, name="post_reload_listener")
         owner_listeners = lifecycle.hassette.bus_service.get_listeners_by_owner("beta")
         assert sub.listener.listener_id in {listener.listener_id for listener in owner_listeners}

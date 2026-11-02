@@ -138,7 +138,7 @@ class TestPreBootstrapAppState:
         running = create_app_manifest("running_app", tmp_path)
         not_started = create_app_manifest("not_started_app", tmp_path)
         registry.set_manifests({running.app_key: running, not_started.app_key: not_started})
-        registry.register_app(running.app_key, 0, MagicMock())
+        registry.register_app(running.app_key, running.app_key, MagicMock())
         runtime.hassette.app_handler.get_status_snapshot = registry.get_snapshot
 
         status = runtime.get_system_status()
@@ -230,12 +230,12 @@ class TestPreBootstrapAppState:
         registry.set_manifests({manifest.app_key: manifest})
 
         running_app = MagicMock()
-        running_app.app_config.instance_name = f"{manifest.class_name}.0"
+        running_app.app_config.instance_name = manifest.app_key
         running_app.class_name = manifest.class_name
         running_app.status = ResourceStatus.RUNNING
         running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
-        registry.register_app(manifest.app_key, 0, running_app)
-        registry.record_failure(manifest.app_key, 1, RuntimeError("instance 1 blew up"))
+        registry.register_app(manifest.app_key, manifest.app_key, running_app)
+        registry.record_failure(manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
 
         runtime.hassette.app_handler.registry = registry
 
@@ -243,7 +243,7 @@ class TestPreBootstrapAppState:
 
         [failed_issue] = [issue for issue in issues if issue.label == f"App failed: {manifest.display_name}"]
         assert failed_issue.severity == "err"
-        assert failed_issue.detail == "instance 1 blew up"
+        assert failed_issue.detail == "other instance blew up"
 
 
 class TestConcurrentAppHandlerTeardown:
@@ -267,7 +267,7 @@ class TestConcurrentAppHandlerTeardown:
         app.class_name = "TeardownApp"
         app.status = ResourceStatus.RUNNING
         app.unique_name = "TeardownApp[0]"
-        registry.register_app(manifest.app_key, 0, app)
+        registry.register_app(manifest.app_key, manifest.app_key, app)
 
         runtime.hassette.app_handler.registry = registry
         runtime.hassette.app_handler.get_status_snapshot = Mock(side_effect=registry.get_snapshot)
@@ -318,8 +318,7 @@ class TestConcurrentAppHandlerTeardown:
         registry = AppRegistry()
         registry.flag_needs_restart(
             "stuck_app",
-            0,
-            instance_name="StuckApp[0]",
+            "StuckApp[0]",
             class_name="StuckApp",
             reason="1 task still pending",
             pending_tasks=["StuckApp.poll"],

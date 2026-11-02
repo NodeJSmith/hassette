@@ -17,7 +17,7 @@ class AppRegistrationReconcilerMixin:
     hassette: "Hassette"
     logger: Logger
 
-    def collect_live_listener_ids(self, app_key: str, instances: "dict[int, App[AppConfig]]") -> set[int]:
+    def collect_live_listener_ids(self, app_key: str, instances: "dict[str, App[AppConfig]]") -> set[int]:
         """Collect listener db_ids registered by all instances.
 
         Registration is synchronous with the DB — db_ids are set before on_initialize() returns.
@@ -38,7 +38,7 @@ class AppRegistrationReconcilerMixin:
     def merge_router_listener_ids(
         self,
         app_key: str,
-        instances: "dict[int, App[AppConfig]]",
+        instances: "dict[str, App[AppConfig]]",
         bus_service: "BusService",
         live_listener_ids: set[int],
     ) -> set[int]:
@@ -62,7 +62,7 @@ class AppRegistrationReconcilerMixin:
             )
             return live_listener_ids
 
-    def collect_live_job_ids(self, app_key: str, instances: "dict[int, App[AppConfig]]") -> list[int]:
+    def collect_live_job_ids(self, app_key: str, instances: "dict[str, App[AppConfig]]") -> list[int]:
         """Collect scheduled-job db_ids registered by all instances."""
         live_job_ids: list[int] = []
         for inst in instances.values():
@@ -94,7 +94,7 @@ class AppRegistrationReconcilerMixin:
     async def reconcile_app_registrations(
         self,
         app_key: str,
-        instances: "dict[int, App[AppConfig]]",
+        instances: "dict[str, App[AppConfig]]",
         instance_name: str | None = None,
     ) -> None:
         """Run post-ready reconciliation for an app after all instances are initialized.
@@ -105,7 +105,7 @@ class AppRegistrationReconcilerMixin:
 
         Args:
             app_key: The app key to reconcile.
-            instances: Dict of instance index -> App (may include failed instances).
+            instances: Dict of instance name -> App (may include failed instances).
             instance_name: When provided, scopes reconciliation to this instance only, so
                 restarting one instance does not retire sibling instances' rows. When None
                 (default), reconciliation is app_key-scoped only — unchanged behavior.

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from hassette_wire import AppStatus, ResourceStatus
 
-from hassette.core.app_factory import AppFactory
+from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.schemas.app_snapshots import (
     AppFullSnapshot,
     AppInstanceInfo,
@@ -34,10 +34,8 @@ UNKNOWN_LABEL = "Unknown"
 class InstanceEntry:
     """A single tracked app instance — either running (``app`` set) or failed (``error`` set).
 
-    No ``index`` field — the dict key ``_instances[app_key][index]`` is the single source of
-    truth. No stored ``instance_name`` — callers read it off the ``App`` object directly
-    (``entry.app.app_config.instance_name``) or via ``_resolve_instance_name()`` for
-    failed entries, which have no ``App``.
+    No ``instance_name`` field: the dict key ``_instances[app_key][instance_name]`` is the single
+    source of truth.
     """
 
     app: "App[AppConfig] | None"
@@ -54,13 +52,11 @@ class InstanceEntry:
 
 @dataclass(frozen=True)
 class NeedsRestartRecord:
-    """A needs-restart flag on one ``(app_key, index)``, kept outside the instance map.
+    """A needs-restart flag on one ``(app_key, instance_name)``, kept outside the instance map.
 
-    Stores the instance and class name so the row still renders after its entry is unregistered or its
-    app leaves config.
+    Stores the class name so the row still renders after its entry is unregistered or its app leaves config.
     """
 
-    instance_name: str
     class_name: str
     info: NeedsRestartInfo
 
@@ -70,48 +66,52 @@ class AppRegistry:
 
     Single source of truth for app state with snapshot generation for web UI.
 
-    Per-index state has two parts: the instance entry (running or failed) and an optional needs-restart
-    record. ``resolve_instance_info`` is the one place they combine; every per-index reader goes through it.
+    Per-instance state is keyed by instance name, and has two parts: the instance entry (running or failed)
+    and an optional needs-restart record. ``_combine_instance_info`` is the one place they combine; every
+    per-instance reader goes through it, by way of ``resolve_instance_info`` or ``resolve_instance_infos``.
+
+    Position carries no identity here. The index on a snapshot or outcome is display order, derived on each read
+    by ``display_indices``, for the routes and wire models that still address an instance by index.
     """
 
     def __init__(self) -> None:
-        self._instances: dict[str, dict[int, InstanceEntry]] = defaultdict(dict)
-        self._needs_restart: dict[str, dict[int, NeedsRestartRecord]] = defaultdict(dict)
+        self._instances: dict[str, dict[str, InstanceEntry]] = defaultdict(dict)
+        self._needs_restart: dict[str, dict[str, NeedsRestartRecord]] = defaultdict(dict)
         self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
         self._only_apps: frozenset[str] = frozenset()
         self.logger = getLogger(f"{__name__}.AppRegistry")
 
-    def register_app(self, app_key: str, index: int, app: "App[AppConfig]") -> None:
-        """Register a running app instance, replacing any prior entry at that index."""
-        self._instances[app_key][index] = InstanceEntry(app=app, status=ResourceStatus.RUNNING)
-        self.logger.debug("Registered app '%s' index %d", app_key, index)
+    def register_app(self, app_key: str, instance_name: str, app: "App[AppConfig]") -> None:
+        """Register a running app instance, replacing any prior entry under that name."""
+        self._instances[app_key][instance_name] = InstanceEntry(app=app, status=ResourceStatus.RUNNING)
+        self.logger.debug("Registered app '%s' instance '%s'", app_key, instance_name)
 
-    def unregister_app(self, app_key: str, index: int | None = None) -> dict[int, "App[AppConfig]"] | None:
+    def unregister_app(self, app_key: str, instance_name: str | None = None) -> dict[str, "App[AppConfig]"] | None:
         """Remove app instance(s). Returns removed running instances (failed entries are discarded)."""
-        if index is None:
+        if instance_name is None:
             entries = self._instances.pop(app_key, None)
             if entries is None:
                 return None
-            return {idx: app for idx, entry in entries.items() if (app := entry.app) is not None}
+            return {name: app for name, entry in entries.items() if (app := entry.app) is not None}
 
         if app_key not in self._instances:
             return None
 
-        entry = self._instances[app_key].pop(index, None)
+        entry = self._instances[app_key].pop(instance_name, None)
 
         if not self._instances[app_key]:
             del self._instances[app_key]
 
         if entry is not None and (app := entry.app) is not None:
-            return {index: app}
+            return {instance_name: app}
 
         return None
 
-    def record_failure(self, app_key: str, index: int, error: Exception) -> None:
-        """Record a failed app startup/crash, replacing any prior entry at that index."""
-        self.logger.debug("Recording failure for app '%s' index %d: %s", app_key, index, error)
-        self._instances[app_key][index] = InstanceEntry(
+    def record_failure(self, app_key: str, instance_name: str, error: Exception) -> None:
+        """Record a failed app startup/crash, replacing any prior entry under that name."""
+        self.logger.debug("Recording failure for app '%s' instance '%s': %s", app_key, instance_name, error)
+        self._instances[app_key][instance_name] = InstanceEntry(
             app=None,
             status=ResourceStatus.FAILED,
             error=error,
@@ -122,16 +122,15 @@ class AppRegistry:
     def flag_needs_restart(
         self,
         app_key: str,
-        index: int,
-        *,
         instance_name: str,
+        *,
         class_name: str,
         reason: str,
         pending_tasks: Iterable[str] = (),
     ) -> bool:
-        """Record that ``(app_key, index)`` needs a hassette restart because work may still be running.
+        """Record that ``(app_key, instance_name)`` needs a hassette restart because work may still be running.
 
-        The first record at an index stands until restart: a later flag at the same index is not merged
+        The first record under a name stands until restart: a later flag on the same name is not merged
         in, and returns ``False``. Survives ``unregister_app``, ``record_failure`` and config changes;
         only ``clear_all`` (process exit, test reset) removes it.
 
@@ -139,65 +138,99 @@ class AppRegistry:
             ``True`` when this call created the record.
         """
         records = self._needs_restart[app_key]
-        if index in records:
+        if instance_name in records:
             return False
-        records[index] = NeedsRestartRecord(
-            instance_name=instance_name,
+        records[instance_name] = NeedsRestartRecord(
             class_name=class_name,
             info=NeedsRestartInfo(reason=reason, pending_tasks=tuple(pending_tasks), flagged_at=date_utils.now()),
         )
-        self.logger.debug("Flagged app '%s' index %d needs restart: %s", app_key, index, reason)
+        self.logger.debug("Flagged app '%s' instance '%s' needs restart: %s", app_key, instance_name, reason)
         return True
 
-    def get_needs_restart(self, app_key: str, index: int) -> NeedsRestartRecord | None:
-        """The needs-restart record at ``(app_key, index)``, or ``None`` when that index isn't flagged."""
-        return self._needs_restart.get(app_key, {}).get(index)
+    def get_needs_restart(self, app_key: str, instance_name: str) -> NeedsRestartRecord | None:
+        """The needs-restart record of ``(app_key, instance_name)``, or ``None`` when it isn't flagged."""
+        return self._needs_restart.get(app_key, {}).get(instance_name)
 
-    def refusal_reason(self, app_key: str, index: int) -> str | None:
-        """Why an action is refused at a flagged ``(app_key, index)``, or ``None`` when it isn't flagged.
+    def refusal_reason(self, app_key: str, instance_name: str) -> str | None:
+        """Why an action is refused on a flagged ``(app_key, instance_name)``, or ``None`` when it isn't flagged.
 
         The ``reason`` of every refused outcome, so a refusal reads the same on every path. It carries the flag's
-        time and reason, which match the ERROR logged when the index was flagged.
+        time and reason, which match the ERROR logged when the instance was flagged.
+
+        The gate covers this app key and this name only. A renamed instance, or a name moved to another app key,
+        passes it and can start beside the old instance's leftover work, while the old name stays FAILED with its
+        reason until restart. For a moved name that leftover work shares an owner id with the new instance, so a
+        late teardown can remove the new instance's registrations until hassette restarts.
         """
-        record = self.get_needs_restart(app_key, index)
+        record = self.get_needs_restart(app_key, instance_name)
         if record is None:
             return None
         return f"needs a hassette restart (flagged at {record.info.flagged_at}: {record.info.reason})"
 
-    def instance_name(self, app_key: str, index: int) -> str:
-        """The name of ``(app_key, index)``: its tracked instance's, or its configured one when nothing is tracked."""
-        info = self.resolve_instance_info(app_key, index)
-        if info is not None:
-            return info.instance_name
-        return self._resolve_instance_name(app_key, index, self._manifests.get(app_key))
+    def display_indices(self, app_key: str, manifest: "AppManifest | None" = None) -> dict[str, int]:
+        """Each name of ``app_key`` mapped to its display index, in that order.
 
-    def resolve_instance_info(
-        self, app_key: str, index: int, manifest: "AppManifest | None" = None
-    ) -> AppInstanceInfo | None:
-        """The effective snapshot of one ``(app_key, index)``, or ``None`` when nothing is tracked there.
+        Configured names come first, in config order, then names still tracked outside the config (orphans),
+        sorted by name. Derived on each read, so an orphan's index can shift when the config changes.
 
-        The one place an instance entry and its needs-restart record combine. A record wins whatever the
-        entry says: the result is FAILED with ``needs_restart`` set, and when the entry holds no error
-        message the record's reason serves as it. Without a record, the result is the entry's.
-
-        ``manifest`` names and ranges the index; it defaults to the loaded manifest for ``app_key``.
+        ``manifest`` defaults to the loaded manifest for ``app_key``.
         """
         manifest = manifest or self._manifests.get(app_key)
-        entry = self._instances.get(app_key, {}).get(index)
-        record = self.get_needs_restart(app_key, index)
+        configured = configured_instance_names(manifest.app_config) if manifest is not None else []
+        orphans = sorted(self.tracked_names(app_key).difference(configured))
+        return {name: index for index, name in enumerate([*configured, *orphans])}
+
+    def display_index(self, app_key: str, instance_name: str) -> int:
+        """The display index of ``instance_name``; a name the app doesn't have sorts after all that it does."""
+        indices = self.display_indices(app_key)
+        return indices.get(instance_name, len(indices))
+
+    def instance_name(self, app_key: str, index: int) -> str:
+        """The name at display index ``index`` of ``app_key``, for routes that address by index until #3100.
+
+        Resolve it afresh for each request, since an index can move when the config changes. An index with no name
+        gets a display label that can never pass instance-name validation, so it can't be mistaken for a real name.
+        """
+        manifest = self._manifests.get(app_key)
+        names = list(self.display_indices(app_key, manifest))
+        if 0 <= index < len(names):
+            return names[index]
+        return f"{manifest.class_name if manifest else UNKNOWN_LABEL}.{index}"
+
+    def resolve_instance_info(
+        self, app_key: str, instance_name: str, manifest: "AppManifest | None" = None
+    ) -> AppInstanceInfo | None:
+        """The effective snapshot of one ``(app_key, instance_name)``, or ``None`` when nothing is tracked there.
+
+        ``manifest`` orders and classifies the instance; it defaults to the loaded manifest for ``app_key``.
+        """
+        manifest = manifest or self._manifests.get(app_key)
+        index = self.display_indices(app_key, manifest).get(instance_name)
+        return None if index is None else self._combine_instance_info(app_key, instance_name, index, manifest)
+
+    def _combine_instance_info(
+        self, app_key: str, instance_name: str, index: int, manifest: "AppManifest | None"
+    ) -> AppInstanceInfo | None:
+        """Combine an instance entry and its needs-restart record, the one place the two meet.
+
+        A record wins whatever the entry says: the result is FAILED with ``needs_restart`` set, and when the entry
+        holds no error message the record's reason serves as it. Without a record, the result is the entry's.
+        """
+        entry = self._instances.get(app_key, {}).get(instance_name)
+        record = self.get_needs_restart(app_key, instance_name)
         if record is None:
-            return self._info_from_entry(app_key, index, entry, manifest) if entry is not None else None
+            return self._info_from_entry(app_key, instance_name, index, entry, manifest) if entry is not None else None
 
         if entry is not None:
-            base = self._info_from_entry(app_key, index, entry, manifest)
+            base = self._info_from_entry(app_key, instance_name, index, entry, manifest)
         else:
             base = AppInstanceInfo(
                 app_key=app_key,
                 index=index,
-                instance_name=record.instance_name,
+                instance_name=instance_name,
                 class_name=record.class_name,
                 status=ResourceStatus.FAILED,
-                in_current_config=self._index_in_current_config(index, manifest),
+                in_current_config=name_in_current_config(instance_name, manifest),
             )
         return replace(
             base,
@@ -206,32 +239,33 @@ class AppRegistry:
             needs_restart=record.info,
         )
 
-    def tracked_indices(self, app_key: str) -> set[int]:
-        """Indices with an instance entry or a needs-restart record for ``app_key``."""
+    def tracked_names(self, app_key: str) -> set[str]:
+        """Names with an instance entry or a needs-restart record for ``app_key``."""
         return set(self._instances.get(app_key, {})) | set(self._needs_restart.get(app_key, {}))
 
-    def resolve_instance_infos(self, app_key: str, manifest: "AppManifest | None" = None) -> dict[int, AppInstanceInfo]:
-        """``resolve_instance_info`` for every tracked index of ``app_key``, in index order."""
+    def resolve_instance_infos(self, app_key: str, manifest: "AppManifest | None" = None) -> dict[str, AppInstanceInfo]:
+        """``resolve_instance_info`` for every tracked name of ``app_key``, in display order."""
+        manifest = manifest or self._manifests.get(app_key)
         return {
-            index: info
-            for index in sorted(self.tracked_indices(app_key))
-            if (info := self.resolve_instance_info(app_key, index, manifest)) is not None
+            name: info
+            for name, index in self.display_indices(app_key, manifest).items()
+            if (info := self._combine_instance_info(app_key, name, index, manifest)) is not None
         }
 
-    def prune_stale_failed_indices(self, app_key: str, valid_index_count: int) -> dict[int, AppInstanceInfo]:
-        """Remove failed (non-running) entries at indices no longer present in the current config.
+    def prune_stale_failed(self, app_key: str, configured_names: Iterable[str]) -> dict[str, AppInstanceInfo]:
+        """Remove failed (non-running) entries whose name is no longer in the current config.
 
         Returns what was removed, resolved to ``AppInstanceInfo`` (same as ``get_failed_instance_infos``).
-        A needs-restart record at a pruned index is kept, so its resolved snapshot stays FAILED.
+        A needs-restart record under a pruned name is kept, so its resolved snapshot stays FAILED.
 
-        Config can shrink (fewer configured instances) without the app going through a full
-        reload — e.g. an ``autostart=false`` app that isn't auto-reconciled on a config change
-        (see ``AppLifecycleService.should_auto_reconcile``) and is later started manually.
-        ``AppFactory.create_instances()`` only ever touches indices within the current config, so
-        without this, a failed entry at a since-removed index lingers in the registry forever,
-        misreporting the app as degraded/failed even after it starts cleanly at its remaining
-        index. Running entries are untouched — an orphaned *running* instance needs an actual
-        shutdown, not just a registry removal, which is out of scope here.
+        Config can drop an instance without the app going through a full reload — e.g. an
+        ``autostart=false`` app that isn't auto-reconciled on a config change (see
+        ``AppLifecycleService.should_auto_reconcile``) and is later started manually.
+        ``AppFactory.create_instances()`` only ever touches configured names, so without this, a
+        failed entry under a since-removed name lingers in the registry forever, misreporting the
+        app as degraded/failed even after it starts cleanly. Running entries are untouched — an
+        orphaned *running* instance needs an actual shutdown, not just a registry removal, which is
+        out of scope here.
 
         The return value lets the caller emit a status-change event for each removed entry —
         callers must not discard entries silently (see ``AppLifecycleService._stop_app_unlocked``
@@ -240,12 +274,11 @@ class AppRegistry:
         entries = self._instances.get(app_key)
         if not entries:
             return {}
-        stale_indices = [
-            index for index, entry in entries.items() if not entry.is_running and index >= valid_index_count
-        ]
-        pruned = {index: info for index in stale_indices if (info := self.resolve_instance_info(app_key, index))}
-        for index in stale_indices:
-            del entries[index]
+        configured = set(configured_names)
+        stale_names = [name for name, entry in entries.items() if not entry.is_running and name not in configured]
+        pruned = {name: info for name in stale_names if (info := self.resolve_instance_info(app_key, name))}
+        for name in stale_names:
+            del entries[name]
         if not entries:
             del self._instances[app_key]
         return pruned
@@ -266,8 +299,8 @@ class AppRegistry:
         """Whether ``app_key`` is currently blocked (e.g. excluded by the ``--app`` filter).
 
         The authoritative check for the manual start/reload actions in
-        ``AppLifecycleService`` — a blocked app's manifest still exists (and still has a
-        configured instance count), so it stays addressable by index-range and
+        ``AppLifecycleService`` — a blocked app's manifest still exists (and still configures
+        its instances), so it stays addressable by configured-name and
         already-running checks alone; only this check stops a manual start/reload from
         bypassing the exclusive-app filter.
         """
@@ -298,10 +331,14 @@ class AppRegistry:
             if any(entry.is_running for entry in entries.values())
         ]
 
-    def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
-        """Get a specific running app instance."""
-        entry = self._instances.get(app_key, {}).get(index)
-        return entry.app if entry is not None else None
+    def get(self, app_key: str, instance_name: str | None = None) -> "App[AppConfig] | None":
+        """Get a running app instance by name; with no name, the first running one in display order."""
+        entries = self._instances.get(app_key, {})
+        if instance_name is not None:
+            entry = entries.get(instance_name)
+            return entry.app if entry is not None else None
+        running = (entries[name].app for name in self.display_indices(app_key) if name in entries)
+        return next((app for app in running if app is not None), None)
 
     def get_manifest(self, app_key: str) -> "AppManifest | None":
         """Get the manifest for an app key."""
@@ -313,55 +350,32 @@ class AppRegistry:
             app for entries in self._instances.values() for entry in entries.values() if (app := entry.app) is not None
         ]
 
-    def get_running_apps(self, app_key: str) -> dict[int, "App[AppConfig]"]:
+    def get_running_apps(self, app_key: str) -> dict[str, "App[AppConfig]"]:
         """Get all running instances for an app key (excludes failed entries)."""
-        return {idx: app for idx, entry in self._instances.get(app_key, {}).items() if (app := entry.app) is not None}
+        return {name: app for name, entry in self._instances.get(app_key, {}).items() if (app := entry.app) is not None}
 
-    def get_instances(self, app_key: str) -> dict[int, InstanceEntry]:
+    def get_instances(self, app_key: str) -> dict[str, InstanceEntry]:
         """Get all entries (running and failed) for an app key."""
         return self._instances.get(app_key, {}).copy()
 
-    def get_failed_instance_infos(self, app_key: str) -> dict[int, AppInstanceInfo]:
-        """Get resolved AppInstanceInfo for failed indices of an app key: failed entries and flagged indices.
+    def get_failed_instance_infos(self, app_key: str) -> dict[str, AppInstanceInfo]:
+        """Get resolved AppInstanceInfo for failed instances of an app key: failed entries and flagged names.
 
         Used to emit a status-change event for failures recorded by ``AppFactory.create_instances()``
-        before an ``App`` object existed to build the event from — reuses the same instance_name/
-        class_name resolution as snapshot generation so the event matches what a subsequent fetch
-        would show.
+        before an ``App`` object existed to build the event from — reuses the same class_name
+        resolution as snapshot generation so the event matches what a subsequent fetch would show.
         """
-        return {index: info for index, info in self.resolve_instance_infos(app_key).items() if is_failed_info(info)}
-
-    @staticmethod
-    def _index_in_current_config(index: int, manifest: "AppManifest | None") -> bool:
-        # Without a manifest there is no configured range to compare against; the app-level
-        # ``AppManifestInfo.in_current_config`` covers a wholly orphaned app.
-        return manifest is None or index < len(AppFactory.normalize_configs(manifest.app_config))
-
-    def _resolve_instance_name(self, app_key: str, index: int, manifest: "AppManifest | None") -> str:
-        """Resolve the configured ``instance_name`` for an index with no live ``App`` object.
-
-        That is a failed entry, or an index that isn't tracked in the registry at all.
-
-        An index past the manifest's configured instances has no name; it gets a display label
-        that can never pass instance-name validation, so it can't be mistaken for a real name.
-        """
-        if manifest is None:
-            return f"{UNKNOWN_LABEL}.{index}"
-
-        configs = AppFactory.normalize_configs(manifest.app_config)
-        if index < len(configs):
-            return configs[index]["instance_name"]
-        return f"{manifest.class_name}.{index}"
+        return {name: info for name, info in self.resolve_instance_infos(app_key).items() if is_failed_info(info)}
 
     def _info_from_entry(
-        self, app_key: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None
+        self, app_key: str, instance_name: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None
     ) -> AppInstanceInfo:
-        in_current_config = self._index_in_current_config(index, manifest)
+        in_current_config = name_in_current_config(instance_name, manifest)
         if (app := entry.app) is not None:
             return AppInstanceInfo(
                 app_key=app_key,
                 index=index,
-                instance_name=app.app_config.instance_name,
+                instance_name=instance_name,
                 class_name=app.class_name,
                 status=app.status,
                 owner_id=app.unique_name,
@@ -372,7 +386,7 @@ class AppRegistry:
         return AppInstanceInfo(
             app_key=app_key,
             index=index,
-            instance_name=self._resolve_instance_name(app_key, index, manifest),
+            instance_name=instance_name,
             class_name=class_name,
             status=ResourceStatus.FAILED,
             error=entry.error,
@@ -408,19 +422,18 @@ class AppRegistry:
 
         This includes configured instances beyond the ones currently tracked in the registry.
 
-        A configured index with no registry entry (never started, or independently stopped via
+        A configured name with no registry entry (never started, or independently stopped via
         ``AppLifecycleService.stop_instance()``) gets a synthetic ``ResourceStatus.STOPPED``
         placeholder so it stays addressable by the CLI and visible in the web UI instead of
         silently disappearing from ``instances`` once its instance is no longer tracked. A
-        tracked index outside the current config range (an orphaned running instance mid config
-        shrink — see ``prune_stale_failed_indices``) is still included too: this is a union of
-        tracked and configured indices, never a plain ``range(configured_count)``, so a live
-        orphan is never dropped from view.
+        tracked name outside the current config (an orphaned running instance after a removal — see
+        ``prune_stale_failed``) is still included too: this is a union of tracked and configured
+        names (``display_indices``), so a live orphan is never dropped from view.
 
-        ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked indices only
+        ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked names only
         (entries and needs-restart records, through ``resolve_instance_info``) — a
         configured-but-not-yet-started app is correctly STOPPED, not DEGRADED, even though
-        ``instances`` also lists its not-yet-tracked instances. A flagged index counts as failed.
+        ``instances`` also lists its not-yet-tracked instances. A flagged name counts as failed.
         """
         tracked = self.resolve_instance_infos(app_key, manifest)
         has_running = any(not is_failed_info(info) for info in tracked.values())
@@ -439,15 +452,12 @@ class AppRegistry:
         else:
             status = AppStatus.STOPPED
 
-        configured_count = len(AppFactory.normalize_configs(manifest.app_config))
-        all_indices = sorted(set(tracked) | set(range(configured_count)))
-
         instances: list[AppInstanceInfo] = []
         error_message: str | None = None
         error_traceback: str | None = None
 
-        for index in all_indices:
-            info = tracked.get(index)
+        for name, index in self.display_indices(app_key, manifest).items():
+            info = tracked.get(name)
             if info is not None:
                 if is_failed_info(info) and error_message is None:
                     error_message = info.error_message
@@ -456,7 +466,7 @@ class AppRegistry:
                 info = AppInstanceInfo(
                     app_key=app_key,
                     index=index,
-                    instance_name=self._resolve_instance_name(app_key, index, manifest),
+                    instance_name=name,
                     class_name=manifest.class_name,
                     status=ResourceStatus.STOPPED,
                 )
@@ -484,8 +494,8 @@ class AppRegistry:
     def build_orphaned_flag_info(self, app_key: str) -> AppManifestInfo | None:
         """Runtime fields for an app absent from the loaded config that still has needs-restart records.
 
-        Returns ``None`` when the app has no record. A record makes its index tracked, and the resolver
-        returns an info for every flagged index, so ``instances`` is never empty past the guard.
+        Returns ``None`` when the app has no record. A record makes its name tracked, and the resolver
+        returns an info for every flagged name, so ``instances`` is never empty past the guard.
 
         ``display_name``, ``filename`` and ``enabled`` are placeholders: static metadata is the caller's
         to fill in (``overlay_runtime_state`` overrides them from the DB row).
@@ -607,6 +617,15 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
         results.append(info)
 
     return results
+
+
+def name_in_current_config(instance_name: str, manifest: "AppManifest | None") -> bool:
+    """Whether ``manifest`` configures ``instance_name``.
+
+    Without a manifest there are no configured names to compare against; the app-level
+    ``AppManifestInfo.in_current_config`` covers a wholly orphaned app.
+    """
+    return manifest is None or instance_name in configured_instance_names(manifest.app_config)
 
 
 def count_needs_restart(instances: Iterable[AppInstanceInfo]) -> int:

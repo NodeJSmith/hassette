@@ -194,7 +194,7 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
     app_key, instance_name, instance_index, execution_id, reason = _confirm_attribution(marker)
     # Resolve the owner App from the *confirmed* app_key (None for displaced/framework), so a
     # displaced call resolves behavior from global config, not the innocent marker app's setting.
-    owner = resolve_owner(hassette, app_key, instance_index)
+    owner = resolve_owner(hassette, app_key, instance_name)
     behavior = resolve_blocking_io_behavior(owner)
     if behavior is BlockingIOBehavior.IGNORE:
         return
@@ -328,7 +328,7 @@ def _confirm_attribution(marker: "ExecutionMarker | None") -> _Attribution:
     return _Attribution(marker.app_key, marker.instance_name, marker.instance_index, marker.execution_id, "attributed")
 
 
-def resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: int | None) -> object:
+def resolve_owner(hassette: "Hassette", app_key: str | None, instance_name: str | None) -> object:
     """Resolve the owning App instance for behavior resolution, or ``hassette`` when unattributed.
 
     Shared by both tiers. A ``None`` ``app_key`` (a displaced or framework call) resolves to
@@ -337,7 +337,7 @@ def resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: int
     if app_key is None:
         return hassette
     with contextlib.suppress(Exception):
-        app_inst = hassette.app_handler.get(app_key, instance_index or 0)
+        app_inst = hassette.app_handler.get(app_key, instance_name)
         if app_inst is not None:
             return app_inst
     return hassette

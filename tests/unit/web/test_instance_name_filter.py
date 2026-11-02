@@ -49,14 +49,14 @@ def test_removed_app_applies_no_filter(hassette: SimpleNamespace) -> None:
 
 def test_still_running_orphan_keeps_its_name(hassette: SimpleNamespace) -> None:
     """An app removed from config while its instance runs has no manifest, but its entry still names it."""
-    hassette.app_handler.registry.register_app("orphan", 0, make_app(instance_name="kitchen"))
+    hassette.app_handler.registry.register_app("orphan", "kitchen", make_app(instance_name="kitchen"))
 
     assert instance_name_filter(hassette, "orphan", 0) == "kitchen"  # pyright: ignore[reportArgumentType]
 
 
 def test_needs_restart_record_keeps_its_name(hassette: SimpleNamespace) -> None:
     hassette.app_handler.registry.flag_needs_restart(
-        "orphan", 0, instance_name="kitchen", class_name="Kitchen", reason="task still running"
+        "orphan", "kitchen", class_name="Kitchen", reason="task still running"
     )
 
     assert instance_name_filter(hassette, "orphan", 0) == "kitchen"  # pyright: ignore[reportArgumentType]
@@ -64,7 +64,7 @@ def test_needs_restart_record_keeps_its_name(hassette: SimpleNamespace) -> None:
 
 def test_untracked_index_on_an_orphan_matches_no_other_instance(hassette: SimpleNamespace) -> None:
     """A tracked app is still present, so another index resolves to a label rather than dropping the filter."""
-    hassette.app_handler.registry.register_app("orphan", 0, make_app(instance_name="kitchen"))
+    hassette.app_handler.registry.register_app("orphan", "kitchen", make_app(instance_name="kitchen"))
 
     label = instance_name_filter(hassette, "orphan", 2)  # pyright: ignore[reportArgumentType]
 
