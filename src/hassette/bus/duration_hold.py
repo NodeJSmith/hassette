@@ -156,7 +156,7 @@ class DurationHoldManager:
                 elapsed = self.compute_elapsed(current_state, duration_config)
                 if elapsed >= duration_config.duration:
                     try:
-                        await listener.invoker.dispatch(invoke_fn)
+                        await listener.invoker.dispatch(invoke_fn, self.config_resolver)
                     finally:
                         if listener.options.once:
                             self.remove_listener(listener)
@@ -178,7 +178,7 @@ class DurationHoldManager:
                 return
 
             try:
-                await listener.invoker.dispatch(invoke_fn)
+                await listener.invoker.dispatch(invoke_fn, self.config_resolver)
             finally:
                 if listener.options.once:
                     self.remove_listener(listener)
@@ -236,7 +236,7 @@ class DurationHoldManager:
                         entity_id,
                     )
                     return
-                await listener.invoker.dispatch(invoke_fn)
+                await listener.invoker.dispatch(invoke_fn, self.config_resolver)
             finally:
                 self.decrement_timers_active()
                 if listener.options.once:

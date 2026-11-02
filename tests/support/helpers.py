@@ -723,14 +723,14 @@ async def prime_guard(
         await gate.wait()
 
     running_task = asyncio.create_task(
-        run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
+        run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", lambda: None)
     )
     await asyncio.wait_for(started.wait(), timeout=hang_guard_timeout)
 
     queued_task: asyncio.Task[None] | None = None
     if invoke_queued is not None:
         queued_task = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
+            run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", lambda: None)
         )
         await wait_for(lambda: len(guard.pending) >= 1, timeout=hang_guard_timeout)
 

@@ -55,12 +55,7 @@ def build_tracked_invoke_fn(
     async def execute_fn() -> None:
         # Resolve effective timeout lazily at fire time (not capture time) so that
         # debounced handlers see config changes applied via hot reload.
-        if listener.options.timeout_disabled:
-            effective_timeout = None
-        elif listener.options.timeout is not None:
-            effective_timeout = listener.options.timeout
-        else:
-            effective_timeout = config_resolver()
+        effective_timeout = listener.invoker.effective_timeout(config_resolver)
 
         # Resolve the app-level error handler at dispatch time from the owning Bus.
         # The resolver is a closure set by Bus.on() that reads Bus._error_handler lazily,

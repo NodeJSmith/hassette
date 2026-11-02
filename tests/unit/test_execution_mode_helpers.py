@@ -1,6 +1,7 @@
 """Unit tests for the shared dispatch-bridge helpers in execution_mode.
 
-Covers: run_with_stall_watch, run_through_guard, drain_pending_done, release_and_drain, STALL_THRESHOLD_SECONDS.
+Covers: run_with_stall_watch, run_through_guard, drain_pending_done, release_and_drain, stall_threshold,
+describe_stall_threshold, resolve_effective_timeout, STALL_THRESHOLD_SECONDS.
 """
 
 import asyncio
@@ -11,21 +12,68 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import ExecutionMode
 
+import hassette.execution_mode as execution_mode_module
 from hassette.execution_mode import (
     STALL_THRESHOLD_SECONDS,
     ExecutionModeGuard,
+    describe_stall_threshold,
     drain_pending_done,
     release_and_drain,
+    resolve_effective_timeout,
     run_through_guard,
     run_with_stall_watch,
+    stall_threshold,
 )
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, prime_guard
 
-UNREACHED_STALL_THRESHOLD_SECONDS = 60.0
-"""Stall threshold far beyond any test's runtime, so the watchdog never fires."""
-
 SHORT_STALL_THRESHOLD_SECONDS = 0.05
 """Stall threshold short enough for the watchdog to fire (or be cancelled) within a test."""
+
+
+def no_timeout() -> None:
+    """Resolve an invocation with no timeout, whose stall threshold is ``STALL_THRESHOLD_SECONDS``."""
+
+
+@pytest.mark.parametrize(
+    ("effective_timeout", "expected"),
+    [
+        (None, STALL_THRESHOLD_SECONDS),
+        (30.0, STALL_THRESHOLD_SECONDS),
+        (75.0, STALL_THRESHOLD_SECONDS),
+        (100.0, 80.0),
+        (300.0, 240.0),
+        (600.0, 480.0),
+    ],
+)
+def test_stall_threshold_follows_timeout_with_a_floor(effective_timeout: float | None, expected: float) -> None:
+    assert stall_threshold(effective_timeout) == expected
+
+
+@pytest.mark.parametrize(
+    ("effective_timeout", "expected"),
+    [
+        (None, "60s (the default stall threshold)"),
+        (30.0, "60s (the default stall threshold)"),
+        (300.0, "240s (80% of its 300s timeout)"),
+    ],
+)
+def test_describe_stall_threshold_names_the_source(effective_timeout: float | None, expected: str) -> None:
+    assert describe_stall_threshold(stall_threshold(effective_timeout), effective_timeout) == expected
+
+
+@pytest.mark.parametrize(
+    ("timeout", "timeout_disabled", "default", "expected"),
+    [
+        (None, True, 600.0, None),
+        (300.0, False, 600.0, 300.0),
+        (None, False, 600.0, 600.0),
+        (None, False, None, None),
+    ],
+)
+def test_resolve_effective_timeout(
+    timeout: float | None, timeout_disabled: bool, default: float | None, expected: float | None
+) -> None:
+    assert resolve_effective_timeout(timeout, timeout_disabled, lambda: default) == expected
 
 
 def make_spawn() -> tuple[Callable[..., asyncio.Task[None]], list[asyncio.Task[None]]]:
@@ -49,6 +97,10 @@ class TestStallThresholdSeconds:
 
 
 class TestRunWithStallWatch:
+    @pytest.fixture(autouse=True)
+    def short_stall_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(execution_mode_module, "STALL_THRESHOLD_SECONDS", SHORT_STALL_THRESHOLD_SECONDS)
+
     async def test_invocation_runs_to_completion(self) -> None:
         """invoke() is awaited and completes normally."""
         completed = False
@@ -58,7 +110,7 @@ class TestRunWithStallWatch:
             completed = True
 
         warn = MagicMock()
-        await run_with_stall_watch(invoke, warn, threshold=UNREACHED_STALL_THRESHOLD_SECONDS)
+        await run_with_stall_watch(invoke, warn, resolve_timeout=no_timeout)
         assert completed
 
     async def test_warn_not_called_on_fast_invocation(self) -> None:
@@ -68,7 +120,7 @@ class TestRunWithStallWatch:
         async def invoke() -> None:
             pass
 
-        await run_with_stall_watch(invoke, warn, threshold=UNREACHED_STALL_THRESHOLD_SECONDS)
+        await run_with_stall_watch(invoke, warn, resolve_timeout=no_timeout)
         warn.assert_not_called()
 
     async def test_warn_fires_with_threshold_past_deadline(self) -> None:
@@ -77,7 +129,7 @@ class TestRunWithStallWatch:
         gate = asyncio.Event()
         warn_calls: list[float] = []
 
-        def warn(threshold: float) -> None:
+        def warn(threshold: float, _effective_timeout: float | None) -> None:
             warn_calls.append(threshold)
             gate.set()  # unblock the invocation once warn fires
 
@@ -86,7 +138,7 @@ class TestRunWithStallWatch:
             await gate.wait()
 
         threshold = SHORT_STALL_THRESHOLD_SECONDS
-        task = asyncio.create_task(run_with_stall_watch(invoke, warn, threshold=threshold))
+        task = asyncio.create_task(run_with_stall_watch(invoke, warn, resolve_timeout=no_timeout))
         await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         # warn.set() unblocks the gate, so awaiting the task is the deterministic
         # signal that the watchdog fired.
@@ -98,13 +150,13 @@ class TestRunWithStallWatch:
         """The watchdog handle is cancelled when invoke completes — no late warn fires."""
         warn_calls: list[float] = []
 
-        def warn(threshold: float) -> None:
+        def warn(threshold: float, _effective_timeout: float | None) -> None:
             warn_calls.append(threshold)
 
         async def invoke() -> None:
             pass
 
-        await run_with_stall_watch(invoke, warn, threshold=SHORT_STALL_THRESHOLD_SECONDS)
+        await run_with_stall_watch(invoke, warn, resolve_timeout=no_timeout)
         # sleep past the threshold; the watchdog should be cancelled by now
         await asyncio.sleep(0.15)
         assert warn_calls == []
@@ -114,14 +166,14 @@ class TestRunWithStallWatch:
         started = asyncio.Event()
         warn_calls: list[float] = []
 
-        def warn(threshold: float) -> None:
+        def warn(threshold: float, _effective_timeout: float | None) -> None:
             warn_calls.append(threshold)
 
         async def invoke() -> None:
             started.set()
             await asyncio.sleep(10)  # will be cancelled
 
-        task = asyncio.create_task(run_with_stall_watch(invoke, warn, threshold=SHORT_STALL_THRESHOLD_SECONDS))
+        task = asyncio.create_task(run_with_stall_watch(invoke, warn, resolve_timeout=no_timeout))
         await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -183,7 +235,7 @@ class TestRunThroughGuard:
         # can prove the SUPPRESSED call leaves no residue of its own future.
         pending_before_second = len(pending_done)
         second_task = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, second_invoke, warn, "t2", UNREACHED_STALL_THRESHOLD_SECONDS)
+            run_through_guard(guard, spawn, pending_done, second_invoke, warn, "t2", no_timeout)
         )
         await asyncio.wait_for(second_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         assert not second_task.exception(), "second task raised unexpectedly"
@@ -212,9 +264,7 @@ class TestRunThroughGuard:
 
         # Third — queue is full; this should be DROPPED and return quickly.
         third = asyncio.create_task(
-            run_through_guard(
-                guard, spawn, pending_done, invoke_dropped, MagicMock(), "d", UNREACHED_STALL_THRESHOLD_SECONDS
-            )
+            run_through_guard(guard, spawn, pending_done, invoke_dropped, MagicMock(), "d", no_timeout)
         )
         await asyncio.wait_for(third, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
@@ -235,9 +285,7 @@ class TestRunThroughGuard:
             nonlocal completed
             completed = True
 
-        await run_through_guard(
-            guard, spawn, pending_done, invoke, MagicMock(), "name", UNREACHED_STALL_THRESHOLD_SECONDS
-        )
+        await run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "name", no_timeout)
 
         assert completed
         # After successful await, pending_done should be empty (future resolved via done-callback).
@@ -271,9 +319,7 @@ class TestRunThroughGuard:
             return asyncio.create_task(coro, name=name)
 
         pending_done: set[asyncio.Future[None]] = set()
-        await run_through_guard(
-            guard, spawn, pending_done, invoke, MagicMock(), "my-task", UNREACHED_STALL_THRESHOLD_SECONDS
-        )
+        await run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "my-task", no_timeout)
 
         assert len(spawn_calls) == 1
         assert spawn_calls[0]["name"] == "my-task"
@@ -331,9 +377,7 @@ class TestRunThroughGuard:
             raise AssertionError("never reached")
 
         with pytest.raises(RuntimeError, match="sealed"):
-            await run_through_guard(
-                guard, spawn, pending_done, invoke, MagicMock(), "n", UNREACHED_STALL_THRESHOLD_SECONDS
-            )
+            await run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "n", no_timeout)
 
         assert len(pending_done) == 0
 
@@ -392,7 +436,7 @@ class TestSelfRelease:
             log.append("callback finished")
 
         dispatch = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", STALL_THRESHOLD_SECONDS)
+            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", no_timeout)
         )
         await asyncio.wait_for(released.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
         await asyncio.sleep(0)
@@ -426,7 +470,7 @@ class TestSelfRelease:
             await asyncio.Event().wait()
 
         dispatch = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", STALL_THRESHOLD_SECONDS)
+            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", no_timeout)
         )
         await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT_SECONDS)
         await asyncio.wait_for(release_task[0], timeout=HANG_GUARD_TIMEOUT_SECONDS)

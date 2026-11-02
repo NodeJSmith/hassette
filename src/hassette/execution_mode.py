@@ -38,9 +38,12 @@ change to the guard's shape.
 """
 
 STALL_THRESHOLD_SECONDS: float = 60.0
-"""Single source of truth. Imported by both subsystems and passed explicitly as
-``threshold=`` at each call site — never used as a helper default argument (a
-default binds at definition time and would defeat test patches)."""
+"""The stall threshold's floor, and its value when an invocation has no timeout. ``stall_threshold``
+reads it at call time, when an invocation starts. It is never a default argument: a default binds at
+definition time and would defeat test patches."""
+
+STALL_TIMEOUT_FRACTION: float = 0.8
+"""Fraction of an invocation's effective timeout it may hold its guard before the stall WARNING."""
 
 RunAndTrack = Callable[[], "asyncio.Task[None]"]
 """A caller-supplied callable that spawns one handler invocation and returns its task."""
@@ -73,6 +76,38 @@ def resolve_execution_mode(mode: "ExecutionMode | str | None", source_tier: Sour
     except ValueError as exc:
         valid = ", ".join(repr(m.value) for m in ExecutionMode)
         raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
+
+
+def resolve_effective_timeout(
+    timeout: float | None, timeout_disabled: bool, default_resolver: Callable[[], float | None]
+) -> float | None:
+    """Return the timeout enforced for one invocation, or ``None`` if it has none.
+
+    ``timeout_disabled`` wins, then the per-registration ``timeout``, then the global default.
+    ``default_resolver`` is only called when the default applies, and callers invoke this at fire
+    time so a hot-reloaded config takes effect.
+    """
+    if timeout_disabled:
+        return None
+    return timeout if timeout is not None else default_resolver()
+
+
+def stall_threshold(effective_timeout: float | None) -> float:
+    """Return how long an invocation with this effective timeout may hold its guard before the stall WARNING.
+
+    A declared timeout says how long is normal, so the threshold follows it. It never drops below
+    ``STALL_THRESHOLD_SECONDS``, which also applies when there is no timeout.
+    """
+    if effective_timeout is None:
+        return STALL_THRESHOLD_SECONDS
+    return max(STALL_THRESHOLD_SECONDS, STALL_TIMEOUT_FRACTION * effective_timeout)
+
+
+def describe_stall_threshold(threshold: float, effective_timeout: float | None) -> str:
+    """Format a stall threshold and where it came from, for the stall WARNING text."""
+    if effective_timeout is None or threshold <= STALL_THRESHOLD_SECONDS:
+        return f"{threshold:.0f}s (the default stall threshold)"
+    return f"{threshold:.0f}s ({STALL_TIMEOUT_FRACTION:.0%} of its {effective_timeout:.0f}s timeout)"
 
 
 class ExecutionModeGuard:
@@ -239,15 +274,21 @@ class ExecutionModeGuard:
 
 async def run_with_stall_watch(
     invoke: Callable[[], Awaitable[None]],
-    warn: Callable[[float], None],
-    threshold: float,
+    warn: Callable[[float, float | None], None],
+    resolve_timeout: Callable[[], float | None],
 ) -> None:
-    """Run one invocation; call ``warn(threshold)`` if it holds past ``threshold`` seconds.
+    """Run one invocation; call ``warn(threshold, effective_timeout)`` if it holds past its stall threshold.
 
-    ``warn`` receives the same ``threshold`` the watchdog armed at, so a logged stall
-    message can never disagree with when the watchdog fired.
+    The timeout is resolved here, when the invocation starts, rather than when it was triggered: a
+    ``queued`` invocation can wait through a config reload. ``invoke`` resolves the timeout it enforces
+    before its first suspension, so both read the same config.
+
+    ``warn`` receives the values the watchdog armed with, so a logged stall message can never disagree
+    with when the watchdog fired.
     """
-    watchdog = asyncio.get_running_loop().call_later(threshold, warn, threshold)
+    effective_timeout = resolve_timeout()
+    threshold = stall_threshold(effective_timeout)
+    watchdog = asyncio.get_running_loop().call_later(threshold, warn, threshold, effective_timeout)
     token = CURRENT_INVOCATION.set(asyncio.current_task())
     try:
         await invoke()
@@ -261,9 +302,9 @@ async def run_through_guard(
     spawn: Callable[..., "asyncio.Task[None]"],
     pending_done: "set[asyncio.Future[None]]",
     invoke: Callable[[], Awaitable[None]],
-    warn: Callable[[float], None],
+    warn: Callable[[float, float | None], None],
     spawn_name: str,
-    threshold: float,
+    resolve_timeout: Callable[[], float | None],
 ) -> None:
     """Route one non-parallel invocation through ``guard``, bridging completion via a future.
 
@@ -272,7 +313,7 @@ async def run_through_guard(
     would use the future bridge, which parallel never needs.
 
     The parameters fall into three groups: the overlap state (``guard``, ``pending_done``), the
-    invocation (``invoke``, ``warn``, ``threshold``), and the task machinery (``spawn``,
+    invocation (``invoke``, ``warn``, ``resolve_timeout``), and the task machinery (``spawn``,
     ``spawn_name``). ``spawn`` is a bare callable rather than a ``TaskBucket`` so this module
     stays a dependency-free leaf.
 
@@ -308,7 +349,7 @@ async def run_through_guard(
 
     def run_and_track() -> "asyncio.Task[None]":
         try:
-            task = spawn(run_with_stall_watch(invoke, warn, threshold), name=spawn_name)
+            task = spawn(run_with_stall_watch(invoke, warn, resolve_timeout), name=spawn_name)
         except BaseException:
             # No task, so nothing below will ever fire the done-callback — see the completion
             # bridge notes in the docstring for why this must resolve here. Same shape as the

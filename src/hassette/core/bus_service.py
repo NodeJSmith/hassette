@@ -644,7 +644,7 @@ class BusService(Service):
 
         # Non-duration path (unchanged behavior).
         try:
-            await listener.invoker.dispatch(invoke_fn)
+            await listener.invoker.dispatch(invoke_fn, self._config_resolver)
         finally:
             if listener.options.once:
                 self.remove_listener(listener)
