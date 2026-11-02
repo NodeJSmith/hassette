@@ -325,10 +325,9 @@ class TestAuthFailureNamesCredentialSource:
     def test_401_names_the_local_token_file_that_was_attached(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """The companion trap: a loopback target that is a *different* local instance.
+        """The local instance rejected its own ``.web_api_token``, which means the file is stale.
 
-        The CLI attaches this machine's own ``.web_api_token``; without naming it, the 401 is
-        indistinguishable from a plain bad-token rejection.
+        Without naming the file, the 401 is indistinguishable from any other bad-token rejection.
         """
         token_path = tmp_path / TOKEN_FILENAME
         token_path.write_text("local-token", encoding="utf-8")
@@ -363,6 +362,26 @@ class TestAuthFailureNamesCredentialSource:
             assert source.name in detail
         assert "--token-file" in detail
         assert CLI_AUTH_TOKEN_ENV in detail
+        assert CLI_AUTH_DOCS_URL in detail
+
+    def test_401_on_another_loopback_port_says_the_local_token_was_withheld(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A second instance on this machine: a valid local token file was deliberately not sent.
+
+        The chain-came-up-empty message would send the operator to check a file that is fine.
+        """
+        (tmp_path / TOKEN_FILENAME).write_text("local-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path, port=8126, cli_server_url="http://127.0.0.1:18126")
+        client, captured_headers = CLIClientFactory(config).build_capturing_headers(
+            401, {"detail": "Not authenticated"}, json_mode=True
+        )
+        detail = get_json_error(client, capsys, expect_code=1)["detail"]
+        assert captured_headers[0].get("authorization") is None
+        assert "nothing in the credential chain resolved" not in detail
+        assert "web_api.port" in detail
+        assert "web_api.token_file" in detail
+        assert "--token-file" in detail
         assert CLI_AUTH_DOCS_URL in detail
 
     def test_401_with_unusable_configured_token_file_does_not_claim_nothing_is_configured(
