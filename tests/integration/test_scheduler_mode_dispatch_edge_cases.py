@@ -29,7 +29,12 @@ from hassette.app.app_config import AppConfig
 from hassette.scheduler import Job
 from hassette.testing import AppTestHarness, wait_for
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
-from tests.support.scheduler_dispatch_helpers import freeze_and_dispatch, get_job_by_name, scheduler_service_for
+from tests.support.scheduler_dispatch_helpers import (
+    freeze_and_dispatch,
+    get_job_by_name,
+    scheduler_service_for,
+    start_overrun,
+)
 
 
 class _OverlapConfig(AppConfig):
@@ -330,6 +335,46 @@ async def test_stall_threshold_passed_to_guard(
             await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
         assert spy.call_args.kwargs["threshold"] == expected
+
+
+async def test_queued_stall_threshold_uses_timeout_at_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A config reload during a queue wait moves the watchdog along with the enforced timeout."""
+    first_started = asyncio.Event()
+    first_gate = asyncio.Event()
+    starts = 0
+
+    class _QueuedApp(App[_OverlapConfig]):
+        async def on_initialize(self) -> None:
+            await self.scheduler.run_every(self.task, seconds=10, name="queued_reload_job", mode="queued")
+
+        async def task(self) -> None:
+            nonlocal starts
+            starts += 1
+            if starts == 1:
+                first_started.set()
+                await first_gate.wait()
+                return
+            await asyncio.sleep(HANG_GUARD_TIMEOUT_SECONDS)  # outlasts the reloaded timeout, which ends it
+
+    async with AppTestHarness(_QueuedApp, config={"instance_name": "queued_reload_app"}) as harness:
+        scheduler_service = scheduler_service_for(harness)
+        config = scheduler_service.hassette.config.scheduler
+        monkeypatch.setattr(config, "job_timeout_seconds", 30.0)
+
+        with patched_stall_watch(scheduler_service, 0.01) as mock_warn:
+            job, first_dispatch, next_job = await start_overrun(harness, "queued_reload_job", first_started)
+            second_dispatch = await freeze_and_dispatch(harness, next_job)
+            await asyncio.sleep(0)  # let the second occurrence reach the queue
+
+            # Before the reload, the queued invocation's threshold would be 24s, past any wait here.
+            monkeypatch.setattr(config, "job_timeout_seconds", 0.25)
+            first_gate.set()
+
+            await wait_for(lambda: mock_warn.call_count >= 1)
+            mock_warn.assert_called_once_with(job, execution_mode_module.stall_threshold(0.25), 0.25)
+
+        await asyncio.wait_for(first_dispatch, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+        await asyncio.wait_for(second_dispatch, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
 def test_warn_stalled_job_names_the_threshold_source(caplog: pytest.LogCaptureFixture) -> None:

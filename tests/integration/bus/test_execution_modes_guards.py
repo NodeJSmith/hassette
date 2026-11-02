@@ -20,6 +20,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.events import RawStateChangeEvent
 from hassette.schemas.live_counts import LiveCounts
 from hassette.testing import wait_for
+from hassette.types import Topic
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, create_listener
 
 from .helpers import ENTITY, fire, make_gated_handler, pump_event_loop, seed
@@ -360,6 +361,86 @@ async def test_stall_threshold_passed_to_guard(
         await asyncio.wait_for(fired.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
     assert spy.call_args.kwargs["threshold"] == expected
+    await harness.bus_service.await_dispatch_idle()
+
+
+async def test_queued_stall_threshold_uses_timeout_at_start(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A config reload during a queue wait moves the watchdog along with the enforced timeout."""
+    harness, hassette, bus = bus_harness
+    await seed(harness, ENTITY, "0")
+    monkeypatch.setattr(hassette.config.lifecycle, "event_handler_timeout_seconds", 30.0)
+
+    first_gate = asyncio.Event()
+    starts = 0
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        nonlocal starts
+        starts += 1
+        if starts == 1:
+            await first_gate.wait()
+            return
+        await asyncio.sleep(HANG_GUARD_TIMEOUT_SECONDS)  # outlasts the reloaded timeout, which ends it
+
+    await bus.on_state_change(ENTITY, handler=handler, name="stall_queued_reload", mode="queued")
+
+    with (
+        unittest.mock.patch.object(execution_mode_module, "STALL_THRESHOLD_SECONDS", 0.01),
+        unittest.mock.patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled") as mock_warn,
+    ):
+        await fire(harness, "0", "1")
+        await wait_for(lambda: starts == 1)
+        await fire(harness, "1", "2")  # queues behind the first
+
+        # Before the reload, the queued invocation's threshold would be 24s, past any wait here.
+        monkeypatch.setattr(hassette.config.lifecycle, "event_handler_timeout_seconds", 0.25)
+        first_gate.set()
+
+        await wait_for(lambda: mock_warn.call_count >= 1)
+        mock_warn.assert_called_once_with(execution_mode_module.stall_threshold(0.25), 0.25)
+
+    await harness.bus_service.await_dispatch_idle()
+
+
+async def test_prebuilt_listener_stall_threshold_uses_global_timeout(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A listener built by hand and added through ``add_listener`` warns against the global timeout it runs under."""
+    harness, hassette, bus = bus_harness
+    await seed(harness, ENTITY, "off")
+    monkeypatch.setattr(hassette.config.lifecycle, "event_handler_timeout_seconds", 0.5)
+
+    started = asyncio.Event()
+    gate = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        started.set()
+        await gate.wait()
+
+    listener = create_listener(
+        task_bucket=bus.task_bucket,
+        handler=handler,
+        owner_id=bus.owner_id,
+        topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{ENTITY}",
+        name="stall_prebuilt",
+        mode="single",
+    )
+    await bus.add_listener(listener)
+
+    with (
+        unittest.mock.patch.object(execution_mode_module, "STALL_THRESHOLD_SECONDS", 0.01),
+        unittest.mock.patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled") as mock_warn,
+    ):
+        await fire(harness, "off", "on")
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+
+        await wait_for(lambda: mock_warn.call_count >= 1)
+        mock_warn.assert_called_once_with(0.4, 0.5)
+
+    gate.set()
     await harness.bus_service.await_dispatch_idle()
 
 
