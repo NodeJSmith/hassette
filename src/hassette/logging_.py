@@ -16,7 +16,7 @@ from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
 import structlog
 import structlog.processors
 import structlog.stdlib
-from hassette_wire import LogAuthor, LogLevel
+from hassette_wire import LogAuthor
 
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
@@ -26,6 +26,7 @@ from hassette.logging_processors import (
     console_renderer,
     extract_record_fields,
     persisted_exc_text,
+    persisted_level,
     persisted_message,
     record_timestamper,
     resolve_exc_info,
@@ -70,14 +71,6 @@ _IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
 WARNING_CATEGORY_ATTR = "warning_category"
 WARNING_FILENAME_ATTR = "warning_filename"
 
-# Highest first, for standard_level_name. The names are literal because logging.addLevelName can rename a number.
-LEVEL_FLOORS_ABOVE_DEBUG: tuple[tuple[int, LogLevel], ...] = (
-    (logging.CRITICAL, "CRITICAL"),
-    (logging.ERROR, "ERROR"),
-    (logging.WARNING, "WARNING"),
-    (logging.INFO, "INFO"),
-)
-
 LogFormat = Literal["auto", "console", "compact", "json"]
 
 
@@ -102,14 +95,6 @@ class LogRecordEntry:
     def to_dict(self) -> dict[str, Any]:
         """Return the entry's fields as a plain dict."""
         return asdict(self)
-
-
-def standard_level_name(levelno: int) -> LogLevel:
-    """Return the highest standard level at or below ``levelno``, or DEBUG if ``levelno`` is below DEBUG."""
-    for floor, name in LEVEL_FLOORS_ABOVE_DEBUG:
-        if levelno >= floor:
-            return name
-    return "DEBUG"
 
 
 def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
@@ -531,7 +516,7 @@ class LogPersistenceHandler(logging.Handler):
         """
         return {
             "timestamp": record.created,
-            "level": standard_level_name(record.levelno),
+            "level": persisted_level(record),
             "logger_name": record.name,
             "func_name": record.funcName or "",
             "lineno": record.lineno,
@@ -545,8 +530,6 @@ class LogPersistenceHandler(logging.Handler):
 
         The flush only schedules the DB write; it may not run if the event loop is already stopping.
         """
-        # Flushes remaining records via call_soon_threadsafe — the enqueued
-        # coroutine may not execute if the event loop is already stopping.
         # LoggingService.on_shutdown() flushes pending records before stopping.
         self.flush_if_pending()
         super().close()
