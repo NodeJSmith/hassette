@@ -3,12 +3,13 @@
 ## Configuration
 
 !!! warning "Upgrading from a previous version"
-    Two behaviors changed with this release, and both fail at runtime rather than at parse time — a script relying on either keeps running, but its behavior changes underneath it:
+    Three behaviors changed with this release, and all fail at runtime rather than at parse time — a script relying on any of them keeps running, but its behavior changes underneath it:
 
     - **`HASSETTE__WEB_API__HOST=<non-loopback-host> hassette status`** no longer sends `<data_dir>/.web_api_token`. That recipe pointed the CLI at a remote host while reading the *local* instance's token file. Replace it with `--server-url` plus `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`.
-    - **`HASSETTE__WEB_API__AUTH_TOKEN`** now applies to loopback targets only. For a remote target, set `HASSETTE__CLI__AUTH_TOKEN` instead.
+    - **`HASSETTE__WEB_API__AUTH_TOKEN`** no longer reaches a remote target. Set `HASSETTE__CLI__AUTH_TOKEN` instead.
+    - **A second instance on the same machine** no longer receives `web_api.auth_token` or `web_api.token_file`. Those sources now require a loopback target whose port equals `web_api.port`. Use `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN` for that instance.
 
-    A script relying on either now either starts failing with a 401, or — against a target with `auth_enabled = false` or a matching `trusted_proxies` entry — keeps succeeding without ever sending a credential.
+    A script relying on any of them now either starts failing with a 401, or — against a target with `auth_enabled = false` or a matching `trusted_proxies` entry — keeps succeeding without ever sending a credential.
 
 ### Discovery Order
 
@@ -53,12 +54,12 @@ The server's web API requires authentication for every request (see [Web UI](../
 | `--token-file` | CLI | any target |
 | `cli.token_file` | CLI | any target |
 | `cli.auth_token` / `HASSETTE__CLI__AUTH_TOKEN` | CLI | any target |
-| `web_api.auth_token` / `HASSETTE__WEB_API__AUTH_TOKEN` | server | loopback only |
-| `web_api.token_file` (default `<data_dir>/.web_api_token`) | server | loopback only |
+| `web_api.auth_token` / `HASSETTE__WEB_API__AUTH_TOKEN` | server | loopback target on `web_api.port` |
+| `web_api.token_file` (default `<data_dir>/.web_api_token`) | server | loopback target on `web_api.port` |
 
 Precedence runs top to bottom: `--token-file` wins over `cli.token_file`, which wins over `cli.auth_token`, and so on.
 
-`web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `web_api.token_file` is the file that server reads its token from, and writes on first start if it's missing or empty (`<data_dir>/.web_api_token` unless configured). Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (`127.0.0.1`, `::1`, or `localhost`). For any other target it skips both and falls back to a `cli.*` source. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
+`web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `web_api.token_file` is the file that server reads its token from, and writes on first start if it's missing or empty (`<data_dir>/.web_api_token` unless configured). Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (`127.0.0.1`, `::1`, or `localhost`) and its port equals `web_api.port`. For any other target it skips both and falls back to a `cli.*` source. That includes a second instance on the same machine, which shares the host but listens on its own port. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
 
 A `server_url` with `user:password@` userinfo conflicts with a resolved credential. The CLI sends userinfo as Basic authentication, and a request carries only one `Authorization` header. When both are present, the CLI exits with a usage error before sending anything (see [Common Errors](#common-errors)). Remove the userinfo from `server_url`, or remove the token setting.
 
@@ -209,7 +210,7 @@ The instance name is required and unique for every configured instance, and must
 
 **Authentication failure (401):**
 
-Every 401 names the credential the CLI actually sent — or says that none was attached — and the remedies that apply. Which of the three variants appears depends on what resolved.
+Every 401 names the credential the CLI actually sent — or says that none was attached — and the remedies that apply. Which of the four variants appears depends on what resolved.
 
 A credential resolved and was rejected:
 
@@ -221,9 +222,9 @@ HASSETTE__CLI__AUTH_TOKEN. See
 https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
-The named source is the diagnosis. `web_api.token_file` and `web_api.auth_token` belong to *this machine's* instance, and they are attached to any loopback target — including a second Hassette instance on the same host, listening on a different port, with a different token. When the source named is one of those and the target is not the local instance, the fix is to point the CLI at the target's own credential rather than to regenerate anything. Against a remote target this variant adds one caveat: a forward-auth proxy in front of the target can answer 401 itself, so the rejection is not necessarily Hassette's.
+The named source is the diagnosis. `web_api.token_file` and `web_api.auth_token` belong to *this machine's* instance, and they reach only a loopback target on `web_api.port`. When the source named is one of those, the instance answering that port doesn't accept the value. Its configured token and the CLI's copy disagree, or another process holds the port. Against a remote target this variant adds one caveat: a forward-auth proxy in front of the target can answer 401 itself, so the rejection is not necessarily Hassette's.
 
-Nothing resolved against a local target:
+Nothing resolved against the local instance:
 
 ```text
 Error 401: Not authenticated (no credential was attached — nothing in the credential chain
@@ -237,6 +238,18 @@ https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token
 Usually the server has not started yet — it writes its token file (`<data_dir>/.web_api_token` by default) on first start. A running server paired with this message means the CLI resolved a different `data_dir` or `web_api.token_file` than the server uses, which an explicit credential settles.
 
 The message names the whole chain rather than asserting which entries are unset, because it cannot tell the difference: a `cli.token_file` or `web_api.token_file` that is missing, unreadable, or empty falls through to the next source silently, exactly like one that was never configured. Check the file before concluding the setting is absent.
+
+Nothing resolved against another port on this machine:
+
+```text
+Error 401: Not authenticated (no credential was attached — server-scoped sources
+(web_api.auth_token, web_api.token_file) describe this machine's instance and are sent
+only to a loopback target on web_api.port, which this target's port does not match.
+Attach one with --token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN. See
+https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
+```
+
+The target is a different instance from the one `web_api.port` describes, so the CLI withheld the local credential. Pass that instance's own token with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`. A port-mapped container is the same case when its published port differs from `web_api.port`.
 
 Nothing resolved against a remote target:
 
