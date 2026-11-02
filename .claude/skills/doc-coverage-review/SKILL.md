@@ -18,7 +18,7 @@ The source area(s) to verify. One or more of: `bus`, `scheduler`, `api`, `states
 
 ## Phase 1: Dispatch Inventory Agents
 
-For each area, dispatch a **Sonnet** subagent (cap at 5 concurrent) with the area prompt from `REFERENCE.md` plus these shared instructions:
+For each area, dispatch an **Opus** subagent (cap at 5 concurrent) with the area prompt from `REFERENCE.md` plus these shared instructions:
 
 ```
 You are auditing documentation coverage for the Hassette framework
@@ -50,45 +50,43 @@ parameters/variants of an otherwise-documented feature.
 Report every missing/reference-only item as a gap with the searches you
 ran. Do NOT pad the report: an item that is genuinely internal is not a
 gap — say so by excluding it from the inventory, not by listing it as
-low severity. Return the JSON result exactly as specified.
-```
+low severity.
 
-Use `schema` on the agent call:
+Return only a JSON object with this shape:
 
-```json
 {
-  "type": "object",
-  "properties": {
-    "area": {"type": "string"},
-    "items_inventoried": {"type": "integer"},
-    "gaps": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "item": {"type": "string"},
-          "source_location": {"type": "string"},
-          "status": {"type": "string", "enum": ["missing", "reference-only"]},
-          "severity": {"type": "string", "enum": ["high", "low"]},
-          "searches_tried": {"type": "array", "items": {"type": "string"}},
-          "why_user_facing": {"type": "string"},
-          "suggested_home": {"type": "string"}
-        },
-        "required": ["item", "source_location", "status", "severity", "searches_tried", "why_user_facing", "suggested_home"]
-      }
-    },
-    "summary": {"type": "string"}
-  },
-  "required": ["area", "items_inventoried", "gaps", "summary"]
+  "area": "<your area>",
+  "items_inventoried": <integer>,
+  "gaps": [
+    {
+      "item": "<name>",
+      "source_location": "<file:line>",
+      "status": "missing" | "reference-only",
+      "severity": "high" | "low",
+      "searches_tried": ["<search>"],
+      "why_user_facing": "<who would use it and how>",
+      "suggested_home": "<docs page>"
+    }
+  ],
+  "summary": "<one or two sentences>"
 }
 ```
+
+Strip any code fence or surrounding text from each result and parse it as JSON. It must have `area`, `items_inventoried` (an integer), `gaps` (a list) and `summary`. Each gap must have:
+
+- `status`: `missing` or `reference-only`
+- `severity`: `high` or `low`
+- `item`, `source_location`, `why_user_facing`, `suggested_home`: non-empty strings
+- `searches_tried`: a non-empty list of strings
+
+If a result fails those checks, re-dispatch that area once. If the second result also fails, list the area as not reviewed in Phase 3, with the reason.
 
 ## Phase 2: Triage
 
 Inventory agents fail in both directions; triage before trusting.
 
 1. **False gaps.** Agents grep for the symbol name and miss prose that documents the behavior under different words. Before accepting any `missing` gap, run one independent docs search yourself using a term the agent didn't try. If you find coverage, drop the gap.
-2. **Lazy inventories.** An area reporting `items_inventoried: 8` for a module with 40 public methods got a shallow pass — re-dispatch it. Compare the count against your own quick `grep -c "def \|class "` of the area's public modules; large mismatches mean re-run, not trust.
+2. **Lazy inventories.** An area reporting `items_inventoried: 8` for a module with 40 public methods got a shallow pass. Ask whether the count is plausible for what the area's prompt lists. A quick `grep -c "def \|class "` of its public modules helps only roughly: it counts private helpers and misses parameters and config fields, so a thorough inventory can land far from it in either direction. Re-dispatch an area whose count isn't plausible once, and if the second count still isn't, list it as not reviewed in Phase 3.
 3. **Scope creep.** Agents pad reports with internals to look thorough. For each gap, check `why_user_facing` against the test: would an app author or operator ever type this name? If not, discard.
 
 ## Phase 3: Present and Fix
@@ -104,7 +102,7 @@ Group confirmed gaps by area, high severity first:
   Suggested home: core-concepts/bus/methods.md
 ```
 
-End with a summary table (Area | Items | Missing | Reference-only). Areas with zero gaps appear in the table only.
+End with a summary table (Area | Items | Missing | Reference-only). Areas with zero gaps appear in the table only. Zero gaps means none were found, not that coverage is proven. After the table, list any areas not reviewed, each with the reason, and give them no table row.
 
 Fixing is scoped: small gaps (a missing parameter, an unexplained exception) get edited into the suggested home directly, following `.claude/rules/voice-guide.md` and `doc-rules.md` (snippets live in tested `snippets/` files). Whole missing pages are larger work — list them as recommendations instead of writing them inline, unless the user pre-authorized full fixes.
 
@@ -116,6 +114,6 @@ After edits: `uv run mkdocs build --strict`, and Pyright if any snippet changed.
 
 **Why two search passes per item?** The dominant failure mode is the false gap: docs explain a feature in prose without naming the symbol. Exact-match grep alone systematically over-reports.
 
-**Why `items_inventoried`?** Same reason as `claims_checked` in doc-accuracy-review: zero gaps from a thorough agent and zero gaps from a lazy one look identical without the denominator.
+**Why `items_inventoried`?** The count only catches a shallow pass, which Phase 2 checks for. A full count with zero gaps still doesn't prove coverage. In doc-accuracy-review's seeded baseline (`design/research/2026-11-02-doc-accuracy-verification/seeded-baseline/`), a higher `claims_checked` didn't mean more errors caught.
 
 **Why no script to extract the public surface?** The inventory requires judgment ("is this user-facing?") that a symbol dump can't make, and the area list is stable. If inventories prove unreliable, build the extractor then — not speculatively.
