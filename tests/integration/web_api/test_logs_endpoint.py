@@ -1,12 +1,21 @@
 """Integration tests for the log query and log-level endpoints."""
 
 import logging
+import sqlite3
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import uuid_utils
 
-from .conftest import make_log_record
+from hassette.core.migration_runner import run_migrations
+from hassette.core.telemetry.summary_queries import LOG_RECORD_SELECT
+from hassette.logging_ import LogPersistenceHandler
+from tests.support.factories import make_log_record as make_stdlib_log_record
+from tests.support.sql import sqlite_conn
+
+from .conftest import get_json, make_log_record
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -140,6 +149,49 @@ class TestLogsEndpoints:
         r2 = await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.rqs.test.lvl", "level": "INFO"})
         assert r2.status_code == 200
         assert logging.getLogger("hassette.rqs.test.lvl").level == logging.INFO
+
+
+class TestCustomLevelRecords:
+    """A record logged at a custom level reads back from both routes that serve stored log rows."""
+
+    async def assert_routes_return_level(
+        self, client: "AsyncClient", mock_hassette: MagicMock, row: dict[str, Any], expected: str
+    ) -> None:
+        telemetry = mock_hassette.telemetry_query_service
+        telemetry.get_log_records = AsyncMock(return_value=[row])
+        telemetry.get_log_records_by_execution = AsyncMock(return_value=([row], False))
+
+        recent = await get_json(client, LOGS_RECENT_PATH)
+        execution = await get_json(client, f"/api/executions/{uuid_utils.uuid7()}")
+
+        assert recent[0]["level"] == expected
+        assert execution["records"][0]["level"] == expected
+
+    async def test_captured_record(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        record = make_stdlib_log_record(level=25)
+        record.levelname = "SUCCESS"
+        handler = LogPersistenceHandler(db_service=MagicMock(), loop=MagicMock())
+        row = {**handler.record_to_dict(record), "id": 1}
+
+        await self.assert_routes_return_level(client, mock_hassette, row, "INFO")
+
+    async def test_row_stored_before_the_migration(
+        self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+    ) -> None:
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path, target=18)
+        with sqlite_conn(db_path) as conn:
+            conn.execute(
+                "INSERT INTO log_records (seq, timestamp, level, logger_name, message, author) "
+                "VALUES (1, 0.0, 'TRACE', 'x', 'line', 'app')"
+            )
+            conn.commit()
+        run_migrations(db_path)
+        with sqlite_conn(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = dict(conn.execute(LOG_RECORD_SELECT).fetchone())
+
+        await self.assert_routes_return_level(client, mock_hassette, row, "INFO")
 
 
 async def get_recent_logs_forwarded_kwargs(

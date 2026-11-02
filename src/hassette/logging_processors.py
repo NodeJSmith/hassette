@@ -12,6 +12,7 @@ from typing import Any
 
 import structlog.dev
 import structlog.types
+from hassette_wire import LogLevel
 
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
@@ -26,6 +27,14 @@ _RECORD_FIELDS = (
     "execution_kind",
     "listener_id",
     "job_id",
+)
+
+# Highest first, for persisted_level. The names are literal because logging.addLevelName can rename a number.
+LEVEL_FLOORS_ABOVE_DEBUG: tuple[tuple[int, LogLevel], ...] = (
+    (logging.CRITICAL, "CRITICAL"),
+    (logging.ERROR, "ERROR"),
+    (logging.WARNING, "WARNING"),
+    (logging.INFO, "INFO"),
 )
 
 # Event-dict key the console identity column travels under, from console_identity to the renderer.
@@ -229,6 +238,17 @@ def resolve_exc_info(
     elif exc_info and current[0] is not None:
         out["exc_info"] = current
     return out
+
+
+def persisted_level(record: logging.LogRecord) -> LogLevel:
+    """Return the highest standard level at or below the record's number, or DEBUG if it is below DEBUG.
+
+    Reads ``levelno`` because ``levelname`` can hold a custom name, which the wire's closed level set rejects.
+    """
+    for floor, name in LEVEL_FLOORS_ABOVE_DEBUG:
+        if record.levelno >= floor:
+            return name
+    return "DEBUG"
 
 
 def persisted_message(record: logging.LogRecord) -> str:

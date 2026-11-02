@@ -26,6 +26,7 @@ from hassette.logging_processors import (
     console_renderer,
     extract_record_fields,
     persisted_exc_text,
+    persisted_level,
     persisted_message,
     record_timestamper,
     resolve_exc_info,
@@ -515,7 +516,7 @@ class LogPersistenceHandler(logging.Handler):
         """
         return {
             "timestamp": record.created,
-            "level": record.levelname,
+            "level": persisted_level(record),
             "logger_name": record.name,
             "func_name": record.funcName or "",
             "lineno": record.lineno,
@@ -529,8 +530,6 @@ class LogPersistenceHandler(logging.Handler):
 
         The flush only schedules the DB write; it may not run if the event loop is already stopping.
         """
-        # Flushes remaining records via call_soon_threadsafe — the enqueued
-        # coroutine may not execute if the event loop is already stopping.
         # LoggingService.on_shutdown() flushes pending records before stopping.
         self.flush_if_pending()
         super().close()
