@@ -74,7 +74,9 @@ Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their nam
 
 ### Numeric direction: `C.Increased` and `C.Decreased`
 
-`C.Increased` and `C.Decreased` fire when a numeric value moves in a particular direction between events. Both work as arguments to `changed=` on `on_state_change` or `on_attribute_change`, and inside `P.StateComparison` / `P.AttrComparison` for attribute-level direction tests.
+`C.Increased` and `C.Decreased` fire when a numeric value moves in a particular direction between events. Both work as arguments to `changed=` on `on_state_change` or `on_attribute_change`, and inside `P.StateComparison` / `P.AttrComparison`.
+
+`P.StateComparison` calls a two-argument condition with the old and new state values. `P.AttrComparison` takes an attribute name first, then calls the condition with that attribute's old and new values. Both go in `where=`, and their entries are in the [Predicate Reference](predicate-reference.md#state-change-predicates).
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_increased_decreased.py"
@@ -199,6 +201,12 @@ A dict passed to `where=` matches keys and values in the service data.
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_predicates.py"
 ```
+
+The handler fires when `message` contains `"urgent"` and `title` doesn't start with `"DEBUG"`.
+
+`C.StartsWith` tests whether a string value begins with a prefix. `P.Not` calls whatever it wraps and inverts the result, so wrapping a condition in `P.Not` negates a field value. The wrapped form counts as a callable.
+
+This negated field also matches a call that omits `title`, because `C.StartsWith` returns `False` for a missing value. A callable that checks `isinstance(value, str)` before testing the value rejects a missing field.
 
 ### `P.ServiceMatches`
 
