@@ -58,6 +58,20 @@ class TestCacheKey:
         assert app.cache_key == "kitchen_lights/porch"
 
 
+class TestUnnamedConstruction:
+    def test_unnamed_direct_construction_raises(self, tmp_path: Path) -> None:
+        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+
+        with pytest.raises(ValueError, match="has no instance_name"):
+            App(hassette, app_config=AppConfig(), index=0, app_key="kitchen_lights")
+
+    def test_invalid_name_direct_construction_raises(self, tmp_path: Path) -> None:
+        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+
+        with pytest.raises(ValueError, match="instance_name 'Porch'"):
+            App(hassette, app_config=AppConfig(instance_name="Porch"), index=0, app_key="kitchen_lights")
+
+
 class TestInstanceScopedCacheDirectories:
     def test_different_instance_names_get_different_cache_directories(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)

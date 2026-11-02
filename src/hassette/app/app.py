@@ -9,7 +9,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
-from hassette.config.classes import AppManifest
+from hassette.config.classes import AppManifest, resolve_instance_name
 from hassette.conversion import StateRegistry, TypeRegistry
 from hassette.logging_ import LogIdentity, set_logger_identity
 from hassette.resources.base import FinalMeta, Resource
@@ -147,6 +147,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         parent: Resource | None = None,
         cache: CacheProtocol | None = None,
     ) -> None:
+        # A directly constructed App gets the same name check config loading applies, so an unnamed one fails
+        # here instead of sharing a cache directory and logger name with its siblings.
+        resolve_instance_name(app_config.instance_name, app_key=app_key, index=index)
         # app_config and index must be set before super().__init__ because unique_name (used by the
         # logger) and owner_framework_log_level (used by the lifecycle logger's level) read app_config
         self.app_config = app_config

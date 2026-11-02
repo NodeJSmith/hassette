@@ -73,8 +73,9 @@ class AppConfig(BaseSettings):
     instance_name: str = ""
     """Name for the instance of the app, unique across the config.
 
-    Config loading always sets it (see `hassette.config.classes.resolve_instance_name`); the empty default only
-    applies to an App constructed directly."""
+    Config loading always sets it, and constructing an `App` checks it with
+    `hassette.config.classes.resolve_instance_name`, so an App built directly must set it too. The empty default
+    only lets a bare config object be built without an App."""
 
     log_level: LogLevel | None = None
     """Log level for the app instance.
