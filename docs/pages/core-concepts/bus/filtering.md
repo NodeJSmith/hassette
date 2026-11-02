@@ -154,6 +154,18 @@ A real press writes its timestamp and `last_changed` at the same moment, so it p
 
 The guard fails open: a state that isn't a timestamp, such as `unknown` or `unavailable`, passes. A `max_age` of a few seconds is plenty.
 
+### Presence Checks
+
+`where=` accepts any callable that takes the event and returns a bool. That includes a lambda calling the [presence helpers](../states/index.md#presence) on `self.states`, which read the local state cache without an `await`.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering/presence_where.py"
+```
+
+The handler fires when the front door opens and no tracked person is home. The lambda ignores the event, so `_` names its unused parameter. The check runs when each event is dispatched, so it reads presence at that moment, not at registration.
+
+With no tracked `person` or `device_tracker` entities, `nobody_home()` returns `True` and the handler fires. An empty-house check needs at least one tracked entity to mean anything.
+
 ## Filtering Service Calls
 
 `on_call_service` accepts `domain=` and `service=` for coarse filtering, and `where=` for fine-grained control. `where=` on `on_call_service` also accepts a plain dict, which matches against the service data payload.
