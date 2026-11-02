@@ -18,7 +18,8 @@ from tests.support.mock_hassette import make_mock_hassette
 
 Responder = Callable[["StubHomeAssistant", web.Request], Awaitable[web.StreamResponse]]
 
-SHORT_TIMEOUT = aiohttp.ClientTimeout(total=0.05)
+# Only the read timeout is short: an attempt must reach the stub and get counted before it times out.
+SHORT_READ_TIMEOUT = aiohttp.ClientTimeout(total=30, sock_read=0.25)
 
 
 @dataclass
@@ -129,7 +130,7 @@ async def test_timeout_uses_full_retry_budget(stub_and_resource: tuple[StubHomeA
     stub.respond = never_answer
 
     with pytest.raises(TimeoutError):
-        await resource.rest_request("GET", "states/light.kitchen", timeout=SHORT_TIMEOUT)
+        await resource.rest_request("GET", "states/light.kitchen", timeout=SHORT_READ_TIMEOUT)
 
     assert stub.request_count == MAX_RETRY_ATTEMPTS
 

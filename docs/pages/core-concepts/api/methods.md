@@ -606,8 +606,8 @@ raises [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] and is n
 other error status raises [`HttpRequestError`][hassette.exceptions.HttpRequestError]. A 5xx, 408,
 or 429 raises it once Hassette's retries run out. A 503 during a Home Assistant restart takes this
 path. Any other 4xx raises it on the first attempt. Its `status` attribute holds the HTTP status
-code, and `message` holds the reason phrase. Calling code can branch on `status` to retry a 5xx and
-give up on a 4xx.
+code, and `message` holds the reason phrase. Calling code can branch on `status` to retry a 5xx, 408, or
+429 and give up on any other 4xx.
 
 ---
 
