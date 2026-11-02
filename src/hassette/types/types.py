@@ -137,7 +137,7 @@ class Predicate(Protocol[EventT]):
         ...
 
 
-WhereClause: TypeAlias = "Predicate | Sequence[Predicate] | None"
+WhereClause: TypeAlias = Predicate | Sequence[Predicate] | None
 """Type alias for the ``where=`` parameter on bus/scheduler subscription methods."""
 
 

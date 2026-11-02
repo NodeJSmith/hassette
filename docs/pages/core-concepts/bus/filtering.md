@@ -94,7 +94,7 @@ The full conditions table, including string matching, collection membership, and
 
 ## Predicates and the `where` Parameter
 
-When built-in parameters are not enough, `where=` accepts a predicate or a list of predicates. A list is treated as logical AND, so all predicates must match.
+When built-in parameters are not enough, `where=` accepts a predicate or a list of predicates. A list is treated as logical AND, so all predicates must match. `hassette.types.WhereClause` is the type of `where=`, for helpers that accept and forward it.
 
 ### `P.StateFrom` and `P.StateTo`
 
@@ -142,7 +142,7 @@ Conditions (`C.*`) do not support these operators. They test extracted values, n
 
 ### Ignoring Restart Replays: `P.EventEntityFresh`
 
-Home Assistant `event.*` entities, such as Zigbee buttons and remotes, store the time of their last event as their state value. When Home Assistant restarts, it restores that state and broadcasts it as a new `state_changed` event. Without a guard, every button automation runs once on each restart, as if someone pressed the button.
+Home Assistant `event.*` entities, such as Zigbee buttons and remotes, store the time of their last event as their state value. `input_button.*` helpers store their last press the same way. When Home Assistant restarts, it restores that state and broadcasts it as a new `state_changed` event. Without a guard, every button automation runs once on each restart, as if someone pressed the button.
 
 The event's own `time_fired` doesn't help here, since a replayed event gets a fresh one. `P.EventEntityFresh` instead compares the timestamp in the entity's new state with that state's `last_changed`, and drops the event when `last_changed` is more than `max_age` seconds after that timestamp.
 
@@ -153,6 +153,14 @@ The event's own `time_fired` doesn't help here, since a replayed event gets a fr
 A real press writes its timestamp and `last_changed` at the same moment, so it passes. A restart replay pairs the last real press's timestamp, often hours old, with a `last_changed` from the restart, so it is dropped. Both values come from Home Assistant, so the Hassette host's clock doesn't matter, and a listener with `duration=` still fires when its hold timer expires.
 
 The guard fails open: a state that isn't a timestamp, such as `unknown` or `unavailable`, passes. A `max_age` of a few seconds is plenty.
+
+A handler that acts without checking anything else also runs on those states during a restart. An `event.*` handler usually returns early on its empty `event_type`, but an `input_button` handler has no such check. Composing the guard with `P.StateTo` drops those states too:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering_input_button_fresh.py"
+```
+
+The handler now runs only on a real press.
 
 ## Filtering Service Calls
 

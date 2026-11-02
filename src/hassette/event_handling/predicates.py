@@ -544,17 +544,19 @@ class AttrDidChange(_PredicateOps):
 
 @dataclass(frozen=True)
 class EventEntityFresh(_PredicateOps):
-    """Checks that an ``event.*`` entity's state timestamp is within ``max_age`` seconds of its ``last_changed``.
+    """Checks that a button entity's state timestamp is within ``max_age`` seconds of its ``last_changed``.
 
-    Home Assistant ``event`` entities (buttons, remotes) store the time of their last event as their state value. When
-    HA restarts it restores that state and broadcasts it as a new ``state_changed`` event, so an unguarded button
-    listener re-runs on every restart. A real press writes its timestamp and ``last_changed`` together; a restart
-    replay pairs the old timestamp with a ``last_changed`` set at restart. Both values come from Home Assistant, so
-    clock skew with the Hassette host and dispatch latency don't affect the result, and a ``duration=`` hold recheck
-    of the cached state still passes.
+    Home Assistant ``event`` entities (buttons, remotes) and ``input_button`` helpers store the time of their last event
+    as their state value. When HA restarts it restores that state and broadcasts it as a new ``state_changed`` event, so
+    an unguarded button listener re-runs on every restart. A real press writes its timestamp and ``last_changed``
+    together; a restart replay pairs the old timestamp with a ``last_changed`` set at restart. Both values come from
+    Home Assistant, so clock skew with the Hassette host and dispatch latency don't affect the result, and a
+    ``duration=`` hold recheck of the cached state still passes.
 
     Fails open: a missing ``new_state`` or a state value or ``last_changed`` that is not an ISO 8601 timestamp
-    (``unknown``, ``unavailable``) counts as fresh, so a real press is never dropped.
+    (``unknown``, ``unavailable``) counts as fresh, so a real press is never dropped. A handler that acts without
+    checking anything else, as an ``input_button`` handler usually does, also runs on those states during a restart.
+    Compose the guard with ``~P.StateTo`` to drop them, as the second example shows.
 
     Examples:
         ```python
@@ -563,6 +565,13 @@ class EventEntityFresh(_PredicateOps):
             handler=self.on_press,
             where=P.EventEntityFresh(max_age=10),
             name="hallway_button",
+        )
+
+        await self.bus.on_state_change(
+            "input_button.naptime",
+            handler=self.on_press,
+            where=P.EventEntityFresh(max_age=10) & ~P.StateTo("unavailable") & ~P.StateTo("unknown"),
+            name="naptime_button",
         )
         ```
     """
