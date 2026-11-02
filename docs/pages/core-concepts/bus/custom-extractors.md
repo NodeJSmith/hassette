@@ -24,7 +24,9 @@ A custom extractor is a plain callable that receives the raw event and returns a
 |---|---|---|---|
 | `extractor` | `Callable[[T], Any]` | Yes | Extracts the value from the source object |
 | `converter` | `Callable[[Any, Any], Any] \| None` | No | Converts the extracted value to the declared type |
-| `source_type` | `type[T] \| None` | No | Overrides the default source type for this extractor |
+| `source_type` | `type[T] \| None` | No | The type the extractor receives. Defaults to `Event`, which covers every bus handler. |
+
+A bus handler only has the event available. Any `source_type` other than `Event` or the event's exact class raises `DependencyResolutionError` when the handler is dispatched. An unset `source_type` reads from the event and avoids the error.
 
 `Annotated[T, AnnotationDetails(...)]` completes the setup. Hassette discovers the `AnnotationDetails` instance in the `Annotated` metadata automatically at registration time — no explicit registration step needed.
 

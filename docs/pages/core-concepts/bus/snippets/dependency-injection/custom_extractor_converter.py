@@ -24,7 +24,14 @@ LastChanged = Annotated[
 
 
 class TimestampApp(App):
-    async def on_state_change(
+    async def on_initialize(self):
+        await self.bus.on_state_change(
+            "light.kitchen",
+            handler=self.on_timestamp_change,
+            name="kitchen_timestamp",
+        )
+
+    async def on_timestamp_change(
         self,
         changed_at: LastChanged,
     ):
