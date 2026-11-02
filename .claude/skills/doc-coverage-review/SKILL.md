@@ -116,6 +116,4 @@ After edits: `uv run mkdocs build --strict`, and Pyright if any snippet changed.
 
 **Why `items_inventoried`?** The count only catches a shallow pass, which Phase 2 checks against a quick `grep`. A full count with zero gaps still doesn't prove coverage. In doc-accuracy-review's seeded baseline (`design/research/2026-11-02-doc-accuracy-verification/seeded-baseline/`), a higher `claims_checked` didn't mean more errors caught.
 
-**Why Opus?** Coverage hasn't been measured, so this is a judgment call. In that baseline Opus caught far more than Sonnet on doc-accuracy-review, especially claims that need tracing through the code. It also cost more and reported more low-severity items for triage to sort. Nothing runs this skill automatically, a bad result costs little, and changing back is a small edit.
-
 **Why no script to extract the public surface?** The inventory requires judgment ("is this user-facing?") that a symbol dump can't make, and the area list is stable. If inventories prove unreliable, build the extractor then — not speculatively.
