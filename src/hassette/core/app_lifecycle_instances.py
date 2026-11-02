@@ -299,8 +299,8 @@ class AppInstanceLifecycleMixin:
         """
         name = inst.instance_name
         self.logger.error("Failed to stop app '%s':\n%s", name, get_short_traceback())
-        self.registry.unregister_app(inst.app_key, inst.instance_name)
-        self.registry.record_failure(inst.app_key, inst.instance_name, failure)
+        self.registry.unregister_app(inst.app_key, name)
+        self.registry.record_failure(inst.app_key, name, failure)
         stored = inst.shutdown_outcome
         if stored is None or not stored.is_restart_safe:
             left = describe_left_running(stored or ShutdownOutcome())
@@ -308,7 +308,7 @@ class AppInstanceLifecycleMixin:
             newly_flagged = self.flag_instance_needs_restart(inst, reason, stored)
             self.record_flagged_outcome(outcomes, inst, failure_reason(failure), newly_flagged)
         else:
-            outcomes.failed(inst.instance_name, failure_reason(failure))
+            outcomes.failed(name, failure_reason(failure))
         previous = STARTING if is_init_failure else STOPPING
         await self.send_outcome_event(inst, status=FAILED, previous_status=previous, exception=failure)
 
@@ -365,8 +365,8 @@ class AppInstanceLifecycleMixin:
             self.logger.error(
                 "Stop of app '%s' (%s) timed out after %s; nothing still pending", name, inst.class_name, friendly_time
             )
-            self.registry.record_failure(inst.app_key, inst.instance_name, exc)
-            outcomes.failed(inst.instance_name, str(exc))
+            self.registry.record_failure(inst.app_key, name, exc)
+            outcomes.failed(name, str(exc))
             return exc
 
         left = describe_left_running(outcome)
@@ -376,7 +376,7 @@ class AppInstanceLifecycleMixin:
         else:
             reason = f"stopped, but {left}"
             exc = RuntimeError(f"app '{name}' stopped, but {left}")
-        self.registry.record_failure(inst.app_key, inst.instance_name, exc)
+        self.registry.record_failure(inst.app_key, name, exc)
         newly_flagged = self.flag_instance_needs_restart(inst, reason, outcome)
         self.record_flagged_outcome(outcomes, inst, str(exc), newly_flagged)
         return exc

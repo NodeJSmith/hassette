@@ -239,6 +239,7 @@ class AppChangeReconcilerMixin:
             log_refusals(self.logger, restart.app_key, outcomes[restart.app_key].snapshot())
 
     def _queue_retire_unconfigured_instances(self) -> None:
+        """Ask the database to retire removed names' rows now, leaving a dropped request to the hourly sweep."""
         try:
             database = self.hassette.database_service
         except RuntimeError:

@@ -25,7 +25,7 @@ def find_app(hassette: Hassette, class_name: str) -> tuple[str, App[AppConfig]]:
     key = next((k for k in keys if class_name in k), None)
     assert key is not None, f"{class_name} not found in app_handler registry: {keys}"
     app = hassette.app_handler.get(key)
-    assert app is not None, f"{class_name} ({key}) has no running instance at index 0"
+    assert app is not None, f"{class_name} ({key}) has no running instance"
     return key, app
 
 

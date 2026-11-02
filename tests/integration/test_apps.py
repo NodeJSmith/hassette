@@ -494,7 +494,7 @@ class TestPerInstanceSelectiveRestart:
         assert beta_after is not beta_before, "beta should have been recreated"
         assert beta_after.app_config.model_dump()["value"] == "changed", "beta should reflect the new config"
 
-    async def _apply_config(self, lifecycle: AppLifecycleService, app_config: list[dict]) -> None:
+    async def apply_config(self, lifecycle: AppLifecycleService, app_config: list[dict]) -> None:
         """Change the multi-instance app's config and apply it the way a live config reload does."""
         original_config = deepcopy(lifecycle.registry.manifests)
         lifecycle.registry.manifests[self.MULTI_INSTANCE_APP_KEY].app_config = app_config
@@ -515,7 +515,7 @@ class TestPerInstanceSelectiveRestart:
         assert alpha is not None
         assert beta is not None
 
-        await self._apply_config(lifecycle, [beta_config, alpha_config])
+        await self.apply_config(lifecycle, [beta_config, alpha_config])
 
         assert lifecycle.registry.get(app_key, "alpha") is alpha
         assert lifecycle.registry.get(app_key, "beta") is beta
@@ -535,7 +535,7 @@ class TestPerInstanceSelectiveRestart:
         await lifecycle.start_app(app_key)
         alpha = lifecycle.registry.get(app_key, "alpha")
 
-        await self._apply_config(lifecycle, [{"value": "b", "instance_name": "beta"}, alpha_config])
+        await self.apply_config(lifecycle, [{"value": "b", "instance_name": "beta"}, alpha_config])
 
         assert lifecycle.registry.get(app_key, "alpha") is alpha, "the unchanged sibling keeps running"
         beta = lifecycle.registry.get(app_key, "beta")
@@ -584,7 +584,7 @@ class TestPerInstanceSelectiveRestart:
             ),
         )
 
-        await self._apply_config(lifecycle, new_config)
+        await self.apply_config(lifecycle, new_config)
 
         assert lifecycle.registry.get(app_key, "alpha") is alpha, "the unchanged sibling keeps running"
         assert lifecycle.registry.get(app_key, "beta") is None
@@ -626,7 +626,7 @@ class TestPerInstanceSelectiveRestart:
         assert lifecycle.registry.get(app_key, "alpha") is not None, "Precondition: alpha should be running"
         assert lifecycle.registry.get(app_key, "beta") is not None, "Precondition: beta should be running"
 
-        listener0_id = await executor.register_listener(
+        alpha_listener_id = await executor.register_listener(
             make_listener_registration(
                 instance_name=lifecycle.registry.instance_name(app_key, 0),
                 app_key=app_key,
@@ -634,7 +634,7 @@ class TestPerInstanceSelectiveRestart:
                 name="sibling_listener",
             )
         )
-        job0_id = await executor.register_job(
+        alpha_job_id = await executor.register_job(
             make_job_registration(
                 instance_name=lifecycle.registry.instance_name(app_key, 0),
                 app_key=app_key,
@@ -642,7 +642,7 @@ class TestPerInstanceSelectiveRestart:
                 job_name="sibling_job",
             )
         )
-        listener1_id = await executor.register_listener(
+        beta_listener_id = await executor.register_listener(
             make_listener_registration(
                 instance_name=lifecycle.registry.instance_name(app_key, 1),
                 app_key=app_key,
@@ -650,7 +650,7 @@ class TestPerInstanceSelectiveRestart:
                 name="reloaded_listener",
             )
         )
-        job1_id = await executor.register_job(
+        beta_job_id = await executor.register_job(
             make_job_registration(
                 instance_name=lifecycle.registry.instance_name(app_key, 1),
                 app_key=app_key,
@@ -661,25 +661,27 @@ class TestPerInstanceSelectiveRestart:
 
         await lifecycle.reload_instance(app_key, "beta")
 
-        listener0_cursor = await db_service.db.execute(
-            "SELECT id, retired_at FROM listeners WHERE id = ?", (listener0_id,)
+        alpha_listener_cursor = await db_service.db.execute(
+            "SELECT id, retired_at FROM listeners WHERE id = ?", (alpha_listener_id,)
         )
-        listener0_row = await listener0_cursor.fetchone()
-        assert listener0_row is not None, "sibling alpha's listener row must survive reload of beta"
-        assert listener0_row["retired_at"] is None, "sibling alpha's listener row must not be retired"
+        alpha_listener_row = await alpha_listener_cursor.fetchone()
+        assert alpha_listener_row is not None, "sibling alpha's listener row must survive reload of beta"
+        assert alpha_listener_row["retired_at"] is None, "sibling alpha's listener row must not be retired"
 
-        job0_cursor = await db_service.db.execute("SELECT id, retired_at FROM scheduled_jobs WHERE id = ?", (job0_id,))
-        job0_row = await job0_cursor.fetchone()
-        assert job0_row is not None, "sibling alpha's job row must survive reload of beta"
-        assert job0_row["retired_at"] is None, "sibling alpha's job row must not be retired"
+        alpha_job_cursor = await db_service.db.execute(
+            "SELECT id, retired_at FROM scheduled_jobs WHERE id = ?", (alpha_job_id,)
+        )
+        alpha_job_row = await alpha_job_cursor.fetchone()
+        assert alpha_job_row is not None, "sibling alpha's job row must survive reload of beta"
+        assert alpha_job_row["retired_at"] is None, "sibling alpha's job row must not be retired"
 
-        listener1_cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (listener1_id,))
-        assert await listener1_cursor.fetchone() is None, (
+        beta_listener_cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (beta_listener_id,))
+        assert await beta_listener_cursor.fetchone() is None, (
             "beta's stale listener row should be cleaned up by its own reload"
         )
 
-        job1_cursor = await db_service.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (job1_id,))
-        assert await job1_cursor.fetchone() is None, "beta's stale job row should be cleaned up by its own reload"
+        beta_job_cursor = await db_service.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (beta_job_id,))
+        assert await beta_job_cursor.fetchone() is None, "beta's stale job row should be cleaned up by its own reload"
 
     async def test_batch_reload_stops_every_instance_before_creating_any_replacement(
         self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
