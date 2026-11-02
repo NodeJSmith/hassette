@@ -1,0 +1,72 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 62,
+ "findings": [
+  {
+   "line": 51,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Wall-clock time in \"HH:MM\" or \"HH:MM:SS\" format.",
+   "code_evidence": "src/hassette/scheduler/triggers.py:107-126 (parse_hh_mm): `parts = at.split(\":\"); if len(parts) != 2: raise ValueError(f\"{label} 'at' must be 'HH:MM', got {at!r}\")`. Daily.__init__ (triggers.py:~407) calls parse_hh_mm(at, \"Daily\").",
+   "explanation": "run_daily only accepts \"HH:MM\". A \"HH:MM:SS\" string has three parts and raises ValueError.",
+   "suggested_fix": "Wall-clock time in \"HH:MM\" format."
+  },
+  {
+   "line": 119,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "an empty string raises ValueError",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:670-671 (schedule): `if not name: raise SchedulerNameRequiredError(...)`. Also scheduler.py:247-248 (add_job) and 565-566 (register). src/hassette/exceptions.py:704: `class SchedulerNameRequiredError(HassetteError)`, which derives from ReconstructibleError(Exception), not ValueError.",
+   "explanation": "An empty name raises SchedulerNameRequiredError. That class is not a ValueError subclass, so `except ValueError` would not catch it. Omitting `name` entirely does raise TypeError from the keyword-only parameter, so that half is correct.",
+   "suggested_fix": "Omitting it raises TypeError (no default value); an empty string raises SchedulerNameRequiredError."
+  },
+  {
+   "line": 121,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "| jitter | float \\| None | 0 | Random offset in seconds added to each run.",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:596 (schedule) and every run_* method: `jitter: float | None = None,`",
+   "explanation": "The default for jitter is None, not 0.",
+   "suggested_fix": "Change the Default column for jitter to `None`."
+  },
+  {
+   "line": 125,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Invoked on any exception, including CancelledError .",
+   "code_evidence": "src/hassette/core/command_executor.py:352-354: `except asyncio.CancelledError: enqueue_result_record(); raise`. The handler is spawned only after `_execute` returns normally (command_executor.py:540-552). scheduler.py:640-643 and classes.py:243 both say \"excluding CancelledError\".",
+   "explanation": "CancelledError is re-raised before the error-handler dispatch, so on_error is not invoked for it. It is invoked for other exceptions, including TimeoutError.",
+   "suggested_fix": "Invoked on any exception, including TimeoutError, but not CancelledError."
+  },
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "low",
+   "doc_quote": "triggered by hassette reload , or by config changes when automatic reloads are on",
+   "code_evidence": "src/hassette/cli/__init__.py:74 `apps_app = App(name=\"app\", ...)` and :114 `apps_app.command(cmd_app_reload, name=\"reload\")`. There is no top-level `reload` command.",
+   "explanation": "The reload command is `hassette app reload`, not `hassette reload`.",
+   "suggested_fix": "triggered by `hassette app reload`, or by config changes when automatic reloads are on"
+  },
+  {
+   "line": 25,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Each next run is calculated from wall-clock time, not from the previous run time.",
+   "code_evidence": "src/hassette/scheduler/triggers.py:343-345 and 347-354: `next_run_time` returns `self.advance_past(previous_run, current_time)`, which advances the previous run's scheduled time by whole intervals.",
+   "explanation": "The next run is computed from the previous scheduled run time, snapped to the interval grid. It is not recomputed from the current wall-clock time. The grid is anchored at the first run, so execution delay does not cause drift. The sentence misdescribes the mechanism.",
+   "suggested_fix": "Each next run is the next tick on a fixed interval grid anchored at the first run, so slow handlers don't cause drift."
+  }
+ ],
+ "summary": "Most of the page checks out: method signatures, defaults for run_in/run_every/run_minutely/run_hourly/run_once/register, if_exists semantics, the Job.matches field list, the if_past behavior for ZonedDateTime, the cron rules, and the global job_timeout_seconds. The errors are one wrong accepted format (HH:MM:SS for run_daily), one wrong exception class for an empty name, a wrong default for jitter, a wrong claim about on_error and CancelledError, a nonexistent CLI command, and a loose description of run_every's scheduling.",
+ "_tools": 13,
+ "_tokens": 132599,
+ "_doc_access": [
+  "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review/src/hassette; sed -n 50,75p exceptions.py; grep -n \\\"class ReconstructibleError\\\" -r ."
+ ]
+}

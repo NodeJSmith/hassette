@@ -1,0 +1,9 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 112,
+ "findings": [],
+ "summary": "Every checkable claim on the page matches the source, so there are no findings. I checked the predicate, condition and accessor tables line by line against `event_handling/predicates.py`, `conditions.py` and `accessors.py`. That covered signatures, defaults, operator chaining and flattening, literal coercion, the `ValueError` on string collections, and the `NOT_PROVIDED` defaults and `P`/`C`/`A` aliases. The only borderline wording is that `C.Regex` is described as matching 'the compiled regex pattern'. The code uses `re.match`, which anchors at the start of the string. That is not clearly wrong, so I did not report it.",
+ "_tools": 7,
+ "_tokens": 119498,
+ "_doc_access": []
+}

@@ -1,0 +1,53 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 72,
+ "findings": [
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "triggered by hassette reload",
+   "code_evidence": "src/hassette/cli/__init__.py:74 \u2014 `apps_app = App(name=\"app\", ...)`; :114 \u2014 `apps_app.command(cmd_app_reload, name=\"reload\")`. Reload is only registered under the `app` sub-app. The command list from `hassette --help` has no top-level `reload`, and `hassette reload --help` just prints that top-level help.",
+   "explanation": "There is no `hassette reload` command. The real command is `hassette app reload <key>`, which requires an app key and prompts for confirmation unless `--yes` is passed.",
+   "suggested_fix": "triggered by `hassette app reload <key>`"
+  },
+  {
+   "line": 156,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "if_exists matters most in on_initialize , which re-runs on app reload",
+   "code_evidence": "src/hassette/core/app_lifecycle_start_stop.py:355,359 \u2014 reload_app calls `_stop_app_unlocked(...)`, then `_start_app_unlocked(...)`. src/hassette/scheduler/scheduler.py:185-188 \u2014 `Scheduler.on_shutdown` runs `await self.remove_all_jobs()`; :388-389 \u2014 `self._jobs_by_name.clear()`. src/hassette/core/app_factory.py comment before the final return: reload_app 'stops before recreating'. src/hassette/app/app.py:158 \u2014 `self.scheduler = self.add_child(Scheduler)` per instance; scheduler.py:147 \u2014 `self._jobs_by_name = {}`. The collision check at scheduler.py:287 reads only that per-scheduler dict.",
+   "explanation": "A reload removes all of the app's jobs and builds a new App instance with a new, empty Scheduler, and `on_initialize` runs on that new instance. The old job is therefore never seen by the new registration, so `if_exists` has no effect across a reload. Plain `\"error\"` does not raise on reload. `\"skip\"` does not raise on changed config either, because there is no existing job to compare against. This also undermines the snippet comment on line 158 ('Safe to call on every reload') and line 160 (\"skip\" works when configuration is stable, \"replace\" when it may change between reloads). `if_exists` only matters for a repeat registration of the same name on a live scheduler, such as a handler that re-arms a job or a re-registration made while the app is running. This conclusion comes from reading the code path; I did not run a live reload.",
+   "suggested_fix": "Reloading doesn't need if_exists: Hassette removes every job when an app stops or reloads, and the reloaded app starts with an empty scheduler. if_exists matters when the same name is registered again on a running app, such as a handler that re-arms its own job or a job re-registered at runtime. Rewrite lines 156-163 and their snippets around that case."
+  },
+  {
+   "line": 117,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "These parameters are accepted by every scheduling method.",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:515-528 \u2014 `register(...)` has no `jitter` or `where` parameter. :214 \u2014 `def add_job(self, job, *, if_exists=\"error\")` accepts only `if_exists` besides the job.",
+   "explanation": "The shared table applies to `schedule()` and the `run_*` methods only. `register` lacks `jitter` and `where`, which line 109 of the same page already says, and `add_job` accepts only `if_exists`. Line 146, 'All scheduling methods accept args and kwargs', is also untrue of `add_job`.",
+   "suggested_fix": "These parameters are accepted by schedule() and every run_* method. register accepts all of them except jitter and where."
+  },
+  {
+   "line": 131,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "A predicate with a positional parameter annotated as Job receives the job instance at dispatch time",
+   "code_evidence": "src/hassette/di/plan.py:29-32 \u2014 `if param.kind == Parameter.POSITIONAL_ONLY: raise DependencyInjectionError(...)`; src/hassette/scheduler/scheduler.py:283 calls `build_injection_plan`. Probe: `def d(job: Job, /)` raises DependencyInjectionError from `_normalize_where`, while `def e(*, job: Job)` builds a plan that injects `job`.",
+   "explanation": "The job is injected by keyword, so being positional is not the requirement. A keyword-only `job: Job` parameter receives the job, and a positional-only one raises DependencyInjectionError at registration. A `*args` parameter is rejected the same way.",
+   "suggested_fix": "A predicate with a parameter annotated as Job receives the job instance at dispatch time, for access to job.args and job.kwargs. The job is passed by keyword, so positional-only and *args parameters raise DependencyInjectionError at registration."
+  }
+ ],
+ "summary": "The page is largely accurate: signatures, defaults, trigger validation, cron semantics, predicate skip and error routing, and if_exists matching and replace semantics all match the code. The serious errors are both in the Idempotent registration section: `hassette reload` does not exist, and its reload rationale is wrong because a reload removes all jobs and starts with a fresh Scheduler, so if_exists never applies across reloads. The two low-severity findings are over-broad wording about which methods accept the shared parameters and about 'positional' Job parameters.",
+ "_tools": 13,
+ "_tokens": 195653,
+ "_probe_calls": 5,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}

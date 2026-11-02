@@ -1,0 +1,11 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 27,
+ "findings": [],
+ "summary": "Every checkable claim I traced held up against the source, so there are no findings. I put eyes on each default, signature and behavior claim, including the 10 second `shutdown_timeout_seconds` default. I did not independently verify two things: the operating-page anchors that the links point to, and the reference-page anchors for `CannotOverrideFinalError` and `AppSync`.",
+ "_tools": 6,
+ "_tokens": 96963,
+ "_doc_access": [
+  "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review/src/hassette; grep -n \\\"def sync\\\\b\\\" -r bus scheduler api | head; grep -n \\\"_framewor"
+ ]
+}

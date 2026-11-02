@@ -1,0 +1,63 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 78,
+ "findings": [
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "triggered by hassette reload",
+   "code_evidence": "src/hassette/cli/__init__.py:74-75 \u2014 `apps_app = App(name=\"app\", ...)`; `app.command(apps_app)`. src/hassette/cli/__init__.py:114 \u2014 `apps_app.command(cmd_app_reload, name=\"reload\")`. The top-level `app.command(...)` registrations at lines 69-99 are run, status, app, listener, job, log, execution, blocking, config, telemetry and dashboard, with no reload. `uv run hassette reload --help` printed general CLI help, not help for a reload command.",
+   "explanation": "There is no top-level `hassette reload` command. Reload is a subcommand of `hassette app` and takes a required app key: `hassette app reload <key>`. docs/pages/cli/commands.md:122 already documents it that way.",
+   "suggested_fix": "triggered by `hassette app reload <key>`"
+  },
+  {
+   "line": 156,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "if_exists matters most in on_initialize , which re-runs on app reload",
+   "code_evidence": "src/hassette/core/app_lifecycle_start_stop.py:355-360 \u2014 reload runs `_stop_app_unlocked` and then `_start_app_unlocked`. src/hassette/scheduler/scheduler.py:185-188 \u2014 `on_shutdown` calls `await self.remove_all_jobs()`. src/hassette/core/app_factory.py:191 \u2014 `app_instance = app_class(` builds a new app. src/hassette/app/app.py:158 \u2014 `self.scheduler = self.add_child(Scheduler)`. src/hassette/scheduler/scheduler.py:147 \u2014 `self._jobs_by_name = {}`. The duplicate check at scheduler.py:287 reads only that per-scheduler dict.",
+   "explanation": "A reload does not re-run `on_initialize` on the same instance with the old jobs still registered. It tears the instance down, removes its jobs, and builds a new App with a new Scheduler whose name registry is empty. A reload therefore cannot cause a name collision: the default `if_exists=\"error\"` does not raise, and `\"skip\"` never sees a changed configuration. This also undercuts line 160 (\"skip works when the job configuration is stable across reloads\") and the comments in the snippets at lines 158 and 162. The docs' own management page says jobs are removed on reload (docs/pages/core-concepts/scheduler/management.md:51). Existing code keeps working, so the cost is an extra parameter and a wrong mental model. `if_exists` only applies to re-registering a name on a live instance, for example from a handler or a one-shot re-arming itself.",
+   "suggested_fix": "Replace lines 156-163 with: \"Reloading an app removes its jobs and builds a new instance, so re-registering in on_initialize does not need if_exists. Use if_exists when the same name can be registered twice on a running instance, such as from a handler or a one-shot job re-arming itself.\""
+  },
+  {
+   "line": 117,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "These parameters are accepted by every scheduling method. Individual method tables list only method-specific parameters.",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:515-528 \u2014 the `register(...)` signature has no `jitter` or `where`. src/hassette/scheduler/scheduler.py:214 \u2014 `def add_job(self, job: \"Job\", *, if_exists: IfExistsPolicy = \"error\")` accepts only `if_exists` of the shared parameters.",
+   "explanation": "`register` rejects `jitter` and `where`, which line 109 of the same page acknowledges, and `add_job` accepts only `if_exists`. The second sentence is also false for `register`, whose table at lines 99-108 lists the shared parameters too. The same overstatement appears at line 146 (\"All scheduling methods accept args and kwargs\"), because `add_job` takes neither; those values go on the `Job` itself. The page counts `add_job` among the scheduling methods at line 4.",
+   "suggested_fix": "These parameters are accepted by every run_* method and schedule. register accepts all of them except jitter and where (see its table), and add_job takes only if_exists because the rest are set on the Job."
+  },
+  {
+   "line": 144,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "The monitoring UI shows this record alongside predicate_description and human_description on the job.",
+   "code_evidence": "frontend/src/components/app-detail/job-detail.tsx:210 \u2014 `const predicateDescription = job.human_description || job.predicate_description || null;`, rendered at lines 229-234. src/hassette/core/scheduler_service.py:231-236 \u2014 `human_description` is always set when a predicate exists (from `summarize()` or `callable_stable_name`).",
+   "explanation": "The UI shows one description rather than both. It prefers `human_description` and falls back to `predicate_description`. Because the scheduler always fills `human_description` for a job with a predicate, the fallback does not apply to jobs registered through this path. job-detail.tsx is the only non-test frontend component that references `predicate_description`.",
+   "suggested_fix": "The monitoring UI shows this record on the job's detail view, along with a description of the predicate (human_description, falling back to predicate_description)."
+  }
+ ],
+ "summary": "The page is highly accurate on signatures, defaults, exceptions, predicate dispatch, skip and error routing, and if_exists semantics; all of these checked out against the code. The errors cluster in the reload passage at lines 156-163, which names a CLI command that doesn't exist and implies reloads can collide with existing job names, although each reload gets a new Scheduler. Two low-severity overstatements remain: 'every scheduling method' (lines 117 and 146) and the UI showing both predicate description fields (line 144).",
+ "_tools": 18,
+ "_tokens": 214911,
+ "_probe_calls": 6,
+ "_orig_access": [
+  [
+   17,
+   "{\"command\": \"grep -n \\\"\\\\.exc\\\\b\\\\|exc = \\\\|exc=\\\" src/hassette/core/command_executor.py src/hassette/core/execution_record.py src/hassette/utils/execution.py 2"
+  ]
+ ],
+ "_model": "claude-opus-5-5",
+ "_doc_access": [
+  [
+   17,
+   "{\"command\": \"grep -n \\\"\\\\.exc\\\\b\\\\|exc = \\\\|exc=\\\" src/hassette/core/command_executor.py src/hassette/core/execution_record.py src/hassette/utils/execution.py 2"
+  ]
+ ]
+}

@@ -1,0 +1,20 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 78,
+ "findings": [
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "which re-runs on app reload (triggered by hassette reload , or by config changes when automatic reloads are on)",
+   "code_evidence": "src/hassette/cli/__init__.py:74 `apps_app = App(name=\"app\", ...)` and :114 `apps_app.command(cmd_app_reload, name=\"reload\")`. There is no top-level `reload` command.",
+   "explanation": "The reload command is a subcommand of `app`, so it is invoked as `hassette app reload <key>`. A bare `hassette reload` does not exist.",
+   "suggested_fix": "triggered by `hassette app reload <key>`, or by config changes when automatic reloads are on"
+  }
+ ],
+ "summary": "The page is almost entirely accurate. I checked the signatures and defaults of run_in, run_once, run_every, run_minutely, run_hourly, run_daily, run_cron, schedule, register and add_job against scheduler.py and triggers.py. I also checked the ValueError conditions, the if_exists semantics, the fields compared by Job.matches, the `job_timeout_seconds` config and the whole-second rounding. The only error is the nonexistent `hassette reload` CLI command on line 156.",
+ "_tools": 8,
+ "_tokens": 120478,
+ "_doc_access": []
+}

@@ -1,0 +1,91 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 40,
+ "findings": [
+  {
+   "line": 23,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 30 seconds.",
+   "code_evidence": "src/hassette/config/models.py:35 \u2014 `SHUTDOWN_TIMEOUT_SECONDS = 10`; src/hassette/config/models.py:335 \u2014 `shutdown_timeout_seconds: float = Field(default=SHUTDOWN_TIMEOUT_SECONDS, gt=0)`; src/hassette/config/hassette.prod.toml:9 \u2014 `shutdown_timeout_seconds = 10`; src/hassette/config/hassette.dev.toml:9 \u2014 `shutdown_timeout_seconds = 20`. Runtime: `LifecycleConfig().shutdown_timeout_seconds` printed 10.",
+   "explanation": "The default is 10 seconds. The bundled dev-mode defaults set 20. Neither source uses 30, which is the default of startup_timeout_seconds on the model (models.py:328).",
+   "suggested_fix": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 10 seconds."
+  },
+  {
+   "line": 23,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "A stop whose hook timed out is reported STOPPED with a \"timed out\" reason, even when the hook ended as soon as it was cancelled.",
+   "code_evidence": "src/hassette/core/app_lifecycle_instances.py:215 \u2014 docstring outcome list, confirmed by the code: :275 `timed_out = force_terminated or outcome.result is ShutdownResult.TIMED_OUT`; :276 only `is_restart_safe and not timed_out` sends STOPPED; :284-292 otherwise calls settle_failed_stop and `send_outcome_event(inst, status=FAILED, previous_status=STOPPING, exception=exc)`; :377 `TimeoutError(f\"stop of app '{name}' timed out after {friendly_time}\")`, recorded by record_failure at :381.",
+   "explanation": "A stop with a timed-out hook is reported FAILED, with a failure entry carrying the timed-out reason. If nothing is left running, the instance stays reloadable and is not flagged needs-restart.",
+   "suggested_fix": "A stop whose hook timed out is reported FAILED with a \"timed out\" reason, even when the hook ended as soon as it was cancelled."
+  },
+  {
+   "line": 27,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Before the shutdown hooks run, Hassette cancels all bus subscriptions created via self.bus , all scheduled jobs created via self.scheduler , and all background tasks tracked by self.task_bucket .",
+   "code_evidence": "src/hassette/resources/base.py:631-638 \u2014 `_shutdown_body` runs `run_hooks(self, [self.before_shutdown, self.on_shutdown, self.after_shutdown], ...)`, then `tail_outcome = await self._run_post_hook_shutdown_stage()`; base.py:479 \u2014 that stage cancels the TaskBucket; base.py:507 \u2014 `_shutdown_children()` follows; src/hassette/bus/bus.py:184-189 \u2014 Bus.on_shutdown calls `remove_all_listeners()`; src/hassette/scheduler/scheduler.py:185-188 \u2014 Scheduler.on_shutdown calls `remove_all_jobs()`.",
+   "explanation": "The order is reversed. The app's shutdown hooks run first, so its subscriptions, jobs and task_bucket tasks are still live during them. Task cancellation and child teardown happen afterwards.",
+   "suggested_fix": "After the shutdown hooks complete, Hassette cancels all bus subscriptions created via self.bus, all scheduled jobs created via self.scheduler, and all background tasks tracked by self.task_bucket."
+  },
+  {
+   "line": 29,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "attempting to override any of them raises CannotOverrideFinalError when the app is first instantiated.",
+   "code_evidence": "src/hassette/resources/base.py:47-85 \u2014 `FinalMeta.__init__` runs when the class is created and does `raise CannotOverrideFinalError(method_name, origin_name, subclass_name, suggested_alt, loc)` at :85. Runtime: building an App subclass with `type()` that overrides initialize, shutdown or cleanup raised CannotOverrideFinalError with no instance created.",
+   "explanation": "The metaclass raises when the class is defined, so the error appears when the app module loads, before any instance exists. Line 50 of the same page already says this correctly.",
+   "suggested_fix": "attempting to override any of them raises CannotOverrideFinalError at class load time."
+  },
+  {
+   "line": 42,
+   "claim_type": "api-signature",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "Hassette runs each variant in a thread pool via task_bucket.to_thread , so blocking calls do not stall the event loop.",
+   "code_evidence": "src/hassette/app/app.py:310,315,320,325,330,335 \u2014 `await self.task_bucket.run_in_thread(self.<hook>_sync)`; src/hassette/task_bucket/task_bucket.py:312 \u2014 `def run_in_thread(self, fn, *args, **kwargs)`. Runtime: `hasattr(TaskBucket, 'to_thread')` is False and `hasattr(TaskBucket, 'run_in_thread')` is True.",
+   "explanation": "TaskBucket has no to_thread method. The AppSync hooks delegate through task_bucket.run_in_thread, and calling task_bucket.to_thread would raise AttributeError.",
+   "suggested_fix": "Hassette runs each variant in a thread pool via task_bucket.run_in_thread, so blocking calls do not stall the event loop."
+  },
+  {
+   "line": 51,
+   "claim_type": "api-signature",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "The .sync facades provide synchronous access from _sync hooks: self.bus.sync , self.scheduler.sync , self.api.sync , and self.states.sync .",
+   "code_evidence": "src/hassette/bus/bus.py:144 \u2014 `sync: BusSyncFacade`; src/hassette/scheduler/scheduler.py:122 \u2014 `sync: SchedulerSyncFacade`; src/hassette/api/api.py:247 \u2014 `sync: ApiSyncFacade`. StateManager has no equivalent: grep for `SyncFacade|\\.sync\\b|sync:` in src/hassette/state_manager/ returned nothing, `hasattr(StateManager, 'sync')` is False, and grep for `states\\.sync` across src, docs/pages and tests returned nothing. At runtime, `self.states.sync` falls into `StateManager.__getattr__` (state_manager.py:311), which treats `sync` as a domain name.",
+   "explanation": "Only Bus, Scheduler and Api have .sync facades. StateManager has none, so self.states.sync is not a synchronous facade.",
+   "suggested_fix": "The .sync facades provide synchronous access from _sync hooks: self.bus.sync, self.scheduler.sync, and self.api.sync."
+  }
+ ],
+ "summary": "Six of 40 checked claims in the briefing's page copy fail, clustered in shutdown behavior (default timeout, reported status, cleanup order) and API names (task_bucket.to_thread, self.states.sync), plus the timing of CannotOverrideFinalError. IMPORTANT for triage: none of the six is in docs/pages/core-concepts/apps/lifecycle.md in this worktree, whose git status showed no uncommitted changes and which already has the correct text at each spot (10 seconds, FAILED, After the shutdown hooks, class load time, run_in_thread, no states.sync), so the briefing copy differs from the repo source and no doc edit appears needed unless the briefing reflects another build or version; I did not determine why they differ. Line numbers refer to the briefing's LINE N markers, the three snippets match the on-disk snippet files, and the remaining 34 claims passed against code.",
+ "_tools": 14,
+ "_tokens": 187718,
+ "_probe_calls": 3,
+ "_orig_access": [
+  [
+   10,
+   "{\"file_path\": \"/home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review/docs/pages/core-concepts/apps/lifecycle.md\"}"
+  ],
+  [
+   12,
+   "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review; git status --short | head; git log -3 --oneline -- docs/pages/core-concepts"
+  ]
+ ],
+ "_model": "claude-opus-5-5",
+ "_doc_access": [
+  [
+   10,
+   "{\"file_path\": \"/home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review/docs/pages/core-concepts/apps/lifecycle.md\"}"
+  ],
+  [
+   12,
+   "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review; git status --short | head; git log -3 --oneline -- docs/pages/core-concepts"
+  ]
+ ]
+}

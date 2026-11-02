@@ -1,0 +1,70 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 95,
+ "findings": [
+  {
+   "line": 51,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "When old_state is None , returns False even if the attribute is present on the new state.",
+   "code_evidence": "src/hassette/event_handling/predicates.py:530-531 \u2014 `if value.payload.data.old_state is None: return get_attr_new(self.attr_name)(value) is not MISSING_VALUE`",
+   "explanation": "When old_state is None, AttrDidChange returns True if the attribute is present on new_state and False only if it is absent. The class docstring (lines 521-524) says the same.",
+   "suggested_fix": "When old_state is None, returns True if the attribute is present on the new state (treated as changed), otherwise False."
+  },
+  {
+   "line": 79,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when the string value contains substring , ignoring case.",
+   "code_evidence": "src/hassette/event_handling/conditions.py:227 \u2014 `return isinstance(value, str) and self.substring in value`",
+   "explanation": "Contains is a plain, case-sensitive substring test. Nothing lowercases either side.",
+   "suggested_fix": "Returns True when the string value contains substring (case-sensitive)."
+  },
+  {
+   "line": 91,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "collection must be a sequence, not a string. Passing a string raises TypeError .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:121-122 \u2014 `if isinstance(collection, str): raise ValueError(\"collection must be a sequence of values, not a string\")`",
+   "explanation": "_validate_collection raises ValueError, not TypeError. It is called from __post_init__ of IsIn, NotIn, Intersects and NotIntersects.",
+   "suggested_fix": "Passing a string raises ValueError."
+  },
+  {
+   "line": 104,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when float(old) < threshold <= float(new) .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:611 \u2014 `return float(old_value) <= self.threshold < float(new_value)`",
+   "explanation": "The boundary inequalities are the other way round. A rise from exactly the threshold to above it counts as a crossing. A new value equal to the threshold does not. The doc also omits that boolean values never fire.",
+   "suggested_fix": "Returns True when float(old) <= threshold < float(new). A missing, non-numeric, or boolean value returns False."
+  },
+  {
+   "line": 105,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "A missing or non-numeric value returns False .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:642-643 \u2014 `if isinstance(old_value, bool) or isinstance(new_value, bool): return False`",
+   "explanation": "The formula on this line is correct. The description leaves out that boolean values also never fire. The same omission applies to CrossedAbove on line 104.",
+   "suggested_fix": "A missing, non-numeric, or boolean value returns False."
+  },
+  {
+   "line": 151,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Excludes last_reported , last_updated , and last_changed by default.",
+   "code_evidence": "src/hassette/event_handling/accessors.py:48 \u2014 `DEFAULT_EXCLUDE = (\"last_reported\", \"last_updated\", \"last_changed\", \"context\")`",
+   "explanation": "The default exclusion list has a fourth entry, context. The doc also says the result maps changed keys to (old, new). In fact the result is a nested dict, with attributes nested under an \"attributes\" key.",
+   "suggested_fix": "Excludes last_reported, last_updated, last_changed, and context by default."
+  }
+ ],
+ "summary": "Most of the page matches the code. Predicate signatures, accessor behavior, literal coercion, operator shorthand, and the Comparison ops all check out. The errors cluster in the Conditions section: Contains is not case-insensitive, the collection validation raises ValueError rather than TypeError, and CrossedAbove has the wrong inequality boundaries. Elsewhere, AttrDidChange gets the old_state=None behavior backwards, and the get_all_changes default exclude list is missing context.",
+ "_tools": 9,
+ "_tokens": 127447,
+ "_doc_access": []
+}

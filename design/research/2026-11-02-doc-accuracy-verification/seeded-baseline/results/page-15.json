@@ -1,0 +1,20 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 112,
+ "findings": [
+  {
+   "line": 28,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "condition accepts a literal value, a C.* condition instance, a glob string, or any callable (value) -> bool .",
+   "code_evidence": "src/hassette/event_handling/predicates.py:760-767 (compare_value) \u2014 `if not callable(condition): return coerce_to_literal_type(actual, condition) == condition`. ValueIs.__call__ (predicates.py:317-322) only calls compare_value. Glob wrapping happens only in `_glob_or_literal` (predicates.py:227, used by DomainMatches/EntityMatches/ServiceMatches) and in ServiceDataWhere with auto_glob (predicates.py:700). A grep of bus/*.py for is_glob/Glob( finds no glob wrapping of changed_to/changed_from.",
+   "explanation": "A bare glob string passed as `condition` to P.ValueIs, StateFrom, StateTo, AttrFrom or AttrTo is compared by plain equality, so `\"light.*\"` only matches the literal string `light.*`. To glob-match you have to wrap it in C.Glob. Only DomainMatches, EntityMatches, ServiceMatches and ServiceDataWhere (auto_glob) auto-detect globs. The same applies to the ChangeType description on line 9, which lists a 'glob string' as an accepted form.",
+   "suggested_fix": "condition accepts a literal value, a C.* condition instance (use C.Glob for glob patterns), or any callable (value) -> bool. Bare glob strings are not auto-detected here; they are only auto-wrapped by P.ServiceDataWhere and the Domain/Entity/ServiceMatches predicates."
+  }
+ ],
+ "summary": "The page is almost entirely accurate. I checked every predicate, condition and accessor signature, the operator composition and flattening, literal coercion, CrossedAbove/CrossedBelow semantics, the AttrDidChange old_state=None behavior, ValueError on string collections, and the P/C/A aliases, and all matched the source. The one error is the claim that a glob string works as a bare condition on ValueIs-based predicates (line 28, and the ChangeType description on line 9). I did not verify that the bus helpers' changed_to= path never globs. I only found no glob handling in bus/*.py, and I did not read the helper code that builds these predicates.",
+ "_tools": 9,
+ "_tokens": 128185,
+ "_doc_access": []
+}
