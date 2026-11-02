@@ -296,14 +296,14 @@ class TestApps:
 
     async def test_reload_does_not_carry_error_handlers_to_new_instance(self) -> None:
         """A reload builds a new app whose Bus and Scheduler don't inherit the old instance's error handlers."""
-        old_app = self.app_handler.get("my_app", 0)
+        old_app = self.app_handler.get("my_app")
         assert old_app is not None
         old_app.bus.on_error(AsyncMock())
         old_app.scheduler.on_error(AsyncMock())
 
         await self.app_handler.reload_app("my_app", force_reload=False)
 
-        new_app = self.app_handler.get("my_app", 0)
+        new_app = self.app_handler.get("my_app")
         assert new_app is not None
         assert new_app is not old_app
         assert new_app.bus._error_handler is None
