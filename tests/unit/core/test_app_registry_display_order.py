@@ -24,7 +24,7 @@ def registry() -> AppRegistry:
 
 class TestDisplayOrder:
     def test_configured_names_in_config_order_then_orphans_sorted_by_name(self, registry: AppRegistry) -> None:
-        registry.register_app(APP_KEY, "zed", make_app_instance(APP_KEY))
+        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "zed"))
         registry.record_failure(APP_KEY, "attic", ValueError("boom"))
 
         assert registry.display_indices(APP_KEY) == {"upstairs": 0, "downstairs": 1, "attic": 2, "zed": 3}
@@ -35,8 +35,8 @@ class TestDisplayOrder:
         assert registry.display_indices(APP_KEY)["attic"] == 2
 
     def test_a_reorder_changes_the_index_and_nothing_tracked(self, registry: AppRegistry) -> None:
-        app = make_app_instance(APP_KEY)
-        registry.register_app(APP_KEY, "downstairs", app)
+        app = make_app_instance(APP_KEY, "downstairs")
+        registry.register_app(APP_KEY, app)
 
         registry.set_manifests({APP_KEY: manifest_with("downstairs", "upstairs")})
 
@@ -46,7 +46,7 @@ class TestDisplayOrder:
         assert info.index == 0
 
     def test_an_orphans_index_shifts_when_the_config_changes(self, registry: AppRegistry) -> None:
-        registry.register_app(APP_KEY, "attic", make_app_instance(APP_KEY))
+        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "attic"))
         assert registry.display_index(APP_KEY, "attic") == 2
 
         registry.set_manifests({APP_KEY: manifest_with("upstairs")})
@@ -59,7 +59,7 @@ class TestDisplayOrder:
 
 class TestIndexLookup:
     def test_every_display_index_resolves_to_exactly_one_name(self, registry: AppRegistry) -> None:
-        registry.register_app(APP_KEY, "attic", make_app_instance(APP_KEY))
+        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "attic"))
 
         names = [registry.instance_name(APP_KEY, index) for index in range(3)]
 
@@ -73,8 +73,8 @@ class TestIndexLookup:
 
     def test_an_app_without_a_manifest_orders_only_its_tracked_names(self) -> None:
         registry = AppRegistry()
-        registry.register_app(APP_KEY, "zed", make_app_instance(APP_KEY))
-        registry.register_app(APP_KEY, "attic", make_app_instance(APP_KEY))
+        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "zed"))
+        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "attic"))
 
         assert registry.instance_name(APP_KEY, 0) == "attic"
         assert instance_name_reason(registry.instance_name(APP_KEY, 2)) is not None
@@ -82,9 +82,9 @@ class TestIndexLookup:
 
 class TestGet:
     def test_no_name_returns_the_first_running_instance_in_config_order(self, registry: AppRegistry) -> None:
-        downstairs = make_app_instance(APP_KEY)
-        registry.register_app(APP_KEY, "downstairs", downstairs)
-        registry.register_app(APP_KEY, "attic", make_app_instance(APP_KEY))
+        downstairs = make_app_instance(APP_KEY, "downstairs")
+        registry.register_app(APP_KEY, downstairs)
+        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "attic"))
         registry.record_failure(APP_KEY, "upstairs", ValueError("boom"))
 
         assert registry.get(APP_KEY) is downstairs
@@ -135,7 +135,7 @@ class TestPerInstanceRecordsFollowTheName:
     def test_prune_keeps_configured_names_and_running_orphans(self, registry: AppRegistry) -> None:
         registry.record_failure(APP_KEY, "upstairs", ValueError("boom"))
         registry.record_failure(APP_KEY, "attic", ValueError("boom"))
-        registry.register_app(APP_KEY, "zed", make_app_instance(APP_KEY))
+        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "zed"))
 
         pruned = registry.prune_stale_failed(APP_KEY, ["upstairs", "downstairs"])
 

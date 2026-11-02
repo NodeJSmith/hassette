@@ -10,8 +10,20 @@ from hassette.core.app_factory import AppFactory
 
 
 def make_app_class(config_cls: type[AppConfig] = AppConfig, **kwargs) -> Mock:
-    """A mock App class with a real config class, so config validation runs for real."""
-    return Mock(app_config_cls=config_cls, **kwargs)
+    """A mock App class with a real config class, so config validation runs for real.
+
+    Each instance it builds is a Mock App named by the validated config, as a real ``App`` is.
+    """
+
+    def build(*, app_config: AppConfig, **_: object) -> Mock:
+        return Mock(instance_name=app_config.instance_name)
+
+    return Mock(app_config_cls=config_cls, side_effect=build, **kwargs)
+
+
+def registered(mock_registry: Mock) -> list[tuple[str, str]]:
+    """The ``(app_key, instance_name)`` pairs the factory registered, in registration order."""
+    return [(call.args[0], call.args[1].instance_name) for call in mock_registry.register_app.call_args_list]
 
 
 def as_app_class(mock_app_class: Mock) -> type[App[AppConfig]]:

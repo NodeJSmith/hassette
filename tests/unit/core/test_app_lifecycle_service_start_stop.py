@@ -398,7 +398,7 @@ def register_mock_instance(registry: AppRegistry, app_key: str, name: str) -> As
     inst = make_mock_app_instance(instance_name=name)
     inst.app_key = app_key
     inst.status = ResourceStatus.RUNNING
-    registry.register_app(app_key, name, inst)
+    registry.register_app(app_key, inst)
     return inst
 
 
@@ -544,7 +544,7 @@ class TestShutdownInstanceLogContext:
 
         inst.shutdown = AsyncMock(side_effect=capture_context)
 
-        await lifecycle_service.shutdown_instance(inst, "inst_0", outcomes=AnyNameOutcomes())
+        await lifecycle_service.shutdown_instance(inst, outcomes=AnyNameOutcomes())
 
         assert bound["app_key"] == "my_app"
         assert bound["instance_name"] == "inst_0"

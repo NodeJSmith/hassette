@@ -82,10 +82,10 @@ class AppRegistry:
         self._only_apps: frozenset[str] = frozenset()
         self.logger = getLogger(f"{__name__}.AppRegistry")
 
-    def register_app(self, app_key: str, instance_name: str, app: "App[AppConfig]") -> None:
-        """Register a running app instance, replacing any prior entry under that name."""
-        self._instances[app_key][instance_name] = InstanceEntry(app=app, status=ResourceStatus.RUNNING)
-        self.logger.debug("Registered app '%s' instance '%s'", app_key, instance_name)
+    def register_app(self, app_key: str, app: "App[AppConfig]") -> None:
+        """Register a running app instance under its own ``instance_name``, replacing any prior entry under it."""
+        self._instances[app_key][app.instance_name] = InstanceEntry(app=app, status=ResourceStatus.RUNNING)
+        self.logger.debug("Registered app '%s' instance '%s'", app_key, app.instance_name)
 
     def unregister_app(self, app_key: str, instance_name: str | None = None) -> dict[str, "App[AppConfig]"] | None:
         """Remove app instance(s). Returns removed running instances (failed entries are discarded)."""

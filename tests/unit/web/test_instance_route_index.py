@@ -42,14 +42,14 @@ def test_a_reorder_moves_the_name_an_index_addresses(registry: AppRegistry, tmp_
 
 
 def test_stop_addresses_a_running_orphan_by_its_derived_index(registry: AppRegistry) -> None:
-    registry.register_app(APP_KEY, "attic", make_app())
+    registry.register_app(APP_KEY, make_app(instance_name="attic"))
 
     assert _require_valid_instance_index(APP_KEY, 2, hassette_with(registry), "stop") == "attic"
 
 
 @pytest.mark.parametrize("action", ["start", "reload"])
 def test_only_stop_addresses_an_orphan(registry: AppRegistry, action: str) -> None:
-    registry.register_app(APP_KEY, "attic", make_app())
+    registry.register_app(APP_KEY, make_app(instance_name="attic"))
 
     with pytest.raises(WebApiError) as exc_info:
         _require_valid_instance_index(APP_KEY, 2, hassette_with(registry), action)  # pyright: ignore[reportArgumentType]

@@ -337,7 +337,7 @@ def resolve_owner(hassette: "Hassette", app_key: str | None, instance_name: str 
     if app_key is None:
         return hassette
     with contextlib.suppress(Exception):
-        app_inst = hassette.app_handler.get(app_key, instance_name)
+        app_inst = hassette.app_handler.get(app_key, instance_name=instance_name)
         if app_inst is not None:
             return app_inst
     return hassette

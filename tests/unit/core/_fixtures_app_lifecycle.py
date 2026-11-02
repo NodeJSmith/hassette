@@ -212,6 +212,7 @@ def mock_manifest() -> MagicMock:
 def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: str = "MockApp") -> AsyncMock:
     """Create a mock App instance with bus/scheduler stubs."""
     app = AsyncMock()
+    app.instance_name = instance_name
     app.app_config = MagicMock(instance_name=instance_name)
     app.app_key = "test_app"
     app.status = ResourceStatus.NOT_STARTED

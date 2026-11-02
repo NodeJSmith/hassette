@@ -51,7 +51,8 @@ class TestOverlayRuntimeState:
     ) -> None:
         manifest = create_app_manifest("running", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
-        registry.register_app(manifest.app_key, manifest.app_key, mock_app)
+        mock_app.instance_name = manifest.app_key
+        registry.register_app(manifest.app_key, mock_app)
 
         rows = [make_manifest_db_row(manifest.app_key)]
         results = overlay_runtime_state(rows, registry)
@@ -67,7 +68,8 @@ class TestOverlayRuntimeState:
     def test_mixed_in_config_and_db_only_apps(self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path) -> None:
         manifest = create_app_manifest("live", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
-        registry.register_app(manifest.app_key, manifest.app_key, mock_app)
+        mock_app.instance_name = manifest.app_key
+        registry.register_app(manifest.app_key, mock_app)
 
         rows = [make_manifest_db_row(manifest.app_key), make_manifest_db_row("removed_app")]
         results = overlay_runtime_state(rows, registry)
@@ -118,7 +120,8 @@ class TestOverlayRuntimeState:
         manifest = create_app_manifest(expected_status, tmp_path, enabled=enabled)
         registry.set_manifests({manifest.app_key: manifest})
         if running:
-            registry.register_app(manifest.app_key, manifest.app_key, mock_app)
+            mock_app.instance_name = manifest.app_key
+            registry.register_app(manifest.app_key, mock_app)
         if failed:
             # record_failure replaces the entry under the matching name, so the failure has to land on a
             # different name than the running instance to produce the running/failed mix "degraded" requires.

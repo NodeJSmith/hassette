@@ -94,7 +94,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
                 "test_app", "a", mock_manifest, outcomes=AnyNameOutcomes()
             )
 
-        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, "a", cause=failure, outcomes=ANY)
+        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, cause=failure, outcomes=ANY)
         assert mock_inst._skip_own_shutdown_hooks is True
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
@@ -124,7 +124,7 @@ class TestCreateInstanceUnlockedPostRegistrationFailure:
                 "test_app", "a", mock_manifest, outcomes=AnyNameOutcomes()
             )
 
-        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, "a", cause=failure, outcomes=ANY)
+        lifecycle_service.shutdown_instance.assert_awaited_once_with(mock_inst, cause=failure, outcomes=ANY)
         assert mock_inst._skip_own_shutdown_hooks is False
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)

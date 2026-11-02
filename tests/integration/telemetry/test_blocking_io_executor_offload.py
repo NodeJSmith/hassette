@@ -357,7 +357,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
                 ignore_executor.unbind_execution_context(token)
 
         assert resolve_spy.called, "guard must reach per-app behavior resolution (test not vacuous)"
-        mock_hassette.app_handler.get.assert_called_with("ignored_app", "ignored_app_0")
+        mock_hassette.app_handler.get.assert_called_with("ignored_app", instance_name="ignored_app_0")
 
         blocking_warnings = [w for w in caught_warnings if issubclass(w.category, HassetteBlockingIOWarning)]
         assert blocking_warnings == [], (

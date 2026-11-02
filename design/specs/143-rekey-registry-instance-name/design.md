@@ -1,7 +1,7 @@
 # Design: Key the app registry and lifecycle on instance name
 
 **Date:** 2026-11-02
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3099
 **Parent:** design/specs/133-log-identity-axes/design.md
@@ -202,12 +202,15 @@ The sweep's retire step (`build_retire_unconfigured_instances_query`, run first 
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - An index or name the app doesn't have (an orphaned-app stop naming no instance, a name removed while an action waited for its lock) reports the display index just past the app's names: an outcome needs an integer until #3100, and `ActionResponse.instance_index` still echoes what the route was given.
 - `NeedsRestartRecord` drops its `instance_name`: the map key now holds it, and two owners of one value would be the only way they could disagree.
-- `shutdown_instance` and its `settle_*` helpers take the registry name as a parameter rather than reading `inst.app_config.instance_name`: a config class can alias that field, so the app's own value isn't guaranteed to be the key it is registered under.
+- An `App`'s own name is the single source once one exists: `shutdown_instance`, `initialize_instance` and the `settle_*` helpers read `inst.instance_name`, `shutdown_instances` takes apps rather than a name-keyed dict, and `AppRegistry.register_app(app_key, app)` files the entry under the app's name, so a key can't disagree with it. `AppConfig.read_framework_fields_by_name` keeps that field equal to the validated config name for `alias` and `alias_generator`; a config class that changes it another way (`validation_alias`, a transforming validator) fails that instance at creation, because callers read an app back by its configured name. Paths that can run with no `App` (`stop_instance`, `_create_instance_unlocked`, `record_failure`, `flag_needs_restart`) still take a name. Ship-time challenge, user's choice.
 - The queued retire step is skipped when no `DatabaseService` is wired (a test harness). An exception there would have aborted the create half; the ledger's "the hourly sweep catches it" means it must not.
 - `docs/pages/operating/index.md` and `docs/pages/core-concepts/cache/patterns.md` change too, though the Summary doesn't list them: the first states D6's old position-keyed gate, the second the old cache path.
+- Deleting a whole app block queues the retire step too, after its `stop_app`: D2's trigger named restarts, but the outcome it ratifies is that a removed name's handlers don't appear live. An orphan stopped by hand still waits for the sweep, as D2 accepts. Ship-time challenge, user's choice.
+- A dropped retire write logs a WARNING, so D2's fallback to the sweep is visible.
+- `AppHandler.get` takes `instance_name` by keyword only, so a stale `get(key, 0)` raises `TypeError` rather than returning `None` for a running app; the PR's `BREAKING CHANGE:` footer says so. `AppRegistry.get` stays positional. Ship-time challenge, user's choice.
 - `NOT_IN_CONFIG_REASON` now says "instance" rather than "index", and the refusal ERROR no longer carries an index. Outcome reasons are free text, not part of the wire contract.

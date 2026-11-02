@@ -228,7 +228,7 @@ class TestReloadApp:
 
         await lifecycle_service.reload_app("test_app")
 
-        lifecycle_service.shutdown_instances.assert_awaited_once_with({"test_instance": running}, outcomes=ANY)
+        lifecycle_service.shutdown_instances.assert_awaited_once_with([running], outcomes=ANY)
         mock_factory.create_instances.assert_called_once()
 
     async def test_stops_but_does_not_restart_blocked_app(
@@ -256,7 +256,7 @@ class TestReloadApp:
         with pytest.raises(AppBlockedError):
             await lifecycle_service.reload_app("test_app")
 
-        lifecycle_service.shutdown_instances.assert_awaited_once_with({"test_instance": running}, outcomes=ANY)
+        lifecycle_service.shutdown_instances.assert_awaited_once_with([running], outcomes=ANY)
         mock_factory.create_instances.assert_not_called()
 
 
@@ -369,7 +369,7 @@ class TestApplyChangesPerInstanceRestart:
         mock_registry.get_manifest = Mock(return_value=new_manifest)
         mock_registry.get_failed_instance_infos = Mock(return_value={})
 
-        app1 = MagicMock()
+        app1 = MagicMock(instance_name="b")
         # The stop finds the old "b"; after create_single_instance (mocked) nothing is
         # registered there, so the create path sees None.
         lookups = iter([app1])
@@ -383,7 +383,7 @@ class TestApplyChangesPerInstanceRestart:
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
         # Only "b" was ever stopped — "a" is never touched.
-        lifecycle_service.shutdown_instance.assert_called_once_with(app1, "b", deadline=None, outcomes=ANY)
+        lifecycle_service.shutdown_instance.assert_called_once_with(app1, deadline=None, outcomes=ANY)
 
         # Only "b" was ever (re)created.
         mock_factory.create_single_instance.assert_called_once()
@@ -509,6 +509,22 @@ class TestApplyChangesPerInstanceRestart:
 
         mock_hassette.database_service.enqueue_retire_unconfigured_instances.assert_not_called()
 
+    async def test_a_removed_app_queues_the_retire_after_its_stop(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """Deleting a whole app block clears its rows at the reload, as removing one instance does."""
+        order = MagicMock()
+        order.stop_app = AsyncMock(return_value=())
+        lifecycle_service.stop_app = order.stop_app  # pyright: ignore[reportAttributeAccessIssue]
+        order.retire.return_value = True
+        mock_hassette.database_service.enqueue_retire_unconfigured_instances = order.retire
+
+        await lifecycle_service.apply_changes(make_change_set(orphans={"app_a"}), {}, {})
+
+        assert [mock_call[0] for mock_call in order.mock_calls] == ["stop_app", "retire"]
+
     async def test_retire_is_queued_after_every_stop_and_before_any_create(
         self,
         lifecycle_service: AppLifecycleService,
@@ -527,6 +543,7 @@ class TestApplyChangesPerInstanceRestart:
         order.create = AsyncMock()
         lifecycle_service._stop_instance_unlocked = order.stop  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = order.create  # pyright: ignore[reportAttributeAccessIssue]
+        order.retire.return_value = True
         mock_hassette.database_service.enqueue_retire_unconfigured_instances = order.retire
 
         await lifecycle_service.apply_changes(

@@ -70,7 +70,7 @@ class AppHandler(Service):
         """Return the configured log level for the app handler (``logging.app_handler``)."""
         return self.hassette.config.logging.app_handler
 
-    def get(self, app_key: str, instance_name: str | None = None) -> "App[AppConfig] | None":
+    def get(self, app_key: str, *, instance_name: str | None = None) -> "App[AppConfig] | None":
         """Get a running app instance by name; with no name, the first running one in config order."""
         return self.registry.get(app_key, instance_name)
 

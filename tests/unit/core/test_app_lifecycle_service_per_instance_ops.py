@@ -111,7 +111,7 @@ class TestStopInstanceBehavior:
         await lifecycle_service.stop_instance("test_app", "b")
 
         mock_registry.unregister_app.assert_not_called()
-        lifecycle_service.shutdown_instances.assert_called_once_with({"b": app1}, outcomes=ANY)
+        lifecycle_service.shutdown_instances.assert_called_once_with([app1], outcomes=ANY)
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_unconfigured_name_skips_cleanly(
@@ -155,7 +155,7 @@ class TestStopInstanceBehavior:
 
         await lifecycle_service.stop_instance("test_app", "orphan")
 
-        lifecycle_service.shutdown_instances.assert_called_once_with({"orphan": orphan}, outcomes=ANY)
+        lifecycle_service.shutdown_instances.assert_called_once_with([orphan], outcomes=ANY)
 
     # dup-ignore-start: pytest test function signature (see .claude/rules/tests-unit-core.md)
     async def test_succeeds_without_admission_check_before_bootstrap_release(

@@ -269,7 +269,7 @@ class AppStartStopMixin:
                 app_key, self.registry.tracked_names(app_key) - set(instances), outcomes=outcomes
             )
             if instances:
-                await self.shutdown_instances(instances, outcomes=outcomes)
+                await self.shutdown_instances(list(instances.values()), outcomes=outcomes)
         except Exception as exc:
             self.logger.error("Failed to stop app %s:\n%s", app_key, get_short_traceback())
             outcomes.fail_undecided(failure_reason(exc))
@@ -464,7 +464,7 @@ class AppStartStopMixin:
                 # under the entry deadline, and is flagged if its work may still be running.
                 if not init_started:
                     skip_own_shutdown_hooks(phantom)
-                await self.shutdown_instance(phantom, instance_name, cause=exc, outcomes=outcomes)
+                await self.shutdown_instance(phantom, cause=exc, outcomes=outcomes)
             else:
                 failure = Exception(f"Post-registration failure for {app_key}[{instance_name}]")
                 self.registry.record_failure(app_key, instance_name, failure)
@@ -491,7 +491,7 @@ class AppStartStopMixin:
             if inst is None:
                 await self._discard_failed_instances(app_key, {instance_name}, outcomes=outcomes)
             else:
-                await self.shutdown_instances({instance_name: inst}, outcomes=outcomes)
+                await self.shutdown_instances([inst], outcomes=outcomes)
         except Exception as exc:
             self.logger.error(
                 "Failed to stop instance %s of app %s:\n%s", instance_name, app_key, get_short_traceback()

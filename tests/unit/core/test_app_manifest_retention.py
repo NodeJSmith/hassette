@@ -405,11 +405,11 @@ def test_live_app_keys_counts_only_apps_with_a_running_instance(
     configured = create_app_manifest("configured", tmp_path)
     mock_hassette_for_db.config.apps.manifests = {configured.app_key: configured}
     registry = AppRegistry()
-    registry.register_app("running", "running", MagicMock())
-    registry.register_app("multi", "multi", MagicMock())
-    registry.register_app("multi", "multi_1", MagicMock())
+    registry.register_app("running", MagicMock(instance_name="running"))
+    registry.register_app("multi", MagicMock(instance_name="multi"))
+    registry.register_app("multi", MagicMock(instance_name="multi_1"))
     registry.record_failure("failed_only", "failed_only", RuntimeError("boom"))
-    registry.register_app("stopping", "stopping", MagicMock())
+    registry.register_app("stopping", MagicMock(instance_name="stopping"))
     registry.unregister_app("stopping")
     mock_hassette_for_db.app_handler.registry = registry
 

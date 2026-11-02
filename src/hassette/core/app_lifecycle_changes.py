@@ -110,6 +110,8 @@ class AppChangeReconcilerMixin:
         for app_key in changes.orphans:
             self.logger.debug("Stopping orphaned app %s", app_key)
             await self.stop_app(app_key)
+        if changes.orphans:
+            self._queue_retire_unconfigured_instances()
 
         # Each key is decided under its own app-key lock: the decision reads registry state that a stop
         # already holding the lock can change while this waits. A key with nothing to restart releases its
@@ -243,7 +245,10 @@ class AppChangeReconcilerMixin:
             # The accessor raises only when no DatabaseService is wired (a test harness); there are no rows to retire.
             self.logger.debug("DatabaseService not wired; no removed instance's rows to retire")
             return
-        database.enqueue_retire_unconfigured_instances()
+        if not database.enqueue_retire_unconfigured_instances():
+            self.logger.warning(
+                "Dropped the queued retire of removed instances' rows; the next retention cycle does it"
+            )
 
     def _stopped_name_left_config(self, app_key: str, outcomes: ActionOutcomes) -> bool:
         """Whether a restart's stop half targeted a name its app's current config doesn't have."""

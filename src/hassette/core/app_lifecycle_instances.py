@@ -90,11 +90,11 @@ class AppInstanceLifecycleMixin:
                 continue
             structlog.contextvars.bind_contextvars(
                 app_key=app_key,
-                instance_name=inst.app_config.instance_name,
+                instance_name=inst.instance_name,
                 instance_index=inst.index,
             )
             try:
-                await self.initialize_instance(inst, name, class_name, outcomes=outcomes)
+                await self.initialize_instance(inst, class_name, outcomes=outcomes)
             finally:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
@@ -102,9 +102,7 @@ class AppInstanceLifecycleMixin:
         # Runs after the instance loop to ensure all registrations are complete.
         await self.reconcile_app_registrations(app_key, instances, instance_name=instance_name)
 
-    async def initialize_instance(
-        self, inst: "App[AppConfig]", instance_name: str, class_name: str, *, outcomes: ActionOutcomes
-    ) -> None:
+    async def initialize_instance(self, inst: "App[AppConfig]", class_name: str, *, outcomes: ActionOutcomes) -> None:
         """Initialize one instance, recording its outcome; on failure or timeout, shut it down as a failed init.
 
         The ``try`` covers only the initialization itself. The RUNNING event is sent after it, and a failure
@@ -119,16 +117,16 @@ class AppInstanceLifecycleMixin:
                 "Timed out while starting app '%s' (%s):\n%s"
                 if isinstance(exc, TimeoutError)
                 else "Failed to start app '%s' (%s):\n%s",
-                inst.app_config.instance_name,
+                inst.instance_name,
                 class_name,
                 get_short_traceback(-INIT_FAILURE_TRACEBACK_LIMIT),
             )
             skip_own_shutdown_hooks(inst)
-            await self.shutdown_instance(inst, instance_name, cause=exc, outcomes=outcomes)
+            await self.shutdown_instance(inst, cause=exc, outcomes=outcomes)
             return
 
-        self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
-        outcomes.succeeded(instance_name)
+        self.logger.info("App '%s' (%s) initialized successfully", inst.instance_name, class_name)
+        outcomes.succeeded(inst.instance_name)
         await self.send_outcome_event(inst, status=RUNNING, previous_status=STARTING)
 
     async def send_outcome_event(
@@ -150,7 +148,7 @@ class AppInstanceLifecycleMixin:
             self.logger.exception(
                 "Failed to send the %s event for app '%s' (%s); its outcome is recorded",
                 status,
-                inst.app_config.instance_name,
+                inst.instance_name,
                 inst.class_name,
             )
 
@@ -163,9 +161,7 @@ class AppInstanceLifecycleMixin:
         try:
             inst.bus.remove_all_listeners()
         except Exception:
-            self.logger.warning(
-                "Listener cleanup failed for instance '%s'", inst.app_config.instance_name, exc_info=True
-            )
+            self.logger.warning("Listener cleanup failed for instance '%s'", inst.instance_name, exc_info=True)
         try:
             # Goes straight to Scheduler.remove_all_jobs() rather than scanning the full registry by
             # owner string — the per-app Scheduler already holds its owned jobs (including waiting,
@@ -182,12 +178,11 @@ class AppInstanceLifecycleMixin:
             await inst.scheduler.remove_all_jobs()
             inst.scheduler.scheduler_service.deregister_removal_callback(inst.scheduler.owner_id)
         except Exception:
-            self.logger.warning("Job cleanup failed for instance '%s'", inst.app_config.instance_name, exc_info=True)
+            self.logger.warning("Job cleanup failed for instance '%s'", inst.instance_name, exc_info=True)
 
     async def shutdown_instance(
         self,
         inst: "App[AppConfig]",
-        instance_name: str,
         *,
         deadline: float | None = None,
         cause: Exception | None = None,
@@ -231,7 +226,7 @@ class AppInstanceLifecycleMixin:
         """
         structlog.contextvars.bind_contextvars(
             app_key=inst.app_key,
-            instance_name=inst.app_config.instance_name,
+            instance_name=inst.instance_name,
             instance_index=inst.index,
         )
         try:
@@ -250,20 +245,18 @@ class AppInstanceLifecycleMixin:
                 failure = cause or exc
                 await self.settle_raised_shutdown(
                     inst,
-                    instance_name,
                     failure,
                     is_init_failure=cause is not None,
                     outcomes=outcomes,
                 )
                 return None
 
-            self.registry.unregister_app(inst.app_key, instance_name)
+            self.registry.unregister_app(inst.app_key, inst.instance_name)
             friendly_time = precisedelta(timer() - start_time, minimum_unit="milliseconds")
 
             if cause is not None:
                 self.settle_failed_init(
                     inst,
-                    instance_name,
                     cause,
                     outcome,
                     friendly_time=friendly_time,
@@ -274,16 +267,13 @@ class AppInstanceLifecycleMixin:
 
             timed_out = force_terminated or outcome.result is ShutdownResult.TIMED_OUT
             if outcome.is_restart_safe and not timed_out:
-                self.logger.info(
-                    "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
-                )
-                outcomes.succeeded(instance_name)
+                self.logger.info("Stopped app '%s' '%s' in %s", inst.instance_name, inst.class_name, friendly_time)
+                outcomes.succeeded(inst.instance_name)
                 await self.send_outcome_event(inst, status=STOPPED, previous_status=STOPPING)
                 return outcome
 
             exc = self.settle_failed_stop(
                 inst,
-                instance_name,
                 outcome,
                 timed_out=timed_out,
                 friendly_time=friendly_time,
@@ -297,7 +287,6 @@ class AppInstanceLifecycleMixin:
     async def settle_raised_shutdown(
         self,
         inst: "App[AppConfig]",
-        instance_name: str,
         failure: Exception,
         *,
         is_init_failure: bool,
@@ -308,25 +297,24 @@ class AppInstanceLifecycleMixin:
         The coordinator stores an ``INCOMPLETE`` outcome before re-raising, so this is normally a
         needs-restart outcome too; with no outcome at all, nothing proves the instance's work ended.
         """
-        name = inst.app_config.instance_name
+        name = inst.instance_name
         self.logger.error("Failed to stop app '%s':\n%s", name, get_short_traceback())
-        self.registry.unregister_app(inst.app_key, instance_name)
-        self.registry.record_failure(inst.app_key, instance_name, failure)
+        self.registry.unregister_app(inst.app_key, inst.instance_name)
+        self.registry.record_failure(inst.app_key, inst.instance_name, failure)
         stored = inst.shutdown_outcome
         if stored is None or not stored.is_restart_safe:
             left = describe_left_running(stored or ShutdownOutcome())
             reason = f"shutdown raised; {left}"
-            newly_flagged = self.flag_instance_needs_restart(inst, instance_name, reason, stored)
-            self.record_flagged_outcome(outcomes, inst, instance_name, failure_reason(failure), newly_flagged)
+            newly_flagged = self.flag_instance_needs_restart(inst, reason, stored)
+            self.record_flagged_outcome(outcomes, inst, failure_reason(failure), newly_flagged)
         else:
-            outcomes.failed(instance_name, failure_reason(failure))
+            outcomes.failed(inst.instance_name, failure_reason(failure))
         previous = STARTING if is_init_failure else STOPPING
         await self.send_outcome_event(inst, status=FAILED, previous_status=previous, exception=failure)
 
     def settle_failed_init(
         self,
         inst: "App[AppConfig]",
-        instance_name: str,
         cause: Exception,
         outcome: ShutdownOutcome,
         *,
@@ -338,25 +326,24 @@ class AppInstanceLifecycleMixin:
         Runs synchronously right after the unregister. The init failure itself was already logged at
         ERROR by its caller; a needs-restart flag gets its own ERROR.
         """
-        self.registry.record_failure(inst.app_key, instance_name, cause)
+        self.registry.record_failure(inst.app_key, inst.instance_name, cause)
         if outcome.is_restart_safe:
             self.logger.info(
                 "Shut down app '%s' (%s) after its failed start in %s",
-                inst.app_config.instance_name,
+                inst.instance_name,
                 inst.class_name,
                 friendly_time,
             )
-            outcomes.failed(instance_name, failure_reason(cause))
+            outcomes.failed(inst.instance_name, failure_reason(cause))
             return
         left = describe_left_running(outcome)
         reason = f"failed to start, and {left}"
-        newly_flagged = self.flag_instance_needs_restart(inst, instance_name, reason, outcome)
-        self.record_flagged_outcome(outcomes, inst, instance_name, failure_reason(cause), newly_flagged)
+        newly_flagged = self.flag_instance_needs_restart(inst, reason, outcome)
+        self.record_flagged_outcome(outcomes, inst, failure_reason(cause), newly_flagged)
 
     def settle_failed_stop(
         self,
         inst: "App[AppConfig]",
-        instance_name: str,
         outcome: ShutdownOutcome,
         *,
         timed_out: bool,
@@ -371,15 +358,15 @@ class AppInstanceLifecycleMixin:
         Returns:
             The exception recorded as the instance's failure.
         """
-        name = inst.app_config.instance_name
+        name = inst.instance_name
         if outcome.is_restart_safe:
             # Restart-safe here means the stop timed out (see above) but nothing is still pending.
             exc: Exception = TimeoutError(f"stop of app '{name}' timed out after {friendly_time}")
             self.logger.error(
                 "Stop of app '%s' (%s) timed out after %s; nothing still pending", name, inst.class_name, friendly_time
             )
-            self.registry.record_failure(inst.app_key, instance_name, exc)
-            outcomes.failed(instance_name, str(exc))
+            self.registry.record_failure(inst.app_key, inst.instance_name, exc)
+            outcomes.failed(inst.instance_name, str(exc))
             return exc
 
         left = describe_left_running(outcome)
@@ -389,43 +376,39 @@ class AppInstanceLifecycleMixin:
         else:
             reason = f"stopped, but {left}"
             exc = RuntimeError(f"app '{name}' stopped, but {left}")
-        self.registry.record_failure(inst.app_key, instance_name, exc)
-        newly_flagged = self.flag_instance_needs_restart(inst, instance_name, reason, outcome)
-        self.record_flagged_outcome(outcomes, inst, instance_name, str(exc), newly_flagged)
+        self.registry.record_failure(inst.app_key, inst.instance_name, exc)
+        newly_flagged = self.flag_instance_needs_restart(inst, reason, outcome)
+        self.record_flagged_outcome(outcomes, inst, str(exc), newly_flagged)
         return exc
 
-    def flag_instance_needs_restart(
-        self, inst: "App[AppConfig]", instance_name: str, reason: str, outcome: ShutdownOutcome | None
-    ) -> bool:
+    def flag_instance_needs_restart(self, inst: "App[AppConfig]", reason: str, outcome: ShutdownOutcome | None) -> bool:
         """Log the needs-restart ERROR and write the instance's record; the first record on a name stands.
 
         Returns:
             ``True`` when this call flagged the name, ``False`` when it was already flagged.
         """
-        self.logger.error(
-            "App '%s' (%s) %s; restart hassette to recover", inst.app_config.instance_name, inst.class_name, reason
-        )
+        self.logger.error("App '%s' (%s) %s; restart hassette to recover", inst.instance_name, inst.class_name, reason)
         return self.registry.flag_needs_restart(
             inst.app_key,
-            instance_name,
+            inst.instance_name,
             class_name=inst.class_name,
             reason=reason,
             pending_tasks=outcome.still_running if outcome is not None else (),
         )
 
     def record_flagged_outcome(
-        self, outcomes: ActionOutcomes, inst: "App[AppConfig]", instance_name: str, failure: str, newly_flagged: bool
+        self, outcomes: ActionOutcomes, inst: "App[AppConfig]", failure: str, newly_flagged: bool
     ) -> None:
         """Record the outcome of a failure that leaves the instance flagged needs-restart.
 
         ``failed`` with ``needs_restart`` when this action flagged it. When something else flagged it first
         (process exit's teardown takes no app-key lock), the instance reports the earlier flag as a refusal.
         """
-        refusal = None if newly_flagged else self.registry.refusal_reason(inst.app_key, instance_name)
+        refusal = None if newly_flagged else self.registry.refusal_reason(inst.app_key, inst.instance_name)
         if refusal is None:
-            outcomes.failed(instance_name, failure, needs_restart=True)
+            outcomes.failed(inst.instance_name, failure, needs_restart=True)
         else:
-            outcomes.refused(instance_name, refusal)
+            outcomes.refused(inst.instance_name, refusal)
 
     async def walk_away_from_instance(
         self, inst: "App[AppConfig]", task: "asyncio.Task[ShutdownOutcome]"
@@ -444,17 +427,17 @@ class AppInstanceLifecycleMixin:
         except TimeoutError:
             self.logger.warning(
                 "Cleanup timed out for walked-away instance '%s' — some listeners or jobs may leak until restart",
-                inst.app_config.instance_name,
+                inst.instance_name,
             )
         return inst.shutdown_outcome or incomplete_outcome(f"{inst.unique_name} was force-terminated")
 
     async def shutdown_instances(
-        self, instances: dict[str, "App[AppConfig]"], *, deadline: float | None = None, outcomes: ActionOutcomes
+        self, instances: Iterable["App[AppConfig]"], *, deadline: float | None = None, outcomes: ActionOutcomes
     ) -> ShutdownOutcome:
         """Stop the given app instances concurrently, each under its own entry deadline.
 
         Args:
-            instances: Dict of instance name -> App to shut down.
+            instances: The apps to shut down.
             deadline: An outer deadline each instance's stop is shortened to (process exit's stop stage).
             outcomes: The request's outcomes; each instance records its own before returning, so one
                 that raises can't erase a sibling's.
@@ -462,17 +445,18 @@ class AppInstanceLifecycleMixin:
         Returns:
             The instances' shutdown outcomes, merged.
         """
+        instances = list(instances)
         if not instances:
             return ShutdownOutcome()
 
         self.logger.debug("Stopping %d app instances", len(instances))
 
-        async def stop_one(name: str, inst: "App[AppConfig]") -> ShutdownOutcome | None:
+        async def stop_one(inst: "App[AppConfig]") -> ShutdownOutcome | None:
             event = HassetteAppStateEvent.from_app(app=inst, status=STOPPING, previous_status=inst.status)
             await self.hassette.send_event(event)
-            return await self.shutdown_instance(inst, name, deadline=deadline, outcomes=outcomes)
+            return await self.shutdown_instance(inst, deadline=deadline, outcomes=outcomes)
 
-        results = await gather_all((stop_one(name, inst) for name, inst in instances.items()), name="app:stop_instance")
+        results = await gather_all((stop_one(inst) for inst in instances), name="app:stop_instance")
         return merge_outcomes(*(outcome for outcome in results if outcome is not None))
 
     async def shutdown_all(self, *, deadline: float | None = None) -> ShutdownOutcome:
@@ -488,19 +472,19 @@ class AppInstanceLifecycleMixin:
         """
         self.logger.debug("Shutting down all apps")
         instances = [
-            (name, inst)
-            for app_key in self.registry.app_keys()
-            for name, inst in self.registry.get_running_apps(app_key).items()
+            inst for app_key in self.registry.app_keys() for inst in self.registry.get_running_apps(app_key).values()
         ]
         # Process exit has no response to carry outcomes; each stop gets its own, which nothing reads.
         results = await gather_all(
             (
                 self.shutdown_instances(
-                    {name: inst},
+                    [inst],
                     deadline=deadline,
-                    outcomes=ActionOutcomes({name: self.registry.display_index(inst.app_key, name)}),
+                    outcomes=ActionOutcomes(
+                        {inst.instance_name: self.registry.display_index(inst.app_key, inst.instance_name)}
+                    ),
                 )
-                for name, inst in instances
+                for inst in instances
             ),
             name="app:shutdown_all",
         )

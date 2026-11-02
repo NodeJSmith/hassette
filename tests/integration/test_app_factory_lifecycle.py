@@ -518,9 +518,7 @@ class TestAppLifecycleServiceIntegration:
         assert app_instance.status == ResourceStatus.RUNNING
 
         # Shutdown should not raise
-        await app_lifecycle.shutdown_instance(
-            app_instance, app_instance.app_config.instance_name, outcomes=AnyNameOutcomes()
-        )
+        await app_lifecycle.shutdown_instance(app_instance, outcomes=AnyNameOutcomes())
 
     @pytest.mark.usefixtures("running_multi_instance")
     async def test_lifecycle_shutdown_all_clears_registry(
@@ -677,9 +675,7 @@ class TestAppRestartPreservesChildren:
         assert app_instance.states.is_ready(), "StateManager should be ready after initialize"
 
         # Shutdown
-        await app_lifecycle.shutdown_instance(
-            app_instance, app_instance.app_config.instance_name, outcomes=AnyNameOutcomes()
-        )
+        await app_lifecycle.shutdown_instance(app_instance, outcomes=AnyNameOutcomes())
 
         assert app_instance.status == ResourceStatus.STOPPED
         assert not app_instance.bus.is_ready(), "Bus should not be ready after shutdown"

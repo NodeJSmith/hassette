@@ -24,7 +24,7 @@ def registry() -> AppRegistry:
 
 class TestRecord:
     def test_survives_unregister_and_a_later_failure_entry(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", "my_app", make_app_instance("my_app"))
+        registry.register_app("my_app", make_app_instance("my_app"))
         flag(registry)
 
         registry.unregister_app("my_app", "my_app")
@@ -66,7 +66,7 @@ class TestRecord:
 
 class TestResolver:
     def test_record_wins_over_a_live_entry(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", "my_app", make_app_instance("my_app"))
+        registry.register_app("my_app", make_app_instance("my_app"))
         flag(registry)
 
         info = registry.resolve_instance_info("my_app", "my_app")
@@ -85,7 +85,7 @@ class TestResolver:
         assert info.error_message == "stop timed out"
 
     def test_without_a_record_the_entry_is_returned_as_is(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", "my_app", make_app_instance("my_app"))
+        registry.register_app("my_app", make_app_instance("my_app"))
 
         info = registry.resolve_instance_info("my_app", "my_app")
 
@@ -96,7 +96,7 @@ class TestResolver:
 
 class TestReaders:
     def test_snapshot_counts_a_flagged_instance_as_failed(self, registry: AppRegistry) -> None:
-        registry.register_app("my_app", "my_app", make_app_instance("my_app"))
+        registry.register_app("my_app", make_app_instance("my_app"))
         flag(registry)
 
         snapshot = registry.get_snapshot()
@@ -122,7 +122,7 @@ class TestReaders:
         registry.set_manifests(
             {"my_app": make_manifest_obj("my_app", app_config=[{"instance_name": "a"}, {"instance_name": "b"}])}
         )
-        registry.register_app("my_app", "my_app", make_app_instance("my_app"))
+        registry.register_app("my_app", make_app_instance("my_app"))
         flag(registry, name="b")
 
         info = registry.build_manifest_info("my_app", registry.manifests["my_app"])

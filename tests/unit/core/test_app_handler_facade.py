@@ -10,6 +10,8 @@ test_app_handler_readiness.py).
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from hassette.core.app_handler import AppHandler
 
 
@@ -45,3 +47,8 @@ class TestAppHandlerInstanceFacade:
         assert app_handler.is_action_in_progress("test_app") is True
 
         app_handler.lifecycle.is_action_in_progress.assert_called_once_with("test_app")
+
+    def test_get_rejects_a_positional_instance_name(self, app_handler: AppHandler) -> None:
+        """get() takes the instance name by keyword, so a stale positional index raises instead of returning None."""
+        with pytest.raises(TypeError):
+            app_handler.get("x", 0)  # pyright: ignore[reportCallIssue]

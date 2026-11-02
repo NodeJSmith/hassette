@@ -601,12 +601,12 @@ class TestAppListEndpoint:
         manifest = create_app_manifest("half_broken", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
 
-        running_app = MagicMock()
+        running_app = MagicMock(instance_name=manifest.app_key)
         running_app.app_config.instance_name = manifest.app_key
         running_app.class_name = manifest.class_name
         running_app.status = ResourceStatus.RUNNING
         running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
-        registry.register_app(manifest.app_key, manifest.app_key, running_app)
+        registry.register_app(manifest.app_key, running_app)
         registry.record_failure(manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
         mock_hassette._app_handler.registry = registry
 

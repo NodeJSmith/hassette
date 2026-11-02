@@ -216,7 +216,7 @@ def test_resolve_uses_global_blocking_io_config(tmp_path: Path) -> None:
 
 
 def make_owner_hassette(apps: dict[tuple[str, str], object]) -> types.SimpleNamespace:
-    """Build a hassette stand-in whose ``app_handler.get(key, instance_name)`` looks up ``apps``.
+    """Build a hassette stand-in whose ``app_handler.get(key, instance_name=...)`` looks up ``apps``.
 
     A ``None`` name returns the first instance of ``key``, as ``AppHandler.get`` does.
     """

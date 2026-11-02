@@ -169,6 +169,12 @@ class AppFactory:
 
         try:
             validated = app_class.app_config_cls.model_validate(config_dict)
+            if validated.instance_name != instance_name:
+                # The registry files an app under its own name, and callers read it back by the configured one.
+                raise ValueError(
+                    f"{app_class.app_config_cls.__name__} resolved instance_name to {validated.instance_name!r} from "
+                    f"{instance_name!r}; a config class must not alias or transform instance_name"
+                )
             warn_unrecognized_config_keys(
                 app_key=app_key,
                 manifest=manifest,
@@ -183,7 +189,7 @@ class AppFactory:
                 app_key=app_key,
                 app_manifest=manifest,
             )
-            self.registry.register_app(app_key, instance_name, app_instance)
+            self.registry.register_app(app_key, app_instance)
         except Exception as exc:
             self.logger.error(
                 "Failed to validate/init config for %s (%s):\n%s",

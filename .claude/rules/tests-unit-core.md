@@ -42,7 +42,7 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 - `stub_detected_changes(lifecycle_service, changes)` — make `detect_changes` report `changes` and stub `apply_changes`, for tests of `handle_change_event`'s own apply/defer/broadcast decisions
 - `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get(app_key, instance_name=None)` from an `apps`-shaped dict (`dict[str, dict[str, App]]`, instances keyed by instance name); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
 - `make_manifest_obj(app_key, **kw)` — `SimpleNamespace` AppManifest stand-in for `AppRegistry` tests; shared by the `test_app_registry*.py` files
-- `make_app_instance(app_key, index=0)` — `SimpleNamespace` App stand-in for `AppRegistry` tests; shared by the same files
+- `make_app_instance(app_key, instance_name=None)` — `SimpleNamespace` App stand-in for `AppRegistry` tests; shared by the same files
 - `stub_refused_attempts(websocket_service, *, failures)` — make `run_connection` raise `ConnectionRefusedError` `failures` times, then return so `serve()` ends; returns the `AsyncMock` (assert `await_count` for the attempt total)
 - `run_cleanup(websocket_service)` — run `WebsocketService.cleanup()` with the parent `Service.cleanup` stubbed out; `cleanup_disconnected(websocket_service)` does the same after detaching `_ws`, `_session`, and `_recv_task`
 - `last_sent_msg_id(websocket_service)` — the `id` of the last frame sent through a `send_json` stubbed with `AsyncMock`; asserts it was awaited, so callers needn't narrow `await_args`

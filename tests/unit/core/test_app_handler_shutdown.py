@@ -34,7 +34,7 @@ async def test_later_apps_are_not_cut_off_at_process_exit(app_handler: AppHandle
             return ShutdownOutcome()
 
         inst.shutdown.side_effect = slow_shutdown
-        app_handler.registry.register_app(app_key, app_key, inst)
+        app_handler.registry.register_app(app_key, inst)
 
     await app_handler.shutdown()
 
@@ -52,7 +52,7 @@ async def test_force_terminal_reaches_registry_apps(app_handler: AppHandler, cap
         inst.unique_name = f"MockApp.{app_key}"
         inst.shutdown_completed = finished
         inst._force_terminal = Mock()
-        app_handler.registry.register_app(app_key, app_key, inst)
+        app_handler.registry.register_app(app_key, inst)
         instances[app_key] = inst
 
     with caplog.at_level(logging.ERROR):

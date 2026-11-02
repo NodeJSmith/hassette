@@ -51,7 +51,7 @@ async def test_app_stop_logs_at_info(
     lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, caplog: pytest.LogCaptureFixture
 ) -> None:
     with caplog.at_level(logging.DEBUG):
-        await lifecycle_service.shutdown_instance(mock_app_instance, "test_instance", outcomes=AnyNameOutcomes())
+        await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
     assert levels_logged(caplog, "Stopped app '%s' '%s' in %s") == [logging.INFO]
 

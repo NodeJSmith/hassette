@@ -51,8 +51,8 @@ class TestBlockedApps:
 
     def test_clear_all_clears_blocked(self, registry: AppRegistry) -> None:
         """Verify clear_all also clears _blocked_apps."""
-        mock_app = MagicMock()
-        registry.register_app("app1", "app1", mock_app)
+        mock_app = MagicMock(instance_name="app1")
+        registry.register_app("app1", mock_app)
         registry.record_failure("app2", "app2", Exception("error"))
         registry.block_app("app3", BlockReason.ONLY_APP)
 
@@ -143,7 +143,7 @@ class TestAppRegistryGetFullSnapshot:
     def test_running_app(self) -> None:
         reg = self.make_registry()
         reg.set_manifests({"my_app": make_manifest_obj("my_app")})
-        reg.register_app("my_app", "my_app", make_app_instance("my_app"))
+        reg.register_app("my_app", make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         assert snap.total == 1
         assert snap.status_counts[AppStatus.RUNNING] == 1
@@ -194,7 +194,7 @@ class TestAppRegistryGetFullSnapshot:
                 "blocked_app": make_manifest_obj("blocked_app"),
             }
         )
-        reg.register_app("running_app", "running_app", make_app_instance("running_app"))
+        reg.register_app("running_app", make_app_instance("running_app"))
         reg.record_failure("failed_app", "failed_app", ValueError("bad config"))
         reg.block_app("blocked_app", BlockReason.ONLY_APP)
 
@@ -226,7 +226,7 @@ class TestAppRegistryGetFullSnapshot:
                 "stopped_app": make_manifest_obj("stopped_app"),
             }
         )
-        reg.register_app("running_app", "running_app", make_app_instance("running_app"))
+        reg.register_app("running_app", make_app_instance("running_app"))
         error = RuntimeError("startup failed")
         reg.record_failure("failed_app", "failed_app", error)
 
@@ -263,7 +263,7 @@ class TestAppRegistryGetFullSnapshot:
         """Even if an app has running instances, disabled=False should win."""
         reg = self.make_registry()
         reg.set_manifests({"my_app": make_manifest_obj("my_app", enabled=False)})
-        reg.register_app("my_app", "my_app", make_app_instance("my_app"))
+        reg.register_app("my_app", make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         # Disabled takes priority
         assert snap.manifests[0].status is AppStatus.DISABLED
@@ -382,7 +382,7 @@ class TestBuildManifestInfoStatusDerivation:
 
     def test_running(self, registry: AppRegistry) -> None:
         manifest = make_manifest_obj("my_app")
-        registry.register_app("my_app", "my_app", make_app_instance("my_app"))
+        registry.register_app("my_app", make_app_instance("my_app"))
         info = registry.build_manifest_info("my_app", manifest)
         assert info.status is AppStatus.RUNNING
         assert info.instance_count == 1
@@ -411,7 +411,7 @@ class TestBuildManifestInfoStatusDerivation:
         name/index, instead of vanishing once it's no longer tracked in the registry.
         """
         manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "office"}, {"instance_name": "kitchen"}])
-        registry.register_app("my_app", "office", make_app_instance("my_app", 0))
+        registry.register_app("my_app", make_app_instance("my_app", "office"))
         # "kitchen" is configured but never started/tracked.
 
         info = registry.build_manifest_info("my_app", manifest)
@@ -430,8 +430,8 @@ class TestBuildManifestInfoStatusDerivation:
         never silently dropped from view.
         """
         manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "only"}])
-        registry.register_app("my_app", "only", make_app_instance("my_app", 0))
-        registry.register_app("my_app", "orphan", make_app_instance("my_app", 1))  # orphaned, not configured
+        registry.register_app("my_app", make_app_instance("my_app", "only"))
+        registry.register_app("my_app", make_app_instance("my_app", "orphan"))  # orphaned, not configured
 
         info = registry.build_manifest_info("my_app", manifest)
 
@@ -445,8 +445,8 @@ class TestBuildManifestInfoStatusDerivation:
         instances (tracked or synthetic placeholder) stay ``True``.
         """
         manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "a"}, {"instance_name": "b"}])
-        registry.register_app("my_app", "a", make_app_instance("my_app", 0))
-        registry.register_app("my_app", "orphan_a", make_app_instance("my_app", 2))  # running orphan
+        registry.register_app("my_app", make_app_instance("my_app", "a"))
+        registry.register_app("my_app", make_app_instance("my_app", "orphan_a"))  # running orphan
         registry.record_failure("my_app", "orphan_b", ValueError("boom"))  # failed orphan
 
         info = registry.build_manifest_info("my_app", manifest)
@@ -460,8 +460,8 @@ class TestBuildManifestInfoStatusDerivation:
         """
         manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "a"}, {"instance_name": "b"}])
         registry.set_manifests({"my_app": manifest})
-        registry.register_app("my_app", "a", make_app_instance("my_app", 0))
-        registry.register_app("my_app", "orphan_a", make_app_instance("my_app", 2))
+        registry.register_app("my_app", make_app_instance("my_app", "a"))
+        registry.register_app("my_app", make_app_instance("my_app", "orphan_a"))
         registry.record_failure("my_app", "b", ValueError("in range"))
         registry.record_failure("my_app", "orphan_b", ValueError("orphan"))
 
@@ -474,9 +474,9 @@ class TestBuildManifestInfoStatusDerivation:
     def test_degraded_when_running_and_failed_coexist(self, registry: AppRegistry) -> None:
         """3 instances registered, index 0 fails — status is 'degraded'."""
         manifest = make_manifest_obj("my_app")
-        registry.register_app("my_app", "my_app", make_app_instance("my_app", 0))
-        registry.register_app("my_app", "my_app_1", make_app_instance("my_app", 1))
-        registry.register_app("my_app", "my_app_2", make_app_instance("my_app", 2))
+        registry.register_app("my_app", make_app_instance("my_app"))
+        registry.register_app("my_app", make_app_instance("my_app", "my_app_1"))
+        registry.register_app("my_app", make_app_instance("my_app", "my_app_2"))
 
         registry.record_failure("my_app", "my_app", ValueError("bad config"))
 

@@ -212,7 +212,7 @@ class TestApps:
         """Test that an app with a specific instance_name in config starts correctly."""
         assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
 
-        my_app_instance = self.app_handler.get("my_app", "unique_instance_name")
+        my_app_instance = self.app_handler.get("my_app", instance_name="unique_instance_name")
         assert my_app_instance is not None, "my_app instance should exist"
         assert my_app_instance.app_config.instance_name == "unique_instance_name", (
             "my_app instance should have the specified instance_name"
@@ -222,7 +222,7 @@ class TestApps:
         """A configured app runs under exactly the instance_name its config sets, which is also its unique_name."""
         assert "my_app_sync" in self.app_handler.registry, "Precondition: my_app_sync starts enabled"
 
-        instance = self.app_handler.get("my_app_sync", "my_app_sync")
+        instance = self.app_handler.get("my_app_sync", instance_name="my_app_sync")
         assert instance is not None, "my_app_sync instance should exist"
         assert instance.app_config.instance_name == "my_app_sync"
         assert instance.unique_name == "my_app_sync"

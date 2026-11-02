@@ -138,7 +138,7 @@ class TestPreBootstrapAppState:
         running = create_app_manifest("running_app", tmp_path)
         not_started = create_app_manifest("not_started_app", tmp_path)
         registry.set_manifests({running.app_key: running, not_started.app_key: not_started})
-        registry.register_app(running.app_key, running.app_key, MagicMock())
+        registry.register_app(running.app_key, MagicMock(instance_name=running.app_key))
         runtime.hassette.app_handler.get_status_snapshot = registry.get_snapshot
 
         status = runtime.get_system_status()
@@ -229,12 +229,12 @@ class TestPreBootstrapAppState:
         manifest = create_app_manifest("half_broken", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
 
-        running_app = MagicMock()
+        running_app = MagicMock(instance_name=manifest.app_key)
         running_app.app_config.instance_name = manifest.app_key
         running_app.class_name = manifest.class_name
         running_app.status = ResourceStatus.RUNNING
         running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
-        registry.register_app(manifest.app_key, manifest.app_key, running_app)
+        registry.register_app(manifest.app_key, running_app)
         registry.record_failure(manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
 
         runtime.hassette.app_handler.registry = registry
@@ -262,12 +262,12 @@ class TestConcurrentAppHandlerTeardown:
         manifest = create_app_manifest("teardown", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
 
-        app = MagicMock()
+        app = MagicMock(instance_name=manifest.app_key)
         app.app_config.instance_name = "TeardownApp[0]"
         app.class_name = "TeardownApp"
         app.status = ResourceStatus.RUNNING
         app.unique_name = "TeardownApp[0]"
-        registry.register_app(manifest.app_key, manifest.app_key, app)
+        registry.register_app(manifest.app_key, app)
 
         runtime.hassette.app_handler.registry = registry
         runtime.hassette.app_handler.get_status_snapshot = Mock(side_effect=registry.get_snapshot)

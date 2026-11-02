@@ -1,13 +1,16 @@
 """Unit tests for AppFactory."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
+from pydantic import field_validator
+
+from hassette import AppConfig
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_lifecycle_common import ActionOutcomes
 from hassette.schemas.app_outcomes import OutcomeResult
 from tests.support.outcomes import AnyNameOutcomes
 
-from .conftest import as_app_class, flag_names, make_app_class
+from .conftest import as_app_class, flag_names, make_app_class, registered
 
 
 class TestAppFactoryInit:
@@ -34,7 +37,7 @@ class TestAppFactoryCreateInstances:
         factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
 
         mock_app_class.assert_called_once()
-        mock_registry.register_app.assert_called_once_with("test_app", "test_instance", mock_app_class.return_value)
+        assert registered(mock_registry) == [("test_app", "test_instance")]
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_success_multiple_configs(
@@ -51,8 +54,7 @@ class TestAppFactoryCreateInstances:
 
         assert mock_app_class.call_count == 2
         assert mock_registry.register_app.call_count == 2
-        mock_registry.register_app.assert_any_call("test_app", "instance_0", mock_app_class.return_value)
-        mock_registry.register_app.assert_any_call("test_app", "instance_1", mock_app_class.return_value)
+        assert registered(mock_registry) == [("test_app", "instance_0"), ("test_app", "instance_1")]
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_empty_config(
@@ -294,8 +296,7 @@ class TestAppFactoryCreateInstances:
         assert created == {"instance_0", "instance_2"}
         assert mock_app_class.call_count == 2
         assert mock_registry.register_app.call_count == 2
-        mock_registry.register_app.assert_any_call("test_app", "instance_0", mock_app_class.return_value)
-        mock_registry.register_app.assert_any_call("test_app", "instance_2", mock_app_class.return_value)
+        assert registered(mock_registry) == [("test_app", "instance_0"), ("test_app", "instance_2")]
 
 
 class TestAppFactoryNeedsRestartGate:
@@ -318,7 +319,7 @@ class TestAppFactoryNeedsRestartGate:
         created = factory.create_instances("test_app", mock_manifest, outcomes=outcomes)
 
         assert created == {"instance_0", "instance_2"}
-        assert sorted(c.args[1] for c in mock_registry.register_app.call_args_list) == ["instance_0", "instance_2"]
+        assert sorted(registered(mock_registry)) == [("test_app", "instance_0"), ("test_app", "instance_2")]
         assert [(o.instance_index, o.result, o.needs_restart, o.reason) for o in outcomes.snapshot()] == [
             (1, OutcomeResult.REFUSED, True, "refused instance_1")
         ]
@@ -407,6 +408,30 @@ class TestAppFactoryNeedsRestartGate:
 
 
 class TestAppFactoryCreateSingleInstance:
+    def test_create_single_instance_fails_when_the_config_class_changes_the_name(
+        self, factory: AppFactory, mock_registry: Mock, mock_manifest
+    ):
+        """A name the app would report differently could never be read back, so it fails rather than half-registers."""
+
+        class RenamingConfig(AppConfig):
+            @field_validator("instance_name")
+            @classmethod
+            def rename(cls, value: str) -> str:
+                return f"{value}_renamed"
+
+        app_class = make_app_class(RenamingConfig)
+        app_class.__name__ = "TestApp"
+        outcomes = ActionOutcomes({"test_instance": 0})
+
+        created = factory.create_single_instance(
+            "test_app", mock_manifest, "test_instance", as_app_class(app_class), outcomes=outcomes
+        )
+
+        assert created is False
+        mock_registry.register_app.assert_not_called()
+        mock_registry.record_failure.assert_called_once_with("test_app", "test_instance", ANY)
+        assert [(o.instance_name, o.result) for o in outcomes.snapshot()] == [("test_instance", OutcomeResult.FAILED)]
+
     def test_create_single_instance_success(self, factory: AppFactory, mock_registry: Mock, mock_manifest):
         """Registers the instance under the given name on success."""
         mock_app_class = make_app_class()
@@ -418,7 +443,7 @@ class TestAppFactoryCreateSingleInstance:
 
         mock_app_class.assert_called_once()
         assert mock_app_class.call_args.kwargs["index"] == 1
-        mock_registry.register_app.assert_called_once_with("test_app", "second", mock_app_class.return_value)
+        assert registered(mock_registry) == [("test_app", "second")]
         mock_registry.record_failure.assert_not_called()
 
     def test_create_single_instance_validation_failure_records_the_name(
