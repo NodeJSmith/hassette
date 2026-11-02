@@ -10,22 +10,115 @@ positional-only construction remains backward compatible so every existing
 See ``design/specs/031-helper-crud-api/design.md`` for the full spec.
 """
 
+import copy
+import inspect
+import pickle
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
 import pytest
 
+from hassette import exceptions as exceptions_module
+from hassette.conversion.validation import RegistryValidationIssue
 from hassette.exceptions import (
+    AppBlockedError,
+    AppRemovedError,
+    AuthTokenWriteError,
     CannotOverrideFinalError,
     ConnectionClosedError,
+    ConvertedTypeDoesNotMatchError,
     DomainNotFoundError,
+    DomainRequiredError,
+    DuplicateListenerError,
     EntityNotInViewError,
+    EntityShapeError,
     FailedMessageError,
     HassetteError,
+    HttpRequestError,
     InvalidAuthError,
+    InvalidDataForStateConversionError,
+    InvalidEntityIdError,
+    JobRemovedError,
+    LifecycleReentryError,
+    ListenerNameRequiredError,
+    NoDomainAnnotationError,
     OutcomeUnknownError,
+    RegistryNotReadyError,
+    RegistryValidationError,
     ResponseLostError,
     ResponseTimeoutError,
+    RestartRefusedError,
     RetryableConnectionClosedError,
+    SchedulerNameRequiredError,
+    SensorShapeMismatchError,
+    UnableToConvertAnnotatedStateError,
+    UnableToConvertStateError,
 )
-from hassette.models.states.sensor_shapes import NumericSensorState
+from hassette.models.states.sensor_shapes import EnumSensorState, NumericSensorState
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult
+from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
+
+ROUND_TRIPS: dict[str, Callable[[Any], Any]] = {
+    "pickle": lambda err: pickle.loads(pickle.dumps(err)),
+    "deepcopy": copy.deepcopy,
+}
+
+INSTANCE_OUTCOME = InstanceOutcome(instance_index=0, instance_name="kitchen", result=OutcomeResult.REFUSED)
+
+# One instance of every exception that defines a custom ``__init__``, in the constructor shapes that matter.
+ROUND_TRIP_SAMPLES: list[HassetteError] = [
+    AppBlockedError("blocked", outcomes=(INSTANCE_OUTCOME,)),
+    AppRemovedError("removed", outcomes=(INSTANCE_OUTCOME,)),
+    AuthTokenWriteError(Path("/tmp/token"), PermissionError(13, "denied")),
+    CannotOverrideFinalError("initialize", "Resource", "my.App", suggested_alt="on_initialize", location="a.py:3"),
+    ConvertedTypeDoesNotMatchError("sensor.mode", NumericSensorState, EnumSensorState),
+    DomainNotFoundError("light"),
+    DomainRequiredError(NumericSensorState),
+    DuplicateListenerError("kitchen", "hass.event.state_changed", "a.handler", "b.handler"),
+    EntityNotInViewError("sensor.mode", "enum", NumericSensorState),
+    FailedMessageError("boom", code="not_found", original_data={"type": "x"}),
+    HttpRequestError(500, "Server Error", method="GET", url="/states"),
+    InvalidDataForStateConversionError({"bad": "data"}),
+    InvalidEntityIdError("not an id"),
+    JobRemovedError("nightly", db_id=7),
+    LifecycleReentryError("my.App", "shutdown"),
+    ListenerNameRequiredError("a.handler", "hass.event.state_changed"),
+    NoDomainAnnotationError(NumericSensorState, accessor_hint="sensor.numeric"),
+    RegistryNotReadyError(),
+    RegistryValidationError(
+        [
+            RegistryValidationIssue(severity="error", registry="state", message="bad"),
+            RegistryValidationIssue(severity="warning", registry="type", message="odd"),
+        ]
+    ),
+    ResponseLostError("connection lost", close_code=1006),
+    ResponseTimeoutError("timed out", original_data={"type": "fire_event"}),
+    RestartRefusedError("my.App", ShutdownOutcome(ShutdownResult.INCOMPLETE, ("task-1",), "my.App: body raised")),
+    RetryableConnectionClosedError("dropped", close_code=1006),
+    SchedulerNameRequiredError("a.handler", "every 5s"),
+    SensorShapeMismatchError("sensor.mode", "enum", NumericSensorState),
+    UnableToConvertAnnotatedStateError("sensor.mode", "enum", NumericSensorState),
+    UnableToConvertStateError("sensor.mode", NumericSensorState),
+]
+
+
+class BuiltinFirstError(ValueError, HassetteError):
+    """A user-style subclass with a builtin exception ahead of ``HassetteError`` in its MRO."""
+
+    def __init__(self, entity_id: str, *, retries: int = 0) -> None:
+        super().__init__(f"bad entity {entity_id}")
+        self.entity_id = entity_id
+        self.retries = retries
+
+
+class OSErrorMixinError(OSError, HassetteError):
+    """A user-style subclass mixing in ``OSError``, whose ``__new__`` differs from other builtin exceptions."""
+
+    def __init__(self, path: str, reason: str) -> None:
+        super().__init__(f"{path}: {reason}")
+        self.path_name = path
+        self.reason = reason
 
 
 def test_failed_message_error_backward_compat_positional_only() -> None:
@@ -230,3 +323,57 @@ def test_cannot_override_final_error_without_alt_has_no_suggestion() -> None:
     exc = CannotOverrideFinalError("initialize", "Resource", "my.App")
     assert exc.suggestion is None
     assert "Suggestion" not in str(exc)
+
+
+def assert_same_error(original: BaseException, rebuilt: BaseException) -> None:
+    """Assert a round trip kept the type, rendered message, ``args``, and every instance attribute."""
+    assert type(rebuilt) is type(original)
+    assert str(rebuilt) == str(original)
+    assert rebuilt.args == original.args
+    # repr, because a nested exception such as AuthTokenWriteError.original_error has no value equality.
+    assert {k: repr(v) for k, v in vars(rebuilt).items()} == {k: repr(v) for k, v in vars(original).items()}
+
+
+@pytest.mark.parametrize("round_trip", ROUND_TRIPS.values(), ids=ROUND_TRIPS.keys())
+@pytest.mark.parametrize("err", ROUND_TRIP_SAMPLES, ids=lambda err: type(err).__name__)
+def test_exception_survives_round_trip(err: HassetteError, round_trip: Callable[[Any], Any]) -> None:
+    assert_same_error(err, round_trip(err))
+
+
+def test_round_trip_samples_cover_every_custom_init() -> None:
+    """A new exception with its own ``__init__`` must join ``ROUND_TRIP_SAMPLES``."""
+    custom_init = {
+        cls
+        for _, cls in inspect.getmembers(exceptions_module, inspect.isclass)
+        if issubclass(cls, HassetteError) and cls.__module__ == exceptions_module.__name__ and "__init__" in vars(cls)
+    }
+    # EntityShapeError is abstract: its _build_message raises, so it can't be instantiated on its own.
+    assert custom_init - {EntityShapeError} <= {type(err) for err in ROUND_TRIP_SAMPLES}
+
+
+@pytest.mark.parametrize("round_trip", ROUND_TRIPS.values(), ids=ROUND_TRIPS.keys())
+@pytest.mark.parametrize(
+    "err",
+    [BuiltinFirstError("sensor.mode", retries=3), OSErrorMixinError("/tmp/x", "gone")],
+    ids=lambda err: type(err).__name__,
+)
+def test_subclass_with_builtin_exception_first_survives_round_trip(
+    err: HassetteError, round_trip: Callable[[Any], Any]
+) -> None:
+    """User subclasses get the same guarantee, even where a builtin's ``__new__`` wins the MRO lookup."""
+    assert_same_error(err, round_trip(err))
+
+
+@pytest.mark.parametrize("round_trip", ROUND_TRIPS.values(), ids=ROUND_TRIPS.keys())
+def test_round_trip_keeps_state_set_after_construction(round_trip: Callable[[Any], Any]) -> None:
+    """Rewritten ``args``, added notes, and ad hoc attributes aren't lost to re-running ``__init__``."""
+    err = DomainNotFoundError("light")
+    err.args = ("rewritten with context",)
+    err.add_note("while resolving kitchen")
+    err.request_id = 42  # pyright: ignore[reportAttributeAccessIssue]
+
+    rebuilt = round_trip(err)
+
+    assert_same_error(err, rebuilt)
+    assert rebuilt.__notes__ == ["while resolving kitchen"]
+    assert rebuilt.request_id == 42
