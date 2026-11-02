@@ -48,7 +48,7 @@ A light remaining `"on"` while its brightness shifts from 128 to 255 would norma
 
 ## Conditions
 
-Conditions are value-level matchers. They work as arguments to `changed_to`, `changed_from`, and `changed`, or as the `condition` argument inside predicates.
+Conditions are value-level matchers. They work as arguments to `changed_to` and `changed_from`, or as the `condition` argument inside predicates. `changed=` takes a two-argument comparison condition instead, such as `C.Increased`, `C.Decreased`, `C.CrossedAbove`, or `C.CrossedBelow`, covered below.
 
 ### Set membership: `C.IsIn`
 
@@ -144,7 +144,7 @@ Conditions (`C.*`) do not support these operators. They test extracted values, n
 
 Home Assistant `event.*` entities, such as Zigbee buttons and remotes, store the time of their last event as their state value. When Home Assistant restarts, it restores that state and broadcasts it as a new `state_changed` event. Without a guard, every button automation runs once on each restart, as if someone pressed the button.
 
-The event's own `time_fired` doesn't help here, since a replayed event gets a fresh one. `P.EventEntityFresh` instead compares the timestamp in the entity's new state with that state's `last_changed`, and drops the event when the two are more than `max_age` seconds apart.
+The event's own `time_fired` doesn't help here, since a replayed event gets a fresh one. `P.EventEntityFresh` instead compares the timestamp in the entity's new state with that state's `last_changed`, and drops the event when `last_changed` is more than `max_age` seconds after that timestamp.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_event_entity_fresh.py"
@@ -162,7 +162,7 @@ The guard fails open: a state that isn't a timestamp, such as `unknown` or `unav
 
 A dict passed to `where=` matches keys and values in the service data.
 
-**Literal match.** Every key-value pair must match exactly.
+**Literal match.** Every key-value pair must match. A bool or number literal coerces a string value first. See [Literal coercion](predicate-reference.md#literal-coercion). A string containing glob syntax matches as a glob.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_literal.py"
