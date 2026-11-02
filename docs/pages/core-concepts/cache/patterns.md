@@ -86,14 +86,14 @@ Cache access is a SQLite read. For values read many times per second, loading in
 If values do not survive a restart, check five common causes:
 
 - **Write targets a local variable instead of `self.cache`.** Verify the call is `await self.cache.set("key", value)`, not an assignment to a local dict.
-- **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs — no error, no write, no log message. Every data method on `self.cache` is a coroutine.
+- **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs: no exception and no write. The only signal is a log line containing `RuntimeWarning: coroutine 'AsyncCache.set' was never awaited`. Every data method on `self.cache` is a coroutine.
 - **Exception during initialization.** The app may raise before the write executes. Check `hassette log --app <key>` for errors.
 - **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{app_key}/{instance_name}/cache/` — the Hassette process must own the directory.
-- **Stored value is not picklable.** Unpicklable objects raise at write time: usually `TypeError` (file handles, locks, sockets, generators) or `pickle.PicklingError` (lambdas and other functions pickle cannot reference).
+- **Stored value is not picklable.** Unpicklable objects raise at write time. File handles, locks, sockets, and generators usually raise `TypeError`. Lambdas and other functions pickle cannot reference raise `pickle.PicklingError`, or `AttributeError` for local ones on Python 3.11-3.13.
 
 ### Cache Grows Large
 
-The cache has no size limit — entries persist until deleted, expired, or explicitly cleared. Set a `ttl` on entries that don't need to live forever, and call `await self.cache.clear()` to delete all entries and reclaim disk space (it runs `VACUUM` and truncates the WAL after deleting, so the file actually shrinks). `await self.cache.invalidate(*keys)` deletes a specific set of keys in one call.
+The cache has no size limit, and nothing purges expired entries in the background. An expired entry is removed only when its key is next read. A `ttl` keeps stale values from being returned, but it frees the row only for keys read again. `await self.cache.invalidate(*keys)` deletes keys that are no longer read. `await self.cache.clear()` deletes all entries and reclaims disk space (it runs `VACUUM` and truncates the WAL after deleting, so the file actually shrinks).
 
 The cache directory at `{data_dir}/{app_key}/{instance_name}/cache/` should contain a `cache.db` file after the first successful write.
 
