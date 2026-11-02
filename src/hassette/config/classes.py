@@ -223,7 +223,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
 
     cache_key: str = Field(default="")
     """Override the cache directory key. When empty (default), App.cache_key computes
-    '{app_key}/{index}'. When set, this value is used as-is."""
+    '{app_key}/{instance_name}'. When set, this value is used as-is."""
 
     cache_shared: bool = Field(default=False)
     """Mark this app's resolved cache_key as intentionally shared with other apps. The

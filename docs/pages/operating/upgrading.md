@@ -149,6 +149,18 @@ The old default `ClassName.<index>` isn't a valid name, so a few other things ch
 - **Logger names** are now `hassette.apps.<instance_name>`, with the app's bus, scheduler, and other loggers nested under it. Update `logging` config or log filters that referenced `hassette.MyApp.0` to `hassette.apps.my_app`.
 - **Tests that use [`AppTestHarness`](../testing/harness.md)** must set `instance_name` in the harness `config` too, as in `AppTestHarness(MyApp, config={"instance_name": "my_app"})`. Without one, entering the harness raises `AppConfigurationError`.
 
+## Default Cache Directory
+
+This applies when upgrading from 0.61 or earlier. Hassette used to put an app instance's default cache in `{data_dir}/{app_key}/{index}/cache/`, where `index` is the position of the instance's `config` block. It now uses `{data_dir}/{app_key}/{instance_name}/cache/`, so reordering `config` blocks no longer moves a cache. Hassette doesn't read the old directory, so every default cache starts empty after the upgrade, and the old directories stay on disk.
+
+To keep a cache, stop Hassette and move `{data_dir}/{app_key}/{index}` to `{data_dir}/{app_key}/{instance_name}`. An app with one instance can instead set `cache_key` to the old `{app_key}/0`. Hassette then keeps using the existing directory:
+
+```toml
+--8<-- "pages/operating/snippets/upgrading_cache_key.toml"
+```
+
+Don't use `cache_key` on an app with several instances. An explicit `cache_key` is one value shared by every instance of the app, so they would all write to one cache file and their caches would merge.
+
 ## App Lifecycle Log Lines
 
 This applies when upgrading from 0.59 or earlier. Hassette's lines about an app starting, stopping, and failing used to be written on the app's own logger. They now come from `hassette.apps.<instance_name>.Lifecycle`. That logger follows the app's `framework_log_level`, else `logging.app_handler`, never the app's `log_level`, and its lines are marked `framework`. To keep seeing an app's lifecycle detail at `DEBUG`, set `framework_log_level = "DEBUG"` in that app's `config`, or `logging.app_handler = "DEBUG"` for every app. [Per-App Log Levels](log-levels.md#per-app-log-levels) has the full breakdown.

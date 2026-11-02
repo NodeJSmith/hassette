@@ -301,7 +301,7 @@
         },
         "cache_key": {
           "default": "",
-          "description": "Override the cache directory key. When empty (default), App.cache_key computes\n'{app_key}/{index}'. When set, this value is used as-is.",
+          "description": "Override the cache directory key. When empty (default), App.cache_key computes\n'{app_key}/{instance_name}'. When set, this value is used as-is.",
           "title": "Cache Key",
           "type": "string"
         },
