@@ -38,19 +38,16 @@ APP_STOP_PATH = "/api/apps/my_app/stop"
 APP_RELOAD_PATH = "/api/apps/my_app/reload"
 BUS_LISTENERS_PATH = "/api/bus/listeners"
 OPENAPI_PATH = "/api/openapi.json"
+INSTANCES_WITH_ORPHAN = {"instance_0": MagicMock(), "instance_2": MagicMock()}
 
 
 def app_action_path(app_key: str, action: str) -> str:
-    """Build a full-app-key action URL — single source of truth so a route rename only needs
-    to change here.
-    """
+    """Build a full-app-key action URL, the one place a route rename changes."""
     return f"/api/apps/{app_key}/{action}"
 
 
 def instance_action_path(app_key: str, index: int, action: str) -> str:
-    """Build a per-instance action URL — single source of truth so a route rename only needs
-    to change here.
-    """
+    """Build a per-instance action URL, the one place a route rename changes."""
     return f"/api/apps/{app_key}/instances/{index}/{action}"
 
 
@@ -470,10 +467,7 @@ class TestAppInstanceEndpoints:
         now sits outside the config.
         """
         self._seed_manifest(mock_hassette, instance_count=1)
-        mock_hassette._app_handler.registry.get_instances.return_value = {
-            "instance_0": MagicMock(),
-            "instance_2": MagicMock(),
-        }
+        mock_hassette._app_handler.registry.get_instances.return_value = INSTANCES_WITH_ORPHAN
 
         response = await client.post(instance_action_path("my_app", 2, "stop"))
 
@@ -489,10 +483,7 @@ class TestAppInstanceEndpoints:
         admitting them would swap a clear 404 for a 500.
         """
         self._seed_manifest(mock_hassette, instance_count=1)
-        mock_hassette._app_handler.registry.get_instances.return_value = {
-            "instance_0": MagicMock(),
-            "instance_2": MagicMock(),
-        }
+        mock_hassette._app_handler.registry.get_instances.return_value = INSTANCES_WITH_ORPHAN
 
         response = await client.post(instance_action_path("my_app", 2, action))
 
