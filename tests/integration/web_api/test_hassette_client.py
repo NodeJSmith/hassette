@@ -123,6 +123,15 @@ async def test_unknown_app_raises_app_not_found(session: aiohttp.ClientSession, 
     assert exc_info.value.code == ProblemCode.APP_NOT_FOUND
 
 
+async def test_app_health_of_unknown_app_raises_app_not_found(
+    session: aiohttp.ClientSession, server_url, mock_hassette
+) -> None:
+    mock_hassette.telemetry_query_service.get_app_manifest.return_value = None
+
+    with pytest.raises(AppNotFoundError):
+        await HassetteClient(session, server_url).get_app_health("no_such_app")
+
+
 async def test_degraded_telemetry_raises_telemetry_unavailable(
     session: aiohttp.ClientSession, server_url: str, mock_hassette
 ) -> None:

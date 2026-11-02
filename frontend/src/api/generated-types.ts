@@ -464,6 +464,10 @@ export interface paths {
         /**
          * App Health
          * @description Health strip metrics for a single app instance.
+         *
+         *     Zero invocations classify as healthy, so an unknown ``app_key`` answers ``app_not_found`` rather
+         *     than a false green light. Existence is read from the ``app_manifests`` DB table, the same spine
+         *     the app grid lists. Framework keys report framework telemetry and never have a manifest row.
          */
         get: operations["app_health_api_telemetry_app__app_key__health_get"];
         put?: never;
@@ -3267,6 +3271,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppHealth"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
             /** @description Validation Error */

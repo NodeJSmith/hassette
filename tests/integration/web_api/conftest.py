@@ -159,6 +159,12 @@ def stub_spa(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return spa_dir
 
 
+@pytest.fixture
+def known_app(mock_hassette) -> None:
+    """Give `my_app` an `app_manifests` row, which routes that reject an unknown key look up."""
+    mock_hassette.telemetry_query_service.get_app_manifest.return_value = make_manifest_db_row("my_app")
+
+
 async def get_json(client: AsyncClient, url: str, *, expect_status: int = 200) -> Any:
     """GET `url`, assert the response status, and return the decoded JSON body.
 

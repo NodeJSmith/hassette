@@ -1509,7 +1509,7 @@
           "telemetry"
         ],
         "summary": "App Health",
-        "description": "Health strip metrics for a single app instance.",
+        "description": "Health strip metrics for a single app instance.\n\nZero invocations classify as healthy, so an unknown ``app_key`` answers ``app_not_found`` rather\nthan a false green light. Existence is read from the ``app_manifests`` DB table, the same spine\nthe app grid lists. Framework keys report framework telemetry and never have a manifest row.",
         "operationId": "app_health_api_telemetry_app__app_key__health_get",
         "parameters": [
           {
@@ -1577,6 +1577,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AppHealth"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
