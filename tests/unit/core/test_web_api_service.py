@@ -17,6 +17,7 @@ from hassette.core.core import Hassette
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.web_api_service import WebApiService
 from hassette.exceptions import FatalError
+from hassette.task_bucket import make_task_factory
 from hassette.web.auth.tokens import TOKEN_FILENAME
 from hassette.web.auth.trusted_proxies import EMPTY_TRUSTED_PROXY_SET
 from tests.conftest import TestConfig as HassetteTestConfig  # aliased so pytest does not collect it
@@ -59,6 +60,22 @@ def patch_uvicorn_serve() -> Iterator[tuple[MagicMock, MagicMock]]:
         patch("hassette.core.web_api_service._ShieldedStartupServer", return_value=mock_server),
     ):
         yield mock_uvicorn, mock_server
+
+
+@contextmanager
+def gated_uvicorn_startup() -> Iterator[tuple[asyncio.Event, asyncio.Event]]:
+    """Hold uvicorn's real startup until released. Yields (startup_entered, release_startup)."""
+    real_startup = uvicorn.Server.startup
+    startup_entered = asyncio.Event()
+    release_startup = asyncio.Event()
+
+    async def gated_startup(server: uvicorn.Server, sockets: list[socket.socket] | None = None) -> None:
+        startup_entered.set()
+        await release_startup.wait()
+        await real_startup(server, sockets=sockets)
+
+    with patch.object(uvicorn.Server, "startup", gated_startup):
+        yield startup_entered, release_startup
 
 
 def port_is_bound(port: int) -> bool:
@@ -160,16 +177,8 @@ class TestCancelDuringStartup:
     ) -> None:
         """A second cancel must not end serve() while startup can still bind with nobody left to close it."""
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
-        real_startup = uvicorn.Server.startup
-        startup_entered = asyncio.Event()
-        release_startup = asyncio.Event()
 
-        async def gated_startup(server: uvicorn.Server, sockets: list[socket.socket] | None = None) -> None:
-            startup_entered.set()
-            await release_startup.wait()
-            await real_startup(server, sockets=sockets)
-
-        with patch.object(uvicorn.Server, "startup", gated_startup):
+        with gated_uvicorn_startup() as (startup_entered, release_startup):
             serve_task = asyncio.create_task(service.serve())
             await startup_entered.wait()
 
@@ -183,6 +192,49 @@ class TestCancelDuringStartup:
             with pytest.raises(asyncio.CancelledError):
                 await serve_task
 
+        assert not port_is_bound(service.port)
+
+    async def test_startup_outlasting_shutdown_hooks_still_releases_port(
+        self, unused_tcp_port_factory, tmp_path
+    ) -> None:
+        """Startup can finish after on_shutdown cleared the service's server reference; the port is still released."""
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+
+        with gated_uvicorn_startup() as (startup_entered, release_startup):
+            serve_task = asyncio.create_task(service.serve())
+            await startup_entered.wait()
+
+            serve_task.cancel()
+            await asyncio.sleep(0)
+            await service.on_shutdown()
+
+            release_startup.set()
+            with pytest.raises(asyncio.CancelledError):
+                await serve_task
+
+        assert not port_is_bound(service.port)
+
+    async def test_bucket_cancel_ends_a_hung_startup(self, unused_tcp_port_factory, tmp_path) -> None:
+        """The startup task joins the service's bucket, so the bucket's cancel stage ends a hung startup."""
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+        loop = asyncio.get_running_loop()
+        previous_factory = loop.get_task_factory()
+        loop.set_task_factory(make_task_factory(service.task_bucket))
+        try:
+            with gated_uvicorn_startup() as (startup_entered, _never_released):
+                serve_task = asyncio.create_task(service.serve())
+                await startup_entered.wait()
+
+                serve_task.cancel()
+                await asyncio.sleep(0)
+                assert not serve_task.done()
+
+                pending = await service.task_bucket.cancel_all(timeout=1)
+        finally:
+            loop.set_task_factory(previous_factory)
+
+        assert pending == ()
+        assert serve_task.cancelled()
         assert not port_is_bound(service.port)
 
 
