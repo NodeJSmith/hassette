@@ -4,8 +4,10 @@ Contains clause-builders and row converters used across registration_queries,
 execution_queries, and summary_queries.
 """
 
+import asyncio
+import contextlib
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Coroutine, Iterable
 from contextlib import AbstractAsyncContextManager
 from typing import Any, assert_never
 
@@ -92,6 +94,18 @@ __all__ = [
 def row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
     """Convert an aiosqlite Row to a plain dict."""
     return dict(zip(row.keys(), tuple(row), strict=False))
+
+
+async def run_read_cleanup(cleanup: Coroutine[Any, Any, Any], deadline: asyncio.Timeout) -> None:
+    """Run a read's cleanup statement inside the read's own timeout.
+
+    Once ``deadline`` has expired the worker thread may be stuck on a stalled statement, so the cleanup
+    is only queued, not waited for. The worker runs its queue in order and a cancelled waiter doesn't
+    dequeue, so anything queued after this call still runs after the cleanup.
+    """
+    with contextlib.suppress(TimeoutError):
+        async with asyncio.timeout(0 if deadline.expired() else None):
+            await cleanup
 
 
 async def fetch_all_as_dicts(execute_cm: AbstractAsyncContextManager[aiosqlite.Cursor]) -> list[dict[str, Any]]:

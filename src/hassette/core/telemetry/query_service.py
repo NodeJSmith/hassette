@@ -11,7 +11,7 @@ from hassette_wire import LogLevel
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.blocking_queries import BlockingQueriesMixin
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
-from hassette.core.telemetry.helpers import STORAGE_ERRORS, fetch_all_as_dicts, row_to_dict
+from hassette.core.telemetry.helpers import STORAGE_ERRORS, fetch_all_as_dicts, row_to_dict, run_read_cleanup
 from hassette.core.telemetry.registration_queries import RegistrationQueriesMixin
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
 from hassette.exceptions import TelemetryUnavailableError
@@ -85,9 +85,12 @@ class TelemetryQueryService(
         so it surfaces as a 500 rather than being mistaken for a closed-connection storage error.
         """
         try:
-            async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds):
-                async with self._db.execute(query, params) as cursor:
+            async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds) as deadline:
+                cursor = await self._db.execute(query, params)
+                try:
                     yield cursor
+                finally:
+                    await run_read_cleanup(cursor.close(), deadline)
         except STORAGE_ERRORS as exc:
             raise TelemetryUnavailableError(str(exc)) from exc
 

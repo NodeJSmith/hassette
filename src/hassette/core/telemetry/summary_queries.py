@@ -14,6 +14,7 @@ from hassette.core.telemetry.helpers import (
     fetch_all_as_dicts,
     log_record_filter_clauses,
     row_to_dict,
+    run_read_cleanup,
     since_clause,
     source_tier_clause,
 )
@@ -165,7 +166,10 @@ class SummaryQueriesMixin:
         """
         results: list[Iterable[aiosqlite.Row]] = []
         try:
-            async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds), self._snapshot_lock:
+            async with (
+                asyncio.timeout(self.hassette.config.database.read_timeout_seconds) as deadline,
+                self._snapshot_lock,
+            ):
                 try:
                     await self._db.execute("BEGIN DEFERRED")
                     for query, params in queries:
@@ -175,7 +179,7 @@ class SummaryQueriesMixin:
                     # Always discard the read snapshot. Suppress broadly so a ROLLBACK failure
                     # (e.g. no transaction is open) can never mask an exception from the queries.
                     with contextlib.suppress(Exception):
-                        await self._db.execute("ROLLBACK")
+                        await run_read_cleanup(self._db.execute("ROLLBACK"), deadline)
         except STORAGE_ERRORS as exc:
             raise TelemetryUnavailableError(str(exc)) from exc
         return results
