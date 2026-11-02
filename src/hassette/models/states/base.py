@@ -5,7 +5,7 @@ from logging import getLogger
 from typing import Any, ClassVar, Generic, get_args
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
-from whenever import Date, PlainDateTime, Time, TimeDelta, ZonedDateTime
+from whenever import Time, TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.exceptions import NoDomainAnnotationError
@@ -246,13 +246,13 @@ class StringBaseState(BaseState[str | None]):
     value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (str, type(None))
 
 
-class DateTimeBaseState(BaseState[ZonedDateTime | PlainDateTime | Date | None]):
+class DateTimeBaseState(BaseState[ZonedDateTime | None]):
     """Base class for datetime states.
 
-    Valid state values are ZonedDateTime, PlainDateTime, Date, or None.
+    Valid state values are ZonedDateTime or None.
     """
 
-    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (ZonedDateTime, PlainDateTime, Date, type(None))
+    value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (ZonedDateTime, type(None))
 
 
 class TimeBaseState(BaseState[Time | None]):

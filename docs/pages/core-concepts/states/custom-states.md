@@ -46,11 +46,15 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 [`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] declares a datetime `value_type`. The conversion pipeline parses the raw state string into a [`whenever`](https://whenever.readthedocs.io/) datetime type (`from whenever import ZonedDateTime` — Hassette's date/time library). Every string format Home Assistant sends (offset-aware, naive, or date-only) becomes a `ZonedDateTime`; naive and date-only strings assume the configured timezone.
 
-The `value` annotation is `ZonedDateTime | PlainDateTime | Date | None`, but converted states only hold `ZonedDateTime` or `None`. An `isinstance(state.value, ZonedDateTime)` check narrows the type for the type checker.
+The `value` annotation is `ZonedDateTime | None`. A `None` value means the entity is unknown or unavailable.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/datetime_base_state.py"
 ```
+
+Direct `model_validate()` calls skip the conversion pipeline, and so does a `BaseEntity` validating its nested state. Those paths accept only `None`, a `ZonedDateTime`, or a string with an IANA timezone, such as `2026-10-01T08:00:00-05:00[America/Chicago]`. Offset-aware, naive, and date-only strings raise `ValidationError` there. [`StateRegistry.try_convert_state()`](conversion.md#the-conversion-pipeline) converts a raw state dict holding those strings.
+
+`PlainDateTime` and `Date` objects fail on every path, including the pipeline. Converting them to `ZonedDateTime` first avoids the failure; `PlainDateTime.assume_tz()` does this for a known timezone.
 
 ### `TimeBaseState`: `Time` value
 
