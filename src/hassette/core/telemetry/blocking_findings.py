@@ -44,8 +44,8 @@ class _FindingBuilder:
     last_seen_ts: float
     latest_stack: list[StackFrame]
     handlers: dict[tuple[str, int], BlockingHandlerRef] = field(default_factory=dict)
-    instances: dict[str | int, BlockingInstanceRef] = field(default_factory=dict)
-    """One ref per instance: keyed by name, or by index for an older row stored without one."""
+    instances: dict[str | None, BlockingInstanceRef] = field(default_factory=dict)
+    """One ref per instance name; the ``None`` key merges older rows stored without one."""
     event_count: int = 0
     max_stall_ms: float | None = None
     stall_sum_ms: float = 0.0
@@ -63,8 +63,8 @@ class _FindingBuilder:
         handler = handler_ref(group)
         if handler is not None:
             self.handlers.setdefault((handler.kind, handler.id), handler)
-        index, name = group["instance_index"], group["instance_name"]
-        self.instances.setdefault(name if name is not None else index, BlockingInstanceRef(index=index, name=name))
+        name = group["instance_name"]
+        self.instances.setdefault(name, BlockingInstanceRef(name=name))
 
     def build(self) -> BlockingFinding:
         return BlockingFinding(
@@ -76,7 +76,7 @@ class _FindingBuilder:
             callee=self.callee,
             primitive=self.primitive,
             handlers=list(self.handlers.values()),
-            instances=sorted(self.instances.values(), key=lambda inst: inst.index),
+            instances=sorted(self.instances.values(), key=lambda inst: (inst.name is None, inst.name or "")),
             event_count=self.event_count,
             max_stall_ms=self.max_stall_ms,
             avg_stall_ms=self.stall_sum_ms / self.stall_count if self.stall_count else None,
@@ -93,7 +93,7 @@ def handler_ref(row: Mapping[str, Any]) -> BlockingHandlerRef | None:
             id=row["listener_id"],
             name=row["listener_name"],
             handler_method=row["listener_method"],
-            instance_index=row["instance_index"],
+            instance_name=row["instance_name"],
         )
     if row["job_id"] is not None and row["job_name"] is not None:
         return BlockingHandlerRef(
@@ -101,7 +101,7 @@ def handler_ref(row: Mapping[str, Any]) -> BlockingHandlerRef | None:
             id=row["job_id"],
             name=row["job_name"],
             handler_method=row["job_method"],
-            instance_index=row["instance_index"],
+            instance_name=row["instance_name"],
         )
     return None
 

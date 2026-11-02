@@ -121,14 +121,10 @@ hassette log --app motion_lights --limit 30
 
 ### Multi-Instance Apps
 
-When an app runs as multiple instances (one per room, for example — declared in `hassette.toml`, see [App Configuration](../core-concepts/apps/configuration.md)), add `--instance` to filter further. Use the instance name or its zero-based index:
+When an app runs as multiple instances (one per room, for example — declared in `hassette.toml`, see [App Configuration](../core-concepts/apps/configuration.md)), add `--instance` with the instance name to filter further:
 
 ```bash
-# By name
 hassette listener --app remote_control --instance office
-
-# By index
-hassette listener --app remote_control --instance 0
 ```
 
 `--instance` needs an app: `--app` on `listener` and `job`, or the app key on `app health` and `app activity`. The `log` command does not support `--instance`.

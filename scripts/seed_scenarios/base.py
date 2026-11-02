@@ -78,7 +78,6 @@ _BLOCKING_EVENT_COLUMNS = (
     "session_id",
     "app_key",
     "instance_name",
-    "instance_index",
     "execution_id",
     "tier",
     "primitive",
@@ -104,9 +103,9 @@ def make_execution_id(scenario: str, app_key: str, index: int) -> str:
     return f"{scenario}_{app_key}_{index:04d}"
 
 
-def make_instance_name(class_name: str, instance_index: int) -> str:
-    """Build a seeded instance name. Telemetry rows store it as an opaque string, never parsed as config."""
-    return f"{class_name}.{instance_index}"
+def make_instance_name(class_name: str, ordinal: int) -> str:
+    """Name a class's ``ordinal``-th seeded instance. Rows store it as an opaque string, never parsed as config."""
+    return f"{class_name}.{ordinal}"
 
 
 def _quote_column(name: str) -> str:
@@ -177,11 +176,11 @@ class SeedContext:
     class_names: dict[str, str] = field(default_factory=dict)
     """Class name of each app key added so far, for ``instance_name_of``."""
 
-    def instance_name_of(self, app_key: str, instance_index: int) -> str | None:
+    def instance_name_of(self, app_key: str, ordinal: int) -> str | None:
         """The name a seeded registration stores; ``None`` for a framework key, which has no instance name."""
         if is_framework_key(app_key):
             return None
-        return make_instance_name(self.class_names[app_key], instance_index)
+        return make_instance_name(self.class_names[app_key], ordinal)
 
     def add_session(
         self,
@@ -309,7 +308,6 @@ class SeedContext:
         exc_info: str | None = None,
         app_key: str | None = None,
         instance_name: str | None = None,
-        instance_index: int | None = None,
         execution_id: str | None = None,
         author: LogAuthor,
     ) -> None:
@@ -325,7 +323,6 @@ class SeedContext:
             "exc_info": exc_info,
             "app_key": app_key,
             "instance_name": instance_name,
-            "instance_index": instance_index,
             "execution_id": execution_id,
             "author": author,
         }
@@ -340,7 +337,6 @@ class SeedContext:
         session_id: int | None = None,
         app_key: str | None = None,
         instance_name: str | None = None,
-        instance_index: int | None = None,
         execution_id: str | None = None,
         primitive: str | None = None,
         source_location: str | None = None,
@@ -356,7 +352,6 @@ class SeedContext:
             "session_id": session_id,
             "app_key": app_key,
             "instance_name": instance_name,
-            "instance_index": instance_index,
             "execution_id": execution_id,
             "tier": tier,
             "primitive": primitive,
@@ -468,7 +463,7 @@ def seed_log_records(
     app_key: str,
     class_name: str,
     base_offset: float,
-    instance_index: int = 0,
+    instance_ordinal: int = 0,
     interval_seconds: float = 60.0,
     level: LogLevel = "INFO",
     message_prefix: str = "log entry",
@@ -477,11 +472,11 @@ def seed_log_records(
     """Insert ``count`` log records at ``interval_seconds`` spacing. Returns the next unused
     seq value so callers can thread a running counter across multiple calls within a scenario.
 
-    The log record's ``instance_name`` is computed internally from ``class_name``/``instance_index``
+    The log record's ``instance_name`` is computed internally from ``class_name``/``instance_ordinal``
     rather than accepted as a parameter, since every caller was building it the same way.
     """
     logger_name = logger_name or f"hassette.apps.{app_key}"
-    instance_name = make_instance_name(class_name, instance_index)
+    instance_name = make_instance_name(class_name, instance_ordinal)
     for i in range(count):
         seq = start_seq + i
         ctx.add_log_record(
@@ -492,7 +487,6 @@ def seed_log_records(
             message=f"{message_prefix} #{i + 1}",
             app_key=app_key,
             instance_name=instance_name,
-            instance_index=instance_index,
             author="app",
         )
     return start_seq + count
@@ -576,22 +570,21 @@ def seed_listener(
     ctx: SeedContext,
     *,
     app_key: str,
-    instance_index: int = 0,
+    instance_ordinal: int = 0,
     retired_at: float | None = None,
     removed_at: float | None = None,
     **kwargs: Any,
 ) -> int:
     """Insert a listener via ``make_listener_registration``, forwarding scenario-specific fields.
 
-    Every scenario call site shares the ``app_key``/``instance_index`` shape; only
+    Every scenario call site shares the ``app_key``/``instance_ordinal`` shape; only
     ``handler_method``/``topic``/``name``/``source_location`` (and occasionally
     ``predicate_description``/``human_description``) vary per listener.
     """
     return ctx.add_listener(
         make_listener_registration(
             app_key=app_key,
-            instance_index=instance_index,
-            instance_name=ctx.instance_name_of(app_key, instance_index),
+            instance_name=ctx.instance_name_of(app_key, instance_ordinal),
             **kwargs,
         ),
         retired_at=retired_at,
@@ -603,7 +596,7 @@ def seed_job(
     ctx: SeedContext,
     *,
     app_key: str,
-    instance_index: int = 0,
+    instance_ordinal: int = 0,
     retired_at: float | None = None,
     removed_at: float | None = None,
     **kwargs: Any,
@@ -612,8 +605,7 @@ def seed_job(
     return ctx.add_job(
         make_job_registration(
             app_key=app_key,
-            instance_index=instance_index,
-            instance_name=ctx.instance_name_of(app_key, instance_index),
+            instance_name=ctx.instance_name_of(app_key, instance_ordinal),
             **kwargs,
         ),
         retired_at=retired_at,
@@ -629,7 +621,7 @@ def seed_app_blocking_event(
     class_name: str,
     detected_ts: float,
     stall_duration_ms: float,
-    instance_index: int = 0,
+    instance_ordinal: int = 0,
     tier: str = WATCHDOG_TIER,
     reason: str = REASON_ATTRIBUTED,
 ) -> None:
@@ -644,8 +636,7 @@ def seed_app_blocking_event(
         reason=reason,
         session_id=session_id,
         app_key=app_key,
-        instance_name=make_instance_name(class_name, instance_index),
-        instance_index=instance_index,
+        instance_name=make_instance_name(class_name, instance_ordinal),
         detected_ts=detected_ts,
         source_tier="app",
         stall_duration_ms=stall_duration_ms,

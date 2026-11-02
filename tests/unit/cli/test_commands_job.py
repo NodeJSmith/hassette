@@ -48,13 +48,13 @@ class TestCmdJob:
 
         assert any(MY_APP_JOBS_ENDPOINT in p for p in spy.paths)
 
-    def test_app_and_instance_passes_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
-        """Job --app my-app --instance 0 passes instance_index=0 as a query param."""
-        job = make_job_summary(app_key="my-app", instance_index=0)
+    def test_app_and_instance_passes_instance_name(self, cli_client_factory: CLIClientFactory) -> None:
+        """Job --app my-app --instance office passes instance_name=office as a query param."""
+        job = make_job_summary(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", MY_APP_JOBS_ENDPOINT, 200, [job.model_dump()])])
-        spy = runner.spy(client, cmd_job, app="my-app", instance="0")
+        spy = runner.spy(client, cmd_job, app="my-app", instance="office")
 
-        assert spy.params_for("jobs")["instance_index"] == 0
+        assert spy.params_for("jobs")["instance_name"] == "office"
 
     def test_instance_without_app_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Job --instance 0 (without --app) exits non-zero with usage error."""

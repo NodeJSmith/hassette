@@ -182,7 +182,6 @@ def scenario_adversarial(ctx: SeedContext) -> None:
         session_id=None,
         app_key=None,
         instance_name=None,
-        instance_index=None,
         primitive="time.sleep",
         source_location="hassette/core/executor.py:88",
         detected_ts=ts(base + 600.0),

@@ -46,22 +46,19 @@ def app_action_path(app_key: str, action: str) -> str:
     return f"/api/apps/{app_key}/{action}"
 
 
-def instance_action_path(app_key: str, index: int, action: str) -> str:
+def instance_action_path(app_key: str, instance_name: str, action: str) -> str:
     """Build a per-instance action URL, the one place a route rename changes."""
-    return f"/api/apps/{app_key}/instances/{index}/{action}"
+    return f"/api/apps/{app_key}/instances/{instance_name}/{action}"
 
 
 def outcome(
-    index: int,
     name: str,
     result: OutcomeResult = OutcomeResult.SUCCEEDED,
     reason: str | None = None,
     needs_restart: bool = False,
 ) -> InstanceOutcome:
     """One instance's outcome, as a mocked ``AppHandler`` action returns it."""
-    return InstanceOutcome(
-        instance_index=index, instance_name=name, result=result, needs_restart=needs_restart, reason=reason
-    )
+    return InstanceOutcome(instance_name=name, result=result, needs_restart=needs_restart, reason=reason)
 
 
 class TestHealthEndpoints:
@@ -154,7 +151,7 @@ class TestAppEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["action"] == "start"
-        assert data["instance_index"] is None
+        assert data["instance_name"] is None
 
     async def test_start_app_returns_retryable_conflict_before_release(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -232,7 +229,7 @@ class TestAppEndpoints:
     ) -> None:
         """Any failed instance makes the action a 500 whose body lists every instance's outcome."""
         mock_hassette.app_handler.start_app = AsyncMock(
-            return_value=(outcome(0, "kitchen"), outcome(1, "hall", OutcomeResult.FAILED, "on_initialize blew up"))
+            return_value=(outcome("kitchen"), outcome("hall", OutcomeResult.FAILED, "on_initialize blew up"))
         )
 
         response = await client.post(APP_START_PATH)
@@ -241,14 +238,17 @@ class TestAppEndpoints:
         body = response.json()
         assert body["code"] == "action_failed"
         assert body["detail"] == "Started 1 of 2 instances of app 'my_app'; 'hall' failed: on_initialize blew up"
-        assert [(o["instance_index"], o["result"]) for o in body["outcomes"]] == [(0, "succeeded"), (1, "failed")]
+        assert [(o["instance_name"], o["result"]) for o in body["outcomes"]] == [
+            ("kitchen", "succeeded"),
+            ("hall", "failed"),
+        ]
 
     async def test_refused_instance_returns_409_needs_restart(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """A refusal with no failure answers 409 ``needs_restart``; the refused entry carries the flag."""
-        refused = outcome(1, "hall", OutcomeResult.REFUSED, "needs a hassette restart (flagged at 12:00: hung)", True)
-        mock_hassette.app_handler.stop_app = AsyncMock(return_value=(outcome(0, "kitchen"), refused))
+        refused = outcome("hall", OutcomeResult.REFUSED, "needs a hassette restart (flagged at 12:00: hung)", True)
+        mock_hassette.app_handler.stop_app = AsyncMock(return_value=(outcome("kitchen"), refused))
 
         response = await client.post(APP_STOP_PATH)
 
@@ -264,8 +264,8 @@ class TestAppEndpoints:
         """Worst outcome wins: a failure and a refusal together answer 500, not 409."""
         mock_hassette.app_handler.reload_app = AsyncMock(
             return_value=(
-                outcome(0, "kitchen", OutcomeResult.REFUSED, "needs a hassette restart", True),
-                outcome(1, "hall", OutcomeResult.FAILED, "stop timed out", True),
+                outcome("kitchen", OutcomeResult.REFUSED, "needs a hassette restart", True),
+                outcome("hall", OutcomeResult.FAILED, "stop timed out", True),
             )
         )
 
@@ -277,7 +277,7 @@ class TestAppEndpoints:
     async def test_success_body_lists_outcomes_with_reasons(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        mock_hassette.app_handler.start_app = AsyncMock(return_value=(outcome(0, "kitchen", reason="already running"),))
+        mock_hassette.app_handler.start_app = AsyncMock(return_value=(outcome("kitchen", reason="already running"),))
 
         response = await client.post(APP_START_PATH)
 
@@ -287,7 +287,6 @@ class TestAppEndpoints:
         assert "status" not in data
         assert data["outcomes"] == [
             {
-                "instance_index": 0,
                 "instance_name": "kitchen",
                 "result": "succeeded",
                 "needs_restart": False,
@@ -300,7 +299,7 @@ class TestAppEndpoints:
     ) -> None:
         """A reload of a ``--app``-blocked app has already stopped it, so the 409 body says so."""
         mock_hassette.app_handler.reload_app = AsyncMock(
-            side_effect=AppBlockedError("blocked", outcomes=(outcome(0, "kitchen"),))
+            side_effect=AppBlockedError("blocked", outcomes=(outcome("kitchen"),))
         )
 
         response = await client.post(APP_RELOAD_PATH)
@@ -313,7 +312,7 @@ class TestAppEndpoints:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         mock_hassette.app_handler.reload_app = AsyncMock(
-            side_effect=AppRemovedError("gone", outcomes=(outcome(0, "kitchen"),))
+            side_effect=AppRemovedError("gone", outcomes=(outcome("kitchen"),))
         )
 
         response = await client.post(APP_RELOAD_PATH)
@@ -334,45 +333,45 @@ class TestAppEndpoints:
 
 
 class TestAppInstanceEndpoints:
-    """Per-instance HTTP endpoints: POST /apps/{app_key}/instances/{index}/start|stop|reload (#796)."""
+    """Per-instance HTTP endpoints: POST /apps/{app_key}/instances/{instance_name}/start|stop|reload (#796)."""
 
     def _seed_manifest(self, mock_hassette: MagicMock, instance_count: int = 2) -> None:
         """Wire a manifest mock with ``instance_count`` app_config entries onto the registry."""
         mock_hassette._app_handler.registry.get_manifest.return_value = make_manifest_mock(
-            app_config=[{"instance_name": f"inst_{i}"} for i in range(instance_count)]
+            app_config=[{"instance_name": f"instance_{i}"} for i in range(instance_count)]
         )
 
     async def test_start_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         self._seed_manifest(mock_hassette)
 
-        response = await client.post(instance_action_path("my_app", 0, "start"))
+        response = await client.post(instance_action_path("my_app", "instance_0", "start"))
 
         assert response.status_code == 200
         data = response.json()
         assert data["action"] == "start"
-        assert data["instance_index"] == 0
+        assert data["instance_name"] == "instance_0"
         mock_hassette.app_handler.start_instance.assert_awaited_once_with("my_app", "instance_0")
 
     async def test_stop_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         self._seed_manifest(mock_hassette)
 
-        response = await client.post(instance_action_path("my_app", 1, "stop"))
+        response = await client.post(instance_action_path("my_app", "instance_1", "stop"))
 
         assert response.status_code == 200
         data = response.json()
         assert data["action"] == "stop"
-        assert data["instance_index"] == 1
+        assert data["instance_name"] == "instance_1"
         mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", "instance_1")
 
     async def test_reload_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         self._seed_manifest(mock_hassette)
 
-        response = await client.post(instance_action_path("my_app", 0, "reload"))
+        response = await client.post(instance_action_path("my_app", "instance_0", "reload"))
 
         assert response.status_code == 200
         data = response.json()
         assert data["action"] == "reload"
-        assert data["instance_index"] == 0
+        assert data["instance_name"] == "instance_0"
         mock_hassette.app_handler.reload_instance.assert_awaited_once_with("my_app", "instance_0", force_reload=True)
 
     async def test_failed_instance_detail_names_only_that_instance(
@@ -381,10 +380,10 @@ class TestAppInstanceEndpoints:
         """A single-target action has no "N of M" count in its detail."""
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.reload_instance = AsyncMock(
-            return_value=(outcome(0, "inst_0", OutcomeResult.FAILED, "instance reload blew up"),)
+            return_value=(outcome("inst_0", OutcomeResult.FAILED, "instance reload blew up"),)
         )
 
-        response = await client.post(instance_action_path("my_app", 0, "reload"))
+        response = await client.post(instance_action_path("my_app", "instance_0", "reload"))
 
         assert response.status_code == 500
         assert response.json()["detail"] == "'inst_0' failed: instance reload blew up"
@@ -394,7 +393,7 @@ class TestAppInstanceEndpoints:
     ) -> None:
         self._seed_manifest(mock_hassette, instance_count=1)
 
-        response = await client.post(instance_action_path("my_app", 5, "start"))
+        response = await client.post(instance_action_path("my_app", "instance_5", "start"))
 
         assert response.status_code == 404
 
@@ -403,7 +402,7 @@ class TestAppInstanceEndpoints:
     ) -> None:
         self._seed_manifest(mock_hassette, instance_count=1)
 
-        response = await client.post(instance_action_path("my_app", 5, "stop"))
+        response = await client.post(instance_action_path("my_app", "instance_5", "stop"))
 
         assert response.status_code == 404
 
@@ -412,7 +411,7 @@ class TestAppInstanceEndpoints:
     ) -> None:
         self._seed_manifest(mock_hassette, instance_count=1)
 
-        response = await client.post(instance_action_path("my_app", 5, "reload"))
+        response = await client.post(instance_action_path("my_app", "instance_5", "reload"))
 
         assert response.status_code == 404
 
@@ -422,7 +421,7 @@ class TestAppInstanceEndpoints:
         mock_hassette._app_handler.registry.get_manifest.return_value = None
         mock_hassette._app_handler.registry.get_instances.return_value = {}
 
-        response = await client.post(instance_action_path("unknown_app", 0, "start"))
+        response = await client.post(instance_action_path("unknown_app", "instance_0", "start"))
 
         assert response.status_code == 404
 
@@ -443,7 +442,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette)
         setattr(mock_hassette.app_handler, f"{action}_instance", AsyncMock(side_effect=error))
 
-        response = await client.post(instance_action_path("my_app", 0, action))
+        response = await client.post(instance_action_path("my_app", "instance_0", action))
 
         assert response.status_code == 409
 
@@ -454,7 +453,7 @@ class TestAppInstanceEndpoints:
         mock_hassette._app_handler.registry.get_manifest.return_value = None
         mock_hassette._app_handler.registry.get_instances.return_value = {"instance_0": MagicMock()}
 
-        response = await client.post(instance_action_path("orphan_app", 0, "stop"))
+        response = await client.post(instance_action_path("orphan_app", "instance_0", "stop"))
 
         assert response.status_code == 200
         mock_hassette.app_handler.stop_instance.assert_awaited_once_with("orphan_app", "instance_0")
@@ -469,7 +468,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette, instance_count=1)
         mock_hassette._app_handler.registry.get_instances.return_value = INSTANCES_WITH_ORPHAN
 
-        response = await client.post(instance_action_path("my_app", 2, "stop"))
+        response = await client.post(instance_action_path("my_app", "instance_2", "stop"))
 
         assert response.status_code == 200
         mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", "instance_2")
@@ -485,7 +484,7 @@ class TestAppInstanceEndpoints:
         self._seed_manifest(mock_hassette, instance_count=1)
         mock_hassette._app_handler.registry.get_instances.return_value = INSTANCES_WITH_ORPHAN
 
-        response = await client.post(instance_action_path("my_app", 2, action))
+        response = await client.post(instance_action_path("my_app", "instance_2", action))
 
         assert response.status_code == 404
 
@@ -504,8 +503,8 @@ class TestAppInstanceEndpoints:
     @pytest.mark.parametrize(
         "path",
         [
-            instance_action_path("orphan_app", 0, "start"),
-            instance_action_path("orphan_app", 0, "reload"),
+            instance_action_path("orphan_app", "instance_0", "start"),
+            instance_action_path("orphan_app", "instance_0", "reload"),
             app_action_path("orphan_app", "start"),
             app_action_path("orphan_app", "reload"),
         ],
@@ -772,8 +771,8 @@ class TestOpenApiDocs:
         data = response.json()
         assert data["info"]["title"] == "Hassette Web API"
 
-    async def test_instance_index_has_description_on_telemetry_health(self, client: "AsyncClient") -> None:
-        """instance_index parameter on telemetry app health route has a description."""
+    async def test_instance_name_has_description_on_telemetry_health(self, client: "AsyncClient") -> None:
+        """instance_name parameter on telemetry app health route has a description."""
         response = await client.get(OPENAPI_PATH)
         spec = response.json()
         paths = spec.get("paths", {})
@@ -781,17 +780,17 @@ class TestOpenApiDocs:
         health_path = "/api/telemetry/app/{app_key}/health"
         assert health_path in paths, f"health route missing; got {list(paths)}"
         params = paths[health_path]["get"].get("parameters", [])
-        instance_params = [p for p in params if p.get("name") == "instance_index"]
-        assert instance_params, "instance_index parameter must be present on health route"
-        assert instance_params[0].get("description"), "instance_index must have a non-empty description"
+        instance_params = [p for p in params if p.get("name") == "instance_name"]
+        assert instance_params, "instance_name parameter must be present on health route"
+        assert instance_params[0].get("description"), "instance_name must have a non-empty description"
 
-    async def test_instance_index_has_description_on_bus_listeners(self, client: "AsyncClient") -> None:
-        """instance_index parameter on bus listeners route has a description."""
+    async def test_instance_name_has_description_on_bus_listeners(self, client: "AsyncClient") -> None:
+        """instance_name parameter on bus listeners route has a description."""
         response = await client.get(OPENAPI_PATH)
         spec = response.json()
         paths = spec.get("paths", {})
         assert BUS_LISTENERS_PATH in paths
         params = paths[BUS_LISTENERS_PATH]["get"].get("parameters", [])
-        instance_params = [p for p in params if p.get("name") == "instance_index"]
-        assert instance_params, "instance_index parameter must be present on bus/listeners route"
-        assert instance_params[0].get("description"), "instance_index must have a non-empty description"
+        instance_params = [p for p in params if p.get("name") == "instance_name"]
+        assert instance_params, "instance_name parameter must be present on bus/listeners route"
+        assert instance_params[0].get("description"), "instance_name must have a non-empty description"

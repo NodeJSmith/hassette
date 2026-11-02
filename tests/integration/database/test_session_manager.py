@@ -191,8 +191,8 @@ async def test_cleanup_once_listeners_removes_stale_once_listener(
     cursor = await db.execute(
         """
         INSERT INTO listeners
-            (app_key, instance_index, name, handler_method, topic, once, source_location, source_tier)
-        VALUES ('test_app', 0, 'test_once_listener', 'on_event', 'test/topic', 1, 'test.py:1', 'app')
+            (app_key, name, handler_method, topic, once, source_location, source_tier)
+        VALUES ('test_app', 'test_once_listener', 'on_event', 'test/topic', 1, 'test.py:1', 'app')
         """,
     )
     await db.commit()
@@ -301,8 +301,8 @@ async def test_crashed_session_once_listeners_eligible_after_orphan_mark(
     cursor = await db.execute(
         """
         INSERT INTO listeners
-            (app_key, instance_index, name, handler_method, topic, once, source_location, source_tier)
-        VALUES ('test_app', 0, 'crashed_once', 'on_event', 'test/topic', 1, 'test.py:1', 'app')
+            (app_key, name, handler_method, topic, once, source_location, source_tier)
+        VALUES ('test_app', 'crashed_once', 'on_event', 'test/topic', 1, 'test.py:1', 'app')
         """,
     )
     await db.commit()

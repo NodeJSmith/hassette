@@ -58,6 +58,20 @@ describe("HandlerTableRow", () => {
     expect((link as HTMLAnchorElement).href).toContain("/apps/my_app/handlers/listener/1");
   });
 
+  it("shows the instance name in the app cell and carries it onto the handler link", () => {
+    const row = createRow({ app_key: "my_app", id: "listener/1", name: "on_light_change", instance_name: "office" });
+    const { getByTestId, getByRole } = renderTableRow(row);
+    expect(getByTestId("handler-row-instance").textContent).toContain("office");
+    const link = getByRole("link", { name: /on_light_change/ });
+    expect((link as HTMLAnchorElement).href).toContain("/apps/my_app/handlers/listener/1?instance=office");
+  });
+
+  it("shows no instance name for a framework row", () => {
+    const row = createRow({ source_tier: "framework", instance_name: "__hassette__" });
+    const { queryByTestId } = renderTableRow(row);
+    expect(queryByTestId("handler-row-instance")).toBeNull();
+  });
+
   it("name cell has title set to handler_method", () => {
     const row = createRow({ handler_method: "my_app.MyApp.on_light_change" });
     const { container } = renderTableRow(row);
@@ -199,7 +213,17 @@ describe("HandlerMobileRow", () => {
     const row = createRow({ app_key: "my_app", id: "listener/1" });
     const { container } = renderMobileRow(row);
     const anchor = container.querySelector("a");
-    expect(anchor?.getAttribute("href")).toBe("/apps/my_app/handlers/listener/1");
+    expect(anchor?.getAttribute("href")).toBe("/apps/my_app/handlers/listener/1?instance=inst_0");
+  });
+
+  it("shows the instance name beside the app key", () => {
+    const { getByTestId } = renderMobileRow(createRow({ app_key: "my_app", instance_name: "office" }));
+    expect(getByTestId("handler-row-instance").textContent).toContain("office");
+  });
+
+  it("shows no instance name for a framework row", () => {
+    const { queryByTestId } = renderMobileRow(createRow({ source_tier: "framework", instance_name: "__hassette__" }));
+    expect(queryByTestId("handler-row-instance")).toBeNull();
   });
 
   it("shows app_key", () => {

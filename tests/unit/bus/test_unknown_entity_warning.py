@@ -83,7 +83,7 @@ async def test_unknown_entity_without_close_match_omits_suggestion(bus: "Bus", w
 async def test_no_warning(
     bus: "Bus", warning_logger: MagicMock, entity_id: str, states: dict[str, typing.Any], source_tier: str
 ) -> None:
-    bus.parent = make_mock_parent(app_key="test_app", index=0, source_tier=source_tier)  # pyright: ignore[reportArgumentType]
+    bus.parent = make_mock_parent(app_key="test_app", source_tier=source_tier)  # pyright: ignore[reportArgumentType]
     use_cache(bus, states)
 
     with mock_add_listener(bus):

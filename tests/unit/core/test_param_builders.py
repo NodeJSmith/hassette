@@ -51,7 +51,6 @@ def test_job_insert_params_matches_register_job(_migrated_db_template: Path):  #
 
     assert params["repeat"] == 0
     assert params["app_key"] == registration.app_key
-    assert params["instance_index"] == registration.instance_index
     assert params["job_name"] == registration.job_name
     assert params["handler_method"] == registration.handler_method
     assert params["trigger_type"] == registration.trigger_type

@@ -41,14 +41,13 @@ def make_blocking_io_hassette(
 def make_marker_executor(
     *,
     app_key: str | None = "test_app",
-    instance_index: int | None = None,
     stamp_task_id: bool = False,
     execution_id: str = "exec-test",
 ) -> MagicMock:
     """Build a mock executor with an ExecutionMarker on current_execution.
 
     For watchdog tests, pass stamp_task_id=True to attribute blocks to the current task.
-    For monkeypatch tests, pass instance_index to identify the app instance.
+    For monkeypatch tests, pass instance_name to identify the app instance.
     """
     executor = MagicMock()
     task_id = None
@@ -61,6 +60,5 @@ def make_marker_executor(
         execution_id=execution_id,
         started_at=time.monotonic(),
         task_id=task_id,
-        instance_index=instance_index,
     )
     return executor

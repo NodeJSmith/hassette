@@ -92,10 +92,10 @@ class TestDependencyValidationErrors:
 
 
 class TestListenerAppKeyAndInstanceIndex:
-    """Test app_key and instance_index fields on Listener."""
+    """Test the app_key field on Listener."""
 
-    async def test_listener_has_app_key_and_instance_index(self, bucket: TaskBucket) -> None:
-        """Create a Listener via Listener.create() with explicit app_key and instance_index."""
+    async def test_listener_has_app_key(self, bucket: TaskBucket) -> None:
+        """Create a Listener via Listener.create() with an explicit app_key."""
 
         def handler(event: MockEvent) -> None:
             pass
@@ -106,11 +106,9 @@ class TestListenerAppKeyAndInstanceIndex:
             owner_id="MyApp.MyApp.0",
             topic="test_topic",
             app_key="my_app",
-            instance_index=1,
         )
 
         assert listener.identity.app_key == "my_app"
-        assert listener.identity.instance_index == 1
         assert listener.identity.owner_id == "MyApp.MyApp.0"
 
     async def test_listener_defaults_empty_app_key(self, bucket: TaskBucket) -> None:
@@ -122,7 +120,6 @@ class TestListenerAppKeyAndInstanceIndex:
         listener = create_listener(handler, task_bucket=bucket, owner_id="test", topic="test_topic")
 
         assert listener.identity.app_key == ""
-        assert listener.identity.instance_index == 0
 
 
 class TestOnceWithRateLimitingProhibited:

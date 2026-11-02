@@ -166,10 +166,10 @@ describe("AppDetailPage tabs", () => {
   it("tab links point to the correct path with instance query param preserved", async () => {
     const manifest = createAppSummary();
     setupApi(manifest);
-    mockSearchString = "instance=1";
+    mockSearchString = "instance=inst_1";
     const { findByRole } = renderPage({ key: "test_app" });
     const logsTab = await findByRole("tab", { name: /logs/i });
-    expect(logsTab.getAttribute("href")).toBe("/apps/test_app/logs?instance=1");
+    expect(logsTab.getAttribute("href")).toBe("/apps/test_app/logs?instance=inst_1");
   });
 
   it("tab links omit instance query param when not set", async () => {
@@ -201,16 +201,16 @@ describe("AppDetailPage tabs", () => {
 
   it("onSwitchToCode preserves ?instance= param when navigating to code tab", async () => {
     setupApi(createAppSummary());
-    mockSearchString = "instance=1";
+    mockSearchString = "instance=inst_1";
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     await findByTestId("handlers-tab");
     capturedOnSwitchToCode?.(15);
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=15&instance=1");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=15&instance=inst_1");
   });
 
-  it("onSwitchToCode drops invalid instance params", async () => {
+  it("onSwitchToCode drops an empty instance param", async () => {
     setupApi(createAppSummary());
-    mockSearchString = "instance=-1";
+    mockSearchString = "instance=";
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     await findByTestId("handlers-tab");
     capturedOnSwitchToCode?.(15);

@@ -90,7 +90,6 @@ class LogRecordEntry:
     app_key: str | None = None
     execution_id: str | None = None
     instance_name: str | None = None
-    instance_index: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the entry's fields as a plain dict."""
@@ -107,7 +106,6 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
         "author": record.author,  # pyright: ignore[reportAttributeAccessIssue]
         "execution_id": getattr(record, "execution_id", None),
         "instance_name": getattr(record, "instance_name", None),
-        "instance_index": getattr(record, "instance_index", None),
         "seq": getattr(record, "seq", 0),
     }
 
@@ -185,7 +183,6 @@ class LogIdentity:
     author: LogAuthor
     app_key: str | None = None
     instance_name: str | None = None
-    instance_index: int | None = None
 
 
 def set_logger_identity(logger: logging.Logger, identity: LogIdentity) -> None:
@@ -250,7 +247,7 @@ class LogIdentityFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Stamp the record's author and subject (``app_key``, ``instance_name``, ``instance_index``) once.
+        """Stamp the record's author and subject (``app_key``, ``instance_name``) once.
 
         Returns:
             Always True; this filter annotates records and never drops them.
@@ -275,12 +272,10 @@ class LogIdentityFilter(logging.Filter):
         if identity is not None and identity.app_key is not None:
             record.app_key = identity.app_key  # pyright: ignore[reportAttributeAccessIssue]
             record.instance_name = identity.instance_name  # pyright: ignore[reportAttributeAccessIssue]
-            record.instance_index = identity.instance_index  # pyright: ignore[reportAttributeAccessIssue]
         else:
             ctx = structlog.contextvars.get_contextvars()
             record.app_key = ctx.get("app_key")  # pyright: ignore[reportAttributeAccessIssue]
             record.instance_name = ctx.get("instance_name")  # pyright: ignore[reportAttributeAccessIssue]
-            record.instance_index = ctx.get("instance_index")  # pyright: ignore[reportAttributeAccessIssue]
         return True
 
 

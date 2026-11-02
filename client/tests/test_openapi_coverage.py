@@ -71,9 +71,9 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
         lambda c: c.action("my_app", "start"),
         lambda c: c.action("my_app", "stop"),
         lambda c: c.action("my_app", "reload"),
-        lambda c: c.action("my_app", "start", instance=0),
-        lambda c: c.action("my_app", "stop", instance=0),
-        lambda c: c.action("my_app", "reload", instance=0),
+        lambda c: c.action("my_app", "start", instance="instance_0"),
+        lambda c: c.action("my_app", "stop", instance="instance_0"),
+        lambda c: c.action("my_app", "reload", instance="instance_0"),
     ],
     "get_app_config": [lambda c: c.get_app_config("my_app")],
     "get_app_source": [lambda c: c.get_app_source("my_app")],
@@ -81,7 +81,7 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
         lambda c: c.get_recent_logs(
             limit=1,
             app_key="my_app",
-            instance_index=0,
+            instance_name="instance_0",
             level="INFO",
             since=1.0,
             execution_id="exec-1",
@@ -91,17 +91,21 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
     "set_log_level": [lambda c: c.set_log_level("hassette", "DEBUG")],
     "get_execution_logs": [lambda c: c.get_execution_logs("exec-1", limit=1, author="all")],
     "get_listeners": [
-        lambda c: c.get_listeners(app_key="my_app", instance_index=0, since=1.0, source_tier="all"),
+        lambda c: c.get_listeners(app_key="my_app", instance_name="instance_0", since=1.0, source_tier="all"),
     ],
     "get_config": [lambda c: c.get_config()],
     "get_telemetry_status": [lambda c: c.get_telemetry_status()],
-    "get_app_health": [lambda c: c.get_app_health("my_app", instance_index=0, since=1.0, source_tier="all")],
-    "get_app_listeners": [lambda c: c.get_app_listeners("my_app", instance_index=0, since=1.0, source_tier="all")],
-    "get_app_activity": [
-        lambda c: c.get_app_activity("my_app", instance_index=0, limit=1, since=1.0, source_tier="all"),
+    "get_app_health": [lambda c: c.get_app_health("my_app", instance_name="instance_0", since=1.0, source_tier="all")],
+    "get_app_listeners": [
+        lambda c: c.get_app_listeners("my_app", instance_name="instance_0", since=1.0, source_tier="all")
     ],
-    "get_app_jobs": [lambda c: c.get_app_jobs("my_app", instance_index=0, since=1.0, source_tier="all")],
-    "get_app_blocking_findings": [lambda c: c.get_app_blocking_findings("my_app", instance_index=0, since=1.0)],
+    "get_app_activity": [
+        lambda c: c.get_app_activity("my_app", instance_name="instance_0", limit=1, since=1.0, source_tier="all"),
+    ],
+    "get_app_jobs": [lambda c: c.get_app_jobs("my_app", instance_name="instance_0", since=1.0, source_tier="all")],
+    "get_app_blocking_findings": [
+        lambda c: c.get_app_blocking_findings("my_app", instance_name="instance_0", since=1.0)
+    ],
     "get_blocking_findings": [lambda c: c.get_blocking_findings(since=1.0)],
     "get_unattributed_blocking": [lambda c: c.get_unattributed_blocking(since=1.0)],
     "get_executions": [lambda c: c.get_executions(kind="job", limit=1, since=1.0)],

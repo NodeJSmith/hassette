@@ -37,7 +37,7 @@ from tests.support.factories import make_log_record
 from tests.support.helpers import first_json_record_containing
 
 USER_APP_FILE = "/home/user/apps/my_app.py"
-OWNER = LogIdentity(author="framework", app_key="owner_app", instance_name="owner_inst", instance_index=1)
+OWNER = LogIdentity(author="framework", app_key="owner_app", instance_name="owner_inst")
 
 
 @pytest.fixture(autouse=True)
@@ -56,11 +56,10 @@ def stamp_identity(name: str, **record_attrs: object) -> logging.LogRecord:
     return record
 
 
-def identity_subject(record: logging.LogRecord) -> tuple[object, object, object]:
+def identity_subject(record: logging.LogRecord) -> tuple[object, object]:
     return (
         getattr(record, "app_key", None),
         getattr(record, "instance_name", None),
-        getattr(record, "instance_index", None),
     )
 
 
@@ -71,38 +70,38 @@ class TestOwnedLoggers:
         record = stamp_identity("hassette.identity_test.owned")
 
         assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
-        assert identity_subject(record) == ("owner_app", "owner_inst", 1)
+        assert identity_subject(record) == ("owner_app", "owner_inst")
 
     def test_owner_wins_over_bound_context(self) -> None:
         """A framework task that inherited another app's context still reports its own owner."""
         set_logger_identity(logging.getLogger("hassette.identity_test.owned_ctx"), OWNER)
-        structlog.contextvars.bind_contextvars(app_key="other_app", instance_name="other", instance_index=9)
+        structlog.contextvars.bind_contextvars(app_key="other_app", instance_name="other")
 
         record = stamp_identity("hassette.identity_test.owned_ctx")
 
-        assert identity_subject(record) == ("owner_app", "owner_inst", 1)
+        assert identity_subject(record) == ("owner_app", "owner_inst")
 
     def test_descendant_takes_nearest_identified_ancestor(self) -> None:
         set_logger_identity(logging.getLogger("hassette.identity_test.parent"), OWNER)
-        nearer = LogIdentity(author="app", app_key="near_app", instance_name="near", instance_index=0)
+        nearer = LogIdentity(author="app", app_key="near_app", instance_name="near")
         set_logger_identity(logging.getLogger("hassette.identity_test.parent.mid"), nearer)
         logging.getLogger("hassette.identity_test.parent.mid.leaf")  # registers the leaf logger
 
         record = stamp_identity("hassette.identity_test.parent.mid.leaf")
 
         assert record.author == "app"  # pyright: ignore[reportAttributeAccessIssue]
-        assert identity_subject(record) == ("near_app", "near", 0)
+        assert identity_subject(record) == ("near_app", "near")
 
 
 class TestOwnerlessLoggers:
     def test_identified_framework_logger_without_owner_takes_subject_from_context(self) -> None:
         set_logger_identity(logging.getLogger("hassette.identity_test.service"), LogIdentity(author="framework"))
-        structlog.contextvars.bind_contextvars(app_key="ctx_app", instance_name="ctx", instance_index=2)
+        structlog.contextvars.bind_contextvars(app_key="ctx_app", instance_name="ctx")
 
         record = stamp_identity("hassette.identity_test.service")
 
         assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
-        assert identity_subject(record) == ("ctx_app", "ctx", 2)
+        assert identity_subject(record) == ("ctx_app", "ctx")
 
     @pytest.mark.parametrize(
         ("name", "author"),
@@ -127,12 +126,12 @@ class TestOwnerlessLoggers:
         record = stamp_identity("hassette.identity_test.lifecycle_service")
 
         assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
-        assert identity_subject(record) == ("ctx_app", None, None)
+        assert identity_subject(record) == ("ctx_app", None)
 
     def test_no_context_means_no_subject(self) -> None:
         record = stamp_identity("hassette.identity_test.no_ctx")
 
-        assert identity_subject(record) == (None, None, None)
+        assert identity_subject(record) == (None, None)
 
     def test_unregistered_logger_name_falls_back_to_namespace(self) -> None:
         record = stamp_identity("identity_test.never_created.by_getlogger")
@@ -211,7 +210,7 @@ class TestPipelineBehavior:
         record = stamp_identity("hassette.identity_test.extra_author", author="app")
 
         assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
-        assert identity_subject(record) == ("ctx_app", None, None)
+        assert identity_subject(record) == ("ctx_app", None)
 
     def test_phase1_stream_handler_resolves_identity(self) -> None:
         stream = StringIO()
@@ -222,4 +221,4 @@ class TestPipelineBehavior:
 
         parsed = first_json_record_containing(stream, "phase one line")
         assert parsed["author"] == "framework"
-        assert (parsed["app_key"], parsed["instance_name"], parsed["instance_index"]) == ("owner_app", "owner_inst", 1)
+        assert (parsed["app_key"], parsed["instance_name"]) == ("owner_app", "owner_inst")

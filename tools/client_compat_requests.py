@@ -31,6 +31,7 @@ from tests.e2e.mock_fixtures.constants import (
     APP_KEY_NOSOURCE_APP,
     MANUAL_JOB_ID,
 )
+from tests.e2e.mock_fixtures.manifests import MY_APP_INSTANCE_NAME
 
 UNREGISTERED_JOB_ID = 999_999
 """A job id with no live registration, so triggering it answers ``job_not_registered``."""
@@ -111,8 +112,8 @@ PROBLEM_REQUESTS = [
     FixtureRequest(
         "problem-instance-not-found",
         "POST",
-        "/api/apps/{app_key}/instances/{index}/start",
-        {"app_key": APP_KEY_MY_APP, "index": 99},
+        "/api/apps/{app_key}/instances/{instance_name}/start",
+        {"app_key": APP_KEY_MY_APP, "instance_name": "no_such_instance"},
         problem_code=ProblemCode.INSTANCE_NOT_FOUND,
     ),
     FixtureRequest(
@@ -240,7 +241,7 @@ connection is closed, like :data:`TELEMETRY_UNAVAILABLE_REQUEST`."""
 def success_requests(ids: SeedIds) -> list[FixtureRequest]:
     """One request per JSON route, skipping routes that need an identifier ``ids`` lacks."""
     my_app = {"app_key": APP_KEY_MY_APP}
-    my_app_instance = {"app_key": APP_KEY_MY_APP, "index": 0}
+    my_app_instance = {"app_key": APP_KEY_MY_APP, "instance_name": MY_APP_INSTANCE_NAME}
     multi_app = {"app_key": APP_KEY_MULTI_APP}
     logged_execution = {"execution_id": ids.logged_execution_id or UNKNOWN_EXECUTION_UUID}
     requests = [
@@ -251,14 +252,20 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
         FixtureRequest("app-start", "POST", "/api/apps/{app_key}/start", my_app),
         FixtureRequest("app-stop", "POST", "/api/apps/{app_key}/stop", my_app),
         FixtureRequest("app-reload", "POST", "/api/apps/{app_key}/reload", my_app),
-        FixtureRequest("app-instance-start", "POST", "/api/apps/{app_key}/instances/{index}/start", my_app_instance),
-        FixtureRequest("app-instance-stop", "POST", "/api/apps/{app_key}/instances/{index}/stop", my_app_instance),
-        FixtureRequest("app-instance-reload", "POST", "/api/apps/{app_key}/instances/{index}/reload", my_app_instance),
+        FixtureRequest(
+            "app-instance-start", "POST", "/api/apps/{app_key}/instances/{instance_name}/start", my_app_instance
+        ),
+        FixtureRequest(
+            "app-instance-stop", "POST", "/api/apps/{app_key}/instances/{instance_name}/stop", my_app_instance
+        ),
+        FixtureRequest(
+            "app-instance-reload", "POST", "/api/apps/{app_key}/instances/{instance_name}/reload", my_app_instance
+        ),
         FixtureRequest(
             "app-multi-instance-stop",
             "POST",
-            "/api/apps/{app_key}/instances/{index}/stop",
-            {**multi_app, "index": 1},
+            "/api/apps/{app_key}/instances/{instance_name}/stop",
+            {**multi_app, "instance_name": "MultiApp.1"},
         ),
         FixtureRequest("app-config", "GET", "/api/apps/{app_key}/config", my_app),
         FixtureRequest("app-multi-config", "GET", "/api/apps/{app_key}/config", multi_app),

@@ -110,16 +110,6 @@ async def test_listener_inherits_parent_source_tier(bus: "Bus") -> None:
         assert sub.listener.identity.source_tier == "app"
 
 
-async def test_listener_inherits_parent_instance_index(bus: "Bus") -> None:
-    """Bus.on() sets listener.instance_index from self.parent.index."""
-    parent = cast("MagicMock", bus.parent)
-    parent.index = 3
-    with mock_add_listener(bus):
-        sub = await bus.on(topic="test.index", handler=handler_a, name="test_index")
-        assert sub.listener.identity.instance_index == 3
-    parent.index = 0
-
-
 async def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassette") -> None:
     """A Bus owned by a framework Resource inherits source_tier='framework'."""
     b = hassette_with_bus._bus

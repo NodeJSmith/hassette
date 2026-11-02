@@ -66,6 +66,7 @@ def minimal_app_summary(**overrides: Any) -> AppSummary:
         AppSummary,
         {
             "app_key": "my_app",
+            "instance_name": "instance_0",
             "class_name": "MyApp",
             "display_name": "My App",
             "filename": "my_app.py",
@@ -82,8 +83,7 @@ def minimal_app_instance(**overrides: Any) -> AppInstance:
         AppInstance,
         {
             "app_key": "my_app",
-            "index": 0,
-            "instance_name": "MyApp[0]",
+            "instance_name": "MyApp.0",
             "class_name": "MyApp",
             "status": ResourceStatus.RUNNING,
         },
@@ -114,6 +114,7 @@ def minimal_listener_summary(**overrides: Any) -> ListenerSummary:
         {
             "listener_id": 1,
             "app_key": "my_app",
+            "instance_name": "instance_0",
             "topic": "state_changed.light.kitchen",
             "handler_method": "on_light",
             "total_invocations": 0,
@@ -165,7 +166,7 @@ def minimal_execution_completed_data(**overrides: Any) -> ExecutionCompletedData
     """ExecutionCompletedData with only its required fields set."""
     return build(
         ExecutionCompletedData,
-        {"kind": "handler", "app_key": "my_app", "instance_index": 0, "status": "success", "duration_ms": 10.0},
+        {"kind": "handler", "app_key": "my_app", "status": "success", "duration_ms": 10.0},
         overrides,
     )
 

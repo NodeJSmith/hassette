@@ -196,8 +196,116 @@ POST /api/apps/{app_key}/reload removed the success response with the status `20
 POST /api/apps/{app_key}/start removed the success response with the status `202`
 POST /api/apps/{app_key}/stop removed the success response with the status `202`
 
-# #3098: a negative instance_index read the configured instances from the end or answered 500, so routes reject it.
-GET /api/bus/listeners for the `query` request parameter `instance_index`, the min was set to `0.00`
-GET /api/telemetry/app/{app_key}/health for the `query` request parameter `instance_index`, the min was set to `0.00`
-GET /api/telemetry/app/{app_key}/jobs for the `query` request parameter `instance_index`, the min was set to `0.00`
-GET /api/telemetry/app/{app_key}/listeners for the `query` request parameter `instance_index`, the min was set to `0.00`
+# #3100: instances are addressed by name; the integer position is gone from every route, query parameter and
+# response (spec 144 D1). Pre-v1 clean break, stated in the BREAKING CHANGE footer.
+POST /api/apps/{app_key}/instances/{instance_name}/reload removed the required property `instance_name` from the response with the `200` status
+POST /api/apps/{app_key}/instances/{instance_name}/start removed the required property `instance_name` from the response with the `200` status
+POST /api/apps/{app_key}/instances/{instance_name}/stop removed the required property `instance_name` from the response with the `200` status
+POST /api/apps/{app_key}/reload removed the required property `instance_name` from the response with the `200` status
+POST /api/apps/{app_key}/start removed the required property `instance_name` from the response with the `200` status
+POST /api/apps/{app_key}/stop removed the required property `instance_name` from the response with the `200` status
+GET /api/bus/listeners removed the required property `items/instance_name` from the response with the `200` status
+GET /api/scheduler/jobs removed the required property `items/instance_name` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/jobs removed the required property `items/instance_name` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/listeners removed the required property `items/instance_name` from the response with the `200` status
+GET /api/apps removed the required property `apps/items/instances/items/index` from the response with the `200` status
+GET /api/apps removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/apps/{app_key} removed the required property `instances/items/index` from the response with the `200` status
+GET /api/apps/{app_key} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+GET /api/apps/{app_key} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+GET /api/apps/{app_key} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/apps/{app_key} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/apps/{app_key}/config removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+GET /api/apps/{app_key}/config removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+GET /api/apps/{app_key}/config removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `409` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `500` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `outcomes/items/instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `409` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `500` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `outcomes/items/instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `409` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `500` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `outcomes/items/instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/reload removed the required property `instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+POST /api/apps/{app_key}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+POST /api/apps/{app_key}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `409` status
+POST /api/apps/{app_key}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+POST /api/apps/{app_key}/reload removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `500` status
+POST /api/apps/{app_key}/reload removed the required property `outcomes/items/instance_index` from the response with the `200` status
+GET /api/apps/{app_key}/source removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+GET /api/apps/{app_key}/source removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `403` status
+GET /api/apps/{app_key}/source removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+GET /api/apps/{app_key}/source removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/apps/{app_key}/source removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `500` status
+POST /api/apps/{app_key}/start removed the required property `instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+POST /api/apps/{app_key}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+POST /api/apps/{app_key}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `409` status
+POST /api/apps/{app_key}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+POST /api/apps/{app_key}/start removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `500` status
+POST /api/apps/{app_key}/start removed the required property `outcomes/items/instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/stop removed the required property `instance_index` from the response with the `200` status
+POST /api/apps/{app_key}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `400` status
+POST /api/apps/{app_key}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `404` status
+POST /api/apps/{app_key}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `409` status
+POST /api/apps/{app_key}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+POST /api/apps/{app_key}/stop removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `500` status
+POST /api/apps/{app_key}/stop removed the required property `outcomes/items/instance_index` from the response with the `200` status
+POST /api/auth/session removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `401` status
+POST /api/auth/session removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/bus/listeners removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/bus/listeners removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/executions/{execution_id} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/executions/{execution_id} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+PUT /api/logs/level removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/logs/recent removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/logs/recent removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/scheduler/jobs removed the required property `items/instance_index` from the response with the `200` status
+GET /api/scheduler/jobs removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/scheduler/jobs removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+POST /api/scheduler/jobs/{job_id}/trigger removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `409` status
+POST /api/scheduler/jobs/{job_id}/trigger removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/app-grid removed the required property `apps/items/app/instances/items/index` from the response with the `200` status
+GET /api/telemetry/app-grid removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/app-grid removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/app/{app_key}/activity removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/activity removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/app/{app_key}/blocking removed the required property `findings/items/handlers/items/instance_index` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/blocking removed the required property `findings/items/instances/items/index` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/blocking removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/blocking removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/app/{app_key}/health removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/health removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/app/{app_key}/jobs removed the required property `items/instance_index` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/jobs removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/jobs removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/app/{app_key}/listeners removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/listeners removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/blocking/findings removed the required property `findings/items/handlers/items/instance_index` from the response with the `200` status
+GET /api/telemetry/blocking/findings removed the required property `findings/items/instances/items/index` from the response with the `200` status
+GET /api/telemetry/blocking/findings removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/blocking/findings removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/blocking/unattributed removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/blocking/unattributed removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/execution/{execution_id} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/execution/{execution_id} removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/job/{job_id}/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/job/{job_id}/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+GET /api/telemetry/listener/{listener_id}/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
+GET /api/telemetry/listener/{listener_id}/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status

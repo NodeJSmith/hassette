@@ -131,7 +131,6 @@ async def test_backpressure_policy_persisted_on_registration(
         handler,
         topic="state_changed.sensor.power",
         app_key="test_app",
-        instance_index=0,
         name="bp_test_drop_newest",
         backpressure="drop_newest",
     )
@@ -150,7 +149,6 @@ async def test_backpressure_policy_persisted_on_registration(
         handler,
         topic="state_changed.sensor.power",
         app_key="test_app",
-        instance_index=0,
         name="bp_test_block",
         backpressure="block",
     )
@@ -187,7 +185,6 @@ async def test_backpressure_policy_updated_on_replace_registration(
         handler,
         topic="state_changed.sensor.replace_test",
         app_key="test_app",
-        instance_index=0,
         name="bp_replace_test",
         backpressure="block",
     )
@@ -207,7 +204,6 @@ async def test_backpressure_policy_updated_on_replace_registration(
         handler,
         topic="state_changed.sensor.replace_test",
         app_key="test_app",
-        instance_index=0,
         name="bp_replace_test",
         backpressure="drop_newest",
     )

@@ -252,7 +252,6 @@ def make_mock_job(
     *,
     owner_id: str = "test_owner",
     app_key: str = "my_app",
-    instance_index: int = 1,
     name: str = "test_job",
     error_handler: Callable[..., Any] | None = None,
     db_id: int | None = None,
@@ -262,7 +261,6 @@ def make_mock_job(
     job = MagicMock()
     job.owner_id = owner_id
     job.app_key = app_key
-    job.instance_index = instance_index
     job.name = name
     job.job = MagicMock(__qualname__="MyApp.my_job")
     job.trigger = None

@@ -22,7 +22,7 @@ class ProblemCode(StrEnum):
     """404: no app with this key is configured."""
 
     INSTANCE_NOT_FOUND = "instance_not_found"
-    """404: the instance index is out of range for the app's current config."""
+    """404: the app's current config has no instance with this name."""
 
     BOOTSTRAP_NOT_RELEASED = "bootstrap_not_released"
     """409: app bootstrap prerequisites are not ready yet. Retry later."""

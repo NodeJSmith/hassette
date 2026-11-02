@@ -10,14 +10,13 @@ from tests.support.web_job_helpers import make_job
 def build_scheduler_jobs() -> list[SimpleNamespace]:
     """Build scheduler job stubs for e2e seed data."""
     return [
-        make_job(trigger_detail="PT30S", app_key=APP_KEY_MY_APP, instance_index=0),
+        make_job(trigger_detail="PT30S", app_key=APP_KEY_MY_APP),
         make_job(
             name="morning_routine",
             next_run="2024-01-01T07:00:00",
             trigger_type="cron",
             trigger_detail="0 7 * * * 0",
             app_key=APP_KEY_MY_APP,
-            instance_index=0,
         ),
     ]
 

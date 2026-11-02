@@ -69,7 +69,7 @@ ROUND_TRIPS: dict[str, Callable[[Any], Any]] = {
     "deepcopy": copy.deepcopy,
 }
 
-INSTANCE_OUTCOME = InstanceOutcome(instance_index=0, instance_name="kitchen", result=OutcomeResult.REFUSED)
+INSTANCE_OUTCOME = InstanceOutcome(instance_name="kitchen", result=OutcomeResult.REFUSED)
 
 # Every hassette.exceptions class with its own ``__init__`` (except abstract EntityShapeError), plus classes that
 # inherit a structured ``__init__``, and CoreShuttingDownError, the one defined outside that module.

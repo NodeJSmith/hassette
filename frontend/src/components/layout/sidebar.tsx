@@ -92,16 +92,16 @@ function AppEntry({ manifest, location, searchString, appStatuses, labelIsAmbigu
           <CollapsiblePrimitive.Content asChild>
             <ul className="flex list-none flex-col gap-px py-0 pr-0 pb-0 pl-4" data-testid="instance-list">
               {(manifest.instances ?? []).map((inst) => {
-                const instHref = appDetailPath(manifest.app_key, undefined, { instance: inst.index });
+                const instHref = appDetailPath(manifest.app_key, undefined, { instance: inst.instance_name });
                 const pathMatches = location === appPath || location.startsWith(appPath + "/");
                 const instanceParam = new URLSearchParams(searchString).get("instance");
-                const instActive = pathMatches && instanceParam === String(inst.index);
-                // Live overlay for this one index, same staleness reasoning as displayStatus
+                const instActive = pathMatches && instanceParam === inst.instance_name;
+                // Live overlay for this one instance, same staleness reasoning as displayStatus
                 // above but a single-key lookup, not appLiveStatus's rollup — see
                 // instanceLiveStatus's own doc comment for the distinction.
                 const instStatus = instanceLiveStatus(appStatuses, manifest.app_key, inst);
                 return (
-                  <li key={inst.index} className="flex items-center gap-1">
+                  <li key={inst.instance_name} className="flex items-center gap-1">
                     <span className="shrink-0 font-mono text-xs text-[var(--ink-4)] select-none">└</span>
                     <Link
                       href={instHref}

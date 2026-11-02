@@ -617,13 +617,6 @@ class TestIdentityPassThrough:
         job = await scheduler.schedule(noop, Every(hours=1), name="job_inherits_parent_source_tier_schedule")
         assert job.source_tier == "app"
 
-    async def test_job_inherits_parent_instance_index(self) -> None:
-        """schedule() sets job.instance_index from parent.index."""
-        scheduler = make_scheduler()
-        cast("MagicMock", scheduler.parent).index = 5
-        job = await scheduler.schedule(noop, Every(hours=1), name="job_inherits_parent_instance_index_schedule")
-        assert job.instance_index == 5
-
     async def test_framework_scheduler_inherits_framework_tier(self) -> None:
         """A Scheduler with a framework parent produces jobs with source_tier='framework'."""
         scheduler = make_scheduler()

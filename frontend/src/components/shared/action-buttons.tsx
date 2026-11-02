@@ -23,7 +23,7 @@ import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
 interface ActionConfig {
   request: (appKey: string) => Promise<ActionResponse>;
-  instanceRequest: (appKey: string, index: number) => Promise<ActionResponse>;
+  instanceRequest: (appKey: string, instanceName: string) => Promise<ActionResponse>;
   verb: string;
   outcome: string;
 }
@@ -41,30 +41,28 @@ type ActionName = keyof typeof ACTIONS;
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
 
 export interface InstanceRef {
-  index: number;
   name: string;
 }
 
 // Unbounded, process-lifetime, never evicted — deliberately: the key space is every
-// (index, name) pair across every app instance the running Hassette config defines, which
+// instance name across every app instance the running Hassette config defines, which
 // for a monitoring dashboard is small and static for the life of a browser tab. Revisit if
 // this pattern gets reused somewhere the key space can actually grow unbounded.
 const instanceRefCache = new Map<string, InstanceRef>();
 
 /**
- * Returns a referentially-stable {index, name} object for one instance identity.
+ * Returns a referentially-stable {name} object for one instance name.
  *
  * Both call sites (`AppDetailHeader`, `AppTableRow`'s instance rows) build this prop from
  * scratch on every render — one of them inside a `.map()`, where `useMemo` isn't an option.
  * Interning by identity here means the reference stays stable regardless, so introducing
  * `React.memo` on `ActionButtons` or a parent later won't be silently defeated by this prop.
  */
-export function getStableInstanceRef(index: number, name: string): InstanceRef {
-  const key = `${index}:${name}`;
-  const cached = instanceRefCache.get(key);
+export function getStableInstanceRef(name: string): InstanceRef {
+  const cached = instanceRefCache.get(name);
   if (cached) return cached;
-  const ref: InstanceRef = { index, name };
-  instanceRefCache.set(key, ref);
+  const ref: InstanceRef = { name };
+  instanceRefCache.set(name, ref);
   return ref;
 }
 
@@ -86,10 +84,10 @@ async function performAction(appKey: string, name: ActionName, instance?: Instan
   const { request, instanceRequest, verb, outcome } = ACTIONS[name];
   try {
     if (instance) {
-      const response = await instanceRequest(appKey, instance.index);
-      if (response.instance_index !== instance.index) {
+      const response = await instanceRequest(appKey, instance.name);
+      if (response.instance_name !== instance.name) {
         console.warn(
-          `Requested instance ${instance.index} of '${appKey}' but server confirmed instance ${response.instance_index}`,
+          `Requested instance '${instance.name}' of '${appKey}' but server confirmed instance '${response.instance_name}'`,
         );
       }
     } else {
@@ -160,7 +158,7 @@ interface ActionButtonProps {
 }
 
 function ActionButton({ spec, appKey, isIcon, disabled, instance }: ActionButtonProps) {
-  const testId = instance ? `btn-${spec.action}-${appKey}-${instance.index}` : `btn-${spec.action}-${appKey}`;
+  const testId = instance ? `btn-${spec.action}-${appKey}-${instance.name}` : `btn-${spec.action}-${appKey}`;
   return (
     <Button
       variant={isIcon ? spec.iconVariant : spec.textVariant}
@@ -223,7 +221,7 @@ interface Props {
   variant?: "icon" | "text";
   confirmStop?: boolean;
   instance?: InstanceRef;
-  // The instance's index is outside the app's configured range (its `in_current_config` is
+  // The instance's name is no longer in the app's configuration (its `in_current_config` is
   // false) — the backend rejects start/reload for it with a 404, so only Stop is offered.
   instanceOrphaned?: boolean;
 }

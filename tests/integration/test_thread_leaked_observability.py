@@ -54,7 +54,6 @@ def make_invoker_listener(invoke: InvokeFn) -> MagicMock:
     listener.invoker.invoke = invoke
     listener.invoker.error_handler = None
     listener.identity.app_key = "test_app"
-    listener.identity.instance_index = 0
     return listener
 
 

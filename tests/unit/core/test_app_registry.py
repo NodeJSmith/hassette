@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class TestAppStatusSnapshot:
     def test_snapshot_types_are_frozen(self) -> None:
         """Snapshot dataclasses reject field assignment after construction."""
-        info = AppInstanceInfo("app1", 0, "app1", "App1", ResourceStatus.RUNNING)
+        info = AppInstanceInfo("app1", "app1", "App1", ResourceStatus.RUNNING)
         snapshot = AppStatusSnapshot(instances=(info,))
 
         with pytest.raises(dataclasses.FrozenInstanceError):
@@ -44,11 +44,11 @@ class TestAppStatusSnapshot:
     def test_snapshot_counts(self) -> None:
         """Test snapshot count properties."""
         running = [
-            AppInstanceInfo("app1", 0, "app1", "App1", ResourceStatus.RUNNING),
-            AppInstanceInfo("app2", 0, "app2", "App2", ResourceStatus.RUNNING),
+            AppInstanceInfo("app1", "app1", "App1", ResourceStatus.RUNNING),
+            AppInstanceInfo("app2", "app2", "App2", ResourceStatus.RUNNING),
         ]
         failed = [
-            AppInstanceInfo("app3", 0, "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
+            AppInstanceInfo("app3", "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
         ]
         snapshot = AppStatusSnapshot(instances=(*running, *failed), only_apps=("app1",))
 
@@ -246,7 +246,6 @@ class TestAppRegistry:
 
         assert set(infos) == {"my_app_1"}
         assert infos["my_app_1"].app_key == "my_app"
-        assert infos["my_app_1"].index == 1
         assert infos["my_app_1"].status == ResourceStatus.FAILED
         assert infos["my_app_1"].error is error
         assert infos["my_app_1"].error_message == "bad config"
@@ -264,7 +263,6 @@ class TestAppRegistry:
         infos = registry.get_failed_instance_infos("my_app")
 
         assert infos["configured_name"].instance_name == "configured_name"
-        assert infos["configured_name"].index == 0
         assert infos["configured_name"].class_name == manifest.class_name
 
     def test_get_failed_instance_infos_empty_for_all_running(self, registry: AppRegistry, mock_app: MagicMock) -> None:
@@ -291,7 +289,6 @@ class TestAppRegistry:
         assert set(entries) == {"a"}
         assert set(pruned) == {"b", "c"}
         assert pruned["b"].app_key == "my_app"
-        assert pruned["b"].index == 1
         assert pruned["b"].status == ResourceStatus.FAILED
 
     def test_prune_stale_failed_preserves_running_entries(self, registry: AppRegistry) -> None:
@@ -409,7 +406,6 @@ class TestAppRegistry:
         assert len(running) == 1
         info = running[0]
         assert info.app_key == "my_app"
-        assert info.index == 0
         assert info.instance_name == "test_instance"
         assert info.class_name == "TestApp"
         assert info.status == ResourceStatus.RUNNING
@@ -426,7 +422,6 @@ class TestAppRegistry:
         assert len(failed) == 1
         info = failed[0]
         assert info.app_key == "my_app"
-        assert info.index == 0
         assert info.status == ResourceStatus.FAILED
         assert info.error is error
         assert info.error_message == "startup failed"
@@ -461,7 +456,6 @@ class TestAppRegistry:
         assert len(failed) == 1
 
         running_by_key = {info.app_key: info for info in running}
-        assert running_by_key["app1"].index == 0
         assert running_by_key["app1"].instance_name == "app1"
         assert running_by_key["app1"].class_name == "App1"
         assert running_by_key["app1"].status == ResourceStatus.RUNNING
@@ -471,7 +465,6 @@ class TestAppRegistry:
 
         failed_info = failed[0]
         assert failed_info.app_key == "app3"
-        assert failed_info.index == 0
         assert failed_info.status == ResourceStatus.FAILED
         assert failed_info.error is error
         assert failed_info.error_message == "boom"

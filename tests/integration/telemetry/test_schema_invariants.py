@@ -49,8 +49,8 @@ async def test_unique_index_enforced(db: DbFixture) -> None:
 
     sql = """
         INSERT INTO listeners
-            (app_key, instance_index, name, handler_method, topic, once, priority, source_location)
-        VALUES ('app', 0, 'app.handler', 'app.handler', 'light.on', 0, 0, 'app.py:1')
+            (app_key, name, handler_method, topic, once, priority, source_location)
+        VALUES ('app', 'app.handler', 'app.handler', 'light.on', 0, 0, 'app.py:1')
     """
     await conn.execute(sql)
     await conn.commit()

@@ -321,13 +321,15 @@ describe("LogTableView", () => {
         app_key: "my_app",
         execution_kind: "handler",
         listener_id: 5,
-        instance_index: 0,
+        instance_name: "office",
       });
       const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"] });
       const td = getByTestId("log-table").querySelector("tbody td")!;
       const link = td.querySelector("a");
       expect(link).not.toBeNull();
-      expect(link!.getAttribute("href")).toContain("/apps/my_app/handlers/listener/5/exec/abcdef1234567890");
+      expect(link!.getAttribute("href")).toContain(
+        "/apps/my_app/handlers/listener/5/exec/abcdef1234567890?instance=office",
+      );
     });
 
     it("renders as plain text (no link) when execution_kind is null", () => {
@@ -351,7 +353,6 @@ describe("LogTableView", () => {
         app_key: "my_app",
         execution_kind: "handler",
         listener_id: 5,
-        instance_index: 0,
       });
       const { getByTestId } = renderView({ entries: [entry], visibleColumns: ["execution"], onRowClick });
       const td = getByTestId("log-table").querySelector("tbody td")!;

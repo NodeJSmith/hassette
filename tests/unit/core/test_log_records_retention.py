@@ -172,8 +172,8 @@ class TestRetentionCleanup:
 
         async def insert_retired_listener(name: str) -> int:
             cursor = await db.execute(
-                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
-                "source_location, retired_at) VALUES ('test_app', 0, ?, 'on_x', 'hass.event', 'test.py:1', ?)",
+                "INSERT INTO listeners (app_key, name, handler_method, topic, "
+                "source_location, retired_at) VALUES ('test_app', ?, 'on_x', 'hass.event', 'test.py:1', ?)",
                 (name, old_retired),
             )
             await db.commit()
@@ -309,8 +309,8 @@ class TestRetentionCleanup:
         old_exec_ts = now - (9 * SECONDS_PER_DAY)  # older than retention_days=7 too — not "recent" to the guard
 
         cursor = await db.execute(
-            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
-            "source_location, retired_at) VALUES ('test_app', 0, 'listener1', 'on_x', 'hass.event', "
+            "INSERT INTO listeners (app_key, name, handler_method, topic, "
+            "source_location, retired_at) VALUES ('test_app', 'listener1', 'on_x', 'hass.event', "
             "'test.py:1', ?)",
             (old_retired,),
         )
@@ -520,7 +520,6 @@ class TestRuntimeQueryServiceWiring:
         record.seq = 1  # pyright: ignore[reportAttributeAccessIssue]
         record.app_key = None  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_name = None  # pyright: ignore[reportAttributeAccessIssue]
-        record.instance_index = None  # pyright: ignore[reportAttributeAccessIssue]
         record.execution_id = None  # pyright: ignore[reportAttributeAccessIssue]
 
         handler.emit(record)

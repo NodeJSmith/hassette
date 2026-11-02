@@ -166,7 +166,9 @@ def unknown_app(mock_hassette: MagicMock, _: Path) -> None:
 
 
 def single_instance_app(mock_hassette: MagicMock, _: Path) -> None:
-    mock_hassette._app_handler.registry.get_manifest.return_value = make_manifest_mock()
+    mock_hassette._app_handler.registry.get_manifest.return_value = make_manifest_mock(
+        app_config=[{"instance_name": "instance_0"}]
+    )
     mock_hassette._app_handler.registry.get_instances.return_value = {}
 
 
@@ -188,9 +190,7 @@ def returning(handler_method: str, result: OutcomeResult, reason: str, *, needs_
 
     def arrange(mock_hassette: MagicMock, tmp_path: Path) -> None:
         single_instance_app(mock_hassette, tmp_path)
-        outcome = InstanceOutcome(
-            instance_index=0, instance_name="my_app", result=result, needs_restart=needs_restart, reason=reason
-        )
+        outcome = InstanceOutcome(instance_name="my_app", result=result, needs_restart=needs_restart, reason=reason)
         setattr(mock_hassette.app_handler, handler_method, AsyncMock(return_value=(outcome,)))
 
     return arrange
@@ -200,7 +200,6 @@ def wire_outcome(result: str, reason: str, *, needs_restart: bool = False) -> li
     """The ``outcomes`` member ``returning`` produces on the wire."""
     return [
         {
-            "instance_index": 0,
             "instance_name": "my_app",
             "result": result,
             "needs_restart": needs_restart,
@@ -352,67 +351,67 @@ ROUTE_CASES = {
         arrange=returning("start_app", OutcomeResult.FAILED, "on_initialize blew up"),
         outcomes=wire_outcome("failed", "on_initialize blew up"),
     ),
-    # POST /api/apps/{app_key}/instances/{index}/start, /stop, /reload
+    # POST /api/apps/{app_key}/instances/{instance_name}/start, /stop, /reload
     "instance-invalid-key": ProblemCase(
         "POST",
-        "/api/apps/1bad/instances/0/start",
+        "/api/apps/1bad/instances/instance_0/start",
         400,
         "invalid_app_key",
         "Invalid app_key: '1bad'",
-        operation="/api/apps/{app_key}/instances/{index}/start",
+        operation="/api/apps/{app_key}/instances/{instance_name}/start",
     ),
     "instance-app-not-found": ProblemCase(
         "POST",
-        "/api/apps/my_app/instances/0/reload",
+        "/api/apps/my_app/instances/instance_0/reload",
         404,
         "app_not_found",
         "App 'my_app' not found",
-        operation="/api/apps/{app_key}/instances/{index}/reload",
+        operation="/api/apps/{app_key}/instances/{instance_name}/reload",
         arrange=unknown_app,
     ),
-    "instance-out-of-range": ProblemCase(
+    "instance-unknown-name": ProblemCase(
         "POST",
-        "/api/apps/my_app/instances/5/stop",
+        "/api/apps/my_app/instances/no_such_instance/stop",
         404,
         "instance_not_found",
-        "Instance 5 not found for app 'my_app'",
-        operation="/api/apps/{app_key}/instances/{index}/stop",
+        "Instance 'no_such_instance' not found for app 'my_app'",
+        operation="/api/apps/{app_key}/instances/{instance_name}/stop",
         arrange=single_instance_app,
     ),
     "instance-bootstrap-not-released": ProblemCase(
         "POST",
-        "/api/apps/my_app/instances/0/reload",
+        "/api/apps/my_app/instances/instance_0/reload",
         409,
         "bootstrap_not_released",
         "App bootstrap prerequisites are not ready yet; retry later",
-        operation="/api/apps/{app_key}/instances/{index}/reload",
+        operation="/api/apps/{app_key}/instances/{instance_name}/reload",
         arrange=raising("reload_instance", NOT_RELEASED),
     ),
     "instance-blocked": ProblemCase(
         "POST",
-        "/api/apps/my_app/instances/0/start",
+        "/api/apps/my_app/instances/instance_0/start",
         409,
         "app_blocked",
         "App 'my_app' is blocked by the --app filter",
-        operation="/api/apps/{app_key}/instances/{index}/start",
+        operation="/api/apps/{app_key}/instances/{instance_name}/start",
         arrange=raising("start_instance", BLOCKED),
     ),
     "instance-action-in-progress": ProblemCase(
         "POST",
-        "/api/apps/my_app/instances/0/reload",
+        "/api/apps/my_app/instances/instance_0/reload",
         409,
         "action_in_progress",
         "Another action on app 'my_app' is still running",
-        operation="/api/apps/{app_key}/instances/{index}/reload",
+        operation="/api/apps/{app_key}/instances/{instance_name}/reload",
         arrange=action_in_progress,
     ),
     "instance-action-failed": ProblemCase(
         "POST",
-        "/api/apps/my_app/instances/0/stop",
+        "/api/apps/my_app/instances/instance_0/stop",
         500,
         "action_failed",
         "'my_app' failed: stop timed out",
-        operation="/api/apps/{app_key}/instances/{index}/stop",
+        operation="/api/apps/{app_key}/instances/{instance_name}/stop",
         arrange=returning("stop_instance", OutcomeResult.FAILED, "stop timed out"),
         outcomes=wire_outcome("failed", "stop timed out"),
     ),

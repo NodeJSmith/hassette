@@ -44,7 +44,6 @@ class TestReloadInstanceEvents:
 
         failure_info = make_app_instance_info(
             app_key="app_a",
-            index=1,
             instance_name="inst_1",
             class_name="TestApp",
             status=ResourceStatus.FAILED,
@@ -62,7 +61,6 @@ class TestReloadInstanceEvents:
         assert len(failed_payloads) == 1
         payload = failed_payloads[0]
         assert payload.app_key == "app_a"
-        assert payload.index == 1
         assert payload.instance_name == "inst_1"
 
 

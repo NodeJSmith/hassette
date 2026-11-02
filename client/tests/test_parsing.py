@@ -230,13 +230,12 @@ async def test_new_status_value_from_a_newer_server_is_tolerated(
 async def test_new_outcome_result_from_a_newer_server_is_tolerated(client: HassetteClient, server: FakeServer) -> None:
     """The action already ran when its outcomes parse, so a result value this client doesn't know can't fail it."""
     outcome = {
-        "instance_index": 0,
         "instance_name": "hall",
         "result": "skipped",
         "needs_restart": False,
         "reason": None,
     }
-    server.respond(200, {"app_key": "a", "action": "start", "instance_index": None, "outcomes": [outcome]})
+    server.respond(200, {"app_key": "a", "action": "start", "instance_name": None, "outcomes": [outcome]})
 
     response = await client.action("a", "start")
 

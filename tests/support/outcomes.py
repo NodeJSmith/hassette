@@ -15,7 +15,7 @@ class AnyNameOutcomes(ActionOutcomes):
         super().__init__({})
 
     def target(self, name: str) -> None:
-        self.add_targets({name: len(self._targets)})
+        self.add_targets([name])
 
     def succeeded(self, name: str, reason: str | None = None) -> None:
         self.target(name)

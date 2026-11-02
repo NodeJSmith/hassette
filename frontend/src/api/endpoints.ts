@@ -67,12 +67,12 @@ export const startApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(a
 export const stopApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/stop`);
 export const reloadApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/reload`);
 
-export const startInstance = (appKey: string, index: number) =>
-  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${index}/start`);
-export const stopInstance = (appKey: string, index: number) =>
-  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${index}/stop`);
-export const reloadInstance = (appKey: string, index: number) =>
-  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${index}/reload`);
+export const startInstance = (appKey: string, instanceName: string) =>
+  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${encodeURIComponent(instanceName)}/start`);
+export const stopInstance = (appKey: string, instanceName: string) =>
+  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${encodeURIComponent(instanceName)}/stop`);
+export const reloadInstance = (appKey: string, instanceName: string) =>
+  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${encodeURIComponent(instanceName)}/reload`);
 
 export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
   apiFetch<AppConfigData>(`${appPath(appKey)}/config`, { signal });
@@ -80,26 +80,25 @@ export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
 export const getAppSource = (appKey: string, signal?: AbortSignal) =>
   apiFetch<AppSourceData>(`${appPath(appKey)}/source`, { signal });
 
-export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
-  apiFetch<ListenerData[]>(
-    buildUrl(`${telemetryAppPath(appKey)}/listeners`, { instance_index: instanceIndex, since }),
-    { signal },
-  );
-
-export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
-  apiFetch<JobData[]>(buildUrl(`${telemetryAppPath(appKey)}/jobs`, { instance_index: instanceIndex, since }), {
+export const getAppListeners = (appKey: string, instanceName?: string, since?: number | null, signal?: AbortSignal) =>
+  apiFetch<ListenerData[]>(buildUrl(`${telemetryAppPath(appKey)}/listeners`, { instance_name: instanceName, since }), {
     signal,
   });
 
-/** Omit `instanceIndex` for findings across every instance (the multi-instance parent overview). */
+export const getAppJobs = (appKey: string, instanceName?: string, since?: number | null, signal?: AbortSignal) =>
+  apiFetch<JobData[]>(buildUrl(`${telemetryAppPath(appKey)}/jobs`, { instance_name: instanceName, since }), {
+    signal,
+  });
+
+/** Omit `instanceName` for findings across every instance (the multi-instance parent overview). */
 export const getAppBlockingFindings = (
   appKey: string,
-  instanceIndex: number | undefined,
+  instanceName: string | undefined,
   since?: number | null,
   signal?: AbortSignal,
 ) =>
   apiFetch<BlockingFindingsData>(
-    buildUrl(`${telemetryAppPath(appKey)}/blocking`, { instance_index: instanceIndex, since }),
+    buildUrl(`${telemetryAppPath(appKey)}/blocking`, { instance_name: instanceName, since }),
     { signal },
   );
 
@@ -108,18 +107,18 @@ export const getUnattributedBlocking = (since?: number | null, signal?: AbortSig
 
 export const getAppActivity = (
   appKey: string,
-  instanceIndex = 0,
+  instanceName?: string,
   limit = DETAIL_FETCH_LIMIT,
   since?: number | null,
   signal?: AbortSignal,
 ) =>
   apiFetch<ActivityFeedEntryData[]>(
-    buildUrl(`${telemetryAppPath(appKey)}/activity`, { instance_index: instanceIndex, limit, since }),
+    buildUrl(`${telemetryAppPath(appKey)}/activity`, { instance_name: instanceName, limit, since }),
     { signal },
   );
 
-export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
-  apiFetch<AppHealthData>(buildUrl(`${telemetryAppPath(appKey)}/health`, { instance_index: instanceIndex, since }), {
+export const getAppHealth = (appKey: string, instanceName?: string, since?: number | null, signal?: AbortSignal) =>
+  apiFetch<AppHealthData>(buildUrl(`${telemetryAppPath(appKey)}/health`, { instance_name: instanceName, since }), {
     signal,
   });
 

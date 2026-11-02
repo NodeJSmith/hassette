@@ -48,7 +48,6 @@ def make_bus_listener(bus: "Bus", *, handler: HandlerType = handler_a, name: str
     return create_listener(
         handler=handler,
         app_key=bus.parent.app_key,
-        instance_index=bus.parent.index,
         name=name,
         owner_id=bus.owner_id,
     )

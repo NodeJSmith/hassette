@@ -39,7 +39,6 @@ def _make_bus() -> Bus:
     bus.bus_service.add_listener = AsyncMock(return_value=1)
     mock_parent = MagicMock()
     mock_parent.app_key = "probe_app"
-    mock_parent.index = 0
     mock_parent.unique_name = "probe_app.0"
     mock_parent.source_tier = "app"
     mock_parent.class_name = "ProbeApp"
@@ -67,7 +66,6 @@ def _make_scheduler() -> Scheduler:
     sched.scheduler_service = mock_service
     mock_parent = MagicMock()
     mock_parent.app_key = "probe_app"
-    mock_parent.index = 0
     mock_parent.source_tier = "app"
     mock_parent.class_name = "ProbeApp"
     mock_parent.app_config = MagicMock()
@@ -90,7 +88,6 @@ def _make_api() -> Api:
     api.logger = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
     mock_parent = MagicMock()
     mock_parent.app_key = "probe_app"
-    mock_parent.index = 0
     mock_parent.unique_name = "probe_app.0"
     mock_parent.source_tier = "app"
     mock_parent.class_name = "ProbeApp"

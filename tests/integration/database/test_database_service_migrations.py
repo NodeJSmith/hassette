@@ -29,7 +29,6 @@ EXPECTED_TABLES = {
     "listeners": {
         "id",
         "app_key",
-        "instance_index",
         "instance_name",
         "name",
         "handler_method",
@@ -54,7 +53,6 @@ EXPECTED_TABLES = {
     "scheduled_jobs": {
         "id",
         "app_key",
-        "instance_index",
         "instance_name",
         "job_name",
         "handler_method",
@@ -121,7 +119,6 @@ EXPECTED_TABLES = {
         "exc_info",
         "app_key",
         "instance_name",
-        "instance_index",
         "execution_id",
         "author",
         # dup-ignore-end
@@ -131,7 +128,6 @@ EXPECTED_TABLES = {
         "session_id",
         "app_key",
         "instance_name",
-        "instance_index",
         "execution_id",
         "tier",
         "primitive",

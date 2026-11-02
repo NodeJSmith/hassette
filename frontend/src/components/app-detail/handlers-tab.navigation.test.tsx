@@ -98,12 +98,12 @@ describe("HandlersTab navigation", () => {
         selectedHandler={null}
         selectedExecId={null}
         appKey={APP_KEY}
-        instanceIndex={1}
+        instanceName="office"
       />,
       { storeOverrides: { uptimeSeconds: 120 } },
     );
     await user.click(getByTestId(rowTestId("listener", 3)));
-    expect(mockNavigate).toHaveBeenCalledWith(`${HANDLERS_URL}/listener/3?instance=1`);
+    expect(mockNavigate).toHaveBeenCalledWith(`${HANDLERS_URL}/listener/3?instance=office`);
   });
 
   it("shows placeholder when selectedHandler has invalid format", () => {

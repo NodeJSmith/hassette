@@ -122,7 +122,7 @@ class HassetteClient:
         """
         return await self._transport.request("GET", app_path(app_key), AppSummary)
 
-    async def action(self, app_key: str, action: AppAction, *, instance: int | None = None) -> ActionResponse:
+    async def action(self, app_key: str, action: AppAction, *, instance: str | None = None) -> ActionResponse:
         """Start, stop or reload an app, or one of its instances.
 
         The server answers only once the action has finished, including the app's
@@ -144,12 +144,12 @@ class HassetteClient:
             app_key: The app to act on.
             action: ``"start"``, ``"stop"`` or ``"reload"``. Not checked locally: an action the server
                 doesn't know raises the server's ``NotFoundError``.
-            instance: An instance index, to act on that instance alone. ``None`` acts on every instance.
+            instance: An instance name, to act on that instance alone. ``None`` acts on every instance.
 
         Raises:
             InvalidAppKeyError: ``app_key`` isn't a valid app key.
             AppNotFoundError: No app with this key is configured.
-            InstanceNotFoundError: ``instance`` is out of range for the app's config.
+            InstanceNotFoundError: The app's config has no instance named ``instance``.
             BootstrapNotReleasedError: Apps can't be started yet; retry later. Not raised for a stop.
             AppBlockedError: The server's ``--app`` filter excludes this app. Not raised for a stop.
             ActionInProgressError: Another action on this app is still running. Nothing was done.
@@ -189,7 +189,7 @@ class HassetteClient:
         *,
         limit: int | None = None,
         app_key: str | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         level: LogLevel | None = None,
         since: float | None = None,
         execution_id: str | None = None,
@@ -200,7 +200,7 @@ class HassetteClient:
         Args:
             limit: The most records to return.
             app_key: Only records emitted by this app.
-            instance_index: Only records emitted by this app instance; requires ``app_key``. ``None`` covers every
+            instance_name: Only records emitted by this app instance; requires ``app_key``. ``None`` covers every
                 instance.
             level: Only records at this level. Without ``author``, framework lines below ERROR stay excluded
                 whatever level this asks for; pass ``author="all"`` to see them.
@@ -215,7 +215,7 @@ class HassetteClient:
         params = {
             "limit": limit,
             "app_key": app_key,
-            "instance_index": instance_index,
+            "instance_name": instance_name,
             "level": level,
             "since": since,
             "execution_id": execution_id,
@@ -250,7 +250,7 @@ class HassetteClient:
         self,
         *,
         app_key: str | None = None,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier | None = None,
     ) -> list[ListenerSummary]:
@@ -259,7 +259,7 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        params = {"app_key": app_key, **telemetry_filters(instance_index, since, source_tier)}
+        params = {"app_key": app_key, **telemetry_filters(instance_name, since, source_tier)}
         return await self._transport.request("GET", "/api/bus/listeners", list[ListenerSummary], params=params)
 
     async def get_config(self) -> ConfigSchemaResponse:
@@ -280,7 +280,7 @@ class HassetteClient:
         self,
         app_key: str,
         *,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier | None = None,
     ) -> AppHealth:
@@ -290,14 +290,14 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = telemetry_app_path(app_key, "health")
-        params = telemetry_filters(instance_index, since, source_tier)
+        params = telemetry_filters(instance_name, since, source_tier)
         return await self._transport.request("GET", path, AppHealth, params=params)
 
     async def get_app_listeners(
         self,
         app_key: str,
         *,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier | None = None,
     ) -> list[ListenerSummary]:
@@ -307,14 +307,14 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = telemetry_app_path(app_key, "listeners")
-        params = telemetry_filters(instance_index, since, source_tier)
+        params = telemetry_filters(instance_name, since, source_tier)
         return await self._transport.request("GET", path, list[ListenerSummary], params=params)
 
     async def get_app_activity(
         self,
         app_key: str,
         *,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         limit: int | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier | None = None,
@@ -323,7 +323,7 @@ class HassetteClient:
 
         Args:
             app_key: The app.
-            instance_index: One instance only. ``None`` covers every instance.
+            instance_name: One instance only. ``None`` covers every instance.
             limit: The most entries to return.
             since: Only executions at or after this Unix timestamp.
             source_tier: ``"app"`` or ``"framework"`` executions only, or ``"all"``.
@@ -332,14 +332,14 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = telemetry_app_path(app_key, "activity")
-        params = {"limit": limit, **telemetry_filters(instance_index, since, source_tier)}
+        params = {"limit": limit, **telemetry_filters(instance_name, since, source_tier)}
         return await self._transport.request("GET", path, list[ActivityFeedEntry], params=params)
 
     async def get_app_jobs(
         self,
         app_key: str,
         *,
-        instance_index: int | None = None,
+        instance_name: str | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier | None = None,
     ) -> list[JobSummary]:
@@ -349,11 +349,11 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = telemetry_app_path(app_key, "jobs")
-        params = telemetry_filters(instance_index, since, source_tier)
+        params = telemetry_filters(instance_name, since, source_tier)
         return await self._transport.request("GET", path, list[JobSummary], params=params)
 
     async def get_app_blocking_findings(
-        self, app_key: str, *, instance_index: int | None = None, since: float | None = None
+        self, app_key: str, *, instance_name: str | None = None, since: float | None = None
     ) -> BlockingFindingsResponse:
         """Get the blocking findings attributed to an app's handlers and jobs.
 
@@ -361,7 +361,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = telemetry_app_path(app_key, "blocking")
-        params = telemetry_filters(instance_index, since)
+        params = telemetry_filters(instance_name, since)
         return await self._transport.request("GET", path, BlockingFindingsResponse, params=params)
 
     async def get_blocking_findings(self, *, since: float | None = None) -> BlockingFindingsResponse:
@@ -472,7 +472,7 @@ def telemetry_app_path(app_key: str, resource: str) -> str:
 
 
 def telemetry_filters(
-    instance_index: int | None, since: float | None, source_tier: QuerySourceTier | None = None
+    instance_name: str | None, since: float | None, source_tier: QuerySourceTier | None = None
 ) -> dict[str, str | int | float | None]:
     """Return the instance, time and source-tier query filters shared by the telemetry routes."""
-    return {"instance_index": instance_index, "since": since, "source_tier": source_tier}
+    return {"instance_name": instance_name, "since": since, "source_tier": source_tier}

@@ -80,7 +80,7 @@ They are documented once in the error catalog and never listed in a route's ``x-
 CODE_DESCRIPTIONS: Mapping[ProblemCode, str] = {
     ProblemCode.INVALID_APP_KEY: "the app key is not a valid app key",
     ProblemCode.APP_NOT_FOUND: "no app with this key is configured",
-    ProblemCode.INSTANCE_NOT_FOUND: "the instance index is out of range for the app's current config",
+    ProblemCode.INSTANCE_NOT_FOUND: "the app's current config has no instance with this name",
     ProblemCode.BOOTSTRAP_NOT_RELEASED: "app bootstrap prerequisites are not ready yet (retry later)",
     ProblemCode.APP_BLOCKED: "the app is blocked by the --app filter (not retryable)",
     ProblemCode.ACTION_IN_PROGRESS: "another action on this app is still running; nothing was done",

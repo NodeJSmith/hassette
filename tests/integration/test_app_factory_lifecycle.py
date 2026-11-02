@@ -243,7 +243,6 @@ class TestAppFactoryIntegration:
         assert "invalid" not in app_registry
         failed = get_failed_by_key(app_registry, "invalid")
         assert len(failed) == 1
-        assert failed[0].index == 0
 
     def test_factory_records_failure_for_missing_class(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Records failure when class doesn't exist in module."""
@@ -405,7 +404,6 @@ class TestAppLifecycleServiceIntegration:
         # Failure should be recorded
         failed = get_failed_by_key(app_registry, "failing")
         assert len(failed) == 1
-        assert failed[0].index == 0
         assert failed[0].error_message is not None
         assert "Intentional init failure" in failed[0].error_message
 

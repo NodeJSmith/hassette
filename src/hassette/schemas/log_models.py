@@ -29,7 +29,6 @@ class LogRecord(BaseModel):
     exc_info: str | None = None
     app_key: str | None = None
     instance_name: str | None = None
-    instance_index: int | None = None
     execution_id: str | None = None
     """UUID string identifying the execution that produced this log record. None for framework logs.
 
@@ -54,7 +53,6 @@ class BlockingEvent(BaseModel):
     """App key of the owner, or ``None`` for unresolved/framework stalls."""
 
     instance_name: str | None
-    instance_index: int | None
 
     execution_id: str | None
     """UUIDv7 execution that froze the loop. None when no marker was live (Tier 2 off-handler)."""

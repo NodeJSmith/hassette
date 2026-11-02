@@ -17,14 +17,16 @@ interface Props {
   listeners: ListenerData[];
 }
 
-function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
+/** Handler names per source line. On the multi-instance parent page the rows span every instance, so
+ *  two instances registering the same handler on a line yield one annotation for it. */
+export function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   const map = new Map<number, string[]>();
   for (const listener of listeners) {
     if (!listener.source_location) continue;
     const { line } = parseSourceLocation(listener.source_location);
     if (line === null) continue;
     const existing = map.get(line) ?? [];
-    existing.push(listener.handler_method);
+    if (!existing.includes(listener.handler_method)) existing.push(listener.handler_method);
     map.set(line, existing);
   }
   return map;

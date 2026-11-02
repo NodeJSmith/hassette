@@ -48,9 +48,6 @@ class ExecutionRecord:
     app_key: str = ""
     """App key that owns this execution. Empty string for framework-internal executions."""
 
-    instance_index: int = 0
-    """Instance index within the app."""
-
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""
 

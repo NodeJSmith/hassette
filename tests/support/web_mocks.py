@@ -267,7 +267,7 @@ def wire_app_handler(
     if app_action_mocks:
         # Each action reports one succeeded instance, so the route answers 200. Tests of the
         # 409/500 mapping set their own return value.
-        succeeded = (InstanceOutcome(instance_index=0, instance_name="instance_0", result=OutcomeResult.SUCCEEDED),)
+        succeeded = (InstanceOutcome(instance_name="instance_0", result=OutcomeResult.SUCCEEDED),)
         for name in ("start_app", "stop_app", "reload_app", "start_instance", "stop_instance", "reload_instance"):
             setattr(handler, name, AsyncMock(return_value=succeeded))
 

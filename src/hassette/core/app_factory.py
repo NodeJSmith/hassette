@@ -185,7 +185,6 @@ class AppFactory:
             app_instance = app_class(
                 hassette=self.hassette,
                 app_config=validated,
-                index=position,
                 app_key=app_key,
                 app_manifest=manifest,
             )

@@ -74,12 +74,10 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
     def test_emit_reads_instance_name_from_record(self) -> None:
         record = make_log_record(name="hassette.test")
         record.instance_name = "MyApp.0"  # pyright: ignore[reportAttributeAccessIssue]
-        record.instance_index = 0  # pyright: ignore[reportAttributeAccessIssue]
 
         entry = build_log_entry(record)
 
         assert entry.instance_name == "MyApp.0"
-        assert entry.instance_index == 0
 
     def test_emit_execution_id_none_when_missing(self) -> None:
         record = make_log_record(name="hassette.test")

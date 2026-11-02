@@ -43,8 +43,6 @@ class AppInstanceInfo:
     """Snapshot of a single app instance for status queries."""
 
     app_key: str
-    index: int
-    """Display order (``AppRegistry.display_indices``), for routes and wire models that still address by index."""
     instance_name: str
     class_name: str
     status: ResourceStatus

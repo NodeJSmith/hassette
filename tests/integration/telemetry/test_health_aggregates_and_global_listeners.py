@@ -215,10 +215,10 @@ class TestGetAppHealthAggregates:
         db_svc, session_id = db
 
         listener_id_inst0 = await insert_listener(
-            db_svc, app_key="multi_inst", instance_index=0, handler_method="on_event"
+            db_svc, app_key="multi_inst", instance_name="instance_0", handler_method="on_event"
         )
         listener_id_inst1 = await insert_listener(
-            db_svc, app_key="multi_inst", instance_index=1, handler_method="on_event"
+            db_svc, app_key="multi_inst", instance_name="instance_1", handler_method="on_event"
         )
 
         await insert_invocation(db_svc, listener_id_inst0, session_id, status="success", duration_ms=10.0)
@@ -244,11 +244,13 @@ class TestGetListenerSummaryGlobal:
         db_svc, session_id = db
 
         listener_id_alpha = await insert_listener(
-            db_svc, app_key="app_alpha", instance_index=0, handler_method="on_alpha"
+            db_svc, app_key="app_alpha", instance_name="instance_0", handler_method="on_alpha"
         )
-        listener_id_beta = await insert_listener(db_svc, app_key="app_beta", instance_index=0, handler_method="on_beta")
+        listener_id_beta = await insert_listener(
+            db_svc, app_key="app_beta", instance_name="instance_0", handler_method="on_beta"
+        )
         listener_id_alpha_1 = await insert_listener(
-            db_svc, app_key="app_alpha", instance_index=1, handler_method="on_alpha_1"
+            db_svc, app_key="app_alpha", instance_name="instance_1", handler_method="on_alpha_1"
         )
 
         await insert_invocation(db_svc, listener_id_alpha, session_id, status="success", duration_ms=5.0)
@@ -271,8 +273,12 @@ class TestGetListenerSummaryGlobal:
         """Results match the union of per-instance get_listener_summary() calls."""
         db_svc, session_id = db
 
-        listener_id_x = await insert_listener(db_svc, app_key="app_x", instance_index=0, handler_method="on_x0")
-        listener_id_y = await insert_listener(db_svc, app_key="app_y", instance_index=0, handler_method="on_y0")
+        listener_id_x = await insert_listener(
+            db_svc, app_key="app_x", instance_name="instance_0", handler_method="on_x0"
+        )
+        listener_id_y = await insert_listener(
+            db_svc, app_key="app_y", instance_name="instance_0", handler_method="on_y0"
+        )
 
         await insert_invocation(db_svc, listener_id_x, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, listener_id_x, session_id, status="success", duration_ms=20.0)

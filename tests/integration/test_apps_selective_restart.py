@@ -159,11 +159,10 @@ class TestPerInstanceSelectiveRestart:
 
         assert lifecycle.registry.get(app_key, "alpha") is alpha
         assert lifecycle.registry.get(app_key, "beta") is beta
-        assert alpha.index == 0, "a running instance's index stays as constructed until #3100 decides its future"
         manifest = lifecycle.registry.get_manifest(app_key)
         assert manifest is not None
         instances = lifecycle.registry.build_manifest_info(app_key, manifest).instances
-        assert [(info.index, info.instance_name) for info in instances] == [(0, "beta"), (1, "alpha")]
+        assert [info.instance_name for info in instances] == ["beta", "alpha"]
 
     async def test_adding_an_instance_starts_only_it(
         self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
@@ -180,7 +179,6 @@ class TestPerInstanceSelectiveRestart:
         assert lifecycle.registry.get(app_key, "alpha") is alpha, "the unchanged sibling keeps running"
         beta = lifecycle.registry.get(app_key, "beta")
         assert beta is not None
-        assert beta.index == 0, "a new instance is constructed with its position in the config"
 
     @pytest.mark.parametrize(
         "new_config",
@@ -210,7 +208,7 @@ class TestPerInstanceSelectiveRestart:
         alpha = lifecycle.registry.get(app_key, "alpha")
         registered = {
             name: await executor.register_listener(
-                make_listener_registration(instance_name=name, app_key=app_key, instance_index=0, name=f"{name}_l")
+                make_listener_registration(instance_name=name, app_key=app_key, name=f"{name}_l")
             )
             for name in ("alpha", "beta")
         }
@@ -268,33 +266,29 @@ class TestPerInstanceSelectiveRestart:
 
         alpha_listener_id = await executor.register_listener(
             make_listener_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 0),
+                instance_name="alpha",
                 app_key=app_key,
-                instance_index=0,
                 name="sibling_listener",
             )
         )
         alpha_job_id = await executor.register_job(
             make_job_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 0),
+                instance_name="alpha",
                 app_key=app_key,
-                instance_index=0,
                 job_name="sibling_job",
             )
         )
         beta_listener_id = await executor.register_listener(
             make_listener_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 1),
+                instance_name="beta",
                 app_key=app_key,
-                instance_index=1,
                 name="reloaded_listener",
             )
         )
         beta_job_id = await executor.register_job(
             make_job_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 1),
+                instance_name="beta",
                 app_key=app_key,
-                instance_index=1,
                 job_name="reloaded_job",
             )
         )

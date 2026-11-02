@@ -322,7 +322,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
         app = self._app_cls(
             hassette=harness.hassette,  # pyright: ignore[reportArgumentType]
             app_config=validated_config,
-            index=0,
             app_key=manifest.app_key,
             app_manifest=manifest,
             api_factory=RecordingApi,

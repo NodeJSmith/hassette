@@ -175,16 +175,16 @@ def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: P
 
     conn = sqlite3.connect(output)
     try:
-        instance_indexes = {
+        instance_names = {
             row[0]
             for row in conn.execute(
-                "SELECT instance_index FROM listeners WHERE app_key = 'split_brain'"
-                " UNION SELECT instance_index FROM scheduled_jobs WHERE app_key = 'split_brain'"
+                "SELECT instance_name FROM listeners WHERE app_key = 'split_brain'"
+                " UNION SELECT instance_name FROM scheduled_jobs WHERE app_key = 'split_brain'"
             )
         }
         status_by_instance = conn.execute(
             """
-            SELECT COALESCE(l.instance_index, j.instance_index) AS instance_index, e.status, COUNT(*)
+            SELECT COALESCE(l.instance_name, j.instance_name) AS instance_name, e.status, COUNT(*)
             FROM executions e
             LEFT JOIN listeners l ON e.listener_id = l.id
             LEFT JOIN scheduled_jobs j ON e.job_id = j.id
@@ -195,10 +195,11 @@ def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: P
     finally:
         conn.close()
 
-    assert instance_indexes == {0, 1}
-    statuses = {(index, status) for index, status, _count in status_by_instance}
-    assert {status for index, status in statuses if index == 0} == {"success"}
-    assert {status for index, status in statuses if index == 1} == {"error"}
+    assert len(instance_names) == 2
+    first, second = sorted(instance_names)
+    statuses = {(name, status) for name, status, _count in status_by_instance}
+    assert {status for name, status in statuses if name == first} == {"success"}
+    assert {status for name, status in statuses if name == second} == {"error"}
 
 
 @pytest.mark.parametrize("scenario", ALL_SCENARIOS)

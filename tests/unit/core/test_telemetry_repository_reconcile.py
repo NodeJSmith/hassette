@@ -231,14 +231,10 @@ async def test_reconcile_once_true_cleanup_respects_instance_name(
     instance-scoped reconciliation feature exists to prevent — the once=True block bypasses
     the builder functions and must be scoped independently.
     """
-    once_reg_0 = make_listener_registration(
-        instance_name="instance_0", once=True, name=ONCE_LISTENER_NAME, instance_index=0
-    )
+    once_reg_0 = make_listener_registration(instance_name="instance_0", once=True, name=ONCE_LISTENER_NAME)
     once_id_0 = await telemetry_repo.register_listener(once_reg_0)
 
-    once_reg_1 = make_listener_registration(
-        instance_name="instance_1", once=True, name=ONCE_LISTENER_NAME, instance_index=1
-    )
+    once_reg_1 = make_listener_registration(instance_name="instance_1", once=True, name=ONCE_LISTENER_NAME)
     once_id_1 = await telemetry_repo.register_listener(once_reg_1)
 
     new_session_id = await insert_new_session(telemetry_db)
@@ -265,10 +261,10 @@ async def test_reconcile_scopes_listener_deletion_by_instance_name(
     target instance.
     """
     stale_instance_0 = await telemetry_repo.register_listener(
-        make_listener_registration(instance_name="instance_0", name="test_app.on_a", instance_index=0)
+        make_listener_registration(instance_name="instance_0", name="test_app.on_a")
     )
     stale_instance_1 = await telemetry_repo.register_listener(
-        make_listener_registration(instance_name="instance_1", name="test_app.on_a", instance_index=1)
+        make_listener_registration(instance_name="instance_1", name="test_app.on_a")
     )
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_name="instance_0")
@@ -291,10 +287,10 @@ async def test_reconcile_without_instance_name_affects_all_instances(
     reconciled together.
     """
     listener_instance_0 = await telemetry_repo.register_listener(
-        make_listener_registration(instance_name="instance_0", name="test_app.on_a", instance_index=0)
+        make_listener_registration(instance_name="instance_0", name="test_app.on_a")
     )
     listener_instance_1 = await telemetry_repo.register_listener(
-        make_listener_registration(instance_name="instance_1", name="test_app.on_a", instance_index=1)
+        make_listener_registration(instance_name="instance_1", name="test_app.on_a")
     )
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
@@ -316,10 +312,10 @@ async def test_reconcile_scopes_job_deletion_by_instance_name(
     test_reconcile_scopes_listener_deletion_by_instance_name.
     """
     stale_job_instance_0 = await telemetry_repo.register_job(
-        make_job_registration(instance_name="instance_0", job_name="job_a", instance_index=0)
+        make_job_registration(instance_name="instance_0", job_name="job_a")
     )
     stale_job_instance_1 = await telemetry_repo.register_job(
-        make_job_registration(instance_name="instance_1", job_name="job_a", instance_index=1)
+        make_job_registration(instance_name="instance_1", job_name="job_a")
     )
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_name="instance_0")

@@ -33,17 +33,16 @@ function isBoolean(v: unknown): v is boolean {
 
 export interface AppStatusEntry {
   status: ResourceStatus;
-  index: number;
+  instance_name: string;
   previous_status?: ResourceStatus | null;
-  instance_name?: string | null;
   class_name?: string | null;
   exception?: string | null;
   /** Set when the instance needs a hassette restart; the first flag stands until restart. */
   needs_restart?: NeedsRestart | null;
 }
 
-export function appStatusKey(appKey: string, index: number): string {
-  return `${appKey}:${index}`;
+export function appStatusKey(appKey: string, instanceName: string): string {
+  return `${appKey}:${instanceName}`;
 }
 
 export interface ServiceStatusEntry {

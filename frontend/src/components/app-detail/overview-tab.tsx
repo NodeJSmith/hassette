@@ -26,7 +26,7 @@ interface Props {
   jobs: JobData[];
   appKey: string;
   instanceQs: string;
-  resolvedInstanceIndex: number;
+  instanceName: string | undefined;
   appStatus?: AppDisplayStatus;
 }
 
@@ -87,7 +87,7 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   );
 }
 
-export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex, appStatus }: Props) {
+export function OverviewTab({ listeners, jobs, appKey, instanceQs, instanceName, appStatus }: Props) {
   const connection = useAppStore((s) => s.connection);
   const isWsConnected = connection === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
@@ -98,11 +98,7 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
       className={cn("flex flex-col gap-7", !isWsConnected && "opacity-[var(--op-muted)]")}
       data-testid="overview-tab"
     >
-      <OverviewHealthStrip
-        appKey={appKey}
-        resolvedInstanceIndex={resolvedInstanceIndex}
-        handlerCount={listeners.length + jobs.length}
-      />
+      <OverviewHealthStrip appKey={appKey} instanceName={instanceName} handlerCount={listeners.length + jobs.length} />
 
       {failingItems.length > 0 && (
         <ErrorSpotlight failingItems={failingItems} appKey={appKey} instanceQs={instanceQs} />
@@ -112,14 +108,14 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
         appKey={appKey}
         scope={{
           kind: "instance",
-          index: resolvedInstanceIndex,
+          name: instanceName,
           linkInstance: parseInstanceParam(new URLSearchParams(instanceQs).get("instance")),
         }}
       />
 
       <HandlerHealthGrid items={allItems} appKey={appKey} instanceQs={instanceQs} />
 
-      <RecentActivitySection appKey={appKey} resolvedInstanceIndex={resolvedInstanceIndex} />
+      <RecentActivitySection appKey={appKey} instanceName={instanceName} />
 
       <RecentLogsSection appKey={appKey} appStatus={appStatus} />
     </div>

@@ -37,7 +37,7 @@ def build_manifests() -> list[AppManifestInfo]:
             filename="my_app.py",
             status=AppStatus.RUNNING,
             instance_count=1,
-            instances=[make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.MyApp[0]")],
+            instances=[make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.0")],
         ),
         make_manifest(
             app_key=APP_KEY_OTHER_APP,
@@ -86,7 +86,7 @@ def build_manifests() -> list[AppManifestInfo]:
                 make_app_instance_info(
                     app_key=APP_KEY_NOSOURCE_APP,
                     class_name="NoSourceApp",
-                    owner_id="NoSourceApp.NoSourceApp[0]",
+                    owner_id="NoSourceApp.0",
                 ),
             ],
         ),
@@ -100,9 +100,9 @@ def build_manifests() -> list[AppManifestInfo]:
             instances=[
                 make_app_instance_info(
                     app_key=APP_KEY_MULTI_APP,
-                    index=index,
+                    instance_name=f"MultiApp.{index}",
                     class_name="MultiApp",
-                    owner_id=f"MultiApp.MultiApp[{index}]",
+                    owner_id=f"MultiApp.{index}",
                 )
                 for index in range(3)
             ],
@@ -114,11 +114,11 @@ def build_old_snapshot() -> AppStatusSnapshot:
     """Build the legacy AppStatusSnapshot used to seed mock_hassette."""
     return AppStatusSnapshot(
         instances=(
-            make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.MyApp[0]"),
+            make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.0"),
             make_app_instance_info(
                 app_key=APP_KEY_NOSOURCE_APP,
                 class_name="NoSourceApp",
-                owner_id="NoSourceApp.NoSourceApp[0]",
+                owner_id="NoSourceApp.0",
             ),
             make_app_instance_info(
                 app_key=APP_KEY_BROKEN_APP,
@@ -169,15 +169,13 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
             stub.full_path.resolve.return_value = real_path
             stub.app_dir.resolve.return_value = real_path.parent
             stub.full_path.exists.return_value = True
-        stub.app_config = {"instance_name": f"{manifest.class_name}.0", "env_prefix": manifest.app_key + "_"}
+        stub.app_config = [
+            {"instance_name": inst.instance_name, "env_prefix": manifest.app_key + "_"} for inst in manifest.instances
+        ] or {"instance_name": f"{manifest.class_name}.0", "env_prefix": manifest.app_key + "_"}
         stub.autostart = manifest.autostart
         stubs[manifest.app_key] = stub
 
     hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: stubs.get(app_key)
-    # The name the seed scenarios store (make_instance_name), so index-addressed routes find seeded rows.
-    hassette._app_handler.registry.instance_name.side_effect = lambda app_key, index: (
-        f"{stubs[app_key].class_name}.{index}" if app_key in stubs else f"Unknown.{index}"
-    )
 
     manifest_info_by_key = {manifest.app_key: manifest for manifest in manifests}
 
@@ -210,10 +208,10 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
 def wire_owner_resolution(hassette) -> None:
     """Wire app instance owner resolution onto the mock app handler."""
     hassette._app_handler.registry.get_running_apps.return_value = {
-        MY_APP_INSTANCE_NAME: SimpleNamespace(unique_name="MyApp.MyApp[0]"),
+        MY_APP_INSTANCE_NAME: SimpleNamespace(unique_name="MyApp.0"),
     }
     hassette._app_handler.registry.get.side_effect = lambda app_key, instance_name=None: (
-        SimpleNamespace(unique_name="MyApp.MyApp[0]")
+        SimpleNamespace(unique_name="MyApp.0")
         if app_key == APP_KEY_MY_APP and instance_name in (None, MY_APP_INSTANCE_NAME)
         else None
     )

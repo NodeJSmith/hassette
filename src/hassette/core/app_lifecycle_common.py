@@ -1,7 +1,7 @@
 """Shared vocabulary for ``AppLifecycleService`` and its mixin modules."""
 
 import typing
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 from logging import Logger
@@ -86,23 +86,22 @@ class ActionOutcomes:
     ``begin_create_half``. ``_write`` keeps the rules for combining the two (spec 140 D6).
     """
 
-    def __init__(self, targets: Mapping[str, int]) -> None:
-        """Declare the targets: each targeted instance name and the display index its outcome reports."""
-        self._targets = dict(targets)
+    def __init__(self, targets: Iterable[str]) -> None:
+        """Declare the targets: each targeted instance name, in the order its outcome reports."""
+        self._targets = list(dict.fromkeys(targets))
         self._slots: dict[str, InstanceOutcome] = {}
         self._decided: set[str] = set()
         """Names with an outcome from the current half. A reload's create half clears its names from it;
         their slots keep the stop half's outcome until the create half writes over it."""
 
-    def add_targets(self, targets: Mapping[str, int]) -> None:
-        """Target more instances, such as ones a config change added while the action was running."""
-        for name, index in targets.items():
-            self._targets.setdefault(name, index)
+    def add_targets(self, targets: Iterable[str]) -> None:
+        """Target more instances after the existing ones, such as ones a config change added while the action ran."""
+        self._targets = list(dict.fromkeys([*self._targets, *targets]))
 
     @property
     def names(self) -> list[str]:
         """The targeted names, in display order."""
-        return sorted(self._targets, key=lambda name: (self._targets[name], name))
+        return list(self._targets)
 
     def succeeded(self, name: str, reason: str | None = None) -> None:
         """Record that the instance is in the action's target state; ``reason`` notes a success that wasn't plain."""
@@ -158,7 +157,6 @@ class ActionOutcomes:
         if first_in_half and previous is not None and previous.result is OutcomeResult.FAILED:
             reason = "; ".join(part for part in (reason, f"{STOP_FAILED_PREFIX}{previous.reason}") if part)
         self._slots[name] = InstanceOutcome(
-            instance_index=self._targets[name],
             instance_name=name,
             result=result,
             needs_restart=needs_restart,

@@ -115,20 +115,20 @@ class TestGetAllAppSummaries:
         db_svc, session_id = db
 
         # Instance 0: 2 listeners, 2 invocations
-        inst0_on_a = await insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_a")
-        inst0_on_b = await insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_b")
+        inst0_on_a = await insert_listener(db_svc, app_key="app_m", instance_name="instance_0", handler_method="on_a")
+        inst0_on_b = await insert_listener(db_svc, app_key="app_m", instance_name="instance_0", handler_method="on_b")
         await insert_invocation(db_svc, inst0_on_a, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, inst0_on_b, session_id, status="error", duration_ms=20.0)
 
         # Instance 1: 2 listeners (same handlers, different instance), 3 invocations
-        inst1_on_a = await insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_a")
-        inst1_on_b = await insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_b")
+        inst1_on_a = await insert_listener(db_svc, app_key="app_m", instance_name="instance_1", handler_method="on_a")
+        inst1_on_b = await insert_listener(db_svc, app_key="app_m", instance_name="instance_1", handler_method="on_b")
         await insert_invocation(db_svc, inst1_on_a, session_id, status="success", duration_ms=30.0)
         await insert_invocation(db_svc, inst1_on_b, session_id, status="success", duration_ms=40.0)
         await insert_invocation(db_svc, inst1_on_b, session_id, status="error", duration_ms=50.0)
 
         # Instance 2: 1 listener, 1 invocation
-        inst2_on_a = await insert_listener(db_svc, app_key="app_m", instance_index=2, handler_method="on_a")
+        inst2_on_a = await insert_listener(db_svc, app_key="app_m", instance_name="instance_2", handler_method="on_a")
         await insert_invocation(db_svc, inst2_on_a, session_id, status="success", duration_ms=60.0)
 
         result = await query_service.get_all_app_summaries()
@@ -154,10 +154,10 @@ class TestGetAllAppSummaries:
         """
         db_svc, _session_id = db
 
-        await insert_listener(db_svc, app_key="app_z", instance_index=0, handler_method="on_a")
-        await insert_listener(db_svc, app_key="app_z", instance_index=0, handler_method="on_b")
-        await insert_listener(db_svc, app_key="app_z", instance_index=1, handler_method="on_a")
-        await insert_listener(db_svc, app_key="app_z", instance_index=1, handler_method="on_c")
+        await insert_listener(db_svc, app_key="app_z", instance_name="instance_0", handler_method="on_a")
+        await insert_listener(db_svc, app_key="app_z", instance_name="instance_0", handler_method="on_b")
+        await insert_listener(db_svc, app_key="app_z", instance_name="instance_1", handler_method="on_a")
+        await insert_listener(db_svc, app_key="app_z", instance_name="instance_1", handler_method="on_c")
 
         result = await query_service.get_all_app_summaries()
         assert "app_z" in result
@@ -171,18 +171,18 @@ class TestGetAllAppSummaries:
         db_svc, session_id = db
 
         # Instance 0: 1 job, 2 executions
-        inst0_job = await insert_job(db_svc, app_key="app_j", instance_index=0, job_name="cron_a")
+        inst0_job = await insert_job(db_svc, app_key="app_j", instance_name="instance_0", job_name="cron_a")
         await insert_execution(db_svc, inst0_job, session_id, status="success", duration_ms=100.0)
         await insert_execution(db_svc, inst0_job, session_id, status="error", duration_ms=50.0)
 
         # Instance 1: 1 job, 3 executions
-        inst1_job = await insert_job(db_svc, app_key="app_j", instance_index=1, job_name="cron_a")
+        inst1_job = await insert_job(db_svc, app_key="app_j", instance_name="instance_1", job_name="cron_a")
         await insert_execution(db_svc, inst1_job, session_id, status="success", duration_ms=200.0)
         await insert_execution(db_svc, inst1_job, session_id, status="success", duration_ms=150.0)
         await insert_execution(db_svc, inst1_job, session_id, status="error", duration_ms=80.0)
 
         # Instance 2: 1 job, 1 execution
-        inst2_job = await insert_job(db_svc, app_key="app_j", instance_index=2, job_name="cron_a")
+        inst2_job = await insert_job(db_svc, app_key="app_j", instance_name="instance_2", job_name="cron_a")
         await insert_execution(db_svc, inst2_job, session_id, status="success", duration_ms=300.0)
 
         result = await query_service.get_all_app_summaries()
@@ -202,8 +202,8 @@ class TestGetAllAppSummaries:
         """Single-instance app: counts, sums, and averages cover that one instance's rows."""
         db_svc, session_id = db
 
-        listener = await insert_listener(db_svc, app_key="app_s", instance_index=0, handler_method="on_x")
-        job = await insert_job(db_svc, app_key="app_s", instance_index=0, job_name="job_x")
+        listener = await insert_listener(db_svc, app_key="app_s", instance_name="instance_0", handler_method="on_x")
+        job = await insert_job(db_svc, app_key="app_s", instance_name="instance_0", job_name="job_x")
 
         await insert_invocation(db_svc, listener, session_id, status="success", duration_ms=15.0)
         await insert_invocation(db_svc, listener, session_id, status="error", duration_ms=25.0)
@@ -230,12 +230,16 @@ class TestGetAllAppSummaries:
         since_ts = BASE_TS + 5.0
 
         # Instance 0: listener + job
-        inst0_listener = await insert_listener(db_svc, app_key="app_ms", instance_index=0, handler_method="on_a")
-        inst0_job = await insert_job(db_svc, app_key="app_ms", instance_index=0, job_name="cron_a")
+        inst0_listener = await insert_listener(
+            db_svc, app_key="app_ms", instance_name="instance_0", handler_method="on_a"
+        )
+        inst0_job = await insert_job(db_svc, app_key="app_ms", instance_name="instance_0", job_name="cron_a")
 
         # Instance 1: listener + job
-        inst1_listener = await insert_listener(db_svc, app_key="app_ms", instance_index=1, handler_method="on_a")
-        inst1_job = await insert_job(db_svc, app_key="app_ms", instance_index=1, job_name="cron_a")
+        inst1_listener = await insert_listener(
+            db_svc, app_key="app_ms", instance_name="instance_1", handler_method="on_a"
+        )
+        inst1_job = await insert_job(db_svc, app_key="app_ms", instance_name="instance_1", job_name="cron_a")
 
         # After since_ts: instance 0 gets 2 invocations, instance 1 gets 1 invocation
         await insert_invocation(

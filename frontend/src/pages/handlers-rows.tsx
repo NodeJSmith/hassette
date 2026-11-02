@@ -28,6 +28,7 @@ function KindBadge({ kind }: { kind: "listener" | "job" }) {
 interface MobileCardProps {
   href: string;
   appKey: string;
+  instanceName: string | null;
   name: string;
   failing?: boolean;
   "data-testid"?: string;
@@ -35,7 +36,16 @@ interface MobileCardProps {
   footer?: ReactNode;
 }
 
-function MobileCard({ href, appKey, name, failing, metrics, footer, "data-testid": testId }: MobileCardProps) {
+function MobileCard({
+  href,
+  appKey,
+  instanceName,
+  name,
+  failing,
+  metrics,
+  footer,
+  "data-testid": testId,
+}: MobileCardProps) {
   return (
     <Link
       href={href}
@@ -46,12 +56,31 @@ function MobileCard({ href, appKey, name, failing, metrics, footer, "data-testid
       data-testid={testId}
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="min-w-0 break-all font-mono text-sm">{appKey}</span>
+        <span className="min-w-0 break-all font-mono text-sm">
+          {appKey}
+          <InstanceSuffix name={instanceName} />
+        </span>
         <span className="min-w-0 break-all font-mono text-sm font-semibold">{name}</span>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">{metrics}</div>
       {footer && <div className="flex gap-3 font-mono text-xs">{footer}</div>}
     </Link>
+  );
+}
+
+/** The instance a row belongs to, which this page needs because it mixes instances. Framework rows
+ *  are stored under the framework's own pseudo-instance, so no name is shown for them. */
+function rowInstanceName(row: UnifiedRow): string | null {
+  return row.source_tier === "framework" ? null : row.instance_name;
+}
+
+function InstanceSuffix({ name }: { name: string | null }) {
+  if (name === null) return null;
+  return (
+    <span className="text-muted-foreground" data-testid="handler-row-instance">
+      {" "}
+      · {name}
+    </span>
   );
 }
 
@@ -80,6 +109,7 @@ interface HandlerRowProps {
 
 export function HandlerTableRow({ row }: HandlerRowProps) {
   const { errorRate, avgDuration, isOverdue, nextRunDisplay } = useHandlerRowData(row);
+  const instanceName = rowInstanceName(row);
 
   return (
     <tr
@@ -95,9 +125,15 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
       </td>
       <td className="font-mono text-sm">
         <AppLink appKey={row.app_key} />
+        <InstanceSuffix name={instanceName} />
       </td>
       <td className="font-mono text-sm" title={row.handler_method}>
-        <AppLink appKey={row.app_key} handlerKind={row.kind} handlerId={row.handlerId}>
+        <AppLink
+          appKey={row.app_key}
+          instanceName={instanceName ?? undefined}
+          handlerKind={row.kind}
+          handlerId={row.handlerId}
+        >
           {row.name}
         </AppLink>
       </td>
@@ -140,11 +176,13 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
 
 export function HandlerMobileRow({ row }: HandlerRowProps) {
   const { errorRate, avgDuration, nextRunDisplay, isScheduleStatus } = useHandlerRowData(row);
+  const instanceName = rowInstanceName(row);
 
   return (
     <MobileCard
-      href={handlerPath(row.app_key, row.kind, row.handlerId)}
+      href={handlerPath(row.app_key, row.kind, row.handlerId, { instance: instanceName })}
       appKey={row.app_key}
+      instanceName={instanceName}
       name={row.name}
       failing={row.failed > 0}
       data-testid={`${row.kind}-row-${row.id}`}

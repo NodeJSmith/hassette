@@ -140,9 +140,6 @@ class MonkeypatchEvent:
     instance_name: str | None
     """Human-readable instance name, or ``None``."""
 
-    instance_index: int | None
-    """0-based instance index, or ``None`` when the marker had none."""
-
     execution_id: str | None
     """UUIDv7 string of the execution that made the call, or ``None`` when no marker."""
 
@@ -191,7 +188,7 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
     the original never runs. ``IGNORE`` returns without emitting (the original then runs).
     """
     marker = executor.current_execution
-    app_key, instance_name, instance_index, execution_id, reason = _confirm_attribution(marker)
+    app_key, instance_name, execution_id, reason = _confirm_attribution(marker)
     # Resolve the owner App from the *confirmed* app_key (None for displaced/framework), so a
     # displaced call resolves behavior from global config, not the innocent marker app's setting.
     owner = resolve_owner(hassette, app_key, instance_name)
@@ -207,7 +204,6 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
         frames=(caller,) if caller is not None else (),
         app_key=app_key,
         instance_name=instance_name,
-        instance_index=instance_index,
         execution_id=execution_id,
         tier="monkeypatch",
         detected_at=time.time(),
@@ -290,13 +286,12 @@ def _make_method_wrapper(
 class _Attribution(NamedTuple):
     """Resolved attribution for one detected blocking call.
 
-    The first four fields are ``None`` unless ``reason == "attributed"`` (a displaced/framework
+    The first three fields are ``None`` unless ``reason == "attributed"`` (a displaced/framework
     call carries no owner).
     """
 
     app_key: str | None
     instance_name: str | None
-    instance_index: int | None
     execution_id: str | None
     reason: BlockingAttributionReason
 
@@ -317,15 +312,15 @@ def _confirm_attribution(marker: "ExecutionMarker | None") -> _Attribution:
     confirm). No marker at all is a genuine framework/library call.
     """
     if marker is None:
-        return _Attribution(None, None, None, None, "framework")
+        return _Attribution(None, None, None, "framework")
     try:
         current = asyncio.current_task()
     except RuntimeError:
         current = None  # no running loop on this thread — fall through to trusting the marker
     if current is not None and marker.task_id is not None and id(current) != marker.task_id:
         # A different task displaced the marker's execution and made this call — withhold.
-        return _Attribution(None, None, None, None, "displaced")
-    return _Attribution(marker.app_key, marker.instance_name, marker.instance_index, marker.execution_id, "attributed")
+        return _Attribution(None, None, None, "displaced")
+    return _Attribution(marker.app_key, marker.instance_name, marker.execution_id, "attributed")
 
 
 def resolve_owner(hassette: "Hassette", app_key: str | None, instance_name: str | None) -> object:

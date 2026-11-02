@@ -31,7 +31,6 @@ CREATE TABLE log_records (
     exc_info        TEXT,
     app_key         TEXT,
     instance_name   TEXT,
-    instance_index  INTEGER,
     execution_id    TEXT,
     author          TEXT NOT NULL CHECK (author IN ('app', 'framework'))
 );
@@ -50,7 +49,6 @@ CREATE TABLE sessions (
 CREATE TABLE listeners (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     app_key               TEXT NOT NULL,
-    instance_index        INTEGER NOT NULL DEFAULT 0,
     instance_name         TEXT NOT NULL DEFAULT '__unset__',
     name                  TEXT NOT NULL DEFAULT '',
     handler_method        TEXT NOT NULL DEFAULT '',
@@ -64,7 +62,6 @@ CREATE TABLE listeners (
 CREATE TABLE scheduled_jobs (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     app_key               TEXT NOT NULL,
-    instance_index        INTEGER NOT NULL DEFAULT 0,
     instance_name         TEXT NOT NULL DEFAULT '__unset__',
     job_name              TEXT NOT NULL DEFAULT '',
     handler_method        TEXT NOT NULL DEFAULT '',
@@ -95,7 +92,6 @@ CREATE TABLE blocking_events (
     session_id       INTEGER REFERENCES sessions(id),
     app_key          TEXT,
     instance_name    TEXT,
-    instance_index   INTEGER,
     execution_id     TEXT,
     tier             TEXT NOT NULL
         CHECK (tier IN ('watchdog', 'monkeypatch')),

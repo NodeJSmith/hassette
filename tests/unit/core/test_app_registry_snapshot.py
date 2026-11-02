@@ -108,9 +108,7 @@ class TestAppRegistryGetFullSnapshot:
 
     def test_sequence_fields_are_copied_to_tuples(self) -> None:
         """A list passed in by an untyped caller is copied, so mutating it doesn't reach the snapshot."""
-        instance = AppInstanceInfo(
-            app_key="a", index=0, instance_name="a", class_name="A", status=ResourceStatus.RUNNING
-        )
+        instance = AppInstanceInfo(app_key="a", instance_name="a", class_name="A", status=ResourceStatus.RUNNING)
         instances: list[AppInstanceInfo] = []
         only_apps: list[str] = []
         manifests: list[AppManifestInfo] = []
@@ -418,10 +416,8 @@ class TestBuildManifestInfoStatusDerivation:
 
         assert info.instance_count == 2
         assert info.status is AppStatus.RUNNING
-        by_index = {inst.index: inst for inst in info.instances}
-        assert by_index[0].status == ResourceStatus.RUNNING
-        assert by_index[1].status == ResourceStatus.STOPPED
-        assert by_index[1].instance_name == "kitchen"
+        assert [inst.status for inst in info.instances] == [ResourceStatus.RUNNING, ResourceStatus.STOPPED]
+        assert info.instances[1].instance_name == "kitchen"
 
     def test_orphaned_running_instance_beyond_configured_range_is_not_dropped(self, registry: AppRegistry) -> None:
         """A running instance whose name is outside the current config (config shrunk
@@ -436,8 +432,7 @@ class TestBuildManifestInfoStatusDerivation:
         info = registry.build_manifest_info("my_app", manifest)
 
         assert info.instance_count == 2
-        indices = {inst.index for inst in info.instances}
-        assert indices == {0, 1}
+        assert [inst.instance_name for inst in info.instances] == ["only", "orphan"]
 
     def test_orphaned_instance_is_marked_not_in_current_config(self, registry: AppRegistry) -> None:
         """A tracked name the config lacks reports ``in_current_config=False`` so the UI
@@ -451,8 +446,8 @@ class TestBuildManifestInfoStatusDerivation:
 
         info = registry.build_manifest_info("my_app", manifest)
 
-        by_index = {inst.index: inst.in_current_config for inst in info.instances}
-        assert by_index == {0: True, 1: True, 2: False, 3: False}
+        by_name = {inst.instance_name: inst.in_current_config for inst in info.instances}
+        assert by_name == {"a": True, "b": True, "orphan_a": False, "orphan_b": False}
 
     def test_orphan_classification_matches_across_snapshot_paths(self, registry: AppRegistry) -> None:
         """``get_snapshot()`` and ``get_failed_instance_infos()`` classify tracked orphans the same way
@@ -465,11 +460,11 @@ class TestBuildManifestInfoStatusDerivation:
         registry.record_failure("my_app", "b", ValueError("in range"))
         registry.record_failure("my_app", "orphan_b", ValueError("orphan"))
 
-        snapshot = {inst.index: inst.in_current_config for inst in registry.get_snapshot().instances}
-        assert snapshot == {0: True, 1: True, 2: False, 3: False}
+        snapshot = {inst.instance_name: inst.in_current_config for inst in registry.get_snapshot().instances}
+        assert snapshot == {"a": True, "b": True, "orphan_a": False, "orphan_b": False}
 
-        failed = {info.index: info.in_current_config for info in registry.get_failed_instance_infos("my_app").values()}
-        assert failed == {1: True, 3: False}
+        failed = registry.get_failed_instance_infos("my_app")
+        assert {name: info.in_current_config for name, info in failed.items()} == {"b": True, "orphan_b": False}
 
     def test_degraded_when_running_and_failed_coexist(self, registry: AppRegistry) -> None:
         """3 instances registered, index 0 fails — status is 'degraded'."""
@@ -496,18 +491,18 @@ class TestBuildManifestInfoStatusDerivation:
         assert info.status is AppStatus.FAILED
 
     @pytest.mark.parametrize(
-        ("app_config", "failed_name", "expected_index"),
+        ("app_config", "failed_name", "expected_names"),
         [
-            ([{"instance_name": "custom_instance"}], "custom_instance", 0),
-            ([{"instance_name": "first"}, {"instance_name": "second"}], "second", 1),
-            ([{"instance_name": "first"}], "unconfigured", 1),
+            ([{"instance_name": "custom_instance"}], "custom_instance", ["custom_instance"]),
+            ([{"instance_name": "first"}, {"instance_name": "second"}], "second", ["first", "second"]),
+            ([{"instance_name": "first"}], "unconfigured", ["first", "unconfigured"]),
         ],
         ids=["configured_name", "second_instance", "unconfigured_after_configured"],
     )
-    def test_failed_instance_reports_its_name_and_display_index(
-        self, registry: AppRegistry, app_config: list[dict], failed_name: str, expected_index: int
+    def test_failed_instance_reports_its_name_in_display_order(
+        self, registry: AppRegistry, app_config: list[dict], failed_name: str, expected_names: list[str]
     ) -> None:
-        """A failed entry reports the name it is tracked under, at its display index: configured names in
+        """A failed entry reports the name it is tracked under, in display order: configured names in
         config order, then names the config lacks.
         """
         manifest = make_manifest_obj("my_app", app_config=app_config)
@@ -515,8 +510,7 @@ class TestBuildManifestInfoStatusDerivation:
 
         info = registry.build_manifest_info("my_app", manifest)
 
-        failed = next(inst for inst in info.instances if inst.instance_name == failed_name)
-        assert failed.index == expected_index
+        assert [inst.instance_name for inst in info.instances] == expected_names
 
     def test_failed_instance_name_falls_back_when_no_manifest(self, registry: AppRegistry) -> None:
         """When no manifest is tracked for the app_key, the entry keeps its name and gets the ``Unknown`` class."""

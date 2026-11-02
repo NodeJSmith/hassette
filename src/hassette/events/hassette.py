@@ -143,10 +143,9 @@ class AppStateChangePayload:
     """Payload for app instance state change events."""
 
     app_key: str
-    index: int
+    instance_name: str
     status: ResourceStatus
     previous_status: ResourceStatus | None = None
-    instance_name: str | None = None
     class_name: str | None = None
     exception: str | None = None
     exception_type: str | None = None
@@ -166,7 +165,7 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
     ) -> "HassetteAppStateEvent":
         """Build an app state-change event from a live ``App`` instance.
 
-        The app's key, index, instance name, and class name fill the payload's identity fields.
+        The app's key, instance name, and class name fill the payload's identity fields.
 
         Args:
             app: The app instance whose status changed.
@@ -180,10 +179,9 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         exc_str, exc_type, exc_tb = extract_exception_fields(exception)
         payload = AppStateChangePayload(
             app_key=app.app_key,
-            index=app.index,
+            instance_name=app.instance_name,
             status=status,
             previous_status=previous_status,
-            instance_name=app.instance_name,
             class_name=type(app).__name__,
             exception=exc_str,
             exception_type=exc_type,
@@ -223,10 +221,9 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
         exc_str, exc_type, exc_tb = extract_exception_fields(info.error) if include_exception else (None, None, None)
         payload = AppStateChangePayload(
             app_key=info.app_key,
-            index=info.index,
+            instance_name=info.instance_name,
             status=resolved_status,
             previous_status=previous_status,
-            instance_name=info.instance_name,
             class_name=info.class_name,
             exception=exc_str,
             exception_type=exc_type,
@@ -252,7 +249,6 @@ class ExecutionCompletedPayload:
     listener_id: int | None = None
     job_id: int | None = None
     app_key: str = ""
-    instance_index: int = 0
     error_type: str | None = None
     thread_leaked: bool = False
 
@@ -269,7 +265,6 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
         listener_id: int | None = None,
         job_id: int | None = None,
         app_key: str = "",
-        instance_index: int = 0,
         error_type: str | None = None,
         thread_leaked: bool = False,
     ) -> "HassetteExecutionCompletedEvent":
@@ -287,7 +282,6 @@ class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPa
             listener_id=listener_id,
             job_id=job_id,
             app_key=app_key,
-            instance_index=instance_index,
             error_type=error_type,
             thread_leaked=thread_leaked,
         )

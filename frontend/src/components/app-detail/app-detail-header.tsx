@@ -15,13 +15,10 @@ interface Props {
   appKey: string;
   liveStatus: AppStatus | ResourceStatus | "unknown";
   manifest: AppManifest | undefined;
-  // currentInstance is resolvedInstanceIndex looked up against the manifest's (possibly
-  // sparse) instances array — undefined when that lookup misses (e.g. an out-of-range URL
-  // query param). resolvedInstanceIndex is display-only (the "instance N" meta text) and
-  // always renders even on a miss; currentInstance gates the ActionButtons instance prop
-  // below so a miss falls back to app-level actions instead of a blank instance name.
+  // The manifest instance the page is on — undefined on the multi-instance parent page and
+  // when the `?instance=` name misses. It gates the ActionButtons instance prop and the
+  // "instance <name>" meta text below, so a miss falls back to app-level actions.
   currentInstance: InstanceInfo | undefined;
-  resolvedInstanceIndex: number;
   showParentOverview: boolean;
 }
 
@@ -38,14 +35,7 @@ function MetaBadge({ label, testId }: { label: string; testId: string }) {
   );
 }
 
-export function AppDetailHeader({
-  appKey,
-  liveStatus,
-  manifest,
-  currentInstance,
-  resolvedInstanceIndex,
-  showParentOverview,
-}: Props) {
+export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance, showParentOverview }: Props) {
   const errorMsg = currentInstance?.error_message ?? manifest?.error_message ?? null;
   // A blocked parent's not-yet-tracked instances still report a synthetic "stopped" status
   // (see build_manifest_info()) so `liveStatus` can read "stopped" on an individual instance
@@ -88,7 +78,7 @@ export function AppDetailHeader({
             confirmStop
             {...(instanceScoped && currentInstance
               ? {
-                  instance: getStableInstanceRef(currentInstance.index, currentInstance.instance_name),
+                  instance: getStableInstanceRef(currentInstance.instance_name),
                   instanceOrphaned,
                 }
               : {})}
@@ -99,7 +89,7 @@ export function AppDetailHeader({
       <p className="mb-3 break-words font-mono text-sm text-muted-foreground" data-testid="app-subtitle-meta">
         {manifest?.filename ?? appKey}
         {manifest?.class_name && manifest.class_name !== appKey && <> &middot; {manifest.class_name}</>}
-        {instanceScoped && <> &middot; instance {resolvedInstanceIndex}</>}
+        {instanceScoped && currentInstance && <> &middot; instance {currentInstance.instance_name}</>}
         {instanceOrphaned && <MetaBadge label="not in config" testId="not-in-config-badge" />}
         {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
             loading, and we must not flash the chip before the manifest arrives. */}

@@ -103,8 +103,9 @@ Hassette stores an instance's telemetry history (its handlers, jobs, and their r
 !!! warning "Upgrading resets per-instance views"
     History recorded before names became the key can't be attributed to a name, so per-instance views start empty after upgrading. App-wide totals still count the older runs, and retention deletes those rows on its normal schedule.
 
-!!! note "Web routes and the CLI still use the index"
-    Web routes and the CLI still address an instance by its app key and index (its zero-based position among the app's `config` blocks). The CLI's `--instance` flag resolves a name to its index.
+Web routes, the Python client, the CLI's `--instance` flag and web UI links all address an instance by its name. A bookmark or script therefore keeps pointing at the same instance after a reorder. A renamed or removed instance's link answers 404 from the API, and the web UI drops the stale `?instance=` and shows the app's page.
+
+An edit that only reorders `config` blocks restarts nothing and sends no refresh to an open dashboard, so its rows keep the old order until its next fetch.
 
 ## Typed Configuration
 

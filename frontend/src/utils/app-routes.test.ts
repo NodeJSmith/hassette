@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { appDetailPath, executionPath, handlerPath, HOME_PATH, logEntryExecutionHref, NAV_PAGES } from "./app-routes";
+import {
+  appDetailPath,
+  executionPath,
+  handlerPath,
+  HOME_PATH,
+  logEntryExecutionHref,
+  NAV_PAGES,
+  parseInstanceParam,
+} from "./app-routes";
 
 describe("NAV_PAGES", () => {
   it("contains expected top-level pages", () => {
@@ -30,7 +38,7 @@ describe("appDetailPath", () => {
   });
 
   it("appends query params", () => {
-    expect(appDetailPath("my_app", undefined, { instance: 2 })).toBe("/apps/my_app?instance=2");
+    expect(appDetailPath("my_app", undefined, { instance: "office" })).toBe("/apps/my_app?instance=office");
   });
 
   it("omits null/undefined query values", () => {
@@ -48,7 +56,9 @@ describe("handlerPath", () => {
   });
 
   it("appends query params", () => {
-    expect(handlerPath("my_app", "listener", 5, { instance: 1 })).toBe("/apps/my_app/handlers/listener/5?instance=1");
+    expect(handlerPath("my_app", "listener", 5, { instance: "office" })).toBe(
+      "/apps/my_app/handlers/listener/5?instance=office",
+    );
   });
 });
 
@@ -58,14 +68,14 @@ describe("executionPath", () => {
   });
 
   it("appends instance query", () => {
-    expect(executionPath("my_app", "job", 3, "exec-2", { instance: 2 })).toBe(
-      "/apps/my_app/handlers/job/3/exec/exec-2?instance=2",
+    expect(executionPath("my_app", "job", 3, "exec-2", { instance: "office" })).toBe(
+      "/apps/my_app/handlers/job/3/exec/exec-2?instance=office",
     );
   });
 });
 
 describe("logEntryExecutionHref", () => {
-  const base = { app_key: "my_app", execution_id: "exec-1", instance_index: null };
+  const base = { app_key: "my_app", execution_id: "exec-1", instance_name: null };
 
   it("returns href for handler kind with listener_id", () => {
     expect(logEntryExecutionHref({ ...base, execution_kind: "handler", listener_id: 5, job_id: null })).toBe(
@@ -97,7 +107,29 @@ describe("logEntryExecutionHref", () => {
 
   it("appends instance query param when present", () => {
     expect(
-      logEntryExecutionHref({ ...base, execution_kind: "handler", listener_id: 5, job_id: null, instance_index: 2 }),
-    ).toBe("/apps/my_app/handlers/listener/5/exec/exec-1?instance=2");
+      logEntryExecutionHref({
+        ...base,
+        execution_kind: "handler",
+        listener_id: 5,
+        job_id: null,
+        instance_name: "office",
+      }),
+    ).toBe("/apps/my_app/handlers/listener/5/exec/exec-1?instance=office");
+  });
+});
+
+describe("parseInstanceParam", () => {
+  it("returns the name as given", () => {
+    expect(parseInstanceParam("office")).toBe("office");
+  });
+
+  it("returns undefined for an absent or empty value", () => {
+    expect(parseInstanceParam(null)).toBeUndefined();
+    expect(parseInstanceParam("")).toBeUndefined();
+    expect(parseInstanceParam("  ")).toBeUndefined();
+  });
+
+  it("does not validate the shape; membership is checked against the manifest", () => {
+    expect(parseInstanceParam("0")).toBe("0");
   });
 });

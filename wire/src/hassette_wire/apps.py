@@ -28,15 +28,13 @@ class NeedsRestart(BaseModel):
 class AppInstance(BaseModel):
     """One configured instance of an app and its lifecycle status.
 
-    Nested in ``AppSummary.instances``. ``index`` is the instance's position in the app's config;
-    ``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None``
-    unless ``status`` is ``failed``.
+    Nested in ``AppSummary.instances``, in config order. ``error_message`` and ``error_traceback`` describe why
+    the instance failed, and are ``None`` unless ``status`` is ``failed``.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     app_key: str
-    index: int
     instance_name: str
     class_name: str
     status: OpenResourceStatus
@@ -44,9 +42,9 @@ class AppInstance(BaseModel):
     error_traceback: str | None = None
     owner_id: str | None = None
     in_current_config: bool = True
-    """False for an instance still tracked at an index outside the app's configured range, such as one left
-    running after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``
-    and ``reload`` return 404."""
+    """False for an instance still tracked under a name outside the app's config, such as one left running
+    after its config block was removed. Such an instance accepts only ``stop``; ``start`` and ``reload``
+    return 404."""
     needs_restart: NeedsRestart | None = None
     """Set when a teardown of this instance left work that may still be running. ``status`` is then ``failed``
     until hassette restarts."""
@@ -110,7 +108,6 @@ class InstanceOutcome(BaseModel):
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
-    instance_index: int
     instance_name: str
     result: OpenInstanceResult
     needs_restart: bool = False
@@ -123,9 +120,9 @@ class InstanceOutcome(BaseModel):
 class ActionResponse(BaseModel):
     """Response for a start, stop or reload that succeeded on every instance it targeted.
 
-    Sent with 200 once the action has finished. ``instance_index`` is the server-confirmed instance the
-    action ran against — ``None`` for an app-level action, the validated index for an instance-scoped one.
-    Callers (the CLI and the frontend toast) compare this against the index they requested rather than
+    Sent with 200 once the action has finished. ``instance_name`` is the server-confirmed instance the
+    action ran against — ``None`` for an app-level action, the validated name for an instance-scoped one.
+    Callers (the CLI and the frontend toast) compare this against the name they requested rather than
     trusting their own request data, since a routing bug would otherwise still look like a plain 200.
     """
 
@@ -133,9 +130,9 @@ class ActionResponse(BaseModel):
 
     app_key: str
     action: OpenAppAction
-    instance_index: int | None
+    instance_name: str | None
     outcomes: list[InstanceOutcome]
-    """One entry per instance the action targeted, in index order."""
+    """One entry per instance the action targeted, in config order."""
 
 
 class AppConfigResponse(BaseModel):

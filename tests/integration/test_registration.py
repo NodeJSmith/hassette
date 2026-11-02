@@ -1,7 +1,7 @@
 """Integration tests for DB registration using app_key and the non-App owner guard.
 
 Tests verify:
-1. ListenerRegistration and ScheduledJobRegistration use app_key/instance_index (not owner_id)
+1. ListenerRegistration and ScheduledJobRegistration use app_key/instance_name (not owner_id)
 2. Empty app_key (non-App owners like RuntimeQueryService) skips DB registration entirely
 3. The guard still routes listeners/jobs through the in-memory path (Router add, Queue enqueue)
 """
@@ -40,25 +40,24 @@ async def test_listener_registration_persists_correct_app_key(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
-    """register_listener() on CommandExecutor persists the correct app_key and instance_index."""
+    """register_listener() on CommandExecutor persists the correct app_key and instance_name."""
     db_service, _ = initialized_db
     reg = make_listener_registration(
         instance_name="instance_2",
         app_key="my_app",
-        instance_index=2,
         handler_method="MyApp.on_event",
     )
     listener_id = await executor.register_listener(reg)
     assert listener_id > 0
 
     cursor = await db_service.db.execute(
-        "SELECT app_key, instance_index FROM listeners WHERE id = ?",
+        "SELECT app_key, instance_name FROM listeners WHERE id = ?",
         (listener_id,),
     )
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == "my_app", f"Expected app_key='my_app', got {row[0]!r}"
-    assert row[1] == 2, f"Expected instance_index=2, got {row[1]}"
+    assert row[1] == "instance_2", f"Expected instance_name='instance_2', got {row[1]!r}"
 
 
 @pytest.mark.parametrize(
@@ -115,25 +114,24 @@ async def test_job_registration_persists_correct_app_key(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
-    """register_job() on CommandExecutor persists the correct app_key and instance_index."""
+    """register_job() on CommandExecutor persists the correct app_key and instance_name."""
     db_service, _ = initialized_db
     reg = make_job_registration(
         instance_name="instance_3",
         app_key="my_app",
-        instance_index=3,
         handler_method="MyApp.my_job",
     )
     job_id = await executor.register_job(reg)
     assert job_id > 0
 
     cursor = await db_service.db.execute(
-        "SELECT app_key, instance_index FROM scheduled_jobs WHERE id = ?",
+        "SELECT app_key, instance_name FROM scheduled_jobs WHERE id = ?",
         (job_id,),
     )
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == "my_app", f"Expected app_key='my_app', got {row[0]!r}"
-    assert row[1] == 3, f"Expected instance_index=3, got {row[1]}"
+    assert row[1] == "instance_3", f"Expected instance_name='instance_3', got {row[1]!r}"
 
 
 async def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
@@ -143,7 +141,7 @@ async def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock
     """
     bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=99)
 
-    listener = make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app", instance_index=2)
+    listener = make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app")
 
     await bus_service.add_listener(listener)
 
@@ -158,7 +156,7 @@ async def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> 
     """
     scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=55)
 
-    job = make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app", instance_index=3)
+    job = make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app")
 
     await scheduler_service.add_job(job)
 
@@ -166,7 +164,6 @@ async def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> 
     executor_mock.register_job.assert_called_once()
     reg_arg = executor_mock.register_job.call_args.args[0]
     assert reg_arg.app_key == "my_app"
-    assert reg_arg.instance_index == 3
     # mode threads through from job.mode.value to the registration
     assert reg_arg.mode == "single"
 
@@ -178,7 +175,7 @@ async def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: A
     """
     bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=10)
 
-    listener = make_mock_listener(app_key="", instance_index=0)
+    listener = make_mock_listener(app_key="")
 
     await bus_service.add_listener(listener)
 
@@ -193,7 +190,7 @@ async def test_listener_with_app_key_triggers_registration(db_hassette: AsyncMoc
     """
     bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=7)
 
-    listener = make_mock_listener(app_key="my_app", instance_index=1)
+    listener = make_mock_listener(app_key="my_app")
 
     await bus_service.add_listener(listener)
 
@@ -207,7 +204,7 @@ async def test_job_with_empty_app_key_skips_registration(db_hassette: AsyncMock)
     """
     scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=0)
 
-    job = make_mock_job(app_key="", instance_index=0)
+    job = make_mock_job(app_key="")
 
     await scheduler_service.add_job(job)
 
@@ -221,14 +218,13 @@ async def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) ->
     """Jobs with non-empty app_key trigger executor.register_job inline, then enqueue."""
     scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=42)
 
-    job = make_mock_job(app_key="my_app", instance_index=1)
+    job = make_mock_job(app_key="my_app")
 
     await scheduler_service.add_job(job)
 
     executor_mock.register_job.assert_called_once()
     reg_arg = executor_mock.register_job.call_args.args[0]
     assert reg_arg.app_key == "my_app"
-    assert reg_arg.instance_index == 1
 
 
 @pytest.mark.parametrize("mode_str", ["single", "restart", "queued", "parallel"])
@@ -335,7 +331,7 @@ async def test_job_callable_predicate_registers_qualified_name(db_hassette: Asyn
     """A bound-method ``where=`` is persisted as its qualified name, not an object repr."""
     scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=42)
 
-    job = make_mock_job(app_key="my_app", instance_index=1)
+    job = make_mock_job(app_key="my_app")
     job.predicate = PredicateDemo().is_motion_detected
 
     await scheduler_service.add_job(job)
@@ -349,7 +345,7 @@ async def test_job_composed_predicate_keeps_structured_description(db_hassette: 
     """A predicate object exposing summarize() keeps its structured repr."""
     scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=43)
 
-    job = make_mock_job(app_key="my_app", instance_index=1)
+    job = make_mock_job(app_key="my_app")
     job.predicate = _ComposedPredicate()
 
     await scheduler_service.add_job(job)
@@ -363,7 +359,7 @@ async def test_listener_callable_predicate_registers_qualified_name(db_hassette:
     """A bound-method ``where=`` on the bus is persisted as its qualified name too."""
     bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=44)
 
-    listener = make_mock_listener(app_key="my_app", instance_index=1)
+    listener = make_mock_listener(app_key="my_app")
     listener.predicate = PredicateDemo().is_motion_detected
 
     await bus_service.add_listener(listener)

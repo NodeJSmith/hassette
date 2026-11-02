@@ -136,11 +136,10 @@ export function useWebSocket(): void {
           }
 
           case "app_status_changed":
-            useAppStore.getState().updateAppStatus(appStatusKey(msg.data.app_key, msg.data.index), {
+            useAppStore.getState().updateAppStatus(appStatusKey(msg.data.app_key, msg.data.instance_name), {
               status: msg.data.status,
-              index: msg.data.index,
-              previous_status: msg.data.previous_status,
               instance_name: msg.data.instance_name,
+              previous_status: msg.data.previous_status,
               class_name: msg.data.class_name,
               exception: msg.data.exception,
               needs_restart: msg.data.needs_restart ?? null,

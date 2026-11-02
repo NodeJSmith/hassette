@@ -177,7 +177,6 @@ def make_log_record_row(seq: int, timestamp: float, message: str) -> dict[str, A
         "exc_info": None,
         "app_key": "a",
         "instance_name": "a_0",
-        "instance_index": 0,
         "execution_id": None,
         "author": "app",
     }

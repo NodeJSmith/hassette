@@ -302,7 +302,6 @@ def make_blocking_event() -> BlockingEvent:  # factory-local: no shared Blocking
         session_id=None,
         app_key=DEFAULT_TEST_APP_KEY,
         instance_name=None,
-        instance_index=0,
         execution_id=None,
         tier="watchdog",
         primitive=None,

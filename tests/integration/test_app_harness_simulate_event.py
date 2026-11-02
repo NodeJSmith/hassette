@@ -30,7 +30,7 @@ class UpstreamWatcher(App[WatcherConfig]):
 def make_app_state_event(app_key: str, status: ResourceStatus) -> HassetteAppStateEvent:
     return HassetteAppStateEvent(
         topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
-        payload=HassettePayload(data=AppStateChangePayload(app_key=app_key, index=0, status=status)),
+        payload=HassettePayload(data=AppStateChangePayload(app_key=app_key, instance_name=app_key, status=status)),
     )
 
 

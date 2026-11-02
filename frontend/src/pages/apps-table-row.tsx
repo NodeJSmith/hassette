@@ -246,9 +246,9 @@ export function AppTableRow({
           const instActionStatus = status === "blocked" ? "blocked" : instStatus;
           return (
             <tr
-              key={`${app.app_key}-${inst.index}`}
+              key={`${app.app_key}-${inst.instance_name}`}
               className="group bg-background transition-colors hover:bg-muted max-mobile:active:bg-accent"
-              data-testid={`instance-row-${app.app_key}-${inst.index}`}
+              data-testid={`instance-row-${app.app_key}-${inst.instance_name}`}
             >
               <td className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2 [&_a]:min-w-0 [&_a]:overflow-hidden [&_a]:text-ellipsis [&_a]:whitespace-nowrap max-sidebar:after:ml-auto max-sidebar:after:text-[length:var(--text-h3)] max-sidebar:after:text-foreground-faint max-sidebar:after:content-['›']">
@@ -256,7 +256,7 @@ export function AppTableRow({
                     └
                   </span>
                   <StatusShape kind={instKind} size={INSTANCE_ROW_STATUS_SHAPE_SIZE} muted={muteStatus} />
-                  <AppLink appKey={app.app_key} instanceIndex={inst.index}>
+                  <AppLink appKey={app.app_key} instanceName={inst.instance_name}>
                     {inst.instance_name}
                   </AppLink>
                   {!inst.in_current_config && (
@@ -299,7 +299,7 @@ export function AppTableRow({
                   appKey={app.app_key}
                   status={instActionStatus}
                   confirmStop
-                  instance={getStableInstanceRef(inst.index, inst.instance_name)}
+                  instance={getStableInstanceRef(inst.instance_name)}
                   instanceOrphaned={!inst.in_current_config}
                 />
               </td>

@@ -121,7 +121,7 @@ A part is `null` when the server couldn't compute it. The table shows that as a 
 | `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`                     |
 | `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`                   |
 
-The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{index}/{start,stop,reload}` instead of the app-level path shown above.
+The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}` instead of the app-level path shown above.
 
 Each action finishes before the command returns. If any instance fails or is refused, the command prints an error and exits 1. The error names each such instance and why.
 
@@ -214,7 +214,7 @@ hassette app source my-app
 
 | Flag            | Applies to                        | Description                                              |
 | --------------- | ---------------------------------- | -------------------------------------------------------- |
-| `--instance`    | `health`, `activity`, `start`, `stop`, `reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). |
+| `--instance`    | `health`, `activity`, `start`, `stop`, `reload` | Filters to (read commands) or targets (action commands) a specific app instance by name. Without it, read commands cover every instance of the app. |
 | `--since`       | `health`, `activity`               | Time window for metrics. See [formats](#--since-format). |
 | `--source-tier` | `health`                           | Filters by source tier — `app` is your code, `framework` is Hassette internals. See [Shared Flags](#shared-flags). |
 | `--limit`       | `activity`                         | Maximum records to return.                               |
@@ -249,7 +249,7 @@ The invocation table shows status, duration, error type, error message, timestam
 | Flag                   | Description                                                    |
 | ---------------------- | -------------------------------------------------------------- |
 | `--app <key>`          | Filters to listeners belonging to this app.                    |
-| `--instance <n>`       | Filters to a specific app instance. Requires `--app`.          |
+| `--instance <name>`    | Filters to a specific app instance. Requires `--app`.          |
 | `--since <duration>`   | Time window for invocation counts and history.                 |
 | `--source-tier <tier>` | Filters by `app`, `framework`, or `all`.                       |
 | `--limit <n>`          | Maximum invocation records (when viewing a specific listener). |
@@ -308,7 +308,7 @@ $ hassette job trigger 1
 | Flag                   | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | `--app <key>`          | Filters to jobs belonging to this app.                   |
-| `--instance <n>`       | Filters to a specific app instance. Requires `--app`.    |
+| `--instance <name>`    | Filters to a specific app instance. Requires `--app`.    |
 | `--since <duration>`   | Time window for execution history.                       |
 | `--source-tier <tier>` | Filters by `app`, `framework`, or `all`.                 |
 | `--limit <n>`          | Maximum execution records (when viewing a specific job). |
@@ -413,7 +413,7 @@ The Stall column shows how long the loop was held. A [Tier 2](../core-concepts/b
 | Flag                   | Description                                         |
 | ---------------------- | --------------------------------------------------- |
 | `--app <key>`          | Shows only this app's findings.                     |
-| `--instance <name\|n>` | With `--app`, selects the instance.                 |
+| `--instance <name>`    | With `--app`, selects the instance.                 |
 | `--since <duration>`   | Time window filter. Without it, covers all retained events. |
 | `--json`               | Outputs as JSON. Without `--app`, one document with `findings` and `unattributed` keys. With `--app`, the findings response: a `findings` array and a `truncated` flag. |
 
@@ -479,7 +479,7 @@ These flags appear across multiple commands.
 | Flag                   | Format                       | Commands                                                     | Description                                                                                                                                 |
 | ---------------------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--app <key>`          | string                       | `listener`, `job`, `log`, `blocking`                         | Filters results to a specific app key.                                                                                                      |
-| `--instance <n>`       | int or string                | `listener`, `job`, `blocking`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). Requires `--app` for `listener`/`job`/`blocking`; requires the positional `<key>` for all `app` subcommands.         |
+| `--instance <name>`    | string                       | `listener`, `job`, `blocking`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance by name. Requires `--app` for `listener`/`job`/`blocking`; requires the positional `<key>` for all `app` subcommands.         |
 | `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `blocking`, `app health`, `app activity` | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
 | `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
 | `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `app health`                              | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
@@ -530,9 +530,10 @@ Invalid values cause a non-zero exit with an error listing accepted formats.
 
 ### `--instance` resolution
 
-`--instance` requires `--app` (or a positional `<key>` argument on `app health`, `app activity`, `app start`, `app stop`, and `app reload`). It accepts:
+`--instance` requires `--app` (or a positional `<key>` argument on `app health`, `app activity`, `app start`, `app stop`, and `app reload`). It takes the instance name, and the CLI checks it against the app's instances first: if no instance matches, it exits non-zero and lists the available names. The check skips when the app list can't be read, and the server answers for the name.
 
-- **Integer index**, passed directly to the API as `instance_index`. Most apps have a single instance at index `0`.
-- **Instance name**, resolved to an index by fetching the app manifest. If no instance matches the name, the CLI exits non-zero and lists available instance names.
+Because of that check, the CLI refuses a name that has been renamed or removed, even though its history stays readable through the API until retention deletes it.
+
+Without `--instance`, read commands cover every instance of the app, including runs under a name that was since renamed or removed, until retention deletes them.
 
 `--instance` without an app context exits non-zero with a usage error.

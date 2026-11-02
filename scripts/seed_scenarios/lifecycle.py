@@ -22,7 +22,7 @@ from seed_scenarios.base import (
 def scenario_lifecycle(ctx: SeedContext) -> None:
     """4 apps covering all four retired/cancelled combinations from the design doc's
     Lifecycle Field Contract, multi-session apps (crashed + restarted), and a multi-instance
-    app (instance_index 0 and 1).
+    app (instance ordinals 0 and 1).
     """
     seq = 1
 
@@ -127,7 +127,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     listener_id_1 = seed_listener(
         ctx,
         app_key=app_key,
-        instance_index=1,
+        instance_ordinal=1,
         handler_method=f"{class_name}.on_motion",
         topic=STATE_CHANGED_TOPIC,
         name=f"{app_key}_motion_listener",
@@ -137,7 +137,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
     seed_listener(
         ctx,
         app_key=app_key,
-        instance_index=1,
+        instance_ordinal=1,
         handler_method=f"{class_name}.on_old_event",
         topic="hass.event.old_topic",
         name=f"{app_key}_old_listener",
@@ -180,7 +180,7 @@ def scenario_lifecycle(ctx: SeedContext) -> None:
         count=2,
         app_key=app_key,
         class_name=class_name,
-        instance_index=1,
+        instance_ordinal=1,
         base_offset=base + 400.0,
     )
 

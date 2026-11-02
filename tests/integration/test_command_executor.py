@@ -587,13 +587,9 @@ async def test_reconcile_registrations_forwards_instance_name(
     """
     db_service, _session_id = initialized_db
 
-    id_target = await executor.register_listener(
-        make_listener_registration(instance_name="instance_0", instance_index=0)
-    )
+    id_target = await executor.register_listener(make_listener_registration(instance_name="instance_0"))
     id_sibling = await executor.register_listener(
-        make_listener_registration(
-            instance_name="instance_1", instance_index=1, handler_method="test_app.on_event_sibling"
-        )
+        make_listener_registration(instance_name="instance_1", handler_method="test_app.on_event_sibling")
     )
 
     # Reconcile only instance_0 with no live IDs: id_target should be deleted (stale, no

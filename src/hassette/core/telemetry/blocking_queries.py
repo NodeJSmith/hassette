@@ -34,7 +34,7 @@ RECENT_UNATTRIBUTED_LIMIT = 20
 # Python then classifies each distinct stack once and merges groups that share a call site. The
 # GROUP BY lists every non-aggregated SELECT column; keep the two in step.
 _FINDING_GROUPS_QUERY = """
-    SELECT be.app_key, be.instance_index, be.instance_name, be.tier, be.primitive, be.frames,
+    SELECT be.app_key, be.instance_name, be.tier, be.primitive, be.frames,
            e.listener_id, e.job_id,
            l.name AS listener_name, l.handler_method AS listener_method,
            sj.job_name, sj.handler_method AS job_method,
@@ -50,7 +50,7 @@ _FINDING_GROUPS_QUERY = """
     LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id
     WHERE be.source_tier = 'app'
     {filters}
-    GROUP BY be.app_key, be.instance_index, be.instance_name, be.tier, be.primitive, be.frames,
+    GROUP BY be.app_key, be.instance_name, be.tier, be.primitive, be.frames,
              e.listener_id, e.job_id, l.name, l.handler_method, sj.job_name, sj.handler_method
     -- latest_event_id breaks last-seen ties so the order, and so each finding's latest stack, is stable.
     -- It also names a row to inspect when a group's frames can't be decoded.

@@ -98,8 +98,8 @@ class TestFreshMigration:
         with sqlite_conn(db_path, foreign_keys=True) as conn:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.execute(
-                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+                "INSERT INTO listeners (app_key, name, handler_method, topic, source_location)"
+                " VALUES ('app', 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
             )
             conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
@@ -129,8 +129,8 @@ class TestFreshMigration:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.execute(
                 "INSERT INTO scheduled_jobs "
-                "(app_key, instance_index, job_name, handler_method, source_location, schedule_status)"
-                " VALUES ('app', 0, 'my_job', 'do_thing', 'app.py:1', 'scheduled')"
+                "(app_key, job_name, handler_method, source_location, schedule_status)"
+                " VALUES ('app', 'my_job', 'do_thing', 'app.py:1', 'scheduled')"
             )
             conn.commit()
             # dup-ignore-end
@@ -155,8 +155,8 @@ class TestFreshMigration:
         with sqlite_conn(db_path, foreign_keys=True) as conn:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.execute(
-                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+                "INSERT INTO listeners (app_key, name, handler_method, topic, source_location)"
+                " VALUES ('app', 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
             )
             conn.commit()
             insert_execution_row(
@@ -187,8 +187,8 @@ class TestFreshMigration:
         with sqlite_conn(db_path, foreign_keys=True) as conn:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.execute(
-                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+                "INSERT INTO listeners (app_key, name, handler_method, topic, source_location)"
+                " VALUES ('app', 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
             )
             conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
@@ -212,8 +212,8 @@ class TestFreshMigration:
             conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
             conn.execute(
                 "INSERT INTO scheduled_jobs "
-                "(app_key, instance_index, job_name, handler_method, source_location, source_tier, schedule_status)"
-                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
+                "(app_key, job_name, handler_method, source_location, source_tier, schedule_status)"
+                " VALUES ('app', 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
             )
             conn.commit()
             # dup-ignore-end
@@ -273,14 +273,14 @@ class TestFreshMigration:
         with sqlite_conn(db_path) as conn:
             conn.execute(
                 "INSERT INTO listeners "
-                "(app_key, instance_index, name, handler_method, topic, source_location, source_tier) "
-                "VALUES ('my_app', 0, 'app_listener', 'on_state', 'state_changed', 'app.py:10', 'app')"
+                "(app_key, name, handler_method, topic, source_location, source_tier) "
+                "VALUES ('my_app', 'app_listener', 'on_state', 'state_changed', 'app.py:10', 'app')"
             )
             # dup-ignore-end
             conn.execute(
                 "INSERT INTO listeners "
-                "(app_key, instance_index, name, handler_method, topic, source_location, source_tier) "
-                "VALUES ('__hassette__', 0, 'fw_listener', 'on_event', 'all', 'core.py:5', 'framework')"
+                "(app_key, name, handler_method, topic, source_location, source_tier) "
+                "VALUES ('__hassette__', 'fw_listener', 'on_event', 'all', 'core.py:5', 'framework')"
             )
             conn.commit()
 
@@ -324,8 +324,8 @@ class TestFreshMigration:
             # dup-ignore-end
 
             conn.execute(
-                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+                "INSERT INTO listeners (app_key, name, handler_method, topic, source_location)"
+                " VALUES ('app', 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
             )
             conn.commit()
             row = conn.execute("SELECT mode FROM listeners WHERE name = 'my_listener'").fetchone()
@@ -345,8 +345,8 @@ class TestFreshMigration:
             # dup-ignore-end
 
             conn.execute(
-                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+                "INSERT INTO listeners (app_key, name, handler_method, topic, source_location)"
+                " VALUES ('app', 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
             )
             conn.commit()
             row = conn.execute("SELECT backpressure FROM listeners WHERE name = 'my_listener'").fetchone()
@@ -385,8 +385,8 @@ class TestFreshMigration:
 
             conn.execute(
                 "INSERT INTO scheduled_jobs"
-                " (app_key, instance_index, job_name, handler_method, source_location, source_tier, schedule_status)"
-                " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
+                " (app_key, job_name, handler_method, source_location, source_tier, schedule_status)"
+                " VALUES ('app', 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
             )
             conn.commit()
             row = conn.execute("SELECT mode FROM scheduled_jobs WHERE job_name = 'my_job'").fetchone()
@@ -400,8 +400,8 @@ class TestFreshMigration:
         with sqlite_conn(db_path) as conn, pytest.raises(sqlite3.IntegrityError):
             conn.execute(
                 "INSERT INTO scheduled_jobs "
-                "(app_key, instance_index, job_name, handler_method, source_location, source_tier, mode)"
-                " VALUES ('app', 0, 'bad_job', 'on_x', 'app.py:1', 'app', 'invalid')"
+                "(app_key, job_name, handler_method, source_location, source_tier, mode)"
+                " VALUES ('app', 'bad_job', 'on_x', 'app.py:1', 'app', 'invalid')"
             )
 
 

@@ -302,7 +302,6 @@ class SchedulerDispatchMixin:
             duration_ms=0.0,
             status=ExecutionStatus.SKIPPED,
             app_key=job.app_key,
-            instance_index=job.instance_index,
             source_tier=job.source_tier,
             execution_id=str(uuid_utils.uuid7()),
         )
@@ -339,7 +338,6 @@ class SchedulerDispatchMixin:
             error_message=str(exc),
             error_traceback=traceback_str,
             app_key=job.app_key,
-            instance_index=job.instance_index,
             source_tier=job.source_tier,
             execution_id=execution_id,
         )

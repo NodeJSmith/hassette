@@ -37,7 +37,6 @@ class TestGetJobSummary:
         row1 = next(r for r in rows if r.job_name == "job_a")
         assert row1.job_id == job_id_1
         assert row1.app_key == "test_app"
-        assert row1.instance_index == 0
         assert row1.total_executions == 2
         assert row1.successful == 1
         assert row1.failed == 1

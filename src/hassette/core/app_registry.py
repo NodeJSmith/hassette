@@ -70,8 +70,7 @@ class AppRegistry:
     and an optional needs-restart record. ``_combine_instance_info`` is the one place they combine; every
     per-instance reader goes through it, by way of ``resolve_instance_info`` or ``resolve_instance_infos``.
 
-    Position carries no identity here. The index on a snapshot or outcome is display order, derived on each read
-    by ``display_indices``, for the routes and wire models that still address an instance by index.
+    Position carries no identity here. Display order is derived on each read by ``display_names``.
     """
 
     def __init__(self) -> None:
@@ -167,35 +166,18 @@ class AppRegistry:
             return None
         return f"needs a hassette restart (flagged at {record.info.flagged_at}: {record.info.reason})"
 
-    def display_indices(self, app_key: str, manifest: "AppManifest | None" = None) -> dict[str, int]:
-        """Each name of ``app_key`` mapped to its display index, in that order.
+    def display_names(self, app_key: str, manifest: "AppManifest | None" = None) -> list[str]:
+        """Each name of ``app_key``, in display order.
 
         Configured names come first, in config order, then names still tracked outside the config (orphans),
-        sorted by name. Derived on each read, so an orphan's index can shift when the config changes.
+        sorted by name. Derived on each read, so the order can shift when the config changes.
 
         ``manifest`` defaults to the loaded manifest for ``app_key``.
         """
         manifest = manifest or self._manifests.get(app_key)
         configured = configured_instance_names(manifest.app_config) if manifest is not None else []
         orphans = sorted(self.tracked_names(app_key).difference(configured))
-        return {name: index for index, name in enumerate([*configured, *orphans])}
-
-    def display_index(self, app_key: str, instance_name: str) -> int:
-        """The display index of ``instance_name``; a name the app doesn't have sorts after all that it does."""
-        indices = self.display_indices(app_key)
-        return indices.get(instance_name, len(indices))
-
-    def instance_name(self, app_key: str, index: int) -> str:
-        """The name at display index ``index`` of ``app_key``, for routes that address by index until #3100.
-
-        Resolve it afresh for each request, since an index can move when the config changes. An index with no name
-        gets a display label that can never pass instance-name validation, so it can't be mistaken for a real name.
-        """
-        manifest = self._manifests.get(app_key)
-        names = list(self.display_indices(app_key, manifest))
-        if 0 <= index < len(names):
-            return names[index]
-        return f"{manifest.class_name if manifest else UNKNOWN_LABEL}.{index}"
+        return [*configured, *orphans]
 
     def resolve_instance_info(
         self, app_key: str, instance_name: str, manifest: "AppManifest | None" = None
@@ -204,12 +186,10 @@ class AppRegistry:
 
         ``manifest`` orders and classifies the instance; it defaults to the loaded manifest for ``app_key``.
         """
-        manifest = manifest or self._manifests.get(app_key)
-        index = self.display_indices(app_key, manifest).get(instance_name)
-        return None if index is None else self._combine_instance_info(app_key, instance_name, index, manifest)
+        return self._combine_instance_info(app_key, instance_name, manifest or self._manifests.get(app_key))
 
     def _combine_instance_info(
-        self, app_key: str, instance_name: str, index: int, manifest: "AppManifest | None"
+        self, app_key: str, instance_name: str, manifest: "AppManifest | None"
     ) -> AppInstanceInfo | None:
         """Combine an instance entry and its needs-restart record, the one place the two meet.
 
@@ -219,14 +199,13 @@ class AppRegistry:
         entry = self._instances.get(app_key, {}).get(instance_name)
         record = self.get_needs_restart(app_key, instance_name)
         if record is None:
-            return self._info_from_entry(app_key, instance_name, index, entry, manifest) if entry is not None else None
+            return self._info_from_entry(app_key, instance_name, entry, manifest) if entry is not None else None
 
         if entry is not None:
-            base = self._info_from_entry(app_key, instance_name, index, entry, manifest)
+            base = self._info_from_entry(app_key, instance_name, entry, manifest)
         else:
             base = AppInstanceInfo(
                 app_key=app_key,
-                index=index,
                 instance_name=instance_name,
                 class_name=record.class_name,
                 status=ResourceStatus.FAILED,
@@ -248,8 +227,8 @@ class AppRegistry:
         manifest = manifest or self._manifests.get(app_key)
         return {
             name: info
-            for name, index in self.display_indices(app_key, manifest).items()
-            if (info := self._combine_instance_info(app_key, name, index, manifest)) is not None
+            for name in self.display_names(app_key, manifest)
+            if (info := self._combine_instance_info(app_key, name, manifest)) is not None
         }
 
     def prune_stale_failed(self, app_key: str, configured_names: Iterable[str]) -> dict[str, AppInstanceInfo]:
@@ -337,7 +316,7 @@ class AppRegistry:
         if instance_name is not None:
             entry = entries.get(instance_name)
             return entry.app if entry is not None else None
-        running = (entries[name].app for name in self.display_indices(app_key) if name in entries)
+        running = (entries[name].app for name in self.display_names(app_key) if name in entries)
         return next((app for app in running if app is not None), None)
 
     def get_manifest(self, app_key: str) -> "AppManifest | None":
@@ -368,13 +347,12 @@ class AppRegistry:
         return {name: info for name, info in self.resolve_instance_infos(app_key).items() if is_failed_info(info)}
 
     def _info_from_entry(
-        self, app_key: str, instance_name: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None
+        self, app_key: str, instance_name: str, entry: InstanceEntry, manifest: "AppManifest | None" = None
     ) -> AppInstanceInfo:
         in_current_config = name_in_current_config(instance_name, manifest)
         if (app := entry.app) is not None:
             return AppInstanceInfo(
                 app_key=app_key,
-                index=index,
                 instance_name=instance_name,
                 class_name=app.class_name,
                 status=app.status,
@@ -385,7 +363,6 @@ class AppRegistry:
         class_name = manifest.class_name if manifest else UNKNOWN_LABEL
         return AppInstanceInfo(
             app_key=app_key,
-            index=index,
             instance_name=instance_name,
             class_name=class_name,
             status=ResourceStatus.FAILED,
@@ -428,7 +405,7 @@ class AppRegistry:
         silently disappearing from ``instances`` once its instance is no longer tracked. A
         tracked name outside the current config (an orphaned running instance after a removal — see
         ``prune_stale_failed``) is still included too: this is a union of tracked and configured
-        names (``display_indices``), so a live orphan is never dropped from view.
+        names (``display_names``), so a live orphan is never dropped from view.
 
         ``status`` (RUNNING/FAILED/DEGRADED/STOPPED/...) is derived from tracked names only
         (entries and needs-restart records, through ``resolve_instance_info``) — a
@@ -456,7 +433,7 @@ class AppRegistry:
         error_message: str | None = None
         error_traceback: str | None = None
 
-        for name, index in self.display_indices(app_key, manifest).items():
+        for name in self.display_names(app_key, manifest):
             info = tracked.get(name)
             if info is not None:
                 if is_failed_info(info) and error_message is None:
@@ -465,7 +442,6 @@ class AppRegistry:
             else:
                 info = AppInstanceInfo(
                     app_key=app_key,
-                    index=index,
                     instance_name=name,
                     class_name=manifest.class_name,
                     status=ResourceStatus.STOPPED,

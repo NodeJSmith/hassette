@@ -24,20 +24,14 @@ describe("AppLink — basic href", () => {
   });
 });
 
-describe("AppLink — instanceIndex as query param", () => {
-  it("appends ?instance=N when instanceIndex is provided", () => {
-    const { container } = render(<AppLink appKey="my_app" instanceIndex={2} />);
+describe("AppLink — instanceName as query param", () => {
+  it("appends ?instance=<name> when instanceName is provided", () => {
+    const { container } = render(<AppLink appKey="my_app" instanceName="office" />);
     const href = container.querySelector("a")?.getAttribute("href");
-    expect(href).toBe("/apps/my_app?instance=2");
+    expect(href).toBe("/apps/my_app?instance=office");
   });
 
-  it("appends ?instance=0 when instanceIndex is 0", () => {
-    const { container } = render(<AppLink appKey="my_app" instanceIndex={0} />);
-    const href = container.querySelector("a")?.getAttribute("href");
-    expect(href).toBe("/apps/my_app?instance=0");
-  });
-
-  it("does not append instance param when instanceIndex is undefined", () => {
+  it("does not append instance param when instanceName is undefined", () => {
     const { container } = render(<AppLink appKey="my_app" />);
     const href = container.querySelector("a")?.getAttribute("href");
     expect(href).toBe("/apps/my_app");
@@ -53,9 +47,11 @@ describe("AppLink — handler props", () => {
   });
 
   it("combines handler path and instance query param", () => {
-    const { container } = render(<AppLink appKey="my_app" handlerKind="listener" handlerId={42} instanceIndex={1} />);
+    const { container } = render(
+      <AppLink appKey="my_app" handlerKind="listener" handlerId={42} instanceName="office" />,
+    );
     const href = container.querySelector("a")?.getAttribute("href");
-    expect(href).toBe("/apps/my_app/handlers/listener/42?instance=1");
+    expect(href).toBe("/apps/my_app/handlers/listener/42?instance=office");
   });
 
   it("does not append handlers segment when handler props are undefined", () => {

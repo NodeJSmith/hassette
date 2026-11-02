@@ -25,7 +25,6 @@ class LogEntry(BaseModel):
     app_key: str | None = None
     execution_id: str | None = None
     instance_name: str | None = None
-    instance_index: int | None = None
     author: LogAuthor | None = None
     execution_kind: OpenExecutionKind | None = None
     listener_id: int | None = None

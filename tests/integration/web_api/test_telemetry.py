@@ -102,8 +102,22 @@ class TestTelemetryAppHealth:
         assert data["handler_avg_duration_ms"] is None
         assert data["job_avg_duration_ms"] is None
 
-    async def test_instance_index_param_resolves_to_its_name(self, client: "AsyncClient", mock_hassette) -> None:
-        await get_json(client, f"{APP_HEALTH_PATH}?instance_index=1")
+    async def test_no_instance_means_every_instance(self, client: "AsyncClient", mock_hassette) -> None:
+        await get_json(client, APP_HEALTH_PATH)
+
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args
+        assert call_kwargs.kwargs.get("instance_name") is None
+
+    async def test_a_name_no_row_carries_is_passed_through_rather_than_rejected(
+        self, client: "AsyncClient", mock_hassette
+    ) -> None:
+        await get_json(client, f"{APP_HEALTH_PATH}?instance_name=retired_name")
+
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args
+        assert call_kwargs.kwargs.get("instance_name") == "retired_name"
+
+    async def test_instance_name_param_is_forwarded(self, client: "AsyncClient", mock_hassette) -> None:
+        await get_json(client, f"{APP_HEALTH_PATH}?instance_name=instance_1")
 
         mock_hassette.telemetry_query_service.get_app_health_aggregates.assert_called_once()
         call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args
@@ -188,7 +202,7 @@ class TestTelemetryBlocking:
         [
             ("/api/telemetry/app/my_app/blocking", {"app_key": "my_app", "instance_name": None, "since": None}),
             (
-                "/api/telemetry/app/my_app/blocking?instance_index=2&since=1700000000.0",
+                "/api/telemetry/app/my_app/blocking?instance_name=instance_2&since=1700000000.0",
                 {"app_key": "my_app", "instance_name": "instance_2", "since": pytest.approx(1700000000.0)},
             ),
             ("/api/telemetry/blocking/findings", {"app_key": None, "instance_name": None, "since": None}),

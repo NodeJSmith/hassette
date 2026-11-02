@@ -38,12 +38,12 @@ function markLastAsCurrent(crumbs: Crumb[]): Crumb[] {
  * A cold cache degrades to `listener 42` and upgrades on its own once the query lands.
  *
  * @param pathname       Location with any query string already stripped.
- * @param instanceIndex  Active `?instance=` value, carried onto ancestor links so
+ * @param instanceName   Active `?instance=` value, carried onto ancestor links so
  *                       navigating up stays on the same app instance.
  */
 export function buildTrail(
   pathname: string,
-  instanceIndex: number | undefined,
+  instanceName: string | undefined,
   resolveHandlerName: HandlerNameResolver,
 ): Crumb[] {
   const segments = pathname.split("/").filter(Boolean);
@@ -56,7 +56,7 @@ export function buildTrail(
     return label ? [{ label }] : [];
   }
 
-  const query = { instance: instanceIndex };
+  const query = { instance: instanceName };
   const crumbs: Crumb[] = [{ label: "apps", href: "/apps" }];
 
   const appKey = rest[0];

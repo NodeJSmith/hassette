@@ -38,7 +38,6 @@ def test_app_instance_from_copies_all_fields():
     """Every AppInstance field is copied from the source AppInstanceInfo by name."""
     info = make_app_instance_info(
         app_key="app_a",
-        index=2,
         instance_name="app_a.2",
         class_name="MyApp",
         status=ResourceStatus.RUNNING,
@@ -51,7 +50,6 @@ def test_app_instance_from_copies_all_fields():
 
     assert isinstance(result, AppInstance)
     assert result.app_key == "app_a"
-    assert result.index == 2
     assert result.instance_name == "app_a.2"
     assert result.class_name == "MyApp"
     assert result.status is ResourceStatus.RUNNING
@@ -64,7 +62,7 @@ def test_app_instance_from_ignores_source_error_attribute():
     """The source's ``error`` Exception attribute has no AppInstance field and is dropped."""
     info = dataclasses.replace(
         make_app_instance_info(
-            app_key="app_a", index=0, instance_name="app_a.0", status=ResourceStatus.FAILED, error=Exception("boom")
+            app_key="app_a", instance_name="app_a.0", status=ResourceStatus.FAILED, error=Exception("boom")
         ),
         error=ValueError("kaboom"),
     )
@@ -114,8 +112,8 @@ def test_listener_summary_row_fields_are_subset_of_wire_model():
 
 def test_app_list_response_from_builds_nested_instances():
     """Verify nested AppInstance objects are built correctly."""
-    inst0 = make_app_instance_info(app_key="app_a", index=0, instance_name="app_a.0", status=ResourceStatus.RUNNING)
-    inst1 = make_app_instance_info(app_key="app_a", index=1, instance_name="app_a.1", status=ResourceStatus.RUNNING)
+    inst0 = make_app_instance_info(app_key="app_a", instance_name="app_a.0", status=ResourceStatus.RUNNING)
+    inst1 = make_app_instance_info(app_key="app_a", instance_name="app_a.1", status=ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
     full = make_full_snapshot([manifest])
 
@@ -127,13 +125,11 @@ def test_app_list_response_from_builds_nested_instances():
     assert app_summary.app_key == "app_a"
     assert len(app_summary.instances) == 2
     assert app_summary.instances[0].app_key == "app_a"
-    assert app_summary.instances[0].index == 0
-    assert app_summary.instances[1].index == 1
 
 
 def test_app_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
-    inst = make_app_instance_info(app_key="app_a", index=0, instance_name="app_a.0", status=ResourceStatus.RUNNING)
+    inst = make_app_instance_info(app_key="app_a", instance_name="app_a.0", status=ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst], instance_count=1)
     full = make_full_snapshot([manifest])
 

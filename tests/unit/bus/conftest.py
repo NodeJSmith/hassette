@@ -38,7 +38,7 @@ def bus(hassette_with_bus: "Hassette") -> "Bus":
     """Return the Bus resource with a mock parent that has an app_key."""
     bus = hassette_with_bus._bus
     assert bus is not None, "hassette_with_bus was built without a Bus"
-    bus.parent = make_mock_parent(app_key="test_app", index=0, source_tier="app")
+    bus.parent = make_mock_parent(app_key="test_app", source_tier="app")
     return bus
 
 

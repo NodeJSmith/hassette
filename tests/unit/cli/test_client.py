@@ -441,7 +441,7 @@ class TestPostMalformedResponse:
     def test_valid_response_still_returns_action_response(self) -> None:
         """Control case: a well-formed 2xx body still deserializes normally."""
         config = make_host_port_config()
-        body = ActionResponse(app_key="my_app", action="stop", instance_index=None, outcomes=[]).model_dump()
+        body = ActionResponse(app_key="my_app", action="stop", instance_name=None, outcomes=[]).model_dump()
         transport = make_transport(200, body)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         result = client.post("/api/apps/my_app/stop", ActionResponse)
@@ -569,29 +569,18 @@ class TestAppKeyRouting:
 
 
 class TestInstanceRouting:
-    def test_integer_instance_passes_index_as_query_param(self) -> None:
-        client, captured_urls = url_capturing_client()
-        route_listeners(client, app_key="my_app", instance="1")
-        assert any("instance_index=1" in u for u in captured_urls)
-
-    def test_name_instance_resolves_to_index(self) -> None:
+    def test_instance_passes_name_as_query_param(self) -> None:
         instances = [
-            AppInstance(
-                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING
-            ),
-            AppInstance(
-                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING
-            ),
+            AppInstance(app_key="my_app", instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING),
+            AppInstance(app_key="my_app", instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING),
         ]
         client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")
-        assert any("instance_index=1" in u for u in captured_urls)
+        assert any("instance_name=office" in u for u in captured_urls)
 
     def test_unknown_instance_name_exits_nonzero(self) -> None:
         instances = [
-            AppInstance(
-                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING
-            ),
+            AppInstance(app_key="my_app", instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING),
         ]
         client, _ = url_capturing_client(instances)
         with pytest.raises(SystemExit) as exc_info:
@@ -617,16 +606,12 @@ class TestInstanceRouting:
         not filter by status, so a stopped instance stays addressable by name.
         """
         instances = [
-            AppInstance(
-                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING
-            ),
-            AppInstance(
-                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status=ResourceStatus.STOPPED
-            ),
+            AppInstance(app_key="my_app", instance_name="default", class_name="MyApp", status=ResourceStatus.RUNNING),
+            AppInstance(app_key="my_app", instance_name="office", class_name="MyApp", status=ResourceStatus.STOPPED),
         ]
         client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")
-        assert any("instance_index=1" in u for u in captured_urls)
+        assert any("instance_name=office" in u for u in captured_urls)
 
 
 # --debug flag

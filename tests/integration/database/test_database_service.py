@@ -147,9 +147,9 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     # Insert a scheduled_job for FK reference
     await db.execute(
         "INSERT INTO scheduled_jobs "
-        "(app_key, instance_index, job_name, handler_method, source_location, schedule_status)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        ("test.App", 0, "my_job", "run_job", "test.py:2", "scheduled"),
+        "(app_key, job_name, handler_method, source_location, schedule_status)"
+        " VALUES (?, ?, ?, ?, ?)",
+        ("test.App", "my_job", "run_job", "test.py:2", "scheduled"),
     )
     await db.commit()
 

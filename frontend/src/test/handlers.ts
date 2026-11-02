@@ -77,7 +77,7 @@ export const handlers = [
     return HttpResponse.json<ActionResponse>({
       app_key: String(params["app_key"]),
       action: "start",
-      instance_index: null,
+      instance_name: null,
       outcomes: [],
     });
   }),
@@ -87,7 +87,7 @@ export const handlers = [
     return HttpResponse.json<ActionResponse>({
       app_key: String(params["app_key"]),
       action: "stop",
-      instance_index: null,
+      instance_name: null,
       outcomes: [],
     });
   }),
@@ -97,7 +97,7 @@ export const handlers = [
     return HttpResponse.json<ActionResponse>({
       app_key: String(params["app_key"]),
       action: "reload",
-      instance_index: null,
+      instance_name: null,
       outcomes: [],
     });
   }),

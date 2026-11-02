@@ -21,12 +21,12 @@ function serveFindings(findings: BlockingFinding[], truncated = false) {
   return seen;
 }
 
-/** Renders instance 2's section, linking with `linkInstance`, unless `acrossInstances` is set. */
+/** Renders the `office` instance's section, linking with `linkInstance`, unless `acrossInstances` is set. */
 function renderSection({
   linkInstance,
   acrossInstances = false,
-}: { linkInstance?: number; acrossInstances?: boolean } = {}) {
-  const scope: BlockingScope = acrossInstances ? { kind: "app" } : { kind: "instance", index: 2, linkInstance };
+}: { linkInstance?: string; acrossInstances?: boolean } = {}) {
+  const scope: BlockingScope = acrossInstances ? { kind: "app" } : { kind: "instance", name: "office", linkInstance };
   return renderWithAppState(<BlockingFindingsSection appKey={APP_KEY} scope={scope} />, {
     storeOverrides: { uptimeSeconds: 120 },
   });
@@ -53,22 +53,22 @@ describe("BlockingFindingsSection", () => {
     expect(queryByTestId("overview-blocking-findings")).toBeNull();
   });
 
-  it("requests the resolved instance", async () => {
+  it("requests the scope's instance by name", async () => {
     const seen = serveFindings([]);
     renderSection();
-    await waitFor(() => expect(seen[0]?.searchParams.get("instance_index")).toBe("2"));
+    await waitFor(() => expect(seen[0]?.searchParams.get("instance_name")).toBe("office"));
   });
 
   it("shows the call site, what it calls into, the handlers, and the stats", async () => {
     serveFindings([createBlockingFinding({ app_key: APP_KEY })]);
-    const { findByTestId, getByRole } = renderSection({ linkInstance: 2 });
+    const { findByTestId, getByRole } = renderSection({ linkInstance: "office" });
     const entry = await findByTestId("overview-blocking-finding-0");
 
     expect(entry.textContent).toContain("calendar_service.py:98 in get_calendar_events");
     expect(entry.textContent).toContain("calls gcsa/events.py get_events");
     expect(entry.textContent).toContain("9 events · up to 534.0ms · avg 300.0ms · last seen");
     const handlerLink = getByRole("link", { name: "scan_and_schedule" }) as HTMLAnchorElement;
-    expect(handlerLink.href).toContain(`/apps/${APP_KEY}/handlers/job/7?instance=2`);
+    expect(handlerLink.href).toContain(`/apps/${APP_KEY}/handlers/job/7?instance=office`);
   });
 
   it("expands the latest stack with absolute paths, outermost frame first", async () => {
@@ -113,29 +113,42 @@ describe("BlockingFindingsSection", () => {
     const seen = serveFindings([
       createBlockingFinding({
         handlers: [
-          { kind: "listener", id: 3, name: "refresh", handler_method: "refresh", instance_index: 0 },
-          { kind: "listener", id: 8, name: "refresh", handler_method: "refresh", instance_index: 1 },
+          { kind: "listener", id: 3, name: "refresh", handler_method: "refresh", instance_name: "bedroom" },
+          { kind: "listener", id: 8, name: "refresh", handler_method: "refresh", instance_name: "office" },
         ],
-        instances: [
-          { index: 0, name: "bedroom" },
-          { index: 1, name: "office" },
-        ],
+        instances: [{ name: "bedroom" }, { name: "office" }],
       }),
     ]);
     const { findByTestId, getByTestId, getAllByRole } = renderSection({ acrossInstances: true });
     const entry = await findByTestId("overview-blocking-finding-0");
 
-    expect(seen[0]?.searchParams.has("instance_index")).toBe(false);
+    expect(seen[0]?.searchParams.has("instance_name")).toBe(false);
     expect(getByTestId("overview-blocking-findings").textContent).toContain("blocking calls · all instances");
     expect(getByTestId("overview-blocking-finding-0-instances").textContent).toBe("on bedroom, office");
     expect(entry.textContent).toContain("refresh (bedroom), refresh (office)");
     const links = getAllByRole("link", { name: "refresh" }) as HTMLAnchorElement[];
-    expect(links.map((a) => new URL(a.href).search)).toEqual(["?instance=0", "?instance=1"]);
+    expect(links.map((a) => new URL(a.href).search)).toEqual(["?instance=bedroom", "?instance=office"]);
+  });
+
+  it("labels a ref with no stored name 'unnamed instance' and links its handler with no instance", async () => {
+    serveFindings([
+      createBlockingFinding({
+        handlers: [{ kind: "listener", id: 3, name: "refresh", handler_method: "refresh", instance_name: null }],
+        instances: [{ name: "office" }, { name: null }],
+      }),
+    ]);
+    const { findByTestId, getByTestId, getByRole } = renderSection({ acrossInstances: true });
+    const entry = await findByTestId("overview-blocking-finding-0");
+
+    expect(getByTestId("overview-blocking-finding-0-instances").textContent).toBe("on office, unnamed instance");
+    expect(entry.textContent).toContain("refresh (unnamed instance)");
+    const link = getByRole("link", { name: "refresh" }) as HTMLAnchorElement;
+    expect(new URL(link.href).search).toBe("");
   });
 
   it("on one instance's page, doesn't tag instances", async () => {
     serveFindings([createBlockingFinding()]);
-    const { findByTestId, queryByTestId } = renderSection({ linkInstance: 2 });
+    const { findByTestId, queryByTestId } = renderSection({ linkInstance: "office" });
     await findByTestId("overview-blocking-finding-0");
     expect(queryByTestId("overview-blocking-finding-0-instances")).toBeNull();
   });

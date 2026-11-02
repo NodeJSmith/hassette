@@ -211,21 +211,11 @@ class TestCmdAppHealth:
 
         assert any("/api/telemetry/app/my-app/health" in p for p in spy.paths)
 
-    def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
-        """App health --instance 1 passes instance_index=1 as a query param."""
-        health = make_app_health()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
-        )
-        spy = runner.spy(client, cmd_app_health, "my-app", instance="1")
-
-        assert spy.params_for("health")["instance_index"] == 1
-
-    def test_instance_name_resolution(self, cli_client_factory: CLIClientFactory) -> None:
-        """App health --instance office resolves the name to an index."""
+    def test_instance_name_passed_as_query_param(self, cli_client_factory: CLIClientFactory) -> None:
+        """App health --instance office checks the name and sends it."""
         health = make_app_health()
         instance_resp = AppInstance(
-            app_key="my-app", index=2, instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING
+            app_key="my-app", instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING
         )
         app_summary = make_app_summary(app_key="my-app", instances=[instance_resp])
         app_list = AppListResponse(total=1, status_counts={AppStatus.RUNNING: 1}, apps=[app_summary])
@@ -237,7 +227,7 @@ class TestCmdAppHealth:
         )
         spy = runner.spy(client, cmd_app_health, "my-app", instance="office")
 
-        assert spy.params_for("health")["instance_index"] == 2
+        assert spy.params_for("health")["instance_name"] == "office"
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """App health renders a key-value detail panel."""
@@ -277,14 +267,14 @@ class TestCmdAppActivity:
 
         assert any(ACTIVITY_ENDPOINT in p for p in spy.paths)
 
-    def test_no_instance_omits_instance_index(self, activity_client: HassetteCLIClient) -> None:
-        """App activity with no --instance does NOT pass instance_index param."""
+    def test_no_instance_omits_instance_name(self, activity_client: HassetteCLIClient) -> None:
+        """App activity with no --instance does NOT pass instance_name param."""
         spy = runner.spy(activity_client, cmd_app_activity, "my-app")
 
         # Not spy.params_for() — that asserts params were sent at all, and "no params" is one
-        # of the passing outcomes here: the API returns all instances when instance_index is absent.
+        # of the passing outcomes here: the API returns all instances when instance_name is absent.
         activity_call = next(r for r in spy.calls if "activity" in r["path"])
-        assert "instance_index" not in (activity_call["params"] or {})
+        assert "instance_name" not in (activity_call["params"] or {})
 
     def test_since_and_limit_passed_as_params(self, activity_client: HassetteCLIClient) -> None:
         """App activity --since and --limit are forwarded as query params."""
@@ -295,11 +285,11 @@ class TestCmdAppActivity:
         assert params["since"] == since_epoch
         assert params["limit"] == 10
 
-    def test_instance_integer_passes_index_param(self, activity_client: HassetteCLIClient) -> None:
-        """App activity --instance 2 passes instance_index=2."""
-        spy = runner.spy(activity_client, cmd_app_activity, "my-app", instance="2")
+    def test_instance_passes_name_param(self, activity_client: HassetteCLIClient) -> None:
+        """App activity --instance office passes instance_name=office."""
+        spy = runner.spy(activity_client, cmd_app_activity, "my-app", instance="office")
 
-        assert spy.params_for("activity")["instance_index"] == 2
+        assert spy.params_for("activity")["instance_name"] == "office"
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """App activity renders a table with handler name and status."""

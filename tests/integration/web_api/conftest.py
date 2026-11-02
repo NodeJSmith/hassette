@@ -240,6 +240,5 @@ def make_log_record(  # factory-local: timestamp=float(seq) is load-bearing for 
         "app_key": app_key,
         "execution_id": execution_id,
         "instance_name": None,
-        "instance_index": None,
         "source_tier": source_tier,
     }

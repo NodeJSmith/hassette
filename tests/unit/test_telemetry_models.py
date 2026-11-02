@@ -64,7 +64,7 @@ class TestListenerSummary:
         data = {
             "listener_id": 1,
             "app_key": "test_app",
-            "instance_index": 0,
+            "instance_name": "instance_0",
             "handler_method": "on_event",
             "topic": "hass.event.state_changed",
             "debounce": None,
@@ -99,7 +99,7 @@ class TestListenerSummary:
         data = {
             "listener_id": 2,
             "app_key": "test_app",
-            "instance_index": 0,
+            "instance_name": "instance_0",
             "handler_method": "on_event",
             "topic": "hass.event.state_changed",
             "debounce": None,
@@ -199,7 +199,7 @@ class TestJobSummary:
         data = {
             "job_id": 5,
             "app_key": "test_app",
-            "instance_index": 0,
+            "instance_name": "instance_0",
             "job_name": "my_job",
             "handler_method": "run_job",
             "trigger_type": "interval",
@@ -225,7 +225,7 @@ class TestJobSummary:
         data = {
             "job_id": 6,
             "app_key": "test_app",
-            "instance_index": 0,
+            "instance_name": "instance_0",
             "job_name": "my_job",
             "handler_method": "run_job",
             "trigger_type": "custom",
@@ -251,7 +251,7 @@ class TestJobSummary:
         data = {
             "job_id": 7,
             "app_key": "test_app",
-            "instance_index": 0,
+            "instance_name": "instance_0",
             "job_name": "my_job",
             "handler_method": "run_job",
             "trigger_type": "interval",
@@ -285,7 +285,7 @@ class TestJobSummary:
         data = {
             "job_id": 8,
             "app_key": "test_app",
-            "instance_index": 0,
+            "instance_name": "instance_0",
             "job_name": "my_job",
             "handler_method": "run_job",
             "trigger_type": "interval",
@@ -312,7 +312,7 @@ class TestJobSummary:
         data = {
             "job_id": 9,
             "app_key": "test_app",
-            "instance_index": 0,
+            "instance_name": "instance_0",
             "job_name": "my_job",
             "handler_method": "run_job",
             "trigger_type": "interval",

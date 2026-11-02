@@ -57,7 +57,6 @@ class ExecutionContext:
     """
 
     app_key: str | None
-    instance_index: int
     instance_name: str | None
     execution_kind: Literal["handler", "job"] | None = None
     listener_id: int | None = None
@@ -96,7 +95,6 @@ class ExecutionMarker:
     instance_name: str | None
     execution_id: str
     started_at: float
-    instance_index: int | None = None
     task_id: int | None = None
     """``id()`` of the owning ``asyncio.Task``, or ``None`` if bound outside a task."""
     listener_id: int | None = None
@@ -443,7 +441,6 @@ class CommandExecutor(Service):
             instance_name=context.instance_name,
             execution_id=execution_id,
             started_at=time.monotonic(),
-            instance_index=context.instance_index,
             task_id=id(current_task) if current_task is not None else None,
             listener_id=context.listener_id,
             job_id=context.job_id,
@@ -468,7 +465,6 @@ class CommandExecutor(Service):
         execution_id, token = self.bind_execution_context(
             ExecutionContext(
                 app_key=cmd.listener.identity.app_key,
-                instance_index=cmd.listener.identity.instance_index,
                 instance_name=cmd.listener.identity.instance_name,
                 execution_kind="handler",
                 listener_id=cmd.listener_id,
@@ -517,7 +513,6 @@ class CommandExecutor(Service):
         execution_id, token = self.bind_execution_context(
             ExecutionContext(
                 app_key=cmd.job.app_key,
-                instance_index=cmd.job.instance_index,
                 instance_name=cmd.job.instance_name,
                 execution_kind="job",
                 job_id=cmd.job_db_id,
@@ -748,7 +743,6 @@ class CommandExecutor(Service):
             session_id=session_id,
             app_key=event.app_key,
             instance_name=event.instance_name,
-            instance_index=event.instance_index,
             execution_id=event.execution_id,
             tier=event.tier,
             primitive=primitive,

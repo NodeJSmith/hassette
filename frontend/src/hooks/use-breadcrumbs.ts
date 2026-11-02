@@ -25,7 +25,7 @@ export function useBreadcrumbs(): Crumb[] {
   const searchString = useSearch();
 
   const pathname = location.split("?")[0];
-  const instanceIndex = parseInstanceParam(new URLSearchParams(searchString).get("instance"));
+  const instanceName = parseInstanceParam(new URLSearchParams(searchString).get("instance"));
 
   const segments = pathname.split("/").filter(Boolean);
   const appKey = segments[0] === "apps" ? segments[1] : undefined;
@@ -34,19 +34,17 @@ export function useBreadcrumbs(): Crumb[] {
   // Hooks cannot be conditional, so both are always declared and gated by `enabled`.
   // appKey is only ever read when onHandlerRoute is true, which implies it is defined.
   const key = appKey ?? "";
-  // The queries need a concrete instance, but the crumb hrefs must only carry ?instance=
-  // when the user actually chose one — hence `idx` here and raw `instanceIndex` below.
-  const idx = instanceIndex ?? 0;
-
+  // No `?instance=` means every instance, the same unfiltered query (and cache entry) the
+  // handlers tab uses, so a handler id resolves to its name whichever instance owns it.
   const { data: listeners } = useScopedQuery<ListenerData[]>(
-    queryKeys.appListeners.base(key, idx),
-    (since, signal) => getAppListeners(key, idx, since, signal),
+    queryKeys.appListeners.base(key, instanceName),
+    (since, signal) => getAppListeners(key, instanceName, since, signal),
     { enabled: onHandlerRoute },
   );
 
   const { data: jobs } = useScopedQuery<JobData[]>(
-    queryKeys.appJobs.base(key, idx),
-    (since, signal) => getAppJobs(key, idx, since, signal),
+    queryKeys.appJobs.base(key, instanceName),
+    (since, signal) => getAppJobs(key, instanceName, since, signal),
     { enabled: onHandlerRoute },
   );
 
@@ -60,5 +58,5 @@ export function useBreadcrumbs(): Crumb[] {
     return jobs?.find((j) => j.job_id === id)?.job_name;
   };
 
-  return buildTrail(pathname, instanceIndex, resolveHandlerName);
+  return buildTrail(pathname, instanceName, resolveHandlerName);
 }

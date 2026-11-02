@@ -14,9 +14,6 @@ class ListenerRegistration:
     app_key: str
     """Unique key for the app that owns this listener."""
 
-    instance_index: int
-    """Display order of the instance in config, refreshed on each registration; not part of its identity."""
-
     instance_name: str | None
     """Name of the owning app instance, or None for a framework resource. See ``stored_instance_name``."""
 
@@ -82,9 +79,6 @@ class ScheduledJobRegistration:
 
     app_key: str
     """Unique key for the app that owns this job."""
-
-    instance_index: int
-    """Display order of the instance in config, refreshed on each registration; not part of its identity."""
 
     instance_name: str | None
     """Name of the owning app instance, or None for a framework resource. See ``stored_instance_name``."""

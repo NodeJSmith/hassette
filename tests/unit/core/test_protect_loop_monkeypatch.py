@@ -467,7 +467,6 @@ class TestMonkeypatchEvent:
             frames=(),
             app_key="my_app",
             instance_name=None,
-            instance_index=0,
             execution_id="exec-1",
             tier="monkeypatch",
             detected_at=1.0,
@@ -483,7 +482,6 @@ class TestMonkeypatchEvent:
         assert "frames" in field_names
         assert "app_key" in field_names
         assert "instance_name" in field_names
-        assert "instance_index" in field_names
         assert "execution_id" in field_names
         assert "tier" in field_names
         assert "detected_at" in field_names
@@ -496,7 +494,6 @@ class TestMonkeypatchEvent:
             frames=(),
             app_key=None,
             instance_name=None,
-            instance_index=None,
             execution_id=None,
             tier="monkeypatch",
             detected_at=2.0,
@@ -565,7 +562,6 @@ class TestTier2TaskIdentityAttribution:
             instance_name=None,
             execution_id="exec-attr",
             started_at=time.monotonic(),
-            instance_index=0,
             task_id=id(task),
         )
         install_on_loop_thread(h, ex)
@@ -591,7 +587,6 @@ class TestTier2TaskIdentityAttribution:
             instance_name=None,
             execution_id="exec-no-task",
             started_at=time.monotonic(),
-            instance_index=0,
             task_id=None,
         )
         install_on_loop_thread(h, ex)
@@ -620,7 +615,6 @@ class TestTier2TaskIdentityAttribution:
             instance_name=None,
             execution_id="exec-displaced",
             started_at=time.monotonic(),
-            instance_index=0,
             task_id=-1,
         )
         install_on_loop_thread(h, ex)

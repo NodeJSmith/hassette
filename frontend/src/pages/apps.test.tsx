@@ -121,12 +121,12 @@ describe("AppsPage", () => {
     // it is the boundary AppsPage subscribes to.
     act(() => {
       const { updateAppStatus } = useAppStore.getState();
-      updateAppStatus(appStatusKey("b", 0), { status: "stopped", index: 0 });
-      updateAppStatus(appStatusKey("c", 0), { status: "failed", index: 0 });
+      updateAppStatus(appStatusKey("b", "inst_0"), { status: "stopped", instance_name: "inst_0" });
+      updateAppStatus(appStatusKey("c", "inst_0"), { status: "failed", instance_name: "inst_0" });
       // "disabled" is a manifest-level config state that appLiveStatus resolves before it
       // consults appStatuses, so a per-instance status left over from before the app was
       // disabled must not mask it.
-      updateAppStatus(appStatusKey("d", 0), { status: "stopped", index: 0 });
+      updateAppStatus(appStatusKey("d", "inst_0"), { status: "stopped", instance_name: "inst_0" });
     });
 
     expect(getStatValue(strip, "total")).toBe("4");

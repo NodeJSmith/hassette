@@ -161,6 +161,22 @@ To keep a cache, stop Hassette and move `{data_dir}/{app_key}/{index}` to `{data
 
 Don't use `cache_key` on an app with several instances. An explicit `cache_key` is one value shared by every instance of the app, so they would all write to one cache file and their caches would merge.
 
+## Instances Addressed by Name
+
+This applies when upgrading from 0.61 or earlier. Everything that addressed an app instance by its position in the config now takes its `instance_name`:
+
+- **Routes:** `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}`, and an `instance_name` query parameter in place of `instance_index`. Hassette ignores a leftover `instance_index`, so such a request answers with every instance.
+- **Telemetry with no instance:** `/api/telemetry/app/{key}/health`, `/listeners` and `/jobs` used to report the first instance. They now cover every instance, as `/blocking`, `/activity` and the log routes already did, including runs stored under a name that was since renamed or removed.
+- **API responses:** the integer position is gone from `AppInstance`, `InstanceOutcome`, `ActionResponse`, `LogEntry`, listener and job summaries, blocking references, and WebSocket messages. Instances are listed in config order. Listener and job summaries gain `instance_name`.
+- **CLI:** `--instance` takes a name, and `--instance 0` now fails with the list of known names. `app start|stop|reload --json` reports `instance_name` instead of `instance_index`, including under `outcomes`.
+- **Python client:** `hassette-client` methods take `instance_name=`, and `action(instance=)` takes a name.
+- **Apps:** `App.index`, the `index` constructor argument and the test harness's `index` are removed.
+- **Web UI links:** `?instance=` takes a name. An old numeric bookmark lands on the app's page.
+
+`hassette-client` releases before this one can't read the new responses. The Home Assistant integration stops updating until you install a release that pins the new client.
+
+Rows recorded before instance names can show in blocking findings as "unnamed instance" until retention deletes them. The upgrade rewrites four telemetry tables at startup, so the first start can take longer on a large database. Rolling back past this release means deleting the telemetry database.
+
 ## App Lifecycle Log Lines
 
 This applies when upgrading from 0.59 or earlier. Hassette's lines about an app starting, stopping, and failing used to be written on the app's own logger. They now come from `hassette.apps.<instance_name>.Lifecycle`. That logger follows the app's `framework_log_level`, else `logging.app_handler`, never the app's `log_level`, and its lines are marked `framework`. To keep seeing an app's lifecycle detail at `DEBUG`, set `framework_log_level = "DEBUG"` in that app's `config`, or `logging.app_handler = "DEBUG"` for every app. [Per-App Log Levels](log-levels.md#per-app-log-levels) has the full breakdown.

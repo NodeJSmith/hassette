@@ -71,7 +71,7 @@ def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: 
     expand_btn.click()
     page.wait_for_timeout(ANIMATION_SETTLE_MS)
 
-    expect(page.locator("text=MultiApp[0]")).to_be_visible()
+    expect(page.locator("text=MultiApp.0")).to_be_visible()
     expect(page.locator("text=MultiApp[1]")).to_be_visible()
     expect(page.locator("text=MultiApp[2]")).to_be_visible()
 

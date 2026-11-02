@@ -54,12 +54,42 @@ describe("buildAppItems", () => {
 
   it("shows live WS status over a stale cached manifest status for the app row", () => {
     const items = buildAppItems(
-      [createAppSummary({ app_key: "stale_running_app", status: "running", in_current_config: true })],
-      { "stale_running_app:0": { status: "failed", index: 0 } },
+      [
+        createAppSummary({
+          app_key: "stale_running_app",
+          status: "running",
+          in_current_config: true,
+          instance_count: 1,
+          instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
+        }),
+      ],
+      { "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" } },
       vi.fn(),
       vi.fn(),
     );
     expect(items.find((i) => i.id === "app-stale_running_app")?.status).toBe("failed");
+  });
+
+  it("labels an instance row with its name and the app key", () => {
+    const items = buildAppItems(
+      [
+        createAppSummary({
+          app_key: "multi_app",
+          in_current_config: true,
+          instance_count: 2,
+          instances: [
+            createInstance({ app_key: "multi_app", instance_name: "bedroom" }),
+            createInstance({ app_key: "multi_app", instance_name: "office" }),
+          ],
+        }),
+      ],
+      NO_LIVE_STATUSES,
+      vi.fn(),
+      vi.fn(),
+    );
+    const item = items.find((i) => i.id === "instance-multi_app-office");
+    expect(item?.label).toBe("office");
+    expect(item?.sub).toBe("multi_app");
   });
 
   it("shows live WS status over a stale cached instance status for instance rows", () => {
@@ -71,17 +101,17 @@ describe("buildAppItems", () => {
           in_current_config: true,
           instance_count: 2,
           instances: [
-            createInstance({ app_key: "multi_app", index: 0, status: "running" }),
-            createInstance({ app_key: "multi_app", index: 1, status: "running" }),
+            createInstance({ app_key: "multi_app", instance_name: "inst_0", status: "running" }),
+            createInstance({ app_key: "multi_app", instance_name: "inst_1", status: "running" }),
           ],
         }),
       ],
-      { "multi_app:1": { status: "failed", index: 1 } },
+      { "multi_app:inst_1": { status: "failed", instance_name: "inst_1" } },
       vi.fn(),
       vi.fn(),
     );
-    expect(items.find((i) => i.id === "instance-multi_app-1")?.status).toBe("failed");
-    expect(items.find((i) => i.id === "instance-multi_app-0")?.status).toBe("running");
+    expect(items.find((i) => i.id === "instance-multi_app-inst_1")?.status).toBe("failed");
+    expect(items.find((i) => i.id === "instance-multi_app-inst_0")?.status).toBe("running");
   });
 });
 
@@ -123,9 +153,17 @@ describe("buildActionItems", () => {
     // an app was healthy can still read status: "running" after an instance has since failed.
     // The bulk command must catch this via the live appStatus store, not the cached manifest.
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
-    const manifests = [createAppSummary({ app_key: "stale_running_app", status: "running", in_current_config: true })];
+    const manifests = [
+      createAppSummary({
+        app_key: "stale_running_app",
+        status: "running",
+        in_current_config: true,
+        instance_count: 1,
+        instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
+      }),
+    ];
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "stale_running_app:0": { status: "failed", index: 0 },
+      "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" },
     };
     const items = buildActionItems(manifests, liveStatuses, vi.fn());
 
@@ -136,9 +174,17 @@ describe("buildActionItems", () => {
 
   it("excludes a stale cached 'failed' manifest from stop-failing once live status recovers", () => {
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
-    const manifests = [createAppSummary({ app_key: "recovered_app", status: "failed", in_current_config: true })];
+    const manifests = [
+      createAppSummary({
+        app_key: "recovered_app",
+        status: "failed",
+        in_current_config: true,
+        instance_count: 1,
+        instances: [createInstance({ app_key: "recovered_app", instance_name: "inst_0", status: "failed" })],
+      }),
+    ];
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "recovered_app:0": { status: "running", index: 0 },
+      "recovered_app:inst_0": { status: "running", instance_name: "inst_0" },
     };
     const items = buildActionItems(manifests, liveStatuses, vi.fn());
 
@@ -153,9 +199,17 @@ describe("buildActionItems", () => {
     // include one via the live overlay, since it routes through the same shared predicate as
     // FailedAppsAlert rather than its own list.
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
-    const manifests = [createAppSummary({ app_key: "crashed_app", status: "running", in_current_config: true })];
+    const manifests = [
+      createAppSummary({
+        app_key: "crashed_app",
+        status: "running",
+        in_current_config: true,
+        instance_count: 1,
+        instances: [createInstance({ app_key: "crashed_app", instance_name: "inst_0", status: "running" })],
+      }),
+    ];
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "crashed_app:0": { status: "crashed", index: 0 },
+      "crashed_app:inst_0": { status: "crashed", instance_name: "inst_0" },
     };
     const items = buildActionItems(manifests, liveStatuses, vi.fn());
 

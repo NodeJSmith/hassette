@@ -22,10 +22,10 @@ async def insert_log_record(
     db_svc: DatabaseService,
     *,
     app_key: str = "test_app",
+    instance_name: str = "instance_0",
     level: str = "INFO",
     execution_id: str | None = None,
     author: LogAuthor = "app",
-    instance_index: int = 0,
     timestamp: float | None = None,
     message: str = "test message",
 ) -> None:
@@ -33,8 +33,8 @@ async def insert_log_record(
     await db_svc.db.execute(
         """INSERT INTO log_records
                (seq, timestamp, level, logger_name, func_name, lineno, message,
-                exc_info, app_key, instance_name, instance_index, execution_id, author)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)""",
+                exc_info, app_key, instance_name, execution_id, author)
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)""",
         (
             next(SEQ_COUNTER),
             ts,
@@ -44,8 +44,7 @@ async def insert_log_record(
             1,
             message,
             app_key,
-            f"instance_{instance_index}",
-            instance_index,
+            instance_name,
             execution_id,
             author,
         ),
@@ -156,13 +155,13 @@ class TestGetLogRecordsFilters:
 
     async def test_filter_by_instance_name(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
-        await insert_log_record(db_svc, app_key="multi", instance_index=0, message="zero")
-        await insert_log_record(db_svc, app_key="multi", instance_index=1, message="one")
+        await insert_log_record(db_svc, app_key="multi", instance_name="instance_0", message="zero")
+        await insert_log_record(db_svc, app_key="multi", instance_name="instance_1", message="one")
 
         filtered = await query_service.get_log_records(app_key="multi", instance_name="instance_1")
         unfiltered = await query_service.get_log_records(app_key="multi")
 
-        assert [(r["message"], r["instance_index"]) for r in filtered] == [("one", 1)]
+        assert [(r["message"], r["instance_name"]) for r in filtered] == [("one", "instance_1")]
         assert {r["message"] for r in unfiltered} == {"zero", "one"}
 
     async def test_combined_filters(self, db: DbFixture, query_service: TelemetryQueryService) -> None:

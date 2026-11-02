@@ -118,9 +118,10 @@ class AppStartStopMixin:
         """A new request's outcomes, targeting ``names`` of ``app_key``."""
         return ActionOutcomes(self._targets(app_key, names))
 
-    def _targets(self, app_key: str, names: "typing.Iterable[str]") -> dict[str, int]:
-        """Each of ``names`` of ``app_key`` mapped to its display index, as ``ActionOutcomes`` targets them."""
-        return {name: self.registry.display_index(app_key, name) for name in names}
+    def _targets(self, app_key: str, names: "typing.Iterable[str]") -> list[str]:
+        """``names`` of ``app_key`` in display order, as ``ActionOutcomes`` targets them; unknown names sort last."""
+        order = {name: position for position, name in enumerate(self.registry.display_names(app_key))}
+        return sorted(names, key=lambda name: (order.get(name, len(order)), name))
 
     async def _start_app_unlocked(
         self, app_key: str, app_manifest: "AppManifest", force_reload: bool, *, outcomes: ActionOutcomes
@@ -242,7 +243,7 @@ class AppStartStopMixin:
 
     def _stop_targets(self, app_key: str) -> set[str]:
         """A whole-app stop's targets: every configured name, plus any tracked name outside the config."""
-        return set(self.registry.display_indices(app_key))
+        return set(self.registry.display_names(app_key))
 
     async def _stop_app_unlocked(self, app_key: str, *, outcomes: ActionOutcomes) -> None:
         """Shut down all instances for a given app key, recording each target's outcome.

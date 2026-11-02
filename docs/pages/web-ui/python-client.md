@@ -85,11 +85,11 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `set_log_level(logger, level)` | `PUT /api/logs/level` |
 | `get_config()` | `GET /api/config` |
 
-`app_key` is the app's key from `hassette.toml`. `action` is `"start"`, `"stop"` or `"reload"`. An app configured with several instances acts on all of them unless you pass `instance=` with one instance's index.
+`app_key` is the app's key from `hassette.toml`. `action` is `"start"`, `"stop"` or `"reload"`. An app configured with several instances acts on all of them unless you pass `instance=` with one instance's name.
 
 `POST /api/auth/session` has no method. It trades a token for a browser session cookie, which a client sending its token on every request doesn't need.
 
-Filters such as `since`, `limit`, `instance_index` and `source_tier` are keyword-only and use the server's own parameter names. `since` is a Unix timestamp in seconds. A filter you leave as `None` isn't sent, so the server applies its own default. For `get_recent_logs()` and `get_execution_logs()`, an unsent `author` leaves out Hassette's own lines below ERROR. On `get_recent_logs()` that holds even when `level` asks for `WARNING` or `INFO`. Pass `author="all"` to include them.
+Filters such as `since`, `limit`, `instance_name` and `source_tier` are keyword-only and use the server's own parameter names. `since` is a Unix timestamp in seconds. A filter you leave as `None` isn't sent, so the server applies its own default. For `instance_name` that means every instance of the app, and a name no row carries answers empty rather than an error. For `get_recent_logs()` and `get_execution_logs()`, an unsent `author` leaves out Hassette's own lines below ERROR. On `get_recent_logs()` that holds even when `level` asks for `WARNING` or `INFO`. Pass `author="all"` to include them.
 
 A method returning a list fails as a whole when any one item doesn't match its model, so a schema change shows up as an error rather than as missing rows.
 

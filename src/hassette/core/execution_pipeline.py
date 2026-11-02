@@ -440,7 +440,7 @@ async def emit_completion_events(
     (both handler and job kinds). The payload's ``kind`` field distinguishes
     handler from job completions.
 
-    Payloads include ``app_key`` and ``instance_index`` sourced directly from the
+    Payloads include ``app_key`` sourced directly from the
     in-memory record (populated at build time from the Listener/Job object).
 
     Errors are suppressed so that emission failures never affect telemetry persistence.
@@ -471,7 +471,6 @@ async def emit_completion_events(
                 listener_id=record.listener_id,
                 job_id=record.job_id,
                 app_key=record.app_key,
-                instance_index=record.instance_index,
                 error_type=record.error_type,
                 thread_leaked=record.thread_leaked,
             )

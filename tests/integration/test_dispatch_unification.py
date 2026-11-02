@@ -73,7 +73,6 @@ async def test_framework_listener_registration(
         owner_id="__hassette__:test.framework_listener",
         topic="hassette.event.service_status",
         app_key="__hassette__",
-        instance_index=0,
         name="hassette.test.framework_listener",
         source_tier="framework",
     )
@@ -117,15 +116,14 @@ async def test_reconciliation_guard_rejects_hassette(
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
-            app_key, instance_index, handler_method, topic,
+            app_key, handler_method, topic,
             debounce, throttle, once, priority,
             source_location, source_tier, name
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         (
             "__hassette__",
-            0,
             "hassette.core.on_crash",
             "hassette.event.service_status",
             None,
@@ -165,15 +163,14 @@ async def test_reconciliation_preserves_framework_actors(
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
-            app_key, instance_index, handler_method, topic,
+            app_key, handler_method, topic,
             debounce, throttle, once, priority,
             source_location, source_tier, name
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         (
             "__hassette__",
-            0,
             "runtime_query_service.on_service_status",
             "hassette.event.service_status",
             None,
@@ -193,15 +190,14 @@ async def test_reconciliation_preserves_framework_actors(
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
-            app_key, instance_index, name, handler_method, topic,
+            app_key, name, handler_method, topic,
             debounce, throttle, once, priority,
             source_location, source_tier
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         (
             "my_app",
-            0,
             "my_app.stale_handler",
             "my_app.stale_handler",
             "hass.event.state_changed",
@@ -249,14 +245,13 @@ async def test_once_true_deferred_cleanup(
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
-            app_key, instance_index, name, handler_method, topic,
+            app_key, name, handler_method, topic,
             debounce, throttle, once, priority, source_location, source_tier
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         (
             "my_app",
-            0,
             "my_app.on_once",
             "my_app.on_once",
             "hass.event.state_changed",
@@ -286,14 +281,13 @@ async def test_once_true_deferred_cleanup(
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
-            app_key, instance_index, handler_method, topic,
+            app_key, handler_method, topic,
             debounce, throttle, once, priority, source_location, source_tier, name
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id
         """,
         (
             "__hassette__",
-            0,
             "hassette.core.once_listener",
             "hassette.event.service_status",
             None,

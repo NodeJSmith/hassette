@@ -139,8 +139,12 @@ class TestGetAppRecentActivity:
         db_svc, session_id = db
 
         base_ts = BASE_TS
-        listener_0 = await insert_listener(db_svc, app_key="test_app", instance_index=0, handler_method="on_event")
-        listener_1 = await insert_listener(db_svc, app_key="test_app", instance_index=1, handler_method="on_event")
+        listener_0 = await insert_listener(
+            db_svc, app_key="test_app", instance_name="instance_0", handler_method="on_event"
+        )
+        listener_1 = await insert_listener(
+            db_svc, app_key="test_app", instance_name="instance_1", handler_method="on_event"
+        )
 
         await insert_invocation(db_svc, listener_0, session_id, status="success", execution_start_ts=base_ts + 10.0)
         await insert_invocation(db_svc, listener_1, session_id, status="success", execution_start_ts=base_ts + 20.0)

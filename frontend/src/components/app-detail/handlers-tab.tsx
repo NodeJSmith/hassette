@@ -46,7 +46,7 @@ interface Props {
   selectedHandler: string | null;
   selectedExecId: string | null;
   appKey: string;
-  instanceIndex?: number;
+  instanceName?: string;
   onSwitchToCode?: (line?: number) => void;
 }
 
@@ -77,7 +77,7 @@ export function HandlersTab({
   selectedHandler,
   selectedExecId,
   appKey,
-  instanceIndex,
+  instanceName,
   onSwitchToCode,
 }: Props) {
   const [, navigate] = useLocation();
@@ -104,7 +104,7 @@ export function HandlersTab({
   }, []);
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
-  const instanceQs = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
+  const instanceQs = instanceName !== undefined ? `?instance=${instanceName}` : "";
 
   const parsed = parseSelectedHandler(selectedHandler);
 
@@ -121,12 +121,12 @@ export function HandlersTab({
         ? listeners.some((l) => l.listener_id === parsed.id)
         : jobs.some((j) => j.job_id === parsed.id);
     if (!found) {
-      correctUrl(appHandlersPath(appKey, { instance: instanceIndex }));
+      correctUrl(appHandlersPath(appKey, { instance: instanceName }));
     }
-  }, [selectedHandler, parsed, selectedExecId, hasItems, listeners, jobs, appKey, instanceIndex, correctUrl]);
+  }, [selectedHandler, parsed, selectedExecId, hasItems, listeners, jobs, appKey, instanceName, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
-    navigate(handlerPath(appKey, id.kind, id.id, { instance: instanceIndex }));
+    navigate(handlerPath(appKey, id.kind, id.id, { instance: instanceName }));
   };
 
   const contentMode = deriveContentMode(selectedExecId, parsed, hasItems);
@@ -161,7 +161,7 @@ export function HandlersTab({
               variant="ghost"
               size="sm"
               data-testid="back-to-list"
-              onClick={() => navigate(appHandlersPath(appKey, { instance: instanceIndex }))}
+              onClick={() => navigate(appHandlersPath(appKey, { instance: instanceName }))}
               aria-label="Back to handler list"
             >
               ← back

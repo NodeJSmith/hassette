@@ -119,26 +119,22 @@ describe("AppDetailPage header", () => {
   });
 
   it("falls back to app-level action buttons when the requested instance is not in the manifest", async () => {
-    // instance_count=3 but the instances array is sparse (only 0 and 2 are tracked) — index 1
-    // is below instance_count so the out-of-range redirect never fires, yet it can't be
-    // resolved from the manifest either.
+    // The requested name matches no instance in the manifest, so there is nothing to scope
+    // the actions to until the URL correction drops the param.
     const manifest = createAppSummary({
       app_key: "test_app",
-      instance_count: 3,
-      instances: [
-        createInstance({ index: 0, instance_name: "primary" }),
-        createInstance({ index: 2, instance_name: "backup" }),
-      ],
+      instance_count: 2,
+      instances: [createInstance({ instance_name: "primary" }), createInstance({ instance_name: "backup" })],
     });
     setupApi(manifest);
-    mockSearchString = "?instance=1";
+    mockSearchString = "?instance=missing";
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
     await findByTestId("app-title");
     // App-level testid and aria-label (no instance suffix/name) — not the blank-name
     // instance-scoped variant ("Stop instance ''").
     const stopButton = await findByTestId("btn-stop-test_app");
     expect(stopButton.getAttribute("aria-label")).toBe("Stop app");
-    expect(queryByTestId("btn-stop-test_app-1")).toBeNull();
+    expect(queryByTestId("btn-stop-test_app-missing")).toBeNull();
   });
 
   it("keeps instance-scoped actions when a sibling instance is stopped (not app-level)", async () => {
@@ -151,15 +147,15 @@ describe("AppDetailPage header", () => {
       app_key: "test_app",
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "primary", status: "running" }),
-        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+        createInstance({ instance_name: "primary", status: "running" }),
+        createInstance({ instance_name: "backup", status: "stopped" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=0";
+    mockSearchString = "instance=primary";
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
     await findByTestId("app-title");
-    const stopButton = await findByTestId("btn-stop-test_app-0");
+    const stopButton = await findByTestId("btn-stop-test_app-primary");
     expect(stopButton.getAttribute("aria-label")).toBe("Stop instance 'primary'");
     expect(queryByTestId("btn-stop-test_app")).toBeNull();
   });
@@ -176,15 +172,15 @@ describe("AppDetailPage header", () => {
       block_reason: "only_app",
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "primary", status: "stopped" }),
-        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+        createInstance({ instance_name: "primary", status: "stopped" }),
+        createInstance({ instance_name: "backup", status: "stopped" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=0";
+    mockSearchString = "instance=primary";
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
     await findByTestId("app-title");
-    expect(queryByTestId("btn-start-test_app-0")).toBeNull();
+    expect(queryByTestId("btn-start-test_app-primary")).toBeNull();
   });
 
   it("shows the instance Start button for a stopped instance when the parent app is not blocked", async () => {
@@ -193,14 +189,14 @@ describe("AppDetailPage header", () => {
       status: "degraded",
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "primary", status: "stopped" }),
-        createInstance({ index: 1, instance_name: "backup", status: "running" }),
+        createInstance({ instance_name: "primary", status: "stopped" }),
+        createInstance({ instance_name: "backup", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=0";
+    mockSearchString = "instance=primary";
     const { findByTestId } = renderPage({ key: "test_app" });
-    expect(await findByTestId("btn-start-test_app-0")).toBeDefined();
+    expect(await findByTestId("btn-start-test_app-primary")).toBeDefined();
   });
 
   it("shows Stop (not Start) for a disabled app's transiently-running instance", async () => {
@@ -214,60 +210,57 @@ describe("AppDetailPage header", () => {
       status: "disabled",
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "primary", status: "running" }),
-        createInstance({ index: 1, instance_name: "backup", status: "stopped" }),
+        createInstance({ instance_name: "primary", status: "running" }),
+        createInstance({ instance_name: "backup", status: "stopped" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=0";
+    mockSearchString = "instance=primary";
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
-    expect(await findByTestId("btn-stop-test_app-0")).toBeDefined();
-    expect(queryByTestId("btn-start-test_app-0")).toBeNull();
+    expect(await findByTestId("btn-stop-test_app-primary")).toBeDefined();
+    expect(queryByTestId("btn-start-test_app-primary")).toBeNull();
   });
 
   it.each([
     {
       status: "running" as const,
-      hidden: ["btn-reload-test_app-1", "btn-start-test_app-1"],
-      shown: "btn-stop-test_app-1",
+      hidden: ["btn-reload-test_app-orphan", "btn-start-test_app-orphan"],
+      shown: "btn-stop-test_app-orphan",
     },
-    { status: "failed" as const, hidden: ["btn-start-test_app-1"], shown: null },
-  ])(
-    "withholds start/reload for a $status instance outside the configured range",
-    async ({ status, hidden, shown }) => {
-      // An orphan left behind by a config shrink: the backend 404s start/reload for it and only
-      // admits stop (see _require_valid_instance_index), so those buttons must not be offered.
-      const manifest = createAppSummary({
-        app_key: "test_app",
-        status: "running",
-        instance_count: 2,
-        instances: [
-          createInstance({ index: 0, instance_name: "primary", status: "running" }),
-          createInstance({ index: 1, instance_name: "orphan", status, in_current_config: false }),
-        ],
-      });
-      setupApi(manifest);
-      mockSearchString = "instance=1";
-      const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
-      expect(await findByTestId("not-in-config-badge")).toBeDefined();
-      if (shown) expect(await findByTestId(shown)).toBeDefined();
-      for (const id of hidden) expect(queryByTestId(id)).toBeNull();
-    },
-  );
+    { status: "failed" as const, hidden: ["btn-start-test_app-orphan"], shown: null },
+  ])("withholds start/reload for a $status instance no longer in the config", async ({ status, hidden, shown }) => {
+    // An orphan left behind by a config shrink: the backend 404s start/reload for it and only
+    // admits stop (see _orphan_instance_permitted), so those buttons must not be offered.
+    const manifest = createAppSummary({
+      app_key: "test_app",
+      status: "running",
+      instance_count: 2,
+      instances: [
+        createInstance({ instance_name: "primary", status: "running" }),
+        createInstance({ instance_name: "orphan", status, in_current_config: false }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=orphan";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("not-in-config-badge")).toBeDefined();
+    if (shown) expect(await findByTestId(shown)).toBeDefined();
+    for (const id of hidden) expect(queryByTestId(id)).toBeNull();
+  });
 
   it("does not show the 'not in config' badge for a configured instance", async () => {
     const manifest = createAppSummary({
       app_key: "test_app",
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "primary", status: "running" }),
-        createInstance({ index: 1, instance_name: "backup", status: "running" }),
+        createInstance({ instance_name: "primary", status: "running" }),
+        createInstance({ instance_name: "backup", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=1";
+    mockSearchString = "instance=backup";
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
-    expect(await findByTestId("btn-reload-test_app-1")).toBeDefined();
+    expect(await findByTestId("btn-reload-test_app-backup")).toBeDefined();
     expect(queryByTestId("not-in-config-badge")).toBeNull();
   });
 });

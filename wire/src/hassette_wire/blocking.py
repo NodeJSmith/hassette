@@ -58,15 +58,15 @@ class BlockingHandlerRef(BaseModel):
     name: str
     """Listener name or job name."""
     handler_method: str
-    instance_index: int
-    """The app instance that registered this handler."""
+    instance_name: str | None = None
+    """The instance whose event reached this handler; ``None`` on a row stored before instance names."""
 
 
 class BlockingInstanceRef(BaseModel):
     """An app instance whose events are part of a finding."""
 
-    index: int
     name: str | None = None
+    """``None`` stands for every event of the finding stored before instance names."""
 
 
 class BlockingFinding(BaseModel):
@@ -94,7 +94,7 @@ class BlockingFinding(BaseModel):
     handlers: list[BlockingHandlerRef]
     """Every handler or job whose execution reached this call site, most recently seen first."""
     instances: list[BlockingInstanceRef]
-    """The app instances these events came from, by index. A request for every instance merges
+    """The app instances these events came from, sorted by name. A request for every instance merges
     one call site's events across instances into one finding, since they share the code to fix."""
     event_count: int
     max_stall_ms: float | None = None

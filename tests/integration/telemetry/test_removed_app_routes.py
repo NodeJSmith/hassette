@@ -39,15 +39,15 @@ async def client(query_service: TelemetryQueryService) -> AsyncIterator[AsyncCli
 
 
 async def test_removed_app_health_and_activity_return_its_stored_runs(client: AsyncClient, db: DbFixture) -> None:
-    """The Apps page always sends index 0; a removed app has no instance to name, so that covers every former one."""
+    """A request with no instance covers every former instance of a removed app."""
     db_svc, session_id = db
     await insert_manifest_row(db, REMOVED_APP)
     for name in ("upstairs", "downstairs"):
         listener_id = await insert_listener(db_svc, app_key=REMOVED_APP, instance_name=name, handler_method=name)
         await insert_invocation(db_svc, listener_id, session_id)
 
-    health = await client.get(f"/api/telemetry/app/{REMOVED_APP}/health?instance_index=0")
-    activity = await client.get(f"/api/telemetry/app/{REMOVED_APP}/activity?instance_index=0")
+    health = await client.get(f"/api/telemetry/app/{REMOVED_APP}/health")
+    activity = await client.get(f"/api/telemetry/app/{REMOVED_APP}/activity")
 
     assert health.status_code == 200, health.text
     assert health.json()["handler_avg_duration_ms"] is not None

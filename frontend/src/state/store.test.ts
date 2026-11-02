@@ -87,7 +87,7 @@ describe("useAppStore", () => {
           },
         },
         appStatus: {
-          "app-a:0": { status: "running", index: 0 },
+          "app-a:0": { status: "running", instance_name: "inst_0" },
         },
       });
 
@@ -112,7 +112,7 @@ describe("useAppStore", () => {
           },
         },
         appStatus: {
-          "app-a:0": { status: "running", index: 0 },
+          "app-a:0": { status: "running", instance_name: "inst_0" },
         },
       });
 
@@ -229,8 +229,8 @@ describe("useAppStore", () => {
 
   describe("updateAppStatus / updateServiceStatus", () => {
     it("updateAppStatus merges a new entry without clobbering existing ones", () => {
-      useAppStore.getState().updateAppStatus("app-a:0", { status: "running", index: 0 });
-      useAppStore.getState().updateAppStatus("app-b:0", { status: "stopped", index: 0 });
+      useAppStore.getState().updateAppStatus("app-a:0", { status: "running", instance_name: "inst_0" });
+      useAppStore.getState().updateAppStatus("app-b:0", { status: "stopped", instance_name: "inst_0" });
 
       const state = useAppStore.getState();
       expect(state.appStatus["app-a:0"].status).toBe("running");

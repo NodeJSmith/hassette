@@ -81,10 +81,10 @@ describe("buildTrail — handler and execution routes", () => {
 });
 
 describe("buildTrail — instance scoping", () => {
-  it("carries the instance index onto ancestor links", () => {
-    const trail = buildTrail("/apps/demo_app/handlers/listener/42", 2, named);
-    expect(trail[1].href).toBe("/apps/demo_app?instance=2");
-    expect(trail[2].href).toBe("/apps/demo_app/handlers?instance=2");
+  it("carries the instance name onto ancestor links", () => {
+    const trail = buildTrail("/apps/demo_app/handlers/listener/42", "office", named);
+    expect(trail[1].href).toBe("/apps/demo_app?instance=office");
+    expect(trail[2].href).toBe("/apps/demo_app/handlers?instance=office");
   });
 
   it("omits the query when no instance is active", () => {

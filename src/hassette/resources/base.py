@@ -106,9 +106,6 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     cleanup, reconciliation, and UI display behavior.
     """
 
-    index: int = 0
-    """Instance index. Apps override with their manifest-assigned index."""
-
     task_bucket: "TaskBucket"
     """Task bucket for managing tasks owned by this instance."""
 

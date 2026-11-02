@@ -50,11 +50,11 @@ class TestScheduledJobsSchema:
             conn.execute(
                 """
                 INSERT INTO scheduled_jobs (
-                    app_key, instance_index, job_name, handler_method,
+                    app_key, job_name, handler_method,
                     trigger_type, trigger_label,
                     args_json, kwargs_json, source_location, source_tier, schedule_status
                 ) VALUES (
-                    'my_app', 0, 'my_job', 'my_app.MyApp.my_handler',
+                    'my_app', 'my_job', 'my_app.MyApp.my_handler',
                     'once', 'once',
                     '[]', '{}', 'app.py:10', 'app', 'scheduled'
                 )
@@ -78,11 +78,11 @@ class TestScheduledJobsSchema:
             conn.execute(
                 """
                 INSERT INTO scheduled_jobs (
-                    app_key, instance_index, job_name, handler_method,
+                    app_key, job_name, handler_method,
                     trigger_type, trigger_label,
                     args_json, kwargs_json, source_location, source_tier, schedule_status
                 ) VALUES (
-                    'my_app', 0, 'bad_job', 'my_app.MyApp.my_handler',
+                    'my_app', 'bad_job', 'my_app.MyApp.my_handler',
                     'unknown_type', '',
                     '[]', '{}', 'app.py:10', 'app', 'scheduled'
                 )
@@ -100,10 +100,10 @@ class TestScheduledJobsSchema:
             conn.execute(
                 """
                 INSERT INTO scheduled_jobs (
-                    app_key, instance_index, job_name, handler_method,
+                    app_key, job_name, handler_method,
                     args_json, kwargs_json, source_location, source_tier, schedule_status
                 ) VALUES (
-                    'my_app', 0, 'default_job', 'my_app.MyApp.my_handler',
+                    'my_app', 'default_job', 'my_app.MyApp.my_handler',
                     '[]', '{}', 'app.py:20', 'app', 'scheduled'
                 )
                 """

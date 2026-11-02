@@ -84,7 +84,7 @@ def cmd_app_health(
     """Show health metrics for an app instance (GET /api/telemetry/app/{key}/health)."""
     client = make_client(ctx)
     params = query_params(
-        instance_index=client.resolve_instance_or_none(key, instance),
+        instance_name=client.known_instance_or_none(key, instance),
         since=since,
         source_tier=source_tier,
     )
@@ -106,7 +106,7 @@ def cmd_app_activity(
     # dup-ignore-end
     client = make_client(ctx)
     params = query_params(
-        instance_index=client.resolve_instance_or_none(key, instance),
+        instance_name=client.known_instance_or_none(key, instance),
         since=since,
         limit=limit,
     )
@@ -163,14 +163,7 @@ def _action_message(action: AppAction, key: str, instance_label: str | None) -> 
 def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
     """Shared implementation for ``start``/``stop``/``reload``: confirm, POST, render result."""
     client = make_client(ctx)
-    index: int | None = None
-    # Text for the prompt/message — the resolved instance_name when known, otherwise the
-    # raw --instance selector the operator typed. NOT guaranteed to be the actual
-    # instance_name: see resolve_instance_with_name's docstring for when it falls back.
-    instance_label: str | None = None
-    if instance is not None:
-        index, instance_name = client.resolve_instance_with_name(key, instance)
-        instance_label = instance_name if instance_name is not None else instance
+    client.known_instance_or_none(key, instance)
 
     if action in ACTIONS_REQUIRING_CONFIRMATION and not yes:
         if ctx.json_mode:
@@ -179,26 +172,26 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
             # ever prompting when JSON output is requested.
             client.error_usage(f"--yes is required to {action} in --json mode")
         try:
-            response = input(f"{_confirmation_prompt(action, key, instance_label)} [y/N] ")
+            response = input(f"{_confirmation_prompt(action, key, instance)} [y/N] ")
         except EOFError:
             response = ""
         if response.strip().lower() != "y":
             cli_output.stderr_console.print("Aborted.")
             sys.exit(0)
 
-    result = client.post_with_instance_routing(key, action, index)
-    if index is not None and result.instance_index != index:
+    result = client.post_with_instance_routing(key, action, instance)
+    if instance is not None and result.instance_name != instance:
         cli_output.stderr_console.print(
-            f"[bold yellow]Warning:[/bold yellow] requested instance {index} of {key!r} "
-            f"but server confirmed instance {result.instance_index!r}",
+            f"[bold yellow]Warning:[/bold yellow] requested instance {instance!r} of {key!r} "
+            f"but server confirmed instance {result.instance_name!r}",
             highlight=False,
         )
 
-    message = _action_message(action, key, instance_label)
+    message = _action_message(action, key, instance)
     detail = {
         "app_key": result.app_key,
         "action": result.action,
-        "instance_index": result.instance_index,
+        "instance_name": result.instance_name,
         "message": message,
     }
     if ctx.json_mode:

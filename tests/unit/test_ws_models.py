@@ -45,7 +45,6 @@ class TestAppStatusChangedDataMatchesDataclass:
     def test_all_fields_present(self) -> None:
         dataclass_instance = AppStateChangePayload(
             app_key="my_app",
-            index=0,
             status=ResourceStatus.RUNNING,
             previous_status=ResourceStatus.STARTING,
             instance_name="my_app_0",
@@ -57,15 +56,13 @@ class TestAppStatusChangedDataMatchesDataclass:
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
         data = AppStatusChangedData.model_validate(serialized)
         assert data.app_key == "my_app"
-        assert data.index == 0
         assert data.status == ResourceStatus.RUNNING
         assert data.instance_name == "my_app_0"
         assert data.class_name == "MyApp"
 
     def test_optional_fields_default_to_none(self) -> None:
-        data = AppStatusChangedData(app_key="test", index=0, status=ResourceStatus.RUNNING)
+        data = AppStatusChangedData(app_key="test", instance_name="instance_0", status=ResourceStatus.RUNNING)
         assert data.previous_status is None
-        assert data.instance_name is None
         assert data.class_name is None
         assert data.exception is None
         assert data.exception_type is None
@@ -112,7 +109,9 @@ class TestWsServerMessageDiscriminates:
     """Verify WsServerMessage discriminated union narrows by type."""
 
     def test_app_status_changed(self) -> None:
-        msg = validate_envelope("app_status_changed", {"app_key": "my_app", "index": 0, "status": "running"})
+        msg = validate_envelope(
+            "app_status_changed", {"app_key": "my_app", "instance_name": "my_app_0", "status": "running"}
+        )
         assert isinstance(msg, AppStatusChangedWsMessage)
         assert msg.data.app_key == "my_app"
 
@@ -153,7 +152,6 @@ class TestCompletionWsMessages:
                     "kind": "handler",
                     "listener_id": 1,
                     "app_key": "my_app",
-                    "instance_index": 0,
                     "status": "success",
                     "duration_ms": 12.5,
                     "error_type": None,
@@ -176,7 +174,6 @@ class TestCompletionWsMessages:
                     "kind": "job",
                     "job_id": 7,
                     "app_key": "scheduler_app",
-                    "instance_index": 1,
                     "status": "error",
                     "duration_ms": 99.9,
                     "error_type": "TimeoutError",
@@ -204,7 +201,6 @@ class TestCompletionWsMessages:
                     "kind": "handler",
                     "listener_id": 1,
                     "app_key": "a",
-                    "instance_index": 0,
                     "status": "success",
                     "duration_ms": 1.0,
                 },
@@ -212,7 +208,6 @@ class TestCompletionWsMessages:
                     "kind": "job",
                     "job_id": 5,
                     "app_key": "b",
-                    "instance_index": 1,
                     "status": "error",
                     "duration_ms": 2.0,
                     "error_type": "ValueError",
@@ -248,7 +243,6 @@ class TestExecutionCompletedDataStatusIsClosedEnum:
             duration_ms=5.0,
             listener_id=1,
             app_key="my_app",
-            instance_index=0,
         )
 
         # The field genuinely holds an ExecutionStatus instance, not a bare str that merely
