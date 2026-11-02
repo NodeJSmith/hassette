@@ -48,7 +48,10 @@ class ErrorContext:
         json_mode: Write errors as a JSON document on stdout instead of Rich text on stderr.
         debug_mode: Include the request URL, method, and response body in error output.
         display_url: The target URL as shown to the operator.
-        is_loopback: The target is on this machine; suppresses the ``Target:`` line.
+        is_loopback: The target is on this machine; suppresses the ``Target:`` line and selects
+            the 401 wording.
+        is_local_instance: ``is_loopback``, and the target's port is also ``web_api.port``, so
+            server-scoped credential sources applied to it.
         insecure_from_config: TLS verification is off because of ``cli.verify_ssl`` in config,
             not an explicit flag on this invocation — a silent, durable opt-out worth warning about.
         credential_source_label: Where the attached credential came from, or ``None`` when no
@@ -59,6 +62,7 @@ class ErrorContext:
     debug_mode: bool
     display_url: str
     is_loopback: bool
+    is_local_instance: bool
     insecure_from_config: bool
     credential_source_label: str | None
 
@@ -75,17 +79,16 @@ class ErrorContext:
 
         A 401 with no context leaves three different failures looking identical: no credential
         exists, a credential exists but belongs to a *different* instance, or the target is
-        simply not running yet. Naming the resolved source separates them — in particular the
-        loopback case where the CLI attached this machine's own instance token to a request
-        aimed at a second instance on the same host, which is indistinguishable from a plain
-        bad token unless the message says where the value came from.
+        simply not running yet. Naming the resolved source separates them.
 
-        Three branches, in the order they are tested:
+        Four branches, in the order they are tested:
 
         - a credential resolved: names the source and says it was rejected
-        - none resolved, loopback: lists the chain that came up empty, then asks whether
+        - none resolved, local instance: lists the chain that came up empty, then asks whether
           hassette has been started
-        - none resolved, remote: explains why server-scoped sources were withheld
+        - none resolved, another loopback port: explains why server-scoped sources were withheld
+        - none resolved, remote: explains why server-scoped sources were withheld, and adds the
+          remote-side ``trusted_proxies`` remedy
 
         Returns:
             The parenthetical appended to the server's own 401 detail.
@@ -111,7 +114,7 @@ class ErrorContext:
                 )
             sentences.append(f"See {CLI_AUTH_DOCS_URL}")
             return " ".join(sentences)
-        if self.is_loopback:
+        if self.is_local_instance:
             # Nothing resolved — distinguish this from "token was wrong" so the operator isn't
             # left guessing why an unauthenticated request failed. Phrased as an outcome rather
             # than a claim about configuration: a configured cli.token_file that is missing,
@@ -122,6 +125,15 @@ class ErrorContext:
                 f"value ({credential_source_names()}). If one of those is configured, check that the "
                 "file exists, is readable, and is not empty; otherwise, has hassette been started? "
                 f"Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
+            )
+        if self.is_loopback:
+            # The local token file may be perfectly valid, so advice to check it would mislead:
+            # the resolver withheld it because it belongs to a different port.
+            return (
+                "no credential was attached — server-scoped sources "
+                f"({credential_source_names(scope='server')}) describe this machine's instance and "
+                "are sent only to a loopback target on web_api.port, which this target's port does "
+                f"not match. Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
             )
         # A server-scoped credential source was suppressed for this remote target —
         # separate the remedies by where they apply, since one is local (attach a

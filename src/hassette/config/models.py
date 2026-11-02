@@ -684,9 +684,9 @@ class CliConfig(ExcludeExtrasMixin, BaseModel):
 
     token_file: Path | None = Field(default=None, json_schema_extra={"ui": {"label": "Token File"}})
     """Path to a file containing the bearer credential for the target Hassette instance (absolute, or
-    relative to the config file that sets it). Applies to any target, unlike the server-scoped,
-    loopback-only ``web_api.token_file`` fallback (the server's own token location, not a credential
-    you supply)."""
+    relative to the config file that sets it). Applies to any target, unlike the server-scoped
+    ``web_api.token_file`` fallback (the server's own token location, not a credential you supply),
+    which reaches only a loopback target on ``web_api.port``."""
 
     auth_token: SecretStr | None = Field(default=None, json_schema_extra={"ui": {"label": "Auth Token"}})
     """Bearer credential for the target Hassette instance.
@@ -694,4 +694,4 @@ class CliConfig(ExcludeExtrasMixin, BaseModel):
     Stored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string
     representations, and the ``GET /api/config`` response. Unwrap with
     ``auth_token.get_secret_value()`` only at the point of use. Applies to any target, unlike
-    ``web_api.auth_token`` which is scoped to the local instance only."""
+    ``web_api.auth_token``, which reaches only a loopback target on ``web_api.port``."""

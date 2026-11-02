@@ -58,8 +58,8 @@ that needs the real env path, clear *every* ambient `HASSETTE__*` var first (loo
 test — don't enumerate individual vars by name. Naming only the credential-precedence vars that
 outrank the one you're setting (`CREDENTIAL_SOURCES` in `src/hassette/cli/target.py`) is not
 enough: an ambient `HASSETTE__CLI__SERVER_URL` or `HASSETTE__WEB_API__HOST` pointed at a
-non-loopback target makes `resolve_cli_auth_token()` skip every server-scoped credential source
-regardless of precedence, which is a different failure mode than precedence and just as easy to
+non-loopback target, or a `HASSETTE__CLI__SERVER_URL` on a loopback port other than `web_api.port`,
+makes `resolve_cli_auth_token()` skip every server-scoped credential source regardless of precedence, which is a different failure mode than precedence and just as easy to
 hit. A blanket clear covers both, and any future `HassetteConfig` field, without relying on
 whoever adds the next real-env test to enumerate the right var names. Tracked as issue #1552
 after `HASSETTE__CLI__AUTH_TOKEN` being ambient on a dev machine broke this test (and silently

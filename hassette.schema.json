@@ -474,7 +474,7 @@
             }
           ],
           "default": null,
-          "description": "Path to a file containing the bearer credential for the target Hassette instance (absolute, or\nrelative to the config file that sets it). Applies to any target, unlike the server-scoped,\nloopback-only ``web_api.token_file`` fallback (the server's own token location, not a credential\nyou supply).",
+          "description": "Path to a file containing the bearer credential for the target Hassette instance (absolute, or\nrelative to the config file that sets it). Applies to any target, unlike the server-scoped\n``web_api.token_file`` fallback (the server's own token location, not a credential you supply),\nwhich reaches only a loopback target on ``web_api.port``.",
           "title": "Token File",
           "ui": {
             "label": "Token File"
@@ -492,7 +492,7 @@
             }
           ],
           "default": null,
-          "description": "Bearer credential for the target Hassette instance.\n\nStored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string\nrepresentations, and the ``GET /api/config`` response. Unwrap with\n``auth_token.get_secret_value()`` only at the point of use. Applies to any target, unlike\n``web_api.auth_token`` which is scoped to the local instance only.",
+          "description": "Bearer credential for the target Hassette instance.\n\nStored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string\nrepresentations, and the ``GET /api/config`` response. Unwrap with\n``auth_token.get_secret_value()`` only at the point of use. Applies to any target, unlike\n``web_api.auth_token``, which reaches only a loopback target on ``web_api.port``.",
           "title": "Auth Token",
           "ui": {
             "label": "Auth Token"

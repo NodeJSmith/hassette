@@ -32,9 +32,9 @@ from hassette.web.auth.tokens import web_api_token_path
 SERVER_SCOPE_QUALIFIER = "this machine's instance"
 """What a ``scope="server"`` source's qualifier has to say beyond naming the setting.
 
-Both server-scoped sources describe the instance running on *this* host, which is the whole
-diagnosis when the CLI is pointed at a second instance on the same machine. Naming the fragment
-once keeps the two messages phrased identically.
+Both server-scoped sources describe the instance running on *this* host, so a rejection means
+that instance's own credential is stale. Naming the fragment once keeps the two messages phrased
+identically.
 """
 
 CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"  # noqa: S105 — an env var name, not a hardcoded credential
@@ -97,8 +97,7 @@ class ResolvedCredential:
     ``source`` exists so an auth failure can say *which* credential was sent, not just that one
     was. It is built by the resolver that produced the value, so a file-backed source can name
     the concrete path it read rather than the generic setting name — the difference between
-    "some token was attached" and "the local instance's ``/data/.web_api_token`` was attached",
-    which is the whole diagnosis when the CLI is pointed at a second instance on the same host.
+    "some token was attached" and "the local instance's ``/data/.web_api_token`` was attached".
 
     Every source names itself as ``<setting> (<qualifier>)`` via :func:`_format_source` so the
     strings read the same when spliced mid-sentence into an auth-failure message. The qualifier
@@ -118,9 +117,9 @@ class CredentialSource:
     """One entry in the credential precedence chain.
 
     ``scope`` is the data model, not documentation: ``resolve_cli_auth_token`` skips any
-    ``"server"``-scoped source once the target is non-loopback by reading this field, never by
-    naming individual sources. A source added later only has to declare its scope correctly for
-    the gate to apply — it cannot forget to extend a hand-written skip condition.
+    ``"server"``-scoped source unless the target is the local instance by reading this field,
+    never by naming individual sources. A source added later only has to declare its scope
+    correctly for the gate to apply — it cannot forget to extend a hand-written skip condition.
 
     ``name`` serves the same purpose for prose. It is the bare setting identifier with no
     qualifier — the resolved-credential strings built by :func:`_format_source` name one
@@ -326,8 +325,8 @@ def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredentia
 def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential | None:
     """``web_api.auth_token``. Server-scoped.
 
-    Describes what the *local* instance validates against, so it is gated to loopback targets by
-    ``resolve_cli_auth_token``.
+    Describes what the *local* instance validates against, so ``resolve_cli_auth_token`` sends it
+    only to that instance (see :func:`targets_local_instance`).
     """
     token = inputs.config.web_api.auth_token
     if token is None:
@@ -375,9 +374,19 @@ def credential_source_names(scope: Literal["cli", "server"] | None = None) -> st
 
     Args:
         scope: Restrict the list to sources of this scope. ``None`` lists the whole chain,
-            which is what applies to a loopback target.
+            which is what applies to the local instance.
     """
     return ", ".join(source.name for source in CREDENTIAL_SOURCES if scope is None or source.scope == scope)
+
+
+def targets_local_instance(config: HassetteConfig, target: ServerTarget) -> bool:
+    """Return whether ``target`` is the instance this machine's ``web_api`` settings describe.
+
+    Loopback alone doesn't establish that, because two instances on one machine share a host and
+    differ only by port. ``URL.port`` fills in the scheme's default, so ``http://127.0.0.1`` counts
+    as port 80. A target derived from ``web_api.host``/``web_api.port`` matches by construction.
+    """
+    return target.is_loopback and URL(target.base_url).port == config.web_api.port
 
 
 def resolve_cli_auth_token(
@@ -386,7 +395,7 @@ def resolve_cli_auth_token(
     """Resolve the bearer credential the CLI should attach to outgoing requests.
 
     Walks :data:`CREDENTIAL_SOURCES` in precedence order, skipping any ``scope="server"`` entry
-    when ``target.is_loopback`` is false — server-scoped sources describe what the *local*
+    unless :func:`targets_local_instance` holds — server-scoped sources describe what the *local*
     instance validates against, never a statement about what some other instance accepts.
 
     Returns:
@@ -403,8 +412,9 @@ def resolve_cli_auth_token(
             header).
     """
     inputs = CredentialInputs(config=config, token_file_flag=token_file_flag)
+    is_local_instance = targets_local_instance(config, target)
     for source in CREDENTIAL_SOURCES:
-        if source.scope == "server" and not target.is_loopback:
+        if source.scope == "server" and not is_local_instance:
             continue
         credential = source.resolve(inputs)
         if credential is not None:
