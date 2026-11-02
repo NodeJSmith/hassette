@@ -10,16 +10,18 @@ Write golden values from observation, not from calling the same code path twice.
 
 from typing import TYPE_CHECKING, Literal, cast
 
-from whenever import Time, ZonedDateTime
+import pytest
+from whenever import PlainDateTime, Time, ZonedDateTime
 
 from hassette.conversion import STATE_REGISTRY
-from hassette.models.states.base import BaseState, TimeBaseState
+from hassette.models.states.base import BaseState, DateTimeBaseState, TimeBaseState
 from hassette.models.states.binary_sensor import BinarySensorState
 from hassette.models.states.input import InputButtonState, InputDatetimeState, InputNumberState
 from hassette.models.states.light import LightState
 from hassette.models.states.number import NumberState
 from hassette.models.states.sensor import SensorState
 from hassette.testing import make_state_dict, make_typed_state
+from hassette.utils import date_utils
 
 if TYPE_CHECKING:
     from hassette.events import HassStateDict
@@ -113,6 +115,25 @@ class TestDateTimeValueTypeFamily:
         )
         state = make_typed_state(InputDatetimeState, raw)
         assert isinstance(state.value, ZonedDateTime)
+
+    def test_value_type_declares_only_zoned_datetime_and_none(self) -> None:
+        assert DateTimeBaseState.value_type == (ZonedDateTime, type(None))
+
+    @pytest.mark.parametrize(
+        ("raw_value", "expected_wall_clock"),
+        [
+            pytest.param("2026-10-01T08:00:00", PlainDateTime(2026, 10, 1, 8), id="naive"),
+            pytest.param("2026-10-01", PlainDateTime(2026, 10, 1), id="date-only"),
+        ],
+    )
+    def test_string_without_offset_assumes_the_local_timezone(
+        self, raw_value: str, expected_wall_clock: PlainDateTime
+    ) -> None:
+        raw = make_state_dict("input_datetime.wake_up", raw_value)
+        state = make_typed_state(InputDatetimeState, raw)
+        assert isinstance(state.value, ZonedDateTime)
+        assert state.value.to_plain() == expected_wall_clock
+        assert state.value.tz_id == date_utils.now().tz_id
 
 
 class TestTimeValueTypeFamily:
