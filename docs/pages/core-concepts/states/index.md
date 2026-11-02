@@ -211,12 +211,14 @@ Three quantifiers cover the household, and `is_home` covers one entity:
 
 - **`anybody_home()`** — `True` if at least one tracked person is home.
 - **`everybody_home()`** — `True` if every tracked person is home. `False` when no presence entities are tracked.
-- **`nobody_home()`** — `True` if no tracked person is home. The inverse of `anybody_home()`.
+- **`nobody_home()`** — `True` if no tracked person is home. The inverse of `anybody_home()`, so also `True` when no presence entities are tracked.
 - **`is_home(entity)`** — `True` if a single `person.*` or `device_tracker.*` entity is home. Takes a full entity ID.
 
 The quantifiers read the `person` domain, falling back to `device_tracker` only when no `person` entities are configured. `person` entities aggregate a real person's devices, so they answer "is this person home?" more reliably than a single device tracker.
 
 `"home"` is the Home Assistant state both domains report when an entity is in the home zone; anything else (`"not_home"`, a named zone like `"Work"`) counts as away.
+
+The same helpers gate bus subscriptions through `where=`. [Presence Checks](../bus/filtering.md#presence-checks) shows the pattern.
 
 ## Good to Know
 

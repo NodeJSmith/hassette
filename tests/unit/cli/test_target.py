@@ -233,7 +233,7 @@ class TestCredentialPrecedence:
         assert result.token == "file-token"
 
 
-# Credential scope gate (loopback suppression)
+# Credential scope gate (server-scoped sources reach only the local instance's port)
 
 
 class TestCredentialScopeGate:
@@ -267,6 +267,75 @@ class TestCredentialScopeGate:
         assert target.is_loopback is False
         result = resolve_cli_auth_token(config, target)
         assert result is None
+
+    @pytest.mark.parametrize(
+        "server_url",
+        ["http://127.0.0.1:18126", "http://localhost:18126", "http://[::1]:18126", "http://127.0.0.1"],
+        ids=["ipv4", "localhost", "ipv6", "implicit-default-port"],
+    )
+    def test_server_scoped_sources_withheld_from_another_loopback_port(self, tmp_path: Path, server_url: str) -> None:
+        """Loopback alone doesn't identify the instance that wrote the local token file."""
+        (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path, port=8126, web_api_auth_token="web-api-token")
+        target = resolve_server_target(config, server_url_flag=server_url)
+        assert target.is_loopback is True
+        assert resolve_cli_auth_token(config, target) is None
+
+    def test_data_dir_token_file_withheld_from_another_loopback_port(self, tmp_path: Path) -> None:
+        (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path, port=8126)
+        target = resolve_server_target(config, server_url_flag="http://127.0.0.1:18126")
+        assert resolve_cli_auth_token(config, target) is None
+
+    @pytest.mark.parametrize(
+        ("server_url", "port"),
+        [
+            ("http://127.0.0.1:8126", 8126),
+            ("http://localhost:8126", 8126),
+            ("http://[::1]:8126", 8126),
+            ("http://127.0.0.1:8126/hassette", 8126),
+            ("http://127.0.0.1", 80),
+            ("https://localhost", 443),
+        ],
+        ids=["ipv4", "localhost", "ipv6", "path-prefix", "implicit-http-port", "implicit-https-port"],
+    )
+    def test_server_scoped_sources_sent_to_the_local_port(self, tmp_path: Path, server_url: str, port: int) -> None:
+        config = make_cli_config(data_dir=tmp_path, port=port, web_api_auth_token="web-api-token")
+        target = resolve_server_target(config, server_url_flag=server_url)
+        result = resolve_cli_auth_token(config, target)
+        assert result is not None
+        assert result.token == "web-api-token"
+
+    @pytest.mark.parametrize("host", ["127.0.0.1", "0.0.0.0", "::", "localhost"])
+    def test_zero_config_target_gets_the_data_dir_token_file(self, tmp_path: Path, host: str) -> None:
+        """The derived target takes its port from ``web_api.port``, so it always matches."""
+        (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path, host=host, port=9000)
+        result = resolve_attached_credential(config)
+        assert result.token == "file-token"
+
+    def test_explicit_sources_apply_to_another_loopback_port(self, tmp_path: Path) -> None:
+        flag_file = tmp_path / "flag-token"
+        flag_file.write_text("flag-token", encoding="utf-8")
+        config_file = tmp_path / "config-token-file"
+        config_file.write_text("config-file-token", encoding="utf-8")
+        other_port = "http://127.0.0.1:18126"
+
+        config = make_cli_config(data_dir=tmp_path, web_api_auth_token="web-api-token")
+        target = resolve_server_target(config, server_url_flag=other_port)
+        flag_result = resolve_cli_auth_token(config, target, token_file_flag=flag_file)
+        assert flag_result is not None
+        assert flag_result.token == "flag-token"
+
+        config = make_cli_config(data_dir=tmp_path, cli_token_file=config_file)
+        file_result = resolve_cli_auth_token(config, resolve_server_target(config, server_url_flag=other_port))
+        assert file_result is not None
+        assert file_result.token == "config-file-token"
+
+        config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token")
+        field_result = resolve_cli_auth_token(config, resolve_server_target(config, server_url_flag=other_port))
+        assert field_result is not None
+        assert field_result.token == "cli-token"
 
     def test_all_credential_sources_declare_a_scope(self) -> None:
         """A source added later cannot omit the classification the gate relies on."""
@@ -312,10 +381,7 @@ class TestResolvedCredentialSource:
         assert "this machine's instance" in result.source
 
     def test_web_api_token_file_names_the_concrete_path(self, tmp_path: Path) -> None:
-        """The companion trap: a second local instance gets this machine's token file attached.
-
-        The 401 can only distinguish that from a plain bad token if the source names the file.
-        """
+        """A stale token file reads like a plain bad token unless the 401 names the file."""
         token_path = tmp_path / TOKEN_FILENAME
         token_path.write_text("file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path)

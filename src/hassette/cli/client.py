@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 import hassette.cli.output as cli_output
 from hassette.cli.client_errors import ErrorContext, emit_usage_error
 from hassette.cli.context import CLIContext
-from hassette.cli.target import resolve_cli_auth_token, resolve_server_target
+from hassette.cli.target import resolve_cli_auth_token, resolve_server_target, targets_local_instance
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import ConfigError, FatalError
 
@@ -118,6 +118,7 @@ class HassetteCLIClient:
             debug_mode=debug_mode,
             display_url=target.display_url,
             is_loopback=target.is_loopback,
+            is_local_instance=targets_local_instance(config, target),
             # verify_ssl ended up False without an explicit --no-verify-ssl/--verify-ssl flag on
             # this invocation, so it came from cli.verify_ssl in config — a silent, durable
             # opt-out rather than a conscious per-invocation choice.
