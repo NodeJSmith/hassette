@@ -747,12 +747,14 @@ def test_event_entity_fresh(state_value: str | None, last_changed: str, expected
     assert P.EventEntityFresh(max_age=10)(event_entity_change(state_value, last_changed)) is expected
 
 
-def input_button_change(state_value: str) -> RawStateChangeEvent:
-    return make_full_state_change_event(
-        "input_button.naptime",
-        old_state=None,
-        new_state=make_state_dict("input_button.naptime", state_value, last_changed="2026-10-29T22:04:28+00:00"),
+def input_button_change(state_value: str | None) -> RawStateChangeEvent:
+    """Build an ``input_button`` state change; ``None`` builds an entity removal, which has no new state."""
+    new_state = (
+        None
+        if state_value is None
+        else make_state_dict("input_button.naptime", state_value, last_changed="2026-10-29T22:04:28+00:00")
     )
+    return make_full_state_change_event("input_button.naptime", old_state=None, new_state=new_state)
 
 
 @pytest.mark.parametrize(
@@ -775,10 +777,16 @@ def test_event_entity_fresh_covers_input_button(state_value: str, expected: bool
         pytest.param("2026-10-18T21:51:13+00:00", False, id="restart_replay"),
         pytest.param("unavailable", False, id="unavailable"),
         pytest.param("unknown", False, id="unknown"),
+        pytest.param(None, False, id="entity_removed"),
     ],
 )
-def test_event_entity_fresh_composed_form_passes_only_real_press(state_value: str, expected: bool) -> None:
-    predicate = P.EventEntityFresh(max_age=10) & ~P.StateTo("unavailable") & ~P.StateTo("unknown")
+def test_event_entity_fresh_composed_form_passes_only_real_press(state_value: str | None, expected: bool) -> None:
+    predicate = (
+        P.EventEntityFresh(max_age=10)
+        & P.IsPresent(A.get_state_value_new)
+        & ~P.StateTo("unavailable")
+        & ~P.StateTo("unknown")
+    )
     event = input_button_change(state_value)
     assert predicate(event) is expected
 

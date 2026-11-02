@@ -1,14 +1,15 @@
-from hassette import App, P
+from hassette import A, App, P
 
 
 class NaptimeButtonApp(App):
     async def on_initialize(self):
-        # Ignore HA restart replays and restart-time placeholder states
+        # Ignore HA restart replays, restart-time placeholder states, and entity removal
         await self.bus.on_state_change(
             "input_button.naptime",
             handler=self.on_button_pressed,
             where=(
                 P.EventEntityFresh(max_age=10)
+                & P.IsPresent(A.get_state_value_new)
                 & ~P.StateTo("unavailable")
                 & ~P.StateTo("unknown")
             ),

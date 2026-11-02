@@ -154,13 +154,15 @@ A real press writes its timestamp and `last_changed` at the same moment, so it p
 
 The guard fails open: a state that isn't a timestamp, such as `unknown` or `unavailable`, passes. A `max_age` of a few seconds is plenty.
 
-A handler that acts without checking anything else also runs on those states during a restart. An `event.*` handler usually returns early on its empty `event_type`, but an `input_button` handler has no such check. Composing the guard with `P.StateTo` drops those states too:
+A handler that acts without checking anything else also runs on those states during a restart, and when the entity is removed, since a removal has no new state to check. An `event.*` handler usually returns early on its empty `event_type`, but an `input_button` handler has no such check. Composing the guard with `P.IsPresent` and `P.StateTo` drops those events too:
 
 ```python
---8<-- "pages/core-concepts/bus/snippets/filtering_input_button_fresh.py"
+--8<-- "pages/core-concepts/bus/snippets/filtering/input_button_fresh.py"
 ```
 
-The handler now runs only on a real press.
+`P.IsPresent` is false when its accessor finds no value, as on a removal. `A.get_state_value_new` goes in without parentheses because `P.IsPresent` calls it with each event.
+
+The handler now skips placeholder states, removals, and replays of older presses. A restart that finishes within `max_age` of the last press still looks like a real press and runs the handler. If running twice for one press would be a problem, make the handler idempotent, or save the last timestamp it handled and skip a repeat.
 
 ### Presence Checks
 

@@ -555,8 +555,9 @@ class EventEntityFresh(_PredicateOps):
 
     Fails open: a missing ``new_state`` or a state value or ``last_changed`` that is not an ISO 8601 timestamp
     (``unknown``, ``unavailable``) counts as fresh, so a real press is never dropped. A handler that acts without
-    checking anything else, as an ``input_button`` handler usually does, also runs on those states during a restart.
-    Compose the guard with ``~P.StateTo`` to drop them, as the second example shows.
+    checking anything else, as an ``input_button`` handler usually does, also runs on those states during a restart
+    and when the entity is removed. Compose the guard with ``P.IsPresent`` and ``~P.StateTo`` to drop them, as the
+    second example shows. A restart within ``max_age`` of the last press still passes as a press.
 
     Examples:
         ```python
@@ -570,7 +571,12 @@ class EventEntityFresh(_PredicateOps):
         await self.bus.on_state_change(
             "input_button.naptime",
             handler=self.on_press,
-            where=P.EventEntityFresh(max_age=10) & ~P.StateTo("unavailable") & ~P.StateTo("unknown"),
+            where=(
+                P.EventEntityFresh(max_age=10)
+                & P.IsPresent(A.get_state_value_new)
+                & ~P.StateTo("unavailable")
+                & ~P.StateTo("unknown")
+            ),
             name="naptime_button",
         )
         ```
