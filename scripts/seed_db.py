@@ -11,6 +11,11 @@ Usage::
 
     python scripts/seed_db.py --scenario healthy
     python scripts/seed_db.py --scenario degraded --output /tmp/hassette-degraded.db
+    python scripts/seed_db.py --scenario healthy --anchor now
+    python scripts/seed_db.py --scenario healthy --anchor 2026-03-01T12:00:00Z
+
+``--anchor`` ends the scenario's timeline at that instant, so the seeded activity falls inside
+the UI's ``24h`` time preset when served. Without it, timestamps stay at a fixed date.
 
 The scenario generators themselves live in ``scripts/seed_scenarios/`` -- one module per
 scenario, plus a shared ``base`` module holding ``SeedContext`` and the seed helpers. This
@@ -31,7 +36,8 @@ from pathlib import Path
 # keeps working as documented (CLAUDE.md) outside of pytest.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from seed_scenarios import SCENARIOS, SeedContext, SeedIntegrityError
+from seed_scenarios import SCENARIOS, SeedContext, SeedIntegrityError, anchored_at
+from whenever import Instant
 
 from hassette.core.migration_runner import run_migrations
 
@@ -86,13 +92,16 @@ def _collect_summary(conn: sqlite3.Connection) -> dict[str, int]:
     return summary
 
 
-def generate_scenario(scenario: str, output_path: Path, tmp_path: Path) -> dict[str, int]:
+def generate_scenario(
+    scenario: str, output_path: Path, tmp_path: Path, *, anchor: Instant | None = None
+) -> dict[str, int]:
     """Generate one scenario to ``tmp_path`` and atomically swap it into ``output_path``.
 
     Applies migrations, runs the scenario generator inside a single BEGIN IMMEDIATE /
     COMMIT transaction, verifies referential integrity, then swaps the file into place.
     On any failure, the temp file is removed and the exception propagates — the
-    destination path is left untouched.
+    destination path is left untouched. ``anchor`` ends the scenario's timeline at that
+    instant (see ``anchored_at``).
     """
     _remove_sqlite_files(tmp_path)
 
@@ -107,7 +116,8 @@ def generate_scenario(scenario: str, output_path: Path, tmp_path: Path) -> dict[
 
             try:
                 cursor.execute("BEGIN IMMEDIATE")
-                SCENARIOS[scenario](ctx)
+                with anchored_at(anchor):
+                    SCENARIOS[scenario](ctx)
             except Exception:
                 conn.rollback()
                 raise
@@ -141,6 +151,18 @@ def _print_summary(scenario: str, output_path: Path, summary: dict[str, int]) ->
     print(f"  blocking_events: {summary['blocking_events']}")
 
 
+def parse_anchor(value: str) -> Instant:
+    """Parse an ``--anchor`` value: ``now`` or an ISO 8601 instant with a UTC offset."""
+    if value == "now":
+        return Instant.now()
+    try:
+        return Instant.parse_iso(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is not 'now' or an ISO 8601 instant with an offset (e.g. 2026-03-01T12:00:00Z)"
+        ) from exc
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate a deterministic seed SQLite database for a named hassette telemetry scenario."
@@ -157,6 +179,13 @@ def main() -> None:
         default=None,
         help="Output SQLite file path (default: ./hassette-{scenario}.db)",
     )
+    parser.add_argument(
+        "--anchor",
+        type=parse_anchor,
+        default=None,
+        metavar="now|ISO_INSTANT",
+        help="End the scenario's timeline at this instant instead of using the fixed default date.",
+    )
     args = parser.parse_args()
 
     output_path: Path = (args.output or Path(f"hassette-{args.scenario}.db")).resolve()
@@ -164,7 +193,7 @@ def main() -> None:
     tmp_path = output_path.with_name(output_path.name + ".tmp")
 
     try:
-        summary = generate_scenario(args.scenario, output_path, tmp_path)
+        summary = generate_scenario(args.scenario, output_path, tmp_path, anchor=args.anchor)
     except SeedIntegrityError as exc:
         raise SystemExit(f"Seed integrity check failed: {exc}") from exc
     except (sqlite3.OperationalError, RuntimeError) as exc:
