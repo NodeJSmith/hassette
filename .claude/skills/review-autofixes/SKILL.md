@@ -110,14 +110,7 @@ On the PR branch checked out in 2a, for each finding classified as **Fix**:
 2. Run the affected tests.
 3. If the fix touches web models or schemas, regenerate: `uv run python scripts/export_schemas.py --types`
 
-### 2d. Resolve Threads
-
-For each triaged thread, reply and resolve. Findings from `.reviewComments` have no thread; answer those in one PR comment.
-
-- **Fixed:** `gh-pr-reply {PR} {comment_id} "Fixed in {sha}." --resolve {thread_id}`
-- **Skipped:** `gh-pr-reply {PR} {comment_id} "Skipping — {reason}." --resolve {thread_id}`
-
-### 2e. Commit & Push
+### 2d. Commit & Push
 
 If fixes were applied in 2c (CI fixes included):
 
@@ -131,7 +124,17 @@ If fixes were applied in 2c (CI fixes included):
    ```
 
    If either fails, fix it, amend, and repeat steps 1 and 3 on the amended commit before pushing. Moving code to fix a file-size failure can break imports or types or add duplication, and a duplication fix can grow a file, so earlier results don't cover the amended `HEAD`.
-4. Push: `git push origin {branch}`
+4. Push as its own command, with no pipe and nothing chained after it, because a denied or hook-rejected push doesn't stop anything that follows: `git push origin {branch}`, or `git push --force-with-lease origin {branch}` if this run rebased the branch.
+5. Confirm it landed: `git ls-remote origin refs/heads/{branch}` shows the same commit as `git rev-parse HEAD`. Empty output or an error counts as not landed.
+
+If the push failed and you can't fix the cause, don't reply "Fixed" or resolve those threads, and don't queue auto-merge. Unattended, stop work on this PR and record the failure in the summary. Interactively, show the failure and ask.
+
+### 2e. Resolve Threads
+
+For each triaged thread, reply and resolve. A "Fixed" reply names a commit that's already on the remote, so this comes after 2d. Findings from `.reviewComments` have no thread; answer those in one PR comment.
+
+- **Fixed:** `gh-pr-reply {PR} {comment_id} "Fixed in {sha}." --resolve {thread_id}`
+- **Skipped:** `gh-pr-reply {PR} {comment_id} "Skipping — {reason}." --resolve {thread_id}`
 
 ### 2f. Ensure the PR Closes Its Issue
 
@@ -147,7 +150,7 @@ If the branch name doesn't match the pattern, skip this step and go to 2g.
 
 ### 2g. Enable Auto-Merge
 
-After the findings are handled and any fixes are pushed:
+After the findings are handled and any fixes are pushed. Check the branch tip against the remote the way 2d does first, even if this run pushed nothing, and don't queue auto-merge if they differ:
 
 If the PR is a parked draft (`autofix:needs-human`, reachable only in an interactive run), ask the user before leaving the park: marking it ready, swapping `autofix:needs-human` for `autofix:human-cleared` (so later unattended runs don't re-park it) and queueing auto-merge. That's their decision.
 
@@ -163,7 +166,7 @@ After all PRs are processed, present a summary table:
 
 | PR | Review threads | Fixes | Outcome |
 |---|---|---|---|
-| #{n} | {X threads: Y fixed, Z skipped} | {description} | {auto-merge queued / needs rebase / parked: converging on {mechanism} / stopped to discuss / ledger failed} |
+| #{n} | {X threads: Y fixed, Z skipped} | {description} | {auto-merge queued / needs rebase / push failed / parked: converging on {mechanism} / stopped to discuss / ledger failed} |
 
 When a PR continued past a settled convergence, append `(convergence noted, already resolved: {mechanism})` to its outcome, e.g. `auto-merge queued (convergence noted, already resolved: status-to-color map)`.
 
