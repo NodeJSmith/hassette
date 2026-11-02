@@ -8,7 +8,7 @@ status: Draft
 
 ## The Problem
 
-Hassette's users open it after something happened that shouldn't have, or didn't happen when it should have. It records runs, but not events its listeners rejected, the service calls a run made, or connection and lifecycle history. This survey asks how peers record those things and how they bound the storage. Home Assistant's own Activity, Logs and traces are covered in `~/Dotfiles/design/research/2026-11-01-hassette-diagnostic-questions/ha-prior-art.md`.
+Hassette's users open it after something happened that shouldn't have, or didn't happen when it should have. It records runs, but not events its listeners rejected, the service calls a run made, or connection and lifecycle history. This survey asks how peers record those things and how they bound the storage. Home Assistant's own Activity, Logs and traces are covered by separate research outside this repo.
 
 ## How We Do It Today
 
