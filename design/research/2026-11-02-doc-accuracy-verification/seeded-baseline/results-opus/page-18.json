@@ -1,0 +1,53 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 112,
+ "findings": [
+  {
+   "line": 9,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "ChangeType is a union of literal value, C.* condition instance, glob string, or callable (value) -> bool .",
+   "code_evidence": "src/hassette/types/types.py:328-331 \u2014 `\"FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel] | None\"`; src/hassette/event_handling/predicates.py:763-765 \u2014 `if not callable(condition): ... coerce_to_literal_type(actual, condition) == condition`. Runtime probe: `compare_value(\"light.kitchen\", \"light.*\")` returned False.",
+   "explanation": "A ChangeType has no glob-string form. Consumers that take a ChangeType treat a plain string as an exact literal. Only DomainMatches, EntityMatches and ServiceMatches (each takes a `str`, not a ChangeType) and ServiceDataWhere with auto_glob=True detect glob syntax.",
+   "suggested_fix": "ChangeType is a union of literal value, C.* condition instance, or callable (value) -> bool. A plain string is compared exactly; use C.Glob(\"light.*\") for glob matching."
+  },
+  {
+   "line": 28,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "condition accepts a literal value, a C.* condition instance, a glob string, or any callable (value) -> bool .",
+   "code_evidence": "src/hassette/event_handling/predicates.py:317-322 \u2014 `ValueIs.__call__` calls `compare_value(extracted, self.condition)` with no glob detection; predicates.py:763-765 compares non-callables with `==`. Runtime probes: `P.ValueIs(source=lambda e: \"light.kitchen\", condition=\"light.*\")(None)` returned False, and `P.StateTo(\"o*\")` on a state of \"off\" returned False.",
+   "explanation": "P.ValueIs does not auto-detect globs. A glob string is compared as an exact literal, so it silently never matches real values. The same applies to StateFrom, StateTo, AttrFrom, AttrTo, and changed_from=/changed_to=, which build on ValueIs (bus.py:1757-1763). The auto-glob wrapping exists only in ServiceDataWhere (predicates.py:700-701) and in `_glob_or_literal`, used by the Domain/Entity/Service matchers.",
+   "suggested_fix": "condition accepts a literal value, a C.* condition instance, or any callable (value) -> bool. A glob string is not auto-detected here; wrap it in C.Glob."
+  },
+  {
+   "line": 141,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "| A.get_context | get_context | HassContext | The context dict from the event payload. |",
+   "code_evidence": "src/hassette/events/base.py:32-37 \u2014 `class HassContext:` with fields `id`, `parent_id`, `user_id`; base.py:56 \u2014 `context: HassContext`; base.py:60 \u2014 `self.context.id`. Runtime probe: `type(A.get_context(e))` returned `<class 'hassette.events.base.HassContext'>`.",
+   "explanation": "get_context returns a HassContext object accessed by attribute, not a dict. Following the prose with `ctx[\"id\"]` would fail. The Returns column naming HassContext is correct; only the description is wrong.",
+   "suggested_fix": "The HassContext object (id, parent_id, user_id) from the event payload."
+  },
+  {
+   "line": 151,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "A recursive diff between old and new state, mapping changed keys to (old_value, new_value) .",
+   "code_evidence": "src/hassette/event_handling/accessors.py:291-292 \u2014 `if isinstance(old_value, dict) and isinstance(new_value, dict): changed_dict[key] = _recursive_get_differences(...)`. Runtime probe with identical attributes returned `{'state': ('on', 'off'), 'attributes': {}}`.",
+   "explanation": "Any key whose old and new values are both dicts is always included, even when nothing inside it changed, and maps to a nested dict rather than a tuple. An unchanged `attributes` therefore appears as `'attributes': {}`, so an unchanged key can be in the result.",
+   "suggested_fix": "A recursive diff between old and new state, mapping changed keys to (old_value, new_value). Keys holding dicts on both sides, such as attributes, always appear and map to a nested diff, which is {} when nothing inside changed."
+  }
+ ],
+ "summary": "The page is largely accurate: signatures, defaults, literal coercion, operators, sentinels and exception claims all match the code. The serious error is the claim that ChangeType and P.ValueIs accept glob strings (lines 9 and 28), because such strings are compared literally and silently never match; only the Domain/Entity/Service matchers and ServiceDataWhere detect globs. The other two errors are in the accessor tables: get_context returns a HassContext object rather than a dict, and get_all_changes always includes keys that hold dicts on both sides.",
+ "_tools": 12,
+ "_tokens": 147445,
+ "_probe_calls": 3,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}

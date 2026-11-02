@@ -1,0 +1,93 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 120,
+ "findings": [
+  {
+   "line": 9,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "ChangeType is a union of literal value, C.* condition instance, glob string, or callable (value) -> bool .",
+   "code_evidence": "src/hassette/types/types.py:330 \u2014 \"FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel] | None\"; src/hassette/event_handling/predicates.py:763-765 \u2014 `if not callable(condition): ... return coerce_to_literal_type(actual, condition) == condition`",
+   "explanation": "ChangeType has no glob-string member. A string is an ordinary literal and compare_value tests it for equality. Runtime probe: compare_value('light.kitchen', 'light.*') returned False. Only ServiceDataWhere (with auto_glob) and the DomainMatches/EntityMatches/ServiceMatches predicates detect globs.",
+   "suggested_fix": "ChangeType is a union of literal value, C.* condition instance, or callable (value) -> bool. A bare string is compared exactly; use C.Glob for pattern matching."
+  },
+  {
+   "line": 18,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "| P.Guard | Guard(predicate: Predicate[EventT]) |",
+   "code_evidence": "src/hassette/event_handling/predicates.py:157 \u2014 `fn: \"Predicate[EventT]\"`",
+   "explanation": "The dataclass field is named fn, not predicate. Runtime probe: P.Guard(predicate=...) raised TypeError: Guard.__init__() got an unexpected keyword argument 'predicate'. Positional calls work.",
+   "suggested_fix": "| P.Guard | Guard(fn: Predicate[EventT]) |"
+  },
+  {
+   "line": 28,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "condition accepts a literal value, a C.* condition instance, a glob string, or any callable (value) -> bool .",
+   "code_evidence": "src/hassette/event_handling/predicates.py:321-322 \u2014 `extracted = self.source(value); return compare_value(extracted, self.condition)`; predicates.py:763-765 \u2014 non-callable conditions use `==` with no glob handling",
+   "explanation": "P.ValueIs never interprets a string as a glob. A condition like \"light.*\" only matches the exact string \"light.*\", so a user following this line silently gets no matches. StateFrom, StateTo, AttrFrom and AttrTo delegate to ValueIs and behave the same way.",
+   "suggested_fix": "condition accepts a literal value, a C.* condition instance, or any callable (value) -> bool. Strings are compared exactly; wrap a pattern in C.Glob to match it as a glob."
+  },
+  {
+   "line": 51,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "When old_state is None , returns False even if the attribute is present on the new state.",
+   "code_evidence": "src/hassette/event_handling/predicates.py:530-531 \u2014 `if value.payload.data.old_state is None: return get_attr_new(self.attr_name)(value) is not MISSING_VALUE`",
+   "explanation": "The code does the opposite. With no old state, the predicate returns True when the attribute is present on the new state, and False only when it is absent.",
+   "suggested_fix": "When old_state is None, returns True if the attribute is present on the new state, and False otherwise."
+  },
+  {
+   "line": 79,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when the string value contains substring , ignoring case.",
+   "code_evidence": "src/hassette/event_handling/conditions.py:227 \u2014 `return isinstance(value, str) and self.substring in value`",
+   "explanation": "The check is a plain case-sensitive `in`. Runtime probe: C.Contains('KITCHEN')('light.kitchen') returned False.",
+   "suggested_fix": "Returns True when the string value contains substring (case-sensitive)."
+  },
+  {
+   "line": 91,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Passing a string raises TypeError .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:120-122 \u2014 `if isinstance(collection, str): raise ValueError(\"collection must be a sequence of values, not a string\")`",
+   "explanation": "The exception is ValueError, raised from __post_init__ on IsIn, NotIn, Intersects and NotIntersects. Runtime probe: C.IsIn('abc') raised ValueError. Code catching TypeError would miss it.",
+   "suggested_fix": "Passing a string raises ValueError."
+  },
+  {
+   "line": 104,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when float(old) < threshold <= float(new) .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:611 \u2014 `return float(old_value) <= self.threshold < float(new_value)`",
+   "explanation": "The boundary is inverted. The code fires when old is at or below the threshold and new is strictly above it. Runtime probe with threshold 25: CrossedAbove(25)(25, 26) returned True and CrossedAbove(25)(24, 25) returned False; the documented formula gives the reverse for both.",
+   "suggested_fix": "Returns True when float(old) <= threshold < float(new)."
+  },
+  {
+   "line": 151,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Excludes last_reported , last_updated , and last_changed by default.",
+   "code_evidence": "src/hassette/event_handling/accessors.py:63 \u2014 `DEFAULT_EXCLUDE = (\"last_reported\", \"last_updated\", \"last_changed\", \"context\")`",
+   "explanation": "The default exclusion list also contains context, which the page omits.",
+   "suggested_fix": "Excludes last_reported, last_updated, last_changed, and context by default."
+  }
+ ],
+ "summary": "Most of the page is accurate: the accessor tables, literal coercion rules, Comparison operators and nearly all signatures match the code. There are 8 findings, 7 of them high severity, and they cluster in behavior details of individual rows: AttrDidChange with no old state, Contains case sensitivity, the CrossedAbove boundary, the collection exception type and the Guard field name. The other recurring error is the claim, on lines 9 and 28, that ChangeType and ValueIs conditions accept glob strings, when bare strings are compared exactly outside ServiceDataWhere and the *Matches predicates. claims_checked is an approximate count of the claims reviewed.",
+ "_tools": 8,
+ "_tokens": 138570,
+ "_probe_calls": 1,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}

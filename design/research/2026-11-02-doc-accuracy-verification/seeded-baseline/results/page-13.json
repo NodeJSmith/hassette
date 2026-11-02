@@ -1,0 +1,32 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 138,
+ "findings": [
+  {
+   "line": 123,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "ChangeType is a union of literal value, C.* condition instance, glob string, or callable (value) -> bool .",
+   "code_evidence": "src/hassette/event_handling/predicates.py:817-826 (compare_value) - a non-callable condition goes through `coerce_to_literal_type(actual, condition) == condition`, with no glob handling. src/hassette/types/types.py:328-331 - ChangeType = FalseySentinel | V | Condition | ComparisonCondition | None, with no glob member. Ran compare_value('light.kitchen', 'light.*') and got False.",
+   "explanation": "A bare glob string passed as a ChangeType (to changed_to=, changed_from=, P.ValueIs, P.StateTo and the like) is compared by plain equality and is not treated as a glob. Only P.DomainMatches, P.EntityMatches, P.ServiceMatches and P.ServiceDataWhere (when auto_glob=True) auto-wrap globs. Everywhere else you need C.Glob(...) explicitly.",
+   "suggested_fix": "ChangeType is a union of literal value, C.* condition instance, or callable (value) -> bool. Use C.Glob(pattern) for glob matching; only P.ServiceDataWhere (with auto_glob=True) auto-wraps bare glob strings."
+  },
+  {
+   "line": 142,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "condition accepts a literal value, a C.* condition instance, a glob string, or any callable (value) -> bool .",
+   "code_evidence": "src/hassette/event_handling/predicates.py:ValueIs.__call__ calls compare_value(extracted, self.condition). compare_value (lines ~817-826) compares a non-callable with `==` after coercion, with no is_glob/Glob wrapping. Ran compare_value('light.kitchen', 'light.*') and got False.",
+   "explanation": "P.ValueIs does not auto-detect glob strings. P.ValueIs(source=..., condition='light.*') only matches the literal string 'light.*'.",
+   "suggested_fix": "condition accepts a literal value, a C.* condition instance (use C.Glob for glob matching), or any callable (value) -> bool."
+  }
+ ],
+ "summary": "The page is almost entirely accurate. Predicate, condition and accessor names, signatures, defaults (auto_glob=True, DEFAULT_EXCLUDE), coercion rules, comparison operators, the ValueError on string collections, operator shorthand with chain flattening, and the accessor MISSING_VALUE behavior all match the source. The only errors are two statements (lines 123 and 142) that wrongly list a glob string as a directly accepted ChangeType or condition.",
+ "_tools": 12,
+ "_tokens": 125722,
+ "_doc_access": [
+  "{\"command\": \"grep -n \\\"ValueIs\\\\|bare glob\\\\|glob string\\\" -i docs/pages/core-concepts/bus/filtering.md | head\"}"
+ ]
+}

@@ -1,0 +1,62 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 34,
+ "findings": [
+  {
+   "line": 23,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 30 seconds.",
+   "code_evidence": "src/hassette/config/models.py:35 `SHUTDOWN_TIMEOUT_SECONDS = 10`; models.py:335 `shutdown_timeout_seconds: float = Field(default=SHUTDOWN_TIMEOUT_SECONDS, gt=0)`",
+   "explanation": "The default for shutdown_timeout_seconds is 10 seconds. The 30-second figure matches startup_timeout_seconds (models.py:328), not the shutdown timeout.",
+   "suggested_fix": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 10 seconds."
+  },
+  {
+   "line": 27,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Before the shutdown hooks run, Hassette cancels all bus subscriptions created via self.bus , all scheduled jobs created via self.scheduler , and all background tasks tracked by self.task_bucket .",
+   "code_evidence": "src/hassette/resources/base.py:631-638 (`_shutdown_body`): `run_hooks(self, [self.before_shutdown, self.on_shutdown, self.after_shutdown], ...)` runs first, then `tail_outcome = await self._run_post_hook_shutdown_stage()`. base.py:479 (`_run_post_hook_shutdown_stage`) runs `_run_task_bucket_shutdown_stage()`, then `cleanup()`, then `_shutdown_children()`, which tears down the Bus and Scheduler children.",
+   "explanation": "Task-bucket cancellation, bus listener removal, and scheduler job removal all happen in the post-hook stage, after before_shutdown, on_shutdown and after_shutdown have run. During the hooks the subscriptions, jobs and tasks are still live. The same section's claim that manual cleanup in on_shutdown is unnecessary is still true.",
+   "suggested_fix": "After the shutdown hooks run, Hassette cancels all background tasks tracked by self.task_bucket, then removes the bus subscriptions and scheduled jobs created via self.bus and self.scheduler."
+  },
+  {
+   "line": 29,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "raises [CannotOverrideFinalError](../../../../reference/hassette/exceptions/#hassette.exceptions.CannotOverrideFinalError) when the app is first instantiated.",
+   "code_evidence": "src/hassette/resources/base.py:48-85: `FinalMeta` checks `ns` for overrides of `@final` methods and raises `CannotOverrideFinalError`. This runs in the metaclass, when the subclass is defined. utils/app_utils.py:159 also catches the error while loading the app class.",
+   "explanation": "The error is raised when the subclass is defined (class creation, at class load time), not when an instance is created. The page's own line 50 says 'at class load time'.",
+   "suggested_fix": "raises CannotOverrideFinalError when the app class is defined (at class load time)."
+  },
+  {
+   "line": 51,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "The .sync facades provide synchronous access from _sync hooks: self.bus.sync , self.scheduler.sync , self.api.sync , and self.states.sync .",
+   "code_evidence": "bus/bus.py:144 `sync: BusSyncFacade`, api/api.py:262 `self.sync = self.add_child(ApiSyncFacade, ...)`, scheduler/scheduler.py:151 `self.sync = self.add_child(SchedulerSyncFacade, ...)`. `grep -rn 'sync' src/hassette/state_manager/` finds no `sync` attribute or facade. StateManager (state_manager.py:245) has none.",
+   "explanation": "Bus, Scheduler and Api have a .sync facade, but StateManager has no .sync attribute. self.states.sync would raise AttributeError. State reads on self.states are already synchronous.",
+   "suggested_fix": "The .sync facades provide synchronous access from _sync hooks: self.bus.sync, self.scheduler.sync, and self.api.sync. self.states needs no facade; its reads are already synchronous."
+  },
+  {
+   "line": 42,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Hassette runs each variant in a thread pool via task_bucket.to_thread",
+   "code_evidence": "src/hassette/app/app.py:310, 315, 320, 325, 330, 335: `await self.task_bucket.run_in_thread(self.before_shutdown_sync)` etc. `grep -rn 'def to_thread' src/hassette` finds nothing.",
+   "explanation": "The method is TaskBucket.run_in_thread (task_bucket.py:312). There is no to_thread.",
+   "suggested_fix": "Hassette runs each variant in a thread pool via task_bucket.run_in_thread"
+  }
+ ],
+ "summary": "Most of the page is accurate: hook names and order, the @final markers on initialize, shutdown and cleanup, the empty base hooks, the cache being initialized before before_initialize, and the skip of own shutdown hooks after a failed init. Errors cluster in the shutdown details and the sync section. There is a wrong shutdown timeout default (10, not 30), a wrong ordering claim about when bus, scheduler and task-bucket cleanup happens, and a nonexistent self.states.sync. There are also a wrong method name (to_thread) and a misplaced timing for CannotOverrideFinalError.",
+ "_tools": 11,
+ "_tokens": 103396,
+ "_doc_access": [
+  "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review/src/hassette; grep -rn \\\"StateManager\\\" app/app.py | head -3; grep -rn \\\"sync\\\" state_"
+ ]
+}

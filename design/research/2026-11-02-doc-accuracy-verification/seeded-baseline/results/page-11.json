@@ -1,0 +1,70 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 112,
+ "findings": [
+  {
+   "line": 51,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "When old_state is None , returns False even if the attribute is present on the new state.",
+   "code_evidence": "src/hassette/event_handling/predicates.py (AttrDidChange.__call__) \u2014 `if value.payload.data.old_state is None: return get_attr_new(self.attr_name)(value) is not MISSING_VALUE`",
+   "explanation": "With no old_state, AttrDidChange returns True when the attribute exists on new_state. It returns False only when the attribute is absent from new_state. The class docstring says the same.",
+   "suggested_fix": "When old_state is None, returns True if the attribute is present on the new state (it is treated as having changed)."
+  },
+  {
+   "line": 79,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when the string value contains substring , ignoring case.",
+   "code_evidence": "src/hassette/event_handling/conditions.py (Contains.__call__) \u2014 `return isinstance(value, str) and self.substring in value`",
+   "explanation": "Contains does a plain, case-sensitive `in` check. No case folding happens anywhere.",
+   "suggested_fix": "Returns True when the string value contains substring (case-sensitive)."
+  },
+  {
+   "line": 91,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "collection must be a sequence, not a string. Passing a string raises TypeError .",
+   "code_evidence": "src/hassette/event_handling/conditions.py (_validate_collection) \u2014 `raise ValueError(\"collection must be a sequence of values, not a string\")`",
+   "explanation": "IsIn, NotIn, Intersects and NotIntersects all call _validate_collection in __post_init__, which raises ValueError. It does not raise TypeError. A user catching TypeError would miss it.",
+   "suggested_fix": "Passing a string raises ValueError."
+  },
+  {
+   "line": 104,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when float(old) < threshold <= float(new) .",
+   "code_evidence": "src/hassette/event_handling/conditions.py (CrossedAbove.__call__) \u2014 `return float(old_value) <= self.threshold < float(new_value)`",
+   "explanation": "The inequality bounds are reversed. The old value must be at or below the threshold (<=), and the new value must be strictly above it (<). So old == threshold followed by a higher new value fires, and new == threshold does not. The code also returns False for boolean values, which the doc's 'missing or non-numeric' wording does not cover.",
+   "suggested_fix": "Returns True when float(old) <= threshold < float(new). A missing, non-numeric or boolean value returns False."
+  },
+  {
+   "line": 18,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Guard(predicate: Predicate[EventT])",
+   "code_evidence": "src/hassette/event_handling/predicates.py (class Guard) \u2014 `fn: \"Predicate[EventT]\"`",
+   "explanation": "Guard's only field is named `fn`, not `predicate`. `P.Guard(predicate=...)` raises TypeError. Positional use works.",
+   "suggested_fix": "Guard(fn: Predicate[EventT])"
+  },
+  {
+   "line": 151,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Excludes last_reported , last_updated , and last_changed by default.",
+   "code_evidence": "src/hassette/event_handling/accessors.py (DEFAULT_EXCLUDE) \u2014 `DEFAULT_EXCLUDE = (\"last_reported\", \"last_updated\", \"last_changed\", \"context\")`",
+   "explanation": "The default exclusion tuple also contains \"context\", which the page omits.",
+   "suggested_fix": "Excludes last_reported, last_updated, last_changed, and context by default."
+  }
+ ],
+ "summary": "Most of the page checks out. The predicate and accessor signatures, the coercion rules, the Comparison operators, the CrossedBelow formula, the EventEntityFresh behavior and the operator shorthand all match the code. Errors cluster in condition and predicate behavior descriptions: Contains' case handling, the exception type for string collections, the CrossedAbove bounds, and AttrDidChange with no old_state. There are also two signature and default mismatches, Guard's parameter name and the missing `context` exclusion.",
+ "_tools": 6,
+ "_tokens": 122270,
+ "_doc_access": []
+}

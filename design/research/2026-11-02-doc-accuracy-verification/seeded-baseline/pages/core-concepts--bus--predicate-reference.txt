@@ -1,0 +1,172 @@
+LINE 1: # Predicate, Condition & Accessor Reference
+LINE 2: [ADMONITION: Prerequisite]
+LINE 3:   This page is a lookup reference. Read [Filtering](../filtering/) first for explanations of how predicates, conditions, and accessors compose — this page assumes that context.
+LINE 4: P (predicates) filter events on the [bus](../) . C (conditions) match individual values. A (accessors) extract specific fields from events. All three are top-level imports:
+LINE 5: ```
+LINE 6: from hassette import P, C, A
+
+LINE 7: ```
+LINE 8: Event types: Tables below reference three event types. [RawStateChangeEvent](../../../../reference/hassette/events/hass/hass/#hassette.events.hass.hass.RawStateChangeEvent) fires on entity state changes. [CallServiceEvent](../../../../reference/hassette/events/hass/hass/#hassette.events.hass.hass.CallServiceEvent) fires on service calls. [HassEvent](../../../../reference/hassette/events/hass/hass/#hassette.events.hass.hass.HassEvent) is the base type for all Home Assistant events.
+LINE 9: Key types in signatures: ChangeType is a union of literal value, C.* condition instance, glob string, or callable (value) -> bool . ComparisonCondition is a two-argument callable (old_value, new_value) -> bool — accepts C.Increased , C.Decreased , C.CrossedAbove , C.CrossedBelow , or a custom function. [MISSING_VALUE](../../../../reference/hassette/const/#hassette.const.MISSING_VALUE) is a falsy sentinel from hassette.const indicating a field does not exist on the event (distinct from None ). Its sibling [NOT_PROVIDED](../../../../reference/hassette/const/#hassette.const.NOT_PROVIDED) is the default for the changed_from= / changed_to= parameters on [on_state_change()](../methods/#on_state_changeentity_id) — it marks an argument the caller did not pass, so None stays usable as a real filter value.
+LINE 10: ## Predicates (P)
+LINE 11: A predicate accepts an event and returns bool . Pass predicates to where= on any bus subscription, or compose them with other predicates.
+LINE 12: ### Logic Combinators
+LINE 13: Works with: any event type.
+LINE 14: | Predicate | Signature | Description |
+LINE 15: | P.AllOf | AllOf(predicates: tuple[Predicate, ...]) | Returns True when all contained predicates return True . |
+LINE 16: | P.AnyOf | AnyOf(predicates: tuple[Predicate, ...]) | Returns True when at least one contained predicate returns True . |
+LINE 17: | P.Not | Not(predicate: Predicate) | Negates the result of the wrapped predicate. |
+LINE 18: | P.Guard | Guard(fn: Predicate[EventT]) | Wraps any callable as a typed predicate for use in combinators. |
+LINE 19: AllOf and AnyOf each have a classmethod ensure_iterable(where) that wraps a single predicate or sequence into the combinator.
+LINE 20: Built-in P.* predicate objects also support operator shorthand for these three: a & b builds AllOf((a, b)) , a | b builds AnyOf((a, b)) , and ~a builds Not(a) . Chains flatten: a & b & c is AllOf((a, b, c)) , not a nested pair. Wrap custom callables in P.Guard when you want them to participate in operator chains. Conditions ( C.* ) have no operator support.
+LINE 21: ### Value / Field Matching
+LINE 22: Works with: any event type.
+LINE 23: | Predicate | Signature | Description |
+LINE 24: | P.ValueIs | ValueIs(source: Callable, condition: ChangeType = ANY_VALUE) | Extracts a value via source , then tests it against condition . When condition is ANY_VALUE , always returns True . A bool or number literal coerces a string value first — see Literal coercion . |
+LINE 25: | P.DidChange | DidChange(source: Callable[..., tuple[Any, Any]]) | Returns True when the two values returned by source differ. |
+LINE 26: | P.IsPresent | IsPresent(source: Callable) | Returns True when the value extracted by source is not MISSING_VALUE . |
+LINE 27: | P.IsMissing | IsMissing(source: Callable) | Returns True when the value extracted by source is MISSING_VALUE . |
+LINE 28: condition accepts a literal value, a C.* condition instance, a glob string, or any callable (value) -> bool .
+LINE 29: ### Entity / Domain / Service Matching
+LINE 30: Works with: HassEvent , [CallServiceEvent](../../../../reference/hassette/events/hass/hass/#hassette.events.hass.hass.CallServiceEvent) .
+LINE 31: | Predicate | Signature | Description |
+LINE 32: | P.DomainMatches | DomainMatches(domain: str) | Returns True when the event domain matches domain . Glob patterns are auto-detected. |
+LINE 33: | P.EntityMatches | EntityMatches(entity_id: str) | Returns True when the event entity_id matches. Glob patterns are auto-detected. |
+LINE 34: | P.ServiceMatches | ServiceMatches(service: str) | Returns True when the called service matches. Glob patterns are auto-detected. |
+LINE 35: | P.ServiceDataWhere | ServiceDataWhere(spec: Mapping[str, ChangeType], auto_glob: bool = True) | Returns True when each key in spec satisfies its condition against the event's service_data . |
+LINE 36: ServiceDataWhere.from_kwargs(*, auto_glob=True, **spec) is an ergonomic constructor for literal keyword arguments:
+LINE 37: ```
+LINE 38: P.ServiceDataWhere.from_kwargs(entity_id="light.*", brightness=200)
+
+LINE 39: ```
+LINE 40: When auto_glob=True (the default), bare glob strings in spec values are automatically wrapped in C.Glob .
+LINE 41: ### State Change Predicates
+LINE 42: Works with: [RawStateChangeEvent](../../../../reference/hassette/events/hass/hass/#hassette.events.hass.hass.RawStateChangeEvent) .
+LINE 43: | Predicate | Signature | Description |
+LINE 44: | P.StateFrom | StateFrom(condition: ChangeType) | Returns True when the old state value satisfies condition . |
+LINE 45: | P.StateTo | StateTo(condition: ChangeType) | Returns True when the new state value satisfies condition . |
+LINE 46: | P.StateComparison | StateComparison(condition: ComparisonCondition) | Returns True when condition(old_state_value, new_state_value) is True . Accepts C.Increased , C.Decreased , or any two-argument callable. |
+LINE 47: | P.StateDidChange | StateDidChange() | Returns True when the state string changed. |
+LINE 48: | P.AttrFrom | AttrFrom(attr_name: str, condition: ChangeType) | Returns True when the named attribute's old value satisfies condition . |
+LINE 49: | P.AttrTo | AttrTo(attr_name: str, condition: ChangeType) | Returns True when the named attribute's new value satisfies condition . |
+LINE 50: | P.AttrComparison | AttrComparison(attr_name: str, condition: ComparisonCondition) | Returns True when condition(old_attr, new_attr) is True for the named attribute. |
+LINE 51: | P.AttrDidChange | AttrDidChange(attr_name: str) | Returns True when the named attribute changed. When old_state is None , returns True if the attribute is present on the new state. |
+LINE 52: | P.EventEntityFresh | EventEntityFresh(max_age: float) | Returns True when an event.* or input_button.* entity's new state timestamp is at most max_age seconds before its last_changed . Non-timestamp states also return True . Guards button listeners against Home Assistant restart replays, and needs composing for handlers that act without other checks — see [Filtering](../filtering/#ignoring-restart-replays-pevententityfresh) . |
+LINE 53: No StateFromTo predicate exists. For from-to matching, combine P.StateFrom and P.StateTo inside P.AllOf :
+LINE 54: ```
+LINE 55: P.AllOf((P.StateFrom("off"), P.StateTo("on")))
+
+LINE 56: ```
+LINE 57: ### Literal Coercion
+LINE 58: Home Assistant sends every state value as a string, and attributes can be strings too. Literal conditions of type bool , int , or float trigger coercion. Hassette converts a string value to the literal's type before comparing:
+LINE 59: | Literal | Converts the string with | Example matches |
+LINE 60: | True / False | TYPE_REGISTRY 's bool converter (case-insensitive) | True matches "on" , "true" , "yes" , "1" ; False matches "off" , "false" , "no" , "0" |
+LINE 61: | int | int() via TYPE_REGISTRY , falling back to float() for decimal strings | 20 matches "20" and "20.0" |
+LINE 62: | float | float() via TYPE_REGISTRY | 21.5 matches "21.5" |
+LINE 63: A string that can't be converted ( "unavailable" , "open" ) does not match. String literals are never coerced, and non-string values (most attributes) are compared as-is.
+LINE 64: Coercion applies to literal conditions on P.ValueIs and everything built on it. That covers P.StateFrom , P.StateTo , P.AttrFrom , P.AttrTo , and P.ServiceDataWhere . It also covers the changed_from= / changed_to= arguments of on_state_change() and on_attribute_change() . C.Comparison uses the same conversion. So changed_to=True and changed_to=C.Comparison("==", True) match the same states.
+LINE 65: ```
+LINE 66: # The state is the string "on"; the bool literal is coerced to match it
+await self.bus.on_state_change("switch.fan", changed_to=True, handler=self.on_fan_on, name="fan_on")
+
+# String literals still compare exactly
+await self.bus.on_state_change("switch.fan", changed_to="on", handler=self.on_fan_on, name="fan_on_str")
+
+LINE 67: ```
+LINE 68: To compare the raw value without coercion, wrap the literal in C.Exact . It works anywhere a condition does, including changed_to= :
+LINE 69: ```
+LINE 70: # No coercion: the string "1" does not match, a non-string value equal to 1 does
+await self.bus.on_attribute_change(
+    "sensor.counter", "level", changed_to=C.Exact(1), handler=self.on_level, name="level_exact"
+)
+
+LINE 71: ```
+LINE 72: ## Conditions (C)
+LINE 73: A condition is a single-value callable (value) -> bool . Predicates like P.ValueIs accept a condition as their condition argument. The changed_to= and changed_from= subscription helpers also accept conditions directly.
+LINE 74: ### String Matching
+LINE 75: | Condition | Signature | Description |
+LINE 76: | C.Glob | Glob(pattern: str) | Returns True when the string value matches the glob pattern. |
+LINE 77: | C.StartsWith | StartsWith(prefix: str) | Returns True when the string value starts with prefix . |
+LINE 78: | C.EndsWith | EndsWith(suffix: str) | Returns True when the string value ends with suffix . |
+LINE 79: | C.Contains | Contains(substring: str) | Returns True when the string value contains substring . |
+LINE 80: | C.Regex | Regex(pattern: str) | Returns True when the string value matches the compiled regex pattern. |
+LINE 81: ### Exact Match
+LINE 82: | Condition | Signature | Description |
+LINE 83: | C.Exact | Exact(value: Any) | Returns True when the value equals value with no literal coercion . |
+LINE 84: ### Collection Membership
+LINE 85: | Condition | Signature | Description |
+LINE 86: | C.IsIn | IsIn(collection: Sequence[Any]) | Returns True when the value is in collection . |
+LINE 87: | C.NotIn | NotIn(collection: Sequence[Any]) | Returns True when the value is not in collection . |
+LINE 88: | C.Intersects | Intersects(collection: Sequence[Any]) | Returns True when the value (itself a sequence) shares at least one element with collection . |
+LINE 89: | C.NotIntersects | NotIntersects(collection: Sequence[Any]) | Returns True when the value (itself a sequence) shares no elements with collection . |
+LINE 90: | C.IsOrContains | IsOrContains(condition: str) | Returns True when the value equals condition , or when the value is a sequence containing it. |
+LINE 91: collection must be a sequence, not a string. Passing a string raises ValueError .
+LINE 92: ### None / Missing Checks
+LINE 93: | Condition | Signature | Description |
+LINE 94: | C.IsNone | IsNone() | Returns True when the value is None . |
+LINE 95: | C.IsNotNone | IsNotNone() | Returns True when the value is not None . |
+LINE 96: | C.Present | Present() | Returns True when the value is not MISSING_VALUE . |
+LINE 97: | C.Missing | Missing() | Returns True when the value is MISSING_VALUE . |
+LINE 98: [MISSING_VALUE](../../../../reference/hassette/const/#hassette.const.MISSING_VALUE) and None are distinct. C.IsNone / C.IsNotNone test for Python None ; C.Present / C.Missing test for Hassette's falsy sentinel that indicates a field does not exist on the event. See [Identity Extractors](../dependency-injection/#identity-extractors) for more on MISSING_VALUE .
+LINE 99: ### Numeric Comparison
+LINE 100: | Condition | Signature | Description |
+LINE 101: | C.Comparison | Comparison(op: OPS, value: Any) | Returns True when extracted_value op value holds. A string value goes through literal coercion first. An unconvertible string returns False . op is one of ">" , "<" , ">=" , "<=" , "==" , "!=" (or their spelled-out equivalents "gt" , "lt" , "ge" , "le" , "eq" , "ne" ). |
+LINE 102: | C.Increased | Increased() | Two-argument condition. Returns True when float(new) > float(old) . For use with P.StateComparison or P.AttrComparison . |
+LINE 103: | C.Decreased | Decreased() | Two-argument condition. Returns True when float(new) < float(old) . For use with P.StateComparison or P.AttrComparison . |
+LINE 104: | C.CrossedAbove | CrossedAbove(threshold: float) | Two-argument condition. Returns True when float(old) <= threshold < float(new) . A missing or non-numeric value returns False . For use with changed= , P.StateComparison , or P.AttrComparison . |
+LINE 105: | C.CrossedBelow | CrossedBelow(threshold: float) | Two-argument condition. Returns True when float(old) >= threshold > float(new) . A missing or non-numeric value returns False . For use with changed= , P.StateComparison , or P.AttrComparison . |
+LINE 106: No C.InRange condition exists. For range checks, combine two C.Comparison instances inside P.AllOf :
+LINE 107: ```
+LINE 108: P.AllOf((
+    P.ValueIs(source=A.get_state_value_new, condition=C.Comparison(">=", 18)),
+    P.ValueIs(source=A.get_state_value_new, condition=C.Comparison("<=", 26)),
+))
+
+LINE 109: ```
+LINE 110: ## Accessors (A)
+LINE 111: An accessor is a callable (event) -> value , or a factory that takes arguments and returns one. Single-value accessors work with P.ValueIs , P.IsPresent , and P.IsMissing . Tuple-returning accessors (the *_old_new variants) work with P.DidChange . Some accessors are used directly (e.g., A.get_state_value_new ); others are factories that require a call first (e.g., A.get_attr_new("brightness") ). Bus helpers use accessors internally. Direct use is needed only when pointing a predicate at a non-standard field.
+LINE 112: ### State Value
+LINE 113: Works with: RawStateChangeEvent .
+LINE 114: | Accessor | Signature | Returns | Description |
+LINE 115: | A.get_state_value_old | get_state_value_old | Any \| MISSING_VALUE | The old state string, or MISSING_VALUE when old_state is None . |
+LINE 116: | A.get_state_value_new | get_state_value_new | Any \| MISSING_VALUE | The new state string, or MISSING_VALUE when new_state is None . |
+LINE 117: | A.get_state_value_old_new | get_state_value_old_new | tuple[Any, Any] | (old_state_value, new_state_value) as a tuple. |
+LINE 118: ### State Object
+LINE 119: Works with: RawStateChangeEvent .
+LINE 120: | Accessor | Signature | Returns | Description |
+LINE 121: | A.get_state_object_old | get_state_object_old | HassStateDict \| None | The full old state dict, or None when absent. |
+LINE 122: | A.get_state_object_new | get_state_object_new | HassStateDict \| None | The full new state dict, or None when absent. |
+LINE 123: | A.get_state_object_old_new | get_state_object_old_new | tuple[HassStateDict \| None, HassStateDict \| None] | Both state objects as a tuple. |
+LINE 124: ### Attribute
+LINE 125: Works with: RawStateChangeEvent .
+LINE 126: | Accessor | Signature | Returns | Description |
+LINE 127: | A.get_attr_old | get_attr_old(name: str) | Any \| MISSING_VALUE | The named attribute from the old state; MISSING_VALUE when absent. |
+LINE 128: | A.get_attr_new | get_attr_new(name: str) | Any \| MISSING_VALUE | The named attribute from the new state; MISSING_VALUE when absent. |
+LINE 129: | A.get_attr_old_new | get_attr_old_new(name: str) | tuple[Any, Any] | (old_attr, new_attr) for the named attribute. |
+LINE 130: | A.get_attrs_old | get_attrs_old(names: list[str]) | dict[str, Any] | A dict of the named attributes from the old state. Missing names map to MISSING_VALUE . |
+LINE 131: | A.get_attrs_new | get_attrs_new(names: list[str]) | dict[str, Any] | A dict of the named attributes from the new state. Missing names map to MISSING_VALUE . |
+LINE 132: | A.get_attrs_old_new | get_attrs_old_new(names: list[str]) | tuple[dict, dict] | Both attribute dicts as a tuple. |
+LINE 133: | A.get_all_attrs_old | get_all_attrs_old | dict[str, Any] \| MISSING_VALUE | All attributes from the old state, or MISSING_VALUE when old_state is None . |
+LINE 134: | A.get_all_attrs_new | get_all_attrs_new | dict[str, Any] \| MISSING_VALUE | All attributes from the new state, or MISSING_VALUE when new_state is None . |
+LINE 135: | A.get_all_attrs_old_new | get_all_attrs_old_new | tuple[dict \| MISSING_VALUE, dict \| MISSING_VALUE] | Both full attribute dicts as a tuple. |
+LINE 136: ### Identity
+LINE 137: Works with: HassEvent (any event).
+LINE 138: | Accessor | Signature | Returns | Description |
+LINE 139: | A.get_domain | get_domain | str \| MISSING_VALUE | The domain portion of the event (e.g., "light" from "light.kitchen" ). |
+LINE 140: | A.get_entity_id | get_entity_id | str \| MISSING_VALUE | The entity_id from the event payload, or from service_data for CallServiceEvent . |
+LINE 141: | A.get_context | get_context | HassContext | The context dict from the event payload. |
+LINE 142: ### Service
+LINE 143: Works with: CallServiceEvent .
+LINE 144: | Accessor | Signature | Returns | Description |
+LINE 145: | A.get_service | get_service | str \| MISSING_VALUE | The service name being called. |
+LINE 146: | A.get_service_data | get_service_data | dict[str, Any] \| MISSING_VALUE | The full service_data dict, or MISSING_VALUE when absent. |
+LINE 147: | A.get_service_data_key | get_service_data_key(key: str) | Any \| MISSING_VALUE | A specific key from service_data ; MISSING_VALUE when absent. |
+LINE 148: ### Other
+LINE 149: | Accessor | Signature | Returns | Description |
+LINE 150: | A.get_path | get_path(path: str) | Any \| MISSING_VALUE | Extracts a nested value by dot-separated path (e.g., "payload.data.new_state.attributes.brightness" ); MISSING_VALUE on any access failure. |
+LINE 151: | A.get_all_changes | get_all_changes(exclude: Sequence[str] = DEFAULT_EXCLUDE) | dict[str, Any] | A recursive diff between old and new state, mapping changed keys to (old_value, new_value) . Excludes last_reported , last_updated , last_changed , and context by default. |
+LINE 152: get_path works with any event type. get_all_changes works with RawStateChangeEvent .
+LINE 153: For writing custom accessors, see [Custom Extractors](../custom-extractors/) .
+LINE 154: ## See Also
+LINE 155: - [Filtering](../filtering/) . How predicates, conditions, and accessors compose in practice.
+LINE 156: - [Custom Extractors](../custom-extractors/) . Writing accessors for non-standard event fields.

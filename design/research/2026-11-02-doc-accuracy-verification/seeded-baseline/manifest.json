@@ -1,0 +1,92 @@
+{
+ "page-01": {
+  "slug": "core-concepts--apps--lifecycle",
+  "variant": "seeded",
+  "run": 2
+ },
+ "page-02": {
+  "slug": "core-concepts--apps--lifecycle",
+  "variant": "seeded",
+  "run": 1
+ },
+ "page-03": {
+  "slug": "core-concepts--apps--lifecycle",
+  "variant": "seeded",
+  "run": 3
+ },
+ "page-04": {
+  "slug": "core-concepts--scheduler--methods",
+  "variant": "seeded",
+  "run": 3
+ },
+ "page-05": {
+  "slug": "core-concepts--scheduler--methods",
+  "variant": "seeded",
+  "run": 1
+ },
+ "page-06": {
+  "slug": "core-concepts--bus--predicate-reference",
+  "variant": "seeded",
+  "run": 2
+ },
+ "page-07": {
+  "slug": "core-concepts--apps--lifecycle",
+  "variant": "clean",
+  "run": 3
+ },
+ "page-08": {
+  "slug": "core-concepts--scheduler--methods",
+  "variant": "clean",
+  "run": 2
+ },
+ "page-09": {
+  "slug": "core-concepts--scheduler--methods",
+  "variant": "clean",
+  "run": 3
+ },
+ "page-10": {
+  "slug": "core-concepts--apps--lifecycle",
+  "variant": "clean",
+  "run": 2
+ },
+ "page-11": {
+  "slug": "core-concepts--bus--predicate-reference",
+  "variant": "seeded",
+  "run": 1
+ },
+ "page-12": {
+  "slug": "core-concepts--scheduler--methods",
+  "variant": "seeded",
+  "run": 2
+ },
+ "page-13": {
+  "slug": "core-concepts--bus--predicate-reference",
+  "variant": "clean",
+  "run": 1
+ },
+ "page-14": {
+  "slug": "core-concepts--scheduler--methods",
+  "variant": "clean",
+  "run": 1
+ },
+ "page-15": {
+  "slug": "core-concepts--bus--predicate-reference",
+  "variant": "clean",
+  "run": 2
+ },
+ "page-16": {
+  "slug": "core-concepts--bus--predicate-reference",
+  "variant": "seeded",
+  "run": 3
+ },
+ "page-17": {
+  "slug": "core-concepts--apps--lifecycle",
+  "variant": "clean",
+  "run": 1
+ },
+ "page-18": {
+  "slug": "core-concepts--bus--predicate-reference",
+  "variant": "clean",
+  "run": 3
+ }
+}

@@ -1,0 +1,111 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 75,
+ "findings": [
+  {
+   "line": 25,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Each next run is calculated from wall-clock time, not from the previous run time.",
+   "code_evidence": "src/hassette/core/scheduler_dispatch.py:174 \u2014 `next_run = job.trigger.next_run_time(job.next_run, date_utils.now())`; src/hassette/scheduler/triggers.py:346-348 \u2014 `Every.next_run_time` returns `self.advance_past(previous_run, current_time)`",
+   "explanation": "The sentence is backwards. `Every` anchors on the previous logical run (`job.next_run`) and advances by whole intervals until the result is later than the current time. The current time is only used to skip missed ticks.",
+   "suggested_fix": "Each next run is calculated from the previous scheduled run time, not from when the handler finished."
+  },
+  {
+   "line": 51,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Wall-clock time in \"HH:MM\" or \"HH:MM:SS\" format.",
+   "code_evidence": "src/hassette/scheduler/triggers.py:121-123 \u2014 `parts = at.split(\":\")`, `if len(parts) != 2: raise ValueError(...)`; src/hassette/scheduler/triggers.py:398 \u2014 `Daily.__init__` calls `parse_hh_mm(at, \"Daily\")`. Run result: `Daily(at='07:00:30')` raised `ValueError: Daily 'at' must be 'HH:MM', got '07:00:30'`",
+   "explanation": "`run_daily` builds `Daily(at=at)`, which accepts exactly two colon-separated fields. An `HH:MM:SS` value raises `ValueError` at the call.",
+   "suggested_fix": "Wall-clock time in \"HH:MM\" format."
+  },
+  {
+   "line": 119,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "an empty string raises ValueError",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:670-671 \u2014 `if not name: raise SchedulerNameRequiredError(callable_name(func), str(trigger))`; src/hassette/exceptions.py:704 \u2014 `class SchedulerNameRequiredError(HassetteError)`. Run result: its MRO is SchedulerNameRequiredError, HassetteError, ReconstructibleError, Exception, BaseException, object",
+   "explanation": "An empty name raises `SchedulerNameRequiredError`, which is not a `ValueError` subclass. `except ValueError` will not catch it.",
+   "suggested_fix": "an empty string raises SchedulerNameRequiredError"
+  },
+  {
+   "line": 121,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "| jitter | float \\| None | 0 |",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:596 \u2014 `jitter: float | None = None` (same default on every `run_*` signature, e.g. scheduler.py:799); src/hassette/scheduler/classes.py:559 \u2014 `if not jitter: return fire_time`",
+   "explanation": "The default is `None`, not `0`. Runtime behavior is the same, because `apply_jitter` treats both as no offset.",
+   "suggested_fix": "| jitter | float \\| None | None |"
+  },
+  {
+   "line": 125,
+   "claim_type": "api-signature",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "Overrides the app-level handler set via scheduler.set_error_handler() .",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:190 \u2014 `def on_error(self, handler: \"SchedulerErrorHandlerType\") -> None:`. `grep -rn set_error_handler src/ docs/pages` returned no matches",
+   "explanation": "`Scheduler` has no `set_error_handler` method, so calling it raises `AttributeError`. The app-level handler is registered with `scheduler.on_error()`.",
+   "suggested_fix": "Overrides the app-level handler set via scheduler.on_error()."
+  },
+  {
+   "line": 125,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Invoked on any exception, including CancelledError .",
+   "code_evidence": "src/hassette/core/command_executor.py:352-354 \u2014 `except asyncio.CancelledError: enqueue_result_record(); raise`; src/hassette/core/command_executor.py:541 \u2014 the error handler lookup comes after `await self._execute(...)` returns in `execute_job`",
+   "explanation": "`CancelledError` is re-raised out of `_execute`, so `execute_job` never reaches the error handler dispatch. Cancellation does not invoke `on_error`.",
+   "suggested_fix": "Invoked on any exception except CancelledError."
+  },
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "triggered by hassette reload",
+   "code_evidence": "src/hassette/cli/__init__.py:74 \u2014 `apps_app = App(name=\"app\", help=\"List and inspect apps.\")`; src/hassette/cli/__init__.py:114 \u2014 `apps_app.command(cmd_app_reload, name=\"reload\")`. The top-level registrations at __init__.py:69-99 include no `reload` command",
+   "explanation": "There is no top-level `hassette reload` command. The command is `hassette app reload <key>`.",
+   "suggested_fix": "triggered by `hassette app reload <key>`"
+  },
+  {
+   "line": 156,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "if_exists matters most in on_initialize , which re-runs on app reload",
+   "code_evidence": "src/hassette/core/app_lifecycle_start_stop.py:355-359 \u2014 `reload_app` runs `_stop_app_unlocked` then `_start_app_unlocked`; src/hassette/core/app_lifecycle_start_stop.py:452 \u2014 `reload_instance`'s start path calls `create_single_instance` before initializing; src/hassette/app/app.py:158 \u2014 `self.scheduler = self.add_child(Scheduler)`; src/hassette/scheduler/scheduler.py:147 \u2014 `self._jobs_by_name = {}`; src/hassette/scheduler/scheduler.py:185-188 \u2014 `on_shutdown` calls `remove_all_jobs()`",
+   "explanation": "`on_initialize` does re-run on reload, but on a new `App` with a new `Scheduler` and an empty name registry, and the old scheduler's jobs are removed at shutdown. A reload therefore does not collide with the previous run's job names, even with the default `if_exists=\"error\"`. The same premise appears in the snippet comment at line 158 and in the prose at line 160. This comes from reading the code path, not from running a reload.",
+   "suggested_fix": "A reload builds a new App instance with an empty scheduler, so job names from the previous run do not collide. if_exists matters when the same name is registered more than once in one instance's lifetime, such as a handler that re-registers its job."
+  }
+ ],
+ "summary": "Most of the page's 75 checked claims hold, and the 8 findings cluster in the shared-parameters table (lines 119-125), the run_every and run_daily details, and the reload sentence at line 156. The briefing text differs from the committed docs/pages/core-concepts/scheduler/methods.md at fca419b3 (clean working tree): the first 6 findings (lines 25, 51, 119, 121 and both at 125) do not appear in that file, which already has the correct text, so check whether the briefing came from a stale or altered source before editing. Only the 2 line-156 findings are in the committed source, at its line 239.",
+ "_tools": 14,
+ "_tokens": 209663,
+ "_probe_calls": 3,
+ "_orig_access": [
+  [
+   10,
+   "{\"command\": \"git log --oneline -3; git status --short | head; F=docs/pages/core-concepts/scheduler/methods.md; ls -la $F; grep -n \\\"on_error\\\\|HH:MM:SS\\\\|jitter"
+  ],
+  [
+   11,
+   "{\"file_path\": \"/home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review/docs/pages/core-concepts/scheduler/methods.md\"}"
+  ]
+ ],
+ "_model": "claude-opus-5-5",
+ "_doc_access": [
+  [
+   10,
+   "{\"command\": \"git log --oneline -3; git status --short | head; F=docs/pages/core-concepts/scheduler/methods.md; ls -la $F; grep -n \\\"on_error\\\\|HH:MM:SS\\\\|jitter"
+  ],
+  [
+   11,
+   "{\"file_path\": \"/home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review/docs/pages/core-concepts/scheduler/methods.md\"}"
+  ]
+ ]
+}

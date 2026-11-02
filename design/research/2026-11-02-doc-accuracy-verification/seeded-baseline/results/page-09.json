@@ -1,0 +1,20 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 72,
+ "findings": [
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "low",
+   "doc_quote": "which re-runs on app reload (triggered by hassette reload , or by config changes when automatic reloads are on)",
+   "code_evidence": "src/hassette/cli/__init__.py:74,114 \u2014 `apps_app = App(name=\"app\", ...)` and `apps_app.command(cmd_app_reload, name=\"reload\")`. No top-level `reload` command is registered anywhere in cli/__init__.py (grep for \"reload\" there returns only the cmd_app_reload import and that registration).",
+   "explanation": "The reload command is a subcommand of `app`, so the invocation is `hassette app reload <key>`. A bare `hassette reload` does not exist.",
+   "suggested_fix": "triggered by `hassette app reload <key>`, or by config changes when automatic reloads are on"
+  }
+ ],
+ "summary": "The page is almost entirely accurate. I checked signatures, defaults, validation rules, if_exists semantics, the Job.matches field list, cron details, and the one-shot and where-predicate behavior against scheduler.py, triggers.py and classes.py. The only error is the `hassette reload` CLI invocation, which is really `hassette app reload`. The run_once docstring says `if_past=\"error\"` has no effect on ZonedDateTime inputs, but the Once trigger code raises ValueError for them, so the page is right and the docstring is stale.\n\nI did not verify these claims against code:\n- the on_error invocation rules: any exception except CancelledError\n- the replace/mode cancellation behavior: single, restart and queued cancel the running invocation, a running parallel one finishes, and a self-replace lets the in-flight run finish\n- the mode default resolving to \"single\" for app jobs\n- the execution-record statuses \"skipped\" and \"error\"\n- the monitoring UI fields predicate_description and human_description",
+ "_tools": 10,
+ "_tokens": 120998,
+ "_doc_access": []
+}

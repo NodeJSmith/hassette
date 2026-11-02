@@ -1,0 +1,12 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 34,
+ "findings": [],
+ "summary": "Every checkable claim on the page matches the code. This covers the hook order and the empty base hooks, the 10-second default for `shutdown_timeout_seconds` under `[hassette.lifecycle]`, the `@final` methods raising `CannotOverrideFinalError`, and the skipped shutdown hooks after a failed init. It also covers the AppSync `_sync` hook names and the `.sync` facades, and concurrent app stop at process exit. I found no wrong, outdated or unverifiable claims.",
+ "_tools": 16,
+ "_tokens": 111778,
+ "_doc_access": [
+  "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review; grep -rn \\\"\\\\[hassette\\\" docs/pages --include=*.md | head -5; grep -n \\\"toml_file\\\\|\\",
+  "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review; grep -rn \\\"^\\\\[hassette\\\" docs/pages | head -5; grep -n \\\"toml\\\" src/hassette/config/"
+ ]
+}

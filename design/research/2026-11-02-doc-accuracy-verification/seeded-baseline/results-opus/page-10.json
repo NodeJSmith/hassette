@@ -1,0 +1,33 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 44,
+ "findings": [
+  {
+   "line": 25,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "A hook that catches and swallows the cancellation keeps its app stopping until its stage's deadline, then Hassette force-terminates the app.",
+   "code_evidence": "src/hassette/resources/operations.py:184-186 \u2014 `# a hook that caught its cancellation and returned leaves the block without a TimeoutError` / `if scope.expired(): raise ShutdownHookTimedOutError(timeout_message)`; docstring at operations.py:163-165: `A hook that swallows the cancellation holds this await until it returns`; force-termination only happens when the wait expires, src/hassette/core/app_lifecycle_instances.py:246-248.",
+   "explanation": "Swallowing the cancellation does not by itself hold the app until the deadline. A hook that catches CancelledError and returns promptly ends the bound at once: it surfaces as ShutdownHookTimedOutError (TIMED_OUT), the remaining hooks and teardown continue, and no force-termination occurs. Only a hook that swallows the cancellation and keeps running past the stage or entry deadline gets force-terminated.",
+   "suggested_fix": "A hook that catches the cancellation and keeps working holds its app in stopping until it returns or its stage's deadline passes, at which point Hassette force-terminates the app. A hook that catches it and returns right away is still reported as timed out."
+  },
+  {
+   "line": 23,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "At process exit, apps stop concurrently, so one slow app never shortens another's hooks.",
+   "code_evidence": "src/hassette/core/app_lifecycle_instances.py:483-484 \u2014 `AppSync hooks share the sync executor's threads, so past its worker count the wait for a thread counts against their bound`; mechanism: src/hassette/app/app.py:315 \u2014 `await self.task_bucket.run_in_thread(self.on_shutdown_sync)`, src/hassette/core/sync_executor.py:210 \u2014 `loop.run_in_executor(self.executor, _call)`, and the bound wraps that whole await at src/hassette/resources/operations.py:178-179.",
+   "explanation": "Async apps are unaffected, but \"never\" does not hold for AppSync. Sync hooks queue on a shared, bounded thread pool, and the per-hook timeout starts before the queued call gets a thread. Slow AppSync hooks that fill the pool therefore use up the bound of other AppSync apps' hooks.",
+   "suggested_fix": "At process exit, apps stop concurrently, so one slow app doesn't shorten another's hooks. The exception is AppSync hooks, which share the sync executor's threads: once the pool is full, the wait for a thread counts against the hook's bound."
+  }
+ ],
+ "summary": "The page is highly accurate: every signature, default (shutdown_timeout_seconds = 10), config section, exception, hook order and failed-init claim checked out against the code. The two findings are low severity and both overstate edge cases in shutdown behavior: a hook that swallows cancellation and returns does not hold until the deadline, and the 'never shortens' guarantee does not cover AppSync hooks on a saturated thread pool.",
+ "_tools": 14,
+ "_tokens": 178344,
+ "_probe_calls": 4,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}
