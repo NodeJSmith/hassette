@@ -10,12 +10,13 @@ propagates to ``telemetry_unavailable_handler`` in ``hassette.web.errors``, whic
 (enrichment, and the ``/status`` probe) catch it inline.
 """
 
+import asyncio
 import time
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from http import HTTPStatus
 from logging import getLogger
-from typing import Annotated, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Query, Response
 from hassette_wire import (
@@ -408,35 +409,43 @@ async def app_grid(
     db_rows = await telemetry.get_all_app_manifests()
     manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
-    summaries = await query_or_none(
-        "app summaries", telemetry.get_all_app_summaries(since=since, source_tier=APP_SOURCE_TIER)
+    # Concurrent so the read timeouts overlap, bounding a DB stall to about one timeout, not one per query.
+    summaries = asyncio.create_task(
+        query_or_none("app summaries", telemetry.get_all_app_summaries(since=since, source_tier=APP_SOURCE_TIER))
     )
-
-    per_app_buckets: dict[str, list[tuple[int, int]]] | None = None
-    per_app_errors: dict[str, AppLastError] | None = None
+    blocking_counts = asyncio.create_task(
+        query_or_none("per-app blocking-event counts", telemetry.get_blocking_event_counts(since=since))
+    )
+    tasks: list[asyncio.Task[Any]] = [summaries, blocking_counts]
+    per_app_buckets: asyncio.Task[dict[str, list[tuple[int, int]]] | None] | None = None
+    per_app_errors: asyncio.Task[dict[str, AppLastError] | None] | None = None
     if since is not None:
-        per_app_buckets = await query_or_none(
-            "per-app activity buckets",
-            telemetry.get_per_app_activity_buckets(
-                since,
-                time.time(),
-                num_buckets=DEFAULT_SPARKLINE_BUCKETS,
-                source_tier=APP_SOURCE_TIER,
-            ),
+        per_app_buckets = asyncio.create_task(
+            query_or_none(
+                "per-app activity buckets",
+                telemetry.get_per_app_activity_buckets(
+                    since,
+                    time.time(),
+                    num_buckets=DEFAULT_SPARKLINE_BUCKETS,
+                    source_tier=APP_SOURCE_TIER,
+                ),
+            )
         )
-        per_app_errors = await query_or_none(
-            "per-app last errors", telemetry.get_per_app_last_errors(since=since, source_tier=APP_SOURCE_TIER)
+        per_app_errors = asyncio.create_task(
+            query_or_none(
+                "per-app last errors", telemetry.get_per_app_last_errors(since=since, source_tier=APP_SOURCE_TIER)
+            )
         )
+        tasks += [per_app_buckets, per_app_errors]
 
-    blocking_counts = await query_or_none(
-        "per-app blocking-event counts", telemetry.get_blocking_event_counts(since=since)
-    )
+    # return_exceptions so an unexpected error reaches result() below only after every query has ended.
+    await asyncio.gather(*tasks, return_exceptions=True)
 
     enrichments = GridEnrichments(
-        stats=summaries,
-        activity_buckets=per_app_buckets,
-        last_error=per_app_errors,
-        blocking_event_count=blocking_counts,
+        stats=summaries.result(),
+        activity_buckets=None if per_app_buckets is None else per_app_buckets.result(),
+        last_error=None if per_app_errors is None else per_app_errors.result(),
+        blocking_event_count=blocking_counts.result(),
     )
     entries = [
         AppGridEntry(app=app_summary_from(manifest), activity=enrichments.activity_for(manifest.app_key))

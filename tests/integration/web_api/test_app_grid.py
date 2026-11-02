@@ -1,13 +1,17 @@
 """Integration tests for the ``GET /api/telemetry/app-grid`` endpoint."""
 
+import asyncio
 import logging
+import time
 from dataclasses import fields
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import FastAPI
 from hassette_wire import AppActivity
+from httpx2 import ASGITransport, AsyncClient
 
+from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from hassette.web.routes.telemetry import GridEnrichments
@@ -15,10 +19,12 @@ from tests.support.web_manifest_helpers import make_manifest_db_row
 
 from .conftest import APP_GRID_PATH, get_json, seed_grid_apps, telemetry_error
 
-if TYPE_CHECKING:
-    from httpx2 import AsyncClient
-
 GRID_SINCE = 1_700_000_000.0
+STALLED_QUERY_SECONDS = 1.0
+"""How long a stalled enrichment mock runs before its read timeout fails it. Run one after another,
+the four take this long times four, above the three the latency test allows."""
+RESPONSE_GUARD_SECONDS = 5
+"""Fails a request that would otherwise hang, instead of hanging the test."""
 GRID_ENRICHMENT_QUERIES = (
     "get_all_app_summaries",
     "get_per_app_activity_buckets",
@@ -45,7 +51,7 @@ SEEDED_PARTS = {
 
 
 class TestAppGrid:
-    async def test_app_grid_rows_nest_app_and_activity(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+    async def test_app_grid_rows_nest_app_and_activity(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
         """The grid spine is DB-sourced; each row is the app summary plus its activity."""
         seed_grid_apps(mock_hassette, "my_app")
 
@@ -71,7 +77,7 @@ class TestAppGrid:
             "job_avg_duration_ms": None,
         }
 
-    async def test_app_grid_includes_db_only_apps(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+    async def test_app_grid_includes_db_only_apps(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
         """A DB-only app (no matching in-memory manifest) appears in the grid."""
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
             return_value=[
@@ -91,9 +97,7 @@ class TestAppGrid:
         assert orphan["in_current_config"] is False
         assert orphan["instance_count"] == 0
 
-    async def test_app_grid_carries_blocking_event_counts(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
+    async def test_app_grid_carries_blocking_event_counts(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
         """Each entry gets its app's blocking-event count for the requested window; absent apps read 0."""
         seed_grid_apps(mock_hassette, "my_app", "clean_app")
         mock_hassette.telemetry_query_service.get_blocking_event_counts = AsyncMock(
@@ -108,7 +112,7 @@ class TestAppGrid:
         assert call.kwargs == {"since": pytest.approx(GRID_SINCE)}
 
     async def test_grid_with_since_computes_every_part_and_echoes_since(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+        self, client: AsyncClient, mock_hassette: MagicMock
     ) -> None:
         """With a window, every part is computed; an app with no error in it reads ``{error: null}``."""
         seed_grid_apps(mock_hassette, "my_app", "quiet_app")
@@ -135,7 +139,7 @@ class TestAppGrid:
         assert rows["quiet_app"]["blocking_event_count"] == 0
 
     async def test_grid_without_since_leaves_windowed_parts_null(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+        self, client: AsyncClient, mock_hassette: MagicMock
     ) -> None:
         """since=None means all-time totals: buckets and last error don't run, so they are null."""
         seed_grid_apps(mock_hassette, "my_app")
@@ -163,7 +167,7 @@ class TestAppGrid:
     )
     async def test_a_failed_enrichment_nulls_only_its_part_in_every_row(
         self,
-        client: "AsyncClient",
+        client: AsyncClient,
         mock_hassette: MagicMock,
         caplog: pytest.LogCaptureFixture,
         query_method: str,
@@ -194,7 +198,7 @@ class TestAppGrid:
         assert record.since == pytest.approx(GRID_SINCE)  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_every_failed_part_is_named_in_one_summary_warning(
-        self, client: "AsyncClient", mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
+        self, client: AsyncClient, mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
     ) -> None:
         seed_grid_apps(mock_hassette, "my_app")
         for method in GRID_ENRICHMENT_QUERIES:
@@ -214,7 +218,7 @@ class TestAppGrid:
         ]
 
     async def test_a_fully_successful_grid_logs_no_summary_warning(
-        self, client: "AsyncClient", mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
+        self, client: AsyncClient, mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
     ) -> None:
         seed_grid_apps(mock_hassette, "my_app")
 
@@ -223,9 +227,64 @@ class TestAppGrid:
 
         assert grid_summary_warnings(caplog) == []
 
+    async def test_stalled_enrichments_answer_within_one_read_timeout(
+        self, client: AsyncClient, mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A DB stall after the manifest query costs about one read timeout, not one per enrichment."""
+        seed_grid_apps(mock_hassette, "my_app")
+
+        async def stall_past_read_timeout(*_args: object, **_kwargs: object) -> None:
+            await asyncio.sleep(STALLED_QUERY_SECONDS)
+            raise TelemetryUnavailableError("read timed out")
+
+        for method in GRID_ENRICHMENT_QUERIES:
+            setattr(mock_hassette.telemetry_query_service, method, AsyncMock(side_effect=stall_past_read_timeout))
+
+        started = time.monotonic()
+        with caplog.at_level(logging.WARNING, logger=ROUTE_LOGGER_NAME):
+            data = await get_json(client, f"{APP_GRID_PATH}?since={GRID_SINCE}")
+        elapsed = time.monotonic() - started
+
+        assert elapsed < STALLED_QUERY_SECONDS * 3
+        assert set(data["apps"][0]["activity"].values()) == {None}
+        assert grid_summary_warnings(caplog) == [
+            f"{SUMMARY_WARNING_PREFIX}stats, activity_buckets, last_error, blocking_event_count"
+        ]
+
+    async def test_a_non_telemetry_error_returns_500_with_no_enrichment_left_running(
+        self, app: FastAPI, mock_hassette: MagicMock
+    ) -> None:
+        """A bug in one enrichment is a 500, and the response waits for the siblings it started with."""
+        seed_grid_apps(mock_hassette, "my_app")
+        seed_grid_enrichments(mock_hassette, "my_app")
+        sibling_started = asyncio.Event()
+        sibling_finished = asyncio.Event()
+
+        async def fail_once_sibling_started(*_args: object, **_kwargs: object) -> None:
+            await sibling_started.wait()
+            raise RuntimeError("enrichment bug")
+
+        async def slow_sibling(*_args: object, **_kwargs: object) -> dict[str, int]:
+            sibling_started.set()
+            await asyncio.sleep(0.05)
+            sibling_finished.set()
+            return {}
+
+        ts = mock_hassette.telemetry_query_service
+        ts.get_all_app_summaries = AsyncMock(side_effect=fail_once_sibling_started)
+        ts.get_blocking_event_counts = AsyncMock(side_effect=slow_sibling)
+
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(transport=transport, base_url="http://test") as raw_client:
+            async with asyncio.timeout(RESPONSE_GUARD_SECONDS):
+                response = await raw_client.get(f"{APP_GRID_PATH}?since={GRID_SINCE}")
+
+        assert response.status_code == 500
+        assert sibling_finished.is_set()
+
     @pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
     @pytest.mark.parametrize("path", [APP_GRID_PATH, "/api/logs/recent"])
-    async def test_non_finite_since_is_rejected(self, client: "AsyncClient", path: str, value: str) -> None:
+    async def test_non_finite_since_is_rejected(self, client: AsyncClient, path: str, value: str) -> None:
         """A non-finite since would echo as null (all-time) while the windowed queries ran."""
         response = await client.get(f"{path}?since={value}")
         assert response.status_code == 422
