@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 import hassette.bus.listeners as bus_listeners_module
+import hassette.execution_mode as execution_mode_module
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
@@ -236,15 +237,15 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
     (which would still pass a "dispatch is still pending" check) fails the spy
     assertion — the robust check.
 
-    Patch-target note: patches ``bus_listeners_module.STALL_THRESHOLD_SECONDS``
-    (the module-level constant the ``call_later`` call reads) and spies on the
+    Patch-target note: patches ``execution_mode_module.STALL_THRESHOLD_SECONDS``
+    (the module-level constant ``stall_threshold`` reads) and spies on the
     class method via ``patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled")``.
     Patching the wrong target leaves the watchdog armed at 60s and the spy
     never fires — yielding a false-green pin.
 
-    Assertion: ``mock_warn.assert_called_once_with(0.05)`` — the patched threshold
-    is passed to ``warn_stalled(threshold)`` by the shared ``run_with_stall_watch``
-    helper.
+    Assertion: ``mock_warn.assert_called_once_with(0.05, None)`` — the patched threshold
+    reaches ``warn_stalled`` through the shared ``run_with_stall_watch`` helper, and
+    ``timeout_disabled=True`` leaves no effective timeout, so the default applies.
 
     Timing note: the listener is registered OUTSIDE the patch block on purpose.
     The ``call_later`` arm runs inside ``run_with_stall_watch`` (in
@@ -271,7 +272,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
     )
 
     with (
-        unittest.mock.patch.object(bus_listeners_module, "STALL_THRESHOLD_SECONDS", 0.05),
+        unittest.mock.patch.object(execution_mode_module, "STALL_THRESHOLD_SECONDS", 0.05),
         unittest.mock.patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled") as mock_warn,
     ):
         await fire(harness, "off", "on")
@@ -285,11 +286,80 @@ async def test_stall_watchdog_emits_warning_for_non_parallel(
             "Dispatch should still be pending (handler is blocking on gate)"
         )
         # Assert the watchdog actually fired — not just that the handler is still running.
-        # warn_stalled(threshold) — threshold is passed by the shared run_with_stall_watch helper.
-        mock_warn.assert_called_once_with(0.05)
+        mock_warn.assert_called_once_with(0.05, None)
 
     # Unblock and drain.
     gate.set()
+    await harness.bus_service.await_dispatch_idle()
+
+
+async def test_stall_threshold_derives_from_listener_timeout(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """A handler with its own timeout stays quiet past the default threshold and warns at 80% of the timeout."""
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "off")
+
+    started = asyncio.Event()
+    gate = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        started.set()
+        await gate.wait()
+
+    await bus.on_state_change(ENTITY, handler=handler, name="stall_derived", mode="single", timeout=0.5)
+
+    # The patched default stands in for 60s, and timeout=0.5 stands in for a declared-slow handler.
+    with (
+        unittest.mock.patch.object(execution_mode_module, "STALL_THRESHOLD_SECONDS", 0.01),
+        unittest.mock.patch.object(bus_listeners_module.HandlerInvoker, "warn_stalled") as mock_warn,
+    ):
+        await fire(harness, "off", "on")
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+
+        await asyncio.sleep(0.1)  # well past the default threshold, short of the derived one
+        mock_warn.assert_not_called()
+
+        await wait_for(lambda: mock_warn.call_count >= 1)
+        mock_warn.assert_called_once_with(0.4, 0.5)
+
+    gate.set()
+    await harness.bus_service.await_dispatch_idle()
+
+
+@pytest.mark.parametrize(
+    ("registration", "expected_timeout"),
+    [
+        pytest.param({"timeout": 300.0}, lambda _config: 300.0, id="per_listener_timeout"),
+        pytest.param({"timeout_disabled": True}, lambda _config: None, id="timeout_disabled"),
+        pytest.param({}, lambda config: config.lifecycle.event_handler_timeout_seconds, id="global_default"),
+    ],
+)
+async def test_stall_threshold_passed_to_guard(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+    registration: dict[str, typing.Any],
+    expected_timeout: typing.Callable[[typing.Any], float | None],
+) -> None:
+    """Dispatch arms the watchdog at the threshold derived from the listener's effective timeout."""
+    harness, hassette, bus = bus_harness
+    await seed(harness, ENTITY, "off")
+
+    expected = execution_mode_module.stall_threshold(expected_timeout(hassette.config))
+
+    fired = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        fired.set()
+
+    await bus.on_state_change(ENTITY, handler=handler, name="stall_threshold_arg", mode="single", **registration)
+
+    with unittest.mock.patch.object(
+        bus_listeners_module, "run_through_guard", wraps=bus_listeners_module.run_through_guard
+    ) as spy:
+        await fire(harness, "off", "on")
+        await asyncio.wait_for(fired.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+
+    assert spy.call_args.kwargs["threshold"] == expected
     await harness.bus_service.await_dispatch_idle()
 
 

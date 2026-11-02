@@ -12,23 +12,56 @@ App-tier tests use AppTestHarness.
 
 import asyncio
 import contextlib
+import logging
 import unittest.mock
+from collections.abc import Callable, Iterator
+from typing import Any
 
+import pytest
 from hassette_wire import ScheduleStatus, ScheduleStatusReason
 from whenever import ZonedDateTime
 
 import hassette.core.scheduler_dispatch as scheduler_dispatch_module
+import hassette.execution_mode as execution_mode_module
 import hassette.utils.date_utils as date_utils
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.scheduler import Job
-from hassette.testing import AppTestHarness
+from hassette.testing import AppTestHarness, wait_for
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
 from tests.support.scheduler_dispatch_helpers import freeze_and_dispatch, get_job_by_name, scheduler_service_for
 
 
 class _OverlapConfig(AppConfig):
     """Minimal config for overlap mode tests."""
+
+
+def make_gated_app(
+    job_name: str, **registration: Any
+) -> tuple[type[App[_OverlapConfig]], asyncio.Event, asyncio.Event]:
+    """Build an app whose ``job_name`` job signals the first event on start, then waits on the second."""
+    started = asyncio.Event()
+    gate = asyncio.Event()
+
+    class _GatedApp(App[_OverlapConfig]):
+        async def on_initialize(self) -> None:
+            await self.scheduler.run_every(self.task, seconds=10, name=job_name, **registration)
+
+        async def task(self) -> None:
+            started.set()
+            await gate.wait()
+
+    return _GatedApp, started, gate
+
+
+@contextlib.contextmanager
+def patched_stall_watch(scheduler_service: Any, default_threshold: float) -> Iterator[unittest.mock.MagicMock]:
+    """Shrink the default stall threshold and spy on ``warn_stalled_job`` for the duration."""
+    with (
+        unittest.mock.patch.object(execution_mode_module, "STALL_THRESHOLD_SECONDS", default_threshold),
+        unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,
+    ):
+        yield mock_warn
 
 
 # Trigger error: current fire runs, then job completes (stays live, no future fires)
@@ -216,20 +249,9 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
     """A single/restart/queued invocation held past the stall threshold emits a WARNING
     naming the job and mode. Parallel mode does not get a stall watchdog.
     """
-    started = asyncio.Event()
-    gate = asyncio.Event()
+    stalled_app, started, gate = make_gated_app("stalled_job", mode="single", timeout_disabled=True)
 
-    class _StalledApp(App[_OverlapConfig]):
-        async def on_initialize(self) -> None:
-            await self.scheduler.run_every(
-                self.task, seconds=10, name="stalled_job", mode="single", timeout_disabled=True
-            )
-
-        async def task(self) -> None:
-            started.set()
-            await gate.wait()
-
-    async with AppTestHarness(_StalledApp, config={"instance_name": "stalled_app"}) as harness:
+    async with AppTestHarness(stalled_app, config={"instance_name": "stalled_app"}) as harness:
         scheduler_service = scheduler_service_for(harness)
         job = await get_job_by_name(harness, "stalled_job")
 
@@ -238,10 +260,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
         # checking dispatch_task.done() only proves the job is still running, not that the
         # watchdog called warn_stalled_job. A deleted call_later registration would pass the
         # weaker check but fail this spy assertion.
-        with (
-            unittest.mock.patch.object(scheduler_dispatch_module, "STALL_THRESHOLD_SECONDS", 0.05),
-            unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,
-        ):
+        with patched_stall_watch(scheduler_service, 0.05) as mock_warn:
             dispatch_task = await freeze_and_dispatch(harness, job)
             await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
@@ -249,38 +268,95 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
             await asyncio.sleep(0.2)
 
             assert not dispatch_task.done(), "Dispatch task should still be pending (job still running)"
-            mock_warn.assert_called_once_with(job, 0.05)
+            mock_warn.assert_called_once_with(job, 0.05, None)
 
         # Unblock and clean up
         gate.set()
         await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
 
-async def test_parallel_mode_has_no_stall_watchdog() -> None:
-    """Parallel mode invocations do not get a stall watchdog."""
-    started = asyncio.Event()
-    gate = asyncio.Event()
+async def test_stall_threshold_derives_from_job_timeout() -> None:
+    """A job with its own timeout stays quiet past the default threshold and warns at 80% of the timeout."""
+    slow_app, started, gate = make_gated_app("slow_job", mode="single", timeout=0.5)
 
-    class _ParallelStalledApp(App[_OverlapConfig]):
+    async with AppTestHarness(slow_app, config={"instance_name": "slow_app"}) as harness:
+        scheduler_service = scheduler_service_for(harness)
+        job = await get_job_by_name(harness, "slow_job")
+
+        # The patched default stands in for 60s, and timeout=0.5 stands in for a declared-slow job.
+        with patched_stall_watch(scheduler_service, 0.01) as mock_warn:
+            dispatch_task = await freeze_and_dispatch(harness, job)
+            await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
+
+            await asyncio.sleep(0.1)  # well past the default threshold, short of the derived one
+            mock_warn.assert_not_called()
+
+            await wait_for(lambda: mock_warn.call_count >= 1)
+            mock_warn.assert_called_once_with(job, 0.4, 0.5)
+
+        gate.set()
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+
+
+@pytest.mark.parametrize(
+    ("registration", "expected_timeout"),
+    [
+        pytest.param({"timeout": 300.0}, lambda _config: 300.0, id="per_job_timeout"),
+        pytest.param({"timeout_disabled": True}, lambda _config: None, id="timeout_disabled"),
+        pytest.param({}, lambda config: config.scheduler.job_timeout_seconds, id="global_default"),
+    ],
+)
+async def test_stall_threshold_passed_to_guard(
+    registration: dict[str, Any], expected_timeout: Callable[[Any], float | None]
+) -> None:
+    """Dispatch arms the watchdog at the threshold derived from the job's effective timeout."""
+
+    class _ThresholdApp(App[_OverlapConfig]):
         async def on_initialize(self) -> None:
-            await self.scheduler.run_every(
-                self.task, seconds=10, name="parallel_stalled_job", mode="parallel", timeout_disabled=True
-            )
+            await self.scheduler.run_every(self.task, seconds=10, name="threshold_job", mode="single", **registration)
 
         async def task(self) -> None:
-            started.set()
-            await gate.wait()
+            pass
 
-    async with AppTestHarness(_ParallelStalledApp, config={"instance_name": "parallel_stalled_app"}) as harness:
+    async with AppTestHarness(_ThresholdApp, config={"instance_name": "threshold_app"}) as harness:
+        scheduler_service = scheduler_service_for(harness)
+        job = await get_job_by_name(harness, "threshold_job")
+        expected = execution_mode_module.stall_threshold(expected_timeout(scheduler_service.hassette.config))
+
+        with unittest.mock.patch.object(
+            scheduler_dispatch_module, "run_through_guard", wraps=scheduler_dispatch_module.run_through_guard
+        ) as spy:
+            dispatch_task = await freeze_and_dispatch(harness, job)
+            await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
+
+        assert spy.call_args.kwargs["threshold"] == expected
+
+
+def test_warn_stalled_job_names_the_threshold_source(caplog: pytest.LogCaptureFixture) -> None:
+    """The WARNING says why it fired at this threshold."""
+    service = unittest.mock.MagicMock()
+    job = unittest.mock.MagicMock()
+    job.name = "slow_job"
+    job.mode.value = "single"
+    service.logger = logging.getLogger("hassette.test_stall")
+
+    with caplog.at_level("WARNING", logger="hassette.test_stall"):
+        scheduler_dispatch_module.SchedulerDispatchMixin.warn_stalled_job(service, job, 240.0, 300.0)
+
+    assert "for over 240s (80% of its 300s timeout) and is still running" in caplog.text
+
+
+async def test_parallel_mode_has_no_stall_watchdog() -> None:
+    """Parallel mode invocations do not get a stall watchdog."""
+    parallel_app, started, gate = make_gated_app("parallel_stalled_job", mode="parallel", timeout_disabled=True)
+
+    async with AppTestHarness(parallel_app, config={"instance_name": "parallel_stalled_app"}) as harness:
         scheduler_service = scheduler_service_for(harness)
         job = await get_job_by_name(harness, "parallel_stalled_job")
 
         # Parallel runs inline (no stall watch installed). Spy on warn_stalled_job to assert
         # it is never called even when the invocation outlasts the patched threshold.
-        with (
-            unittest.mock.patch.object(scheduler_dispatch_module, "STALL_THRESHOLD_SECONDS", 0.05),
-            unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,
-        ):
+        with patched_stall_watch(scheduler_service, 0.05) as mock_warn:
             dispatch_task = await freeze_and_dispatch(harness, job)
             await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT_SECONDS)
             # dispatch_task is still pending because run_job awaits the callable inline

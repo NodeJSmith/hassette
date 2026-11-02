@@ -13,11 +13,13 @@ from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
 from hassette.exceptions import TaskBucketSealedError
 from hassette.execution_mode import (
-    STALL_THRESHOLD_SECONDS,
     ExecutionModeGuard,
+    describe_stall_threshold,
     release_and_drain,
+    resolve_effective_timeout,
     run_parallel,
     run_through_guard,
+    stall_threshold,
 )
 from hassette.types.types import WhereClause
 from hassette.utils.func_utils import callable_name, callable_short_name
@@ -194,6 +196,9 @@ class HandlerInvoker:
     handler_short_name: str
     """Short handler name, captured for the stall WARNING and debug logs."""
 
+    timeout_resolver: Callable[[], float | None]
+    """Returns this listener's effective timeout at fire time, for deriving its stall threshold."""
+
     once: bool = False
     """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
     dispatch() needs this but cannot back-reference options without a circular dependency."""
@@ -225,6 +230,7 @@ class HandlerInvoker:
         error_handler: "BusErrorHandlerType | None" = None,
         app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
         clock: "Callable[[], float] | None" = None,
+        default_timeout_resolver: Callable[[], float | None] = lambda: None,
     ) -> "HandlerInvoker":
         """Construct a HandlerInvoker from a handler and options.
 
@@ -240,6 +246,8 @@ class HandlerInvoker:
             clock: Zero-arg callable returning the current monotonic time, forwarded to the
                 RateLimiter for deterministic throttle timing in tests. Defaults to
                 ``time.monotonic`` when None (see RateLimiter).
+            default_timeout_resolver: Returns the global handler timeout at fire time. The default
+                suits invokers that bypass ``Bus``: they have no global timeout.
         """
         handler_name = callable_name(handler)
         signature = get_typed_signature(handler)
@@ -268,6 +276,9 @@ class HandlerInvoker:
             guard=ExecutionModeGuard(options.mode),
             mode=options.mode,
             handler_short_name=callable_short_name(handler),
+            timeout_resolver=lambda: resolve_effective_timeout(
+                options.timeout, options.timeout_disabled, default_timeout_resolver
+            ),
             once=options.once,
         )
 
@@ -322,23 +333,24 @@ class HandlerInvoker:
                 )
             return
 
+        effective_timeout = self.timeout_resolver()
         await run_through_guard(
             guard=self.guard,
             spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
             pending_done=self.pending_done,
             invoke=invoke_fn,
-            warn=self.warn_stalled,
+            warn=lambda secs: self.warn_stalled(secs, effective_timeout),
             spawn_name="bus:mode_invocation",
-            threshold=STALL_THRESHOLD_SECONDS,
+            threshold=stall_threshold(effective_timeout),
         )
 
-    def warn_stalled(self, threshold: float) -> None:
+    def warn_stalled(self, threshold: float, effective_timeout: float | None) -> None:
         """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
         LOGGER.warning(
-            "Handler '%s' has held its %s execution-mode guard for over %.0fs and is still running",
+            "Handler '%s' has held its %s execution-mode guard for over %s and is still running",
             self.handler_short_name,
             self.mode.value,
-            threshold,
+            describe_stall_threshold(threshold, effective_timeout),
         )
 
     def cancel(self) -> None:

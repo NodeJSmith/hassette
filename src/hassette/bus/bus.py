@@ -633,6 +633,7 @@ class Bus(Resource):
             options=options,
             error_handler=on_error,
             app_error_handler_resolver=lambda: self._error_handler,
+            default_timeout_resolver=lambda: self.hassette.config.lifecycle.event_handler_timeout_seconds,
         )
 
         listener = Listener.create(

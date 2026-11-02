@@ -1,6 +1,7 @@
 """Unit tests for the shared dispatch-bridge helpers in execution_mode.
 
-Covers: run_with_stall_watch, run_through_guard, drain_pending_done, release_and_drain, STALL_THRESHOLD_SECONDS.
+Covers: run_with_stall_watch, run_through_guard, drain_pending_done, release_and_drain, stall_threshold,
+describe_stall_threshold, resolve_effective_timeout, STALL_THRESHOLD_SECONDS.
 """
 
 import asyncio
@@ -14,10 +15,13 @@ from hassette_wire import ExecutionMode
 from hassette.execution_mode import (
     STALL_THRESHOLD_SECONDS,
     ExecutionModeGuard,
+    describe_stall_threshold,
     drain_pending_done,
     release_and_drain,
+    resolve_effective_timeout,
     run_through_guard,
     run_with_stall_watch,
+    stall_threshold,
 )
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS, prime_guard
 
@@ -26,6 +30,48 @@ UNREACHED_STALL_THRESHOLD_SECONDS = 60.0
 
 SHORT_STALL_THRESHOLD_SECONDS = 0.05
 """Stall threshold short enough for the watchdog to fire (or be cancelled) within a test."""
+
+
+@pytest.mark.parametrize(
+    ("effective_timeout", "expected"),
+    [
+        (None, STALL_THRESHOLD_SECONDS),
+        (30.0, STALL_THRESHOLD_SECONDS),
+        (75.0, STALL_THRESHOLD_SECONDS),
+        (100.0, 80.0),
+        (300.0, 240.0),
+        (600.0, 480.0),
+    ],
+)
+def test_stall_threshold_follows_timeout_with_a_floor(effective_timeout: float | None, expected: float) -> None:
+    assert stall_threshold(effective_timeout) == expected
+
+
+@pytest.mark.parametrize(
+    ("effective_timeout", "expected"),
+    [
+        (None, "60s (the default stall threshold)"),
+        (30.0, "60s (the default stall threshold)"),
+        (300.0, "240s (80% of its 300s timeout)"),
+    ],
+)
+def test_describe_stall_threshold_names_the_source(effective_timeout: float | None, expected: str) -> None:
+    assert describe_stall_threshold(stall_threshold(effective_timeout), effective_timeout) == expected
+
+
+@pytest.mark.parametrize(
+    ("timeout", "timeout_disabled", "default", "expected"),
+    [
+        (None, True, 600.0, None),
+        (300.0, False, 600.0, 300.0),
+        (None, False, 600.0, 600.0),
+        (None, False, None, None),
+    ],
+)
+def test_resolve_effective_timeout(
+    timeout: float | None, timeout_disabled: bool, default: float | None, expected: float | None
+) -> None:
+    assert resolve_effective_timeout(timeout, timeout_disabled, lambda: default) == expected
 
 
 def make_spawn() -> tuple[Callable[..., asyncio.Task[None]], list[asyncio.Task[None]]]:

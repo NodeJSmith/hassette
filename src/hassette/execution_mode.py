@@ -38,9 +38,12 @@ change to the guard's shape.
 """
 
 STALL_THRESHOLD_SECONDS: float = 60.0
-"""Single source of truth. Imported by both subsystems and passed explicitly as
-``threshold=`` at each call site — never used as a helper default argument (a
-default binds at definition time and would defeat test patches)."""
+"""The stall threshold's floor, and its value when an invocation has no timeout. ``stall_threshold``
+reads it at call time and each call site passes the result as ``threshold=``. It is never a default
+argument: a default binds at definition time and would defeat test patches."""
+
+STALL_TIMEOUT_FRACTION: float = 0.8
+"""Fraction of an invocation's effective timeout it may hold its guard before the stall WARNING."""
 
 RunAndTrack = Callable[[], "asyncio.Task[None]"]
 """A caller-supplied callable that spawns one handler invocation and returns its task."""
@@ -73,6 +76,38 @@ def resolve_execution_mode(mode: "ExecutionMode | str | None", source_tier: Sour
     except ValueError as exc:
         valid = ", ".join(repr(m.value) for m in ExecutionMode)
         raise ValueError(f"Invalid execution mode {mode!r}; must be one of {valid}") from exc
+
+
+def resolve_effective_timeout(
+    timeout: float | None, timeout_disabled: bool, default_resolver: Callable[[], float | None]
+) -> float | None:
+    """Return the timeout enforced for one invocation, or ``None`` if it has none.
+
+    ``timeout_disabled`` wins, then the per-registration ``timeout``, then the global default.
+    ``default_resolver`` is only called when the default applies, and callers invoke this at fire
+    time so a hot-reloaded config takes effect.
+    """
+    if timeout_disabled:
+        return None
+    return timeout if timeout is not None else default_resolver()
+
+
+def stall_threshold(effective_timeout: float | None) -> float:
+    """Return how long an invocation with this effective timeout may hold its guard before the stall WARNING.
+
+    A declared timeout says how long is normal, so the threshold follows it. It never drops below
+    ``STALL_THRESHOLD_SECONDS``, which also applies when there is no timeout.
+    """
+    if effective_timeout is None:
+        return STALL_THRESHOLD_SECONDS
+    return max(STALL_THRESHOLD_SECONDS, STALL_TIMEOUT_FRACTION * effective_timeout)
+
+
+def describe_stall_threshold(threshold: float, effective_timeout: float | None) -> str:
+    """Format a stall threshold and where it came from, for the stall WARNING text."""
+    if effective_timeout is None or threshold <= STALL_THRESHOLD_SECONDS:
+        return f"{threshold:.0f}s (the default stall threshold)"
+    return f"{threshold:.0f}s ({STALL_TIMEOUT_FRACTION:.0%} of its {effective_timeout:.0f}s timeout)"
 
 
 class ExecutionModeGuard:

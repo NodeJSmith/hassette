@@ -205,13 +205,13 @@ class TestHandlerInvokerWarnStalled:
         Wraps (not replaces) the real method so its actual body — the LOGGER.warning call —
         still runs; the wrapper only records the call for the assertion.
         """
-        monkeypatch.setattr("hassette.bus.listeners.STALL_THRESHOLD_SECONDS", 0.01)
+        monkeypatch.setattr("hassette.execution_mode.STALL_THRESHOLD_SECONDS", 0.01)
         warn_calls: list[float] = []
         original_warn_stalled = HandlerInvoker.warn_stalled
 
-        def spy_warn_stalled(self: HandlerInvoker, threshold: float) -> None:
+        def spy_warn_stalled(self: HandlerInvoker, threshold: float, effective_timeout: float | None) -> None:
             warn_calls.append(threshold)
-            original_warn_stalled(self, threshold)
+            original_warn_stalled(self, threshold, effective_timeout)
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
@@ -226,10 +226,10 @@ class TestHandlerInvokerWarnStalled:
 
     async def test_warn_stalled_not_called_when_handler_finishes_quickly(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A handler that finishes well under the threshold never triggers the watchdog."""
-        monkeypatch.setattr("hassette.bus.listeners.STALL_THRESHOLD_SECONDS", 5.0)
+        monkeypatch.setattr("hassette.execution_mode.STALL_THRESHOLD_SECONDS", 5.0)
         warn_calls: list[float] = []
 
-        def spy_warn_stalled(_self: HandlerInvoker, threshold: float) -> None:
+        def spy_warn_stalled(_self: HandlerInvoker, threshold: float, _effective_timeout: float | None) -> None:
             warn_calls.append(threshold)
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
@@ -242,3 +242,12 @@ class TestHandlerInvokerWarnStalled:
         await invoker.dispatch(fast_invoke)
 
         assert warn_calls == []
+
+    def test_warn_stalled_names_the_threshold_source(self, caplog: pytest.LogCaptureFixture) -> None:
+        """The WARNING says why it fired at this threshold."""
+        invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.SINGLE, timeout=300.0))
+
+        with caplog.at_level("WARNING", logger="hassette.bus.listeners"):
+            invoker.warn_stalled(240.0, 300.0)
+
+        assert "for over 240s (80% of its 300s timeout) and is still running" in caplog.text
