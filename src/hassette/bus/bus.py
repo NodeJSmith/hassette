@@ -176,13 +176,12 @@ class Bus(Resource):
         self.bus_service.register_removal_callback(self._removal_callback_owner_id, self._on_listener_removed)
 
     async def on_initialize(self) -> None:
-        """Clear listener keys and the error handler first so a partial init leaves none stale, then mark ready."""
-        self._registered_listeners.clear()
-        self._error_handler = None
+        """Mark the bus ready, keeping what the owner's hooks registered: they run before this child initializes."""
         mark_ready(self, reason="Bus initialized")
 
     async def on_shutdown(self) -> None:
-        """Cleanup all listeners owned by this bus's owner on shutdown."""
+        """Cleanup the error handler and all listeners owned by this bus's owner on shutdown."""
+        self._error_handler = None
         self._shutting_down = True
         self._shutdown_cancelled_wait_for_count = 0
         try:

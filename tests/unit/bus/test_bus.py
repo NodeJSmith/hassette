@@ -4,7 +4,7 @@ Tests:
 - name= parameter propagation to Listener
 - Duplicate natural key raises DuplicateListenerError in Bus.on()
 - name= disambiguates otherwise-identical keys
-- _registered_listeners is cleared at start of initialization
+- _registered_listeners survives initialization and is cleared on shutdown
 """
 
 import typing
@@ -147,14 +147,22 @@ async def test_source_tier_check_rejects_invalid_value(bus: "Bus") -> None:
     parent.source_tier = "app"
 
 
-async def test_registered_listeners_cleared_on_reinit(bus: "Bus") -> None:
-    """_registered_listeners is cleared at the start of on_initialize() to prevent stale collisions."""
+async def test_registered_listeners_survive_on_initialize(bus: "Bus") -> None:
+    """on_initialize() keeps keys the owner's hooks registered, so duplicate detection still sees them."""
     with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
-        assert len(bus._registered_listeners) == 1
 
         await bus.on_initialize()
-        assert len(bus._registered_listeners) == 0
 
+        with pytest.raises(DuplicateListenerError):
+            await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
+
+
+async def test_registered_listeners_cleared_on_shutdown(bus: "Bus") -> None:
+    """on_shutdown() releases every key, so a partial init leaves none stale."""
+    with mock_add_listener(bus):
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
-        assert len(bus._registered_listeners) == 1
+
+        await bus.on_shutdown()
+
+        assert bus._registered_listeners == {}
