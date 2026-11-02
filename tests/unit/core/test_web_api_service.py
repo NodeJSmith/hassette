@@ -5,6 +5,7 @@ import ipaddress
 import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -62,20 +63,46 @@ def patch_uvicorn_serve() -> Iterator[tuple[MagicMock, MagicMock]]:
         yield mock_uvicorn, mock_server
 
 
+@dataclass(frozen=True)
+class StartupGate:
+    """Events controlling a gated uvicorn startup."""
+
+    entered: asyncio.Event
+    release: asyncio.Event
+
+
 @contextmanager
-def gated_uvicorn_startup() -> Iterator[tuple[asyncio.Event, asyncio.Event]]:
-    """Hold uvicorn's real startup until released. Yields (startup_entered, release_startup)."""
+def gated_uvicorn_startup() -> Iterator[StartupGate]:
+    """Hold uvicorn's real startup until the yielded gate is released."""
     real_startup = uvicorn.Server.startup
-    startup_entered = asyncio.Event()
-    release_startup = asyncio.Event()
+    gate = StartupGate(entered=asyncio.Event(), release=asyncio.Event())
 
     async def gated_startup(server: uvicorn.Server, sockets: list[socket.socket] | None = None) -> None:
-        startup_entered.set()
-        await release_startup.wait()
+        gate.entered.set()
+        await gate.release.wait()
         await real_startup(server, sockets=sockets)
 
     with patch.object(uvicorn.Server, "startup", gated_startup):
-        yield startup_entered, release_startup
+        yield gate
+
+
+async def cancel_serve_during_startup(service: WebApiService, gate: StartupGate) -> asyncio.Task[None]:
+    """Start serve(), wait until it reaches the gated startup, and cancel it."""
+    serve_task = asyncio.create_task(service.serve())
+    await gate.entered.wait()
+    serve_task.cancel()
+    await asyncio.sleep(0)
+    return serve_task
+
+
+async def finish_startup_and_assert_port_released(
+    service: WebApiService, serve_task: asyncio.Task[None], gate: StartupGate
+) -> None:
+    """Let the gated startup bind, then assert the cancel propagates and the port is closed."""
+    gate.release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await serve_task
+    assert not port_is_bound(service.port)
 
 
 def port_is_bound(port: int) -> bool:
@@ -148,16 +175,16 @@ class TestShutdownSocketCleanup:
 
 
 class TestCancelDuringStartup:
-    async def test_cancel_during_create_server_final_tick_releases_port(
-        self, unused_tcp_port_factory, tmp_path
-    ) -> None:
+    @pytest.fixture
+    def service(self, unused_tcp_port_factory, tmp_path) -> WebApiService:
+        return _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+
+    async def test_cancel_during_create_server_final_tick_releases_port(self, service: WebApiService) -> None:
         """A cancel landing on the tick where create_server is listening but hasn't returned closes the listener.
 
         Steps the loop one tick at a time: create_server yields once right after it starts
         listening, so a polling helper that sleeps would step past that window.
         """
-        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
-
         serve_task = asyncio.create_task(service.serve())
         for _ in range(100):  # a numeric host needs no resolver thread, so this takes a handful of ticks
             if port_is_bound(service.port):
@@ -173,60 +200,35 @@ class TestCancelDuringStartup:
         assert not port_is_bound(service.port)
 
     async def test_repeated_cancel_during_startup_waits_for_startup_and_releases_port(
-        self, unused_tcp_port_factory, tmp_path
+        self, service: WebApiService
     ) -> None:
         """A second cancel must not end serve() while startup can still bind with nobody left to close it."""
-        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+        with gated_uvicorn_startup() as gate:
+            serve_task = await cancel_serve_during_startup(service, gate)
 
-        with gated_uvicorn_startup() as (startup_entered, release_startup):
-            serve_task = asyncio.create_task(service.serve())
-            await startup_entered.wait()
-
-            serve_task.cancel()
-            await asyncio.sleep(0)
             serve_task.cancel()
             await asyncio.sleep(0)
             assert not serve_task.done(), "serve() ended while startup was still in progress"
 
-            release_startup.set()
-            with pytest.raises(asyncio.CancelledError):
-                await serve_task
+            await finish_startup_and_assert_port_released(service, serve_task, gate)
 
-        assert not port_is_bound(service.port)
-
-    async def test_startup_outlasting_shutdown_hooks_still_releases_port(
-        self, unused_tcp_port_factory, tmp_path
-    ) -> None:
+    async def test_startup_outlasting_shutdown_hooks_still_releases_port(self, service: WebApiService) -> None:
         """Startup can finish after on_shutdown cleared the service's server reference; the port is still released."""
-        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+        with gated_uvicorn_startup() as gate:
+            serve_task = await cancel_serve_during_startup(service, gate)
 
-        with gated_uvicorn_startup() as (startup_entered, release_startup):
-            serve_task = asyncio.create_task(service.serve())
-            await startup_entered.wait()
-
-            serve_task.cancel()
-            await asyncio.sleep(0)
             await service.on_shutdown()
 
-            release_startup.set()
-            with pytest.raises(asyncio.CancelledError):
-                await serve_task
+            await finish_startup_and_assert_port_released(service, serve_task, gate)
 
-        assert not port_is_bound(service.port)
-
-    async def test_bucket_cancel_ends_a_hung_startup(self, unused_tcp_port_factory, tmp_path) -> None:
+    async def test_bucket_cancel_ends_a_hung_startup(self, service: WebApiService) -> None:
         """The startup task joins the service's bucket, so the bucket's cancel stage ends a hung startup."""
-        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
         loop = asyncio.get_running_loop()
         previous_factory = loop.get_task_factory()
         loop.set_task_factory(make_task_factory(service.task_bucket))
         try:
-            with gated_uvicorn_startup() as (startup_entered, _never_released):
-                serve_task = asyncio.create_task(service.serve())
-                await startup_entered.wait()
-
-                serve_task.cancel()
-                await asyncio.sleep(0)
+            with gated_uvicorn_startup() as gate:
+                serve_task = await cancel_serve_during_startup(service, gate)
                 assert not serve_task.done()
 
                 pending = await service.task_bucket.cancel_all(timeout=1)
