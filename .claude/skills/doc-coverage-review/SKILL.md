@@ -86,7 +86,7 @@ If a result fails those checks, re-dispatch that area once. If the second result
 Inventory agents fail in both directions; triage before trusting.
 
 1. **False gaps.** Agents grep for the symbol name and miss prose that documents the behavior under different words. Before accepting any `missing` gap, run one independent docs search yourself using a term the agent didn't try. If you find coverage, drop the gap.
-2. **Lazy inventories.** An area reporting `items_inventoried: 8` for a module with 40 public methods got a shallow pass. Compare the count against your own quick `grep -c "def \|class "` of the area's public modules. Re-dispatch an area with a large mismatch once, and if the count is still far off, list it as not reviewed in Phase 3.
+2. **Lazy inventories.** An area reporting `items_inventoried: 8` for a module with 40 public methods got a shallow pass. Ask whether the count is plausible for what the area's prompt lists. A quick `grep -c "def \|class "` of its public modules helps only roughly: it counts private helpers and misses parameters and config fields, so a thorough inventory can land far from it in either direction. Re-dispatch an area whose count isn't plausible once, and if the second count still isn't, list it as not reviewed in Phase 3.
 3. **Scope creep.** Agents pad reports with internals to look thorough. For each gap, check `why_user_facing` against the test: would an app author or operator ever type this name? If not, discard.
 
 ## Phase 3: Present and Fix
@@ -114,6 +114,6 @@ After edits: `uv run mkdocs build --strict`, and Pyright if any snippet changed.
 
 **Why two search passes per item?** The dominant failure mode is the false gap: docs explain a feature in prose without naming the symbol. Exact-match grep alone systematically over-reports.
 
-**Why `items_inventoried`?** The count only catches a shallow pass, which Phase 2 checks against a quick `grep`. A full count with zero gaps still doesn't prove coverage. In doc-accuracy-review's seeded baseline (`design/research/2026-11-02-doc-accuracy-verification/seeded-baseline/`), a higher `claims_checked` didn't mean more errors caught.
+**Why `items_inventoried`?** The count only catches a shallow pass, which Phase 2 checks for. A full count with zero gaps still doesn't prove coverage. In doc-accuracy-review's seeded baseline (`design/research/2026-11-02-doc-accuracy-verification/seeded-baseline/`), a higher `claims_checked` didn't mean more errors caught.
 
 **Why no script to extract the public surface?** The inventory requires judgment ("is this user-facing?") that a symbol dump can't make, and the area list is stable. If inventories prove unreliable, build the extractor then — not speculatively.
