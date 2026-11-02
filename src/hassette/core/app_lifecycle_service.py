@@ -218,7 +218,7 @@ class AppLifecycleService(
             if not snapshot.running_count and not snapshot.failed_count:
                 self.logger.warning("No apps were initialized (all apps may be disabled)")
             else:
-                self.logger.debug(
+                self.logger.info(
                     "Initialized %d apps successfully, %d failed to start",
                     snapshot.running_count,
                     snapshot.failed_count,

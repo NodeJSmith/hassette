@@ -127,7 +127,7 @@ class AppInstanceLifecycleMixin:
             await self.shutdown_instance(inst, index, cause=exc, outcomes=outcomes)
             return
 
-        self.logger.debug("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
+        self.logger.info("App '%s' (%s) initialized successfully", inst.app_config.instance_name, class_name)
         outcomes.succeeded(index)
         await self.send_outcome_event(inst, status=RUNNING, previous_status=STARTING)
 
@@ -274,7 +274,7 @@ class AppInstanceLifecycleMixin:
 
             timed_out = force_terminated or outcome.result is ShutdownResult.TIMED_OUT
             if outcome.is_restart_safe and not timed_out:
-                self.logger.debug(
+                self.logger.info(
                     "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
                 )
                 outcomes.succeeded(instance_index)
@@ -340,7 +340,7 @@ class AppInstanceLifecycleMixin:
         """
         self.registry.record_failure(inst.app_key, instance_index, cause)
         if outcome.is_restart_safe:
-            self.logger.debug(
+            self.logger.info(
                 "Shut down app '%s' (%s) after its failed start in %s",
                 inst.app_config.instance_name,
                 inst.class_name,
