@@ -1,7 +1,9 @@
 """WebApiService: runs the FastAPI/uvicorn server."""
 
 import asyncio
+import socket
 import typing
+from contextlib import suppress
 from typing import ClassVar
 
 import uvicorn
@@ -36,6 +38,47 @@ _TRUSTED_PROXY_REFRESH_INTERVAL_MINUTES = 5
 """How often trusted_proxies hostname entries are re-resolved via DNS."""
 
 _TRUSTED_PROXY_REFRESH_JOB_NAME = "web_api_trusted_proxy_refresh"
+
+
+class _ShieldedStartupServer(uvicorn.Server):
+    """A uvicorn server whose startup runs to completion even if the serving task is cancelled.
+
+    ``loop.create_server()`` starts listening and then yields once before returning. A cancel on
+    that tick would leave ``servers`` unassigned and ``started`` False, with nothing able to close
+    the listener. Finishing startup first lets the caller's cancel path shut the server down.
+
+    The startup task joins the service's task bucket, so the bucket's shutdown stage cancels it past
+    the shield. That is what bounds a startup that never returns. One gap is accepted: if startup
+    outlasts the serve task's shutdown bound and that cancel lands just as startup binds, the listener
+    stays open until the process exits.
+    """
+
+    async def startup(self, sockets: list[socket.socket] | None = None) -> None:
+        """Run uvicorn's startup in a shielded task, waiting for it to finish before re-raising a cancel.
+
+        Raises:
+            SystemExit: If uvicorn cannot bind and the caller was not cancelled.
+        """
+        startup = super().startup
+
+        async def run() -> SystemExit | None:
+            try:
+                await startup(sockets=sockets)
+            except SystemExit as exc:
+                return exc  # a SystemExit escaping a task would stop the event loop; re-raised below
+            return None
+
+        task = asyncio.create_task(run())
+        try:
+            exit_exc = await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # Startup must finish so the caller can see `started` and shut down, however many cancels arrive.
+            while not task.done():
+                with suppress(asyncio.CancelledError):
+                    await asyncio.wait({task})
+            raise
+        if exit_exc is not None:
+            raise exit_exc
 
 
 class WebApiService(Service):
@@ -186,17 +229,19 @@ class WebApiService(Service):
             # scope["client"] before trusted_proxies' peer check ever sees the real peer.
             proxy_headers=False,
         )
-        self._server = uvicorn.Server(config)
+        # serve() can outlive its shutdown bound while startup finishes, and on_shutdown clears self._server by then.
+        server = _ShieldedStartupServer(config)
+        self._server = server
 
         self.logger.info("Web API server starting on %s:%s", self.host, self.port)
 
         try:
-            await self._server.serve()
+            await server.serve()
         except asyncio.CancelledError:
-            if self._server.started:
-                self._server.should_exit = True
+            if server.started:
+                server.should_exit = True
                 try:
-                    await asyncio.shield(self._server.shutdown())
+                    await asyncio.shield(server.shutdown())
                 except Exception:
                     self.logger.warning("uvicorn shutdown raised during cancellation", exc_info=True)
             raise
