@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.61.0"
+version = "0.62.0"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -65,8 +65,8 @@ dependencies = [
     "tomli-w>=1.2.0",
     # Lockstep with the release train: release-please rewrites these pins on the marked lines
     # (the `version` above is bumped by its python release-type, so it needs no marker).
-    "hassette-wire==0.61.0",  # x-release-please-version
-    "hassette-client==0.61.0",  # x-release-please-version
+    "hassette-wire==0.62.0",  # x-release-please-version
+    "hassette-client==0.62.0",  # x-release-please-version
 ]
 
 [project.optional-dependencies]
