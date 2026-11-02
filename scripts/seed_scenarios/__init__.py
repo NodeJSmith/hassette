@@ -18,7 +18,7 @@ to read and edit directly.
 from collections.abc import Callable
 
 from seed_scenarios.adversarial import scenario_adversarial
-from seed_scenarios.base import SeedContext, SeedIntegrityError
+from seed_scenarios.base import SeedContext, SeedIntegrityError, anchored_at
 from seed_scenarios.degraded import scenario_degraded
 from seed_scenarios.empty import scenario_empty
 from seed_scenarios.error import scenario_error
@@ -38,4 +38,4 @@ SCENARIOS: dict[str, Callable[[SeedContext], None]] = {
     "mixed-instance": scenario_mixed_instance,
 }
 
-__all__ = ["SCENARIOS", "SeedContext", "SeedIntegrityError"]
+__all__ = ["SCENARIOS", "SeedContext", "SeedIntegrityError", "anchored_at"]

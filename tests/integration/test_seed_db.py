@@ -25,6 +25,8 @@ from pathlib import Path
 import pytest
 import seed_db
 import seed_scenarios
+from seed_scenarios.base import REFERENCE_INSTANT, ts
+from whenever import Instant
 
 from tests.support.factories import make_execution_record
 
@@ -43,11 +45,38 @@ ALL_SCENARIOS = (
 
 _TABLES = ("sessions", "listeners", "scheduled_jobs", "executions", "log_records", "blocking_events")
 
+_NON_TIMESTAMP_REAL_COLUMNS = frozenset(
+    {"debounce", "throttle", "duration", "duration_ms", "stall_duration_ms", "jitter"}
+)
+"""REAL columns holding a length of time, not a point in time."""
 
-def _run_seed_script(scenario: str, output: Path) -> subprocess.CompletedProcess[str]:
+_ANCHOR = Instant.from_utc(2026, 6, 1, 8, 30)
+
+
+def _seeded_timestamps(db_path: Path) -> list[float]:
+    """Every non-null epoch timestamp in the database, found from the schema so new columns are covered.
+
+    ``app_manifests.created_at``/``updated_at`` are TEXT and out of reach: scenarios don't seed
+    them, the schema's default stamps the real write time, and nothing reads them.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        tables = [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+        return [
+            row[0]
+            for table in tables
+            for _cid, column, column_type, *_rest in conn.execute(f'PRAGMA table_info("{table}")').fetchall()
+            if column_type == "REAL" and column not in _NON_TIMESTAMP_REAL_COLUMNS
+            for row in conn.execute(f'SELECT "{column}" FROM "{table}" WHERE "{column}" IS NOT NULL')
+        ]
+    finally:
+        conn.close()
+
+
+def _run_seed_script(scenario: str, output: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
     """Invoke the seed script exactly as documented in the design doc's acceptance criteria."""
     return subprocess.run(
-        ["uv", "run", "python", "scripts/seed_db.py", "--scenario", scenario, "--output", str(output)],
+        ["uv", "run", "python", "scripts/seed_db.py", "--scenario", scenario, "--output", str(output), *extra_args],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
@@ -170,6 +199,87 @@ def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: P
     statuses = {(index, status) for index, status, _count in status_by_instance}
     assert {status for index, status in statuses if index == 0} == {"success"}
     assert {status for index, status in statuses if index == 1} == {"error"}
+
+
+@pytest.mark.parametrize("scenario", ALL_SCENARIOS)
+def test_anchored_scenario_fits_the_24h_window_ending_at_the_anchor(scenario: str, tmp_path: Path):
+    """Both bounds matter: scenarios offset forward from the reference instant, and ``ts()``
+    also accepts negative offsets, so activity could overshoot either end of the window.
+    """
+    output = tmp_path / "test.db"
+
+    seed_db.generate_scenario(scenario, output, tmp_path / "test.db.tmp", anchor=_ANCHOR)
+
+    timestamps = _seeded_timestamps(output)
+    if scenario == "empty":
+        assert timestamps == []
+        return
+    assert timestamps, f"scenario={scenario!r} seeded no timestamps"
+    assert min(timestamps) >= _ANCHOR.subtract(hours=24).timestamp()
+    assert max(timestamps) <= _ANCHOR.timestamp()
+
+
+def test_default_seed_starts_at_the_fixed_reference_instant(tmp_path: Path):
+    """No anchor means the fixed instant, which client-compat fixtures and determinism rely on."""
+    output = tmp_path / "test.db"
+
+    seed_db.generate_scenario("healthy", output, tmp_path / "test.db.tmp")
+
+    assert min(_seeded_timestamps(output)) == REFERENCE_INSTANT.timestamp()
+
+
+def test_anchored_run_leaves_no_anchor_state_behind(tmp_path: Path):
+    seed_db.generate_scenario("healthy", tmp_path / "test.db", tmp_path / "test.db.tmp", anchor=_ANCHOR)
+
+    assert ts(0) == REFERENCE_INSTANT.timestamp()
+
+
+def test_failed_anchored_run_leaves_no_anchor_state_behind(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def _failing_scenario(_ctx: seed_scenarios.SeedContext) -> None:
+        raise ValueError("scenario failed")
+
+    monkeypatch.setitem(seed_db.SCENARIOS, "test_failing", _failing_scenario)
+
+    with pytest.raises(ValueError, match="scenario failed"):
+        seed_db.generate_scenario("test_failing", tmp_path / "test.db", tmp_path / "test.db.tmp", anchor=_ANCHOR)
+
+    assert ts(0) == REFERENCE_INSTANT.timestamp()
+
+
+def test_cli_anchor_accepts_an_iso_instant(tmp_path: Path):
+    output = tmp_path / "test.db"
+
+    result = _run_seed_script("healthy", output, "--anchor", _ANCHOR.format_iso())
+
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    timestamps = _seeded_timestamps(output)
+    assert min(timestamps) >= _ANCHOR.subtract(hours=24).timestamp()
+    assert max(timestamps) <= _ANCHOR.timestamp()
+
+
+def test_cli_anchor_accepts_now(tmp_path: Path):
+    output = tmp_path / "test.db"
+    before = Instant.now()
+
+    result = _run_seed_script("healthy", output, "--anchor", "now")
+
+    after = Instant.now()
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    timestamps = _seeded_timestamps(output)
+    assert min(timestamps) >= before.subtract(hours=24).timestamp()
+    assert max(timestamps) <= after.timestamp()
+
+
+@pytest.mark.parametrize("value", ["yesterday", "2026-06-01T08:30:00"])
+def test_cli_anchor_rejects_anything_but_now_or_an_instant_with_an_offset(value: str, tmp_path: Path):
+    """A naive timestamp is rejected: it doesn't identify an instant."""
+    output = tmp_path / "test.db"
+
+    result = _run_seed_script("healthy", output, "--anchor", value)
+
+    assert result.returncode == 2
+    assert "is not 'now' or an ISO 8601 instant" in result.stderr
+    assert not output.exists()
 
 
 def test_healthy_scenario_generates_file(tmp_path: Path):

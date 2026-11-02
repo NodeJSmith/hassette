@@ -7,7 +7,9 @@ package docstring in ``__init__.py`` for the duplicate-detector rationale behind
 """
 
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -22,8 +24,16 @@ from hassette.types.types import is_framework_key
 from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
 
 REFERENCE_INSTANT = Instant.from_utc(2026, 1, 15, 12, 0)
-"""Deterministic reference point. All scenario timestamps are fixed offsets from this
-instant — never wall-clock — so re-running a scenario produces identical data."""
+"""Default reference point. Scenario timestamps are fixed offsets from this instant unless a
+run is anchored (see ``anchored_at``), so re-running a scenario produces identical data."""
+
+ANCHOR_SPAN_SECONDS = 12 * 3600.0
+"""How far before its anchor an anchored run's reference instant sits. Scenarios offset forward
+from the reference instant, so this must exceed the longest scenario for all activity to end
+before the anchor; keeping it under 24 hours keeps that activity inside the UI's ``24h`` preset."""
+
+_reference_instant: ContextVar[Instant] = ContextVar("seed_reference_instant", default=REFERENCE_INSTANT)
+"""The instant ``ts()`` offsets from. Only ``anchored_at`` changes it."""
 
 # Repeated seed-data conventions, named once instead of retyped at each scenario call site.
 APP_TIME_SPACING_SECONDS = 3600.0
@@ -360,12 +370,26 @@ class SeedContext:
         insert_row(self.cursor, _BLOCKING_EVENT_INSERT_SQL, params)
 
 
-def ts(offset_seconds: float) -> float:
-    """Epoch-seconds float at ``REFERENCE_INSTANT + offset_seconds`` (offset may be negative).
-
-    Every scenario timestamp is built through this helper so nothing ever reads the wall clock.
+@contextmanager
+def anchored_at(anchor: Instant | None) -> Iterator[None]:
+    """Within this block, ``ts()`` builds a timeline that ends at ``anchor`` instead of starting at
+    ``REFERENCE_INSTANT``. ``None`` keeps the default. The previous reference is always restored.
     """
-    return float(REFERENCE_INSTANT.add(seconds=offset_seconds).timestamp())
+    reference = REFERENCE_INSTANT if anchor is None else anchor.subtract(seconds=ANCHOR_SPAN_SECONDS)
+    token = _reference_instant.set(reference)
+    try:
+        yield
+    finally:
+        _reference_instant.reset(token)
+
+
+def ts(offset_seconds: float) -> float:
+    """Epoch-seconds float at the current reference instant + ``offset_seconds`` (offset may be negative).
+
+    Every scenario timestamp is built through this helper, so a scenario never reads the wall
+    clock itself and a run's only time input is its anchor.
+    """
+    return float(_reference_instant.get().add(seconds=offset_seconds).timestamp())
 
 
 def add_running_session(ctx: SeedContext, base: float) -> int:

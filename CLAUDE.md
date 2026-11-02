@@ -30,6 +30,7 @@ hassette status | app | listener | log | job   # query a running instance (--app
 # Deterministic telemetry DB for QA/screenshots/demos (scenarios: healthy, empty, degraded,
 # error, large-volume, lifecycle, adversarial, mixed-instance; generators in scripts/seed_scenarios/)
 uv run python scripts/seed_db.py --scenario healthy --output /tmp/hassette-healthy.db
+# Add --anchor now|<ISO instant> to end the timeline there, so a served seed lands in the UI's 24h preset.
 ```
 
 ## Workspace Packages
