@@ -70,9 +70,9 @@ class AppHandler(Service):
         """Return the configured log level for the app handler (``logging.app_handler``)."""
         return self.hassette.config.logging.app_handler
 
-    def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
-        """Get a specific app instance if running."""
-        return self.registry.get(app_key, index)
+    def get(self, app_key: str, *, instance_name: str | None = None) -> "App[AppConfig] | None":
+        """Get a running app instance by name; with no name, the first running one in config order."""
+        return self.registry.get(app_key, instance_name)
 
     def all(self) -> list["App[AppConfig]"]:
         """All running app instances."""
@@ -178,18 +178,18 @@ class AppHandler(Service):
         return await self.lifecycle.reload_app(app_key, force_reload=force_reload)
 
     async def reload_instance(
-        self, app_key: str, index: int, force_reload: bool = False
+        self, app_key: str, instance_name: str, force_reload: bool = False
     ) -> "tuple[InstanceOutcome, ...]":
-        """Reload a single instance by key and index — delegates to lifecycle service."""
-        return await self.lifecycle.reload_instance(app_key, index, force_reload=force_reload)
+        """Reload a single instance by key and name — delegates to lifecycle service."""
+        return await self.lifecycle.reload_instance(app_key, instance_name, force_reload=force_reload)
 
-    async def stop_instance(self, app_key: str, index: int) -> "tuple[InstanceOutcome, ...]":
-        """Stop a single instance by key and index — delegates to lifecycle service."""
-        return await self.lifecycle.stop_instance(app_key, index)
+    async def stop_instance(self, app_key: str, instance_name: str) -> "tuple[InstanceOutcome, ...]":
+        """Stop a single instance by key and name — delegates to lifecycle service."""
+        return await self.lifecycle.stop_instance(app_key, instance_name)
 
-    async def start_instance(self, app_key: str, index: int) -> "tuple[InstanceOutcome, ...]":
-        """Start a single instance by key and index — delegates to lifecycle service."""
-        return await self.lifecycle.start_instance(app_key, index)
+    async def start_instance(self, app_key: str, instance_name: str) -> "tuple[InstanceOutcome, ...]":
+        """Start a single instance by key and name — delegates to lifecycle service."""
+        return await self.lifecycle.start_instance(app_key, instance_name)
 
     async def apply_changes(
         self,

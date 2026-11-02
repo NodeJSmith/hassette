@@ -107,13 +107,13 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
     async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
         await wait_for(
             lambda: (
-                harness.hassette.get_app("env_reader") is not None
-                and getattr(harness.hassette.get_app("env_reader"), "seen", None) == "from_os_environ"
+                harness.hassette.app_handler.get("env_reader") is not None
+                and getattr(harness.hassette.app_handler.get("env_reader"), "seen", None) == "from_os_environ"
             ),
             timeout=2,
             desc="SettingsApp initialized with env value",
         )
-        app = harness.hassette.get_app("env_reader")
+        app = harness.hassette.app_handler.get("env_reader")
         assert app is not None
         assert getattr(app, "seen", None) == "from_os_environ"
 
@@ -148,7 +148,7 @@ async def test_app_config_reads_hassette_env_files_without_import_dot_env_files(
 
     async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
         await wait_for(
-            lambda: getattr(harness.hassette.get_app("env_reader"), "seen", None) == "from_custom_env",
+            lambda: getattr(harness.hassette.app_handler.get("env_reader"), "seen", None) == "from_custom_env",
             timeout=2,
             desc="SettingsApp initialized with the value from Hassette's .env file",
         )
@@ -187,13 +187,13 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
     async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
         await wait_for(
             lambda: (
-                harness.hassette.get_app("env_reader") is not None
-                and getattr(harness.hassette.get_app("env_reader"), "seen", None) == "from_custom_env"
+                harness.hassette.app_handler.get("env_reader") is not None
+                and getattr(harness.hassette.app_handler.get("env_reader"), "seen", None) == "from_custom_env"
             ),
             timeout=2,
             desc="SettingsApp initialized with env value",
         )
-        app = harness.hassette.get_app("env_reader")
+        app = harness.hassette.app_handler.get("env_reader")
         assert app is not None
         assert getattr(app, "seen", None) == "from_custom_env"
 

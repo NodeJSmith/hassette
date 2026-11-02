@@ -223,7 +223,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
 
     cache_key: str = Field(default="")
     """Override the cache directory key. When empty (default), App.cache_key computes
-    '{app_key}/{index}'. When set, this value is used as-is."""
+    '{app_key}/{instance_name}'. When set, this value is used as-is."""
 
     cache_shared: bool = Field(default=False)
     """Mark this app's resolved cache_key as intentionally shared with other apps. The
@@ -339,8 +339,8 @@ def unsafe_cache_path_reason(value: str) -> str | None:
     # an ordinary name on POSIX but drive- or root-anchored on Windows, where joining it discards data_dir.
     posix, windows = PurePosixPath(value), PureWindowsPath(value)
     if not posix.parts:
-        # "" and "." resolve to data_dir itself; an empty app key would also turn "{app_key}/{index}"
-        # into the absolute "/{index}".
+        # "" and "." resolve to data_dir itself; an empty app key would also turn "{app_key}/{instance_name}"
+        # into the absolute "/{instance_name}".
         return "must name a subdirectory of data_dir (not be empty or '.')"
     if posix.anchor or windows.anchor:
         return "must be a relative path"

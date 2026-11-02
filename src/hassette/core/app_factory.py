@@ -11,7 +11,7 @@ from pydantic.fields import FieldInfo
 
 from hassette.app.app_config import AppConfig
 from hassette.core.app_lifecycle_common import ALREADY_RUNNING_REASON, CLASS_LOAD_FAILED_PREFIX, failure_reason
-from hassette.schemas.app_config_shape import normalize_app_config
+from hassette.schemas.app_config_shape import INSTANCE_NAME_KEY, configured_instance_names, normalize_app_config
 from hassette.utils.app_utils import (
     class_already_loaded,
     class_failed_to_load,
@@ -25,9 +25,6 @@ SUGGESTION_CUTOFF = 0.5
 """``difflib`` similarity a declared key needs to be offered as a "did you mean" suggestion.
 
 Looser than difflib's 0.6 default: a wrong guess costs a glance, a missing one leaves the user hunting."""
-
-INSTANCE_NAME_KEY = "instance_name"
-"""Config key the factory reads literally to name each instance, whatever alias the config class gives the field."""
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -55,61 +52,52 @@ class AppFactory:
         force_reload: bool = False,
         *,
         outcomes: "ActionOutcomes",
-    ) -> set[int]:
+    ) -> set[str]:
         """Create all app instances for a manifest and register them.
 
-        Returns the set of indices that were actually created. Indices that already have a
+        Returns the set of names that were actually created. Names that already have a
         live registry entry are skipped and recorded as succeeded ("already running") — callers use
-        the returned set to initialize only the new instances. Indices flagged as needing a hassette
+        the returned set to initialize only the new instances. Names flagged as needing a hassette
         restart are skipped too, and recorded as refused; this logs nothing for them, so a caller with
-        no response to carry the refusal logs it (``log_refusals``). When no configured index is left
-        to create, the class isn't loaded. A class that fails to load fails every index left to create.
+        no response to carry the refusal logs it (``log_refusals``). When no configured name is left
+        to create, the class isn't loaded. A class that fails to load fails every name left to create.
 
         Args:
             app_key: The app key from configuration
             manifest: The app manifest with config
             force_reload: Whether to force reload the class. Ignored (treated as False) if any
-                instance of this app_key is already running (configured index or not) -- see
+                instance of this app_key is already running (configured or not) -- see
                 reload_app() to force a reload onto instances that are already running.
-            outcomes: The request's outcomes; must target every configured index.
+            outcomes: The request's outcomes; must target every configured name.
         """
-        app_configs = self.normalize_configs(manifest.app_config)
-
-        # Which configured indices already have a live registry entry -- computed once and
-        # reused below by the class-load-failure target lookup and the per-index creation loop,
-        # so both agree on what "already running" means for this call instead of re-deriving it
-        # independently. Deliberately scoped to the *current* config's index range: creation and
-        # failure-target selection only ever act on configured indices.
-        live_indices = {idx for idx in range(len(app_configs)) if self.registry.get(app_key, idx) is not None}
-
-        # A flagged index's old instance may still be running work, so no replacement is created over it
-        # until hassette restarts. Its siblings are unaffected. When nothing is left to create (every index
+        # A flagged name's old instance may still be running work, so no replacement is created over it
+        # until hassette restarts. Its siblings are unaffected. When nothing is left to create (every name
         # live or flagged), the class isn't loaded either, so a refused app is never re-imported and records
-        # no class-load failure.
-        to_create: list[int] = []
-        for idx in range(len(app_configs)):
-            if idx in live_indices:
-                self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
-                outcomes.succeeded(idx, ALREADY_RUNNING_REASON)
+        # no class-load failure. Deliberately scoped to the *current* config: creation and failure-target
+        # selection only ever act on configured names.
+        to_create: list[str] = []
+        for name in configured_instance_names(manifest.app_config):
+            if self.registry.get(app_key, name) is not None:
+                self.logger.debug("Instance %s of app %s is already running — skipping", name, app_key)
+                outcomes.succeeded(name, ALREADY_RUNNING_REASON)
                 continue
-            if (refusal := self.registry.refusal_reason(app_key, idx)) is not None:
-                outcomes.refused(idx, refusal)
+            if (refusal := self.registry.refusal_reason(app_key, name)) is not None:
+                outcomes.refused(name, refusal)
                 continue
-            to_create.append(idx)
+            to_create.append(name)
         if not to_create:
             return set()
 
         # A forced reload is unsafe to combine with any already-running instance of this
-        # app_key: load_class() would reload the shared module/class before the per-index guard
-        # below preserves the live instance, leaving it bound to the pre-reload class while any
+        # app_key: load_class() would reload the shared module/class before the per-instance guard
+        # above preserves the live instance, leaving it bound to the pre-reload class while any
         # newly created sibling gets the post-reload one -- two class versions serving one
-        # app_key at once. Unlike live_indices above, this check is NOT scoped to the current config's index
-        # range: prune_stale_failed_indices() (called by _start_app_unlocked() before this)
-        # only prunes stale *failed* entries, never running ones, so a running orphan at an
-        # index the config no longer covers (e.g. after a config shrink) can still be live here.
-        # Missing it would let force_reload slip through and reproduce the exact class-version
-        # split this guard exists to prevent, just via an out-of-range instance instead of an
-        # in-range one. Only reload when nothing for this app_key is currently running at all;
+        # app_key at once. Unlike the guard above, this check is NOT scoped to the current config:
+        # prune_stale_failed() (called by _start_app_unlocked() before this) only prunes stale
+        # *failed* entries, never running ones, so a running orphan under a name the config no
+        # longer has can still be live here. Missing it would let force_reload slip through and
+        # reproduce the exact class-version split this guard exists to prevent, just via an orphan
+        # instead of a configured instance. Only reload when nothing for this app_key is currently running at all;
         # reload_app() is the supported way to get a fresh class onto instances that are already
         # up (it stops them first, so create_instances() runs against an empty slate — see its
         # "no-op on the reload_app() path" note below).
@@ -124,63 +112,69 @@ class AppFactory:
         # Try to load the class
         app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
-            # Class loading failed — this affects every configured index (one shared class
+            # Class loading failed — this affects every configured instance (one shared class
             # serves all instances of this app_key), but we only ever record one representative
-            # failure. Record it against the first configured index that is neither running nor
-            # flagged, not always index 0: if index 0 is preserved from a prior successful start, blindly
+            # failure. Record it against the first configured name that is neither running nor
+            # flagged: if the first name is preserved from a prior successful start, blindly
             # recording there would both overwrite its live entry and leave a genuinely-failed,
-            # unstarted sibling index unreported (looking like an ordinary stopped index instead
-            # of FAILED). The request's outcomes fail every index left to create, naming the shared cause.
+            # unstarted sibling unreported (looking like an ordinary stopped instance instead
+            # of FAILED). The request's outcomes fail every name left to create, naming the shared cause.
             load_error = self.get_load_error(manifest)
             self.registry.record_failure(app_key, to_create[0], load_error)
-            for idx in to_create:
-                outcomes.failed(idx, f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(load_error)}")
+            for name in to_create:
+                outcomes.failed(name, f"{CLASS_LOAD_FAILED_PREFIX}{failure_reason(load_error)}")
             return set()
 
-        # Create only the indices in to_create: live and flagged ones were skipped above.
-        # Without the live-index skip, a second start_app() call silently overwrites running instances
-        # via register_app() (which replaces any prior entry at that index), orphaning the
+        # Create only the names in to_create: live and flagged ones were skipped above.
+        # Without the live-instance skip, a second start_app() call silently overwrites running instances
+        # via register_app() (which replaces any prior entry under that name), orphaning the
         # originals' listeners, scheduler jobs, and tasks. Callers that want a fresh instance
         # should use reload_app(), which stops before recreating. A no-op on the reload_app()
         # path: _stop_app_unlocked() already removed all entries before create_instances() runs.
-        # Mirrors the per-index guard in start_instance() (#1688).
+        # Mirrors the per-instance guard in start_instance() (#1688).
         return {
-            idx
-            for idx in to_create
-            if self.create_single_instance(app_key, manifest, idx, app_configs[idx], app_class, outcomes=outcomes)
+            name
+            for name in to_create
+            if self.create_single_instance(app_key, manifest, name, app_class, outcomes=outcomes)
         }
 
     def create_single_instance(
         self,
         app_key: str,
         manifest: "AppManifest",
-        index: int,
-        config_dict: dict,
+        instance_name: str,
         app_class: "type[App[AppConfig]]",
         *,
         outcomes: "ActionOutcomes",
     ) -> bool:
-        """Create and register a single app instance at the given index.
+        """Create and register a single app instance under the given name.
 
-        A config that fails validation, or a constructor that raises, is recorded as the index's
+        A config that fails validation, or a constructor that raises, is recorded as the instance's
         failure in the registry and in ``outcomes``; nothing is registered.
 
         Args:
             app_key: The app key from configuration
             manifest: The app manifest with config
-            index: The instance index this config corresponds to
-            config_dict: The raw config dict for this instance
+            instance_name: The name to create; ``manifest`` must configure it
             app_class: The already-loaded app class to instantiate
             outcomes: The request's outcomes
 
         Returns:
             Whether the instance was registered.
         """
-        # Set on every instance config by AppManifest.model_post_init (resolve_instance_name).
-        instance_name: str = config_dict[INSTANCE_NAME_KEY]
+        # Each instance config's name is set by AppManifest.model_post_init (resolve_instance_name).
+        configs = self.normalize_configs(manifest.app_config)
+        position = [config[INSTANCE_NAME_KEY] for config in configs].index(instance_name)
+        config_dict = configs[position]
 
         try:
             validated = app_class.app_config_cls.model_validate(config_dict)
+            if validated.instance_name != instance_name:
+                # The registry files an app under its own name, and callers read it back by the configured one.
+                raise ValueError(
+                    f"{app_class.app_config_cls.__name__} resolved instance_name to {validated.instance_name!r} from "
+                    f"{instance_name!r}; a config class must not alias or transform instance_name"
+                )
             warn_unrecognized_config_keys(
                 app_key=app_key,
                 manifest=manifest,
@@ -191,11 +185,11 @@ class AppFactory:
             app_instance = app_class(
                 hassette=self.hassette,
                 app_config=validated,
-                index=index,
+                index=position,
                 app_key=app_key,
                 app_manifest=manifest,
             )
-            self.registry.register_app(app_key, index, app_instance)
+            self.registry.register_app(app_key, app_instance)
         except Exception as exc:
             self.logger.error(
                 "Failed to validate/init config for %s (%s):\n%s",
@@ -203,8 +197,8 @@ class AppFactory:
                 app_class.__name__,
                 get_short_traceback(),
             )
-            self.registry.record_failure(app_key, index, exc)
-            outcomes.failed(index, failure_reason(exc))
+            self.registry.record_failure(app_key, instance_name, exc)
+            outcomes.failed(instance_name, failure_reason(exc))
             return False
         return True
 

@@ -216,7 +216,7 @@ class RuntimeQueryService(Resource):
         no emit site can drop it, and is set when the instance is flagged.
         """
         data = event.payload.data
-        resolved = self.hassette.app_handler.registry.resolve_instance_info(data.app_key, data.index)
+        resolved = self.hassette.app_handler.registry.resolve_instance_info(data.app_key, data.instance_name)
         payload = AppStatusChangedData(
             app_key=data.app_key,
             index=data.index,

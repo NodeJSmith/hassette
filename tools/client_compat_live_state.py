@@ -285,17 +285,20 @@ def wire_app_actions(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo])
     no instances reports one succeeded instance, so every success body lists an outcome.
     """
 
-    def outcomes(app_key: str, index: int | None = None) -> tuple[InstanceOutcome, ...]:
-        instances = [info for info in by_key[app_key].instances if index is None or info.index == index]
+    def outcomes(app_key: str, instance_name: str | None = None) -> tuple[InstanceOutcome, ...]:
+        instances = [
+            info for info in by_key[app_key].instances if instance_name is None or info.instance_name == instance_name
+        ]
         if not instances:
-            return (InstanceOutcome(instance_index=index or 0, instance_name=app_key, result=OutcomeResult.SUCCEEDED),)
+            name = instance_name or app_key
+            return (InstanceOutcome(instance_index=0, instance_name=name, result=OutcomeResult.SUCCEEDED),)
         return tuple(instance_outcome(info) for info in instances)
 
     async def app_action(app_key: str, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
         return outcomes(app_key)
 
-    async def instance_action(app_key: str, index: int, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
-        return outcomes(app_key, index)
+    async def instance_action(app_key: str, instance_name: str, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
+        return outcomes(app_key, instance_name)
 
     async def refusing_blocked(app_key: str, *args: Any, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
         if by_key[app_key].status is AppStatus.BLOCKED:

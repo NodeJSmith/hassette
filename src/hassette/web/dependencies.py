@@ -124,7 +124,7 @@ def instance_name_filter(hassette: "Hassette", app_key: str | None, instance_ind
     if app_key is None or instance_index is None or is_framework_key(app_key):
         return None
     registry = hassette.app_handler.registry
-    if registry.get_manifest(app_key) is None and not registry.tracked_indices(app_key):
+    if registry.get_manifest(app_key) is None and not registry.tracked_names(app_key):
         return None
     return registry.instance_name(app_key, instance_index)
 

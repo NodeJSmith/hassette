@@ -132,7 +132,7 @@ class TestReconcileAppRegistrations:
         mock_app_instance: AsyncMock,
     ) -> None:
         """reconcile_registrations() is called with live IDs after barriers complete."""
-        instances = {0: mock_app_instance}
+        instances = {"test_instance": mock_app_instance}
         await lifecycle_service.reconcile_app_registrations("test_app", instances)
 
         mock_hassette.command_executor.reconcile_registrations.assert_awaited_once()
@@ -148,7 +148,7 @@ class TestReconcileAppRegistrations:
         """Reconciliation failure is swallowed — does not propagate to caller."""
         mock_hassette.command_executor.reconcile_registrations = AsyncMock(side_effect=RuntimeError("DB full"))
 
-        instances = {0: mock_app_instance}
+        instances = {"test_instance": mock_app_instance}
 
         await lifecycle_service.reconcile_app_registrations("test_app", instances)
 

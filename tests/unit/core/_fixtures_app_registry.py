@@ -31,12 +31,13 @@ def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegi
 
 
 def make_app_instance(  # factory-local: SimpleNamespace App stand-in for AppRegistry tests
-    app_key: str, index: int = 0
+    app_key: str, instance_name: str | None = None
 ) -> App[AppConfig]:
-    """Build a minimal App-like object for the registry."""
+    """Build a minimal App-like object for the registry; ``instance_name`` defaults to ``app_key``."""
     class_name = app_key.title().replace("_", "")
-    instance_name = app_key if index == 0 else f"{app_key}_{index}"
+    instance_name = app_key if instance_name is None else instance_name
     app = SimpleNamespace(
+        instance_name=instance_name,
         app_config=SimpleNamespace(instance_name=instance_name),
         class_name=class_name,
         status=ResourceStatus.RUNNING,

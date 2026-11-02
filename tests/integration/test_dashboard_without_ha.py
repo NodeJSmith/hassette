@@ -99,7 +99,7 @@ class TestDashboardWithoutHA:
 
             # Registry metadata is queryable, but no app instance has bootstrapped.
             assert hassette.app_handler.has_bootstrapped() is False
-            assert hassette.app_handler.get("my_app", 0) is None
+            assert hassette.app_handler.get("my_app") is None
             assert hassette.app_handler.all() == []
             assert hassette.app_bootstrap_coordinator.is_released() is False
 
@@ -258,19 +258,19 @@ class TestInitialStateSyncBeforeApps:
 
             with pytest.raises(TimeoutError):
                 await asyncio.wait_for(load_cache_entered.wait(), timeout=1)
-            assert hassette.app_handler.registry.get("state_reader", 0) is None
+            assert hassette.app_handler.registry.get("state_reader") is None
 
             release_connection.set()
 
             await wait_for(
-                lambda: (app := hassette.app_handler.registry.get("state_reader", 0)) is not None and app.is_ready(),
+                lambda: (app := hassette.app_handler.registry.get("state_reader")) is not None and app.is_ready(),
                 timeout=WEBAPI_READY_TIMEOUT,
                 desc="state-reading app ready",
             )
             await asyncio.wait_for(load_cache_entered.wait(), timeout=STARTUP_EVENT_TIMEOUT)
             hassette.api.get_states_raw.assert_awaited_once()
 
-            app = hassette.app_handler.registry.get("state_reader", 0)
+            app = hassette.app_handler.registry.get("state_reader")
             assert app is not None
             assert app.is_ready()
         finally:

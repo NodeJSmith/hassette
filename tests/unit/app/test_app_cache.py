@@ -1,8 +1,8 @@
 """Unit tests for App/AppSync cache wiring (design/specs/013-resource-cache-redesign).
 
 Verifies:
-- cache_key defaults to `{app_key}/{index}` and can be overridden via AppManifest.cache_key
-- different instance indices produce different cache directories/db paths
+- cache_key defaults to `{app_key}/{instance_name}` and can be overridden via AppManifest.cache_key
+- different instance names produce different cache directories/db paths
 - an injected DummyCache (via the `cache=` constructor parameter) is used directly --
   no AsyncCache is constructed
 - App.cleanup() closes the cache, and propagates a close() exception rather than swallowing it
@@ -37,11 +37,11 @@ def _make_manifest(tmp_path: Path, *, app_key: str = "kitchen_lights", cache_key
 
 
 class TestCacheKey:
-    def test_default_cache_key_uses_app_key_and_index(self, tmp_path: Path) -> None:
+    def test_default_cache_key_uses_app_key_and_instance_name(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        app = make_app(hassette=hassette, index=3)
+        app = make_app(hassette=hassette, index=3, instance_name="porch")
 
-        assert app.cache_key == "kitchen_lights/3"
+        assert app.cache_key == "kitchen_lights/porch"
 
     def test_manifest_cache_key_overrides_default(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
@@ -53,22 +53,36 @@ class TestCacheKey:
     def test_manifest_without_cache_key_falls_back_to_default(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         manifest = _make_manifest(tmp_path, cache_key="")
-        app = make_app(hassette=hassette, index=2, app_manifest=manifest)
+        app = make_app(hassette=hassette, index=2, instance_name="porch", app_manifest=manifest)
 
-        assert app.cache_key == "kitchen_lights/2"
+        assert app.cache_key == "kitchen_lights/porch"
+
+
+class TestUnnamedConstruction:
+    def test_unnamed_direct_construction_raises(self, tmp_path: Path) -> None:
+        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+
+        with pytest.raises(ValueError, match="has no instance_name"):
+            App(hassette, app_config=AppConfig(), index=0, app_key="kitchen_lights")
+
+    def test_invalid_name_direct_construction_raises(self, tmp_path: Path) -> None:
+        hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
+
+        with pytest.raises(ValueError, match="instance_name 'Porch'"):
+            App(hassette, app_config=AppConfig(instance_name="Porch"), index=0, app_key="kitchen_lights")
 
 
 class TestInstanceScopedCacheDirectories:
-    def test_different_indices_get_different_cache_directories(self, tmp_path: Path) -> None:
+    def test_different_instance_names_get_different_cache_directories(self, tmp_path: Path) -> None:
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
-        app0 = make_app(hassette=hassette, index=0)
-        app1 = make_app(hassette=hassette, index=1)
+        app0 = make_app(hassette=hassette, index=0, instance_name="porch")
+        app1 = make_app(hassette=hassette, index=1, instance_name="garage")
 
         assert isinstance(app0.cache, AsyncCache)
         assert isinstance(app1.cache, AsyncCache)
         assert app0.cache.db_path != app1.cache.db_path
-        assert app0.cache.db_path == tmp_path / "kitchen_lights" / "0" / "cache" / "cache.db"
-        assert app1.cache.db_path == tmp_path / "kitchen_lights" / "1" / "cache" / "cache.db"
+        assert app0.cache.db_path == tmp_path / "kitchen_lights" / "porch" / "cache" / "cache.db"
+        assert app1.cache.db_path == tmp_path / "kitchen_lights" / "garage" / "cache" / "cache.db"
 
 
 class TestDummyCacheInjection:

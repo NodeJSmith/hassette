@@ -38,19 +38,16 @@ APP_STOP_PATH = "/api/apps/my_app/stop"
 APP_RELOAD_PATH = "/api/apps/my_app/reload"
 BUS_LISTENERS_PATH = "/api/bus/listeners"
 OPENAPI_PATH = "/api/openapi.json"
+INSTANCES_WITH_ORPHAN = {"instance_0": MagicMock(), "instance_2": MagicMock()}
 
 
 def app_action_path(app_key: str, action: str) -> str:
-    """Build a full-app-key action URL — single source of truth so a route rename only needs
-    to change here.
-    """
+    """Build a full-app-key action URL, the one place a route rename changes."""
     return f"/api/apps/{app_key}/{action}"
 
 
 def instance_action_path(app_key: str, index: int, action: str) -> str:
-    """Build a per-instance action URL — single source of truth so a route rename only needs
-    to change here.
-    """
+    """Build a per-instance action URL, the one place a route rename changes."""
     return f"/api/apps/{app_key}/instances/{index}/{action}"
 
 
@@ -354,7 +351,7 @@ class TestAppInstanceEndpoints:
         data = response.json()
         assert data["action"] == "start"
         assert data["instance_index"] == 0
-        mock_hassette.app_handler.start_instance.assert_awaited_once_with("my_app", 0)
+        mock_hassette.app_handler.start_instance.assert_awaited_once_with("my_app", "instance_0")
 
     async def test_stop_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         self._seed_manifest(mock_hassette)
@@ -365,7 +362,7 @@ class TestAppInstanceEndpoints:
         data = response.json()
         assert data["action"] == "stop"
         assert data["instance_index"] == 1
-        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", 1)
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", "instance_1")
 
     async def test_reload_instance(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         self._seed_manifest(mock_hassette)
@@ -376,7 +373,7 @@ class TestAppInstanceEndpoints:
         data = response.json()
         assert data["action"] == "reload"
         assert data["instance_index"] == 0
-        mock_hassette.app_handler.reload_instance.assert_awaited_once_with("my_app", 0, force_reload=True)
+        mock_hassette.app_handler.reload_instance.assert_awaited_once_with("my_app", "instance_0", force_reload=True)
 
     async def test_failed_instance_detail_names_only_that_instance(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -455,27 +452,27 @@ class TestAppInstanceEndpoints:
     ) -> None:
         """An app removed from config but still running can be stopped via per-instance endpoint."""
         mock_hassette._app_handler.registry.get_manifest.return_value = None
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+        mock_hassette._app_handler.registry.get_instances.return_value = {"instance_0": MagicMock()}
 
         response = await client.post(instance_action_path("orphan_app", 0, "stop"))
 
         assert response.status_code == 200
-        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("orphan_app", 0)
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("orphan_app", "instance_0")
 
-    async def test_stop_instance_tracked_orphan_index_reaches_service_layer(
+    async def test_stop_instance_tracked_orphan_reaches_service_layer(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """The configured instance count shrank to 1 while index 2 was still running. That orphan
+        """The configured instance count shrank to 1 while instance_2 was still running. That orphan
         is still reported in the manifest's ``instances`` and must stay stoppable, even though it
-        now sits outside the configured range.
+        now sits outside the config.
         """
         self._seed_manifest(mock_hassette, instance_count=1)
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock(), 2: MagicMock()}
+        mock_hassette._app_handler.registry.get_instances.return_value = INSTANCES_WITH_ORPHAN
 
         response = await client.post(instance_action_path("my_app", 2, "stop"))
 
         assert response.status_code == 200
-        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", 2)
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", "instance_2")
 
     @pytest.mark.parametrize("action", ["start", "reload"])
     async def test_tracked_orphan_index_start_or_reload_still_returns_404(
@@ -486,7 +483,7 @@ class TestAppInstanceEndpoints:
         admitting them would swap a clear 404 for a 500.
         """
         self._seed_manifest(mock_hassette, instance_count=1)
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock(), 2: MagicMock()}
+        mock_hassette._app_handler.registry.get_instances.return_value = INSTANCES_WITH_ORPHAN
 
         response = await client.post(instance_action_path("my_app", 2, action))
 
@@ -497,7 +494,7 @@ class TestAppInstanceEndpoints:
     ) -> None:
         """Full-key stop also works for an orphaned app with running instances but no manifest."""
         mock_hassette._app_handler.registry.get_manifest.return_value = None
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+        mock_hassette._app_handler.registry.get_instances.return_value = {"instance_0": MagicMock()}
 
         response = await client.post(app_action_path("orphan_app", "stop"))
 
@@ -522,7 +519,7 @@ class TestAppInstanceEndpoints:
         same 404. Covers both the full-app-key and per-instance routes.
         """
         mock_hassette._app_handler.registry.get_manifest.return_value = None
-        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock()}
+        mock_hassette._app_handler.registry.get_instances.return_value = {"instance_0": MagicMock()}
 
         response = await client.post(path)
 
@@ -595,13 +592,13 @@ class TestAppListEndpoint:
         manifest = create_app_manifest("half_broken", tmp_path)
         registry.set_manifests({manifest.app_key: manifest})
 
-        running_app = MagicMock()
-        running_app.app_config.instance_name = f"{manifest.class_name}.0"
+        running_app = MagicMock(instance_name=manifest.app_key)
+        running_app.app_config.instance_name = manifest.app_key
         running_app.class_name = manifest.class_name
         running_app.status = ResourceStatus.RUNNING
         running_app.unique_name = f"{manifest.class_name}.{manifest.app_key}.0"
-        registry.register_app(manifest.app_key, 0, running_app)
-        registry.record_failure(manifest.app_key, 1, RuntimeError("instance 1 blew up"))
+        registry.register_app(manifest.app_key, running_app)
+        registry.record_failure(manifest.app_key, "other_instance", RuntimeError("other instance blew up"))
         mock_hassette._app_handler.registry = registry
 
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(

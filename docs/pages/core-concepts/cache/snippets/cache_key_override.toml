@@ -1,0 +1,3 @@
+[hassette.apps.weather]
+config = { instance_name = "weather" }
+cache_key = "weather_v1/weather"  # keep the pre-rename cache

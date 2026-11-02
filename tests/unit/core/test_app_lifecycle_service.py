@@ -357,7 +357,7 @@ class TestShouldAutoReconcile:
         manifest = MagicMock()
         manifest.autostart = autostart
         mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}} if is_running else {})
+        set_registry_apps(mock_registry, {"app_a": {"inst": MagicMock()}} if is_running else {})
 
         assert lifecycle_service.should_auto_reconcile("app_a") is expected
 
@@ -453,9 +453,9 @@ class TestIsActionInProgress:
             ("start_app", ()),
             ("stop_app", ()),
             ("reload_app", ()),
-            ("start_instance", (0,)),
-            ("stop_instance", (0,)),
-            ("reload_instance", (0,)),
+            ("start_instance", ("test_instance",)),
+            ("stop_instance", ("test_instance",)),
+            ("reload_instance", ("test_instance",)),
         ],
     )
     async def test_lock_is_held_by_the_first_suspension(
@@ -465,7 +465,7 @@ class TestIsActionInProgress:
         mock_registry: MagicMock,
         mock_manifest: MagicMock,
         method: str,
-        args: tuple[int, ...],
+        args: tuple[str, ...],
     ) -> None:
         """The web API checks is_action_in_progress() and then calls one of these methods.
 
@@ -488,7 +488,7 @@ class TestIsActionInProgress:
             "_reload_instance_unlocked",
         ):
             setattr(lifecycle_service, body, AsyncMock(side_effect=park))
-        lifecycle_service._instance_index_in_range = Mock(return_value=True)
+        lifecycle_service._instance_in_config = Mock(return_value=True)
 
         coro = getattr(lifecycle_service, method)("test_app", *args)
         try:
@@ -540,7 +540,7 @@ class TestApplyChangesGating:
         manifest = MagicMock()
         manifest.autostart = autostart
         mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}} if running else {})
+        set_registry_apps(mock_registry, {"app_a": {"inst": MagicMock()}} if running else {})
         lifecycle_service._stop_app_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         operation_mock = AsyncMock()
         setattr(lifecycle_service, operation, operation_mock)

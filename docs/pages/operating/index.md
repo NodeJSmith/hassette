@@ -254,7 +254,7 @@ A refused action from the web UI, the CLI, or the REST API answers `409` `needs_
 Removing a flagged app or instance from the config and adding it back doesn't clear the flag either, so its start is still refused until Hassette restarts.
 
 !!! warning
-    The refusal is tracked by the app and the instance's position in its config, not by the instance's name. A config edit that moves a flagged instance's name to another position or app isn't refused: the new instance starts while the old one's work may still be running, and the two share the name's listeners and jobs. Restart Hassette instead of renaming around a flagged instance.
+    The refusal is tracked by the app and the instance's name, so reordering `config` blocks doesn't move it. A renamed instance isn't refused: it starts while the old one's work may still be running, and the old name stays failed until Hassette restarts. A name moved to another app isn't refused either, and there the two instances share the name's listeners and jobs. Restart Hassette instead of renaming around a flagged instance.
 
 Only a Hassette restart clears the flag. The usual cause is a hook or task that catches `asyncio.CancelledError`, or uses a bare `except:`, without re-raising. Fixing that code prevents a repeat.
 

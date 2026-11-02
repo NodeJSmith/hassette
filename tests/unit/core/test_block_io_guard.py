@@ -215,32 +215,44 @@ def test_resolve_uses_global_blocking_io_config(tmp_path: Path) -> None:
     assert result is BlockingIOBehavior.ERROR
 
 
-def make_owner_hassette(apps: dict[tuple[str, int], object]) -> types.SimpleNamespace:
-    """Build a hassette stand-in whose ``app_handler.get(key, index)`` looks up ``apps``."""
+def make_owner_hassette(apps: dict[tuple[str, str], object]) -> types.SimpleNamespace:
+    """Build a hassette stand-in whose ``app_handler.get(key, instance_name=...)`` looks up ``apps``.
 
-    def get(app_key: str, index: int) -> object | None:
-        return apps.get((app_key, index))
+    A ``None`` name returns the first instance of ``key``, as ``AppHandler.get`` does.
+    """
+
+    def get(app_key: str, instance_name: str | None = None) -> object | None:
+        if instance_name is None:
+            return next((app for (key, _), app in apps.items() if key == app_key), None)
+        return apps.get((app_key, instance_name))
 
     return types.SimpleNamespace(app_handler=types.SimpleNamespace(get=get))
 
 
 def test_resolve_owner_none_app_key_returns_hassette() -> None:
     """An unattributed (displaced/framework) call resolves to hassette, never an app."""
-    hassette = make_owner_hassette({("lights", 0): object()})
-    assert resolve_owner(hassette, None, 0) is hassette  # pyright: ignore[reportArgumentType]
+    hassette = make_owner_hassette({("lights", "kitchen"): object()})
+    assert resolve_owner(hassette, None, "kitchen") is hassette  # pyright: ignore[reportArgumentType]
 
 
 def test_resolve_owner_returns_app_instance() -> None:
-    """An attributed call resolves to the matching app instance, defaulting the index to 0."""
+    """An attributed call resolves to the instance of that name."""
     app = object()
-    hassette = make_owner_hassette({("lights", 0): app})
+    hassette = make_owner_hassette({("lights", "kitchen"): app, ("lights", "porch"): object()})
+    assert resolve_owner(hassette, "lights", "kitchen") is app  # pyright: ignore[reportArgumentType]
+
+
+def test_resolve_owner_without_a_name_returns_the_first_instance() -> None:
+    """An attributed call with no instance name resolves to the app's first instance."""
+    app = object()
+    hassette = make_owner_hassette({("lights", "kitchen"): app, ("lights", "porch"): object()})
     assert resolve_owner(hassette, "lights", None) is app  # pyright: ignore[reportArgumentType]
 
 
 def test_resolve_owner_unknown_app_falls_back_to_hassette() -> None:
     """An app_key with no live instance falls back to hassette."""
     hassette = make_owner_hassette({})
-    assert resolve_owner(hassette, "gone", 1) is hassette  # pyright: ignore[reportArgumentType]
+    assert resolve_owner(hassette, "gone", "kitchen") is hassette  # pyright: ignore[reportArgumentType]
 
 
 def test_resolve_owner_lookup_error_falls_back_to_hassette() -> None:
@@ -250,7 +262,7 @@ def test_resolve_owner_lookup_error_falls_back_to_hassette() -> None:
         raise RuntimeError("app handler not ready")
 
     hassette = types.SimpleNamespace(app_handler=types.SimpleNamespace(get=boom))
-    assert resolve_owner(hassette, "lights", 0) is hassette  # pyright: ignore[reportArgumentType]
+    assert resolve_owner(hassette, "lights", "kitchen") is hassette  # pyright: ignore[reportArgumentType]
 
 
 def test_format_attribution_label_attributed() -> None:

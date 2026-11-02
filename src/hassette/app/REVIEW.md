@@ -8,7 +8,7 @@ introspection.
 
 ## Cache Key Agreement
 Does `App.cache_key` in `src/hassette/app/app.py` still produce the same
-`{app_key}/{index}` format as `resolve_cache_keys()` in
+`{app_key}/{instance_name}` format as `resolve_cache_keys()` in
 `src/hassette/config/config.py`? A drift between them causes silent
 cache-directory mismatch.
 

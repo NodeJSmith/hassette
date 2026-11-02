@@ -131,7 +131,7 @@ def stub_detected_changes(lifecycle_service: AppLifecycleService, changes: Chang
     return apply_changes
 
 
-def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> None:
+def set_registry_apps(registry: MagicMock, apps: dict[str, dict[str, Any]]) -> None:
     """Configure a mock AppRegistry's app-lookup methods from an apps-shaped dict.
 
     Mirrors the real AppRegistry's `__contains__`, `app_keys()`, and
@@ -141,7 +141,13 @@ def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> N
     registry.__contains__ = Mock(side_effect=lambda key: key in apps)
     registry.app_keys = Mock(side_effect=lambda: list(apps.keys()))
     registry.get_running_apps = Mock(side_effect=lambda key: apps.get(key, {}).copy())
-    registry.get = Mock(side_effect=lambda key, index=0: apps.get(key, {}).get(index))
+    registry.get = Mock(
+        side_effect=lambda key, instance_name=None: (
+            next(iter(apps.get(key, {}).values()), None)
+            if instance_name is None
+            else apps.get(key, {}).get(instance_name)
+        )
+    )
 
 
 @pytest.fixture
@@ -165,7 +171,10 @@ def mock_registry() -> MagicMock:
     registry.only_apps = frozenset()
     registry.get_snapshot = Mock()
     registry.get_failed_instance_infos = Mock(return_value={})
-    registry.prune_stale_failed_indices = Mock(return_value={})
+    registry.prune_stale_failed = Mock(return_value={})
+    registry.display_index = Mock(return_value=0)
+    registry.display_indices = Mock(return_value={"test_instance": 0})
+    registry.tracked_names = Mock(return_value=set())
     registry.block_app = Mock()
     registry.unblock_apps = Mock(return_value=set())
     registry.is_blocked = Mock(return_value=False)
@@ -176,13 +185,13 @@ def mock_registry() -> MagicMock:
 def mock_factory() -> MagicMock:
     """Create a mock AppFactory.
 
-    ``create_instances`` returns ``set(range(100))`` by default so all indices are
-    treated as newly created — the "fresh start" default.  Tests verifying the pre-existing
-    guard override this with a specific return value (e.g. ``Mock(return_value={2})``).
+    ``create_instances`` returns the default instance name, so it is treated as newly created — the
+    "fresh start" default.  Tests verifying the pre-existing guard override this with a specific return
+    value (e.g. ``Mock(return_value={"other"})``).
     """
     factory = MagicMock()
-    factory.create_instances = Mock(return_value=set(range(100)))
-    # One configured instance, so a start or reload targets index 0 (``mock_app_instance``'s index).
+    factory.create_instances = Mock(return_value={"test_instance"})
+    # One configured instance, so a start or reload targets ``mock_app_instance``'s name.
     factory.normalize_configs = Mock(return_value=[{"instance_name": "test_instance"}])
     return factory
 
@@ -196,12 +205,14 @@ def mock_manifest() -> MagicMock:
     manifest.full_path = Path("/apps/test_app.py")
     manifest.display_name = "Test App"
     manifest.enabled = True
+    manifest.app_config = {"instance_name": "test_instance"}
     return manifest
 
 
 def make_mock_app_instance(*, instance_name: str = "test_instance", class_name: str = "MockApp") -> AsyncMock:
     """Create a mock App instance with bus/scheduler stubs."""
     app = AsyncMock()
+    app.instance_name = instance_name
     app.app_config = MagicMock(instance_name=instance_name)
     app.app_key = "test_app"
     app.status = ResourceStatus.NOT_STARTED

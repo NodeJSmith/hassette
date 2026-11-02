@@ -10,8 +10,6 @@ from hassette_wire import ResourceStatus
 import hassette.utils.date_utils as date_utils
 from hassette import context, startup_clock
 from hassette.api import Api
-from hassette.app.app import App
-from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.config.models import FOUNDATION_SHUTDOWN_BUDGET_SECONDS, SESSION_FINALIZE_TIMEOUT_SECONDS
@@ -256,20 +254,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
         validate_registries(STATE_REGISTRY, TYPE_REGISTRY)
 
         self.logger.debug("All components registered...", stacklevel=2)
-
-    def get_app(self, app_name: str, index: int = 0) -> App[AppConfig] | None:
-        """Get a specific app instance if running.
-
-        Args:
-            app_name: The name of the app.
-            index: The index of the app instance, defaults to 0.
-
-        Returns:
-            App[AppConfig] | None: The app instance if found, else None.
-        """
-        # note: return type left deliberately empty to allow underlying call to define it
-
-        return self.app_handler.get(app_name, index)
 
     @classmethod
     def get_instance(cls) -> "Hassette":

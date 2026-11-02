@@ -83,7 +83,7 @@ def make_mock_hassette(
             ``True``
         - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
-        - ``.database_service``: ``None``
+        - ``.database_service``: :class:`~unittest.mock.Mock` (the restart path enqueues a retire step on it)
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
         - ``._sync_executor_service`` / ``.sync_executor_service``: ``None`` (not wired;
@@ -165,7 +165,7 @@ def make_mock_hassette(
     # Database / session (wired by initialized_db after DB setup)
     hassette.session_id = None
     hassette.try_session_id = Mock(return_value=None)
-    hassette.database_service = None
+    hassette.database_service = Mock()
 
     # Async utilities
     hassette.wait_for_ready = AsyncMock(return_value=True)

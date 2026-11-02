@@ -44,6 +44,7 @@ class AppInstanceInfo:
 
     app_key: str
     index: int
+    """Display order (``AppRegistry.display_indices``), for routes and wire models that still address by index."""
     instance_name: str
     class_name: str
     status: ResourceStatus
@@ -52,8 +53,8 @@ class AppInstanceInfo:
     error_traceback: str | None = None
     owner_id: str | None = None
     in_current_config: bool = True
-    """False for an instance still tracked at an index outside the app's configured range, such as one left
-    running after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``
+    """False for an instance still tracked under a name outside the app's config, such as one left
+    running after its config block was removed. Such an instance accepts only ``stop``; ``start``
     and ``reload`` return 404."""
     needs_restart: NeedsRestartInfo | None = None
     """Set when a teardown of this instance left work that may still be running. Such an instance reports

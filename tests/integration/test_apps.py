@@ -2,29 +2,21 @@ import asyncio
 import contextlib
 import typing
 from copy import deepcopy
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from hassette.config.classes import AppManifest
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_common import ActionOutcomes
-from hassette.core.app_lifecycle_service import AppLifecycleService
-from hassette.core.app_registry import AppRegistry
-from hassette.core.command_executor import CommandExecutor
-from hassette.core.database_service import DatabaseService
 from hassette.testing import HassetteHarness, wait_for
 from hassette.types import Topic
 from hassette.utils.app_utils import load_app_class_from_manifest
-from tests.support.factories import make_change_set, make_job_registration, make_listener_registration
-from tests.support.helpers import create_listener, noop
+from tests.support.factories import make_change_set
+from tests.support.helpers import create_listener
 
 if typing.TYPE_CHECKING:
     from hassette.core.app_handler import AppHandler
     from tests.data.apps.my_app import MyApp
-
-TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
 
 class TestApps:
@@ -93,7 +85,7 @@ class TestApps:
 
     def test_get_app_instance(self) -> None:
         """Test getting a specific app instance."""
-        app = self.app_handler.get("my_app", 0)
+        app = self.app_handler.get("my_app")
         assert app is not None, "App instance should be found"
         assert app.app_manifest is not None, "Factory-created app should carry its manifest"
 
@@ -178,7 +170,7 @@ class TestApps:
         """Verify that editing hassette.toml to change an app's config reloads the instance."""
         assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
 
-        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))
+        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app"))
         assert my_app_instance is not None, "Precondition: my_app instance should exist"
 
         assert my_app_instance.app_config.test_entity == "input_button.test", (
@@ -197,14 +189,14 @@ class TestApps:
         await wait_for(
             lambda: (
                 "my_app" in self.app_handler.registry
-                and self.app_handler.get("my_app", 0) is not None
-                and typing.cast("MyApp", self.app_handler.get("my_app", 0)).app_config.test_entity == "light.office"
+                and self.app_handler.get("my_app") is not None
+                and typing.cast("MyApp", self.app_handler.get("my_app")).app_config.test_entity == "light.office"
             ),
             desc="app reload completed with updated config",
         )
 
         assert "my_app" in self.app_handler.registry, "my_app should still be running after reload"
-        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app", 0))
+        my_app_instance = typing.cast("MyApp", self.app_handler.get("my_app"))
         assert my_app_instance is not None, "my_app instance should still exist after reload"
         assert my_app_instance.app_config.test_entity == "light.office", "my_app config should be updated after reload"
 
@@ -212,7 +204,7 @@ class TestApps:
         """Test that an app with a specific instance_name in config starts correctly."""
         assert "my_app" in self.app_handler.registry, "Precondition: my_app starts enabled"
 
-        my_app_instance = self.app_handler.get("my_app", 0)
+        my_app_instance = self.app_handler.get("my_app", instance_name="unique_instance_name")
         assert my_app_instance is not None, "my_app instance should exist"
         assert my_app_instance.app_config.instance_name == "unique_instance_name", (
             "my_app instance should have the specified instance_name"
@@ -222,7 +214,7 @@ class TestApps:
         """A configured app runs under exactly the instance_name its config sets, which is also its unique_name."""
         assert "my_app_sync" in self.app_handler.registry, "Precondition: my_app_sync starts enabled"
 
-        instance = self.app_handler.get("my_app_sync", 0)
+        instance = self.app_handler.get("my_app_sync", instance_name="my_app_sync")
         assert instance is not None, "my_app_sync instance should exist"
         assert instance.app_config.instance_name == "my_app_sync"
         assert instance.unique_name == "my_app_sync"
@@ -270,13 +262,13 @@ class TestApps:
         instance, not restarted) across a post-release disconnect.
         """
         assert "my_app" in self.app_handler.registry, "Precondition: my_app is running"
-        my_app_instance_before = self.app_handler.get("my_app", 0)
+        my_app_instance_before = self.app_handler.get("my_app")
         assert my_app_instance_before is not None
 
         await self.hassette.state_proxy.on_disconnect()
 
         assert "my_app" in self.app_handler.registry, "my_app must remain registered after disconnect"
-        my_app_instance_after = self.app_handler.get("my_app", 0)
+        my_app_instance_after = self.app_handler.get("my_app")
         assert my_app_instance_after is my_app_instance_before, "The same running instance must be preserved"
         assert my_app_instance_after is not None
         assert my_app_instance_after.is_ready()
@@ -296,14 +288,14 @@ class TestApps:
 
     async def test_reload_does_not_carry_error_handlers_to_new_instance(self) -> None:
         """A reload builds a new app whose Bus and Scheduler don't inherit the old instance's error handlers."""
-        old_app = self.app_handler.get("my_app", 0)
+        old_app = self.app_handler.get("my_app")
         assert old_app is not None
         old_app.bus.on_error(AsyncMock())
         old_app.scheduler.on_error(AsyncMock())
 
         await self.app_handler.reload_app("my_app", force_reload=False)
 
-        new_app = self.app_handler.get("my_app", 0)
+        new_app = self.app_handler.get("my_app")
         assert new_app is not None
         assert new_app is not old_app
         assert new_app.bus._error_handler is None
@@ -393,298 +385,3 @@ class TestApps:
         manifest_info = next((m for m in snapshot.manifests if m.app_key == "disabled_app"), None)
         assert manifest_info is not None, "disabled_app should appear in snapshot"
         assert manifest_info.status == "disabled", f"Expected status='disabled', got {manifest_info.status!r}"
-
-
-class TestPerInstanceSelectiveRestart:
-    """Selective per-instance restart on config change and via reload_instance() (#796).
-
-    Uses a fresh ``AppLifecycleService`` + ``AppRegistry`` so the ``multi_instance`` manifest
-    here never touches the shared ``hassette_with_app_handler`` registry that ``TestApps``
-    asserts app counts against. Reuses that fixture's already-wired ``Hassette`` instance
-    (rather than constructing a second ``HassetteHarness``) because only one harness may hold
-    the process-global Hassette context at a time — see ``real_db_lifecycle`` below.
-    """
-
-    MULTI_INSTANCE_APP_KEY = "multi_instance"
-
-    def _make_manifest(self, app_config: list[dict]) -> AppManifest:
-        return AppManifest(
-            app_key=self.MULTI_INSTANCE_APP_KEY,
-            filename="multi_instance_app.py",
-            class_name="MultiInstanceApp",
-            app_dir=TEST_APPS_PATH,
-            app_config=app_config,
-            enabled=True,
-            display_name="Multi Instance",
-            full_path=TEST_APPS_PATH / "multi_instance_app.py",
-        )
-
-    @pytest.fixture
-    async def real_db_lifecycle(
-        self, hassette_with_app_handler: HassetteHarness
-    ) -> typing.AsyncIterator[tuple[AppLifecycleService, CommandExecutor, DatabaseService]]:
-        """A fresh ``AppLifecycleService`` wired to a real DB-backed ``CommandExecutor``.
-
-        ``HassetteHarness`` normally mocks ``CommandExecutor`` entirely for bus/scheduler/
-        app-handler components (see ``harness.py`` ``_start_bus``/``_start_scheduler``/
-        ``_start_app_handler``) — listener/job registrations never persist to a real
-        database. Swapping in a real ``CommandExecutor`` (backed by a real ``DatabaseService``)
-        on the module-scoped harness's ``Hassette`` lets ``reconcile_app_registrations()`` run
-        its real reconciliation SQL, which the DB-survival test below needs to observe. The
-        swap is restored in the ``finally`` block so ``TestApps``'s other tests keep seeing the
-        harness's normal mock.
-
-        A second, independently-constructed ``HassetteHarness``/``Hassette`` was tried first but
-        collides on the process-global Hassette context (``context.set_global_hassette``) while
-        this module's own ``hassette_with_app_handler`` harness is still alive — only one
-        ``Hassette`` instance may hold that context at a time.
-        """
-        hassette = hassette_with_app_handler.hassette
-        original_command_executor = hassette._command_executor
-        original_database_service = hassette._database_service
-
-        db_service = DatabaseService(hassette, parent=hassette)
-        await db_service.on_initialize()
-        hassette._database_service = db_service
-
-        executor = CommandExecutor(hassette, parent=hassette)
-        await executor.on_initialize()
-        hassette._command_executor = executor
-
-        registry = AppRegistry()
-        lifecycle = AppLifecycleService(hassette, parent=None, registry=registry)
-
-        try:
-            yield lifecycle, executor, db_service
-        finally:
-            await lifecycle.shutdown_all()
-            await executor.on_shutdown()
-            await db_service.on_shutdown()
-            hassette._command_executor = original_command_executor
-            hassette._database_service = original_database_service
-
-    async def test_selective_restart_reloads_only_changed_instance(
-        self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
-    ) -> None:
-        """A config change to one instance restarts only that instance.
-
-        The sibling instance keeps running undisturbed — same object identity, not recreated.
-        """
-        lifecycle, _executor, _db_service = real_db_lifecycle
-        app_key = self.MULTI_INSTANCE_APP_KEY
-        original_manifest = self._make_manifest(
-            [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
-        )
-        lifecycle.set_apps_configs({app_key: original_manifest})
-
-        await lifecycle.start_app(app_key)
-
-        instance0_before = lifecycle.registry.get(app_key, 0)
-        instance1_before = lifecycle.registry.get(app_key, 1)
-        assert instance0_before is not None, "Precondition: instance 0 should be running"
-        assert instance1_before is not None, "Precondition: instance 1 should be running"
-
-        original_config = deepcopy(lifecycle.registry.manifests)
-        # Mutate instance 1's config only — instance 0's dict stays identical.
-        lifecycle.registry.manifests[app_key].app_config = [
-            {"value": "a", "instance_name": "alpha"},
-            {"value": "changed", "instance_name": "beta"},
-        ]
-
-        changes = make_change_set(reload_apps={app_key})
-        await lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests)
-
-        await wait_for(
-            lambda: (
-                (instance1 := lifecycle.registry.get(app_key, 1)) is not None
-                and instance1.app_config.model_dump()["value"] == "changed"
-            ),
-            desc="instance 1 reloaded with updated config",
-        )
-
-        instance0_after = lifecycle.registry.get(app_key, 0)
-        instance1_after = lifecycle.registry.get(app_key, 1)
-        assert instance0_after is instance0_before, (
-            "instance 0 should not have been recreated — sibling instance must stay undisturbed"
-        )
-        assert instance1_after is not None
-        assert instance1_after is not instance1_before, "instance 1 should have been recreated"
-        assert instance1_after.app_config.model_dump()["value"] == "changed", "instance 1 should reflect the new config"
-
-    async def test_reload_instance_preserves_sibling_db_rows(
-        self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
-    ) -> None:
-        """reload_instance() must not retire sibling instances' listener/job DB rows.
-
-        MultiInstanceApp registers no listeners/jobs of its own, so both instances' rows are
-        seeded directly via CommandExecutor to give the reconciliation SQL real rows to scope
-        against. After reload_instance(app_key, 1), instance 0's rows must survive unchanged
-        while instance 1's stale rows (nothing "live" after its own reload) are cleaned up —
-        proving the reconciliation SQL is scoped by instance_index, not just app_key.
-        """
-        lifecycle, executor, db_service = real_db_lifecycle
-        app_key = self.MULTI_INSTANCE_APP_KEY
-        manifest = self._make_manifest(
-            [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
-        )
-        lifecycle.set_apps_configs({app_key: manifest})
-
-        await lifecycle.start_app(app_key)
-        assert lifecycle.registry.get(app_key, 0) is not None, "Precondition: instance 0 should be running"
-        assert lifecycle.registry.get(app_key, 1) is not None, "Precondition: instance 1 should be running"
-
-        listener0_id = await executor.register_listener(
-            make_listener_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 0),
-                app_key=app_key,
-                instance_index=0,
-                name="sibling_listener",
-            )
-        )
-        job0_id = await executor.register_job(
-            make_job_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 0),
-                app_key=app_key,
-                instance_index=0,
-                job_name="sibling_job",
-            )
-        )
-        listener1_id = await executor.register_listener(
-            make_listener_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 1),
-                app_key=app_key,
-                instance_index=1,
-                name="reloaded_listener",
-            )
-        )
-        job1_id = await executor.register_job(
-            make_job_registration(
-                instance_name=lifecycle.registry.instance_name(app_key, 1),
-                app_key=app_key,
-                instance_index=1,
-                job_name="reloaded_job",
-            )
-        )
-
-        await lifecycle.reload_instance(app_key, 1)
-
-        listener0_cursor = await db_service.db.execute(
-            "SELECT id, retired_at FROM listeners WHERE id = ?", (listener0_id,)
-        )
-        listener0_row = await listener0_cursor.fetchone()
-        assert listener0_row is not None, "sibling instance 0's listener row must survive reload of instance 1"
-        assert listener0_row["retired_at"] is None, "sibling instance 0's listener row must not be retired"
-
-        job0_cursor = await db_service.db.execute("SELECT id, retired_at FROM scheduled_jobs WHERE id = ?", (job0_id,))
-        job0_row = await job0_cursor.fetchone()
-        assert job0_row is not None, "sibling instance 0's job row must survive reload of instance 1"
-        assert job0_row["retired_at"] is None, "sibling instance 0's job row must not be retired"
-
-        listener1_cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (listener1_id,))
-        assert await listener1_cursor.fetchone() is None, (
-            "instance 1's stale listener row should be cleaned up by its own reload"
-        )
-
-        job1_cursor = await db_service.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (job1_id,))
-        assert await job1_cursor.fetchone() is None, "instance 1's stale job row should be cleaned up by its own reload"
-
-    async def test_batch_reload_stops_every_index_before_creating_any_replacement(
-        self, real_db_lifecycle: tuple[AppLifecycleService, CommandExecutor, DatabaseService]
-    ) -> None:
-        """Regression test for PR #1687 review finding: a batch reload that renames multiple
-        instances can make a *new* instance take an ``instance_name`` (and therefore
-        ``App.unique_name``/owner_id) still held by *another* instance in the same batch — e.g.
-        index 0's name changes "alpha" -> "beta" while index 1's changes "beta" -> "gamma". Since
-        Bus owner registries (``BusService.router``, ``BusService._removal_callbacks``) are keyed
-        by that name string alone, interleaving each index's stop-then-create concurrently could
-        let index 0's new "beta" register its listener before index 1's old "beta" finished
-        tearing down — the old teardown would then call ``remove_listeners_by_owner("beta")`` and
-        rip out the new instance's freshly-registered listener too, since both are indistinguishable
-        by owner_id alone.
-
-        Proven deterministically by delaying index 1's stop and observing that no create is ever
-        attempted while that stop is still pending — the fix's stop-all-then-create-all split
-        makes this ordering structural, not timing-dependent. This test fails against the
-        pre-fix implementation (which reloads each index fully concurrently, stop-then-create
-        per index) because index 0's create would proceed immediately, well before index 1's
-        delayed stop of the name-colliding old "beta" instance completes.
-        """
-        lifecycle, _executor, _db_service = real_db_lifecycle
-        app_key = self.MULTI_INSTANCE_APP_KEY
-        original_manifest = self._make_manifest(
-            [
-                {"value": "a", "instance_name": "alpha"},
-                {"value": "b", "instance_name": "beta"},
-            ]
-        )
-        lifecycle.set_apps_configs({app_key: original_manifest})
-
-        await lifecycle.start_app(app_key)
-        instance1_before = lifecycle.registry.get(app_key, 1)
-        assert instance1_before is not None, "Precondition: instance 1 should be running"
-        assert instance1_before.unique_name == "beta"
-
-        original_config = deepcopy(lifecycle.registry.manifests)
-        # Rename both indices in one edit — index 0 takes the name index 1 is about to vacate.
-        lifecycle.registry.manifests[app_key].app_config = [
-            {"value": "a2", "instance_name": "beta"},
-            {"value": "b2", "instance_name": "gamma"},
-        ]
-
-        call_order: list[str] = []
-        index_1_stop_entered = asyncio.Event()
-        release_index_1_stop = asyncio.Event()
-
-        orig_stop = lifecycle._stop_instance_unlocked
-        orig_create = lifecycle._create_instance_unlocked
-
-        async def instrumented_stop(app_key: str, index: int, *, outcomes: ActionOutcomes) -> None:
-            if index == 1:
-                index_1_stop_entered.set()
-                await release_index_1_stop.wait()
-            await orig_stop(app_key, index, outcomes=outcomes)
-            call_order.append(f"stop_{index}_done")
-
-        async def instrumented_create(
-            app_key: str, index: int, app_manifest: AppManifest, force_reload: bool = False, *, outcomes: ActionOutcomes
-        ) -> None:
-            call_order.append(f"create_{index}_start")
-            await orig_create(app_key, index, app_manifest, force_reload, outcomes=outcomes)
-
-        lifecycle._stop_instance_unlocked = instrumented_stop
-        lifecycle._create_instance_unlocked = instrumented_create
-
-        changes = make_change_set(reload_apps={app_key})
-        task = asyncio.create_task(lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests))
-
-        await asyncio.wait_for(index_1_stop_entered.wait(), timeout=1)
-        # While index 1's stop of the old, name-colliding "beta" instance is still pending, no
-        # create for either index may have started yet — the fix's stop-all-then-create-all
-        # split forbids it structurally, not just by timing luck.
-        await asyncio.sleep(0)  # let any wrongly-scheduled create task get a chance to run
-        assert not any(entry.startswith("create_") for entry in call_order), (
-            f"a create started before index 1's stop finished: {call_order}"
-        )
-        assert not task.done()
-
-        release_index_1_stop.set()
-        await asyncio.wait_for(task, timeout=2)
-
-        # Every stop finished strictly before every create started.
-        stop_done_positions = [i for i, entry in enumerate(call_order) if entry.startswith("stop_")]
-        create_start_positions = [i for i, entry in enumerate(call_order) if entry.startswith("create_")]
-        assert stop_done_positions
-        assert create_start_positions
-        assert max(stop_done_positions) < min(create_start_positions), call_order
-
-        # Sanity: the new index-0 instance ("beta") came out of the reload fully usable — it can
-        # register a listener under the now-uncontested "beta" owner_id. The ordering assertions
-        # above are what actually prove the race is closed; this just confirms the fixed flow
-        # doesn't leave the replacement instance in a broken state.
-        instance0_after = lifecycle.registry.get(app_key, 0)
-        assert instance0_after is not None
-        assert instance0_after.unique_name == "beta"
-
-        sub = await instance0_after.bus.on(topic="test.race_topic", handler=noop, name="post_reload_listener")
-        owner_listeners = lifecycle.hassette.bus_service.get_listeners_by_owner("beta")
-        assert sub.listener.listener_id in {listener.listener_id for listener in owner_listeners}

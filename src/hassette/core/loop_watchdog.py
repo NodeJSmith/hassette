@@ -444,7 +444,7 @@ class LoopWatchdog:
         ``stall_key`` is ``None`` for stalls with no ``app_key``, which always warn. An attributed stall
         whose key is seen for the first time is persisted and logged at DEBUG without a warning.
         """
-        owner = resolve_owner(self._hassette, event.app_key, event.instance_index)
+        owner = resolve_owner(self._hassette, event.app_key, event.instance_name)
         behavior = resolve_blocking_io_behavior(owner)
         if behavior is BlockingIOBehavior.IGNORE:
             # IGNORE returns BEFORE persistence: an ignored stall leaves no audit trail by design.

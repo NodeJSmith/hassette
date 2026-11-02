@@ -85,13 +85,13 @@ class TestBasicHotReload(HotReloadTestBase):
         app1 = await self.deploy_running_app("enabled")
 
         snapshot = self.harness.app_handler.registry.get_snapshot()
-        assert self.harness.app_handler.registry.get(app1.app_key, 0) is not None, f"Registry snapshot: {snapshot}"
+        assert self.harness.app_handler.registry.get(app1.app_key) is not None, f"Registry snapshot: {snapshot}"
 
     async def test_hot_reload_stops_newly_disabled_app(self):
         """Disable an enabled app via config change and verify it stops."""
         app1 = await self.deploy_running_app("stoppable")
 
-        app = self.app_handler.registry.get(app1.app_key, 0)
+        app = self.app_handler.registry.get(app1.app_key)
         assert app is not None
 
         # Disable by removing from config
@@ -100,7 +100,7 @@ class TestBasicHotReload(HotReloadTestBase):
             self.harness.hassette, {self.toml_file}, app1.app_key, status=ResourceStatus.STOPPED
         )
 
-        assert self.app_handler.registry.get(app1.app_key, 0) is None
+        assert self.app_handler.registry.get(app1.app_key) is None
 
     async def test_hot_reload_reloads_app_with_config_change(self):
         """Change app config value and verify app is reloaded with new config."""
@@ -108,7 +108,7 @@ class TestBasicHotReload(HotReloadTestBase):
             "cfgtest", app_config={"test_value": "initial"}, config_fields={"test_value": "str"}
         )
 
-        inst = self.app_handler.registry.get(app1.app_key, 0)
+        inst = self.app_handler.registry.get(app1.app_key)
         assert inst is not None
         test_value = inst.app_config.model_dump()["test_value"]
         assert test_value == "initial", f"Expected 'initial', got {test_value}"
@@ -121,7 +121,7 @@ class TestBasicHotReload(HotReloadTestBase):
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1_updated])
         await emit_change_and_wait_for_app_status(self.harness.hassette, {self.toml_file}, app1.app_key)
 
-        inst = self.app_handler.registry.get(app1.app_key, 0)
+        inst = self.app_handler.registry.get(app1.app_key)
         assert inst is not None
         test_value = inst.app_config.model_dump()["test_value"]
         assert test_value == "updated", f"Expected 'updated', got {test_value}"
@@ -130,7 +130,7 @@ class TestBasicHotReload(HotReloadTestBase):
         """Modify app Python file and verify app is reimported."""
         app1 = await self.deploy_running_app("reimport")
 
-        inst = self.app_handler.registry.get(app1.app_key, 0)
+        inst = self.app_handler.registry.get(app1.app_key)
         assert inst is not None
         original_class = inst.__class__
 
@@ -141,7 +141,7 @@ class TestBasicHotReload(HotReloadTestBase):
 
         await emit_change_and_wait_for_app_status(self.harness.hassette, {app1.full_path}, app1.app_key)
 
-        inst = self.app_handler.registry.get(app1.app_key, 0)
+        inst = self.app_handler.registry.get(app1.app_key)
         assert inst is not None
         # The class should be a new object after reimport
         assert inst.__class__ is not original_class
@@ -173,9 +173,9 @@ class TestOnlyAppsConfigFilter(HotReloadTestBase):
             kept_b.app_key,
         )
 
-        assert self.app_handler.registry.get(kept_a.app_key, 0) is not None
-        assert self.app_handler.registry.get(kept_b.app_key, 0) is not None
-        assert self.app_handler.registry.get(excluded.app_key, 0) is None
+        assert self.app_handler.registry.get(kept_a.app_key) is not None
+        assert self.app_handler.registry.get(kept_b.app_key) is not None
+        assert self.app_handler.registry.get(excluded.app_key) is None
         assert self.app_handler.registry.only_apps == frozenset({kept_a.app_key, kept_b.app_key})
 
         snapshot = self.app_handler.registry.get_full_snapshot()

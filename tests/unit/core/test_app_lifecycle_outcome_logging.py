@@ -11,7 +11,7 @@ import pytest
 
 from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
-from tests.support.outcomes import AnyIndexOutcomes
+from tests.support.outcomes import AnyNameOutcomes
 
 
 def levels_logged(caplog: pytest.LogCaptureFixture, template: str) -> list[int]:
@@ -20,7 +20,7 @@ def levels_logged(caplog: pytest.LogCaptureFixture, template: str) -> list[int]:
 
 
 async def initialize_instance(service: AppLifecycleService, inst: AsyncMock, manifest: MagicMock) -> None:
-    await service.initialize_instances("test_app", {0: inst}, manifest, outcomes=AnyIndexOutcomes())
+    await service.initialize_instances("test_app", {"test_instance": inst}, manifest, outcomes=AnyNameOutcomes())
 
 
 async def test_app_start_logs_at_info(
@@ -51,7 +51,7 @@ async def test_app_stop_logs_at_info(
     lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, caplog: pytest.LogCaptureFixture
 ) -> None:
     with caplog.at_level(logging.DEBUG):
-        await lifecycle_service.shutdown_instance(mock_app_instance, 0, outcomes=AnyIndexOutcomes())
+        await lifecycle_service.shutdown_instance(mock_app_instance, outcomes=AnyNameOutcomes())
 
     assert levels_logged(caplog, "Stopped app '%s' '%s' in %s") == [logging.INFO]
 
