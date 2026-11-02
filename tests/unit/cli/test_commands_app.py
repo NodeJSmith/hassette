@@ -46,6 +46,7 @@ from tests.unit.cli.conftest import (
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
 ACTIVITY_ENDPOINT = "/api/telemetry/app/my-app/activity"
+UNKNOWN_APP_PROBLEM = {"title": "Not Found", "status": 404, "detail": "App 'typo' not found", "code": "app_not_found"}
 
 # cmd_app (bare — list all apps)
 
@@ -180,6 +181,26 @@ class TestCmdApp:
 
 
 class TestCmdAppHealth:
+    def test_unknown_app_exits_nonzero_with_the_server_detail(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes(
+            [("GET", "/api/telemetry/app/typo/health", 404, UNKNOWN_APP_PROBLEM)]
+        )
+
+        code, stderr = runner.usage_error(client, cmd_app_health, "typo")
+
+        assert code == 1
+        assert "App 'typo' not found" in stderr
+
+    def test_unknown_app_in_json_mode_prints_an_error_document(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes(
+            [("GET", "/api/telemetry/app/typo/health", 404, UNKNOWN_APP_PROBLEM)], json_mode=True
+        )
+
+        parsed = runner.json_error(client, cmd_app_health, "typo")
+
+        assert (parsed["error"], parsed["status"]) == (True, 404)
+        assert "App 'typo' not found" in parsed["detail"]
+
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """App health fetches from GET /api/telemetry/app/{key}/health."""
         health = make_app_health()

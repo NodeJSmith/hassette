@@ -43,6 +43,7 @@ async def assert_forwarded_to_service(
     assert {key: call_kwargs[key] for key in expected} == expected
 
 
+@pytest.mark.usefixtures("known_app")
 class TestTelemetryAppHealth:
     async def test_returns_metrics_with_classification(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
@@ -93,8 +94,8 @@ class TestTelemetryAppHealth:
         assert data["error_rate"] == pytest.approx(20.0)
         assert data["health_status"] == "critical"
 
-    async def test_unknown_app_returns_empty_health(self, client: "AsyncClient") -> None:
-        data = await get_json(client, "/api/telemetry/app/nonexistent/health")
+    async def test_known_app_with_no_executions_is_excellent(self, client: "AsyncClient") -> None:
+        data = await get_json(client, APP_HEALTH_PATH)
 
         assert data["error_rate"] == 0.0
         assert data["health_status"] == "excellent"
@@ -279,6 +280,7 @@ class TestQueryParamForwarding:
     than spot-checked on one representative route.
     """
 
+    @pytest.mark.usefixtures("known_app")
     @pytest.mark.parametrize(
         ("path", "service_method", "expected"),
         [

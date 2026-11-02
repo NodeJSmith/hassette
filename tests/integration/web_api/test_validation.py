@@ -67,17 +67,18 @@ class TestHassetteAppKey:
         ("path", "service_method"),
         [
             ("/api/telemetry/app/__hassette__/health", "get_app_health_aggregates"),
+            ("/api/telemetry/app/__hassette__.scheduler_service/health", "get_app_health_aggregates"),
             ("/api/telemetry/app/__hassette__/listeners", "get_listener_summary"),
         ],
     )
     async def test_hassette_app_key_accepted(
         self, client: "AsyncClient", mock_hassette: MagicMock, path: str, service_method: str
     ) -> None:
-        """The reserved framework app_key is accepted (200) and forwarded to the service."""
+        """A reserved framework app_key has no manifest row, yet is accepted (200) and forwarded to the service."""
         await get_json(client, path)
 
         call_kwargs = getattr(mock_hassette.telemetry_query_service, service_method).call_args.kwargs
-        assert call_kwargs["app_key"] == "__hassette__"
+        assert call_kwargs["app_key"] == path.split("/")[4]
 
 
 class TestTelemetryStatusDropCounterFallback:

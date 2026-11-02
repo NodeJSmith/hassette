@@ -27,6 +27,7 @@ from hassette.web.body_limit import MAX_REQUEST_BODY_BYTES
 from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, get_runtime
 from hassette.web.errors import GLOBAL_CODES, PROBLEM_CODES_KEY
 from tests.integration.conftest import make_manifest_mock
+from tests.support.web_manifest_helpers import make_manifest_db_row
 
 from .conftest import APP_GRID_PATH, APPS_PATH, AUTH_SESSION_PATH, telemetry_error
 
@@ -68,7 +69,7 @@ class TelemetryRoute(NamedTuple):
 
 TELEMETRY_DATA_ROUTES = {
     "app-health": TelemetryRoute(
-        "get_app_health_aggregates",
+        "get_app_manifest",
         "/api/telemetry/app/my_app/health",
         "/api/telemetry/app/{app_key}/health",
     ),
@@ -241,6 +242,11 @@ def manifest_lookup(get_app_manifest: AsyncMock) -> Arrange:
     return arrange
 
 
+def app_health_aggregates_fail(mock_hassette: MagicMock, tmp_path: Path) -> None:
+    manifest_lookup(AsyncMock(return_value=make_manifest_db_row("my_app")))(mock_hassette, tmp_path)
+    failing_query("get_app_health_aggregates")(mock_hassette, tmp_path)
+
+
 def job_lookup_fails(mock_hassette: MagicMock, _: Path) -> None:
     mock_hassette.scheduler_service.trigger_job = AsyncMock(side_effect=ValueError("Job 7 is not registered"))
 
@@ -279,6 +285,23 @@ ROUTE_CASES = {
         "App 'my_app' not found",
         operation="/api/apps/{app_key}/reload",
         arrange=unknown_app,
+    ),
+    "app-health-not-found": ProblemCase(
+        "GET",
+        "/api/telemetry/app/my_app/health",
+        404,
+        "app_not_found",
+        "App 'my_app' not found",
+        operation="/api/telemetry/app/{app_key}/health",
+    ),
+    "app-health-aggregates-telemetry-unavailable": ProblemCase(
+        "GET",
+        "/api/telemetry/app/my_app/health",
+        503,
+        "telemetry_unavailable",
+        "Telemetry store unavailable",
+        operation="/api/telemetry/app/{app_key}/health",
+        arrange=app_health_aggregates_fail,
     ),
     "app-bootstrap-not-released": ProblemCase(
         "POST",
