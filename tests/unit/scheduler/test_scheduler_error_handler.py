@@ -1,6 +1,6 @@
 """Tests for Scheduler error handler registration."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -61,18 +61,26 @@ class TestSchedulerOnErrorMethod:
 
         assert scheduler._error_handler is handler_a
 
-    async def test_on_error_reset_on_initialize(self) -> None:
-        """_error_handler is reset to None when on_initialize() is called."""
+    async def test_on_error_survives_on_initialize(self) -> None:
+        """on_initialize() keeps a handler the owner's hooks registered before this child initialized."""
         scheduler = make_scheduler()
         scheduler.on_error(handler_a)
-        assert scheduler._error_handler is handler_a
 
         with patch("hassette.scheduler.scheduler.mark_ready") as mock_mark_ready:
-            # Simulate hot-reload: on_initialize resets state
             await scheduler.on_initialize()
 
-        assert scheduler._error_handler is None
+        assert scheduler._error_handler is handler_a
         mock_mark_ready.assert_called_once_with(scheduler, reason="Scheduler initialized")
+
+    async def test_on_error_cleared_on_shutdown(self) -> None:
+        """on_shutdown() clears the handler, so a shut-down scheduler keeps no reference to it."""
+        scheduler = make_scheduler()
+        scheduler.on_error(handler_a)
+
+        with patch.object(scheduler, "remove_all_jobs", new=AsyncMock()):
+            await scheduler.on_shutdown()
+
+        assert scheduler._error_handler is None
 
     def test_on_error_replaces_previous(self) -> None:
         """A second call to on_error() replaces the previous handler."""

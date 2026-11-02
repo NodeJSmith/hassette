@@ -2,7 +2,7 @@
 
 Tests:
 - Bus.on_error() stores handler on _error_handler
-- _error_handler is reset on_initialize() (not __init__)
+- _error_handler survives on_initialize() and is cleared by on_shutdown()
 - on_error= in Options flows through all convenience wrappers
 - Per-listener on_error= stored on Listener.error_handler
 - Listener.error_handler defaults to None
@@ -43,13 +43,21 @@ def test_on_error_replaces_previous_handler(bus: "Bus") -> None:
     assert bus._error_handler is not first_handler
 
 
-async def test_on_error_reset_on_initialize(bus: "Bus") -> None:
-    """_error_handler is reset to None when on_initialize() is called."""
+async def test_on_error_survives_on_initialize(bus: "Bus") -> None:
+    """on_initialize() keeps a handler the owner's hooks registered before this child initialized."""
     mock_handler = AsyncMock()
     bus.on_error(mock_handler)
-    assert bus._error_handler is mock_handler
 
     await bus.on_initialize()
+
+    assert bus._error_handler is mock_handler
+
+
+async def test_on_error_cleared_on_shutdown(bus: "Bus") -> None:
+    """on_shutdown() clears the handler, so a shut-down bus keeps no reference to it."""
+    bus.on_error(AsyncMock())
+
+    await bus.on_shutdown()
 
     assert bus._error_handler is None
 

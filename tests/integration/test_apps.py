@@ -3,7 +3,7 @@ import contextlib
 import typing
 from copy import deepcopy
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -293,6 +293,23 @@ class TestApps:
         await self.app_handler.reload_app("my_app_sync", force_reload=False)
 
         assert "my_app_sync" in self.app_handler.registry
+
+    async def test_reload_does_not_carry_error_handlers_to_new_instance(self) -> None:
+        """A reload builds a new app whose Bus and Scheduler don't inherit the old instance's error handlers."""
+        old_app = self.app_handler.get("my_app", 0)
+        assert old_app is not None
+        old_app.bus.on_error(AsyncMock())
+        old_app.scheduler.on_error(AsyncMock())
+
+        await self.app_handler.reload_app("my_app", force_reload=False)
+
+        new_app = self.app_handler.get("my_app", 0)
+        assert new_app is not None
+        assert new_app is not old_app
+        assert new_app.bus._error_handler is None
+        assert new_app.scheduler._error_handler is None
+        assert old_app.bus._error_handler is None
+        assert old_app.scheduler._error_handler is None
 
     async def test_new_app_changeset_does_not_start_autostart_false_app(self) -> None:
         """A reload ChangeSet with new_apps containing an autostart=false app leaves it unstarted."""
