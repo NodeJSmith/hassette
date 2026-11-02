@@ -580,7 +580,6 @@ class Bus(Resource):
         resolved_mode = resolve_execution_mode(mode, source_tier)
 
         handler_name = callable_name(handler)
-        short_name = callable_short_name(handler)
 
         _require_name(name, handler, topic)
 
@@ -596,7 +595,7 @@ class Bus(Resource):
             name=name,
             source_tier=source_tier,
             handler_name=handler_name,
-            handler_short_name=short_name,
+            handler_short_name=callable_short_name(handler),
             source_location=source_location,
             registration_source=registration_source or "",
         )
