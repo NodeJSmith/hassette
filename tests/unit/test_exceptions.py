@@ -1,6 +1,9 @@
 """Unit tests pinning structural contracts in :mod:`hassette.exceptions`.
 
-These tests pin the structured-error-surface contract that the helper CRUD
+The round-trip tests pin that every exception survives pickle and ``copy.deepcopy`` with its message and
+attributes intact, however its constructor is shaped.
+
+The ``FailedMessageError`` tests pin the structured-error-surface contract that the helper CRUD
 work packages rely on. In particular they guard against the most likely
 implementation mistake (``from_error_response`` dropping its ``code`` and
 ``original_data`` kwargs before delegating to ``cls(msg)``) and verify that
@@ -21,6 +24,7 @@ import pytest
 
 from hassette import exceptions as exceptions_module
 from hassette.conversion.validation import RegistryValidationIssue
+from hassette.core.websocket_reconnect import CoreShuttingDownError
 from hassette.exceptions import (
     AppBlockedError,
     AppRemovedError,
@@ -60,19 +64,21 @@ from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 
 ROUND_TRIPS: dict[str, Callable[[Any], Any]] = {
-    "pickle": lambda err: pickle.loads(pickle.dumps(err)),
+    "pickle": lambda err: pickle.loads(pickle.dumps(err)),  # noqa: S301
     "deepcopy": copy.deepcopy,
 }
 
 INSTANCE_OUTCOME = InstanceOutcome(instance_index=0, instance_name="kitchen", result=OutcomeResult.REFUSED)
 
-# One instance of every exception that defines a custom ``__init__``, in the constructor shapes that matter.
+# Every hassette.exceptions class with its own ``__init__`` (except abstract EntityShapeError), plus classes that
+# inherit a structured ``__init__``, and CoreShuttingDownError, the one defined outside that module.
 ROUND_TRIP_SAMPLES: list[HassetteError] = [
     AppBlockedError("blocked", outcomes=(INSTANCE_OUTCOME,)),
     AppRemovedError("removed", outcomes=(INSTANCE_OUTCOME,)),
     AuthTokenWriteError(Path("/tmp/token"), PermissionError(13, "denied")),
     CannotOverrideFinalError("initialize", "Resource", "my.App", suggested_alt="on_initialize", location="a.py:3"),
     ConvertedTypeDoesNotMatchError("sensor.mode", NumericSensorState, EnumSensorState),
+    CoreShuttingDownError("NOT_RUNNING"),
     DomainNotFoundError("light"),
     DomainRequiredError(NumericSensorState),
     DuplicateListenerError("kitchen", "hass.event.state_changed", "a.handler", "b.handler"),
@@ -88,8 +94,8 @@ ROUND_TRIP_SAMPLES: list[HassetteError] = [
     RegistryNotReadyError(),
     RegistryValidationError(
         [
-            RegistryValidationIssue(severity="error", registry="state", message="bad"),
-            RegistryValidationIssue(severity="warning", registry="type", message="odd"),
+            RegistryValidationIssue(registry="STATE_REGISTRY", severity="error", message="bad"),
+            RegistryValidationIssue(registry="TYPE_REGISTRY", severity="warning", message="odd"),
         ]
     ),
     ResponseLostError("connection lost", close_code=1006),
@@ -113,12 +119,11 @@ class BuiltinFirstError(ValueError, HassetteError):
 
 
 class OSErrorMixinError(OSError, HassetteError):
-    """A user-style subclass mixing in ``OSError``, whose ``__new__`` differs from other builtin exceptions."""
+    """A user-style subclass mixing in ``OSError``, which keeps the stdlib's ``cls(*self.args)`` rebuild."""
 
-    def __init__(self, path: str, reason: str) -> None:
-        super().__init__(f"{path}: {reason}")
-        self.path_name = path
-        self.reason = reason
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
+        self.detail = "disk full"
 
 
 def test_failed_message_error_backward_compat_positional_only() -> None:
@@ -347,14 +352,15 @@ def test_round_trip_samples_cover_every_custom_init() -> None:
         for _, cls in inspect.getmembers(exceptions_module, inspect.isclass)
         if issubclass(cls, HassetteError) and cls.__module__ == exceptions_module.__name__ and "__init__" in vars(cls)
     }
-    # EntityShapeError is abstract: its _build_message raises, so it can't be instantiated on its own.
-    assert custom_init - {EntityShapeError} <= {type(err) for err in ROUND_TRIP_SAMPLES}
+    # EntityShapeError can't be instantiated: subclasses supply the _build_message its __init__ calls.
+    missing = custom_init - {EntityShapeError} - {type(err) for err in ROUND_TRIP_SAMPLES}
+    assert not missing
 
 
 @pytest.mark.parametrize("round_trip", ROUND_TRIPS.values(), ids=ROUND_TRIPS.keys())
 @pytest.mark.parametrize(
     "err",
-    [BuiltinFirstError("sensor.mode", retries=3), OSErrorMixinError("/tmp/x", "gone")],
+    [BuiltinFirstError("sensor.mode", retries=3), OSErrorMixinError("/tmp/x: gone")],
     ids=lambda err: type(err).__name__,
 )
 def test_subclass_with_builtin_exception_first_survives_round_trip(
@@ -377,3 +383,16 @@ def test_round_trip_keeps_state_set_after_construction(round_trip: Callable[[Any
     assert_same_error(err, rebuilt)
     assert rebuilt.__notes__ == ["while resolving kitchen"]
     assert rebuilt.request_id == 42
+
+
+def test_oserror_mixin_constructor_arguments_are_not_parsed_as_errno() -> None:
+    """``OSError.__new__`` parses its arguments as ``(errno, strerror)`` if a Python ``__new__`` displaces it."""
+
+    class TwoArgOSError(OSError, HassetteError):
+        def __init__(self, path: str, reason: str) -> None:
+            super().__init__(f"{path}: {reason}")
+
+    err = TwoArgOSError("/tmp/x", "gone")
+
+    assert str(err) == "/tmp/x: gone"
+    assert err.errno is None

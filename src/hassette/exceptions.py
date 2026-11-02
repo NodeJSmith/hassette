@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from hassette.exception_base import ReconstructibleError
+
 if TYPE_CHECKING:
     from hassette.models.states import BaseState
     from hassette.resources.shutdown_outcome import ShutdownOutcome
@@ -54,7 +56,7 @@ class HassetteBlockingIOWarning(RuntimeWarning):
     """
 
 
-class HassetteError(Exception):
+class HassetteError(ReconstructibleError):
     """Base exception for all Hassette errors.
 
     Set ``suggestion`` (as a class attribute or in ``__init__``) on user-facing errors to tell the user how to
