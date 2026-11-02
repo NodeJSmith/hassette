@@ -1,0 +1,50 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 78,
+ "findings": [
+  {
+   "line": 119,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Omitting it raises TypeError (no default value); an empty string raises ValueError .",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:~655 `if not name: raise SchedulerNameRequiredError(callable_name(func), str(trigger))`. src/hassette/exceptions.py:704 `class SchedulerNameRequiredError(HassetteError)`. HassetteError (exceptions.py:59) derives from ReconstructibleError, not ValueError. register() has the same check (scheduler.py:~558).",
+   "explanation": "An empty name raises SchedulerNameRequiredError, which is not a ValueError subclass. A user who writes `except ValueError` will not catch it. The TypeError claim for an omitted name is correct, because `name` is keyword-only with no default.",
+   "suggested_fix": "Omitting it raises TypeError (no default value); an empty string raises SchedulerNameRequiredError."
+  },
+  {
+   "line": 125,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Invoked on any exception, including CancelledError .",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:642 and scheduler/classes.py:243 say `...including TimeoutError, but excluding CancelledError`. src/hassette/core/command_executor.py:352 `except asyncio.CancelledError: enqueue_result_record(); raise`, so the handler is never reached. The handler block at command_executor.py:~541 only runs when `result.is_error or result.is_timed_out`.",
+   "explanation": "On cancellation the executor records the result and re-raises. The on_error handler is not invoked for CancelledError. It does run for ordinary exceptions and timeouts.",
+   "suggested_fix": "Invoked on any exception raised by the handler, including a timeout, but not on CancelledError."
+  },
+  {
+   "line": 121,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "| jitter | float \\| None | 0 | Random offset in seconds added to each run.",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:596 `jitter: float | None = None` in schedule(). run_in, run_every, run_daily and the other run_* methods use the same `jitter: float | None = None` default.",
+   "explanation": "The default is None, not 0. Behavior is the same (no jitter), but the stated default does not match the signature.",
+   "suggested_fix": "Change the Default column for jitter to `None`."
+  },
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "low",
+   "doc_quote": "triggered by hassette reload , or by config changes when automatic reloads are on",
+   "code_evidence": "src/hassette/cli/__init__.py:74,114 `apps_app = App(name=\"app\", ...)` and `apps_app.command(cmd_app_reload, name=\"reload\")`. No top-level `reload` command is registered.",
+   "explanation": "The reload command is `hassette app reload`, not `hassette reload`.",
+   "suggested_fix": "triggered by `hassette app reload`, or by config changes when automatic reloads are on"
+  }
+ ],
+ "summary": "Most claims check out against the source: signatures and defaults for run_in, run_every, run_minutely, run_hourly, run_daily, run_cron, run_once and register; the minimum-interval ValueErrors; Once and if_past behavior; skip/replace/error semantics; and where= handling. Four errors were found. Two are high severity: an empty `name` raises SchedulerNameRequiredError, which is not a ValueError, and on_error is not invoked for CancelledError. The other two are a jitter default shown as 0 instead of None and a CLI command written as `hassette reload` instead of `hassette app reload`. I did not independently verify the replace-mode cancellation details by mode (line 155) or the cron field ranges (lines 64-68).",
+ "_tools": 14,
+ "_tokens": 124172,
+ "_doc_access": []
+}

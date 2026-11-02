@@ -1,0 +1,3 @@
+{"core-concepts--bus--predicate-reference":[
+ {"id":"N1","kind":"natural-widening","description":"ChangeType / the condition argument is said to accept a glob string. compare_value compares a bare string by equality, so a glob string never matches as a glob."},
+ {"id":"N2","kind":"natural-looseness","description":"C.Regex's 'matches the compiled regex pattern' doesn't say the match is anchored at the start (re.match)."}]}

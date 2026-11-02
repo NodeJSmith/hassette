@@ -1,0 +1,80 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 90,
+ "findings": [
+  {
+   "line": 51,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "When old_state is None , returns False even if the attribute is present on the new state.",
+   "code_evidence": "src/hassette/event_handling/predicates.py:528-531 \u2014 `if value.payload.data.old_state is None: return get_attr_new(self.attr_name)(value) is not MISSING_VALUE`",
+   "explanation": "With no old_state, AttrDidChange returns True when the attribute is present on new_state. It returns False only when the attribute is absent. The class docstring (lines 518-524) and the summarize() docstring both say the same.",
+   "suggested_fix": "When old_state is None, returns True if the attribute is present on the new state (it counts as changed), and False if it is absent."
+  },
+  {
+   "line": 104,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when float(old) < threshold <= float(new) .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:~ CrossedAbove.__call__ \u2014 `return float(old_value) <= self.threshold < float(new_value)`",
+   "explanation": "The boundary is the opposite of what the page says. The old value must be at or below the threshold, and the new value must be strictly above it. A new value exactly equal to the threshold does not count as crossing. An old value exactly equal to the threshold does. CrossedBelow (`old >= threshold > new`) is documented correctly.",
+   "suggested_fix": "Returns True when float(old) <= threshold < float(new)."
+  },
+  {
+   "line": 104,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "A missing or non-numeric value returns False . For use with changed= , P.StateComparison , or P.AttrComparison .",
+   "code_evidence": "src/hassette/event_handling/conditions.py CrossedAbove/CrossedBelow.__call__ \u2014 `if isinstance(old_value, bool) or isinstance(new_value, bool): return False`",
+   "explanation": "This is incomplete rather than contradicted. Boolean old or new values also always return False for both CrossedAbove and CrossedBelow. The page does not mention this. Optional addition.",
+   "suggested_fix": "A missing, non-numeric, or boolean value returns False."
+  },
+  {
+   "line": 79,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when the string value contains substring , ignoring case.",
+   "code_evidence": "src/hassette/event_handling/conditions.py (Contains.__call__) \u2014 `return isinstance(value, str) and self.substring in value`",
+   "explanation": "The check is a plain case-sensitive `in` test. There is no lowercasing.",
+   "suggested_fix": "Returns True when the string value contains substring (case-sensitive)."
+  },
+  {
+   "line": 91,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "collection must be a sequence, not a string. Passing a string raises TypeError .",
+   "code_evidence": "src/hassette/event_handling/conditions.py (_validate_collection) \u2014 `raise ValueError(\"collection must be a sequence of values, not a string\")`",
+   "explanation": "IsIn, NotIn, Intersects and NotIntersects raise ValueError for a string collection, not TypeError. Code that catches TypeError would miss it.",
+   "suggested_fix": "Passing a string raises ValueError."
+  },
+  {
+   "line": 18,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Guard(predicate: Predicate[EventT])",
+   "code_evidence": "src/hassette/event_handling/predicates.py:150-157 \u2014 `class Guard(...): fn: \"Predicate[EventT]\"`",
+   "explanation": "The dataclass field is named `fn`, not `predicate`. `P.Guard(predicate=...)` raises TypeError. Positional use works.",
+   "suggested_fix": "Guard(fn: Predicate[EventT])"
+  },
+  {
+   "line": 151,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Excludes last_reported , last_updated , and last_changed by default.",
+   "code_evidence": "src/hassette/event_handling/accessors.py:~50 \u2014 `DEFAULT_EXCLUDE = (\"last_reported\", \"last_updated\", \"last_changed\", \"context\")`",
+   "explanation": "The default exclude tuple also contains `context`, which the page omits.",
+   "suggested_fix": "Excludes last_reported, last_updated, last_changed, and context by default."
+  }
+ ],
+ "summary": "Most of the page is accurate: the predicate and accessor signatures, the literal-coercion semantics, the operator shorthand, and the NOT_PROVIDED/MISSING_VALUE descriptions all match the code. The errors are in the finer details of a few entries. They are the CrossedAbove boundary, the Contains case-sensitivity claim, the exception type for a string collection, the Guard parameter name, the AttrDidChange behavior with no old state, and the DEFAULT_EXCLUDE list. The AttrDidChange, CrossedAbove, Contains, TypeError and Guard errors would mislead or break user code.",
+ "_tools": 9,
+ "_tokens": 126262,
+ "_doc_access": []
+}

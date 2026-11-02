@@ -1,0 +1,43 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 110,
+ "findings": [
+  {
+   "line": 9,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "ChangeType is a union of literal value, C.* condition instance, glob string, or callable (value) -> bool .",
+   "code_evidence": "src/hassette/types/types.py:330 \u2014 \"FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel] | None\"; src/hassette/event_handling/predicates.py:765 \u2014 `return coerce_to_literal_type(actual, condition) == condition`. Probe: P.StateTo(\"o*\") on a new state of \"on\" returns False.",
+   "explanation": "ChangeType has no glob member, and a string is compared by equality as a plain literal. Only P.ServiceDataWhere wraps glob strings (predicates.py:700-701), and that happens in its own __post_init__. A value such as changed_to=\"o*\" (bus.py:1761 passes it to P.StateTo unchanged) or P.StateTo(\"o*\") matches only the literal string \"o*\".",
+   "suggested_fix": "ChangeType is a union of literal value, C.* condition instance, or callable (value) -> bool. A plain string is compared exactly; use C.Glob for glob matching (P.ServiceDataWhere is the exception and auto-wraps glob strings)."
+  },
+  {
+   "line": 28,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "condition accepts a literal value, a C.* condition instance, a glob string, or any callable (value) -> bool .",
+   "code_evidence": "src/hassette/event_handling/predicates.py:321-322 \u2014 `extracted = self.source(value)` / `return compare_value(extracted, self.condition)`; predicates.py:763-765 \u2014 non-callable conditions use equality, with no is_glob check. Probe on entity light.kitchen: P.ValueIs(source=A.get_entity_id, condition=\"light.*\") returns False; condition=C.Glob(\"light.*\") returns True.",
+   "explanation": "P.ValueIs does not detect globs. A glob string is treated as a string literal and compared exactly, so it silently never matches real entity IDs.",
+   "suggested_fix": "condition accepts a literal value, a C.* condition instance (use C.Glob for glob patterns; a bare glob string is compared literally), or any callable (value) -> bool."
+  },
+  {
+   "line": 141,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "The context dict from the event payload.",
+   "code_evidence": "src/hassette/events/base.py:31-32 \u2014 `@dataclass(frozen=True, slots=True)` / `class HassContext:`; src/hassette/events/hass/hass.py:221 \u2014 `\"context\": HassContext(**event[\"context\"])`. Probe: type(A.get_context(evt)) is HassContext, and isinstance(..., dict) is False.",
+   "explanation": "get_context returns a frozen HassContext dataclass, not a dict. Its fields are read as attributes (ctx.user_id), and it defines no __getitem__, so dict-style access such as ctx[\"user_id\"] fails. The adjacent Returns column (HassContext) is correct; the description contradicts it. The accessor's own docstring (accessors.py:240) has the same error.",
+   "suggested_fix": "The HassContext dataclass from the event payload (fields: id, parent_id, user_id)."
+  }
+ ],
+ "summary": "The page is highly accurate: signatures, defaults, coercion rules, operator behavior and accessor return values all matched the code, most of them confirmed by executing the real predicates. There are three errors. Two are one mistake repeated: lines 9 and 28 say glob strings work as conditions, but only P.ServiceDataWhere auto-wraps them, so elsewhere they silently fail to match. The third is line 141 calling the HassContext dataclass a dict.",
+ "_tools": 13,
+ "_tokens": 150268,
+ "_probe_calls": 5,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}

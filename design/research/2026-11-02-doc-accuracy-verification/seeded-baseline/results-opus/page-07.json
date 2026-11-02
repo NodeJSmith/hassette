@@ -1,0 +1,63 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 47,
+ "findings": [
+  {
+   "line": 12,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "By the time on_initialize runs, the bus, scheduler, API, and database are all ready.",
+   "code_evidence": "src/hassette/resources/base.py:575-581 \u2014 `await run_hooks(self, [self._framework_before_hooks, self.before_initialize, self.on_initialize, self.after_initialize])` and only then `for child in self.children: ... await child.initialize()`. src/hassette/bus/bus.py:178-182, src/hassette/scheduler/scheduler.py:180-183 and src/hassette/api/api.py:264-266 call `mark_ready` in the child's own on_initialize. Probe through AppTestHarness, reading inside on_initialize: {'bus': False, 'sched': False, 'api': False, 'bus_status': 'not_started'}.",
+   "explanation": "This sentence follows prose about self.bus and self.scheduler, but those per-app children are still NOT_STARTED and not ready while on_initialize and after_initialize run. They initialize after the hooks return. The framework services behind them (BusService, SchedulerService, ApiResource, DatabaseService) are ready, so L4 is true and on_state_change and run_in work. The practical trap: Bus.on_initialize and Scheduler.on_initialize then reset `_error_handler = None`. In the probe, a `self.bus.on_error(...)` set in on_initialize was gone after startup (handler_kept False).",
+   "suggested_fix": "By the time on_initialize runs, the framework services behind the bus, scheduler, and API, and the database, are ready, so registrations work. The app's own self.bus, self.scheduler, and self.api finish initializing after the initialize hooks return."
+  },
+  {
+   "line": 23,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 10 seconds.",
+   "code_evidence": "src/hassette/config/hassette.dev.toml:9 \u2014 `shutdown_timeout_seconds = 20`; src/hassette/config/config.py:487 \u2014 `defaults = get_defaults_dict(dev=self.dev_mode)`, applied to nested groups at config.py:502-518. Runtime check: HassetteConfig(dev_mode=False) gives 10, dev_mode=True gives 20.",
+   "explanation": "The default is 10 seconds only outside dev mode. With dev_mode on, which is auto-detected under a debugger or `python -X dev`, an unset value is 20 seconds.",
+   "suggested_fix": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 10 seconds (20 in dev_mode)."
+  },
+  {
+   "line": 23,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "At process exit, apps stop concurrently, so one slow app never shortens another's hooks.",
+   "code_evidence": "src/hassette/app/app.py:312-315 \u2014 `await self.task_bucket.run_in_thread(self.on_shutdown_sync)`, awaited inside the bound at src/hassette/resources/operations.py:175-179 \u2014 `async with scope: await method()`. src/hassette/core/app_lifecycle_instances.py:483-484 (docstring, matching that code) \u2014 'AppSync hooks share the sync executor's threads, so past its worker count the wait for a thread counts against their bound.'",
+   "explanation": "'Never' fails for AppSync apps. Their hooks share the worker pool, and time spent queued for a thread counts against the hook's bound. When more sync hooks run than there are workers (sync_executor_max_workers), slow sync hooks cut into other apps' hook time. The claim holds for async hooks unless one blocks the event loop, which L25 covers.",
+   "suggested_fix": "At process exit, apps stop concurrently, so one slow app doesn't shorten another's hooks. The exception is AppSync hooks beyond the worker pool's size, whose wait for a thread counts against their bound."
+  },
+  {
+   "line": 25,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "A hook that catches and swallows the cancellation keeps its app stopping until its stage's deadline, then Hassette force-terminates the app.",
+   "code_evidence": "src/hassette/resources/operations.py:184-186 \u2014 `# a hook that caught its cancellation and returned leaves the block without a TimeoutError` / `if scope.expired(): raise ShutdownHookTimedOutError(timeout_message)`; src/hassette/core/app_lifecycle_instances.py:246-248 \u2014 force-termination only when `task not in done` at the deadline.",
+   "explanation": "Swallowing alone doesn't hold the app until the deadline. A hook that swallows the cancellation and returns is recorded as timed out, and the remaining hooks run. A hook that swallows it and keeps running holds the app until it returns. Force-termination happens only if it is still running when the deadline passes.",
+   "suggested_fix": "A hook that catches the cancellation and keeps running keeps its app stopping until it returns or its stage's deadline passes, at which point Hassette force-terminates the app."
+  },
+  {
+   "line": 39,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "An on_initialize that catches asyncio.CancelledError without re-raising it, or a background task that ignores its cancellation, keeps running after Hassette gave up on it. ... Hassette then reports the instance as failed and needing a restart",
+   "code_evidence": "src/hassette/resources/lifecycle.py:605-620 \u2014 `_done, pending = await asyncio.wait([init_task], timeout=timeout)`; `if pending: return init_task.get_name()`, otherwise `return None`. src/hassette/core/app_lifecycle_instances.py:342-350 \u2014 when `outcome.is_restart_safe`, settle_failed_init records the failure and returns without flagging.",
+   "explanation": "The needs-restart flag depends on the initializer still being pending after the bounded wait (shutdown_hook_bound), not on the catch itself. An on_initialize that swallows the cancellation and finishes within that bound is reported failed but is not flagged. Traced from code, not run. The flag does apply when the work outlives the bound or when a background task is still pending.",
+   "suggested_fix": "An on_initialize that catches asyncio.CancelledError and keeps working, or a background task that ignores its cancellation, can keep running after Hassette gave up on it. If it is still running after the shutdown bound, Hassette reports the instance as failed and needing a restart, and only restarting Hassette stops that work."
+  }
+ ],
+ "summary": "The page is mostly accurate: hook order, @final enforcement, the failed-init path, AppSync delegation, config location, and link anchors all check out, and all five findings are low severity. Errors cluster in absolute statements about edge cases (readiness of per-app children, dev-mode default, 'never', swallowed cancellation). Possible code bug outside this page, needing triage: Bus.on_initialize and Scheduler.on_initialize reset `_error_handler` after the app's hooks run, so the `self.bus.on_error(...)` shown in docs/pages/core-concepts/bus/snippets/handlers/bus_error_handler_app.py was lost in a harness probe, and the scheduler snippet (scheduler_error_handler_app.py) has the same shape from code reading only.",
+ "_tools": 21,
+ "_tokens": 191983,
+ "_probe_calls": 5,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}

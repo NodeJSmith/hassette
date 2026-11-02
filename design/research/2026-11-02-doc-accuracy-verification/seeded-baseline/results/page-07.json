@@ -1,0 +1,9 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 34,
+ "findings": [],
+ "summary": "Every checkable claim on this page held up against the code, so there are no findings. I checked each of these against source:\n- The default `shutdown_timeout_seconds` of 10 and the `[hassette.lifecycle]` section name.\n- The empty base hooks, and the cache being initialized in `App._framework_before_hooks` before `before_initialize`.\n- `initialize`, `shutdown` and `cleanup` being `@final` on App, with `FinalMeta` raising `CannotOverrideFinalError` at class creation.\n- The six `AppSync` `_sync` hooks, with the async hooks `@final` and run via `task_bucket.run_in_thread`.\n- Skipping the app's shutdown hooks after a failed or timed-out init (`skip_own_shutdown_hooks` called in `initialize_instance`).\n- Concurrent app stops at process exit (`shutdown_all` uses `gather_all`).\n- The \"timed out\" FAILED outcome (the reasons built in `app_lifecycle_instances.py`).\n- The `.sync` facades on bus, scheduler and api (set as `self.sync` in each).\n\nI did not open `operating/index.md` to confirm the anchors `#startup-and-shutdown-timeouts`, `#how-shutdown-is-bounded` and `#instances-that-need-a-restart`. I also did not open the `task-bucket` or `database-telemetry` pages, or the reference-doc link targets, though the page links to them.",
+ "_tools": 11,
+ "_tokens": 107404,
+ "_doc_access": []
+}

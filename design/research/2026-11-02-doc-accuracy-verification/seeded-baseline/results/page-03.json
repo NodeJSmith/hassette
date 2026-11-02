@@ -1,0 +1,52 @@
+{
+ "page": "core-concepts/apps/lifecycle",
+ "claims_checked": 42,
+ "findings": [
+  {
+   "line": 23,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 30 seconds.",
+   "code_evidence": "src/hassette/config/models.py:35 `SHUTDOWN_TIMEOUT_SECONDS = 10`; models.py:335 `shutdown_timeout_seconds: float = Field(default=SHUTDOWN_TIMEOUT_SECONDS, gt=0)`. docs/pages/operating/index.md:190 also says 10s.",
+   "explanation": "The default per-hook shutdown timeout is 10 seconds, not 30.",
+   "suggested_fix": "The field sits under [hassette.lifecycle] in hassette.toml and defaults to 10 seconds."
+  },
+  {
+   "line": 42,
+   "claim_type": "api-signature",
+   "verdict": "OUTDATED_API",
+   "severity": "low",
+   "doc_quote": "Hassette runs each variant in a thread pool via task_bucket.to_thread",
+   "code_evidence": "src/hassette/app/app.py:310-335 `await self.task_bucket.run_in_thread(self.on_initialize_sync)`. src/hassette/task_bucket/task_bucket.py:312 defines `run_in_thread`. A grep for `to_thread` across src/hassette found no TaskBucket method by that name.",
+   "explanation": "The TaskBucket method is `run_in_thread`. There is no `to_thread` method.",
+   "suggested_fix": "Hassette runs each variant in a thread pool via task_bucket.run_in_thread, so blocking calls do not stall the event loop."
+  },
+  {
+   "line": 51,
+   "claim_type": "api-signature",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "self.bus.sync , self.scheduler.sync , self.api.sync , and self.states.sync",
+   "code_evidence": "Bus, Scheduler and Api each set a facade: bus/bus.py:158 `self.sync = self.add_child(BusSyncFacade ...)`, scheduler/scheduler.py:151, api/api.py:262. A grep for `.sync` and `sync =` in src/hassette/state_manager/ and app/app.py found nothing, and app/app.py:160 only has `self.states = self.add_child(StateManager)`.",
+   "explanation": "StateManager has no `.sync` facade. Only bus, scheduler and api do, so `self.states.sync` would raise AttributeError.",
+   "suggested_fix": "The .sync facades provide synchronous access from _sync hooks: self.bus.sync, self.scheduler.sync, and self.api.sync. self.states is already synchronous to read."
+  },
+  {
+   "line": 29,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "raises CannotOverrideFinalError ... when the app is first instantiated.",
+   "code_evidence": "src/hassette/resources/base.py:47-85 `FinalMeta.__init__` runs the check when the class is created, and raises `CannotOverrideFinalError`.",
+   "explanation": "The error is raised when the subclass is defined (class creation), not when an instance is made. Line 50 of the same page says 'class load time', which is correct.",
+   "suggested_fix": "...raises CannotOverrideFinalError when the class is defined (at class load time)."
+  }
+ ],
+ "summary": "The page is mostly accurate on hook order, the @final enforcement, the automatic-cleanup claims, and the failed-initialization behavior. Own shutdown hooks are skipped after a failed init (core/app_lifecycle_instances.py:126). The errors are one wrong default (shutdown timeout is 10s, not 30s), one nonexistent API (`states.sync`), one wrong method name (`to_thread`), and one imprecise timing claim (the final-override error fires at class definition, not instantiation). Of these, the `shutdown_timeout_seconds` default and `states.sync` would mislead users most.",
+ "_tools": 9,
+ "_tokens": 99540,
+ "_doc_access": [
+  "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review; grep -rn \\\"task_bucket\\\\|self.sync\\\\|\\\\.sync\\\\b\\\" src/hassette/bus/bus.py src/hassett"
+ ]
+}

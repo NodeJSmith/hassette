@@ -1,0 +1,113 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 68,
+ "findings": [
+  {
+   "line": 25,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Each next run is calculated from wall-clock time, not from the previous run time.",
+   "code_evidence": "src/hassette/core/scheduler_dispatch.py:174 \u2014 `next_run = job.trigger.next_run_time(job.next_run, date_utils.now())`; src/hassette/scheduler/triggers.py:346-362 \u2014 `return self.advance_past(previous_run, current_time)`, which adds whole intervals to the `anchor`",
+   "explanation": "`Every` anchors on the previous logical fire time (`job.next_run`) and advances by whole intervals until the result is after the current time. Drift resistance comes from using the previous scheduled slot rather than the time the handler finished. The next run is computed from the previous run time, which is the opposite of what the page says.",
+   "suggested_fix": "Each next run is calculated from the previous scheduled fire time, advanced by whole intervals past the current time, not from when the handler finished. The interval stays drift-resistant under load."
+  },
+  {
+   "line": 51,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Wall-clock time in \"HH:MM\" or \"HH:MM:SS\" format.",
+   "code_evidence": "src/hassette/scheduler/triggers.py:121-123 \u2014 `parts = at.split(\":\")` / `if len(parts) != 2: raise ValueError(f\"{label} 'at' must be 'HH:MM', got {at!r}\")`; called from Daily.__init__ at triggers.py:398. Runtime probe: `Daily(at='07:00:30')` raised `ValueError: Daily 'at' must be 'HH:MM', got '07:00:30'`.",
+   "explanation": "`run_daily` builds `Daily(at=at)` (scheduler.py:1171), and `Daily` accepts only two colon-separated fields. An \"HH:MM:SS\" value raises ValueError.",
+   "suggested_fix": "Wall-clock time in \"HH:MM\" format."
+  },
+  {
+   "line": 119,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "an empty string raises ValueError",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:670-671 \u2014 `if not name: raise SchedulerNameRequiredError(callable_name(func), str(trigger))`; also scheduler.py:565-566 (register) and 247-248 (add_job). src/hassette/exceptions.py:704 \u2014 `class SchedulerNameRequiredError(HassetteError)`. Runtime probe: the MRO is SchedulerNameRequiredError, HassetteError, ReconstructibleError, Exception, with no ValueError.",
+   "explanation": "An empty name raises `SchedulerNameRequiredError`, which is not a ValueError subclass, so `except ValueError` will not catch it. The page's statement that omitting `name` raises TypeError is correct, because `name` is a required keyword-only parameter.",
+   "suggested_fix": "Omitting it raises TypeError (no default value); an empty string raises SchedulerNameRequiredError."
+  },
+  {
+   "line": 121,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "| jitter | float | None | 0 |",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:596 \u2014 `jitter: float | None = None` (the same default appears on every run_* method, e.g. scheduler.py:799); src/hassette/scheduler/classes.py:213 \u2014 `jitter: float | None = field(default=None, compare=False)`",
+   "explanation": "The default is None, not 0. The two behave the same at runtime because `apply_jitter` returns the time unchanged for any falsy jitter (classes.py:559), but the stated value is wrong.",
+   "suggested_fix": "| jitter | float | None | None | Random offset in seconds added to each run. |"
+  },
+  {
+   "line": 125,
+   "claim_type": "api-signature",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "Overrides the app-level handler set via scheduler.set_error_handler() .",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:190 \u2014 `def on_error(self, handler: \"SchedulerErrorHandlerType\") -> None:`. `grep -rn set_error_handler src/hassette docs/pages` returned no matches.",
+   "explanation": "`Scheduler.set_error_handler` does not exist, so calling it raises AttributeError. The app-level handler is registered with `scheduler.on_error()`.",
+   "suggested_fix": "Overrides the app-level handler set via scheduler.on_error()."
+  },
+  {
+   "line": 125,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Invoked on any exception, including CancelledError .",
+   "code_evidence": "src/hassette/core/command_executor.py:352-354 \u2014 `except asyncio.CancelledError: enqueue_result_record(); raise`; command_executor.py:538-541 \u2014 the handler branch runs after `_execute` returns and only `if (result.is_error or result.is_timed_out) and result.exc is not None`. src/hassette/utils/execution.py \u2014 track_execution sets status CANCELLED and re-raises without setting `result.exc`. The predicate path (scheduler_dispatch.py:264) catches only `Exception`.",
+   "explanation": "A CancelledError is recorded with status='cancelled' and re-raised before the error-handler branch, so `on_error` is never invoked for it. The handler runs for ordinary exceptions and for timeouts.",
+   "suggested_fix": "Invoked when the job raises an exception or times out. Not invoked for CancelledError."
+  },
+  {
+   "line": 144,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "The monitoring UI shows this record alongside predicate_description and human_description on the job.",
+   "code_evidence": "frontend/src/components/app-detail/job-detail.tsx:210 \u2014 `const predicateDescription = job.human_description || job.predicate_description || null;`. This is the only job-side use of either field in non-test frontend `.tsx` files (`handler-list.tsx:38` and `listener-detail.tsx:92` read `listener.human_description`, not the job's).",
+   "explanation": "The job detail view renders one description. It shows `human_description` and falls back to `predicate_description` only when the first is empty, so the two are not shown together.",
+   "suggested_fix": "The monitoring UI shows this record alongside the job's predicate description (human_description, falling back to predicate_description)."
+  },
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "triggered by hassette reload",
+   "code_evidence": "src/hassette/cli/__init__.py:74-75 \u2014 `apps_app = App(name=\"app\", ...)` / `app.command(apps_app)`; __init__.py:114 \u2014 `apps_app.command(cmd_app_reload, name=\"reload\")`; src/hassette/cli/commands/app.py:231-232 \u2014 `def cmd_app_reload(key: str, ...)`. The top-level commands registered in __init__.py include no `reload`.",
+   "explanation": "There is no top-level `hassette reload` command. Reload is `hassette app reload <key>`, and the key is a required argument.",
+   "suggested_fix": "triggered by hassette app reload <key>"
+  },
+  {
+   "line": 156,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "if_exists matters most in on_initialize , which re-runs on app reload",
+   "code_evidence": "src/hassette/core/app_lifecycle_start_stop.py:355-359 \u2014 reload_app runs `_stop_app_unlocked` then `_start_app_unlocked`; src/hassette/scheduler/scheduler.py:185-188 \u2014 `Scheduler.on_shutdown` awaits `self.remove_all_jobs()`; src/hassette/core/app_factory.py:191 \u2014 `app_instance = app_class(`; scheduler.py:147 \u2014 a new Scheduler starts with `self._jobs_by_name = {}`; docs/pages/core-concepts/apps/lifecycle.md:36 says scheduled jobs are cleaned up automatically.",
+   "explanation": "An app reload removes the old instance's jobs at shutdown, then creates a new instance whose Scheduler has an empty name registry. A re-run `on_initialize` therefore finds no existing job with that name, so `if_exists` has nothing to act on, and the default \"error\" does not raise on reload. The same premise appears at lines 158-162, where the examples present \"skip\" and \"replace\" as what makes registration reload-safe. `if_exists` matters when a name is registered twice within one running scheduler.",
+   "suggested_fix": "if_exists matters when the same name can be registered more than once in a running app, for example when a handler re-arms its own job or a method that registers jobs runs repeatedly. App reloads do not need it, because reload removes the old instance's jobs and on_initialize runs on a new instance with an empty job registry. Update the examples at lines 158-162 to match."
+  }
+ ],
+ "summary": "Most of the page is accurate: signatures, trigger validation, run_once behavior, cron field handling, predicate dispatch, skip and error routing, and the if_exists match and replace semantics all checked out against the code. The 9 findings cluster in the shared-parameter table (line 119 empty-name exception, line 121 jitter default, and two errors on line 125: the nonexistent set_error_handler and the CancelledError claim) and the idempotent-registration section (a nonexistent `hassette reload` command, and a reload rationale that does not match job cleanup). The rest are run_daily's unsupported \"HH:MM:SS\" format, the run_every drift explanation, and the UI description wording.",
+ "_tools": 17,
+ "_tokens": 200316,
+ "_probe_calls": 5,
+ "_orig_access": [
+  [
+   15,
+   "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review;\\nsed -n 80,135p src/hassette/utils/execution.py\\ngrep -n \\\"_stop_app_unlock"
+  ]
+ ],
+ "_model": "claude-opus-5-5",
+ "_doc_access": [
+  [
+   15,
+   "{\"command\": \"cd /home/jessica/source/hassette/.claude/worktrees/doc-accuracy-review;\\nsed -n 80,135p src/hassette/utils/execution.py\\ngrep -n \\\"_stop_app_unlock"
+  ]
+ ]
+}

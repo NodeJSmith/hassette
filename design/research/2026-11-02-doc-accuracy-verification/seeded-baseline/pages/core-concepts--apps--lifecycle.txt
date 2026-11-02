@@ -1,0 +1,112 @@
+LINE 1: # Apps — Lifecycle
+LINE 2: Hassette manages app initialization and shutdown. The app declares what to do at each stage through lifecycle hooks.
+LINE 3: ## Initialization
+LINE 4: Hassette transitions the app through STARTING to RUNNING at startup. All core services (API, Bus , Scheduler , and the internal SQLite [telemetry database](../../database-telemetry/) ) are ready before any hook runs.
+LINE 5: Three hooks fire in order:
+LINE 6: - before_initialize
+LINE 7: - on_initialize , the primary hook where the app subscribes to HA events and schedules recurring tasks
+LINE 8: - after_initialize
+LINE 9: ```
+LINE 10: from hassette import App, D
+from hassette.models import states
+
+
+class MyApp(App):
+    async def on_initialize(self) -> None:
+        await self.bus.on_state_change("sensor.power", handler=self.on_power, name="power_sensor")
+        await self.scheduler.run_in(self.check_status, 30, name="startup_check")
+
+    async def on_power(self, new_state: D.StateNew[states.SensorState]) -> None:
+        pass
+
+    async def check_status(self) -> None:
+        pass
+
+LINE 11: ```
+LINE 12: on_initialize is where most apps do their setup. self.bus.on_state_change registers a handler that fires on entity state changes. self.scheduler.run_in schedules a one-shot job after a fixed delay. Both calls are async and must be awaited. By the time on_initialize runs, the bus, scheduler, API, and database are all ready.
+LINE 13: before_initialize and after_initialize exist for setup that must happen strictly before or after the main registration. Most apps only need on_initialize .
+LINE 14: [ADMONITION: Note]
+LINE 15:   The base before_initialize , on_initialize , and after_initialize are empty, so overrides need no super() call. Hassette initializes self.cache itself before before_initialize runs.
+LINE 16: ## Shutdown
+LINE 17: Hassette transitions the app through STOPPING to STOPPED during shutdown or reload.
+LINE 18: Three hooks fire in order:
+LINE 19: - before_shutdown
+LINE 20: - on_shutdown
+LINE 21: - after_shutdown
+LINE 22: on_shutdown is for releasing external resources the app allocated directly: open files, raw sockets, or third-party connections. Bus subscriptions, scheduled jobs, and [task_bucket](../task-bucket/) tasks are cleaned up automatically.
+LINE 23: Each hook gets [shutdown_timeout_seconds](../../../operating/#startup-and-shutdown-timeouts) before Hassette cancels it. The field sits under [hassette.lifecycle] in hassette.toml and defaults to 10 seconds. At process exit, apps stop concurrently, so one slow app never shortens another's hooks. A stop whose hook timed out is reported FAILED with a "timed out" reason, even when the hook ended as soon as it was cancelled. See [How shutdown is bounded](../../../operating/#how-shutdown-is-bounded) for the stage limits above each hook.
+LINE 24: [ADMONITION: Shutdown hooks must let cancellation through]
+LINE 25:   Hassette stops a timed-out hook by cancelling it, so a shutdown hook must let asyncio.CancelledError propagate and clean up promptly once cancelled. A hook that catches and swallows the cancellation keeps its app stopping until its stage's deadline, then Hassette force-terminates the app. A hook that blocks the event loop, such as a synchronous network call or time.sleep() , stops every deadline from firing until it returns. Use await for I/O in async hooks, and put blocking calls in an AppSync _sync hook, which runs in a worker thread.
+LINE 26: ## Automatic Cleanup
+LINE 27: After the shutdown hooks complete, Hassette cancels all bus subscriptions created via self.bus , all scheduled jobs created via self.scheduler , and all background tasks tracked by self.task_bucket . Manual unsubscription or job cancellation in on_shutdown is unnecessary.
+LINE 28: [ADMONITION: Warning]
+LINE 29:   initialize , shutdown , and cleanup are marked @final — attempting to override any of them raises [CannotOverrideFinalError](../../../../reference/hassette/exceptions/#hassette.exceptions.CannotOverrideFinalError) at class load time. The before_* , on_* , and after_* hooks are the extension points.
+LINE 30: ## Ifon_initializeFails
+LINE 31: When on_initialize raises or times out, Hassette marks the app instance as failed and shuts it down. A timed-out on_initialize is cancelled, so asyncio.CancelledError is raised inside it at the await it was waiting on. The shutdown removes the bus subscriptions and scheduled jobs the instance registered, and cancels its self.task_bucket tasks.
+LINE 32: The app's own shutdown hooks ( before_shutdown , on_shutdown , after_shutdown ) don't run after a failed initialization. Resources the app created itself stay open until Hassette restarts, such as an aiohttp.ClientSession , a third-party client, or an open file. The app closes them itself: a try / except BaseException around the steps after the resource is created closes it and re-raises.
+LINE 33: ```
+LINE 34: import aiohttp
+
+from hassette import App
+
+
+class WeatherApp(App):
+    session: aiohttp.ClientSession
+
+    async def on_initialize(self) -> None:
+        self.session = aiohttp.ClientSession()
+        try:
+            await self.bus.on_state_change(
+                "sun.sun", handler=self.refresh, name="sun_refresh"
+            )
+            await self.refresh()
+        except BaseException:
+            # on_shutdown doesn't run after a failed or timed-out init;
+            # BaseException also catches the timeout's CancelledError
+            await self.session.close()
+            raise
+
+    async def on_shutdown(self) -> None:
+        await self.session.close()
+
+    async def refresh(self) -> None:
+        async with self.session.get("https://example.com/forecast") as resp:
+            resp.raise_for_status()
+
+LINE 35: ```
+LINE 36: The except block runs whether the subscription or refresh raised, or the startup timeout cancelled them. Catching BaseException rather than Exception matters for the timeout: the cancellation is an asyncio.CancelledError , which except Exception doesn't catch. The re-raise lets the error or cancellation finish, and the app is still marked failed. On a normal stop, on_shutdown closes the session instead.
+LINE 37: The same applies to after_initialize : if it raises, the app is marked failed and its shutdown hooks are skipped. An app that overrides after_initialize needs the same try / except there.
+LINE 38: [ADMONITION: Let the cancellation through]
+LINE 39:   An on_initialize that catches asyncio.CancelledError without re-raising it, or a background task that ignores its cancellation, keeps running after Hassette gave up on it. Python can't stop a coroutine that refuses to be cancelled. Hassette then reports the instance as failed and [needing a restart](../../../operating/#instances-that-need-a-restart) , and only restarting Hassette stops that work.
+LINE 40: ## Synchronous Lifecycle
+LINE 41: [COLLAPSIBLE: AppSynclifecycle hooks]
+LINE 42:   [AppSync](../../../../reference/hassette/app/#hassette.app.AppSync) is for apps that wrap blocking (non-async) third-party libraries. It provides _sync -suffixed variants of each hook. Hassette runs each variant in a thread pool via task_bucket.run_in_thread , so blocking calls do not stall the event loop. The _sync hooks are synchronous and cannot use await .
+LINE 43:   | App (async) | AppSync (sync) |
+LINE 44:   | before_initialize | before_initialize_sync |
+LINE 45:   | on_initialize | on_initialize_sync |
+LINE 46:   | after_initialize | after_initialize_sync |
+LINE 47:   | before_shutdown | before_shutdown_sync |
+LINE 48:   | on_shutdown | on_shutdown_sync |
+LINE 49:   | after_shutdown | after_shutdown_sync |
+LINE 50:   The async hooks ( on_initialize , on_shutdown , etc.) are marked @final on AppSync and delegate to the _sync variants via the thread pool. Overriding them raises [CannotOverrideFinalError](../../../../reference/hassette/exceptions/#hassette.exceptions.CannotOverrideFinalError) at class load time.
+LINE 51:   The bus, scheduler, and API are async. The .sync facades provide synchronous access from _sync hooks: self.bus.sync , self.scheduler.sync , and self.api.sync .
+LINE 52:   ```
+LINE 53: from hassette import AppSync
+
+
+class MyApp(AppSync):
+    def on_initialize_sync(self) -> None:
+        self.bus.sync.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen")
+        self.scheduler.sync.run_in(self.cleanup_task, 60, name="cleanup")
+
+    def on_light_change(self) -> None:
+        pass
+
+    def cleanup_task(self) -> None:
+        pass
+
+LINE 54:   ```
+LINE 55: ## See Also
+LINE 56: - [Apps overview](../) : app structure and configuration
+LINE 57: - [Task Bucket](../task-bucket/) : background task lifecycle and shutdown behavior
+LINE 58: - [Bus](../../bus/) : handler registration in on_initialize

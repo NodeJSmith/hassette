@@ -1,0 +1,103 @@
+{
+ "page": "core-concepts/bus/predicate-reference",
+ "claims_checked": 112,
+ "findings": [
+  {
+   "line": 9,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "ChangeType is a union of literal value, C.* condition instance, glob string, or callable (value) -> bool .",
+   "code_evidence": "src/hassette/types/types.py:330 \u2014 \"FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel] | None\"",
+   "explanation": "The alias has no glob-string member, and a string in this position gets no glob handling in general. Only P.ServiceDataWhere (auto_glob) wraps glob strings. The alias also includes sentinels, None, and two-argument comparison conditions, which the sentence omits.",
+   "suggested_fix": "ChangeType is a union of literal value, C.* condition instance, or callable (value) -> bool. A string is matched literally unless wrapped in C.Glob; only P.ServiceDataWhere auto-detects globs."
+  },
+  {
+   "line": 18,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "P.Guard | Guard(predicate: Predicate[EventT])",
+   "code_evidence": "src/hassette/event_handling/predicates.py:157 \u2014 `fn: \"Predicate[EventT]\"`. Runtime: P.Guard(predicate=...) raises TypeError: Guard.__init__() got an unexpected keyword argument 'predicate'",
+   "explanation": "The dataclass field is named `fn`, not `predicate`. Passing the documented keyword raises TypeError. Positional use works.",
+   "suggested_fix": "Guard(fn: Predicate[EventT])"
+  },
+  {
+   "line": 28,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "condition accepts a literal value, a C.* condition instance, a glob string, or any callable (value) -> bool .",
+   "code_evidence": "src/hassette/event_handling/predicates.py:763-765 \u2014 `if not callable(condition): ... return coerce_to_literal_type(actual, condition) == condition`. Runtime: compare_value(\"light.kitchen\", \"light.*\") returns False",
+   "explanation": "P.ValueIs does not auto-detect globs. A bare glob string is compared by plain equality, so P.ValueIs(source=A.get_entity_id, condition=\"light.*\") never matches a real entity. The same applies to P.StateFrom, P.StateTo, P.AttrFrom, P.AttrTo and changed_to=/changed_from= (src/hassette/bus/bus.py:1758-1764 passes the value through unwrapped). Glob detection exists only in DomainMatches, EntityMatches and ServiceMatches (predicates.py:227-229) and in ServiceDataWhere (predicates.py:700).",
+   "suggested_fix": "condition accepts a literal value, a C.* condition instance, or any callable (value) -> bool. A glob string is compared literally here; wrap it in C.Glob to match as a pattern."
+  },
+  {
+   "line": 51,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "When old_state is None , returns False even if the attribute is present on the new state.",
+   "code_evidence": "src/hassette/event_handling/predicates.py:530-531 \u2014 `if value.payload.data.old_state is None: return get_attr_new(self.attr_name)(value) is not MISSING_VALUE`. Runtime: returns True when the attribute is present, False when absent",
+   "explanation": "The behavior is the opposite of the claim. With no old state, the predicate returns True when the attribute exists on new_state, and False only when it is absent.",
+   "suggested_fix": "When old_state is None, returns True if the attribute is present on the new state, and False if it is absent."
+  },
+  {
+   "line": 79,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when the string value contains substring , ignoring case.",
+   "code_evidence": "src/hassette/event_handling/conditions.py:227 \u2014 `return isinstance(value, str) and self.substring in value`. Runtime: C.Contains(\"KIT\")(\"kitchen\") returns False",
+   "explanation": "The match is case-sensitive. No case folding happens anywhere in the class.",
+   "suggested_fix": "Returns True when the string value contains substring (case-sensitive)."
+  },
+  {
+   "line": 91,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "collection must be a sequence, not a string. Passing a string raises TypeError .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:120-122 \u2014 `if isinstance(collection, str): raise ValueError(\"collection must be a sequence of values, not a string\")`. Runtime: C.IsIn, C.NotIn, C.Intersects and C.NotIntersects all raise ValueError when given \"abc\"",
+   "explanation": "All four collection conditions raise ValueError, so code catching TypeError would not catch it.",
+   "suggested_fix": "collection must be a sequence, not a string. Passing a string raises ValueError."
+  },
+  {
+   "line": 104,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Returns True when float(old) < threshold <= float(new) .",
+   "code_evidence": "src/hassette/event_handling/conditions.py:611 \u2014 `return float(old_value) <= self.threshold < float(new_value)`. Runtime: CrossedAbove(25)(\"25\",\"26\") returns True; CrossedAbove(25)(\"24\",\"25\") returns False",
+   "explanation": "The boundaries are reversed. An old value equal to the threshold counts as below it, and a new value equal to the threshold does not count as crossed. A reading landing exactly on the threshold does not fire, contrary to the page.",
+   "suggested_fix": "Returns True when float(old) <= threshold < float(new)."
+  },
+  {
+   "line": 141,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "The context dict from the event payload.",
+   "code_evidence": "src/hassette/events/base.py:31-37 \u2014 `@dataclass(frozen=True, slots=True) class HassContext: id: str; parent_id: str | None; user_id: str | None`",
+   "explanation": "The accessor returns a frozen HassContext dataclass, not a dict. Fields are read as attributes, so subscript access such as ctx[\"id\"] fails. The Returns column on the same row correctly says HassContext.",
+   "suggested_fix": "The HassContext object from the event payload."
+  },
+  {
+   "line": 151,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "Excludes last_reported , last_updated , and last_changed by default.",
+   "code_evidence": "src/hassette/event_handling/accessors.py:63 \u2014 `DEFAULT_EXCLUDE = (\"last_reported\", \"last_updated\", \"last_changed\", \"context\")`",
+   "explanation": "The default exclusion list also contains context, which the page omits. A context-only difference does not appear in the diff.",
+   "suggested_fix": "Excludes last_reported, last_updated, last_changed, and context by default."
+  }
+ ],
+ "summary": "The page is mostly accurate: accessor tables, literal coercion, operator composition, sentinels, and most signatures all match the code. Nine claims fail, and the errors cluster in predicate and condition descriptions: the Guard parameter name, AttrDidChange with no old state, C.Contains case sensitivity, the C.CrossedAbove boundaries, and the exception for string collections. The most misleading is the implied glob-string support on P.ValueIs and everything built on it, because a bare glob there is compared literally and silently never matches.",
+ "_tools": 9,
+ "_tokens": 142293,
+ "_probe_calls": 2,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}

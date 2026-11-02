@@ -1,0 +1,60 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 78,
+ "findings": [
+  {
+   "line": 125,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Invoked on any exception, including CancelledError .",
+   "code_evidence": "src/hassette/core/command_executor.py:352-354 \u2014 `except asyncio.CancelledError: enqueue_result_record(); raise` runs before the job error-handler dispatch at lines 538-542. The docstrings agree: scheduler.py:642 and classes.py:243 say 'including TimeoutError, but excluding CancelledError'.",
+   "explanation": "A cancelled job is recorded as cancelled and the CancelledError is re-raised. The per-job and app-level on_error handlers are never called for it. They are called for ordinary exceptions and timeouts.",
+   "suggested_fix": "Invoked on any exception, including timeouts, but not on CancelledError."
+  },
+  {
+   "line": 119,
+   "claim_type": "exception",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "an empty string raises ValueError",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:670-671 \u2014 `if not name: raise SchedulerNameRequiredError(...)`; src/hassette/exceptions.py:704 \u2014 `class SchedulerNameRequiredError(HassetteError)`. HassetteError (exceptions.py:59) derives from ReconstructibleError, not ValueError. register() (scheduler.py:565-566) and add_job() (scheduler.py:~248) raise the same error.",
+   "explanation": "An empty name raises SchedulerNameRequiredError, which is not a ValueError. A user who catches ValueError will not catch it. Omitting name= entirely does raise TypeError, because name is a required keyword-only parameter.",
+   "suggested_fix": "Omitting it raises TypeError (no default value); an empty string raises SchedulerNameRequiredError."
+  },
+  {
+   "line": 51,
+   "claim_type": "api-signature",
+   "verdict": "WRONG",
+   "severity": "high",
+   "doc_quote": "Wall-clock time in \"HH:MM\" or \"HH:MM:SS\" format.",
+   "code_evidence": "src/hassette/scheduler/triggers.py:121-123 \u2014 parse_hh_mm: `parts = at.split(\":\"); if len(parts) != 2: raise ValueError(f\"{label} 'at' must be 'HH:MM'...\")`. Daily.__init__ (triggers.py:~195) calls parse_hh_mm. The run_daily docstring (scheduler.py:1150) says 'HH:MM' only.",
+   "explanation": "run_daily accepts only \"HH:MM\". A \"HH:MM:SS\" string raises ValueError.",
+   "suggested_fix": "Wall-clock time in \"HH:MM\" format."
+  },
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "low",
+   "doc_quote": "triggered by hassette reload , or by config changes when automatic reloads are on",
+   "code_evidence": "src/hassette/cli/__init__.py:74-114 \u2014 `apps_app = App(name=\"app\"...)` and `apps_app.command(cmd_app_reload, name=\"reload\")`; cli/commands/app.py:231 `def cmd_app_reload(key: str, ...)`. Searched cli/__init__.py for a top-level `reload` command and found none.",
+   "explanation": "There is no top-level `hassette reload` command. Reload is `hassette app reload <key>`.",
+   "suggested_fix": "triggered by hassette app reload <key>, or by config changes when automatic reloads are on"
+  },
+  {
+   "line": 121,
+   "claim_type": "default-value",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "| jitter | float \\| None | 0 |",
+   "code_evidence": "src/hassette/scheduler/scheduler.py:595 \u2014 `jitter: float | None = None` (same on run_in at line 799, run_every at 932, and the other convenience methods).",
+   "explanation": "The default for jitter is None, not 0. Behavior is equivalent (no jitter), but the stated default is wrong.",
+   "suggested_fix": "Change the Default column for jitter to None."
+  }
+ ],
+ "summary": "Most of the page is accurate. Signatures, defaults, run_in/run_every/run_minutely/run_hourly validation, the Once/if_past behavior, the register() parameters, the if_exists semantics, the job-matching fields and the where/predicate behavior all match the code. The errors are in the shared-parameters table (the on_error CancelledError claim, the empty-name exception type, the jitter default), the run_daily `at` format and the reload CLI command name.",
+ "_tools": 12,
+ "_tokens": 125287,
+ "_doc_access": []
+}

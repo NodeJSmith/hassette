@@ -1,0 +1,43 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 74,
+ "findings": [
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "high",
+   "doc_quote": "triggered by hassette reload , or by config changes when automatic reloads are on",
+   "code_evidence": "src/hassette/cli/__init__.py:74-75,114 \u2014 apps_app = App(name=\"app\", ...); app.command(apps_app); apps_app.command(cmd_app_reload, name=\"reload\"). `uv run hassette --help` lists no top-level `reload` command. `uv run hassette app reload --help` prints `Usage: hassette app reload [OPTIONS] KEY [ARGS]`, with KEY required.",
+   "explanation": "There is no `hassette reload` command. Reload is a subcommand of `app` and takes a required app key.",
+   "suggested_fix": "triggered by `hassette app reload <key>`, or by config changes when automatic reloads are on"
+  },
+  {
+   "line": 156,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "if_exists matters most in on_initialize , which re-runs on app reload",
+   "code_evidence": "src/hassette/core/app_lifecycle_start_stop.py:355,359 \u2014 reload_app runs `_stop_app_unlocked` then `_start_app_unlocked`. src/hassette/core/app_factory.py:191 \u2014 `app_instance = app_class(` builds a new instance. src/hassette/app/app.py:158 \u2014 `self.scheduler = self.add_child(Scheduler)`. src/hassette/scheduler/scheduler.py:147 \u2014 `self._jobs_by_name = {}`. src/hassette/scheduler/scheduler.py:185-188 \u2014 Scheduler.on_shutdown calls `await self.remove_all_jobs()`, and remove_all_jobs clears `_jobs_by_name` (scheduler.py:386).",
+   "explanation": "Reload stops the app, which removes all its jobs, then creates a new App with a new Scheduler and an empty name registry. `on_initialize` therefore runs against no existing jobs, and the duplicate check in `_add_job` (scheduler.py:287) finds nothing. Plain registration with the default `if_exists=\"error\"` does not raise on reload. The same premise appears in the line 158 snippet comment ('Safe to call on every reload \u2014 won't create duplicates') and in line 160's skip/replace guidance. Severity is low because adding `if_exists` is harmless, but the page teaches a wrong mental model. This comes from reading the code path; I did not run a live reload.",
+   "suggested_fix": "A reload stops the app and removes its jobs, then runs on_initialize on a new instance, so reloads don't collide and no if_exists is needed for them. if_exists matters when the same name is registered twice during one instance's lifetime, for example from a handler that re-registers a job or a one-shot job re-arming itself."
+  },
+  {
+   "line": 144,
+   "claim_type": "behavior",
+   "verdict": "WRONG",
+   "severity": "low",
+   "doc_quote": "The monitoring UI shows this record alongside predicate_description and human_description on the job.",
+   "code_evidence": "frontend/src/components/app-detail/job-detail.tsx:210 \u2014 `const predicateDescription = job.human_description || job.predicate_description || null;`. src/hassette/core/scheduler_service.py:231-236 \u2014 when a predicate exists, human_description is set from `summarize()` or `callable_stable_name(job.predicate)`.",
+   "explanation": "The job detail view renders one description, not both. It uses human_description and falls back to predicate_description only if human_description is empty. The registration code populates human_description for any job with a predicate. Both fields do exist on the job payload (wire/src/hassette_wire/telemetry.py:146,149).",
+   "suggested_fix": "The monitoring UI shows this record, and the job detail view shows the predicate's description (human_description, falling back to predicate_description)."
+  }
+ ],
+ "summary": "The page is highly accurate on signatures, defaults, exceptions, trigger behaviour, where= semantics, and the if_exists match list; all of these were checked against the code, and croniter's 6-field order and the predicate injection cases were also run. The errors cluster around reload: the `hassette reload` command does not exist, and reload creates a new instance with an empty job registry, so if_exists is not what makes on_initialize safe to re-run. There is also one minor overstatement of what the job detail view renders.",
+ "_tools": 17,
+ "_tokens": 190833,
+ "_probe_calls": 7,
+ "_orig_access": [],
+ "_model": "claude-opus-5-5",
+ "_doc_access": []
+}

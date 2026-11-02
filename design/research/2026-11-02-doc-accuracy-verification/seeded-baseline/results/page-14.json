@@ -1,0 +1,20 @@
+{
+ "page": "core-concepts/scheduler/methods",
+ "claims_checked": 78,
+ "findings": [
+  {
+   "line": 156,
+   "claim_type": "cli",
+   "verdict": "OUTDATED_API",
+   "severity": "low",
+   "doc_quote": "re-runs on app reload (triggered by hassette reload , or by config changes when automatic reloads are on)",
+   "code_evidence": "src/hassette/cli/__init__.py:74 `apps_app = App(name=\"app\", ...)` and :114 `apps_app.command(cmd_app_reload, name=\"reload\")`. There is no top-level `reload` command.",
+   "explanation": "The reload command is a subcommand of `app`. The invocation is `hassette app reload <key>`, not `hassette reload`.",
+   "suggested_fix": "triggered by `hassette app reload <key>`, or by config changes when automatic reloads are on"
+  }
+ ],
+ "summary": "The page is almost entirely accurate. I checked every signature, default, and exception (the `run_*` methods, `register`, `schedule`, `add_job`), and all matched `scheduler.py` and `triggers.py`. I also checked the minimum-delay and whole-second validation, the `if_exists` semantics, the `Job.matches` fields, and the `job_timeout_seconds` default. The one error is the CLI command name on line 156. I did not independently verify the `where=` skip/error semantics, the `replace` mode-cancellation details, the `timeout` default inheritance, or the config-reload claim.",
+ "_tools": 11,
+ "_tokens": 116596,
+ "_doc_access": []
+}

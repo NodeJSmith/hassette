@@ -1,0 +1,392 @@
+LINE 1: # Scheduling Methods
+LINE 2: The scheduler runs handlers at times defined by trigger objects. The convenience methods below cover the common cases so most apps never need to construct a trigger directly. Awaiting any of these methods returns a [Job](../../../../reference/hassette/scheduler/classes/#hassette.scheduler.classes.Job) .
+LINE 3: [ADMONITION: All scheduling methods must be awaited]
+LINE 4:   Every run_* , schedule() , and add_job() call returns a coroutine. Without await , the job is never scheduled and no error is raised. A forgotten await produces a [HassetteForgottenAwaitWarning](../../../../reference/hassette/exceptions/#hassette.exceptions.HassetteForgottenAwaitWarning) naming the offending app when the coroutine is GC'd (subject to [configuration](../../../troubleshooting/#forgotten-await) ). Pyright's reportUnusedCoroutine catches this at edit time — see [Enabling Pyright](../../../troubleshooting/#enabling-pyright) .
+LINE 5: ## Which method should I use?
+LINE 6: | Timing need | Method |
+LINE 7: | Run once after a delay | run_in |
+LINE 8: | Repeat on a fixed interval | run_every (or run_minutely / run_hourly ) |
+LINE 9: | Run at the same time every day | run_daily |
+LINE 10: | Run on a complex or calendar schedule | run_cron |
+LINE 11: | Run once at a specific wall-clock time | run_once |
+LINE 12: | Use a custom trigger | schedule |
+LINE 13: ## Run once after a delay:run_in
+LINE 14: The handler runs once after a fixed delay. The underlying [After](../../../../reference/hassette/scheduler/#hassette.scheduler.After) trigger fires once and does not repeat. delay , minutes , and hours add together ( run_in(func, 30, minutes=1) waits 90 seconds), and the total must be at least 1 second. The scheduler has whole-second resolution, so run_in(func, 0.5) raises ValueError , and so does run_in(func) with no delay. Fractional totals of at least 1 second are accepted, and the computed fire time rounds to the nearest second. A sub-second pause belongs inside the handler, as an await asyncio.sleep() call.
+LINE 15: | Parameter | Type | Default | Description |
+LINE 16: | func | callable | (required) | The handler to run. |
+LINE 17: | delay | float | 0 | Seconds component of the delay. Fractional values are accepted when the combined delay is at least 1 second. Positional, so run_in(func, 30) waits 30 seconds. |
+LINE 18: | minutes | float | 0 | Minutes component of the delay. Keyword-only. |
+LINE 19: | hours | float | 0 | Hours component of the delay. Keyword-only. |
+LINE 20: Shared parameters apply (see Parameters every method accepts ).
+LINE 21: ```
+LINE 22: from hassette import App, AppConfig
+
+
+class DelayApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Run in 5 seconds
+        await self.scheduler.run_in(self.turn_off_light, delay=5, name="turn_off_light")
+
+        # Run in 10 minutes
+        await self.scheduler.run_in(self.check_status, minutes=10, name="check_status")
+
+        # Run in 1 hour 30 minutes (the components add together)
+        await self.scheduler.run_in(self.check_status, hours=1, minutes=30, name="check_status_later")
+
+    async def turn_off_light(self):
+        pass
+
+    async def check_status(self):
+        pass
+
+LINE 23: ```
+LINE 24: ## Repeat on an interval:run_every
+LINE 25: The handler runs repeatedly at a fixed interval. The hours , minutes , and seconds parameters are additive. The total must be a whole number of seconds, at least 1. Each next run is calculated from the previous run time, not from wall-clock time. The interval stays drift-resistant under load.
+LINE 26: | Parameter | Type | Default | Description |
+LINE 27: | func | callable | (required) | The handler to run. |
+LINE 28: | hours | float | 0 | Hours component of the interval. |
+LINE 29: | minutes | float | 0 | Minutes component of the interval. |
+LINE 30: | seconds | float | 0 | Seconds component of the interval. |
+LINE 31: Shared parameters apply.
+LINE 32: ```
+LINE 33: from hassette import App, AppConfig
+
+
+class IntervalApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Every 10 seconds
+        await self.scheduler.run_every(self.poll_api, seconds=10, name="poll_api")
+
+        # Every hour (using hours parameter)
+        await self.scheduler.run_every(self.hourly_check, hours=1, name="hourly_check")
+
+    async def poll_api(self):
+        pass
+
+    async def hourly_check(self):
+        pass
+
+LINE 34: ```
+LINE 35: ### Shorthands:run_minutelyandrun_hourly
+LINE 36: run_minutely and run_hourly are shorthands for run_every with a single integer interval parameter. Both enforce a minimum of 1.
+LINE 37: | Method | Shorthand for | Interval parameter | Minimum |
+LINE 38: | run_minutely(func, minutes=1) | run_every(minutes=N) | minutes: int | 1 |
+LINE 39: | run_hourly(func, hours=1) | run_every(hours=N) | hours: int | 1 |
+LINE 40: Shared parameters apply to both.
+LINE 41: ```
+LINE 42: from hassette import App, AppConfig
+
+
+class MinutelyApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Every minute
+        await self.scheduler.run_minutely(self.task, name="task_minutely")
+
+        # Every 5 minutes
+        await self.scheduler.run_minutely(self.task, minutes=5, name="task_every_5m")
+
+    async def task(self):
+        pass
+
+LINE 43: ```
+LINE 44: ```
+LINE 45: from hassette import App, AppConfig
+
+
+class HourlyApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Every hour
+        await self.scheduler.run_hourly(self.task, name="task_hourly")
+
+        # Every 4 hours
+        await self.scheduler.run_hourly(self.task, hours=4, name="task_every_4h")
+
+    async def task(self):
+        pass
+
+LINE 46: ```
+LINE 47: ## Run at the same time every day:run_daily
+LINE 48: The handler runs once per day at a fixed wall-clock time. A cron-based trigger ensures DST-correct, wall-clock-aligned scheduling. Interval-based daily scheduling drifts by one hour on DST transitions; run_daily does not.
+LINE 49: | Parameter | Type | Default | Description |
+LINE 50: | func | callable | (required) | The handler to run. |
+LINE 51: | at | str | "00:00" | Wall-clock time in "HH:MM" format. |
+LINE 52: Shared parameters apply.
+LINE 53: ```
+LINE 54: from hassette import App, AppConfig
+
+
+class DailyApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Every day at midnight (default)
+        await self.scheduler.run_daily(self.task, name="task_daily")
+
+        # Every day at 7:00 AM (wall-clock, DST-safe)
+        await self.scheduler.run_daily(self.morning_routine, at="07:00", name="morning_routine")
+
+    async def task(self):
+        pass
+
+    async def morning_routine(self):
+        pass
+
+LINE 55: ```
+LINE 56: ## Run on a cron schedule:run_cron
+LINE 57: The handler runs on a schedule defined by a cron expression. Both 5-field (standard Unix cron) and 6-field expressions are accepted. An invalid expression raises ValueError at registration time.
+LINE 58: | Parameter | Type | Default | Description |
+LINE 59: | func | callable | (required) | The handler to run. |
+LINE 60: | expression | str | (required) | A 5- or 6-field cron expression. |
+LINE 61: Shared parameters apply.
+LINE 62: Cron field reference (5-field standard: minute hour dom month dow ):
+LINE 63: | Position | Field | Range | Example |
+LINE 64: | 1 | minute | 0–59 | */15 (every 15 minutes) |
+LINE 65: | 2 | hour | 0–23 | 9 (9 AM) |
+LINE 66: | 3 | day of month | 1–31 | 1,15 (1st and 15th) |
+LINE 67: | 4 | month | 1–12 | 6 (June) |
+LINE 68: | 5 | day of week | 0–6 (Sunday=0) | 1-5 (weekdays) |
+LINE 69: 6-field expressions append seconds as a 6th field per the croniter library convention: minute hour dom month dow second .
+LINE 70: ```
+LINE 71: from hassette import App, AppConfig
+
+
+class CronApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Weekdays at 9 AM (5-field standard cron: minute hour dom month dow)
+        await self.scheduler.run_cron(
+            self.work_start, "0 9 * * 1-5", name="work_start"
+        )
+
+        # Every 15 minutes
+        await self.scheduler.run_cron(self.check, "*/15 * * * *", name="check")
+
+        # First of the month at midnight
+        await self.scheduler.run_cron(
+            self.monthly_job, "0 0 1 * *", name="monthly_job"
+        )
+
+    async def work_start(self):
+        pass
+
+    async def check(self):
+        pass
+
+    async def monthly_job(self):
+        pass
+
+LINE 72: ```
+LINE 73: ## Run once at a specific time:run_once
+LINE 74: The handler runs once at a specific wall-clock time. The [Once](../../../../reference/hassette/scheduler/#hassette.scheduler.Once) trigger fires once and does not repeat.
+LINE 75: | Parameter | Type | Default | Description |
+LINE 76: | func | callable | (required) | The handler to run. |
+LINE 77: | at | str \| ZonedDateTime | (required) | Target time. A "HH:MM" string is interpreted as today in the configured timezone (see [timezone](../../configuration/#timezone) ). A [ZonedDateTime](https://whenever.readthedocs.io/) (from the whenever library, which ships with Hassette — from whenever import ZonedDateTime ) fires at the exact instant specified. |
+LINE 78: | if_past | "tomorrow" | "error" | "tomorrow" | Behavior when the target is already in the past. "tomorrow" defers by one day and logs a WARNING. "error" raises ValueError for both input types. |
+LINE 79: Shared parameters apply.
+LINE 80: [ADMONITION: PastZonedDateTimeinputs fire immediately]
+LINE 81:   When at is a ZonedDateTime in the past and if_past="tomorrow" (the default), the job fires at the next scheduler tick — there is no "tomorrow" for an absolute instant. if_past="error" still raises ValueError .
+LINE 82: ```
+LINE 83: from hassette import App, AppConfig
+
+
+class AlarmApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Run once at 7:30 AM today (or tomorrow if already past)
+        await self.scheduler.run_once(self.morning_alarm, at="07:30", name="morning_alarm")
+
+    async def morning_alarm(self):
+        self.logger.info("Good morning!")
+
+LINE 84: ```
+LINE 85: ## Use a custom trigger:schedule
+LINE 86: schedule is the base method all convenience methods delegate to. Most apps never call it directly. schedule is the right choice when a built-in convenience method cannot express the required timing, such as a custom trigger that implements [TriggerProtocol](../../../../reference/hassette/types/types/#hassette.types.types.TriggerProtocol) . See [Triggers](../triggers/) for the built-in trigger types and the protocol definition.
+LINE 87: | Parameter | Type | Default | Description |
+LINE 88: | func | callable | (required) | The handler to run. |
+LINE 89: | trigger | TriggerProtocol | (required) | A trigger object that determines first run time and recurrences. |
+LINE 90: Shared parameters apply.
+LINE 91: ```
+LINE 92: from hassette import App, AppConfig
+from hassette.scheduler import Cron, Daily, Every
+
+
+class ScheduleExampleApp(App[AppConfig]):
+    async def on_initialize(self) -> None:
+        # Fixed interval
+        job = await self.scheduler.schedule(
+            self.check_sensors, Every(minutes=5), name="check_sensors"
+        )
+
+        # Daily at a specific time
+        job = await self.scheduler.schedule(
+            self.morning_routine,
+            Daily(at="07:00"),
+            name="morning_routine",
+            group="morning",
+        )
+
+        # Cron expression
+        job = await self.scheduler.schedule(
+            self.workday_task, Cron("0 9 * * 1-5"), name="workday_task"
+        )
+
+    async def check_sensors(self) -> None: ...
+    async def morning_routine(self) -> None: ...
+    async def workday_task(self) -> None: ...
+
+LINE 93: ```
+LINE 94: [COLLAPSIBLE: Advanced:add_job]
+LINE 95:   Below schedule sits add_job(job, if_exists="error") , which registers a pre-built [Job](../../../../reference/hassette/scheduler/classes/#hassette.scheduler.classes.Job) directly — for code that constructs job objects programmatically, such as a job factory or framework extension. Most apps never call it. if_exists accepts the same "error" / "skip" / "replace" values described under Idempotent registration .
+LINE 96: ## Register a job with no automatic schedule:register
+LINE 97: register creates a job with no trigger. It never fires on its own — call job.submit() to run it on demand. See [Job Management](../management/#schedule-status) for the full manual-job lifecycle.
+LINE 98: | Parameter | Type | Default | Description |
+LINE 99: | func | callable | (required) | The handler to run when submitted. |
+LINE 100: | name | str | (required) | Identifies the job in logs and the monitoring UI. |
+LINE 101: | group | str \| None | None | Group name for bulk management. |
+LINE 102: | timeout | float \| None | None | Per-job timeout in seconds. |
+LINE 103: | timeout_disabled | bool | False | Disables timeout enforcement for this job. |
+LINE 104: | mode | ExecutionMode \| str \| None | None | Overlap behavior for concurrent submissions. Same values and default as the shared mode parameter. |
+LINE 105: | on_error | SchedulerErrorHandlerType \| None | None | Per-job error handler. |
+LINE 106: | if_exists | "error" | "skip" | "replace" | "error" | Behavior when a job with the same name already exists. |
+LINE 107: | args | tuple \| None | None | Positional arguments passed to the handler on every submission. |
+LINE 108: | kwargs | Mapping \| None | None | Keyword arguments passed to the handler on every submission. |
+LINE 109: register has no trigger , jitter , or where parameter — a manual-only job has no automatic occurrence to jitter and no dispatch to gate.
+LINE 110: ```
+LINE 111: self.report_job = await self.scheduler.register(
+    self.generate_report,
+    name="generate_report",
+)
+
+LINE 112: ```
+LINE 113: ```
+LINE 114: async def force_report_now(self) -> None:
+    if self.report_job is not None:
+        self.report_job.submit()
+
+LINE 115: ```
+LINE 116: ## Parameters every method accepts
+LINE 117: These parameters are accepted by every scheduling method. Individual method tables list only method-specific parameters.
+LINE 118: | Parameter | Type | Default | Description |
+LINE 119: | name | str | — | Required. Identifies the job in logs and the monitoring UI. Omitting it raises TypeError (no default value); an empty string raises SchedulerNameRequiredError . Must be unique within the app instance — see Idempotent Registration . |
+LINE 120: | group | str \| None | None | Group name for bulk management. See [Job Management](../management/) for grouping. |
+LINE 121: | jitter | float \| None | None | Random offset in seconds added to each run. See [Job Management](../management/) for jitter. |
+LINE 122: | timeout | float \| None | None | Per-job timeout in seconds. None inherits the global scheduler.job_timeout_seconds from [hassette.toml](../../configuration/) . |
+LINE 123: | timeout_disabled | bool | False | Disables timeout enforcement for this job, regardless of the global default. |
+LINE 124: | mode | ExecutionMode \| str \| None | None | Overlap behavior when a run becomes due while the previous one is still running: "single" , "restart" , "queued" , or "parallel" . None resolves to "single" for app jobs. See [Execution Modes](../execution-modes/) . |
+LINE 125: | on_error | SchedulerErrorHandlerType \| None | None | Per-job error handler. Overrides the app-level handler set via scheduler.on_error() . Invoked on any exception except CancelledError . |
+LINE 126: | if_exists | "error" | "skip" | "replace" | "error" | Behavior when a job with the same name already exists. See Idempotent Registration . |
+LINE 127: | args | tuple \| None | None | Positional arguments passed to the handler at call time. |
+LINE 128: | kwargs | Mapping \| None | None | Keyword arguments passed to the handler at call time. |
+LINE 129: | where | SchedulerPredicate \| Sequence[SchedulerPredicate] \| None | None | Predicate (or sequence of predicates) gating execution. See Conditional execution with where= . |
+LINE 130: ## Conditional execution with where
+LINE 131: where= accepts a predicate — a callable returning bool — evaluated at dispatch time, immediately before the handler runs. A predicate with no [Job](../../../../reference/hassette/scheduler/classes/#hassette.scheduler.classes.Job) annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as Job receives the job instance at dispatch time, for access to job.args and job.kwargs . Predicates must be synchronous. An async predicate raises TypeError at registration time.
+LINE 132: ```
+LINE 133: await self.scheduler.run_daily(
+    self.morning_routine,
+    at="07:00",
+    name="morning_routine",
+    where=self.home_is_occupied,
+)
+
+LINE 134: ```
+LINE 135: A predicate that needs the job must use a named function with a Job type annotation — lambdas cannot carry annotations and are always called with zero arguments.
+LINE 136: ```
+LINE 137: from hassette import App, AppConfig
+from hassette.scheduler import Job
+
+
+class TemperatureApp(App[AppConfig]):
+    async def on_initialize(self):
+        await self.scheduler.run_every(
+            self.check_entity,
+            minutes=5,
+            name="entity_check",
+            kwargs={"entity_id": "sensor.temperature"},
+            where=self.entity_enabled,
+        )
+
+    def entity_enabled(self, job: Job) -> bool:
+        return job.kwargs["entity_id"] != "sensor.disabled"
+
+    async def check_entity(self, entity_id: str):
+        pass
+
+LINE 138: ```
+LINE 139: A sequence of predicates collapses into a single combinator that ANDs every member together. Each member keeps the single-predicate contract — a Job -annotated member receives the job. Unannotated members are called with zero arguments.
+LINE 140: A predicate that raises an exception fails that fire — the handler does not run. The scheduler logs the exception with a traceback and records the execution with status="error" . It then invokes the job's on_error handler, or the app-level fallback if none is set — the same routing a raising handler receives (see [Handle Errors](../management/#handle-errors) ). A recurring job keeps its schedule and tries again at the next occurrence. A one-shot job is consumed; register a new one-shot job to schedule another attempt.
+LINE 141: Skip semantics differ by job type:
+LINE 142: - Recurring jobs ( run_every , run_daily , run_cron , run_minutely , run_hourly ) keep their schedule when skipped. The scheduler computes and enqueues the next occurrence the same as a normal run.
+LINE 143: - One-shot jobs ( run_in , run_once ) are consumed when skipped. Gating a one-shot job is a deliberate choice, and a skipped one-shot does not retry. Register a new one-shot job to schedule another attempt.
+LINE 144: A skipped run produces an execution record with status="skipped" instead of invoking the handler. The [monitoring UI](../../../web-ui/) shows this record alongside predicate_description and human_description on the job.
+LINE 145: ## Passing arguments to handlers
+LINE 146: All scheduling methods accept args and kwargs to supply data to the handler at call time. This avoids capturing mutable state in closures.
+LINE 147: ```
+LINE 148: from hassette import App, AppConfig
+
+
+class NotifyApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Pass positional arguments to the handler
+        await self.scheduler.run_in(
+            self.send_alert,
+            delay=30.0,
+            name="startup_alert",
+            args=("Kitchen motion sensor", "triggered"),
+        )
+
+        # Pass keyword arguments to the handler
+        await self.scheduler.run_every(
+            self.log_status,
+            seconds=300,
+            name="status_log",
+            kwargs={"level": "info", "include_history": True},
+        )
+
+        # Combine args and kwargs
+        await self.scheduler.run_daily(
+            self.generate_report,
+            at="06:00",
+            name="daily_report",
+            args=("daily",),
+            kwargs={"recipients": ["admin"]},
+        )
+
+    async def send_alert(self, sensor: str, state: str):
+        self.logger.info("Alert: %s is %s", sensor, state)
+
+    async def log_status(self, level: str = "debug", include_history: bool = False):
+        self.logger.info("Status logged (level=%s, history=%s)", level, include_history)
+
+    async def generate_report(self, period: str, recipients: list[str]):
+        self.logger.info("Generating %s report for %s", period, recipients)
+
+LINE 149: ```
+LINE 150: ## Idempotent registration
+LINE 151: Job names must be unique within an app instance. Registering a second job with an existing name raises ValueError by default. The if_exists parameter controls this behavior.
+LINE 152: | Value | Behavior |
+LINE 153: | "error" (default) | Raises ValueError when a job with the same name already exists. |
+LINE 154: | "skip" | Returns the existing job when its configuration matches the new registration. Raises ValueError when names match but configurations differ. Two jobs match when they share the same callable, trigger (by trigger_id() ), group, jitter, timeout, timeout_disabled , args , kwargs , on_error handler, mode , and where predicate. |
+LINE 155: | "replace" | Removes the existing job and registers the new one. The new job's configuration does not need to match the old one. Removing a single , restart , or queued job cancels its running invocation; a running parallel invocation always finishes. When the replace is called from the job's own callback (sync or async), that invocation runs to completion, so a one-shot job can re-arm itself under its own name. |
+LINE 156: if_exists matters most in on_initialize , which re-runs on app reload (triggered by hassette reload , or by config changes when automatic reloads are on).
+LINE 157: ```
+LINE 158: # Safe to call on every reload — won't create duplicates
+await self.scheduler.run_every(
+    self.check_sensors,
+    seconds=60,
+    name="sensor_check",
+    if_exists="skip",
+)
+
+LINE 159: ```
+LINE 160: "skip" works when the job configuration is stable across reloads. "replace" is the right choice when the handler, trigger, or arguments may change between reloads.
+LINE 161: ```
+LINE 162: # Use replace when the trigger or handler may change between reloads
+await self.scheduler.run_every(
+    self.check_sensors,
+    seconds=120,
+    name="sensor_check",
+    if_exists="replace",
+)
+
+LINE 163: ```
+LINE 164: ## See Also
+LINE 165: - [Triggers](../triggers/) : built-in trigger types, TriggerProtocol , and writing custom triggers
+LINE 166: - [Execution Modes](../execution-modes/) : the four mode values, the tier-aware default, and overlap behavior
+LINE 167: - [Job Management](../management/) : removing, inspecting, grouping, jitter, error handling, and schedule status for live jobs
+LINE 168: - [Scheduler Overview](../) : getting started with the scheduler
