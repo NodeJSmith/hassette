@@ -43,7 +43,7 @@ from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
-from hassette.types.types import APP_SOURCE_TIER
+from hassette.types.types import APP_SOURCE_TIER, is_framework_key
 from hassette.web.dependencies import (
     AppKeyPath,
     HassetteDep,
@@ -59,6 +59,7 @@ from hassette.web.dependencies import (
 )
 from hassette.web.errors import problem_responses
 from hassette.web.mappers import app_summary_from, listener_summary_from
+from hassette.web.routes.apps import app_not_found
 from hassette.web.telemetry_helpers import build_app_health
 from hassette.web.utils import enrich_jobs_with_live_data
 
@@ -123,14 +124,22 @@ async def telemetry_status(
 @router.get(
     "/app/{app_key}/health",
     response_model=AppHealth,
-    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE, ProblemCode.APP_NOT_FOUND),
 )
 async def app_health(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
     filters: TelemetryFiltersDep,
 ) -> AppHealth:
-    """Health strip metrics for a single app instance."""
+    """Health strip metrics for a single app instance.
+
+    Zero invocations classify as healthy, so an unknown ``app_key`` answers ``app_not_found`` rather
+    than a false green light. Existence is read from the ``app_manifests`` DB table, the same spine
+    the app grid lists. Framework keys report framework telemetry and never have a manifest row.
+    """
+    if not is_framework_key(app_key) and await telemetry.get_app_manifest(app_key) is None:
+        raise app_not_found(app_key)
+
     agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs(app_key))
     return build_app_health(agg)
 
