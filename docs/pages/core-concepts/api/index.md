@@ -33,7 +33,7 @@ The two most common operations are reading state and calling a service.
 - [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] if authentication failed (invalid or expired token).
 - [`HassetteError`][hassette.exceptions.HassetteError] for any other upstream error from Home Assistant.
 
-Network errors are retried automatically. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles all API failures in one place.
+REST requests retry connection errors, timeouts, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles every error status from Home Assistant in one place.
 
 ??? note "Synchronous usage (AppSync only)"
     `self.api.sync` exposes an [`ApiSyncFacade`][hassette.api.sync.ApiSyncFacade] that mirrors all API methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.

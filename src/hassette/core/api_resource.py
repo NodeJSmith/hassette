@@ -13,8 +13,7 @@ from hassette_wire import LogLevel
 from tenacity import (
     before_sleep_log,
     retry,
-    retry_if_exception_type,
-    retry_if_not_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential_jitter,
 )
@@ -50,7 +49,10 @@ NOT_RETRYABLE = (
     AttributeError,
     CancelledError,
 )
-RETRYABLE = (aiohttp.ClientError, ResourceNotReadyError)
+"""Failures ``rest_request`` never retries. Anything else, such as a connection error or timeout, is retried."""
+
+RETRYABLE_CLIENT_ERROR_STATUSES = frozenset({HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.TOO_MANY_REQUESTS})
+"""The 4xx statuses that describe a passing condition; every other 4xx repeats if the request is re-sent."""
 
 
 class ApiResource(Resource):
@@ -128,7 +130,7 @@ class ApiResource(Resource):
 
         # inner function to allow retry decorator to use `self`
         @retry(
-            retry=(retry_if_not_exception_type(NOT_RETRYABLE) | retry_if_exception_type(RETRYABLE)),
+            retry=retry_if_exception(is_retryable_rest_failure),
             wait=wait_exponential_jitter(),
             stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
@@ -227,3 +229,11 @@ class ApiResource(Resource):
         normalized = normalize_history(entries)
 
         return normalized
+
+
+def is_retryable_rest_failure(exc: BaseException) -> bool:
+    """Return whether a failed REST attempt could succeed if sent again."""
+    if isinstance(exc, HttpRequestError):
+        is_client_error = HTTPStatus.BAD_REQUEST <= exc.status < HTTPStatus.INTERNAL_SERVER_ERROR
+        return not is_client_error or exc.status in RETRYABLE_CLIENT_ERROR_STATUSES
+    return not isinstance(exc, NOT_RETRYABLE)
