@@ -14,6 +14,8 @@ from contextlib import contextmanager
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from hassette.logging_ import DEQUEUE_TIMEOUT_SECONDS, HassetteQueueListener, LogPersistenceHandler
 from tests.support.factories import make_log_record
 
@@ -164,6 +166,36 @@ class TestLogPersistenceHandlerBatching:
 
             handle_error.assert_called_once_with(unstamped)
             assert [row["message"] for row in handler._batch] == ["stamped"]
+
+
+class TestRecordLevelNormalization:
+    """``record_to_dict`` stores the highest standard level at or below the record's number, or DEBUG below that."""
+
+    @pytest.mark.parametrize(
+        ("levelno", "levelname", "expected"),
+        [
+            (0, "NOTSET", "DEBUG"),
+            (5, "TRACE", "DEBUG"),
+            (logging.DEBUG, "DEBUG", "DEBUG"),
+            (15, "VERBOSE", "DEBUG"),
+            (logging.INFO, "INFO", "INFO"),
+            (25, "SUCCESS", "INFO"),
+            (35, "Level 35", "WARNING"),
+            (logging.WARNING, "WARNING", "WARNING"),
+            (logging.ERROR, "ERROR", "ERROR"),
+            (45, "ALERT", "ERROR"),
+            (logging.CRITICAL, "CRITICAL", "CRITICAL"),
+            (60, "FATAL_PLUS", "CRITICAL"),
+            # logging.addLevelName can rename a standard number; the row still gets the standard name
+            (logging.INFO, "NOTE", "INFO"),
+        ],
+    )
+    def test_level_comes_from_the_number(self, levelno: int, levelname: str, expected: str) -> None:
+        record = make_log_record(level=levelno)
+        record.levelname = levelname
+        handler = LogPersistenceHandler(db_service=MagicMock(), loop=MagicMock())
+
+        assert handler.record_to_dict(record)["level"] == expected
 
 
 class TestLogPersistenceDropCountWithDB:
