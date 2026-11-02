@@ -17,7 +17,6 @@ from hassette.execution_mode import (
     resolve_effective_timeout,
     run_parallel,
     run_through_guard,
-    stall_threshold,
 )
 from hassette.scheduler.classes import Job
 from hassette.scheduler.error_context import SchedulerErrorContext
@@ -402,15 +401,14 @@ class SchedulerDispatchMixin:
                     spawn_name=f"scheduler:parallel_invocation:{job.name}",
                 )
             else:
-                effective_timeout = self.effective_job_timeout(job)
                 await run_through_guard(
                     guard=job.guard,
                     spawn=lambda coro, *, name: bucket.spawn(coro, name=name),
                     pending_done=job.pending_done,
                     invoke=lambda: self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at),
-                    warn=lambda secs: self.warn_stalled_job(job, secs, effective_timeout),
+                    warn=lambda secs, timeout: self.warn_stalled_job(job, secs, timeout),
                     spawn_name="scheduler:mode_invocation",
-                    threshold=stall_threshold(effective_timeout),
+                    resolve_timeout=lambda: self.effective_job_timeout(job),
                 )
         except TaskBucketSealedError:
             level = logging.WARNING if trigger_mode == "manual" else logging.DEBUG

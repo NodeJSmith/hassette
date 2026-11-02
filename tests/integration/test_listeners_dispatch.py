@@ -144,7 +144,7 @@ class TestListenerDispatchAndCancel:
         async def invoke_fn():
             await invoke_with(listener, "direct")
 
-        await listener.invoker.dispatch(invoke_fn)
+        await listener.invoker.dispatch(invoke_fn, lambda: None)
         assert calls == ["direct"]
 
     async def test_dispatch_with_debounce_coalesces(self, bucket: TaskBucket):

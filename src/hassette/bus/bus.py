@@ -580,6 +580,7 @@ class Bus(Resource):
         resolved_mode = resolve_execution_mode(mode, source_tier)
 
         handler_name = callable_name(handler)
+        short_name = callable_short_name(handler)
 
         _require_name(name, handler, topic)
 
@@ -595,7 +596,7 @@ class Bus(Resource):
             name=name,
             source_tier=source_tier,
             handler_name=handler_name,
-            handler_short_name=callable_short_name(handler),
+            handler_short_name=short_name,
             source_location=source_location,
             registration_source=registration_source or "",
         )
@@ -632,7 +633,6 @@ class Bus(Resource):
             options=options,
             error_handler=on_error,
             app_error_handler_resolver=lambda: self._error_handler,
-            default_timeout_resolver=lambda: self.hassette.config.lifecycle.event_handler_timeout_seconds,
         )
 
         listener = Listener.create(

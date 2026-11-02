@@ -166,7 +166,7 @@ The threshold follows the handler's effective timeout, either `timeout=` or
 `event_handler_timeout_seconds`. It is 80% of that timeout, and never less than
 60 seconds. The default 600-second timeout warns at 480 seconds. A handler with
 `timeout=300` warns at 240 seconds. A handler with `timeout_disabled=True`, or
-no global timeout, warns at 60 seconds. The WARNING names the threshold's
+with no per-listener or global timeout, warns at 60 seconds. The WARNING names the threshold's
 source, such as `240s (80% of its 300s timeout)`.
 
 The per-listener `timeout` still applies and ultimately releases the guard when

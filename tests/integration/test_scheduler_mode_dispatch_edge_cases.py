@@ -311,10 +311,10 @@ async def test_stall_threshold_derives_from_job_timeout() -> None:
         pytest.param({}, lambda config: config.scheduler.job_timeout_seconds, id="global_default"),
     ],
 )
-async def test_stall_threshold_passed_to_guard(
+async def test_stall_resolver_matches_enforced_timeout(
     registration: dict[str, Any], expected_timeout: Callable[[Any], float | None]
 ) -> None:
-    """Dispatch arms the watchdog at the threshold derived from the job's effective timeout."""
+    """Dispatch gives the guard a resolver for the job's effective timeout."""
 
     class _ThresholdApp(App[_OverlapConfig]):
         async def on_initialize(self) -> None:
@@ -326,7 +326,6 @@ async def test_stall_threshold_passed_to_guard(
     async with AppTestHarness(_ThresholdApp, config={"instance_name": "threshold_app"}) as harness:
         scheduler_service = scheduler_service_for(harness)
         job = await get_job_by_name(harness, "threshold_job")
-        expected = execution_mode_module.stall_threshold(expected_timeout(scheduler_service.hassette.config))
 
         with unittest.mock.patch.object(
             scheduler_dispatch_module, "run_through_guard", wraps=scheduler_dispatch_module.run_through_guard
@@ -334,7 +333,7 @@ async def test_stall_threshold_passed_to_guard(
             dispatch_task = await freeze_and_dispatch(harness, job)
             await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT_SECONDS)
 
-        assert spy.call_args.kwargs["threshold"] == expected
+        assert spy.call_args.kwargs["resolve_timeout"]() == expected_timeout(scheduler_service.hassette.config)
 
 
 async def test_queued_stall_threshold_uses_timeout_at_start(monkeypatch: pytest.MonkeyPatch) -> None:
