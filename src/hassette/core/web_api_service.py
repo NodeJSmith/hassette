@@ -46,6 +46,11 @@ class _ShieldedStartupServer(uvicorn.Server):
     ``loop.create_server()`` starts listening and then yields once before returning. A cancel on
     that tick would leave ``servers`` unassigned and ``started`` False, with nothing able to close
     the listener. Finishing startup first lets the caller's cancel path shut the server down.
+
+    The startup task joins the service's task bucket, so the bucket's shutdown stage cancels it past
+    the shield. That is what bounds a startup that never returns. One gap is accepted: if startup
+    outlasts the serve task's shutdown bound and that cancel lands just as startup binds, the listener
+    stays open until the process exits.
     """
 
     async def startup(self, sockets: list[socket.socket] | None = None) -> None:
@@ -224,17 +229,19 @@ class WebApiService(Service):
             # scope["client"] before trusted_proxies' peer check ever sees the real peer.
             proxy_headers=False,
         )
-        self._server = _ShieldedStartupServer(config)
+        # serve() can outlive its shutdown bound while startup finishes, and on_shutdown clears self._server by then.
+        server = _ShieldedStartupServer(config)
+        self._server = server
 
         self.logger.info("Web API server starting on %s:%s", self.host, self.port)
 
         try:
-            await self._server.serve()
+            await server.serve()
         except asyncio.CancelledError:
-            if self._server.started:
-                self._server.should_exit = True
+            if server.started:
+                server.should_exit = True
                 try:
-                    await asyncio.shield(self._server.shutdown())
+                    await asyncio.shield(server.shutdown())
                 except Exception:
                     self.logger.warning("uvicorn shutdown raised during cancellation", exc_info=True)
             raise
