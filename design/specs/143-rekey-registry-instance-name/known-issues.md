@@ -21,3 +21,13 @@ Real issues found while building this feature and intentionally left unfixed.
 D3 keeps `App.index` frozen at construction and reasons about reorders. D2 also stops restarting siblings on a count change, so removing an instance can leave a sibling's `App.index` past its display index, and a later add can give two live apps the same value. On `main` before #3100, a status event built by `HassetteAppStateEvent.from_app` can then land on the wrong row, or share a frontend status key with a sibling, until the next refetch. No release shows this while #3099 and #3100 ship together.
 
 **Follow-up:** #3100 keys live status on the name and decides whether `App.index` survives. If #3100 slips past the next release, send `resolved.index` from `RuntimeQueryService.on_app_state_changed`.
+
+## KI-003: A reorder-only edit sends no refetch signal
+
+**Status:** open
+**Reason:** accepted-limitation
+**Recorded:** branch 3099, PR review
+
+`AppChangeDetector.detect_changes` ignores order, so an edit that only reorders named instances reports no change and no `APP_LOAD_COMPLETED` goes out. On `main` before #3100, a dashboard's cached row then sends its old index, and an index now resolves through current config order, so Stop can act on a different instance. No release shows this while #3099 and #3100 ship together.
+
+**Follow-up:** #3100 addresses instances by name, which removes the wrong-target action. A stale row order remains until the next refetch, and #3100 decides whether an order-only edit should broadcast one, since the `has_any_change` docstring promises a signal for any manifest difference.

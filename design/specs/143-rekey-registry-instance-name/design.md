@@ -214,3 +214,8 @@ The sweep's retire step (`build_retire_unconfigured_instances_query`, run first 
 - A dropped retire write logs a WARNING, so D2's fallback to the sweep is visible.
 - `AppHandler.get` takes `instance_name` by keyword only, so a stale `get(key, 0)` raises `TypeError` rather than returning `None` for a running app; the PR's `BREAKING CHANGE:` footer says so. `AppRegistry.get` stays positional. Ship-time challenge, user's choice.
 - `NOT_IN_CONFIG_REASON` now says "instance" rather than "index", and the refusal ERROR no longer carries an index. Outcome reasons are free text, not part of the wire contract.
+
+## Addendum
+
+### 2026-11-02: A reorder-only edit doesn't broadcast a refetch
+The Assumed entry "A reorder still reaches `_plan_reload` through the `reload_apps` bucket" is false. `AppChangeDetector.detect_changes` compares with `DeepDiff(..., ignore_order=True)`, so `[alpha, beta]` -> `[beta, alpha]` yields `has_any_change=False` and `handle_change_event` returns before `_reconcile_changes` broadcasts `APP_LOAD_COMPLETED`. Until #3100, a dashboard keeps its old index-to-name mapping after a reorder-only edit. This PR doesn't change the detector: #3100 ships in the same release and moves addressing and live status to names, and a broadcast before that would make wrong-row status follow every reorder. See KI-003.
