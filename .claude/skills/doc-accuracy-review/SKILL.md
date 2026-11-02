@@ -52,44 +52,24 @@ Chain with `&&` for multi-page sections. Each briefing lands at `$TMPDIR/briefin
 
 ## Phase 3: Dispatch Verification Agents
 
-For each briefing file, dispatch a **Sonnet** subagent with this prompt:
+For each briefing file, dispatch an **Opus** subagent with this prompt:
 
 ```
 Read the file at {briefing_path} and follow the instructions inside. You have full read access to the repository — verify claims against the source code in src/hassette/. Return the JSON result exactly as specified.
 ```
 
-Unlike persona walkthroughs, these agents actively explore the repo (Read, Grep, Glob), so they run longer per page. Cap at 5 concurrent subagents.
+Unlike persona walkthroughs, these agents actively explore the repo and often run code to test claims, so they run longer per page. Cap at 5 concurrent subagents.
 
-Use `schema` on the agent call to enforce the JSON structure:
+Strip any code fence or surrounding text from each result and parse it as JSON. It must have `page`, `claims_checked` (an integer), `findings` (a list) and `summary`. Each finding must have:
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "page": {"type": "string"},
-    "claims_checked": {"type": "integer"},
-    "findings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "line": {"type": "integer"},
-          "claim_type": {"type": "string", "enum": ["api-signature", "default-value", "behavior", "exception", "config", "cli", "import-path", "version", "file-path"]},
-          "verdict": {"type": "string", "enum": ["WRONG", "OUTDATED_API", "UNVERIFIABLE"]},
-          "severity": {"type": "string", "enum": ["high", "low"]},
-          "doc_quote": {"type": "string"},
-          "code_evidence": {"type": "string"},
-          "explanation": {"type": "string"},
-          "suggested_fix": {"type": "string"}
-        },
-        "required": ["line", "claim_type", "verdict", "severity", "doc_quote", "code_evidence", "explanation", "suggested_fix"]
-      }
-    },
-    "summary": {"type": "string"}
-  },
-  "required": ["page", "claims_checked", "findings", "summary"]
-}
-```
+- `line`: an integer
+- `claim_type`: one of `api-signature`, `default-value`, `behavior`, `exception`, `config`, `cli`, `import-path`, `version`, `file-path`
+- `verdict`: one of `WRONG`, `OUTDATED_API`, `UNVERIFIABLE`
+- `severity`: `high` or `low`
+- `doc_quote`, `code_evidence`, `explanation`: non-empty strings
+- `suggested_fix`: a string, which may be empty only for `UNVERIFIABLE`
+
+If a result fails those checks, re-dispatch that page once. If the second result also fails, list the page as not reviewed in Phase 4, with the reason.
 
 ## Phase 4: Triage and Present
 
@@ -100,6 +80,7 @@ Verification agents make mistakes in both directions, and for accuracy work a wr
 1. For each `WRONG` and `OUTDATED_API` finding, open the cited `code_evidence` location and confirm the contradiction is real and that the cited code is the code path the page describes.
 2. Findings with no usable code citation are discarded.
 3. `UNVERIFIABLE` findings get a quick independent grep — agents sometimes miss a symbol that one targeted search finds. If you find it and the claim holds, drop the finding; if you find it and the claim is false, upgrade to `WRONG`.
+4. A claim that holds in the common case and overstates an edge case is `low`, whatever severity the agent gave it.
 
 ### Sanity-check coverage
 
@@ -123,7 +104,7 @@ End with a summary table:
 | Page | Claims checked | WRONG | OUTDATED_API | UNVERIFIABLE |
 |------|----------------|-------|--------------|--------------|
 
-Pages with zero findings appear in the table only — that's the success case, not a gap.
+Pages with zero findings appear in the table only. That means no errors were found, not that the page is proven accurate. After the table, list any pages not reviewed, each with the reason, and give them no table row.
 
 ### Fixing
 
@@ -135,6 +116,6 @@ When the user asks for fixes (or pre-authorized auto-fixing), edit the markdown 
 
 **Why no second adversarial verification pass?** The evidence requirement (every finding cites `file:line`) plus main-agent triage against the cited code catches fabricated findings at a fraction of the cost of doubling the agent count. If triage starts rejecting a large share of findings, revisit this.
 
-**Why `claims_checked`?** Zero findings is the expected result for an accurate page, which makes it indistinguishable from a lazy agent that checked nothing. The count is the cheap signal that separates the two.
+**Why `claims_checked`?** Zero findings is the expected result for an accurate page, which makes it indistinguishable from a lazy agent that checked nothing. The count only catches an agent that barely looked: in the seeded baseline (`design/research/2026-11-02-doc-accuracy-verification/seeded-baseline/`), a higher count didn't mean more errors caught.
 
-**Why Sonnet?** Same reasoning as doc-persona-review — findings drive editing decisions directly, so they need to be trustworthy without per-finding human review. Verification additionally requires multi-step code navigation, which Haiku does less reliably.
+**Why Opus?** On the same briefing in that baseline, Opus caught far more errors than Sonnet, especially claims that need tracing through the code. The likely reason is that it ran code to test claims, which Sonnet rarely did, though that hasn't been tested on its own. It costs more and reports more low-severity overstatements, which triage has to sort. The baseline's README has the numbers and caveats.
