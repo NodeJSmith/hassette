@@ -105,7 +105,7 @@ The receiver app imports the same class and subscribes to the topic:
 
 Hassette imports app files as modules of one package named after the apps directory. A relative import like `from .shared import LightsSyncedData` resolves from any app file beside `shared.py`.
 
-A frozen dataclass or Pydantic model works well for `T` — the type is passed in-process, not persisted, but keeping it immutable prevents accidental cross-app state mutation. Any type passed as `data` to `emit()` can be received via `D.EventData[T]`. `self.instance_name` is the app's instance identifier, set in [`hassette.toml`](../configuration/index.md).
+A frozen dataclass or Pydantic model works well for `T` — the type is passed in-process, not persisted, but keeping it immutable prevents accidental cross-app state mutation. `D.EventData[T]` receives any value passed as `data` to `emit()` except `None`, which skips the handler. A handler that takes `event: Event[Any]` reads `None` from `event.payload.data`. `self.instance_name` is the app's instance identifier, set in [`hassette.toml`](../configuration/index.md).
 
 ## See Also
 
