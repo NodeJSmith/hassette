@@ -10,7 +10,7 @@ The filter controls narrow the table to specific entries.
 
 **Level** sets the minimum severity shown. It defaults to INFO. Options are: All levels, DEBUG+, INFO+, WARNING+, ERROR+, and CRITICAL only.
 
-Hassette stores a custom level as the nearest standard level below it. A `SUCCESS` line at level 25 appears as INFO.
+Hassette stores a custom level as the nearest standard level below it, or as DEBUG if it falls below DEBUG. A `SUCCESS` line at level 25 appears as INFO, and a `TRACE` line at level 5 appears as DEBUG. Custom-level lines stored by an earlier version all appear as INFO, whatever their number.
 
 **App** narrows the table to one app key.
 
