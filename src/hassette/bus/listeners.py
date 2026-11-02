@@ -13,9 +13,10 @@ from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
 from hassette.exceptions import TaskBucketSealedError
 from hassette.execution_mode import (
-    STALL_THRESHOLD_SECONDS,
     ExecutionModeGuard,
+    describe_stall_threshold,
     release_and_drain,
+    resolve_effective_timeout,
     run_parallel,
     run_through_guard,
 )
@@ -194,6 +195,12 @@ class HandlerInvoker:
     handler_short_name: str
     """Short handler name, captured for the stall WARNING and debug logs."""
 
+    timeout: float | None
+    """Intentional copy of ListenerOptions.timeout. Read through ``effective_timeout``."""
+
+    timeout_disabled: bool
+    """Intentional copy of ListenerOptions.timeout_disabled. Read through ``effective_timeout``."""
+
     once: bool = False
     """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
     dispatch() needs this but cannot back-reference options without a circular dependency."""
@@ -228,7 +235,7 @@ class HandlerInvoker:
     ) -> "HandlerInvoker":
         """Construct a HandlerInvoker from a handler and options.
 
-        Builds the async wrapper, injector, and rate limiter. Copies options.once.
+        Builds the async wrapper, injector, and rate limiter. Copies options.once, timeout and timeout_disabled.
 
         Args:
             task_bucket: TaskBucket for async adapter and rate limiter.
@@ -268,6 +275,8 @@ class HandlerInvoker:
             guard=ExecutionModeGuard(options.mode),
             mode=options.mode,
             handler_short_name=callable_short_name(handler),
+            timeout=options.timeout,
+            timeout_disabled=options.timeout_disabled,
             once=options.once,
         )
 
@@ -279,7 +288,9 @@ class HandlerInvoker:
         """Set the closure that resolves the app-level error handler at dispatch time."""
         self.app_error_handler_resolver = resolver
 
-    async def dispatch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
+    async def dispatch(
+        self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
+    ) -> None:
         """Apply the once-guard, rate limiter, and overlap mode around the given invoke function.
 
         Order: once-guard → rate limiter (whether to start) → mode guard (overlap of started
@@ -296,6 +307,10 @@ class HandlerInvoker:
         dispatch task stays pending and remains counted by ``_dispatch_pending``. A ``restart``
         cancellation of the child surfaces as ``CancelledError`` inside the child only — it is swallowed
         here so the outer dispatch task does not crash.
+
+        ``config_resolver`` returns the global handler timeout, the same one ``invoke_fn``
+        enforces. BusService owns it, so a listener's stall threshold follows that timeout however the
+        listener was built.
         """
         if self.once and self.fired:
             return
@@ -303,11 +318,13 @@ class HandlerInvoker:
             self.mark_fired()
 
         if self.rate_limiter:
-            await self.rate_limiter.call(lambda: self.run_with_mode(invoke_fn))
+            await self.rate_limiter.call(lambda: self.run_with_mode(invoke_fn, config_resolver))
         else:
-            await self.run_with_mode(invoke_fn)
+            await self.run_with_mode(invoke_fn, config_resolver)
 
-    async def run_with_mode(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
+    async def run_with_mode(
+        self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
+    ) -> None:
         """Apply the overlap mode guard to a single started invocation."""
         if self.mode is ExecutionMode.PARALLEL:
             try:
@@ -329,16 +346,23 @@ class HandlerInvoker:
             invoke=invoke_fn,
             warn=self.warn_stalled,
             spawn_name="bus:mode_invocation",
-            threshold=STALL_THRESHOLD_SECONDS,
+            resolve_timeout=lambda: self.effective_timeout(config_resolver),
         )
 
-    def warn_stalled(self, threshold: float) -> None:
+    def effective_timeout(self, config_resolver: Callable[[], float | None]) -> float | None:
+        """Return the timeout enforced for one invocation, or ``None`` if it has none.
+
+        The enforced timeout and the stall threshold both read this, so they can't disagree.
+        """
+        return resolve_effective_timeout(self.timeout, self.timeout_disabled, config_resolver)
+
+    def warn_stalled(self, threshold: float, effective_timeout: float | None) -> None:
         """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
         LOGGER.warning(
-            "Handler '%s' has held its %s execution-mode guard for over %.0fs and is still running",
+            "Handler '%s' has held its %s execution-mode guard for over %s and is still running",
             self.handler_short_name,
             self.mode.value,
-            threshold,
+            describe_stall_threshold(threshold, effective_timeout),
         )
 
     def cancel(self) -> None:

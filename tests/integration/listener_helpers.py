@@ -63,7 +63,7 @@ async def dispatch_values(listener: Listener, *values: str) -> None:
         async def invoke_fn(val: str = value) -> None:
             await invoke_with(listener, val)
 
-        await listener.invoker.dispatch(invoke_fn)
+        await listener.invoker.dispatch(invoke_fn, lambda: None)
 
 
 async def invoke_handler(bucket: TaskBucket, handler: HandlerType, data: str = "test_data") -> None:

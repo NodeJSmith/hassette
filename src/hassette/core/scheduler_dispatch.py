@@ -12,7 +12,12 @@ import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import TaskBucketSealedError
-from hassette.execution_mode import STALL_THRESHOLD_SECONDS, run_parallel, run_through_guard
+from hassette.execution_mode import (
+    describe_stall_threshold,
+    resolve_effective_timeout,
+    run_parallel,
+    run_through_guard,
+)
 from hassette.scheduler.classes import Job
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.scheduler.triggers import _WaitingSentinel
@@ -401,15 +406,21 @@ class SchedulerDispatchMixin:
                     spawn=lambda coro, *, name: bucket.spawn(coro, name=name),
                     pending_done=job.pending_done,
                     invoke=lambda: self.run_job(job, trigger_mode=trigger_mode, fire_at=fire_at),
-                    warn=lambda secs: self.warn_stalled_job(job, secs),
+                    warn=lambda secs, timeout: self.warn_stalled_job(job, secs, timeout),
                     spawn_name="scheduler:mode_invocation",
-                    threshold=STALL_THRESHOLD_SECONDS,
+                    resolve_timeout=lambda: self.effective_job_timeout(job),
                 )
         except TaskBucketSealedError:
             level = logging.WARNING if trigger_mode == "manual" else logging.DEBUG
             self.logger.log(level, "Owner of job %s is shutting down, so the invocation didn't run", job)
 
-    def warn_stalled_job(self, job: "Job", threshold: float) -> None:
+    def effective_job_timeout(self, job: "Job") -> float | None:
+        """Return the timeout enforced for one invocation of ``job``, or ``None`` if it has none."""
+        return resolve_effective_timeout(
+            job.timeout, job.timeout_disabled, lambda: self.hassette.config.scheduler.job_timeout_seconds
+        )
+
+    def warn_stalled_job(self, job: "Job", threshold: float, effective_timeout: float | None) -> None:
         """Emit the stall WARNING: a non-parallel job is still holding its guard.
 
         Called by the stall watchdog after ``threshold`` seconds. Named after the job
@@ -418,12 +429,13 @@ class SchedulerDispatchMixin:
         Args:
             job: The job whose invocation is stalled.
             threshold: The threshold the watchdog armed at, in seconds.
+            effective_timeout: The timeout the threshold was derived from, or ``None`` if it has none.
         """
         self.logger.warning(
-            "Job '%s' has held its %s execution-mode guard for over %.0fs and is still running",
+            "Job '%s' has held its %s execution-mode guard for over %s and is still running",
             job.name,
             job.mode.value,
-            threshold,
+            describe_stall_threshold(threshold, effective_timeout),
         )
 
     async def run_job(self, job: "Job", trigger_mode: str | None = None, fire_at: ZonedDateTime | None = None) -> None:
@@ -461,15 +473,6 @@ class SchedulerDispatchMixin:
         async def _bound_callable() -> None:
             await async_fn(*job.args, **job.kwargs)
 
-        # Resolve effective timeout: timeout_disabled → None; job.timeout → use it;
-        # job.timeout is None → config default
-        if job.timeout_disabled:
-            effective_timeout = None
-        elif job.timeout is not None:
-            effective_timeout = job.timeout
-        else:
-            effective_timeout = self.hassette.config.scheduler.job_timeout_seconds
-
         # Resolve the app-level error handler at dispatch time via the closure set by
         # Scheduler.add_job(). This avoids coupling the dispatch path to Scheduler internals.
         app_level_error_handler = (
@@ -481,7 +484,7 @@ class SchedulerDispatchMixin:
             callable=_bound_callable,
             job_db_id=job.db_id,
             source_tier=job.source_tier,
-            effective_timeout=effective_timeout,
+            effective_timeout=self.effective_job_timeout(job),
             app_level_error_handler=app_level_error_handler,
             trigger_mode=trigger_mode,
         )

@@ -190,13 +190,19 @@ against the success rate. The cancelled column appears on the
 ### Stall detection
 
 A job that holds its execution-mode guard — any mode except `parallel` —
-longer than 60 seconds without completing emits a WARNING. This is the
+past its stall threshold without completing emits a WARNING. This is the
 only WARNING that overlap handling generates. Suppressed and dropped
 ticks always log at DEBUG.
 
+The threshold follows the job's effective timeout, either `timeout=` or
+`job_timeout_seconds`. It is 80% of that timeout, and never less than 60
+seconds. The default 600-second timeout warns at 480 seconds. A job with
+`timeout=300` warns at 240 seconds. A job with `timeout_disabled=True`, or with
+no per-job or global timeout, warns at 60 seconds. The WARNING names the threshold's source,
+such as `240s (80% of its 300s timeout)`.
+
 The per-job `timeout` still applies and ultimately releases the guard
-when it fires. The stall WARNING is an early signal, independent of the
-timeout.
+when it fires. The stall WARNING is an early signal and doesn't stop the job.
 
 ### Mode in the monitoring UI
 

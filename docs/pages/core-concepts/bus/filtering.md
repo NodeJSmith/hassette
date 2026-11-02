@@ -74,7 +74,9 @@ Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their nam
 
 ### Numeric direction: `C.Increased` and `C.Decreased`
 
-`C.Increased` and `C.Decreased` fire when a numeric value moves in a particular direction between events. Both work as arguments to `changed=` on `on_state_change` or `on_attribute_change`, and inside `P.StateComparison` / `P.AttrComparison` for attribute-level direction tests.
+`C.Increased` and `C.Decreased` fire when a numeric value moves in a particular direction between events. Both work as arguments to `changed=` on `on_state_change` or `on_attribute_change`, and inside `P.StateComparison` / `P.AttrComparison`.
+
+`P.StateComparison` calls a two-argument condition with the old and new state values. `P.AttrComparison` takes an attribute name first, then calls the condition with that attribute's old and new values. Both go in `where=`, and their entries are in the [Predicate Reference](predicate-reference.md#state-change-predicates).
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_increased_decreased.py"
@@ -94,7 +96,7 @@ The full conditions table, including string matching, collection membership, and
 
 ## Predicates and the `where` Parameter
 
-When built-in parameters are not enough, `where=` accepts a predicate or a list of predicates. A list is treated as logical AND, so all predicates must match.
+When built-in parameters are not enough, `where=` accepts a predicate or a list of predicates. A list is treated as logical AND, so all predicates must match. `hassette.types.WhereClause` is the type of `where=`, for helpers that accept and forward it.
 
 ### `P.StateFrom` and `P.StateTo`
 
@@ -142,7 +144,7 @@ Conditions (`C.*`) do not support these operators. They test extracted values, n
 
 ### Ignoring Restart Replays: `P.EventEntityFresh`
 
-Home Assistant `event.*` entities, such as Zigbee buttons and remotes, store the time of their last event as their state value. When Home Assistant restarts, it restores that state and broadcasts it as a new `state_changed` event. Without a guard, every button automation runs once on each restart, as if someone pressed the button.
+Home Assistant `event.*` entities, such as Zigbee buttons and remotes, store the time of their last event as their state value. `input_button.*` helpers store their last press the same way. When Home Assistant restarts, it restores that state and broadcasts it as a new `state_changed` event. Without a guard, every button automation runs once on each restart, as if someone pressed the button.
 
 The event's own `time_fired` doesn't help here, since a replayed event gets a fresh one. `P.EventEntityFresh` instead compares the timestamp in the entity's new state with that state's `last_changed`, and drops the event when `last_changed` is more than `max_age` seconds after that timestamp.
 
@@ -153,6 +155,16 @@ The event's own `time_fired` doesn't help here, since a replayed event gets a fr
 A real press writes its timestamp and `last_changed` at the same moment, so it passes. A restart replay pairs the last real press's timestamp, often hours old, with a `last_changed` from the restart, so it is dropped. Both values come from Home Assistant, so the Hassette host's clock doesn't matter, and a listener with `duration=` still fires when its hold timer expires.
 
 The guard fails open: a state that isn't a timestamp, such as `unknown` or `unavailable`, passes. A `max_age` of a few seconds is plenty.
+
+A handler that acts without checking anything else also runs on those states during a restart, and when the entity is removed, since a removal has no new state to check. An `event.*` handler usually returns early on its empty `event_type`, but an `input_button` handler has no such check. Composing the guard with `P.IsPresent` and `P.StateTo` drops those events too:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering/input_button_fresh.py"
+```
+
+`P.IsPresent` is false when its accessor finds no value, as on a removal. `A.get_state_value_new` goes in without parentheses because `P.IsPresent` calls it with each event.
+
+The handler now skips placeholder states, removals, and replays of older presses. A restart that finishes within `max_age` of the last press still looks like a real press and runs the handler. If running twice for one press would be a problem, make the handler idempotent, or save the last timestamp it handled and skip a repeat.
 
 ### Presence Checks
 
@@ -199,6 +211,12 @@ A dict passed to `where=` matches keys and values in the service data.
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_predicates.py"
 ```
+
+The handler fires when `message` contains `"urgent"` and `title` doesn't start with `"DEBUG"`.
+
+`C.StartsWith` tests whether a string value begins with a prefix. `P.Not` calls whatever it wraps and inverts the result, so wrapping a condition in `P.Not` negates a field value. The wrapped form counts as a callable.
+
+This negated field also matches a call that omits `title`, because `C.StartsWith` returns `False` for a missing value. A callable that checks `isinstance(value, str)` before testing the value rejects a missing field.
 
 ### `P.ServiceMatches`
 

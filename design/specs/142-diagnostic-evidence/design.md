@@ -8,7 +8,7 @@
 
 ## Summary
 
-People open Hassette after something happened that shouldn't have, or didn't happen when it should have. Of 13 investigated incidents, 8 were "didn't happen", and the evidence that settled them usually lived outside Hassette: app source, Home Assistant history, `docker logs`. Hassette records runs, but not the events a listener rejected, what triggered a run beyond a context id, what a run asked Home Assistant to do and how that ended, or connection and lifecycle history. The question list and per-step inventory are in the 2026-11-01 diagnostic questions research, kept in the Dotfiles repo.
+People open Hassette after something happened that shouldn't have, or didn't happen when it should have. Of 13 investigated incidents, 8 were "didn't happen", and the evidence that settled them usually lived outside Hassette: app source, Home Assistant history, `docker logs`. Hassette records runs, but not the events a listener rejected, what triggered a run beyond a context id, what a run asked Home Assistant to do and how that ended, or connection and lifecycle history. The question list and per-step inventory are in the 2026-11-01 diagnostic questions research, kept outside this repo.
 
 This milestone records that evidence and exposes it through the API and CLI. The web UI redesign displays it later and is out of scope.
 

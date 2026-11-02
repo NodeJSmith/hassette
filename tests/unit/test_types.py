@@ -1,7 +1,17 @@
 """Unit tests for framework key helpers in hassette.types.types."""
 
-from hassette.types import BusErrorHandlerType, SchedulerErrorHandlerType  # noqa: F401  # pyright: ignore[reportUnusedImport] — import test
+from typing import get_type_hints
+
+from hassette.types import BusErrorHandlerType, SchedulerErrorHandlerType, WhereClause  # noqa: F401  # pyright: ignore[reportUnusedImport] — import test
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, framework_display_name, is_framework_key
+
+
+def test_where_clause_resolves_in_a_module_that_imports_only_the_alias() -> None:
+    """A user helper annotated with the alias stays introspectable without importing what the alias names."""
+
+    def forward(where: WhereClause = None) -> None: ...
+
+    assert get_type_hints(forward)["where"] == WhereClause
 
 
 class TestIsFrameworkKey:

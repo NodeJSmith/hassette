@@ -158,12 +158,19 @@ blue diamond to set it apart from the red square of an error.
 ### Stall detection
 
 A handler that holds its execution-mode guard — any mode except `parallel` —
-longer than 60 seconds without completing emits a WARNING. This is the only
+past its stall threshold without completing emits a WARNING. This is the only
 WARNING the execution mode feature generates. Suppressed and dropped events
 always log at DEBUG.
 
+The threshold follows the handler's effective timeout, either `timeout=` or
+`event_handler_timeout_seconds`. It is 80% of that timeout, and never less than
+60 seconds. The default 600-second timeout warns at 480 seconds. A handler with
+`timeout=300` warns at 240 seconds. A handler with `timeout_disabled=True`, or
+with no per-listener or global timeout, warns at 60 seconds. The WARNING names the threshold's
+source, such as `240s (80% of its 300s timeout)`.
+
 The per-listener `timeout` still applies and ultimately releases the guard when
-it fires. The stall WARNING is an early signal, independent of the timeout.
+it fires. The stall WARNING is an early signal and doesn't stop the handler.
 
 ### Mode in the monitoring UI
 
