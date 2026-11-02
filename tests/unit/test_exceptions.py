@@ -16,6 +16,7 @@ See ``design/specs/031-helper-crud-api/design.md`` for the full spec.
 import copy
 import inspect
 import pickle
+from abc import ABC
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -118,12 +119,29 @@ class BuiltinFirstError(ValueError, HassetteError):
         self.retries = retries
 
 
-class OSErrorMixinError(OSError, HassetteError):
-    """A user-style subclass mixing in ``OSError``, which keeps the stdlib's ``cls(*self.args)`` rebuild."""
+class OSErrorFirstError(OSError, HassetteError):
+    """A user-style subclass with ``OSError`` ahead of ``HassetteError`` and a multi-argument constructor."""
 
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
-        self.detail = "disk full"
+    def __init__(self, path: str, reason: str) -> None:
+        super().__init__(f"{path}: {reason}")
+        self.path = path
+
+
+class HassetteFirstOSError(HassetteError, ConnectionError):
+    """A user-style subclass with ``HassetteError`` ahead of an ``OSError`` family builtin."""
+
+    def __init__(self, host: str, reason: str) -> None:
+        super().__init__(f"{host}: {reason}")
+        self.host = host
+
+
+class AbstractBaseError(HassetteError, ABC):
+    """A user-style abstract exception base, which must not hit a metaclass conflict."""
+
+
+class ConcreteAbcError(AbstractBaseError):
+    def __init__(self, entity_id: str, reason: str) -> None:
+        super().__init__(f"{entity_id}: {reason}")
 
 
 def test_failed_message_error_backward_compat_positional_only() -> None:
@@ -360,13 +378,18 @@ def test_round_trip_samples_cover_every_custom_init() -> None:
 @pytest.mark.parametrize("round_trip", ROUND_TRIPS.values(), ids=ROUND_TRIPS.keys())
 @pytest.mark.parametrize(
     "err",
-    [BuiltinFirstError("sensor.mode", retries=3), OSErrorMixinError("/tmp/x: gone")],
+    [
+        BuiltinFirstError("sensor.mode", retries=3),
+        OSErrorFirstError("/tmp/x", "gone"),
+        HassetteFirstOSError("ha.local", "refused"),
+        ConcreteAbcError("sensor.mode", "bad"),
+    ],
     ids=lambda err: type(err).__name__,
 )
 def test_subclass_with_builtin_exception_first_survives_round_trip(
     err: HassetteError, round_trip: Callable[[Any], Any]
 ) -> None:
-    """User subclasses get the same guarantee, even where a builtin's ``__new__`` wins the MRO lookup."""
+    """User subclasses get the same guarantee, whatever their bases and their order."""
     assert_same_error(err, round_trip(err))
 
 
@@ -385,14 +408,22 @@ def test_round_trip_keeps_state_set_after_construction(round_trip: Callable[[Any
     assert rebuilt.request_id == 42
 
 
-def test_oserror_mixin_constructor_arguments_are_not_parsed_as_errno() -> None:
+@pytest.mark.parametrize("cls", [OSErrorFirstError, HassetteFirstOSError])
+def test_oserror_mixin_constructor_arguments_are_not_parsed_as_errno(cls: type[HassetteError]) -> None:
     """``OSError.__new__`` parses its arguments as ``(errno, strerror)`` if a Python ``__new__`` displaces it."""
-
-    class TwoArgOSError(OSError, HassetteError):
-        def __init__(self, path: str, reason: str) -> None:
-            super().__init__(f"{path}: {reason}")
-
-    err = TwoArgOSError("/tmp/x", "gone")
+    err = cls("/tmp/x", "gone")
 
     assert str(err) == "/tmp/x: gone"
-    assert err.errno is None
+    assert err.errno is None  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def test_oserror_mixin_without_init_keeps_errno_parsing_through_round_trip() -> None:
+    class NoInitOSError(HassetteError, OSError):
+        pass
+
+    err = NoInitOSError(13, "denied", "/tmp/x")
+
+    assert (err.errno, err.strerror, err.filename) == (13, "denied", "/tmp/x")
+    rebuilt = copy.deepcopy(err)
+    assert (rebuilt.errno, rebuilt.strerror, rebuilt.filename) == (13, "denied", "/tmp/x")
+    assert str(rebuilt) == str(err)
