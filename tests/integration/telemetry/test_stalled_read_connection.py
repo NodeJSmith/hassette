@@ -2,7 +2,7 @@
 
 import asyncio
 import threading
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from unittest.mock import MagicMock
 
 import aiosqlite
@@ -59,6 +59,37 @@ async def test_summary_snapshot_times_out_without_waiting_for_its_rollback(
     assert not stalled.done()
     release_stall.set()
     await stalled
+    # Runs behind every statement the timed-out read queued, so the rollback has been applied by now.
+    await query_service.check_health()
+    assert not db_svc.read_db.in_transaction
+
+
+async def test_summary_snapshot_times_out_without_waiting_for_its_cursor_close(
+    query_service: TelemetryQueryService,
+    db: DbFixture,
+    stall_worker: StallWorker,
+    release_stall: threading.Event,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stall that begins after a snapshot cursor opens is bounded, as a sibling read on the connection can cause."""
+    db_svc, _ = db
+    stalls: list[asyncio.Task[aiosqlite.Cursor]] = []
+    fetchall = aiosqlite.Cursor.fetchall
+
+    async def stall_before_first_fetch(cursor: aiosqlite.Cursor) -> Iterable[aiosqlite.Row]:
+        if not stalls:
+            stalls.append(stall_worker())
+            await asyncio.sleep(0)  # the stall's first step queues it ahead of the fetch
+        return await fetchall(cursor)
+
+    monkeypatch.setattr(aiosqlite.Cursor, "fetchall", stall_before_first_fetch)
+
+    with pytest.raises(TelemetryUnavailableError):
+        await query_service.get_all_app_summaries(since=BASE_TS, source_tier="app")
+
+    assert not stalls[0].done()
+    release_stall.set()
+    await stalls[0]
     # Runs behind every statement the timed-out read queued, so the rollback has been applied by now.
     await query_service.check_health()
     assert not db_svc.read_db.in_transaction

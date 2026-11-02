@@ -173,8 +173,11 @@ class SummaryQueriesMixin:
                 try:
                     await self._db.execute("BEGIN DEFERRED")
                     for query, params in queries:
-                        async with self._db.execute(query, params) as cursor:
+                        cursor = await self._db.execute(query, params)
+                        try:
                             results.append(await cursor.fetchall())
+                        finally:
+                            await run_read_cleanup(cursor.close(), deadline)
                 finally:
                     # Always discard the read snapshot. Suppress broadly so a ROLLBACK failure
                     # (e.g. no transaction is open) can never mask an exception from the queries.
