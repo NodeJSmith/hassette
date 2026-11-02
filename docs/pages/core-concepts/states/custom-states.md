@@ -86,6 +86,12 @@ Fields on the attributes class are optional by default when typed with `| None`.
 
 ## Using Custom States in Apps
 
+A state class lives in the app file that uses it, or in a module in the apps directory. The snippets below import `RedditState` from `my_states.py`, a module beside the app file that holds the classes from [Adding Typed Attributes](#adding-typed-attributes).
+
+Hassette imports app files as modules of one package named after the apps directory. `from .my_states import RedditState` resolves from any app file beside `my_states.py`. Without that module, the import raises `ModuleNotFoundError`. A single-file app defines the class in the app file and omits the import.
+
+Registration runs when Python imports the defining module. Hassette imports only the app files named in its config, so an app file has to import a separate state module.
+
 ### Via `self.states[CustomStateClass]`
 
 `self.states[RedditState]` returns a [`DomainStates`][hassette.state_manager.state_manager.DomainStates] collection typed to `RedditState`. `.items()` yields `(entity_id, state)` pairs where each `state` is a fully converted `RedditState` instance. Iterating the collection directly yields entity IDs, like a dict.
@@ -102,9 +108,11 @@ Fields on the attributes class are optional by default when typed with `| None`.
 --8<-- "pages/core-concepts/states/snippets/state-registry/basic_custom_state_usage.py"
 ```
 
+When `reddit.my_account` changes, the handler logs `karma` from the typed `attributes` field.
+
 ## Troubleshooting
 
-**Class not registering.** The `domain` field must use `Literal["domain_name"]`, not `str`. A plain `str` annotation gives the registry no value to register at class creation time. If `__init_subclass__` is overridden, it must call `super().__init_subclass__()` so registration still runs.
+**Class not registering.** The `domain` field must use `Literal["domain_name"]`, not `str`. A plain `str` annotation gives the registry no value to register at class creation time. If `__init_subclass__` is overridden, it must call `super().__init_subclass__()` so registration still runs. A class in a module nothing imports never registers, so `self.states.get()` returns a plain `BaseState` for its entities. Importing the module from an app file fixes this, and `self.state_registry.resolve(domain="reddit")` then returns the class.
 
 **Type hints not working.** Property-style access (`self.states.my_domain`) is only available for domains declared in Hassette's `.pyi` stub. Custom domains always use `self.states[CustomStateClass]` for full type checking.
 
