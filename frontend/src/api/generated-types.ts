@@ -174,7 +174,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/apps/{app_key}/instances/{index}/start": {
+    "/api/apps/{app_key}/instances/{instance_name}/start": {
         parameters: {
             query?: never;
             header?: never;
@@ -185,16 +185,16 @@ export interface paths {
         put?: never;
         /**
          * Start Instance
-         * @description Start one instance of the app by index, and report what the start did to it.
+         * @description Start one instance of the app by name, and report what the start did to it.
          */
-        post: operations["start_instance_api_apps__app_key__instances__index__start_post"];
+        post: operations["start_instance_api_apps__app_key__instances__instance_name__start_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/apps/{app_key}/instances/{index}/stop": {
+    "/api/apps/{app_key}/instances/{instance_name}/stop": {
         parameters: {
             query?: never;
             header?: never;
@@ -205,16 +205,16 @@ export interface paths {
         put?: never;
         /**
          * Stop Instance
-         * @description Stop one instance of the app by index, and report what the stop did to it.
+         * @description Stop one instance of the app by name, and report what the stop did to it.
          */
-        post: operations["stop_instance_api_apps__app_key__instances__index__stop_post"];
+        post: operations["stop_instance_api_apps__app_key__instances__instance_name__stop_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/apps/{app_key}/instances/{index}/reload": {
+    "/api/apps/{app_key}/instances/{instance_name}/reload": {
         parameters: {
             query?: never;
             header?: never;
@@ -225,9 +225,9 @@ export interface paths {
         put?: never;
         /**
          * Reload Instance
-         * @description Re-import the app from disk, restart one instance by index, and report what the reload did to it.
+         * @description Re-import the app from disk, restart one instance by name, and report what the reload did to it.
          */
-        post: operations["reload_instance_api_apps__app_key__instances__index__reload_post"];
+        post: operations["reload_instance_api_apps__app_key__instances__instance_name__reload_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -555,7 +555,7 @@ export interface paths {
          * App Blocking Findings
          * @description Blocking findings for one app: attributed events grouped by app call site.
          *
-         *     Without ``instance_index``, findings cover every instance, which is what the multi-instance
+         *     Without ``instance_name``, findings cover every instance, which is what the multi-instance
          *     parent overview shows; with it, only that instance's events are counted.
          */
         get: operations["app_blocking_findings_api_telemetry_app__app_key__blocking_get"];
@@ -792,9 +792,9 @@ export interface components {
          * ActionResponse
          * @description Response for a start, stop or reload that succeeded on every instance it targeted.
          *
-         *     Sent with 200 once the action has finished. ``instance_index`` is the server-confirmed instance the
-         *     action ran against — ``None`` for an app-level action, the validated index for an instance-scoped one.
-         *     Callers (the CLI and the frontend toast) compare this against the index they requested rather than
+         *     Sent with 200 once the action has finished. ``instance_name`` is the server-confirmed instance the
+         *     action ran against — ``None`` for an app-level action, the validated name for an instance-scoped one.
+         *     Callers (the CLI and the frontend toast) compare this against the name they requested rather than
          *     trusting their own request data, since a routing bug would otherwise still look like a plain 200.
          */
         ActionResponse: {
@@ -805,11 +805,13 @@ export interface components {
              * @enum {string}
              */
             action: "start" | "stop" | "reload";
-            /** Instance Index */
-            instance_index: number | null;
+            /** Instance Name */
+            instance_name: string | null;
             /**
              * Outcomes
-             * @description One entry per instance the action targeted, in index order.
+             * @description One entry per instance the action targeted: configured instances in config order, then orphans by name.
+             *
+             *     A name a config change adds during the action comes last, so match outcomes to instances by ``instance_name``.
              */
             outcomes: components["schemas"]["InstanceOutcome"][];
         };
@@ -1018,15 +1020,13 @@ export interface components {
          * AppInstance
          * @description One configured instance of an app and its lifecycle status.
          *
-         *     Nested in ``AppSummary.instances``. ``index`` is the instance's position in the app's config;
-         *     ``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None``
-         *     unless ``status`` is ``failed``.
+         *     Nested in ``AppSummary.instances``: configured instances in config order, then orphans by name.
+         *     ``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None`` unless ``status`` is
+         *     ``failed``.
          */
         AppInstance: {
             /** App Key */
             app_key: string;
-            /** Index */
-            index: number;
             /** Instance Name */
             instance_name: string;
             /** Class Name */
@@ -1040,9 +1040,9 @@ export interface components {
             owner_id?: string | null;
             /**
              * In Current Config
-             * @description False for an instance still tracked at an index outside the app's configured range, such as one left
-             *     running after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``
-             *     and ``reload`` return 404.
+             * @description False for an instance still tracked under a name outside the app's config, such as one left running
+             *     after its config block was removed. Such an instance accepts only ``stop``; ``start`` and ``reload``
+             *     return 404.
              * @default true
              */
             in_current_config: boolean;
@@ -1204,7 +1204,7 @@ export interface components {
             handlers: components["schemas"]["BlockingHandlerRef"][];
             /**
              * Instances
-             * @description The app instances these events came from, by index. A request for every instance merges
+             * @description The app instances these events came from, sorted by name. A request for every instance merges
              *     one call site's events across instances into one finding, since they share the code to fix.
              */
             instances: components["schemas"]["BlockingInstanceRef"][];
@@ -1291,18 +1291,16 @@ export interface components {
             /** Handler Method */
             handler_method: string;
             /**
-             * Instance Index
-             * @description The app instance that registered this handler.
+             * Instance Name
+             * @description The instance whose event reached this handler; ``None`` on a row stored before instance names.
              */
-            instance_index: number;
+            instance_name?: string | null;
         };
         /**
          * BlockingInstanceRef
          * @description An app instance whose events are part of a finding.
          */
         BlockingInstanceRef: {
-            /** Index */
-            index: number;
             /** Name */
             name?: string | null;
         };
@@ -1472,8 +1470,6 @@ export interface components {
          *     assume success.
          */
         InstanceOutcome: {
-            /** Instance Index */
-            instance_index: number;
             /** Instance Name */
             instance_name: string;
             /**
@@ -1507,8 +1503,11 @@ export interface components {
             job_id: number;
             /** App Key */
             app_key: string;
-            /** Instance Index */
-            instance_index: number;
+            /**
+             * Instance Name
+             * @description The instance that registered this job; framework rows hold ``__hassette__``.
+             */
+            instance_name: string;
             /** Job Name */
             job_name: string;
             /** Handler Method */
@@ -1735,10 +1734,10 @@ export interface components {
             /** App Key */
             app_key: string;
             /**
-             * Instance Index
-             * @default 0
+             * Instance Name
+             * @description The instance that registered this listener; framework rows hold ``__hassette__``.
              */
-            instance_index: number;
+            instance_name: string;
             /** Topic */
             topic: string;
             /**
@@ -1918,8 +1917,6 @@ export interface components {
             execution_id?: string | null;
             /** Instance Name */
             instance_name?: string | null;
-            /** Instance Index */
-            instance_index?: number | null;
             /** Author */
             author?: ("app" | "framework") | null;
             /** Execution Kind */
@@ -2664,13 +2661,13 @@ export interface operations {
             };
         };
     };
-    start_instance_api_apps__app_key__instances__index__start_post: {
+    start_instance_api_apps__app_key__instances__instance_name__start_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 app_key: string;
-                index: number;
+                instance_name: string;
             };
             cookie?: never;
         };
@@ -2694,7 +2691,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config */
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2732,13 +2729,13 @@ export interface operations {
             };
         };
     };
-    stop_instance_api_apps__app_key__instances__index__stop_post: {
+    stop_instance_api_apps__app_key__instances__instance_name__stop_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 app_key: string;
-                index: number;
+                instance_name: string;
             };
             cookie?: never;
         };
@@ -2762,7 +2759,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config */
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2800,13 +2797,13 @@ export interface operations {
             };
         };
     };
-    reload_instance_api_apps__app_key__instances__index__reload_post: {
+    reload_instance_api_apps__app_key__instances__instance_name__reload_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 app_key: string;
-                index: number;
+                instance_name: string;
             };
             cookie?: never;
         };
@@ -2830,7 +2827,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config */
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3037,8 +3034,8 @@ export interface operations {
                 execution_id?: string | null;
                 /** @description Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines. */
                 author?: ("app" | "framework" | "all") | null;
-                /** @description App instance index. Omit for every instance of the app. */
-                instance_index?: number | null;
+                /** @description App instance name. Omit for every instance of the app. */
+                instance_name?: string | null;
             };
             header?: never;
             path?: never;
@@ -3156,8 +3153,8 @@ export interface operations {
         parameters: {
             query?: {
                 app_key?: string | null;
-                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
-                instance_index?: number;
+                /** @description App instance name. Omit for every instance of the app. */
+                instance_name?: string | null;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: "app" | "framework" | "all";
@@ -3249,8 +3246,8 @@ export interface operations {
     app_health_api_telemetry_app__app_key__health_get: {
         parameters: {
             query?: {
-                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
-                instance_index?: number;
+                /** @description App instance name. Omit for every instance of the app. */
+                instance_name?: string | null;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: "app" | "framework" | "all";
@@ -3305,8 +3302,8 @@ export interface operations {
     app_listeners_api_telemetry_app__app_key__listeners_get: {
         parameters: {
             query?: {
-                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
-                instance_index?: number;
+                /** @description App instance name. Omit for every instance of the app. */
+                instance_name?: string | null;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: "app" | "framework" | "all";
@@ -3352,8 +3349,8 @@ export interface operations {
     app_activity_api_telemetry_app__app_key__activity_get: {
         parameters: {
             query?: {
-                /** @description App instance index. Omit for every instance of the app. */
-                instance_index?: number | null;
+                /** @description App instance name. Omit for every instance of the app. */
+                instance_name?: string | null;
                 limit?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
@@ -3400,8 +3397,8 @@ export interface operations {
     app_jobs_api_telemetry_app__app_key__jobs_get: {
         parameters: {
             query?: {
-                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
-                instance_index?: number;
+                /** @description App instance name. Omit for every instance of the app. */
+                instance_name?: string | null;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: "app" | "framework" | "all";
@@ -3447,8 +3444,8 @@ export interface operations {
     app_blocking_findings_api_telemetry_app__app_key__blocking_get: {
         parameters: {
             query?: {
-                /** @description App instance index. Omit for every instance of the app. */
-                instance_index?: number | null;
+                /** @description App instance name. Omit for every instance of the app. */
+                instance_name?: string | null;
                 since?: number | null;
             };
             header?: never;

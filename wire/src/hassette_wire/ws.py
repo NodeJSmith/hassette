@@ -14,10 +14,9 @@ class AppStatusChangedData(BaseModel):
     """
 
     app_key: str
-    index: int
+    instance_name: str
     status: OpenResourceStatus
     previous_status: OpenResourceStatus | None = None
-    instance_name: str | None = None
     class_name: str | None = None
     exception: str | None = None
     exception_type: str | None = None
@@ -138,7 +137,6 @@ class ExecutionCompletedData(BaseModel):
 
     kind: OpenExecutionKind
     app_key: str
-    instance_index: int
     status: OpenExecutionStatus
     duration_ms: float
     error_type: str | None = None

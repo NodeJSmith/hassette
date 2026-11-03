@@ -23,7 +23,6 @@ from hassette.schemas.summary_models import AppHealthAggregates
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.trusted_proxies import TrustedProxySet
-from tests.support.mock_hassette import fake_instance_name
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
 from tests.support.task_buckets import make_closing_task_bucket
 from tests.support.web_manifest_helpers import make_full_snapshot
@@ -254,7 +253,6 @@ def wire_app_handler(
     # "currently configured" overlay result should replace `registry` with a real AppRegistry.
     registry.manifests = {}
     registry.only_apps = frozenset()
-    registry.instance_name = MagicMock(side_effect=fake_instance_name)
     # The DB-only branch also asks the registry for needs-restart records; no app has one here.
     registry.build_orphaned_flag_info = MagicMock(return_value=None)
 
@@ -267,7 +265,7 @@ def wire_app_handler(
     if app_action_mocks:
         # Each action reports one succeeded instance, so the route answers 200. Tests of the
         # 409/500 mapping set their own return value.
-        succeeded = (InstanceOutcome(instance_index=0, instance_name="instance_0", result=OutcomeResult.SUCCEEDED),)
+        succeeded = (InstanceOutcome(instance_name="instance_0", result=OutcomeResult.SUCCEEDED),)
         for name in ("start_app", "stop_app", "reload_app", "start_instance", "stop_instance", "reload_instance"):
             setattr(handler, name, AsyncMock(return_value=succeeded))
 

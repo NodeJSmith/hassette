@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "../../state/store";
 import { createListener } from "../../test/factories";
 import { server } from "../../test/server";
-import { CodeTab } from "./code-tab";
+import { buildAnnotationMap, CodeTab } from "./code-tab";
 
 // Mock shiki to avoid async highlighting in tests
 vi.mock("shiki", () => ({
@@ -192,5 +192,33 @@ describe("CodeTab", () => {
     unmount();
 
     expect(requestSignal!.aborted).toBe(true);
+  });
+});
+
+describe("buildAnnotationMap", () => {
+  it("shows one annotation when two instances register the same handler on a line", () => {
+    const map = buildAnnotationMap([
+      createListener({
+        listener_id: 1,
+        instance_name: "bedroom",
+        handler_method: "on_motion",
+        source_location: "a.py:10",
+      }),
+      createListener({
+        listener_id: 2,
+        instance_name: "office",
+        handler_method: "on_motion",
+        source_location: "a.py:10",
+      }),
+    ]);
+    expect(map.get(10)).toEqual(["on_motion"]);
+  });
+
+  it("keeps distinct handlers registered on the same line", () => {
+    const map = buildAnnotationMap([
+      createListener({ listener_id: 1, handler_method: "on_motion", source_location: "a.py:10" }),
+      createListener({ listener_id: 2, handler_method: "on_door", source_location: "a.py:10" }),
+    ]);
+    expect(map.get(10)).toEqual(["on_motion", "on_door"]);
   });
 });

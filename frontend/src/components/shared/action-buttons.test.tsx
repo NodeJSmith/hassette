@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionResponse } from "../../api/endpoints";
-import { ActionButtons, getStableInstanceRef } from "./action-buttons";
+import { ActionButtons } from "./action-buttons";
 
 // Mock the API endpoints — we test the component logic, not the network.
 vi.mock("../../api/endpoints", () => ({
@@ -101,7 +101,7 @@ describe("ActionButtons", () => {
     await waitFor(() => expect(btn.disabled).toBe(true));
     expect(startApp).toHaveBeenCalledWith("my_app");
 
-    resolveStart!({ app_key: "my_app", action: "start", instance_index: null, outcomes: [] });
+    resolveStart!({ app_key: "my_app", action: "start", instance_name: null, outcomes: [] });
     await clickPromise;
 
     await waitFor(() => {
@@ -113,7 +113,7 @@ describe("ActionButtons", () => {
 
   it("calls stopApp when Stop is clicked", async () => {
     const user = userEvent.setup();
-    stopApp.mockResolvedValue({ app_key: "my_app", action: "stop", instance_index: null, outcomes: [] });
+    stopApp.mockResolvedValue({ app_key: "my_app", action: "stop", instance_name: null, outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -129,7 +129,7 @@ describe("ActionButtons", () => {
 
   it("calls reloadApp when Reload is clicked", async () => {
     const user = userEvent.setup();
-    reloadApp.mockResolvedValue({ app_key: "my_app", action: "reload", instance_index: null, outcomes: [] });
+    reloadApp.mockResolvedValue({ app_key: "my_app", action: "reload", instance_name: null, outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
@@ -201,7 +201,7 @@ describe("ActionButtons", () => {
     expect(startApp).toHaveBeenCalledTimes(1);
 
     // Resolve the pending action to clean up
-    resolveAction({ app_key: "my_app", action: "start", instance_index: null, outcomes: [] });
+    resolveAction({ app_key: "my_app", action: "start", instance_name: null, outcomes: [] });
     await waitFor(() => {
       expect(btn.disabled).toBe(false);
     });
@@ -225,7 +225,7 @@ describe("ActionButtons", () => {
 
   it("calls stopApp when the confirm dialog's Stop action is confirmed", async () => {
     const user = userEvent.setup();
-    stopApp.mockResolvedValue({ app_key: "my_app", action: "stop", instance_index: null, outcomes: [] });
+    stopApp.mockResolvedValue({ app_key: "my_app", action: "stop", instance_name: null, outcomes: [] });
 
     render(<ActionButtons appKey="my_app" status="running" confirmStop />);
 
@@ -254,58 +254,58 @@ describe("ActionButtons", () => {
 
   // -- Instance-level routing --
 
-  const instance = { index: 1, name: "office" };
+  const instance = "office";
 
   it("calls startInstance (not startApp) when instance prop is provided", async () => {
     const user = userEvent.setup();
-    startInstance.mockResolvedValue({ app_key: "my_app", action: "start", instance_index: 1, outcomes: [] });
+    startInstance.mockResolvedValue({ app_key: "my_app", action: "start", instance_name: "office", outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
 
-    await user.click(getByTestId("btn-start-my_app-1"));
+    await user.click(getByTestId("btn-start-my_app-office"));
 
-    expect(startInstance).toHaveBeenCalledWith("my_app", 1);
+    expect(startInstance).toHaveBeenCalledWith("my_app", "office");
     expect(startApp).not.toHaveBeenCalled();
   });
 
   it("calls stopInstance (not stopApp) when instance prop is provided", async () => {
     const user = userEvent.setup();
-    stopInstance.mockResolvedValue({ app_key: "my_app", action: "stop", instance_index: 1, outcomes: [] });
+    stopInstance.mockResolvedValue({ app_key: "my_app", action: "stop", instance_name: "office", outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" instance={instance} />);
 
-    await user.click(getByTestId("btn-stop-my_app-1"));
+    await user.click(getByTestId("btn-stop-my_app-office"));
 
-    expect(stopInstance).toHaveBeenCalledWith("my_app", 1);
+    expect(stopInstance).toHaveBeenCalledWith("my_app", "office");
     expect(stopApp).not.toHaveBeenCalled();
   });
 
   it("calls reloadInstance (not reloadApp) when instance prop is provided", async () => {
     const user = userEvent.setup();
-    reloadInstance.mockResolvedValue({ app_key: "my_app", action: "reload", instance_index: 1, outcomes: [] });
+    reloadInstance.mockResolvedValue({ app_key: "my_app", action: "reload", instance_name: "office", outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" instance={instance} />);
 
-    await user.click(getByTestId("btn-reload-my_app-1"));
+    await user.click(getByTestId("btn-reload-my_app-office"));
 
-    expect(reloadInstance).toHaveBeenCalledWith("my_app", 1);
+    expect(reloadInstance).toHaveBeenCalledWith("my_app", "office");
     expect(reloadApp).not.toHaveBeenCalled();
   });
 
-  it("shows only Stop for a running instance outside the configured range", () => {
+  it("shows only Stop for a running instance no longer in the config", () => {
     const { getByTestId, queryByTestId } = render(
       <ActionButtons appKey="my_app" status="running" instance={instance} instanceOrphaned />,
     );
-    expect(getByTestId("btn-stop-my_app-1")).toBeDefined();
-    expect(queryByTestId("btn-reload-my_app-1")).toBeNull();
-    expect(queryByTestId("btn-start-my_app-1")).toBeNull();
+    expect(getByTestId("btn-stop-my_app-office")).toBeDefined();
+    expect(queryByTestId("btn-reload-my_app-office")).toBeNull();
+    expect(queryByTestId("btn-start-my_app-office")).toBeNull();
   });
 
-  it("shows no Start for a failed instance outside the configured range", () => {
+  it("shows no Start for a failed instance no longer in the config", () => {
     const { queryByTestId } = render(
       <ActionButtons appKey="my_app" status="failed" instance={instance} instanceOrphaned />,
     );
-    expect(queryByTestId("btn-start-my_app-1")).toBeNull();
+    expect(queryByTestId("btn-start-my_app-office")).toBeNull();
   });
 
   it("ignores instanceOrphaned for app-level buttons", () => {
@@ -316,7 +316,7 @@ describe("ActionButtons", () => {
   it("uses instance-aware testid and aria-label when instance prop is provided", () => {
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
 
-    const btn = getByTestId("btn-start-my_app-1");
+    const btn = getByTestId("btn-start-my_app-office");
     expect(btn).toBeDefined();
     expect(btn.getAttribute("aria-label")).toBe("Start instance 'office'");
     // Icon-button tooltip must match the accessible name, not a static per-action label.
@@ -325,11 +325,11 @@ describe("ActionButtons", () => {
 
   it("uses instance-aware toast text when instance prop is provided", async () => {
     const user = userEvent.setup();
-    reloadInstance.mockResolvedValue({ app_key: "my_app", action: "reload", instance_index: 1, outcomes: [] });
+    reloadInstance.mockResolvedValue({ app_key: "my_app", action: "reload", instance_name: "office", outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" instance={instance} />);
 
-    await user.click(getByTestId("btn-reload-my_app-1"));
+    await user.click(getByTestId("btn-reload-my_app-office"));
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith("Instance 'office' of 'my_app' reloaded");
@@ -342,37 +342,39 @@ describe("ActionButtons", () => {
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
 
-    await user.click(getByTestId("btn-start-my_app-1"));
+    await user.click(getByTestId("btn-start-my_app-office"));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Failed to start instance 'office' of 'my_app': Connection refused");
     });
   });
 
-  it("warns when the server-confirmed instance_index disagrees with the requested one", async () => {
+  it("warns when the server-confirmed instance_name disagrees with the requested one", async () => {
     const user = userEvent.setup();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    startInstance.mockResolvedValue({ app_key: "my_app", action: "start", instance_index: 2, outcomes: [] });
+    startInstance.mockResolvedValue({ app_key: "my_app", action: "start", instance_name: "warehouse", outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
 
-    await user.click(getByTestId("btn-start-my_app-1"));
+    await user.click(getByTestId("btn-start-my_app-office"));
 
     await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith("Requested instance 1 of 'my_app' but server confirmed instance 2");
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Requested instance 'office' of 'my_app' but server confirmed instance 'warehouse'",
+      );
     });
 
     warnSpy.mockRestore();
   });
 
-  it("does not warn when the server-confirmed instance_index matches the requested one", async () => {
+  it("does not warn when the server-confirmed instance_name matches the requested one", async () => {
     const user = userEvent.setup();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    startInstance.mockResolvedValue({ app_key: "my_app", action: "start", instance_index: 1, outcomes: [] });
+    startInstance.mockResolvedValue({ app_key: "my_app", action: "start", instance_name: "office", outcomes: [] });
 
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
 
-    await user.click(getByTestId("btn-start-my_app-1"));
+    await user.click(getByTestId("btn-start-my_app-office"));
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalled();
@@ -386,7 +388,7 @@ describe("ActionButtons", () => {
     const user = userEvent.setup();
     render(<ActionButtons appKey="my_app" status="running" confirmStop instance={instance} />);
 
-    await user.click(screen.getByTestId("btn-stop-my_app-1"));
+    await user.click(screen.getByTestId("btn-stop-my_app-office"));
 
     expect(screen.getByText("Stop instance 'office'?")).toBeDefined();
     expect(
@@ -397,29 +399,13 @@ describe("ActionButtons", () => {
 
   it("calls stopInstance when the confirm dialog's Stop action is confirmed with instance prop", async () => {
     const user = userEvent.setup();
-    stopInstance.mockResolvedValue({ app_key: "my_app", action: "stop", instance_index: 1, outcomes: [] });
+    stopInstance.mockResolvedValue({ app_key: "my_app", action: "stop", instance_name: "office", outcomes: [] });
 
     render(<ActionButtons appKey="my_app" status="running" confirmStop instance={instance} />);
 
-    await user.click(screen.getByTestId("btn-stop-my_app-1"));
+    await user.click(screen.getByTestId("btn-stop-my_app-office"));
     await user.click(screen.getByTestId("confirm-btn-danger"));
 
-    expect(stopInstance).toHaveBeenCalledWith("my_app", 1);
-  });
-});
-
-describe("getStableInstanceRef", () => {
-  it("returns the same object reference for the same index and name", () => {
-    const first = getStableInstanceRef(1, "office");
-    const second = getStableInstanceRef(1, "office");
-    expect(first).toBe(second);
-  });
-
-  it("returns distinct references for different index or name", () => {
-    const office = getStableInstanceRef(1, "office");
-    const otherIndex = getStableInstanceRef(2, "office");
-    const otherName = getStableInstanceRef(1, "warehouse");
-    expect(office).not.toBe(otherIndex);
-    expect(office).not.toBe(otherName);
+    expect(stopInstance).toHaveBeenCalledWith("my_app", "office");
   });
 });

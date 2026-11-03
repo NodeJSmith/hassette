@@ -23,7 +23,6 @@ _RECORD_FIELDS = (
     "app_key",
     "execution_id",
     "instance_name",
-    "instance_index",
     "execution_kind",
     "listener_id",
     "job_id",

@@ -31,24 +31,23 @@ from hassette.web.dependencies import AppKeyPath, LimitQuery, SinceQuery, Source
 async def my_route(app_key: AppKeyPath, since: SinceQuery = None, limit: LimitQuery = 50) -> ...:
 ```
 
-Per-app telemetry routes take the whole `instance_index`/`since`/`source_tier` filter set as one
+Per-app telemetry routes take the whole `instance_name`/`since`/`source_tier` filter set as one
 injected dependency, and splat it into the query call:
 
 ```python
 from hassette.web.dependencies import TelemetryFiltersDep
 
 async def app_health(app_key: AppKeyPath, telemetry: TelemetryDep, filters: TelemetryFiltersDep) -> ...:
-    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs(app_key))
+    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs())
 ```
 
 FastAPI flattens a dependency's parameters into the operation, so the OpenAPI schema is identical
 to declaring all three inline.
 
-`TelemetryFiltersDep` defaults `instance_index` to 0, which fits views of one instance. A
-multi-instance app's page with no `?instance=` is an app-wide overview (`MultiInstanceOverview`),
-not instance 0. A route that feeds that view takes `OptionalInstanceIndexQuery` instead, where an
-omitted index means every instance; `/app/{key}/blocking` is the example. Such a route declares
-its filters inline, since the dependency's 0 default and its `source_tier` don't apply.
+An omitted `instance_name` means every instance on every route, so the same request means the
+same thing after a config reorder. A multi-instance app's page with no `?instance=` is an app-wide
+overview (`MultiInstanceOverview`) served by that default. A name no row carries answers empty:
+these routes are plain filters, with no registry lookup, so a retired name's history stays readable.
 
 ## Error Responses
 

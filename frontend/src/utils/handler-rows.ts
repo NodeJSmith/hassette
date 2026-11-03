@@ -13,6 +13,7 @@ export interface UnifiedRow {
   id: string;
   handlerId: number;
   app_key: string;
+  instance_name: string;
   name: string;
   handler_method: string;
   trigger: string | null;
@@ -62,6 +63,7 @@ export function listenerToRow(l: ListenerData): UnifiedRow {
     id: `listener/${l.listener_id}`,
     handlerId: l.listener_id,
     app_key: l.app_key,
+    instance_name: l.instance_name,
     name: lastDotSegment(l.handler_method),
     handler_method: l.handler_method,
     trigger: l.listener_kind,
@@ -83,6 +85,7 @@ export function jobToRow(j: JobData): UnifiedRow {
     id: `job/${j.job_id}`,
     handlerId: j.job_id,
     app_key: j.app_key,
+    instance_name: j.instance_name,
     name: j.job_name,
     handler_method: j.handler_method,
     trigger: j.trigger_label || j.trigger_type || null,

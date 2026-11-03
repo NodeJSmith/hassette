@@ -43,6 +43,15 @@ from tests.support.web_mocks import create_hassette_stub
 HEAD_OPENAPI = Path(__file__).resolve().parents[3] / "frontend" / "openapi.json"
 
 
+def as_released(types: dict[tuple[str, str], object]) -> dict[tuple[str, str], object]:
+    """``types`` plus any route ``EXCLUDED`` keeps for the release that HEAD no longer serves.
+
+    Such an entry only counts as a gap against a release spec that lists its route, and it fails as stale otherwise.
+    """
+    excluded_routes = (tuple(target.split(" ", 1)) for kind, target in EXCLUDED if kind == "route")
+    return {**dict.fromkeys(excluded_routes, "ActionResponse"), **types}
+
+
 @pytest.fixture(scope="module")
 def head_types() -> dict[tuple[str, str], object]:
     return release_response_types(json.loads(HEAD_OPENAPI.read_text()))
@@ -138,7 +147,7 @@ def test_check_response_rejects_a_non_status_body_for_a_probe(response: Response
 async def test_generate_types_every_response_by_the_release_spec(
     tmp_path: Path, head_types: dict[tuple[str, str], object]
 ) -> None:
-    generated = await generate(["healthy"], head_types, tmp_path)
+    generated = await generate(["healthy"], as_released(head_types), tmp_path)
 
     assert generated.newer_than_release == []
     by_name = {fixture.request.name: fixture for fixture in generated.fixtures}
@@ -164,7 +173,7 @@ async def test_generate_types_every_response_by_the_release_spec(
 async def test_generate_reports_every_live_app_status(
     tmp_path: Path, head_types: dict[tuple[str, str], object]
 ) -> None:
-    generated = await generate(["healthy"], head_types, tmp_path)
+    generated = await generate(["healthy"], as_released(head_types), tmp_path)
 
     by_name = {fixture.request.name: fixture for fixture in generated.fixtures}
     apps = json.loads(by_name["apps"].body)["apps"]
@@ -185,7 +194,7 @@ async def test_generate_writes_no_fixture_for_a_route_the_release_lacks(
 ) -> None:
     release_types = {key: spec for key, spec in head_types.items() if key != ("GET", "/api/telemetry/app-grid")}
 
-    generated = await generate(["healthy"], release_types, tmp_path)
+    generated = await generate(["healthy"], as_released(release_types), tmp_path)
 
     assert generated.newer_than_release == ["GET /api/telemetry/app-grid"]
     assert not {"app-grid", "app-grid-degraded"} & {fixture.request.name for fixture in generated.fixtures}

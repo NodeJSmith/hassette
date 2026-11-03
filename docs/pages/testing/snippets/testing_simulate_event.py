@@ -18,7 +18,7 @@ async def test_watcher_reacts_when_upstream_app_starts():
             topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
             payload=HassettePayload(
                 data=AppStateChangePayload(
-                    app_key="upstream", index=0, status=ResourceStatus.RUNNING
+                    app_key="upstream", instance_name="upstream", status=ResourceStatus.RUNNING
                 ),
             ),
         )

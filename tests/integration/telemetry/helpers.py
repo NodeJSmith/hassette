@@ -12,6 +12,7 @@ from hassette_wire import ActivityFeedEntry, QuerySourceTier
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.query_service import TelemetryQueryService
+from hassette.testing.config import DEFAULT_TEST_INSTANCE_NAME
 from tests.support.factories import TEST_SOURCE_LOCATION
 
 BASE_TS = 1_000_000.0
@@ -74,7 +75,6 @@ async def insert_listener(
     *,
     app_key: str = "test_app",
     instance_name: str | None = None,
-    instance_index: int = 0,
     name: str | None = None,
     handler_method: str = "on_event",
     topic: str = "hass.event.state_changed",
@@ -83,14 +83,14 @@ async def insert_listener(
     # Default the natural-key name to handler_method so callers that vary handler_method get
     # distinct names and don't collide on the (app_key, instance_name, name, topic) unique index.
     name = name if name is not None else handler_method
-    instance_name = instance_name if instance_name is not None else f"instance_{instance_index}"
+    instance_name = instance_name if instance_name is not None else DEFAULT_TEST_INSTANCE_NAME
     cursor = await db_svc.db.execute(
         """INSERT INTO listeners
-               (app_key, instance_index, instance_name, name, handler_method, topic,
+               (app_key, instance_name, name, handler_method, topic,
                 debounce, throttle, once, priority,
                 source_location, source_tier)
-           VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0, ?, ?)""",
-        (app_key, instance_index, instance_name, name, handler_method, topic, TEST_SOURCE_LOCATION, source_tier),
+           VALUES (?, ?, ?, ?, ?, NULL, NULL, 0, 0, ?, ?)""",
+        (app_key, instance_name, name, handler_method, topic, TEST_SOURCE_LOCATION, source_tier),
     )
     return await commit_returning_id(db_svc, cursor)
 
@@ -100,22 +100,20 @@ async def insert_job(
     *,
     app_key: str = "test_app",
     instance_name: str | None = None,
-    instance_index: int = 0,
     job_name: str = "my_job",
     handler_method: str = "run_job",
     source_tier: str = "app",
     schedule_status: str = "scheduled",
 ) -> int:
-    instance_name = instance_name if instance_name is not None else f"instance_{instance_index}"
+    instance_name = instance_name if instance_name is not None else DEFAULT_TEST_INSTANCE_NAME
     cursor = await db_svc.db.execute(
         """INSERT INTO scheduled_jobs
-               (app_key, instance_index, instance_name, job_name, handler_method,
+               (app_key, instance_name, job_name, handler_method,
                 trigger_type, repeat,
                 source_location, source_tier, schedule_status)
-           VALUES (?, ?, ?, ?, ?, 'interval', 1, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, 'interval', 1, ?, ?, ?)""",
         (
             app_key,
-            instance_index,
             instance_name,
             job_name,
             handler_method,

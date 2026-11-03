@@ -16,18 +16,17 @@ vi.mock("../components/shared/action-buttons", () => ({
   ActionButtons: (props: {
     status?: string;
     confirmStop?: boolean;
-    instance?: { index: number; name: string };
+    instance?: { name: string };
     instanceOrphaned?: boolean;
   }) => (
     <div
       data-testid="action-buttons"
       data-status={props.status ?? ""}
       data-confirm-stop={props.confirmStop ? "true" : "false"}
-      data-instance={props.instance ? JSON.stringify(props.instance) : ""}
+      data-instance={props.instance ?? ""}
       data-instance-orphaned={props.instanceOrphaned ? "true" : "false"}
     />
   ),
-  getStableInstanceRef: (index: number, name: string) => ({ index, name }),
 }));
 
 vi.mock("../components/shared/mini-sparkline", () => ({
@@ -179,10 +178,15 @@ describe("AppTableRow", () => {
   });
 
   it("appStatuses overrides app.status in the badge", () => {
-    const entry: AppStatusEntry = { status: "running", index: 0 };
+    const entry: AppStatusEntry = { status: "running", instance_name: "inst_0" };
     const { getByTestId } = renderRow({
-      app: createAppRow({ app_key: "my_app", status: "stopped" }),
-      appStatuses: { [appStatusKey("my_app", 0)]: entry },
+      app: createAppRow({
+        app_key: "my_app",
+        status: "stopped",
+        instance_count: 1,
+        instances: [createInstance({ app_key: "my_app", instance_name: "inst_0", status: "stopped" })],
+      }),
+      appStatuses: { [appStatusKey("my_app", "inst_0")]: entry },
     });
     expect(getByTestId("status-pill").textContent).toBe("running");
   });
@@ -219,8 +223,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 0,
-          instance_name: "my_app[0]",
+          instance_name: "inst_0",
           status: "running",
           error_message: null,
           in_current_config: true,
@@ -228,8 +231,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 1,
-          instance_name: "my_app[1]",
+          instance_name: "inst_1",
           status: "stopped",
           error_message: null,
           in_current_config: true,
@@ -237,8 +239,8 @@ describe("AppTableRow", () => {
       ],
     });
     const { getByTestId } = renderRow({ app, isExpanded: true });
-    expect(getByTestId("instance-row-my_app-0")).toBeDefined();
-    expect(getByTestId("instance-row-my_app-1")).toBeDefined();
+    expect(getByTestId("instance-row-my_app-inst_0")).toBeDefined();
+    expect(getByTestId("instance-row-my_app-inst_1")).toBeDefined();
   });
 
   it("expanded instance rows show per-instance live status", () => {
@@ -249,8 +251,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 0,
-          instance_name: "my_app[0]",
+          instance_name: "inst_0",
           status: "stopped",
           error_message: null,
           in_current_config: true,
@@ -258,8 +259,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 1,
-          instance_name: "my_app[1]",
+          instance_name: "inst_1",
           status: "stopped",
           error_message: null,
           in_current_config: true,
@@ -267,12 +267,12 @@ describe("AppTableRow", () => {
       ],
     });
     const appStatuses: Record<string, AppStatusEntry> = {
-      [appStatusKey("my_app", 0)]: { status: "running", index: 0 },
-      [appStatusKey("my_app", 1)]: { status: "failed", index: 1 },
+      [appStatusKey("my_app", "inst_0")]: { status: "running", instance_name: "inst_0" },
+      [appStatusKey("my_app", "inst_1")]: { status: "failed", instance_name: "inst_1" },
     };
     const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
-    const row0 = getByTestId("instance-row-my_app-0");
-    const row1 = getByTestId("instance-row-my_app-1");
+    const row0 = getByTestId("instance-row-my_app-inst_0");
+    const row1 = getByTestId("instance-row-my_app-inst_1");
     expect(row0.textContent).toContain("running");
     expect(row0.textContent).not.toContain("stopped");
     expect(row1.textContent).toContain("failed");
@@ -287,8 +287,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 0,
-          instance_name: "my_app[0]",
+          instance_name: "inst_0",
           status: "failed",
           error_message: "boom",
           in_current_config: true,
@@ -296,8 +295,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 1,
-          instance_name: "my_app[1]",
+          instance_name: "inst_1",
           status: "running",
           error_message: null,
           in_current_config: true,
@@ -307,10 +305,10 @@ describe("AppTableRow", () => {
     const appStatuses: Record<string, AppStatusEntry> = {
       // Recovered: live status is "running" with a cleared exception — the cached "boom" must
       // not keep showing.
-      [appStatusKey("my_app", 0)]: { status: "running", index: 0, exception: null },
+      [appStatusKey("my_app", "inst_0")]: { status: "running", instance_name: "inst_0", exception: null },
     };
     const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
-    const row0 = getByTestId("instance-row-my_app-0");
+    const row0 = getByTestId("instance-row-my_app-inst_0");
     expect(row0.textContent).not.toContain("boom");
   });
 
@@ -322,8 +320,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 0,
-          instance_name: "my_app[0]",
+          instance_name: "inst_0",
           status: "failed",
           error_message: "boom",
           in_current_config: true,
@@ -331,8 +328,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 1,
-          instance_name: "my_app[1]",
+          instance_name: "inst_1",
           status: "running",
           error_message: null,
           in_current_config: true,
@@ -341,10 +337,10 @@ describe("AppTableRow", () => {
     });
     const appStatuses: Record<string, AppStatusEntry> = {
       // Newly failed: live status carries an exception the cached manifest never had.
-      [appStatusKey("my_app", 1)]: { status: "failed", index: 1, exception: "kaboom" },
+      [appStatusKey("my_app", "inst_1")]: { status: "failed", instance_name: "inst_1", exception: "kaboom" },
     };
     const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
-    const row1 = getByTestId("instance-row-my_app-1");
+    const row1 = getByTestId("instance-row-my_app-inst_1");
     expect(row1.textContent).toContain("kaboom");
   });
 
@@ -355,8 +351,7 @@ describe("AppTableRow", () => {
         {
           app_key: "my_app",
           class_name: "MyApp",
-          index: 0,
-          instance_name: "my_app[0]",
+          instance_name: "inst_0",
           status: "running",
           error_message: null,
           in_current_config: true,
@@ -364,7 +359,7 @@ describe("AppTableRow", () => {
       ],
     });
     const { queryByTestId } = renderRow({ app, isExpanded: false });
-    expect(queryByTestId("instance-row-my_app-0")).toBeNull();
+    expect(queryByTestId("instance-row-my_app-inst_0")).toBeNull();
   });
 
   it("shows instance count text when multi-instance", () => {
@@ -384,21 +379,19 @@ describe("AppTableRow", () => {
     expect(queryByText("no autostart")).toBeNull();
   });
 
-  it("marks an instance outside the configured range as orphaned, with a 'not in config' chip", () => {
+  it("marks an instance no longer in the config as orphaned, with a 'not in config' chip", () => {
     const app = createAppRow({
       instance_count: 3,
       instances: [
-        createInstance({ app_key: "my_app", index: 0, instance_name: "kept", status: "running" }),
+        createInstance({ app_key: "my_app", instance_name: "kept", status: "running" }),
         createInstance({
           app_key: "my_app",
-          index: 1,
           instance_name: "running_orphan",
           status: "running",
           in_current_config: false,
         }),
         createInstance({
           app_key: "my_app",
-          index: 2,
           instance_name: "failed_orphan",
           status: "failed",
           in_current_config: false,
@@ -407,12 +400,12 @@ describe("AppTableRow", () => {
     });
     const { getByTestId } = renderRow({ app, isExpanded: true });
 
-    const kept = getByTestId("instance-row-my_app-0");
+    const kept = getByTestId("instance-row-my_app-kept");
     expect(within(kept).getByTestId("action-buttons").getAttribute("data-instance-orphaned")).toBe("false");
     expect(within(kept).queryByTestId("not-in-config-chip")).toBeNull();
 
-    for (const index of [1, 2]) {
-      const row = getByTestId(`instance-row-my_app-${index}`);
+    for (const name of ["running_orphan", "failed_orphan"]) {
+      const row = getByTestId(`instance-row-my_app-${name}`);
       expect(within(row).getByTestId("action-buttons").getAttribute("data-instance-orphaned")).toBe("true");
       expect(within(row).getByTestId("not-in-config-chip").textContent).toBe("not in config");
     }
@@ -467,8 +460,7 @@ describe("AppTableRow", () => {
           {
             app_key: "my_app",
             class_name: "MyApp",
-            index: 0,
-            instance_name: "my_app[0]",
+            instance_name: "inst_0",
             status: "running",
             error_message: null,
             in_current_config: true,
@@ -476,8 +468,7 @@ describe("AppTableRow", () => {
           {
             app_key: "my_app",
             class_name: "MyApp",
-            index: 1,
-            instance_name: "my_app[1]",
+            instance_name: "inst_1",
             status: "stopped",
             error_message: null,
             in_current_config: true,
@@ -486,15 +477,15 @@ describe("AppTableRow", () => {
       });
       const { getByTestId } = renderRow({ app, isExpanded: true });
 
-      const row0 = getByTestId("instance-row-my_app-0");
+      const row0 = getByTestId("instance-row-my_app-inst_0");
       const actionButtons0 = within(row0).getByTestId("action-buttons");
       expect(actionButtons0.getAttribute("data-confirm-stop")).toBe("true");
-      expect(actionButtons0.getAttribute("data-instance")).toBe(JSON.stringify({ index: 0, name: "my_app[0]" }));
+      expect(actionButtons0.getAttribute("data-instance")).toBe("inst_0");
 
-      const row1 = getByTestId("instance-row-my_app-1");
+      const row1 = getByTestId("instance-row-my_app-inst_1");
       const actionButtons1 = within(row1).getByTestId("action-buttons");
       expect(actionButtons1.getAttribute("data-confirm-stop")).toBe("true");
-      expect(actionButtons1.getAttribute("data-instance")).toBe(JSON.stringify({ index: 1, name: "my_app[1]" }));
+      expect(actionButtons1.getAttribute("data-instance")).toBe("inst_1");
     });
 
     it("passes the instance's own live status to ActionButtons when the parent app is not blocked", () => {
@@ -506,8 +497,7 @@ describe("AppTableRow", () => {
           {
             app_key: "my_app",
             class_name: "MyApp",
-            index: 0,
-            instance_name: "my_app[0]",
+            instance_name: "inst_0",
             status: "stopped",
             error_message: null,
             in_current_config: true,
@@ -515,7 +505,7 @@ describe("AppTableRow", () => {
         ],
       });
       const { getByTestId } = renderRow({ app, isExpanded: true });
-      const row0 = getByTestId("instance-row-my_app-0");
+      const row0 = getByTestId("instance-row-my_app-inst_0");
       expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("stopped");
     });
 
@@ -533,8 +523,7 @@ describe("AppTableRow", () => {
           {
             app_key: "my_app",
             class_name: "MyApp",
-            index: 0,
-            instance_name: "my_app[0]",
+            instance_name: "inst_0",
             status: "stopped",
             error_message: null,
             in_current_config: true,
@@ -542,7 +531,7 @@ describe("AppTableRow", () => {
         ],
       });
       const { getByTestId } = renderRow({ app, isExpanded: true });
-      const row0 = getByTestId("instance-row-my_app-0");
+      const row0 = getByTestId("instance-row-my_app-inst_0");
       expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("blocked");
     });
 
@@ -560,8 +549,7 @@ describe("AppTableRow", () => {
           {
             app_key: "my_app",
             class_name: "MyApp",
-            index: 0,
-            instance_name: "my_app[0]",
+            instance_name: "inst_0",
             status: "running",
             error_message: null,
             in_current_config: true,
@@ -569,7 +557,7 @@ describe("AppTableRow", () => {
         ],
       });
       const { getByTestId } = renderRow({ app, isExpanded: true });
-      const row0 = getByTestId("instance-row-my_app-0");
+      const row0 = getByTestId("instance-row-my_app-inst_0");
       expect(within(row0).getByTestId("action-buttons").getAttribute("data-status")).toBe("running");
     });
   });
@@ -596,7 +584,7 @@ describe("AppTableRow", () => {
     it("shows the flag the moment a live WS status event carries it", () => {
       const app = createAppRow({ instances: [createInstance({ app_key: "my_app" })] });
       const appStatuses: Record<string, AppStatusEntry> = {
-        [appStatusKey("my_app", 0)]: { status: "failed", index: 0, needs_restart: flag },
+        [appStatusKey("my_app", "inst_0")]: { status: "failed", instance_name: "inst_0", needs_restart: flag },
       };
       const { getByTestId } = renderRow({ app, appStatuses });
       expect(getByTestId("needs-restart-badge").getAttribute("title")).toContain("1 task still pending");
@@ -606,11 +594,10 @@ describe("AppTableRow", () => {
       const app = createAppRow({
         instance_count: 2,
         instances: [
-          createInstance({ app_key: "my_app", index: 0, instance_name: "my_app[0]" }),
+          createInstance({ app_key: "my_app", instance_name: "inst_0" }),
           createInstance({
             app_key: "my_app",
-            index: 1,
-            instance_name: "my_app[1]",
+            instance_name: "inst_1",
             status: "failed",
             needs_restart: flag,
           }),
@@ -626,26 +613,25 @@ describe("AppTableRow", () => {
       const app = createAppRow({
         instance_count: 2,
         instances: [
-          createInstance({ app_key: "my_app", index: 0, instance_name: "my_app[0]" }),
+          createInstance({ app_key: "my_app", instance_name: "inst_0" }),
           createInstance({
             app_key: "my_app",
-            index: 1,
-            instance_name: "my_app[1]",
+            instance_name: "inst_1",
             status: "failed",
             needs_restart: flag,
           }),
         ],
       });
       const appStatuses: Record<string, AppStatusEntry> = {
-        [appStatusKey("my_app", 0)]: { status: "failed", index: 0, needs_restart: flag },
+        [appStatusKey("my_app", "inst_0")]: { status: "failed", instance_name: "inst_0", needs_restart: flag },
       };
       const { getByTestId } = renderRow({ app, appStatuses, isExpanded: true });
       expect(within(getByTestId("app-row-my_app")).getByTestId("needs-restart-badge").textContent).toBe(
         "2 need restart",
       );
-      expect(within(getByTestId("instance-row-my_app-0")).queryByTestId("needs-restart-badge")).not.toBeNull();
+      expect(within(getByTestId("instance-row-my_app-inst_0")).queryByTestId("needs-restart-badge")).not.toBeNull();
       expect(
-        within(getByTestId("instance-row-my_app-1")).getByTestId("needs-restart-badge").getAttribute("title"),
+        within(getByTestId("instance-row-my_app-inst_1")).getByTestId("needs-restart-badge").getAttribute("title"),
       ).toContain("1 task still pending");
     });
   });

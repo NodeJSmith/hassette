@@ -61,7 +61,7 @@ LISTENER_SUMMARY_SOURCE = RegistrationSummarySource(
     select_columns=f"""
                 l.id AS listener_id,
                 l.app_key,
-                l.instance_index,
+                l.instance_name,
                 l.handler_method,
                 l.topic,
                 l.debounce,
@@ -106,7 +106,7 @@ JOB_SUMMARY_SOURCE = RegistrationSummarySource(
     select_columns=f"""
                 sj.id AS job_id,
                 sj.app_key,
-                sj.instance_index,
+                sj.instance_name,
                 sj.job_name,
                 sj.handler_method,
                 sj.trigger_type,

@@ -28,6 +28,7 @@ import seed_scenarios
 from seed_scenarios.base import REFERENCE_INSTANT, ts
 from whenever import Instant
 
+from hassette.config.classes import instance_name_reason
 from tests.support.factories import make_execution_record
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -175,16 +176,16 @@ def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: P
 
     conn = sqlite3.connect(output)
     try:
-        instance_indexes = {
+        instance_names = {
             row[0]
             for row in conn.execute(
-                "SELECT instance_index FROM listeners WHERE app_key = 'split_brain'"
-                " UNION SELECT instance_index FROM scheduled_jobs WHERE app_key = 'split_brain'"
+                "SELECT instance_name FROM listeners WHERE app_key = 'split_brain'"
+                " UNION SELECT instance_name FROM scheduled_jobs WHERE app_key = 'split_brain'"
             )
         }
         status_by_instance = conn.execute(
             """
-            SELECT COALESCE(l.instance_index, j.instance_index) AS instance_index, e.status, COUNT(*)
+            SELECT COALESCE(l.instance_name, j.instance_name) AS instance_name, e.status, COUNT(*)
             FROM executions e
             LEFT JOIN listeners l ON e.listener_id = l.id
             LEFT JOIN scheduled_jobs j ON e.job_id = j.id
@@ -195,10 +196,11 @@ def test_mixed_instance_scenario_splits_running_and_failed_instances(tmp_path: P
     finally:
         conn.close()
 
-    assert instance_indexes == {0, 1}
-    statuses = {(index, status) for index, status, _count in status_by_instance}
-    assert {status for index, status in statuses if index == 0} == {"success"}
-    assert {status for index, status in statuses if index == 1} == {"error"}
+    assert len(instance_names) == 2
+    first, second = sorted(instance_names)
+    statuses = {(name, status) for name, status, _count in status_by_instance}
+    assert {status for name, status in statuses if name == first} == {"success"}
+    assert {status for name, status in statuses if name == second} == {"error"}
 
 
 @pytest.mark.parametrize("scenario", ALL_SCENARIOS)
@@ -493,3 +495,23 @@ def test_cli_queries_against_seeded_db():
 
 # Lint and type checking have no automated test here -- they are verified by `prek -a`
 # (ruff + pyright) during pre-commit review, not by this test suite.
+
+
+@pytest.mark.parametrize("scenario", ALL_SCENARIOS)
+def test_seeded_instance_names_are_ones_a_config_accepts(scenario: str, tmp_path: Path):
+    """Seeded rows stand in for a real config's instances, so a page served from them sees real name shapes."""
+    output = tmp_path / "seed.db"
+    result = _run_seed_script(scenario, output)
+    assert result.returncode == 0, result.stderr
+
+    conn = sqlite3.connect(output)
+    try:
+        names = {
+            name
+            for table in ("listeners", "scheduled_jobs", "log_records", "blocking_events")
+            for (name,) in conn.execute(f"SELECT DISTINCT instance_name FROM {table}")
+        }
+    finally:
+        conn.close()
+
+    assert not {name for name in names - {None, "__hassette__"} if instance_name_reason(name)}

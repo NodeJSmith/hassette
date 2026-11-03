@@ -48,22 +48,22 @@ def flag(lifecycle: AppLifecycleService, name: str) -> None:
     )
 
 
-def summarize(outcomes: typing.Iterable[InstanceOutcome]) -> list[tuple[int, OutcomeResult, bool, str | None]]:
-    """Each outcome as ``(index, result, needs_restart, reason)``, for comparing a whole action at once."""
-    return [(o.instance_index, o.result, o.needs_restart, o.reason) for o in outcomes]
+def summarize(outcomes: typing.Iterable[InstanceOutcome]) -> list[tuple[str, OutcomeResult, bool, str | None]]:
+    """Each outcome as ``(name, result, needs_restart, reason)``, for comparing a whole action at once."""
+    return [(o.instance_name, o.result, o.needs_restart, o.reason) for o in outcomes]
 
 
 StopUnlocked = Callable[..., Awaitable[None]]
 
 
-async def stopped_app_summary(lifecycle: AppLifecycleService) -> list[tuple[int, OutcomeResult, bool, str | None]]:
+async def stopped_app_summary(lifecycle: AppLifecycleService) -> list[tuple[str, OutcomeResult, bool, str | None]]:
     """Stop the whole multi-instance app and ``summarize`` its outcomes."""
     return summarize(await lifecycle.stop_app(MULTI_INSTANCE_APP_KEY))
 
 
 async def reloaded_instance_summary(
     lifecycle: AppLifecycleService,
-) -> list[tuple[int, OutcomeResult, bool, str | None]]:
+) -> list[tuple[str, OutcomeResult, bool, str | None]]:
     """Reload instance ``alpha`` of the multi-instance app and ``summarize`` its outcome."""
     return summarize(await lifecycle.reload_instance(MULTI_INSTANCE_APP_KEY, "alpha"))
 
@@ -207,9 +207,9 @@ class TestReloadLockAndNeedsRestartGate:
         ]
         outcomes = await lifecycle.start_app(app_key)
 
-        assert [(o.instance_index, o.instance_name, o.result) for o in outcomes] == [
-            (0, "beta", OutcomeResult.REFUSED),
-            (1, "alpha", OutcomeResult.SUCCEEDED),
+        assert [(o.instance_name, o.result) for o in outcomes] == [
+            ("beta", OutcomeResult.REFUSED),
+            ("alpha", OutcomeResult.SUCCEEDED),
         ]
         assert lifecycle.registry.get(app_key, "beta") is None
         assert lifecycle.registry.get(app_key, "alpha") is not None
@@ -238,7 +238,7 @@ class TestReloadLockAndNeedsRestartGate:
         assert old.needs_restart is not None
 
     async def test_stop_reports_an_orphan_after_the_configured_instances(self, lifecycle: AppLifecycleService) -> None:
-        """A running instance outside the config stays stoppable, at the index the instance list shows for it."""
+        """A running instance outside the config stays stoppable, under the name the instance list shows for it."""
         app_key = MULTI_INSTANCE_APP_KEY
         lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         await lifecycle.start_app(app_key)
@@ -246,9 +246,7 @@ class TestReloadLockAndNeedsRestartGate:
 
         outcomes = await lifecycle.stop_instance(app_key, "beta")
 
-        assert [(o.instance_index, o.instance_name, o.result) for o in outcomes] == [
-            (1, "beta", OutcomeResult.SUCCEEDED)
-        ]
+        assert [(o.instance_name, o.result) for o in outcomes] == [("beta", OutcomeResult.SUCCEEDED)]
         assert lifecycle.registry.get(app_key, "beta") is None
 
     async def test_reload_app_recreates_siblings_but_not_a_flagged_instance(
@@ -276,9 +274,9 @@ class TestReloadLockAndNeedsRestartGate:
         beta_after = lifecycle.registry.get(app_key, "beta")
         assert beta_after is not None
         assert beta_after is not beta_before
-        assert [(o.instance_index, o.result, o.needs_restart) for o in outcomes] == [
-            (0, OutcomeResult.REFUSED, True),
-            (1, OutcomeResult.SUCCEEDED, False),
+        assert [(o.instance_name, o.result, o.needs_restart) for o in outcomes] == [
+            ("alpha", OutcomeResult.REFUSED, True),
+            ("beta", OutcomeResult.SUCCEEDED, False),
         ]
         assert outcomes[0].reason == lifecycle.registry.refusal_reason(app_key, "alpha")
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
@@ -302,9 +300,9 @@ class TestReloadLockAndNeedsRestartGate:
         infos = lifecycle.registry.resolve_instance_infos(app_key)
         assert sorted(infos) == ["alpha", "beta"]
         assert all(info.needs_restart is not None for info in infos.values())
-        assert [(o.instance_index, o.result) for o in outcomes] == [
-            (0, OutcomeResult.REFUSED),
-            (1, OutcomeResult.REFUSED),
+        assert [(o.instance_name, o.result) for o in outcomes] == [
+            ("alpha", OutcomeResult.REFUSED),
+            ("beta", OutcomeResult.REFUSED),
         ]
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
@@ -324,8 +322,8 @@ class TestActionOutcomes:
         outcomes = await running.start_app(MULTI_INSTANCE_APP_KEY)
 
         assert summarize(outcomes) == [
-            (0, OutcomeResult.SUCCEEDED, False, "already running"),
-            (1, OutcomeResult.SUCCEEDED, False, "already running"),
+            ("alpha", OutcomeResult.SUCCEEDED, False, "already running"),
+            ("beta", OutcomeResult.SUCCEEDED, False, "already running"),
         ]
 
     async def test_stop_reports_every_configured_instance_including_one_already_stopped(
@@ -334,8 +332,8 @@ class TestActionOutcomes:
         await running.stop_instance(MULTI_INSTANCE_APP_KEY, "beta")
 
         assert await stopped_app_summary(running) == [
-            (0, OutcomeResult.SUCCEEDED, False, None),
-            (1, OutcomeResult.SUCCEEDED, False, "already stopped"),
+            ("alpha", OutcomeResult.SUCCEEDED, False, None),
+            ("beta", OutcomeResult.SUCCEEDED, False, "already stopped"),
         ]
 
     async def test_stop_also_targets_a_tracked_instance_outside_the_config(self, running: AppLifecycleService) -> None:
@@ -343,9 +341,9 @@ class TestActionOutcomes:
 
         outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
 
-        assert [(o.instance_index, o.result) for o in outcomes] == [
-            (0, OutcomeResult.SUCCEEDED),
-            (1, OutcomeResult.SUCCEEDED),
+        assert [(o.instance_name, o.result) for o in outcomes] == [
+            ("alpha", OutcomeResult.SUCCEEDED),
+            ("beta", OutcomeResult.SUCCEEDED),
         ]
         assert running.registry.get_running_apps(MULTI_INSTANCE_APP_KEY) == {}
 
@@ -363,7 +361,7 @@ class TestActionOutcomes:
             outcomes = await running.stop_app(MULTI_INSTANCE_APP_KEY)
 
         refused = outcomes[-1]
-        assert (refused.instance_index, refused.result, refused.needs_restart) == (1, OutcomeResult.REFUSED, True)
+        assert (refused.instance_name, refused.result, refused.needs_restart) == ("beta", OutcomeResult.REFUSED, True)
         assert refused.reason == running.registry.refusal_reason(MULTI_INSTANCE_APP_KEY, "beta")
 
     async def test_stop_whose_teardown_records_nothing_fails_closed(
@@ -373,8 +371,8 @@ class TestActionOutcomes:
         monkeypatch.setattr(running, "shutdown_instances", record_nothing)
 
         assert await stopped_app_summary(running) == [
-            (0, OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
-            (1, OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
+            ("alpha", OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
+            ("beta", OutcomeResult.FAILED, False, NO_OUTCOME_REASON),
         ]
 
     async def test_per_instance_stop_over_a_shared_collector_decides_only_its_instance(
@@ -386,7 +384,7 @@ class TestActionOutcomes:
         async with running._get_app_key_lock(MULTI_INSTANCE_APP_KEY):
             await running._stop_instance_unlocked(MULTI_INSTANCE_APP_KEY, "alpha", outcomes=shared)
 
-        assert summarize(shared.snapshot()) == [(0, OutcomeResult.SUCCEEDED, False, None)]
+        assert summarize(shared.snapshot()) == [("alpha", OutcomeResult.SUCCEEDED, False, None)]
 
     async def test_per_instance_stop_that_raises_fails_only_its_instance(
         self, running: AppLifecycleService, monkeypatch: pytest.MonkeyPatch
@@ -398,7 +396,7 @@ class TestActionOutcomes:
         async with running._get_app_key_lock(MULTI_INSTANCE_APP_KEY):
             await running._stop_instance_unlocked(MULTI_INSTANCE_APP_KEY, "alpha", outcomes=shared)
 
-        assert summarize(shared.snapshot()) == [(0, OutcomeResult.FAILED, False, "teardown blew up")]
+        assert summarize(shared.snapshot()) == [("alpha", OutcomeResult.FAILED, False, "teardown blew up")]
 
     async def test_unexpected_raise_fails_every_target_with_its_message(
         self, running: AppLifecycleService, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -407,8 +405,8 @@ class TestActionOutcomes:
         monkeypatch.setattr(running, "shutdown_instances", blow_up)
 
         assert await stopped_app_summary(running) == [
-            (0, OutcomeResult.FAILED, False, "teardown blew up"),
-            (1, OutcomeResult.FAILED, False, "teardown blew up"),
+            ("alpha", OutcomeResult.FAILED, False, "teardown blew up"),
+            ("beta", OutcomeResult.FAILED, False, "teardown blew up"),
         ]
         assert [r.getMessage().splitlines()[0] for r in caplog.records if r.levelname == "ERROR"] == [
             f"Failed to stop app {MULTI_INSTANCE_APP_KEY}:"
@@ -421,7 +419,7 @@ class TestActionOutcomes:
         fail_each_stop(running, monkeypatch, flags=False)
 
         assert await reloaded_instance_summary(running) == [
-            (0, OutcomeResult.SUCCEEDED, False, "the stop before it failed: on_shutdown timed out"),
+            ("alpha", OutcomeResult.SUCCEEDED, False, "the stop before it failed: on_shutdown timed out"),
         ]
         assert running.registry.get(MULTI_INSTANCE_APP_KEY, "alpha") is not None
 
@@ -437,7 +435,12 @@ class TestActionOutcomes:
         monkeypatch.setattr(running, "_create_instance_unlocked", create_fails)
 
         assert await reloaded_instance_summary(running) == [
-            (0, OutcomeResult.FAILED, False, "class failed to load; the stop before it failed: on_shutdown timed out"),
+            (
+                "alpha",
+                OutcomeResult.FAILED,
+                False,
+                "class failed to load; the stop before it failed: on_shutdown timed out",
+            ),
         ]
 
     async def test_reload_whose_stop_flags_the_instance_reports_that_failure(
@@ -446,7 +449,9 @@ class TestActionOutcomes:
         """The create half's refusal doesn't relabel a zombie this reload created (spec 140 D6)."""
         fail_each_stop(running, monkeypatch, flags=True)
 
-        assert await reloaded_instance_summary(running) == [(0, OutcomeResult.FAILED, True, "on_shutdown timed out")]
+        assert await reloaded_instance_summary(running) == [
+            ("alpha", OutcomeResult.FAILED, True, "on_shutdown timed out")
+        ]
         assert running.registry.get(MULTI_INSTANCE_APP_KEY, "alpha") is None
 
     async def test_blocked_reload_carries_the_stop_outcomes(self, running: AppLifecycleService) -> None:
@@ -455,9 +460,9 @@ class TestActionOutcomes:
         with pytest.raises(AppBlockedError) as exc_info:
             await running.reload_app(MULTI_INSTANCE_APP_KEY)
 
-        assert [(o.instance_index, o.result) for o in exc_info.value.outcomes] == [
-            (0, OutcomeResult.SUCCEEDED),
-            (1, OutcomeResult.SUCCEEDED),
+        assert [(o.instance_name, o.result) for o in exc_info.value.outcomes] == [
+            ("alpha", OutcomeResult.SUCCEEDED),
+            ("beta", OutcomeResult.SUCCEEDED),
         ]
         assert running.registry.get_running_apps(MULTI_INSTANCE_APP_KEY) == {}
 

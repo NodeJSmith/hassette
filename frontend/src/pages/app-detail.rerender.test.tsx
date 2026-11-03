@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExecutionCompletedData } from "../api/ws-types";
 import type { ExecutionKind } from "../components/shared/execution-table";
 import { appStatusKey, useAppStore } from "../state/store";
-import { createAppSummary } from "../test/factories";
+import { createAppSummary, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { AppDetailPage } from "./app-detail";
@@ -52,12 +52,18 @@ vi.mock("../components/shared/spinner", async () => (await import("./app-detail.
 vi.mock("../hooks/use-correct-url", () => ({ useCorrectUrl: () => vi.fn() }));
 
 function makeExecution(appKey: string, kind: ExecutionKind): ExecutionCompletedData {
-  return { kind, app_key: appKey, instance_index: 0, status: "success", duration_ms: 5 };
+  return { kind, app_key: appKey, status: "success", duration_ms: 5 };
 }
 
 /** Renders the overview tab and waits for the initial load to settle. */
 async function renderSettled() {
-  setupApi(createAppSummary({ app_key: "test_app" }));
+  setupApi(
+    createAppSummary({
+      app_key: "test_app",
+      instance_count: 1,
+      instances: [createInstance({ app_key: "test_app", instance_name: "inst_0" })],
+    }),
+  );
   const view = renderWithAppState(<AppDetailPage params={{ key: "test_app" }} />, {
     storeOverrides: { uptimeSeconds: 120 },
   });
@@ -76,7 +82,9 @@ describe("AppDetailPage store subscriptions", () => {
     const before = counter.renders;
 
     act(() => {
-      useAppStore.getState().updateAppStatus(appStatusKey("other_app", 0), { status: "failed", index: 0 });
+      useAppStore
+        .getState()
+        .updateAppStatus(appStatusKey("other_app", "inst_0"), { status: "failed", instance_name: "inst_0" });
     });
 
     expect(counter.renders).toBe(before);
@@ -87,7 +95,9 @@ describe("AppDetailPage store subscriptions", () => {
     const before = counter.renders;
 
     act(() => {
-      useAppStore.getState().updateAppStatus(appStatusKey("test_app", 0), { status: "failed", index: 0 });
+      useAppStore
+        .getState()
+        .updateAppStatus(appStatusKey("test_app", "inst_0"), { status: "failed", instance_name: "inst_0" });
     });
 
     expect(counter.renders).toBeGreaterThan(before);

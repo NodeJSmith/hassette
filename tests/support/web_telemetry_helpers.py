@@ -16,7 +16,7 @@ from hassette_wire import (
 )
 
 from hassette.schemas.listener_models import ListenerSummaryRow
-from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B, TEST_SOURCE_LOCATION
+from hassette.testing.config import DEFAULT_TEST_APP_KEY, DEFAULT_TEST_INSTANCE_NAME, TEST_EPOCH_B, TEST_SOURCE_LOCATION
 from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 
 
@@ -48,7 +48,6 @@ def make_activity_feed_entry(
 def make_listener_summary_row(
     listener_id: int = 1,
     app_key: str = DEFAULT_TEST_APP_KEY,
-    instance_index: int = 0,
     handler_method: str = "on_light_change",
     topic: str = "state_changed.light.kitchen",
     debounce: float | None = None,
@@ -89,7 +88,7 @@ def make_listener_summary_row(
     return ListenerSummaryRow(
         listener_id=listener_id,
         app_key=app_key,
-        instance_index=instance_index,
+        instance_name=DEFAULT_TEST_INSTANCE_NAME,
         handler_method=handler_method,
         topic=topic,
         debounce=debounce,
@@ -127,7 +126,6 @@ def make_listener_summary_row(
 def make_listener_summary(
     listener_id: int = 1,
     app_key: str = DEFAULT_TEST_APP_KEY,
-    instance_index: int = 0,
     topic: str = "light.kitchen",
     listener_kind: str = "state change",
     handler_method: str = "on_light_change",
@@ -144,7 +142,7 @@ def make_listener_summary(
     return ListenerSummary(
         listener_id=listener_id,
         app_key=app_key,
-        instance_index=instance_index,
+        instance_name=DEFAULT_TEST_INSTANCE_NAME,
         topic=topic,
         listener_kind=listener_kind,  # pyright: ignore[reportArgumentType]
         handler_method=handler_method,
@@ -199,7 +197,6 @@ def make_log_entry(
     app_key: str | None = DEFAULT_TEST_APP_KEY,
     execution_id: str | None = None,
     instance_name: str | None = None,
-    instance_index: int | None = 0,
     author: LogAuthor | None = "app",
 ) -> LogEntry:
     """Build a LogEntry with sensible defaults."""
@@ -216,7 +213,6 @@ def make_log_entry(
         app_key=app_key,
         execution_id=execution_id,
         instance_name=instance_name,
-        instance_index=instance_index,
         author=author,
     )
 

@@ -117,7 +117,7 @@ InstanceArg = Annotated[
     str | None,
     Parameter(
         name=["--instance"],
-        help="Filter by app instance (integer index or instance name). Requires --app.",
+        help="Filter by app instance name. Requires --app.",
     ),
 ]
 
@@ -135,7 +135,7 @@ InstanceActionArg = Annotated[
     str | None,
     Parameter(
         name=["--instance"],
-        help="Targets a specific app instance (index or name).",
+        help="Targets a specific app instance by name.",
     ),
 ]
 

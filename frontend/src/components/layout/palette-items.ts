@@ -117,13 +117,13 @@ export function buildAppItems(
     if (m.instance_count > 1) {
       for (const inst of m.instances ?? []) {
         items.push({
-          id: `instance-${m.app_key}-${inst.index}`,
+          id: `instance-${m.app_key}-${inst.instance_name}`,
           kind: "instance",
           label: inst.instance_name,
-          sub: `${m.app_key} · #${inst.index}`,
+          sub: m.app_key,
           status: instanceLiveStatus(appStatuses, m.app_key, inst),
           action: () => {
-            navigate(appDetailPath(m.app_key, undefined, { instance: inst.index }));
+            navigate(appDetailPath(m.app_key, undefined, { instance: inst.instance_name }));
             onClose();
           },
         });

@@ -199,16 +199,17 @@ describe("ConfigTab", () => {
         return HttpResponse.json({
           ...defaultConfig,
           app_config: [
-            { instance: 0, room: "kitchen" },
-            { instance: 1, room: "bedroom" },
+            { instance_name: "kitchen", room: "kitchen" },
+            { instance_name: "bedroom", room: "bedroom" },
           ],
-          config_toml: `[[hassette.apps.${APP_KEY}.config]]\ninstance = 0\nroom = "kitchen"\n\n[[hassette.apps.${APP_KEY}.config]]\ninstance = 1\nroom = "bedroom"\n`,
+          config_toml: `[[hassette.apps.${APP_KEY}.config]]\ninstance_name = "kitchen"\nroom = "kitchen"\n\n[[hassette.apps.${APP_KEY}.config]]\ninstance_name = "bedroom"\nroom = "bedroom"\n`,
         });
       }),
     );
     renderConfigTab();
     await waitForTestId("config-instance-0");
-    expect(screen.getByTestId("config-instance-1")).toBeDefined();
+    expect(screen.getByRole("heading", { name: "kitchen" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "bedroom" })).toBeDefined();
   });
 
   it("renders raw config as TOML with syntax highlighting", async () => {

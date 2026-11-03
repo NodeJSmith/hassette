@@ -7,7 +7,6 @@ import { TableCard } from "@/components/shared/table-card";
 import { TableFooter } from "@/components/shared/table-footer";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/state/store";
-import { parseInstanceParam } from "@/utils/app-routes";
 import { INACTIVE_STATUSES } from "@/utils/status";
 
 import { BlockingFindingsSection } from "./blocking-findings";
@@ -26,7 +25,7 @@ interface Props {
   jobs: JobData[];
   appKey: string;
   instanceQs: string;
-  resolvedInstanceIndex: number;
+  instanceName: string | undefined;
   appStatus?: AppDisplayStatus;
 }
 
@@ -87,7 +86,7 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
   );
 }
 
-export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex, appStatus }: Props) {
+export function OverviewTab({ listeners, jobs, appKey, instanceQs, instanceName, appStatus }: Props) {
   const connection = useAppStore((s) => s.connection);
   const isWsConnected = connection === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
@@ -98,11 +97,7 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
       className={cn("flex flex-col gap-7", !isWsConnected && "opacity-[var(--op-muted)]")}
       data-testid="overview-tab"
     >
-      <OverviewHealthStrip
-        appKey={appKey}
-        resolvedInstanceIndex={resolvedInstanceIndex}
-        handlerCount={listeners.length + jobs.length}
-      />
+      <OverviewHealthStrip appKey={appKey} instanceName={instanceName} handlerCount={listeners.length + jobs.length} />
 
       {failingItems.length > 0 && (
         <ErrorSpotlight failingItems={failingItems} appKey={appKey} instanceQs={instanceQs} />
@@ -112,14 +107,14 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
         appKey={appKey}
         scope={{
           kind: "instance",
-          index: resolvedInstanceIndex,
-          linkInstance: parseInstanceParam(new URLSearchParams(instanceQs).get("instance")),
+          name: instanceName,
+          linkInstance: instanceName,
         }}
       />
 
       <HandlerHealthGrid items={allItems} appKey={appKey} instanceQs={instanceQs} />
 
-      <RecentActivitySection appKey={appKey} resolvedInstanceIndex={resolvedInstanceIndex} />
+      <RecentActivitySection appKey={appKey} instanceName={instanceName} />
 
       <RecentLogsSection appKey={appKey} appStatus={appStatus} />
     </div>

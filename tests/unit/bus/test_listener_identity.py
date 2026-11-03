@@ -21,7 +21,6 @@ class TestListenerIdentityConstruction:
         ("field", "expected"),
         [
             ("app_key", ""),
-            ("instance_index", 0),
             ("name", None),
             ("source_tier", "app"),
             ("source_location", ""),
@@ -37,7 +36,6 @@ class TestListenerIdentityConstruction:
         identity = ListenerIdentity(
             owner_id="owner",
             app_key="my_app",
-            instance_index=2,
             name="my_listener",
             source_tier="framework",
             handler_name="my_module.MyClass.my_handler",
@@ -47,7 +45,6 @@ class TestListenerIdentityConstruction:
         )
         assert identity.owner_id == "owner"
         assert identity.app_key == "my_app"
-        assert identity.instance_index == 2
         assert identity.name == "my_listener"
         assert identity.source_tier == "framework"
         assert identity.handler_name == "my_module.MyClass.my_handler"

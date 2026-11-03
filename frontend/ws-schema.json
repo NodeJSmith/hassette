@@ -7,9 +7,9 @@
           "title": "App Key",
           "type": "string"
         },
-        "index": {
-          "title": "Index",
-          "type": "integer"
+        "instance_name": {
+          "title": "Instance Name",
+          "type": "string"
         },
         "status": {
           "$ref": "#/$defs/ResourceStatus"
@@ -24,18 +24,6 @@
             }
           ],
           "default": null
-        },
-        "instance_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Instance Name"
         },
         "class_name": {
           "anyOf": [
@@ -99,7 +87,7 @@
       },
       "required": [
         "app_key",
-        "index",
+        "instance_name",
         "status"
       ],
       "title": "AppStatusChangedData",
@@ -266,10 +254,6 @@
           "title": "App Key",
           "type": "string"
         },
-        "instance_index": {
-          "title": "Instance Index",
-          "type": "integer"
-        },
         "status": {
           "$ref": "#/$defs/ExecutionStatus"
         },
@@ -322,7 +306,6 @@
       "required": [
         "kind",
         "app_key",
-        "instance_index",
         "status",
         "duration_ms"
       ],

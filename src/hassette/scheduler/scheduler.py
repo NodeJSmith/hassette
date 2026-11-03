@@ -438,16 +438,15 @@ class Scheduler(Resource):
 
     def _resolve_registration_context(
         self, *, mode: "ExecutionMode | str | None"
-    ) -> "tuple[str, int, SourceTier, str | None, ExecutionMode]":
+    ) -> "tuple[str, SourceTier, str | None, ExecutionMode]":
         """Resolve the owner-derived fields shared by ``schedule()`` and ``register()``.
 
         Returns:
-            A ``(app_key, instance_index, source_tier, instance_name, resolved_mode)`` tuple.
+            A ``(app_key, source_tier, instance_name, resolved_mode)`` tuple.
         """
         if (parent := self.parent) is None:
             raise RuntimeError("Scheduler requires a parent Resource for telemetry identity (app_key/source_tier)")
         app_key = parent.app_key
-        instance_index = parent.index
         source_tier = parent.source_tier
         if source_tier not in ("app", "framework"):
             raise ValueError(f"Invalid source_tier={source_tier!r} on {parent.class_name}")
@@ -458,7 +457,7 @@ class Scheduler(Resource):
         # command instead of traversing app_handler per execution.
         instance_name = parent.instance_name
 
-        return app_key, instance_index, source_tier, instance_name, resolved_mode
+        return app_key, source_tier, instance_name, resolved_mode
 
     # dup-ignore-start: _build_job, register, schedule, and convenience methods share param signatures by design
     def _build_job(
@@ -486,9 +485,7 @@ class Scheduler(Resource):
         caller) and ``register()`` (no trigger, always ``MANUAL``/``next_run=None``) so the
         two entry points cannot drift on policy resolution or field wiring.
         """
-        app_key, instance_index, source_tier, instance_name, resolved_mode = self._resolve_registration_context(
-            mode=mode
-        )
+        app_key, source_tier, instance_name, resolved_mode = self._resolve_registration_context(mode=mode)
         return Job(
             owner_id=self.owner_id,
             next_run=next_run,
@@ -504,7 +501,6 @@ class Scheduler(Resource):
             kwargs=dict(kwargs) if kwargs else {},
             error_handler=on_error,
             app_key=app_key,
-            instance_index=instance_index,
             instance_name=instance_name,
             source_tier=source_tier,
             mode=resolved_mode,

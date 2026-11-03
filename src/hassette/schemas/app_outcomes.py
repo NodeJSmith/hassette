@@ -29,8 +29,6 @@ class InstanceOutcome:
     flagged the instance) or false; ``REFUSED`` with ``needs_restart`` true.
     """
 
-    instance_index: int
-    """Display order when the action picked its targets (``AppRegistry.display_indices``)."""
     instance_name: str
     result: OutcomeResult
     needs_restart: bool = False

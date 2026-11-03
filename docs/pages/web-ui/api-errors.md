@@ -33,7 +33,7 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 |---|---|---|
 | `invalid_app_key` | 400 | The app key in the path is not a valid app key. |
 | `app_not_found` | 404 | No app with this key is configured. |
-| `instance_not_found` | 404 | The instance index is out of range for the app's current config. |
+| `instance_not_found` | 404 | The app's current config has no instance with this name. |
 | `bootstrap_not_released` | 409 | App bootstrap prerequisites aren't ready yet. Retry the start or reload later. |
 | `app_blocked` | 409 | The app is excluded by the [`--app` option of `hassette run`](../cli/commands.md#hassette-run), which runs only the named apps. Retrying won't help: restart Hassette with this app included in `--app`, or without the option. |
 | `action_in_progress` | 409 | Another start, stop, or reload on this app is still running, so this one was rejected without running. |
@@ -50,11 +50,10 @@ The four `409` codes on the app action endpoints (`POST /api/apps/{app_key}/star
 
 ## App action outcomes
 
-An app action (`POST /api/apps/{app_key}/start`, `/stop`, `/reload`, and the per-instance `/instances/{index}/...` forms) finishes before it answers, and reports what it did to each instance it targeted. A whole-app action targets every configured instance. A stop or reload also targets any instance Hassette still tracks outside the current config, and a reload only stops those. Each entry in `outcomes` has these members:
+An app action (`POST /api/apps/{app_key}/start`, `/stop`, `/reload`, and the per-instance `/instances/{instance_name}/...` forms) finishes before it answers, and reports what it did to each instance it targeted. A whole-app action targets every configured instance. A stop or reload also targets any instance Hassette still tracks outside the current config, and a reload only stops those. Each entry in `outcomes` has these members:
 
 | Member | Contents |
 |---|---|
-| `instance_index` | The instance's index in the app's config. |
 | `instance_name` | The instance's name. |
 | `result` | `succeeded`, `failed`, or `refused`. |
 | `needs_restart` | Whether the instance needs a Hassette restart after this action. |
@@ -78,8 +77,8 @@ So a whole-app action that worked on two instances and failed on a third answers
   "detail": "Stopped 1 of 2 instances of app 'lights'; 'porch' needs a hassette restart (flagged at 2024-01-01T12:00:00-06:00[America/Chicago]: on_shutdown timed out)",
   "code": "needs_restart",
   "outcomes": [
-    {"instance_index": 0, "instance_name": "hall", "result": "succeeded", "needs_restart": false, "reason": null},
-    {"instance_index": 1, "instance_name": "porch", "result": "refused", "needs_restart": true, "reason": "needs a hassette restart (flagged at 2024-01-01T12:00:00-06:00[America/Chicago]: on_shutdown timed out)"}
+    {"instance_name": "hall", "result": "succeeded", "needs_restart": false, "reason": null},
+    {"instance_name": "porch", "result": "refused", "needs_restart": true, "reason": "needs a hassette restart (flagged at 2024-01-01T12:00:00-06:00[America/Chicago]: on_shutdown timed out)"}
   ]
 }
 ```

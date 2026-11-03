@@ -491,10 +491,9 @@ describe("useWebSocket", () => {
         type: "app_status_changed",
         data: {
           app_key: "my_app",
-          index: 0,
           status: "failed",
           previous_status: "stopping",
-          instance_name: "MyApp[0]",
+          instance_name: "my_app_0",
           class_name: "MyApp",
           exception: null,
           exception_type: null,
@@ -505,7 +504,7 @@ describe("useWebSocket", () => {
       });
     });
 
-    expect(useAppStore.getState().appStatus["my_app:0"]?.needs_restart).toEqual(flag);
+    expect(useAppStore.getState().appStatus["my_app:my_app_0"]?.needs_restart).toEqual(flag);
   });
 
   it("defaults ready to false and ready_phase to null for pre-schema events", () => {
@@ -592,7 +591,6 @@ describe("useWebSocket", () => {
         kind: "handler",
         listener_id: 1,
         app_key: "my_app",
-        instance_index: 0,
         status: "success",
         duration_ms: 42,
         error_type: null,
@@ -601,7 +599,6 @@ describe("useWebSocket", () => {
         kind: "handler",
         listener_id: 2,
         app_key: "my_app",
-        instance_index: 0,
         status: "error",
         duration_ms: 10,
         error_type: "ValueError",
@@ -623,7 +620,6 @@ describe("useWebSocket", () => {
         kind: "job",
         job_id: 5,
         app_key: "my_app",
-        instance_index: 0,
         status: "success",
         duration_ms: 80,
         error_type: null,

@@ -76,7 +76,7 @@ async def app_bus(
     async with hassette_harness(test_config).with_bus() as harness:
         bus = harness.hassette._bus
         assert bus is not None
-        bus.parent = make_mock_parent(source_tier="app", app_key="my_app", index=0, unique_name="MyApp.0")
+        bus.parent = make_mock_parent(source_tier="app", app_key="my_app", unique_name="MyApp.0")
         yield bus
 
 

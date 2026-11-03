@@ -1,9 +1,8 @@
-"""AppRegistry's name keys and the display order derived from them for index-addressed readers."""
+"""AppRegistry's name keys and the display order derived from them."""
 
 import pytest
 from hassette_wire import ResourceStatus
 
-from hassette.config.classes import instance_name_reason
 from hassette.core.app_registry import AppRegistry
 
 from .conftest import make_app_instance, make_manifest_obj
@@ -27,57 +26,36 @@ class TestDisplayOrder:
         registry.register_app(APP_KEY, make_app_instance(APP_KEY, "zed"))
         registry.record_failure(APP_KEY, "attic", ValueError("boom"))
 
-        assert registry.display_indices(APP_KEY) == {"upstairs": 0, "downstairs": 1, "attic": 2, "zed": 3}
+        assert registry.display_names(APP_KEY) == ["upstairs", "downstairs", "attic", "zed"]
 
     def test_a_flagged_name_outside_the_config_is_an_orphan_too(self, registry: AppRegistry) -> None:
         registry.flag_needs_restart(APP_KEY, "attic", class_name="MyApp", reason="work still running")
 
-        assert registry.display_indices(APP_KEY)["attic"] == 2
+        assert registry.display_names(APP_KEY) == ["upstairs", "downstairs", "attic"]
 
-    def test_a_reorder_changes_the_index_and_nothing_tracked(self, registry: AppRegistry) -> None:
+    def test_a_reorder_changes_the_order_and_nothing_tracked(self, registry: AppRegistry) -> None:
         app = make_app_instance(APP_KEY, "downstairs")
         registry.register_app(APP_KEY, app)
 
         registry.set_manifests({APP_KEY: manifest_with("downstairs", "upstairs")})
 
         assert registry.get(APP_KEY, "downstairs") is app
-        info = registry.resolve_instance_info(APP_KEY, "downstairs")
-        assert info is not None
-        assert info.index == 0
+        assert registry.display_names(APP_KEY) == ["downstairs", "upstairs"]
 
-    def test_an_orphans_index_shifts_when_the_config_changes(self, registry: AppRegistry) -> None:
+    def test_an_orphans_position_shifts_when_the_config_changes(self, registry: AppRegistry) -> None:
         registry.register_app(APP_KEY, make_app_instance(APP_KEY, "attic"))
-        assert registry.display_index(APP_KEY, "attic") == 2
+        assert registry.display_names(APP_KEY) == ["upstairs", "downstairs", "attic"]
 
         registry.set_manifests({APP_KEY: manifest_with("upstairs")})
 
-        assert registry.display_index(APP_KEY, "attic") == 1
-
-    def test_a_name_the_app_lacks_sorts_after_all_it_has(self, registry: AppRegistry) -> None:
-        assert registry.display_index(APP_KEY, "gone") == 2
-
-
-class TestIndexLookup:
-    def test_every_display_index_resolves_to_exactly_one_name(self, registry: AppRegistry) -> None:
-        registry.register_app(APP_KEY, make_app_instance(APP_KEY, "attic"))
-
-        names = [registry.instance_name(APP_KEY, index) for index in range(3)]
-
-        assert names == ["upstairs", "downstairs", "attic"]
-
-    @pytest.mark.parametrize("index", [-1, 2, 9])
-    def test_an_index_with_no_name_gets_a_label_that_is_never_a_valid_name(
-        self, registry: AppRegistry, index: int
-    ) -> None:
-        assert instance_name_reason(registry.instance_name(APP_KEY, index)) is not None
+        assert registry.display_names(APP_KEY) == ["upstairs", "attic"]
 
     def test_an_app_without_a_manifest_orders_only_its_tracked_names(self) -> None:
         registry = AppRegistry()
         registry.register_app(APP_KEY, make_app_instance(APP_KEY, "zed"))
         registry.register_app(APP_KEY, make_app_instance(APP_KEY, "attic"))
 
-        assert registry.instance_name(APP_KEY, 0) == "attic"
-        assert instance_name_reason(registry.instance_name(APP_KEY, 2)) is not None
+        assert registry.display_names(APP_KEY) == ["attic", "zed"]
 
 
 class TestGet:
@@ -105,7 +83,7 @@ class TestPerInstanceRecordsFollowTheName:
         assert registry.refusal_reason(APP_KEY, "upstairs") is None
         info = registry.resolve_instance_info(APP_KEY, "downstairs")
         assert info is not None
-        assert (info.index, info.status) == (0, ResourceStatus.FAILED)
+        assert info.status == ResourceStatus.FAILED
 
     def test_a_failure_follows_its_instance_across_a_reorder(self, registry: AppRegistry) -> None:
         registry.record_failure(APP_KEY, "downstairs", ValueError("boom"))

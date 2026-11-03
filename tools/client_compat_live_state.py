@@ -139,8 +139,7 @@ class BaseExecution(NamedTuple):
     listener_id: int
     session_id: int
     app_key: str
-    instance_index: int
-    class_name: str | None
+    instance_name: str
 
 
 def hold_bootstrap(hassette: MagicMock) -> None:
@@ -184,11 +183,11 @@ def live_manifests() -> list[AppManifestInfo]:
     degraded_instances = [
         make_app_instance_info(
             app_key=APP_KEY_DEGRADED_APP,
-            index=index,
+            instance_name=make_instance_name("DegradedApp", index),
             class_name="DegradedApp",
             status=status,
             error_message=f"instance {index} {status}" if status in FAULTED_STATUSES else None,
-            owner_id=f"DegradedApp.DegradedApp[{index}]",
+            owner_id=f"DegradedApp.{index}",
         )
         for index, status in enumerate(ResourceStatus)
     ]
@@ -291,7 +290,7 @@ def wire_app_actions(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo])
         ]
         if not instances:
             name = instance_name or app_key
-            return (InstanceOutcome(instance_index=0, instance_name=name, result=OutcomeResult.SUCCEEDED),)
+            return (InstanceOutcome(instance_name=name, result=OutcomeResult.SUCCEEDED),)
         return tuple(instance_outcome(info) for info in instances)
 
     async def app_action(app_key: str, **_kwargs: Any) -> tuple[InstanceOutcome, ...]:
@@ -316,7 +315,6 @@ def instance_outcome(info: AppInstanceInfo) -> InstanceOutcome:
     """The outcome an action on ``info`` reports, given the instance's state."""
     if info.needs_restart is not None:
         return InstanceOutcome(
-            instance_index=info.index,
             instance_name=info.instance_name,
             result=OutcomeResult.REFUSED,
             needs_restart=True,
@@ -325,12 +323,11 @@ def instance_outcome(info: AppInstanceInfo) -> InstanceOutcome:
         )
     if info.status is ResourceStatus.FAILED:
         return InstanceOutcome(
-            instance_index=info.index,
             instance_name=info.instance_name,
             result=OutcomeResult.FAILED,
             reason=info.error_message,
         )
-    return InstanceOutcome(instance_index=info.index, instance_name=info.instance_name, result=OutcomeResult.SUCCEEDED)
+    return InstanceOutcome(instance_name=info.instance_name, result=OutcomeResult.SUCCEEDED)
 
 
 def wire_busy_app(hassette: MagicMock) -> None:
@@ -341,21 +338,10 @@ def wire_busy_app(hassette: MagicMock) -> None:
     hassette._app_handler.is_action_in_progress.side_effect = lambda app_key: app_key == APP_KEY_BUSY_APP
 
 
-def wire_seeded_instance_names(hassette: MagicMock, class_names: Mapping[str, str]) -> None:
-    """Answer the registry's index-to-name lookup with the names the seed scenarios store.
-
-    The seeded app keys aren't the e2e manifests', so the lookup reads the scenario's own ``app_manifests``.
-    An unknown key gets the same kind of label the real registry gives: one no stored row holds.
-    """
-    hassette._app_handler.registry.instance_name.side_effect = lambda app_key, index: make_instance_name(
-        class_names.get(app_key, "Unknown"), index
-    )
-
-
 def wire_multi_app_config(hassette: MagicMock, multi_app: AppManifestInfo) -> None:
     """The multi-instance app's config lists one entry per instance.
 
-    That makes its higher instance indexes addressable, for the ``app-multi-instance-stop`` and
+    That makes its other instance names addressable, for the ``app-multi-instance-stop`` and
     ``app-multi-config`` fixtures.
     """
     hassette._app_handler.registry.get_manifest(APP_KEY_MULTI_APP).app_config = [
@@ -388,8 +374,8 @@ def seed_live_state(db_path: Path, manifests: Iterable[AppManifestInfo]) -> None
         cursor = conn.cursor()
         cursor.row_factory = sqlite3.Row
         row = cursor.execute(
-            "SELECT e.listener_id, e.session_id, l.app_key, l.instance_index, m.class_name FROM executions e "
-            "JOIN listeners l ON l.id = e.listener_id LEFT JOIN app_manifests m ON m.app_key = l.app_key "
+            "SELECT e.listener_id, e.session_id, l.app_key, l.instance_name FROM executions e "
+            "JOIN listeners l ON l.id = e.listener_id "
             "WHERE l.source_tier = 'app' ORDER BY e.id LIMIT 1"
         ).fetchone()
         if row is None:
@@ -415,13 +401,11 @@ def seed_failed_execution(ctx: SeedContext, conn: sqlite3.Connection, base: Base
     started = first_value(conn, "SELECT MAX(execution_start_ts) FROM executions") + 60.0
     seq = first_value(conn, "SELECT COALESCE(MAX(seq), 0) + 1 FROM log_records")
     execution_id = uuid7_at(started)
-    instance_name = make_instance_name(base.class_name, base.instance_index) if base.class_name else None
     ctx.add_execution(
         make_execution_record(
             session_id=base.session_id,
             listener_id=base.listener_id,
             app_key=base.app_key,
-            instance_index=base.instance_index,
             status=ExecutionStatus.ERROR,
             execution_start_ts=started,
             duration_ms=250.0,
@@ -433,7 +417,7 @@ def seed_failed_execution(ctx: SeedContext, conn: sqlite3.Connection, base: Base
             trigger_origin="LOCAL",
         )
     )
-    linked = {"app_key": base.app_key, "instance_name": instance_name, "instance_index": base.instance_index}
+    linked = {"app_key": base.app_key, "instance_name": base.instance_name}
     log_fields = {
         **linked,
         "logger_name": f"hassette.apps.{base.app_key}",

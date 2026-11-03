@@ -6,7 +6,7 @@ from hassette.core.app_lifecycle_common import ActionOutcomes
 class AnyNameOutcomes(ActionOutcomes):
     """Targets each instance name the first time an outcome is recorded for it.
 
-    A name's display index is the order in which its first outcome was recorded. For tests that exercise one
+    A name's display position is the order in which its first outcome was recorded. For tests that exercise one
     lifecycle step on its own. A test of the per-request contract (one outcome per declared target) goes
     through a public start/stop/reload instead.
     """
@@ -15,7 +15,7 @@ class AnyNameOutcomes(ActionOutcomes):
         super().__init__({})
 
     def target(self, name: str) -> None:
-        self.add_targets({name: len(self._targets)})
+        self.add_targets([name])
 
     def succeeded(self, name: str, reason: str | None = None) -> None:
         self.target(name)

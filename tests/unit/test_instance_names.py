@@ -7,7 +7,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from hassette.config.classes import AppManifest
+from hassette.config.classes import AppManifest, resolve_instance_name
 from hassette.config.config import validate_app_manifests
 from hassette.exceptions import ConfigError
 from hassette.types.types import AppDict
@@ -117,3 +117,9 @@ class TestUniqueness:
             "porch": app_entry("porch", {"instance_name": "porch"}),
         }
         assert set(validate_app_manifests(entries)) == {"presence", "porch"}
+
+
+def test_a_name_error_with_no_position_names_only_the_app() -> None:
+    """A directly constructed ``App`` has no config block to name."""
+    with pytest.raises(ValueError, match=r"^app 'presence' instance has no instance_name"):
+        resolve_instance_name(None, app_key="presence")

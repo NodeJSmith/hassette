@@ -114,7 +114,7 @@ Home Assistant URLs: REST http://ha.local:8123/lovelace/0/api/, WebSocket ws://h
 
 ## Required `instance_name`
 
-This applies when upgrading from 0.59 or earlier. Each app section in `hassette.toml` runs one instance of the app, or one per `[[...config]]` block (see [Multiple Instances](../core-concepts/apps/configuration.md#multiple-instances)). Every instance must now set `instance_name` in its `config`. Earlier versions filled in a missing name as `ClassName.<index>` (for example `PresenceApp.0`); Hassette no longer does. A section whose instance has no `instance_name` stops Hassette at startup with an error naming the app key and instance index. That includes a section with no `config` at all, and sections with `enabled = false` or `autostart = false`. Add a name to each:
+This applies when upgrading from 0.59 or earlier. Each app section in `hassette.toml` runs one instance of the app, or one per `[[...config]]` block (see [Multiple Instances](../core-concepts/apps/configuration.md#multiple-instances)). Every instance must now set `instance_name` in its `config`. Earlier versions filled in a missing name as `ClassName.<index>` (for example `PresenceApp.0`); Hassette no longer does. A section whose instance has no `instance_name` stops Hassette at startup with an error naming the app key and the instance's position in the config. That includes a section with no `config` at all, and sections with `enabled = false` or `autostart = false`. Add a name to each:
 
 === "Before"
 
@@ -160,6 +160,22 @@ To keep a cache, stop Hassette and move `{data_dir}/{app_key}/{index}` to `{data
 ```
 
 Don't use `cache_key` on an app with several instances. An explicit `cache_key` is one value shared by every instance of the app, so they would all write to one cache file and their caches would merge.
+
+## Instances Addressed by Name
+
+This applies when upgrading from 0.61 or earlier. Everything that addressed an app instance by its position in the config now takes its `instance_name`:
+
+- **Routes:** `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}`, and an `instance_name` query parameter in place of `instance_index`. Hassette ignores a leftover `instance_index`, so a request that still sends it answers with every instance.
+- **Telemetry with no instance:** `/api/telemetry/app/{key}/health`, `/listeners` and `/jobs` used to report the first instance. They now cover every instance, as `/blocking`, `/activity` and the log routes already did, including runs stored under a name that was since renamed or removed.
+- **API responses:** the integer position is gone from `AppInstance`, `InstanceOutcome`, `ActionResponse`, `LogEntry`, listener and job summaries, blocking references, and WebSocket messages. Instances are listed in config order, then any still running outside the config, by name. Match `outcomes` to instances by `instance_name`, not by position. Listener and job summaries gain `instance_name`.
+- **CLI:** `--instance` takes a name, and `--instance 0` now fails with the list of known names. `app start|stop|reload --json` reports `instance_name` instead of `instance_index`, including under `outcomes`.
+- **Python client:** `hassette-client` methods take `instance_name=`, and `action(instance=)` takes a name.
+- **Apps:** `App.index`, the `index` constructor argument and the test harness's `index` are removed. So are `AppStateChangePayload.index`, `ExecutionCompletedPayload.instance_index` and the `instance_index` argument of `HassetteExecutionCompletedEvent.from_record`. `AppStateChangePayload.instance_name` is now required and is the second positional field.
+- **Web UI links:** `?instance=` takes a name. An old numeric bookmark lands on the app's page.
+
+Older `hassette-client` releases can't read the new responses. The Home Assistant integration stops updating until a release pins the new client.
+
+Rows recorded before instance names can show in blocking findings as "unnamed instance" until retention deletes them. The upgrade rewrites four telemetry tables at startup, so the first start can take longer on a large database. If it times out on slow storage, raise `database.migration_timeout_seconds`. Rolling back past this release requires deleting the telemetry database.
 
 ## App Lifecycle Log Lines
 

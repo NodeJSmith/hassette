@@ -61,7 +61,6 @@ async def insert_event(db_svc: DatabaseService, **overrides: Any) -> None:
         "session_id": None,
         "app_key": "my_app",
         "instance_name": None,
-        "instance_index": 0,
         "execution_id": None,
         "tier": "watchdog",
         "primitive": None,
@@ -74,7 +73,7 @@ async def insert_event(db_svc: DatabaseService, **overrides: Any) -> None:
     }
     fields.update(overrides)
     if "instance_name" not in overrides and fields["app_key"] is not None:
-        fields["instance_name"] = f"instance_{fields['instance_index']}"
+        fields["instance_name"] = "instance_0"
     if fields["app_key"] is None:
         fields["source_tier"] = "framework"
     await TelemetryRepository(db_svc).insert_blocking_event(BlockingEvent(**fields))
@@ -117,7 +116,7 @@ class TestBlockingFindings:
     ) -> None:
         await insert_event(db_svc, detected_ts=2000.0)
         await insert_event(db_svc, detected_ts=500.0)  # before the window
-        await insert_event(db_svc, instance_index=1, detected_ts=2000.0)
+        await insert_event(db_svc, instance_name="instance_1", detected_ts=2000.0)
         await insert_event(db_svc, app_key="other_app", detected_ts=2000.0)
 
         result = await query_service.get_blocking_findings(app_key="my_app", instance_name="instance_0", since=1000.0)
@@ -131,26 +130,26 @@ class TestBlockingFindings:
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc, app_key="my_app", name="refresh", handler_method="refresh")
         await tag_execution(db_svc, await insert_invocation(db_svc, listener_id, session_id), "exec-1")
-        await insert_event(db_svc, instance_index=1, instance_name="office", execution_id="exec-1", detected_ts=2000.0)
-        await insert_event(db_svc, instance_index=0, instance_name="bedroom", detected_ts=1000.0)
+        await insert_event(db_svc, instance_name="office", execution_id="exec-1", detected_ts=2000.0)
+        await insert_event(db_svc, instance_name="bedroom", detected_ts=1000.0)
 
         merged = await query_service.get_blocking_findings(app_key="my_app", instance_name=None, since=None)
         one = await query_service.get_blocking_findings(app_key="my_app", instance_name="bedroom", since=None)
 
         [finding] = merged.findings
         assert finding.event_count == 2
-        assert [(i.index, i.name) for i in finding.instances] == [(0, "bedroom"), (1, "office")]
-        assert [(h.id, h.instance_index) for h in finding.handlers] == [(listener_id, 1)]
-        assert [(f.event_count, [i.index for i in f.instances]) for f in one.findings] == [(1, [0])]
+        assert [i.name for i in finding.instances] == ["bedroom", "office"]
+        assert [(h.id, h.instance_name) for h in finding.handlers] == [(listener_id, "office")]
+        assert [(f.event_count, [i.name for i in f.instances]) for f in one.findings] == [(1, ["bedroom"])]
 
     async def test_instance_refs_follow_the_name_across_a_reorder(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
-        """One name at two indexes is one instance, and two names that held one index are two."""
+        """Rows sharing a name are one instance, whichever config position they were stored under."""
         db_svc, _ = db
-        await insert_event(db_svc, instance_index=0, instance_name="office", detected_ts=2000.0)
-        await insert_event(db_svc, instance_index=1, instance_name="office", detected_ts=1000.0)
-        await insert_event(db_svc, instance_index=0, instance_name="bedroom", detected_ts=500.0)
+        await insert_event(db_svc, instance_name="office", detected_ts=2000.0)
+        await insert_event(db_svc, instance_name="office", detected_ts=1000.0)
+        await insert_event(db_svc, instance_name="bedroom", detected_ts=500.0)
 
         [finding] = (
             await query_service.get_blocking_findings(app_key="my_app", instance_name=None, since=None)
@@ -158,11 +157,24 @@ class TestBlockingFindings:
 
         assert {i.name for i in finding.instances} == {"bedroom", "office"}
 
+    async def test_rows_stored_without_a_name_merge_into_one_ref_sorted_last(
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
+    ) -> None:
+        await insert_event(db_svc, instance_name="office", detected_ts=3000.0)
+        await insert_event(db_svc, instance_name=None, detected_ts=2000.0)
+        await insert_event(db_svc, instance_name=None, detected_ts=1000.0)
+
+        [finding] = (
+            await query_service.get_blocking_findings(app_key="my_app", instance_name=None, since=None)
+        ).findings
+
+        assert [i.name for i in finding.instances] == ["office", None]
+
     async def test_all_apps_query_spans_apps_and_instances(
         self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
         await insert_event(db_svc)
-        await insert_event(db_svc, instance_index=1)
+        await insert_event(db_svc, instance_name="instance_1")
         await insert_event(db_svc, app_key="other_app")
 
         result = await query_service.get_blocking_findings(app_key=None, instance_name=None, since=None)
@@ -173,7 +185,7 @@ class TestBlockingFindings:
         self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
         """A displaced row stays off the app's findings even when its stack holds the app's code."""
-        await insert_event(db_svc, app_key=None, instance_index=None, reason="displaced")
+        await insert_event(db_svc, app_key=None, reason="displaced")
 
         result = await query_service.get_blocking_findings(app_key=None, instance_name=None, since=None)
 
@@ -267,7 +279,7 @@ class TestRecurrenceGate:
     async def test_unattributed_stalls_are_never_gated(
         self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
-        await insert_event(db_svc, app_key=None, instance_index=None, reason="displaced")
+        await insert_event(db_svc, app_key=None, reason="displaced")
 
         result = await query_service.get_unattributed_blocking(since=None)
 
@@ -278,8 +290,8 @@ class TestUnattributedBlocking:
     async def test_summarizes_only_unattributed_rows(
         self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
-        await insert_event(db_svc, app_key=None, instance_index=None, reason="displaced", stall_duration_ms=5000.0)
-        await insert_event(db_svc, app_key=None, instance_index=None, reason="framework", frames=None)
+        await insert_event(db_svc, app_key=None, reason="displaced", stall_duration_ms=5000.0)
+        await insert_event(db_svc, app_key=None, reason="framework", frames=None)
         await insert_event(db_svc)  # attributed: not part of the diagnostics view
 
         result = await query_service.get_unattributed_blocking(since=None)
@@ -294,9 +306,7 @@ class TestUnattributedBlocking:
     ) -> None:
         monkeypatch.setattr(blocking_queries, "RECENT_UNATTRIBUTED_LIMIT", 2)
         for ts, stall in ((1000.0, 9000.0), (2000.0, 100.0), (3000.0, 200.0)):
-            await insert_event(
-                db_svc, app_key=None, instance_index=None, reason="framework", detected_ts=ts, stall_duration_ms=stall
-            )
+            await insert_event(db_svc, app_key=None, reason="framework", detected_ts=ts, stall_duration_ms=stall)
 
         result = await query_service.get_unattributed_blocking(since=None)
 
@@ -310,9 +320,9 @@ class TestBlockingEventCounts:
         self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
         await insert_event(db_svc, detected_ts=2000.0)
-        await insert_event(db_svc, detected_ts=2000.0, instance_index=1)
+        await insert_event(db_svc, detected_ts=2000.0, instance_name="instance_1")
         await insert_event(db_svc, detected_ts=500.0)
-        await insert_event(db_svc, app_key=None, instance_index=None, reason="displaced", detected_ts=2000.0)
+        await insert_event(db_svc, app_key=None, reason="displaced", detected_ts=2000.0)
 
         assert await query_service.get_blocking_event_counts(since=1000.0) == {"my_app": 2}
         assert await query_service.get_blocking_event_counts(since=None) == {"my_app": 3}

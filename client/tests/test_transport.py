@@ -182,17 +182,17 @@ async def test_request_body_is_sent_as_json(client: HassetteClient, server: Fake
 
 @pytest.mark.parametrize(
     ("instance", "expected_path"),
-    [(None, "/api/apps/my_app/reload"), (2, "/api/apps/my_app/instances/2/reload")],
+    [(None, "/api/apps/my_app/reload"), ("office", "/api/apps/my_app/instances/office/reload")],
 )
 async def test_action_routes_by_instance(
-    client: HassetteClient, server: FakeServer, instance: int | None, expected_path: str
+    client: HassetteClient, server: FakeServer, instance: str | None, expected_path: str
 ) -> None:
-    server.respond(200, {"app_key": "my_app", "action": "reload", "instance_index": instance, "outcomes": []})
+    server.respond(200, {"app_key": "my_app", "action": "reload", "instance_name": instance, "outcomes": []})
 
     response = await client.action("my_app", "reload", instance=instance)
 
     assert (server.requests[0].method, server.requests[0].path) == ("POST", expected_path)
-    assert response.instance_index == instance
+    assert response.instance_name == instance
 
 
 async def test_action_name_is_left_to_the_server(client: HassetteClient, server: FakeServer) -> None:

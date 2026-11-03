@@ -459,7 +459,6 @@ async def seed_listener_for_fk(
     db: aiosqlite.Connection,
     *,
     app_key: str = "test.App",
-    instance_index: int = 0,
     name: str = "test_listener",
     handler_method: str = "on_event",
     topic: str = "state_changed",
@@ -470,9 +469,8 @@ async def seed_listener_for_fk(
     listener_id foreign key needs a real listener row to reference.
     """
     await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        (app_key, instance_index, name, handler_method, topic, TEST_SOURCE_LOCATION),
+        "INSERT INTO listeners (app_key, name, handler_method, topic, source_location) VALUES (?, ?, ?, ?, ?)",
+        (app_key, name, handler_method, topic, TEST_SOURCE_LOCATION),
     )
     await db.commit()
 
@@ -494,7 +492,6 @@ def create_listener(
     mode: "ExecutionMode | str" = ExecutionMode.PARALLEL,
     backpressure: "BackpressurePolicy | str" = BackpressurePolicy.BLOCK,
     app_key: str = "",
-    instance_index: int = 0,
     name: str | None = None,
     source_tier: "SourceTier" = "app",
     immediate: bool = False,
@@ -534,7 +531,6 @@ def create_listener(
     identity = ListenerIdentity(
         owner_id=owner_id,
         app_key=app_key,
-        instance_index=instance_index,
         instance_name=DEFAULT_TEST_INSTANCE_NAME,
         name=name,
         source_tier=source_tier,

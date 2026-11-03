@@ -271,7 +271,7 @@ class AppNotFoundError(NotFoundError):
 
 
 class InstanceNotFoundError(NotFoundError):
-    """404 ``instance_not_found``: the instance index is out of range for the app's config."""
+    """404 ``instance_not_found``: the app's config has no instance with this name."""
 
 
 class SourceNotFoundError(NotFoundError):

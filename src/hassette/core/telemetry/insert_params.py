@@ -110,7 +110,6 @@ def listener_insert_params(registration: ListenerRegistration) -> dict[str, Any]
     """
     return {
         "app_key": registration.app_key,
-        "instance_index": registration.instance_index,
         "instance_name": stored_instance_name(
             registration.app_key, registration.instance_name, registration.source_tier
         ),
@@ -145,7 +144,6 @@ def job_insert_params(registration: ScheduledJobRegistration) -> dict[str, Any]:
     """
     return {
         "app_key": registration.app_key,
-        "instance_index": registration.instance_index,
         "instance_name": stored_instance_name(
             registration.app_key, registration.instance_name, registration.source_tier
         ),

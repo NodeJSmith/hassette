@@ -43,6 +43,7 @@ def problem_body(code: Any) -> dict[str, Any]:
 def manifest_body(status: Any, instance_status: str = "running") -> dict[str, Any]:
     return {
         "app_key": "a",
+        "instance_name": "instance_0",
         "class_name": "A",
         "display_name": "A",
         "filename": "a.py",
@@ -80,7 +81,7 @@ def test_unknown_values_in_list_json_and_nested_models() -> None:
 
 
 def test_unknown_value_in_optional_open_field() -> None:
-    data = {"app_key": "a", "index": 0, "status": "running", "previous_status": "hibernating"}
+    data = {"app_key": "a", "instance_name": "instance_0", "status": "running", "previous_status": "hibernating"}
 
     parsed = AppStatusChangedData.model_validate(data, context=LENIENT_CONTEXT)
 
@@ -94,7 +95,7 @@ def test_unknown_values_in_ws_payload() -> None:
     message = {
         "type": "execution_completed",
         "timestamp": 1.0,
-        "data": [{"kind": "workflow", "app_key": "a", "instance_index": 0, "status": "deferred", "duration_ms": 1.0}],
+        "data": [{"kind": "workflow", "app_key": "a", "status": "deferred", "duration_ms": 1.0}],
     }
 
     parsed = TypeAdapter(WsServerMessage).validate_python(message, context=LENIENT_CONTEXT)
@@ -139,7 +140,7 @@ def test_strict_errors_are_pydantics_native_ones() -> None:
         ProblemDetail.model_validate(problem_body("rate_limited"))
     with pytest.raises(ValidationError) as literal_exc:
         BlockingHandlerRef.model_validate(
-            {"kind": "task", "id": 1, "name": "n", "handler_method": "m", "instance_index": 0}
+            {"kind": "task", "id": 1, "name": "n", "handler_method": "m", "instance_name": "instance_0"}
         )
 
     assert enum_exc.value.errors()[0]["type"] == "enum"
@@ -246,6 +247,7 @@ def test_strict_python_dump_keeps_enum_members() -> None:
         {
             "listener_id": 1,
             "app_key": "a",
+            "instance_name": "instance_0",
             "topic": "t",
             "handler_method": "m",
             "total_invocations": 0,

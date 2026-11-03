@@ -35,15 +35,12 @@ def app_list_with_flag() -> dict:
     """An /api/apps body with one flagged and one healthy instance."""
     flagged = AppInstance(
         app_key="stuck_app",
-        index=0,
         instance_name="StuckApp[0]",
         class_name="StuckApp",
         status=ResourceStatus.FAILED,
         needs_restart=NeedsRestart(reason="1 task still pending", pending_tasks=["StuckApp.poll"], flagged_at=0.0),
     )
-    healthy = AppInstance(
-        app_key="ok_app", index=0, instance_name="OkApp[0]", class_name="OkApp", status=ResourceStatus.RUNNING
-    )
+    healthy = AppInstance(app_key="ok_app", instance_name="OkApp[0]", class_name="OkApp", status=ResourceStatus.RUNNING)
     apps = [
         make_app_summary(app_key="stuck_app", status=AppStatus.FAILED, instances=[flagged]),
         make_app_summary(app_key="ok_app", instances=[healthy]),

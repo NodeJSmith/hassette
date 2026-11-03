@@ -49,7 +49,6 @@ type ServiceInfo = components["schemas"]["ServiceInfo"];
 export function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
   return {
     app_key: "test_app",
-    index: 0,
     instance_name: "inst_0",
     class_name: "TestApp",
     status: "running",
@@ -144,7 +143,11 @@ export function createAppGridEntry(
 
 /** Grid entry for `appKey` (and optionally `status`), everything else defaulted. */
 export function createGridEntryFor(appKey: string, status?: AppSummary["status"]): AppGridEntry {
-  return createAppGridEntry({ app: status === undefined ? { app_key: appKey } : { app_key: appKey, status } });
+  // Live status overlays the cached instances, so the app needs one named like the default instance.
+  const instances = [createInstance({ app_key: appKey })];
+  return createAppGridEntry({
+    app: status === undefined ? { app_key: appKey, instances } : { app_key: appKey, status, instances },
+  });
 }
 
 /** Body of a `GET /api/telemetry/app-grid` response holding `entries` (no `since` echo). */
@@ -156,7 +159,7 @@ export function createListener(overrides: Partial<ListenerSummary> = {}): Listen
   return {
     listener_id: 1,
     app_key: "test_app",
-    instance_index: 0,
+    instance_name: "inst_0",
     topic: "state_changed",
     listener_kind: "state change",
     handler_method: "on_state_change",
@@ -203,6 +206,7 @@ export function createUnifiedRow(overrides: Partial<UnifiedRow> = {}): UnifiedRo
     id: "listener/1",
     handlerId: 1,
     app_key: "app_a",
+    instance_name: "inst_0",
     name: "handler",
     handler_method: "app.Handler.handler",
     trigger: "state change",
@@ -223,7 +227,7 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
   return {
     job_id: 1,
     app_key: "test_app",
-    instance_index: 0,
+    instance_name: "inst_0",
     job_name: "test_job",
     handler_method: "run_task",
     trigger_type: "interval",
@@ -303,7 +307,6 @@ export function createExecutionCompletedPayload(
     kind: "job",
     job_id: 1,
     app_key: "test_app",
-    instance_index: 0,
     status: "success",
     duration_ms: 75,
     error_type: null,

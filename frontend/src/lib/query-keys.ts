@@ -17,27 +17,27 @@ export const queryKeys = {
   appGrid: () => ["app-grid"] as const,
   listenerExecutions: (listenerId: number) => ["listener-executions", listenerId] as const,
   jobExecutions: (jobId: number) => ["job-executions", jobId] as const,
+  // The instance slot is `null` for every instance, which no instance name can collide with.
   appListeners: {
-    base: (appKey: string, instanceIndex: number) => ["app-listeners", appKey, instanceIndex] as const,
+    base: (appKey: string, instanceName: string | undefined) =>
+      ["app-listeners", appKey, instanceName ?? null] as const,
     prefix: (appKey: string) => ["app-listeners", appKey] as const,
   },
   appJobs: {
-    base: (appKey: string, instanceIndex: number) => ["app-jobs", appKey, instanceIndex] as const,
+    base: (appKey: string, instanceName: string | undefined) => ["app-jobs", appKey, instanceName ?? null] as const,
     prefix: (appKey: string) => ["app-jobs", appKey] as const,
   },
   appBlocking: {
-    // `undefined` is every instance (the multi-instance parent overview), keyed apart from any index.
-    base: (appKey: string, instanceIndex: number | undefined) =>
-      ["app-blocking", appKey, instanceIndex ?? "all"] as const,
+    base: (appKey: string, instanceName: string | undefined) => ["app-blocking", appKey, instanceName ?? null] as const,
     prefix: (appKey: string) => ["app-blocking", appKey] as const,
   },
   unattributedBlocking: () => ["unattributed-blocking"] as const,
   appActivity: {
-    base: (appKey: string, instanceIndex: number) => ["app-activity", appKey, instanceIndex] as const,
+    base: (appKey: string, instanceName: string | undefined) => ["app-activity", appKey, instanceName ?? null] as const,
     prefix: (appKey: string) => ["app-activity", appKey] as const,
   },
   appHealth: {
-    base: (appKey: string, instanceIndex: number) => ["app-health", appKey, instanceIndex] as const,
+    base: (appKey: string, instanceName: string | undefined) => ["app-health", appKey, instanceName ?? null] as const,
     prefix: (appKey: string) => ["app-health", appKey] as const,
   },
 };

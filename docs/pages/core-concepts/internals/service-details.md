@@ -63,7 +63,7 @@ Each passing listener enters a [`TaskBucket`][hassette.task_bucket.task_bucket.T
 
 | Sub-struct | Holds |
 |---|---|
-| [`ListenerIdentity`][hassette.bus.listeners.ListenerIdentity] | Ownership and telemetry fields (owner ID, app key, instance index/name, listener name, handler names, source location/source, source tier) |
+| [`ListenerIdentity`][hassette.bus.listeners.ListenerIdentity] | Ownership and telemetry fields (owner ID, app key, instance name, listener name, handler names, source location/source, source tier) |
 | [`ListenerOptions`][hassette.bus.listeners.ListenerOptions] | Behavioral timing parameters (debounce, throttle, once, timeout, timeout disablement, priority, execution mode, backpressure) |
 | [`HandlerInvoker`][hassette.bus.listeners.HandlerInvoker] | Handler invocation, dispatch, and rate limiting |
 | [`DurationConfig`][hassette.bus.listeners.DurationConfig] | Duration-hold configuration and timer lifecycle |

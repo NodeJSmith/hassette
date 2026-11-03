@@ -25,8 +25,8 @@ async def seed_dataset(db: DbFixture) -> None:
     db_svc, session_id = db
 
     # app_a: one handler identity registered on two instances, plus one job.
-    a_l0 = await insert_listener(db_svc, app_key="app_a", instance_index=0, name="on_a")
-    a_l1 = await insert_listener(db_svc, app_key="app_a", instance_index=1, name="on_a")
+    a_l0 = await insert_listener(db_svc, app_key="app_a", instance_name="instance_0", name="on_a")
+    a_l1 = await insert_listener(db_svc, app_key="app_a", instance_name="instance_1", name="on_a")
     a_job = await insert_job(db_svc, app_key="app_a", job_name="job_a")
     await insert_invocation(
         db_svc, a_l0, session_id, status="success", duration_ms=10.0, execution_start_ts=BASE_TS + 10

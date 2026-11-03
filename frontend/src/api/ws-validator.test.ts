@@ -23,7 +23,6 @@ describe("validateWsMessage", () => {
             kind: "handler",
             listener_id: 1,
             app_key: "my_app",
-            instance_index: 0,
             status: "success",
             duration_ms: 42,
             error_type: null,

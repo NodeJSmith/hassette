@@ -270,7 +270,7 @@ class TestExecutorOffloadProducesNoBlocking:
                     # bound, any false stall is attributed and surfaces — so zero rows genuinely
                     # proves the loop stayed responsive while the sleep ran off-thread.
                     _exec_id, token = executor.bind_execution_context(
-                        ExecutionContext(app_key="sync_handler_app", instance_index=0, instance_name=None)
+                        ExecutionContext(app_key="sync_handler_app", instance_name=None)
                     )
                     try:
                         await loop.run_in_executor(pool, _sleep_on_worker, 0.2)
@@ -329,7 +329,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
 
         # Live execution: the marker's app_key and instance_name drive app_handler.get → the IGNORE owner.
         _exec_id, token = ignore_executor.bind_execution_context(
-            ExecutionContext(app_key="ignored_app", instance_index=0, instance_name="ignored_app_0")
+            ExecutionContext(app_key="ignored_app", instance_name="ignored_app_0")
         )
 
         assert not guard_mod.is_installed()
@@ -395,7 +395,6 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
             instance_name=None,
             execution_id="exec-ignore",
             started_at=time.monotonic(),
-            instance_index=0,
             task_id=id(asyncio.current_task()),
         )
 

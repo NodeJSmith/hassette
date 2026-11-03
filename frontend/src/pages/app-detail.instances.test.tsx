@@ -67,12 +67,12 @@ describe("AppDetailPage instances", () => {
     vi.clearAllMocks();
   });
 
-  it("renders multi-instance parent overview when instance_count > 1 and no index param", async () => {
+  it("renders multi-instance parent overview when instance_count > 1 and no instance param", async () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "stopped" }),
       ],
     });
     setupApi(manifest);
@@ -92,21 +92,50 @@ describe("AppDetailPage instances", () => {
     const { findByTestId } = renderPage({ key: "test_app" });
 
     expect((await findByTestId("overview-blocking-findings")).textContent).toContain("all instances");
-    expect(seen[0]?.searchParams.has("instance_index")).toBe(false);
+    expect(seen[0]?.searchParams.has("instance_name")).toBe(false);
+  });
+
+  it("requests listeners and jobs for every instance when no instance is picked", async () => {
+    setupMultiInstanceParent();
+    const seen: URL[] = [];
+    server.use(
+      http.get("/api/telemetry/app/:app_key/listeners", ({ request }) => {
+        seen.push(new URL(request.url));
+        return HttpResponse.json([]);
+      }),
+    );
+    const { findByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("instance-grid");
+    expect(seen[0]?.searchParams.has("instance_name")).toBe(false);
+  });
+
+  it("requests the picked instance's listeners by name", async () => {
+    setupMultiInstanceParent();
+    mockSearchString = "instance=inst_1";
+    const seen: URL[] = [];
+    server.use(
+      http.get("/api/telemetry/app/:app_key/listeners", ({ request }) => {
+        seen.push(new URL(request.url));
+        return HttpResponse.json([]);
+      }),
+    );
+    const { findByTestId } = renderPage({ key: "test_app" });
+    await findByTestId("app-title");
+    await vi.waitFor(() => expect(seen[0]?.searchParams.get("instance_name")).toBe("inst_1"));
   });
 
   it("renders instance grid cards with instance names", async () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "stopped" }),
       ],
     });
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app" });
-    expect(await findByTestId("instance-card-0")).toBeDefined();
-    expect(await findByTestId("instance-card-1")).toBeDefined();
+    expect(await findByTestId("instance-card-inst_0")).toBeDefined();
+    expect(await findByTestId("instance-card-inst_1")).toBeDefined();
   });
 
   it("instance grid card reflects live appStatus over stale manifest status", async () => {
@@ -116,17 +145,17 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
     const { findByTestId } = renderPage(
       { key: "test_app" },
-      { appStatus: { [appStatusKey("test_app", 0)]: { status: "stopped", index: 0 } } },
+      { appStatus: { [appStatusKey("test_app", "inst_0")]: { status: "stopped", instance_name: "inst_0" } } },
     );
 
-    const card0 = await findByTestId("instance-card-0");
+    const card0 = await findByTestId("instance-card-inst_0");
     expect(card0.textContent).toContain("stopped");
     expect(card0.textContent).not.toContain("running");
   });
@@ -139,17 +168,21 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "failed", error_message: "boom" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "failed", error_message: "boom" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
     const { findByTestId } = renderPage(
       { key: "test_app" },
-      { appStatus: { [appStatusKey("test_app", 0)]: { status: "running", index: 0, exception: null } } },
+      {
+        appStatus: {
+          [appStatusKey("test_app", "inst_0")]: { status: "running", instance_name: "inst_0", exception: null },
+        },
+      },
     );
 
-    const card0 = await findByTestId("instance-card-0");
+    const card0 = await findByTestId("instance-card-inst_0");
     expect(card0.textContent).not.toContain("boom");
   });
 
@@ -160,17 +193,21 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
     const { findByTestId } = renderPage(
       { key: "test_app" },
-      { appStatus: { [appStatusKey("test_app", 0)]: { status: "failed", index: 0, exception: "kaboom" } } },
+      {
+        appStatus: {
+          [appStatusKey("test_app", "inst_0")]: { status: "failed", instance_name: "inst_0", exception: "kaboom" },
+        },
+      },
     );
 
-    const card0 = await findByTestId("instance-card-0");
+    const card0 = await findByTestId("instance-card-inst_0");
     expect(card0.textContent).toContain("kaboom");
   });
 
@@ -178,18 +215,18 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=1";
+    mockSearchString = "instance=inst_1";
     const { findByTestId } = renderPage(
       { key: "test_app" },
-      { appStatus: { [appStatusKey("test_app", 0)]: { status: "stopped", index: 0 } } },
+      { appStatus: { [appStatusKey("test_app", "inst_0")]: { status: "stopped", instance_name: "inst_0" } } },
     );
 
-    const switcherBtn0 = await findByTestId("switcher-instance-0");
+    const switcherBtn0 = await findByTestId("switcher-instance-inst_0");
     // StatusShape is a bare aria-hidden SVG with no status text or data attribute — "stopped"
     // renders as a "mute" kind (stroke-only circle, fill="none"), "running" as "ok" (filled
     // circle, fill="var(--ok-vivid)"). Assert on the fill to distinguish them.
@@ -200,9 +237,9 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 3,
       instances: [
-        createInstance({ index: 0, instance_name: "a", status: "running" }),
-        createInstance({ index: 1, instance_name: "b", status: "running" }),
-        createInstance({ index: 2, instance_name: "c", status: "stopped" }),
+        createInstance({ instance_name: "a", status: "running" }),
+        createInstance({ instance_name: "b", status: "running" }),
+        createInstance({ instance_name: "c", status: "stopped" }),
       ],
     });
     setupApi(manifest);
@@ -214,13 +251,13 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "stopped" }),
       ],
     });
     setupApi(manifest);
-    // Instance 0 is specified via query param
-    mockSearchString = "instance=0";
+    // inst_0 is specified via query param
+    mockSearchString = "instance=inst_0";
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("instance-switcher")).toBeDefined();
   });
@@ -230,18 +267,18 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "stopped" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=0";
+    mockSearchString = "instance=inst_0";
     const { findByTestId } = renderPage({ key: "test_app", tab: "logs" });
     // Click instance 1 in the switcher
-    const inst1Btn = await findByTestId("switcher-instance-1");
+    const inst1Btn = await findByTestId("switcher-instance-inst_1");
     await user.click(inst1Btn);
-    // Should navigate to /apps/test_app/logs?instance=1
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/logs?instance=1");
+    // Should navigate to /apps/test_app/logs?instance=inst_1
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/logs?instance=inst_1");
   });
 
   it("multi-instance parent overview navigates using ?instance= query param", async () => {
@@ -249,113 +286,110 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "stopped" }),
       ],
     });
     setupApi(manifest);
     // No instance param = parent overview
     const { findByTestId } = renderPage({ key: "test_app" });
     // Click an instance card
-    const card0 = await findByTestId("instance-card-0");
+    const card0 = await findByTestId("instance-card-inst_0");
     await user.click(card0);
-    // Should navigate to /apps/test_app/overview?instance=0
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/overview?instance=0");
+    // Should navigate to /apps/test_app/overview?instance=inst_0
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/overview?instance=inst_0");
   });
 
   it("reads instance from ?instance= query param for multi-instance detail view", async () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=1";
+    mockSearchString = "instance=inst_1";
     const { findByTestId } = renderPage({ key: "test_app" });
     // Instance switcher should be rendered (not parent overview)
     await findByTestId("instance-switcher");
     // The instance 1 button should be active
-    const inst1Btn = await findByTestId("switcher-instance-1");
+    const inst1Btn = await findByTestId("switcher-instance-inst_1");
     expect(inst1Btn.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("corrects out-of-range instance index to instance 0 via correctUrl", async () => {
+  it("drops an instance param that names no instance via correctUrl", async () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=99";
+    mockSearchString = "instance=no_such_instance";
     renderPage({ key: "test_app", tab: "handlers" });
     // Wait for manifests to load, then check correctUrl was called
     await vi.waitFor(() => {
-      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers?instance=0");
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
     });
   });
 
   it("keeps a tracked instance orphaned by a config shrink addressable", async () => {
-    // Config shrank to 1 instance while index 2 was still running. The backend reports the
-    // union of configured and tracked indices, so instance_count is 2 while the orphan sits at
-    // index 2 — redirecting away from it would make it unstoppable from the UI.
+    // Config shrank to one instance while "orphan" was still running. The manifest lists it
+    // alongside the configured names, so its page (and Stop control) stays reachable.
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 2, instance_name: "inst_2", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "orphan", status: "running", in_current_config: false }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=2";
+    mockSearchString = "instance=orphan";
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
 
     await findByTestId("app-title");
     expect(mockCorrectUrl).not.toHaveBeenCalled();
   });
 
-  it("corrects an out-of-range index when the manifest omits its instances array", async () => {
-    // `instances` is optional on AppSummary, so the membership check can find nothing
-    // to consult. With no tracked-index evidence, an index past instance_count is not
-    // addressable and the redirect must still fire.
+  it("corrects an instance name when the manifest omits its instances array", async () => {
+    // `instances` is optional on AppSummary, so the membership check can find nothing to
+    // consult. With no listed names, no name is addressable and the correction must still fire.
     const manifest = createAppSummary({ instance_count: 2, instances: undefined });
     setupApi(manifest);
-    mockSearchString = "instance=5";
+    mockSearchString = "instance=inst_5";
     renderPage({ key: "test_app", tab: "handlers" });
 
     await vi.waitFor(() => {
-      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers?instance=0");
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
     });
   });
 
-  it("corrects negative instance query params before preserving them in links", async () => {
+  it("corrects a numeric instance query param (an old bookmark) to the same page with no instance param", async () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=-1";
+    mockSearchString = "instance=0";
 
-    const { findByRole } = renderPage({ key: "test_app", tab: "logs" });
+    renderPage({ key: "test_app", tab: "logs" });
 
     await vi.waitFor(() => {
-      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/logs?instance=0");
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/logs");
     });
-    expect((await findByRole("tab", { name: /overview/i })).getAttribute("href")).toBe("/apps/test_app/overview");
   });
 
-  it.each(["0x1", "1e2"])("corrects malformed instance query param %s", async (instanceParam) => {
+  it.each(["  ", "0x1"])("corrects an unusable or unknown instance query param %j", async (instanceParam) => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
@@ -364,7 +398,7 @@ describe("AppDetailPage instances", () => {
     renderPage({ key: "test_app", tab: "logs" });
 
     await vi.waitFor(() => {
-      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/logs?instance=0");
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/logs");
     });
   });
 
@@ -372,35 +406,35 @@ describe("AppDetailPage instances", () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "line=42&instance=-1";
+    mockSearchString = "line=42&instance=0";
 
     renderPage({ key: "test_app", tab: "code" });
 
     await vi.waitFor(() => {
-      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/code?line=42&instance=0");
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/code?line=42");
     });
   });
 
-  it("corrects negative instance query params on handlers without redirecting to parent overview", async () => {
+  it("corrects a numeric instance query param on handlers without redirecting to parent overview", async () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [
-        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "running" }),
       ],
     });
     setupApi(manifest);
-    mockSearchString = "instance=-1";
+    mockSearchString = "instance=0";
 
     renderPage({ key: "test_app", tab: "handlers" });
 
     await vi.waitFor(() => {
-      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers?instance=0");
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
     });
     expect(mockCorrectUrl).not.toHaveBeenCalledWith("/apps/test_app/overview");
   });

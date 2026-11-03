@@ -37,15 +37,14 @@ _ACTION_CASES = [
 
 
 def _action_response(
-    app_key: str = "my_app", action: AppAction = "start", instance_index: int | None = None
+    app_key: str = "my_app", action: AppAction = "start", instance_name: str | None = None
 ) -> ActionResponse:
-    return ActionResponse(app_key=app_key, action=action, instance_index=instance_index, outcomes=[])
+    return ActionResponse(app_key=app_key, action=action, instance_name=instance_name, outcomes=[])
 
 
-def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstance:
+def _instance(name: str, app_key: str = "my_app") -> AppInstance:
     return AppInstance(
         app_key=app_key,
-        index=index,
         instance_name=name,
         class_name="MyApp",
         status=ResourceStatus.RUNNING,
@@ -64,8 +63,8 @@ def _instance_action_routes(
     *,
     app_key: str = "my_app",
     instances: list[AppInstance] | None = None,
-    requested_index: int = 1,
-    confirmed_index: int | None = None,
+    requested: str = "inst1",
+    confirmed: str | None = None,
     apps_status: int = 200,
     apps_detail: str = "",
     action_status: int = 200,
@@ -73,24 +72,24 @@ def _instance_action_routes(
 ) -> list[tuple[str, str, int, Any]]:
     """Route pair for an instance-scoped app action: the app list lookup plus the action POST.
 
-    ``instances`` defaults to a single instance at ``requested_index`` named ``inst{index}``;
-    pass an explicit list to exercise multi-instance app lists or an index that resolves to no
-    entry. ``confirmed_index`` is the index the server echoes back, defaulting to
-    ``requested_index`` — pass a different value to exercise the mismatch warning. A non-200
+    ``instances`` defaults to a single instance named ``requested``; pass an explicit list to
+    exercise multi-instance app lists or a name with no entry. ``confirmed`` is the name the server
+    echoes back, defaulting to ``requested`` — pass a different value to exercise the mismatch
+    warning. A non-200
     ``apps_status`` or ``action_status`` makes that route fail with the matching
     ``*_detail`` as its error body instead of returning its normal successful payload.
     """
     if instances is None:
-        instances = [_instance(requested_index, f"inst{requested_index}", app_key=app_key)]
-    if confirmed_index is None:
-        confirmed_index = requested_index
+        instances = [_instance(requested, app_key=app_key)]
+    if confirmed is None:
+        confirmed = requested
 
     if apps_status != 200:
         apps_response_route = ("GET", APPS_ENDPOINT, apps_status, {"detail": apps_detail})
     else:
         apps_response_route = apps_route(instances, app_key=app_key)
 
-    action_path = f"/api/apps/{app_key}/instances/{requested_index}/{action}"
+    action_path = f"/api/apps/{app_key}/instances/{requested}/{action}"
     if action_status != 200:
         action_route = ("POST", action_path, action_status, {"detail": action_detail})
     else:
@@ -98,7 +97,7 @@ def _instance_action_routes(
             "POST",
             action_path,
             200,
-            _action_response(app_key=app_key, action=action, instance_index=confirmed_index).model_dump(),
+            _action_response(app_key=app_key, action=action, instance_name=confirmed).model_dump(),
         )
 
     return [apps_response_route, action_route]
@@ -128,16 +127,28 @@ class TestCmdAppActionRouting:
         spy.assert_called_once_with(f"/api/apps/my_app/{action}", ActionResponse)
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_with_instance_resolves_and_hits_instance_route(
+    def test_with_instance_checks_and_hits_instance_route(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """--instance 1 resolves the index and sends POST /api/apps/{key}/instances/1/{action}."""
+        """--instance inst1 sends POST /api/apps/{key}/instances/inst1/{action}."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
         spy = make_post_spy(client)
         with patch.object(client, "post", spy):
-            runner.stdout(client, cmd, "my_app", instance="1", **extra)
+            runner.stdout(client, cmd, "my_app", instance="inst1", **extra)
 
-        spy.assert_called_once_with(f"/api/apps/my_app/instances/1/{action}", ActionResponse)
+        spy.assert_called_once_with(f"/api/apps/my_app/instances/inst1/{action}", ActionResponse)
+
+    def test_instance_is_quoted_into_the_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """A name that skipped the known-instance check (app list unreadable) still can't change the route."""
+        path = "/api/apps/my_app/instances/a%2F..%2Fb/stop"
+        client = cli_client_factory.build_with_routes(
+            [("POST", path, 200, _action_response(action="stop").model_dump())]
+        )
+        spy = make_post_spy(client)
+        with patch.object(client, "post", spy):
+            client.post_with_instance_routing("my_app", "stop", "a/../b")
+
+        spy.assert_called_once_with(path, ActionResponse)
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_success_message_app_level(
@@ -154,74 +165,78 @@ class TestCmdAppActionRouting:
     def test_success_message_instance_level(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """Success message includes the resolved instance name when --instance is provided."""
+        """Success message includes the instance name when --instance is provided."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
-        parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
+        parsed = runner.json_output(client, cmd, "my_app", instance="inst1", **extra)
         assert parsed["message"] == f"Instance 'inst1' of 'my_app' {verb}"
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_json_output_includes_instance_index_app_level(
+    def test_json_output_includes_instance_name_app_level(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """App-level (no --instance) JSON output includes instance_index: null."""
+        """App-level (no --instance) JSON output includes instance_name: null."""
         client = cli_client_factory.build_with_routes(
             [("POST", f"/api/apps/my_app/{action}", 200, _action_response(action=action).model_dump())]
         )
         parsed = runner.json_output(client, cmd, "my_app", **extra)
-        assert parsed["instance_index"] is None
+        assert parsed["instance_name"] is None
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_json_output_includes_instance_index_instance_level(
+    def test_json_output_includes_instance_name_instance_level(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """Instance-scoped JSON output includes the server-confirmed instance_index."""
+        """Instance-scoped JSON output includes the server-confirmed instance_name."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
-        parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
-        assert parsed["instance_index"] == 1
+        parsed = runner.json_output(client, cmd, "my_app", instance="inst1", **extra)
+        assert parsed["instance_name"] == "inst1"
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_success_message_falls_back_to_raw_selector_when_instance_unresolvable(
+    def test_unknown_name_errors_with_the_known_names_and_never_posts(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """A numeric --instance with no matching app list entry falls back to the raw selector."""
+        """A typo, or an old script's digit, is refused before any action runs."""
         client = cli_client_factory.build_with_routes(
-            _instance_action_routes(action, instances=[_instance(0, "inst0")], requested_index=5)
+            _instance_action_routes(action, instances=[_instance("inst0")], requested="0")
         )
-        parsed = runner.json_output(client, cmd, "my_app", instance="5", **extra)
-        assert parsed["message"] == f"Instance '5' of 'my_app' {verb}"
+        spy = make_post_spy(client)
+        with patch.object(client, "post", spy):
+            code, stderr = runner.usage_error(client, cmd, "my_app", instance="0", **extra)
+        assert code == 1
+        assert "'inst0'" in stderr
+        spy.assert_not_called()
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_numeric_instance_succeeds_when_app_list_fetch_returns_503(
+    def test_instance_succeeds_when_app_list_fetch_returns_503(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """A numeric --instance still succeeds when /api/apps 503s (telemetry outage).
+        """--instance still succeeds when /api/apps 503s (telemetry outage).
 
-        The app list lookup is a best-effort name resolution — the mutating action itself
+        The app list lookup is a best-effort name check — the mutating action itself
         has no telemetry dependency, so a degraded telemetry DB must not block it.
         """
         client = cli_client_factory.build_with_routes(
             _instance_action_routes(action, apps_status=503, apps_detail="Telemetry store unavailable")
         )
-        parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
-        assert parsed["message"] == f"Instance '1' of 'my_app' {verb}"
+        parsed = runner.json_output(client, cmd, "my_app", instance="inst1", **extra)
+        assert parsed["message"] == f"Instance 'inst1' of 'my_app' {verb}"
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_warns_on_server_instance_index_mismatch(
+    def test_warns_on_server_instance_name_mismatch(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """A server-confirmed instance_index that disagrees with the requested one prints a warning."""
-        client = cli_client_factory.build_with_routes(_instance_action_routes(action, confirmed_index=2))
-        stderr = runner.stderr(client, cmd, "my_app", instance="1", **extra)
-        assert "requested instance 1" in stderr
-        assert "server confirmed instance 2" in stderr
+        """A server-confirmed instance_name that disagrees with the requested one prints a warning."""
+        client = cli_client_factory.build_with_routes(_instance_action_routes(action, confirmed="inst2"))
+        stderr = runner.stderr(client, cmd, "my_app", instance="inst1", **extra)
+        assert "requested instance 'inst1'" in stderr
+        assert "server confirmed instance 'inst2'" in stderr
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_no_warning_when_server_instance_index_matches(
+    def test_no_warning_when_server_instance_name_matches(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """No mismatch warning when the server echoes the same instance_index that was requested."""
+        """No mismatch warning when the server echoes the same instance_name that was requested."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
-        stderr = runner.stderr(client, cmd, "my_app", instance="1", **extra)
+        stderr = runner.stderr(client, cmd, "my_app", instance="inst1", **extra)
         assert "requested instance" not in stderr
 
 
@@ -235,10 +250,8 @@ class TestCmdAppStart:
             runner.stdout(client, cmd_app_start, "my_app")
 
     def test_json_output_lists_each_instance_outcome(self, cli_client_factory: CLIClientFactory) -> None:
-        outcome = InstanceOutcome(
-            instance_index=0, instance_name="kitchen", result="succeeded", reason="already running"
-        )
-        response = ActionResponse(app_key="my_app", action="start", instance_index=None, outcomes=[outcome])
+        outcome = InstanceOutcome(instance_name="kitchen", result="succeeded", reason="already running")
+        response = ActionResponse(app_key="my_app", action="start", instance_name=None, outcomes=[outcome])
         client = cli_client_factory.build_with_routes(
             [("POST", "/api/apps/my_app/start", 200, response.model_dump(mode="json"))]
         )
@@ -247,7 +260,6 @@ class TestCmdAppStart:
 
         assert parsed["outcomes"] == [
             {
-                "instance_index": 0,
                 "instance_name": "kitchen",
                 "result": "succeeded",
                 "needs_restart": False,
@@ -258,7 +270,6 @@ class TestCmdAppStart:
     def test_json_error_carries_the_problem_outcomes(self, cli_client_factory: CLIClientFactory) -> None:
         """A 409/500 problem body's per-instance outcomes reach the --json error document."""
         outcome = {
-            "instance_index": 0,
             "instance_name": "kitchen",
             "result": "refused",
             "needs_restart": True,
@@ -352,23 +363,19 @@ class TestCmdAppStop:
         assert doc["error"] is True
         assert "--yes" in doc["detail"]
 
-    def test_error_on_instance_out_of_range(self, cli_client_factory: CLIClientFactory) -> None:
-        """Stop against an out-of-range instance index surfaces the 404 via the HTTP error path.
-
-        The out-of-range index (9) has no matching app list entry, so name resolution falls back
-        to the raw selector rather than blocking client-side — range validation stays the
-        server's authoritative job (see ``_require_valid_instance_index``).
-        """
+    def test_server_404_surfaces_when_the_app_list_cannot_be_read(self, cli_client_factory: CLIClientFactory) -> None:
+        """With no app list to check against, the server answers for the name."""
         client = cli_client_factory.build_with_routes(
             _instance_action_routes(
                 "stop",
-                instances=[_instance(0, "inst0"), _instance(1, "inst1")],
-                requested_index=9,
+                requested="nope",
+                apps_status=503,
+                apps_detail="Telemetry store unavailable",
                 action_status=404,
                 action_detail="Instance not found",
             )
         )
-        code, stderr = runner.usage_error(client, cmd_app_stop, "my_app", instance="9", yes=True)
+        code, stderr = runner.usage_error(client, cmd_app_stop, "my_app", instance="nope", yes=True)
         assert code == 1
         assert "Instance not found" in stderr
 
@@ -376,9 +383,7 @@ class TestCmdAppStop:
 class TestCmdAppReload:
     def test_prompts_for_confirmation_with_instance_name(self, cli_client_factory: CLIClientFactory) -> None:
         """Reload --instance office prompts with the instance name in the message."""
-        client = cli_client_factory.build_with_routes(
-            _instance_action_routes("reload", instances=[_instance(1, "office")])
-        )
+        client = cli_client_factory.build_with_routes(_instance_action_routes("reload", requested="office"))
         with patch("builtins.input", return_value="y") as mock_input:
             runner.stdout(client, cmd_app_reload, "my_app", instance="office")
 

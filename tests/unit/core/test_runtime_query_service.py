@@ -296,7 +296,6 @@ class TestConcurrentAppHandlerTeardown:
 
         event = MagicMock()
         event.payload.data.app_key = "gone_app"
-        event.payload.data.index = 0
         event.payload.data.status = ResourceStatus.STOPPED
         event.payload.data.previous_status = ResourceStatus.RUNNING
         event.payload.data.instance_name = "GoneApp[0]"
@@ -327,7 +326,6 @@ class TestConcurrentAppHandlerTeardown:
 
         event = MagicMock()
         event.payload.data.app_key = "stuck_app"
-        event.payload.data.index = 0
         event.payload.data.status = ResourceStatus.FAILED
         event.payload.data.previous_status = ResourceStatus.STOPPING
         event.payload.data.instance_name = "StuckApp[0]"
@@ -378,29 +376,27 @@ class TestUnwiredBootstrapCoordinator:
 
 
 class TestCompletionPayloadEnrichment:
-    """app_key, instance_index, and kind are read directly from event payload."""
+    """app_key and kind are read directly from event payload."""
 
     async def test_handler_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
-        """app_key and instance_index from a handler execution are stored in the pending batch."""
+        """app_key from a handler execution are stored in the pending batch."""
         runtime.broadcast = AsyncMock()
         event = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=42, status=SUCCESS, duration_ms=5.0, app_key="lights", instance_index=1
+            kind="handler", listener_id=42, status=SUCCESS, duration_ms=5.0, app_key="lights"
         )
         await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0].app_key == "lights"
-        assert runtime._pending_completions[0].instance_index == 1
         assert runtime._pending_completions[0].kind == "handler"
         assert runtime._pending_completions[0].listener_id == 42
 
     async def test_job_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
-        """app_key and instance_index from a job execution are stored in the pending batch."""
+        """app_key from a job execution are stored in the pending batch."""
         runtime.broadcast = AsyncMock()
         event = HassetteExecutionCompletedEvent.from_record(
-            kind="job", job_id=99, status=SUCCESS, duration_ms=8.0, app_key="climate", instance_index=2
+            kind="job", job_id=99, status=SUCCESS, duration_ms=8.0, app_key="climate"
         )
         await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0].app_key == "climate"
-        assert runtime._pending_completions[0].instance_index == 2
         assert runtime._pending_completions[0].kind == "job"
         assert runtime._pending_completions[0].job_id == 99
 
@@ -412,7 +408,6 @@ class TestCompletionPayloadEnrichment:
         )
         await runtime.on_execution_completed(event)
         assert runtime._pending_completions[0].app_key == ""
-        assert runtime._pending_completions[0].instance_index == 0
 
 
 class TestCompletionBatching:
@@ -424,7 +419,7 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app", instance_index=0
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app"
         )
         event2 = HassetteExecutionCompletedEvent.from_record(
             kind="handler",
@@ -432,7 +427,6 @@ class TestCompletionBatching:
             status=ExecutionStatus.ERROR,
             duration_ms=20.0,
             app_key="my_app",
-            instance_index=0,
             error_type="ValueError",
         )
 
@@ -457,10 +451,10 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
-            kind="job", job_id=10, status=SUCCESS, duration_ms=50.0, app_key="scheduler_app", instance_index=0
+            kind="job", job_id=10, status=SUCCESS, duration_ms=50.0, app_key="scheduler_app"
         )
         event2 = HassetteExecutionCompletedEvent.from_record(
-            kind="job", job_id=11, status=SUCCESS, duration_ms=30.0, app_key="scheduler_app", instance_index=0
+            kind="job", job_id=11, status=SUCCESS, duration_ms=30.0, app_key="scheduler_app"
         )
 
         await runtime.on_execution_completed(event1)
@@ -476,7 +470,7 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock()
 
         event = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=3, status=SUCCESS, duration_ms=1.0, app_key="app", instance_index=0
+            kind="handler", listener_id=3, status=SUCCESS, duration_ms=1.0, app_key="app"
         )
         await runtime.on_execution_completed(event)
         assert len(runtime._pending_completions) == 1
@@ -496,10 +490,10 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         handler_event = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=1, status=SUCCESS, duration_ms=5.0, app_key="my_app", instance_index=0
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=5.0, app_key="my_app"
         )
         job_event = HassetteExecutionCompletedEvent.from_record(
-            kind="job", job_id=10, status=SUCCESS, duration_ms=8.0, app_key="my_app", instance_index=0
+            kind="job", job_id=10, status=SUCCESS, duration_ms=8.0, app_key="my_app"
         )
 
         await runtime.on_execution_completed(handler_event)
@@ -516,10 +510,10 @@ class TestCompletionBatching:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app", instance_index=0
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app"
         )
         event2 = HassetteExecutionCompletedEvent.from_record(
-            kind="job", job_id=10, status=SUCCESS, duration_ms=50.0, app_key="scheduler_app", instance_index=0
+            kind="job", job_id=10, status=SUCCESS, duration_ms=50.0, app_key="scheduler_app"
         )
         await runtime.on_execution_completed(event1)
         await runtime.on_execution_completed(event2)
@@ -538,7 +532,7 @@ class TestCompletionValidation:
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         valid1 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app", instance_index=0
+            kind="handler", listener_id=1, status=SUCCESS, duration_ms=10.0, app_key="my_app"
         )
         malformed = HassetteExecutionCompletedEvent.from_record(
             kind="handler",
@@ -546,10 +540,9 @@ class TestCompletionValidation:
             status=SUCCESS,
             duration_ms="not-a-number",  # pyright: ignore[reportArgumentType]
             app_key="my_app",
-            instance_index=0,
         )
         valid2 = HassetteExecutionCompletedEvent.from_record(
-            kind="handler", listener_id=3, status=SUCCESS, duration_ms=30.0, app_key="my_app", instance_index=0
+            kind="handler", listener_id=3, status=SUCCESS, duration_ms=30.0, app_key="my_app"
         )
 
         await runtime.on_execution_completed(valid1)

@@ -3,7 +3,7 @@ export type AppDetailTab = "overview" | "handlers" | "code" | "logs" | "config";
 type QueryValue = string | number | null | undefined;
 
 interface RouteQuery {
-  instance?: QueryValue;
+  instance?: string | null;
   line?: QueryValue;
 }
 
@@ -17,6 +17,11 @@ function buildQuery(query?: RouteQuery): string {
 
   const queryString = params.toString();
   return queryString ? `?${queryString}` : "";
+}
+
+/** The `?instance=<name>` query for a page scoped to one instance, or an empty string for the whole app. */
+export function instanceQueryString(instanceName: string | undefined): string {
+  return buildQuery({ instance: instanceName });
 }
 
 export interface NavPage {
@@ -36,19 +41,16 @@ export const NAV_PAGES: readonly NavPage[] = [
 export const HOME_PATH = "/apps";
 export const LOGIN_PATH = "/login";
 
-const DECIMAL_INSTANCE_PARAM_RE = /^\d+$/;
-
 /**
- * Parse an `?instance=` query value into an instance index.
+ * Parse an `?instance=` query value into an instance name.
  *
- * Returns undefined for absent or malformed values, which callers treat as "the user did
- * not pick an instance" — distinct from index 0, so links can omit the param entirely.
+ * Returns undefined for absent or empty values, which callers treat as "the user did not pick an
+ * instance". Whether the name matches a configured instance is checked against the manifest, not here.
  */
-export function parseInstanceParam(param: string | null): number | undefined {
+export function parseInstanceParam(param: string | null): string | undefined {
   if (param === null) return undefined;
   const trimmed = param.trim();
-
-  return DECIMAL_INSTANCE_PARAM_RE.test(trimmed) ? Number(trimmed) : undefined;
+  return trimmed === "" ? undefined : trimmed;
 }
 
 export function appDetailPath(appKey: string, tab?: AppDetailTab, query?: RouteQuery): string {
@@ -83,17 +85,17 @@ export function logEntryExecutionHref(entry: {
   listener_id?: number | null;
   job_id?: number | null;
   execution_id?: string | null;
-  instance_index?: number | null;
+  instance_name?: string | null;
 }): string | null {
   if (!entry.app_key || !entry.execution_id || !entry.execution_kind) return null;
   if (entry.execution_kind === "handler" && entry.listener_id !== null && entry.listener_id !== undefined) {
     return executionPath(entry.app_key, "listener", entry.listener_id, entry.execution_id, {
-      instance: entry.instance_index,
+      instance: entry.instance_name,
     });
   }
   if (entry.execution_kind === "job" && entry.job_id !== null && entry.job_id !== undefined) {
     return executionPath(entry.app_key, "job", entry.job_id, entry.execution_id, {
-      instance: entry.instance_index,
+      instance: entry.instance_name,
     });
   }
   return null;

@@ -219,10 +219,9 @@ class RuntimeQueryService(Resource):
         resolved = self.hassette.app_handler.registry.resolve_instance_info(data.app_key, data.instance_name)
         payload = AppStatusChangedData(
             app_key=data.app_key,
-            index=data.index,
+            instance_name=data.instance_name,
             status=data.status,
             previous_status=data.previous_status,
-            instance_name=data.instance_name,
             class_name=data.class_name,
             exception=data.exception,
             exception_type=data.exception_type,
@@ -275,7 +274,6 @@ class RuntimeQueryService(Resource):
             ExecutionCompletedData(
                 kind=data.kind,
                 app_key=data.app_key,
-                instance_index=data.instance_index,
                 status=data.status,
                 duration_ms=data.duration_ms,
                 error_type=data.error_type,

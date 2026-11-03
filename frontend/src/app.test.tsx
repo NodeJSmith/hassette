@@ -462,15 +462,15 @@ describe("App — command palette", () => {
         display_name: "Multi App",
         instance_count: 2,
         instances: [
-          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+          createInstance({ app_key: "multi_app", instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", instance_name: "inst_1" }),
         ],
       }),
     ]);
     render(<App />);
     await openPalette(user);
-    expect(await screen.findByTestId("cmd-result-instance-multi_app-0")).toBeDefined();
-    expect(screen.getByTestId("cmd-result-instance-multi_app-1")).toBeDefined();
+    expect(await screen.findByTestId("cmd-result-instance-multi_app-inst_0")).toBeDefined();
+    expect(screen.getByTestId("cmd-result-instance-multi_app-inst_1")).toBeDefined();
   });
 
   it("filters results as the user types", async () => {
@@ -595,8 +595,8 @@ describe("App — FailedAppsAlert", () => {
         status: "running",
         instance_count: 2,
         instances: [
-          createInstance({ app_key: "multi_instance_app", index: 0, status: "running" }),
-          createInstance({ app_key: "multi_instance_app", index: 1, status: "running" }),
+          createInstance({ app_key: "multi_instance_app", instance_name: "inst_0", status: "running" }),
+          createInstance({ app_key: "multi_instance_app", instance_name: "inst_1", status: "running" }),
         ],
       }),
     ]);
@@ -604,8 +604,12 @@ describe("App — FailedAppsAlert", () => {
     await screen.findByTestId("app-entry-multi_instance_app");
 
     act(() => {
-      useAppStore.getState().updateAppStatus(appStatusKey("multi_instance_app", 0), { status: "running", index: 0 });
-      useAppStore.getState().updateAppStatus(appStatusKey("multi_instance_app", 1), { status: "failed", index: 1 });
+      useAppStore
+        .getState()
+        .updateAppStatus(appStatusKey("multi_instance_app", "inst_0"), { status: "running", instance_name: "inst_0" });
+      useAppStore
+        .getState()
+        .updateAppStatus(appStatusKey("multi_instance_app", "inst_1"), { status: "failed", instance_name: "inst_1" });
     });
 
     const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
@@ -632,14 +636,24 @@ describe("App — FailedAppsAlert re-render scoping", () => {
       // healthy_app transitions running -> running (e.g. a heartbeat/duration-only WS update).
       // The overall set of failing apps doesn't change, so the memoized `failedApps` selector
       // key must not change either.
-      useAppStore.getState().updateAppStatus(appStatusKey("healthy_app", 0), { status: "running", index: 0 });
+      useAppStore
+        .getState()
+        .updateAppStatus(appStatusKey("healthy_app", "inst_0"), { status: "running", instance_name: "inst_0" });
     });
 
     expect(alertBannerRenderCount.renders).toBe(before);
   });
 
   it("re-renders when an app enters the failed set", async () => {
-    seedManifests([createAppSummary({ app_key: "flaky_app", display_name: "Flaky App", status: "running" })]);
+    seedManifests([
+      createAppSummary({
+        app_key: "flaky_app",
+        display_name: "Flaky App",
+        status: "running",
+        instance_count: 1,
+        instances: [createInstance({ app_key: "flaky_app", instance_name: "inst_0", status: "running" })],
+      }),
+    ]);
     render(<App />);
     // Wait for manifests to load (sidebar renders one entry per manifest) before triggering the
     // status change — the banner itself isn't present yet since nothing is failing.
@@ -648,7 +662,9 @@ describe("App — FailedAppsAlert re-render scoping", () => {
     const before = alertBannerRenderCount.renders;
 
     act(() => {
-      useAppStore.getState().updateAppStatus(appStatusKey("flaky_app", 0), { status: "failed", index: 0 });
+      useAppStore
+        .getState()
+        .updateAppStatus(appStatusKey("flaky_app", "inst_0"), { status: "failed", instance_name: "inst_0" });
     });
 
     const banner = await screen.findByTestId(ALERT_BANNER_TESTID);

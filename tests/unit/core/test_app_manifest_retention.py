@@ -63,8 +63,7 @@ async def insert_listener(
     instance_name: str = INSTANCE_NAME,
 ) -> int:
     cursor = await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, instance_name, name, retired_at, source_tier) "
-        "VALUES (?, 1, ?, 'l', ?, ?)",
+        "INSERT INTO listeners (app_key, instance_name, name, retired_at, source_tier) VALUES (?, ?, 'l', ?, ?)",
         (app_key, instance_name, retired_at, source_tier),
     )
     assert cursor.lastrowid is not None
@@ -79,7 +78,7 @@ async def seed_recent_execution(db: aiosqlite.Connection, app_key: str) -> None:
 
 async def insert_job(db: aiosqlite.Connection, app_key: str, instance_name: str = INSTANCE_NAME) -> int:
     cursor = await db.execute(
-        "INSERT INTO scheduled_jobs (app_key, instance_index, instance_name, job_name) VALUES (?, 1, ?, 'j')",
+        "INSERT INTO scheduled_jobs (app_key, instance_name, job_name) VALUES (?, ?, 'j')",
         (app_key, instance_name),
     )
     assert cursor.lastrowid is not None
@@ -94,16 +93,15 @@ async def seed_recent_job_execution(db: aiosqlite.Connection, app_key: str) -> N
 
 async def seed_recent_log_record(db: aiosqlite.Connection, app_key: str) -> None:
     await db.execute(
-        "INSERT INTO log_records (seq, timestamp, level, logger_name, message, app_key, instance_index, author) "
-        "VALUES (1, ?, 'INFO', 'x', 'm', ?, 1, 'app')",
+        "INSERT INTO log_records (seq, timestamp, level, logger_name, message, app_key, author) "
+        "VALUES (1, ?, 'INFO', 'x', 'm', ?, 'app')",
         (RECENT_TS, app_key),
     )
 
 
 async def seed_recent_blocking_event(db: aiosqlite.Connection, app_key: str) -> None:
     await db.execute(
-        "INSERT INTO blocking_events (app_key, instance_index, tier, detected_ts, source_tier) "
-        "VALUES (?, 1, 'watchdog', ?, 'app')",
+        "INSERT INTO blocking_events (app_key, tier, detected_ts, source_tier) VALUES (?, 'watchdog', ?, 'app')",
         (app_key, RECENT_TS),
     )
 

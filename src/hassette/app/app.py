@@ -39,7 +39,6 @@ _APP_PUBLIC_API: frozenset[str] = frozenset(
         "app_config",
         "instance_name",
         "unique_name",
-        "index",
         "now",
         "on_initialize",
         "on_shutdown",
@@ -129,9 +128,6 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     app_config: AppConfigT
     """Configuration for this app instance."""
 
-    index: int
-    """Index of this app instance, used for unique naming."""
-
     cache: "CacheProtocol"
     """Cache instance for storing arbitrary data, scoped to this app instance."""
 
@@ -140,7 +136,6 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         hassette: "Hassette",
         *,
         app_config: AppConfigT,
-        index: int,
         app_key: str,
         app_manifest: AppManifest | None = None,
         api_factory: type[Resource] | None = None,
@@ -149,11 +144,10 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     ) -> None:
         # A directly constructed App gets the same name check config loading applies, so an unnamed one fails
         # here instead of sharing a cache directory and logger name with its siblings.
-        resolve_instance_name(app_config.instance_name, app_key=app_key, index=index)
-        # app_config and index must be set before super().__init__ because unique_name (used by the
+        resolve_instance_name(app_config.instance_name, app_key=app_key)
+        # app_config must be set before super().__init__ because unique_name (used by the
         # logger) and owner_framework_log_level (used by the lifecycle logger's level) read app_config
         self.app_config = app_config
-        self.index = index
         self._app_key = app_key
         self.app_manifest = app_manifest
         super().__init__(hassette, parent=parent)
@@ -203,9 +197,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     def owner_log_identity(self, author: LogAuthor) -> LogIdentity:
         """Identity for a logger this app owns: ``author`` plus this app instance as owner."""
-        return LogIdentity(
-            author=author, app_key=self.app_key, instance_name=self.instance_name, instance_index=self.index
-        )
+        return LogIdentity(author=author, app_key=self.app_key, instance_name=self.instance_name)
 
     def owner_framework_log_level(self) -> LogLevel | None:
         """Return this app's ``framework_log_level``, or None when unset.

@@ -31,9 +31,9 @@ function serveHealth(health: AppHealthData) {
   return requests;
 }
 
-function renderStrip({ handlerCount = 3, resolvedInstanceIndex = 0 } = {}) {
+function renderStrip({ handlerCount = 3, instanceName = undefined as string | undefined } = {}) {
   const result = renderWithAppState(
-    <OverviewHealthStrip appKey="my_app" resolvedInstanceIndex={resolvedInstanceIndex} handlerCount={handlerCount} />,
+    <OverviewHealthStrip appKey="my_app" instanceName={instanceName} handlerCount={handlerCount} />,
     // useScopedQuery holds since-restart queries until uptime is known.
     { storeOverrides: { uptimeSeconds: 120 } },
   );
@@ -48,13 +48,13 @@ describe("OverviewHealthStrip", () => {
     const requests = serveHealth(
       createAppHealth({ error_rate: 8.4, handler_avg_duration_ms: 120, job_avg_duration_ms: 2500 }),
     );
-    const { cards } = renderStrip({ handlerCount: 7, resolvedInstanceIndex: 2 });
+    const { cards } = renderStrip({ handlerCount: 7, instanceName: "office" });
 
     await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("8%"));
     expect(cards()[COL_HANDLERS].textContent).toContain("7");
     expect(cards()[COL_HANDLER_AVG].textContent).toContain("120");
     expect(cards()[COL_JOB_AVG].textContent).toContain("2.5s");
-    expect(requests[0].searchParams.get("instance_index")).toBe("2");
+    expect(requests[0].searchParams.get("instance_name")).toBe("office");
   });
 
   it("applies the err tone to ERROR RATE only when the server reports errors", async () => {

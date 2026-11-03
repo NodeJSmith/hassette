@@ -72,8 +72,8 @@ class ChangeSet:
     metadata_apps: frozenset[str] = frozenset()
     """Apps whose manifest changed in some way (e.g. ``display_name``, ``autostart``) that
     doesn't require a reload, reimport, or lifecycle action -- but which still means the
-    persisted manifest differs from what any connected dashboard last fetched. See
-    `has_any_change`."""
+    persisted manifest differs from what any connected dashboard last fetched. An order-only edit
+    isn't one of these; see `has_any_change`."""
 
     @property
     def has_changes(self) -> bool:
@@ -86,9 +86,11 @@ class ChangeSet:
 
         A superset of `has_changes` -- true whenever the persisted manifest data differs from
         before, even if nothing here requires starting, stopping, reloading, or reimporting an
-        app. Callers that only care about refreshing a cached view (e.g. broadcasting a
-        WebSocket refetch signal) should check this instead of `has_changes`, which a
-        metadata-only edit (e.g. `display_name`) never sets.
+        app. The exception is the order of an app's instances: the comparison ignores order, so a
+        reorder-only edit broadcasts nothing and row order updates on the next fetch. Callers that
+        only care about refreshing a cached view (e.g. broadcasting a WebSocket refetch signal)
+        should check this instead of `has_changes`, which a metadata-only edit (e.g.
+        `display_name`) never sets.
         """
         return bool(self.has_changes or self.metadata_apps)
 

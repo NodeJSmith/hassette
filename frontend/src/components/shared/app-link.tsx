@@ -7,14 +7,14 @@ import { appDetailPath, type HandlerKind, handlerPath } from "../../utils/app-ro
 
 interface Props {
   appKey: string;
-  instanceIndex?: number;
+  instanceName?: string;
   handlerKind?: HandlerKind;
   handlerId?: number;
   children?: ReactNode;
 }
 
-export function AppLink({ appKey, instanceIndex, handlerKind, handlerId, children }: Props) {
-  const query = instanceIndex !== undefined ? { instance: instanceIndex } : undefined;
+export function AppLink({ appKey, instanceName, handlerKind, handlerId, children }: Props) {
+  const query = instanceName !== undefined ? { instance: instanceName } : undefined;
   const href =
     handlerKind !== undefined && handlerId !== undefined
       ? handlerPath(appKey, handlerKind, handlerId, query)

@@ -45,7 +45,6 @@ def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 25
     return WatchdogEvent(
         app_key=app_key,
         instance_name="my_app_instance" if app_key else None,
-        instance_index=0 if app_key else None,
         execution_id="exec-uuid-watchdog" if app_key else None,
         stall_duration_ms=stall_ms,
         tier="watchdog",
@@ -61,7 +60,6 @@ def _make_monkeypatch_event(*, app_key: str | None = "my_app") -> MonkeypatchEve
         frames=(CALLER_FRAME,),
         app_key=app_key,
         instance_name="my_app_instance" if app_key else None,
-        instance_index=0 if app_key else None,
         execution_id="exec-uuid-monkeypatch" if app_key else None,
         tier="monkeypatch",
         detected_at=time.time(),
@@ -104,7 +102,6 @@ class TestTier1Persistence:
         event = WatchdogEvent(
             app_key="my_app",
             instance_name=None,
-            instance_index=0,
             execution_id="exec-1",
             stall_duration_ms=150.0,
             tier="watchdog",
@@ -127,7 +124,6 @@ class TestTier1Persistence:
         event = WatchdogEvent(
             app_key="my_app",
             instance_name=None,
-            instance_index=0,
             execution_id="exec-1",
             stall_duration_ms=150.0,
             tier="watchdog",

@@ -18,19 +18,18 @@ from whenever import SYSTEM_TZ, ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import After, Cron, Every, Once
-from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
+from hassette.testing.config import DEFAULT_TEST_APP_KEY, DEFAULT_TEST_INSTANCE_NAME, TEST_EPOCH_B
 from hassette.types.types import SchedulerPredicate
 
 
 def make_job(
     name: str = "check_lights",
-    owner_id: str = "MyApp.MyApp[0]",
+    owner_id: str = "MyApp.MyApp.0",
     next_run: str = "2024-01-01T00:05:00",
     trigger_type: str | None = "interval",
     trigger_detail: str | None = None,
     db_id: int | None = None,
     app_key: str = "",
-    instance_index: int = 0,
 ) -> SimpleNamespace:
     """Build a ``SimpleNamespace`` scheduler job for test fixtures.
 
@@ -61,7 +60,6 @@ def make_job(
         name=name,
         owner_id=owner_id,
         app_key=app_key,
-        instance_index=instance_index,
         next_run=next_run,
         trigger=trigger,
     )
@@ -69,12 +67,11 @@ def make_job(
 
 def make_real_job(
     name: str = "test_job",
-    owner_id: str = "MyApp.MyApp[0]",
+    owner_id: str = "MyApp.MyApp.0",
     trigger: object | None = None,
     jitter: float | None = None,
     group: str | None = None,
     app_key: str = "",
-    instance_index: int = 0,
     predicate: SchedulerPredicate | None = None,
     mode: ExecutionMode = ExecutionMode.SINGLE,
     db_id: int | None = None,
@@ -87,12 +84,11 @@ def make_real_job(
 
     Args:
         name: Job name. Defaults to ``"test_job"``.
-        owner_id: Owner ID. Defaults to ``"MyApp.MyApp[0]"``.
+        owner_id: Owner ID. Defaults to ``"MyApp.MyApp.0"``.
         trigger: Optional trigger. Defaults to ``None``.
         jitter: Optional jitter in seconds.
         group: Optional group name.
         app_key: Optional app key.
-        instance_index: Optional app instance index.
         predicate: Optional ``where=`` predicate. Does not set ``predicate_invoker`` —
             callers that need DI resolution should pass one when constructing their own job.
         mode: Execution-mode guard for the job. Defaults to ``ExecutionMode.SINGLE``.
@@ -108,7 +104,6 @@ def make_real_job(
         jitter=jitter,
         group=group,
         app_key=app_key,
-        instance_index=instance_index,
         predicate=predicate,
         mode=mode,
         db_id=db_id,
@@ -118,7 +113,6 @@ def make_real_job(
 def make_job_summary(
     job_id: int = 1,
     app_key: str = DEFAULT_TEST_APP_KEY,
-    instance_index: int = 0,
     job_name: str = "check_lights",
     handler_method: str = "check_lights",
     trigger_type: str | None = "interval",
@@ -142,7 +136,7 @@ def make_job_summary(
     return JobSummary(
         job_id=job_id,
         app_key=app_key,
-        instance_index=instance_index,
+        instance_name=DEFAULT_TEST_INSTANCE_NAME,
         job_name=job_name,
         handler_method=handler_method,
         trigger_type=trigger_type,

@@ -56,7 +56,7 @@ def migrated_db(tmp_path: Path) -> Path:
         insert_execution_row(conn, kind="handler", listener_id=1, session_id=1, execution_start_ts=1.0, duration_ms=1.0)
         insert_execution_row(conn, kind="job", job_id=4, session_id=1, execution_start_ts=2.0, duration_ms=1.0)
         conn.commit()
-    run_migrations(db_path)
+    run_migrations(db_path, target=18)
     return db_path
 
 

@@ -216,13 +216,10 @@ class TestExecutionRecordKind:
         assert record.trigger_context_id is None
         assert record.trigger_origin is None
 
-    def test_app_key_and_instance_index_present(self) -> None:
-        """app_key and instance_index fields exist on ExecutionRecord."""
-        record = make_execution_record(
-            execution_start_ts=TEST_EPOCH_B, duration_ms=5.0, app_key="my_app", instance_index=2
-        )
+    def test_app_key_present(self) -> None:
+        """app_key exists on ExecutionRecord."""
+        record = make_execution_record(execution_start_ts=TEST_EPOCH_B, duration_ms=5.0, app_key="my_app")
         assert record.app_key == "my_app"
-        assert record.instance_index == 2
 
 
 class TestExecutionRecordNewColumns:

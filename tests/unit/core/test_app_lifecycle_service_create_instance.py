@@ -43,7 +43,6 @@ class TestCreateInstanceUnlockedSynchronousFailure:
 
         failure_info = make_app_instance_info(
             app_key="test_app",
-            index=0,
             instance_name="a",
             class_name="TestApp",
             status=ResourceStatus.FAILED,

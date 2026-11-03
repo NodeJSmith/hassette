@@ -26,8 +26,8 @@ function withMultiInstanceApp() {
       display_name: "Multi App",
       instance_count: 2,
       instances: [
-        createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-        createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        createInstance({ app_key: "multi_app", instance_name: "inst_0" }),
+        createInstance({ app_key: "multi_app", instance_name: "inst_1" }),
       ],
     }),
   ]);
@@ -231,7 +231,7 @@ describe("Sidebar — multi-instance apps", () => {
     expect(screen.getByText("inst_1")).toBeDefined();
   });
 
-  it("instance links use ?instance=N query param format", async () => {
+  it("instance links use ?instance=<name> query param format", async () => {
     const user = userEvent.setup();
     withMultiInstanceApp();
     renderWithAppState(<Sidebar />);
@@ -239,14 +239,14 @@ describe("Sidebar — multi-instance apps", () => {
     await user.click(expandBtn);
     const inst0Link = screen.getByText("inst_0").closest("a");
     const inst1Link = screen.getByText("inst_1").closest("a");
-    expect(inst0Link?.getAttribute("href")).toBe("/apps/multi_app?instance=0");
-    expect(inst1Link?.getAttribute("href")).toBe("/apps/multi_app?instance=1");
+    expect(inst0Link?.getAttribute("href")).toBe("/apps/multi_app?instance=inst_0");
+    expect(inst1Link?.getAttribute("href")).toBe("/apps/multi_app?instance=inst_1");
   });
 
   it("instance link is active when location matches app path with correct instance query param", async () => {
     const user = userEvent.setup();
     useLocation.mockReturnValue(["/apps/multi_app", vi.fn()]);
-    useSearch.mockReturnValue("instance=1");
+    useSearch.mockReturnValue("instance=inst_1");
     withMultiInstanceApp();
     renderWithAppState(<Sidebar />);
     const expandBtn = await screen.findByLabelText("Expand Multi App");

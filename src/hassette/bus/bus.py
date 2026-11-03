@@ -590,7 +590,6 @@ class Bus(Resource):
         identity = ListenerIdentity(
             owner_id=self.owner_id,
             app_key=parent.app_key,
-            instance_index=parent.index,
             instance_name=instance_name,
             name=name,
             source_tier=source_tier,

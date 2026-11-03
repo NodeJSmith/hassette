@@ -292,8 +292,8 @@ def test_kind_check_rejects_invalid_values(tmp_path: Path) -> None:
     with sqlite_conn(db_path, foreign_keys=True) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.execute(
-            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-            " VALUES ('app', 0, 'my_listener', 'on_x', 'light.x', 'app.py:1')"
+            "INSERT INTO listeners (app_key, name, handler_method, topic, source_location)"
+            " VALUES ('app', 'my_listener', 'on_x', 'light.x', 'app.py:1')"
         )
         conn.commit()
 
@@ -324,8 +324,8 @@ def test_kind_check_accepts_job(tmp_path: Path) -> None:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.execute(
             "INSERT INTO scheduled_jobs "
-            "(app_key, instance_index, job_name, handler_method, source_location, source_tier, schedule_status)"
-            " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
+            "(app_key, job_name, handler_method, source_location, source_tier, schedule_status)"
+            " VALUES ('app', 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
         )
         conn.commit()
 
@@ -379,13 +379,13 @@ def test_fk_mutex_check_rejects_both_set(tmp_path: Path) -> None:
     with sqlite_conn(db_path, foreign_keys=True) as conn:
         conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
         conn.execute(
-            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-            " VALUES ('app', 0, 'my_listener', 'on_x', 'light.x', 'app.py:1')"
+            "INSERT INTO listeners (app_key, name, handler_method, topic, source_location)"
+            " VALUES ('app', 'my_listener', 'on_x', 'light.x', 'app.py:1')"
         )
         conn.execute(
             "INSERT INTO scheduled_jobs "
-            "(app_key, instance_index, job_name, handler_method, source_location, source_tier, schedule_status)"
-            " VALUES ('app', 0, 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
+            "(app_key, job_name, handler_method, source_location, source_tier, schedule_status)"
+            " VALUES ('app', 'my_job', 'on_x', 'app.py:1', 'app', 'scheduled')"
         )
         conn.commit()
 

@@ -50,23 +50,22 @@ def instance_name_reason(name: str) -> str | None:
     return None
 
 
-def resolve_instance_name(configured: object, *, app_key: str, index: int) -> str:
+def resolve_instance_name(configured: object, *, app_key: str, position: int | None = None) -> str:
     """Return the instance name for one app instance, or raise if it has none or it is invalid.
 
     The single place an instance's name is checked. Every instance must set ``instance_name``; there is no default.
+    ``position`` is the instance's place in the config, given by config loading so an error can name the block.
 
     Raises:
         ValueError: The instance has no name, or the name fails the charset rule.
     """
+    subject = f"app {app_key!r} instance" if position is None else f"app {app_key!r} instance {position}"
     if configured is None or configured == "":
-        raise ValueError(
-            f"app {app_key!r} instance {index} has no instance_name; every app instance must set "
-            "`instance_name` in its config"
-        )
+        raise ValueError(f"{subject} has no instance_name; every app instance must set `instance_name` in its config")
     if not isinstance(configured, str):
-        raise ValueError(f"app {app_key!r} instance {index} has a non-string instance_name {configured!r}")
+        raise ValueError(f"{subject} has a non-string instance_name {configured!r}")
     if reason := instance_name_reason(configured):
-        raise ValueError(f"app {app_key!r} instance {index} has instance_name {configured!r}, which {reason}")
+        raise ValueError(f"{subject} has instance_name {configured!r}, which {reason}")
     return configured
 
 
@@ -323,7 +322,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         self.app_config = [
             {
                 **item,
-                "instance_name": resolve_instance_name(item.get("instance_name"), app_key=self.app_key, index=idx),
+                "instance_name": resolve_instance_name(item.get("instance_name"), app_key=self.app_key, position=idx),
             }
             for idx, item in enumerate(configs)
         ]

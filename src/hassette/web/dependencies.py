@@ -7,7 +7,7 @@ from fastapi import Depends, Path, Query, Request
 from hassette_wire import LogLevel, QueryAuthor, QuerySourceTier
 
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
-from hassette.types.types import APP_SOURCE_TIER, LOG_LEVELS, is_framework_key
+from hassette.types.types import APP_SOURCE_TIER, LOG_LEVELS
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -19,25 +19,12 @@ if TYPE_CHECKING:
 
 VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
 
-DEFAULT_INSTANCE_INDEX = 0
-
 # Shared query/path parameter annotations — annotate route parameters with these instead of
 # repeating the `Query(...)`/`Path(...)` call in every signature.
 AppKeyPath = Annotated[str, Path(description="Use `__hassette__` to query framework-internal actor telemetry.")]
 """App key path parameter; also accepts the framework-internal ``__hassette__`` actor."""
-InstanceIndexQuery = Annotated[
-    int,
-    Query(
-        ge=0,
-        description=f"App instance index. Defaults to {DEFAULT_INSTANCE_INDEX}. "
-        "Multi-instance apps have indices 0..N-1.",
-    ),
-]
-"""Instance index for routes that view one instance; pair it with ``= DEFAULT_INSTANCE_INDEX``."""
-OptionalInstanceIndexQuery = Annotated[
-    int | None, Query(ge=0, description="App instance index. Omit for every instance of the app.")
-]
-"""Instance index for routes that serve the multi-instance parent overview, where omitting it means every instance."""
+InstanceNameQuery = Annotated[str | None, Query(description="App instance name. Omit for every instance of the app.")]
+"""Instance filter shared by the telemetry and log routes; a name no row carries answers empty."""
 SinceQuery = Annotated[float | None, Query(allow_inf_nan=False)]
 """Lower time bound (epoch seconds); rejects NaN and infinity."""
 SourceTierQuery = Annotated[
@@ -112,23 +99,6 @@ ApiDep = Annotated["Api", Depends(get_api)]
 AuthDep = Annotated[str | None, Depends(get_resolved_auth_token)]
 
 
-def instance_name_filter(hassette: "Hassette", app_key: str | None, instance_index: int | None) -> str | None:
-    """Translate a route's instance index to the name telemetry queries filter on; ``None`` means no filter.
-
-    A framework key has exactly one instance, so its queries need no instance filter. An app that is neither
-    loaded nor tracked (removed from config, its history still browsable) has no instance to name, so an index
-    on it means every former instance. For any other app, including a still-running orphan, an index with no
-    name resolves to a display label no validated name can equal, so the query answers empty rather than another
-    instance's history. Log and blocking rows stored before names were validated can hold that label.
-    """
-    if app_key is None or instance_index is None or is_framework_key(app_key):
-        return None
-    registry = hassette.app_handler.registry
-    if registry.get_manifest(app_key) is None and not registry.tracked_names(app_key):
-        return None
-    return registry.instance_name(app_key, instance_index)
-
-
 class TelemetryFilterKwargs(TypedDict):
     """Keyword arguments accepted by every per-app ``TelemetryQueryService`` filter method."""
 
@@ -141,22 +111,19 @@ class TelemetryFilterKwargs(TypedDict):
 class TelemetryFilters:
     """The instance/time/tier query parameters shared by the per-app telemetry routes.
 
-    ``hassette`` is an injected dependency for resolving the index to its name, not a query parameter.
-
     Declared once here and injected via ``TelemetryFiltersDep`` so a route signature names the
     filter set instead of restating all three parameters. FastAPI flattens a dependency's
     parameters into the operation, so the OpenAPI schema is the same as declaring them inline.
     """
 
-    hassette: HassetteDep
-    instance_index: InstanceIndexQuery = DEFAULT_INSTANCE_INDEX
+    instance_name: InstanceNameQuery = None
     since: SinceQuery = None
     source_tier: SourceTierQuery = APP_SOURCE_TIER
 
-    def query_kwargs(self, app_key: str | None) -> TelemetryFilterKwargs:
-        """Splat into a ``TelemetryQueryService`` method that accepts these three filters for ``app_key``."""
+    def query_kwargs(self) -> TelemetryFilterKwargs:
+        """Splat into a ``TelemetryQueryService`` method that accepts these three filters."""
         return {
-            "instance_name": instance_name_filter(self.hassette, app_key, self.instance_index),
+            "instance_name": self.instance_name,
             "since": self.since,
             "source_tier": self.source_tier,
         }

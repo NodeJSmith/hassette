@@ -9,6 +9,9 @@ from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
 from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, SinceArg
 
+UNNAMED_INSTANCE_LABEL = "unnamed instance"
+"""Stands for a finding's events stored before instance names; they age out with retention."""
+
 TRUNCATED_NOTE = "Showing only the most recently seen call sites: older ones are omitted. Narrow --since to see them."
 
 
@@ -34,8 +37,8 @@ def fmt_calls_into(finding: BlockingFinding) -> str:
 
 
 def fmt_instances(finding: BlockingFinding) -> str:
-    """Comma-separated names of the app instances that hit this call site, falling back to their index."""
-    return ", ".join(inst.name or f"instance {inst.index}" for inst in finding.instances)
+    """Comma-separated names of the app instances that hit this call site."""
+    return ", ".join(inst.name or UNNAMED_INSTANCE_LABEL for inst in finding.instances)
 
 
 def fmt_stall(stall: UnattributedStall) -> str:
@@ -84,7 +87,7 @@ def cmd_blocking(
     client = make_client(ctx)
 
     if app is not None:
-        params = query_params(instance_index=client.resolve_instance_or_none(app, instance), since=since)
+        params = query_params(instance_name=client.known_instance_or_none(app, instance), since=since)
         findings = client.get(f"/api/telemetry/app/{app}/blocking", BlockingFindingsResponse, params=params)
         if ctx.json_mode:
             cli_output.render_detail(findings, json_mode=True)

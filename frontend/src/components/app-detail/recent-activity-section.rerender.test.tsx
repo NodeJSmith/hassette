@@ -37,7 +37,7 @@ async function renderSettled() {
         counter.renders += 1;
       }}
     >
-      <RecentActivitySection appKey={APP_KEY} resolvedInstanceIndex={0} />
+      <RecentActivitySection appKey={APP_KEY} instanceName={undefined} />
     </Profiler>,
     { storeOverrides: { uptimeSeconds: 120 } },
   );

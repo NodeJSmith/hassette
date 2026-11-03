@@ -91,12 +91,11 @@ class AppInstanceLifecycleMixin:
             structlog.contextvars.bind_contextvars(
                 app_key=app_key,
                 instance_name=inst.instance_name,
-                instance_index=inst.index,
             )
             try:
                 await self.initialize_instance(inst, class_name, outcomes=outcomes)
             finally:
-                structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+                structlog.contextvars.unbind_contextvars("app_key", "instance_name")
 
         # Post-ready reconciliation: retire stale rows from previous sessions.
         # Runs after the instance loop to ensure all registrations are complete.
@@ -227,7 +226,6 @@ class AppInstanceLifecycleMixin:
         structlog.contextvars.bind_contextvars(
             app_key=inst.app_key,
             instance_name=inst.instance_name,
-            instance_index=inst.index,
         )
         try:
             start_time = timer()
@@ -282,7 +280,7 @@ class AppInstanceLifecycleMixin:
             await self.send_outcome_event(inst, status=FAILED, previous_status=STOPPING, exception=exc)
             return outcome
         finally:
-            structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
+            structlog.contextvars.unbind_contextvars("app_key", "instance_name")
 
     async def settle_raised_shutdown(
         self,
@@ -480,9 +478,7 @@ class AppInstanceLifecycleMixin:
                 self.shutdown_instances(
                     [inst],
                     deadline=deadline,
-                    outcomes=ActionOutcomes(
-                        {inst.instance_name: self.registry.display_index(inst.app_key, inst.instance_name)}
-                    ),
+                    outcomes=ActionOutcomes([inst.instance_name]),
                 )
                 for inst in instances
             ),

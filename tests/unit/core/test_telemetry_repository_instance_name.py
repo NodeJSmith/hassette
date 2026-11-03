@@ -13,31 +13,23 @@ from .conftest import assert_job_count, assert_listener_count, fetch_job_field, 
 FRAMEWORK_KEY = f"{FRAMEWORK_APP_KEY}.BusService"
 
 
-async def test_listener_reorder_keeps_the_row_and_refreshes_its_index(
-    telemetry_repo: TelemetryRepository, telemetry_db: aiosqlite.Connection
-) -> None:
-    """Moving a config block changes the index but not the identity, so history stays with the instance."""
+async def test_listener_reorder_keeps_the_row(telemetry_repo: TelemetryRepository) -> None:
+    """Moving a config block doesn't change the identity, so history stays with the instance."""
     first = await telemetry_repo.register_listener(make_listener_registration(instance_name="upstairs"))
-    second = await telemetry_repo.register_listener(
-        make_listener_registration(instance_name="upstairs", instance_index=3)
-    )
+    second = await telemetry_repo.register_listener(make_listener_registration(instance_name="upstairs"))
 
     assert second == first
-    assert await fetch_listener_field(telemetry_db, first, "instance_index") == 3
 
 
-async def test_job_reorder_keeps_the_row_and_refreshes_its_index(
-    telemetry_repo: TelemetryRepository, telemetry_db: aiosqlite.Connection
-) -> None:
+async def test_job_reorder_keeps_the_row(telemetry_repo: TelemetryRepository) -> None:
     first = await telemetry_repo.register_job(make_job_registration(instance_name="upstairs"))
-    second = await telemetry_repo.register_job(make_job_registration(instance_name="upstairs", instance_index=3))
+    second = await telemetry_repo.register_job(make_job_registration(instance_name="upstairs"))
 
     assert second == first
-    assert await fetch_job_field(telemetry_db, first, "instance_index") == 3
 
 
-async def test_two_instances_at_one_index_do_not_share_a_row(telemetry_repo: TelemetryRepository) -> None:
-    """The index no longer identifies anything: a swap mid-reload briefly holds both names at one index."""
+async def test_two_instance_names_do_not_share_a_row(telemetry_repo: TelemetryRepository) -> None:
+    """The name is the identity: otherwise identical registrations under two names are two rows."""
     upstairs = await telemetry_repo.register_listener(make_listener_registration(instance_name="upstairs"))
     downstairs = await telemetry_repo.register_listener(make_listener_registration(instance_name="downstairs"))
 
@@ -113,14 +105,12 @@ async def test_reconcile_scoped_to_a_name_leaves_sibling_rows_alone(
     telemetry_repo: TelemetryRepository, telemetry_db: aiosqlite.Connection
 ) -> None:
     """Restarting one instance must not retire or delete another's rows, wherever either sits in config."""
-    stale = await telemetry_repo.register_listener(
-        make_listener_registration(instance_name="upstairs", instance_index=1, name="stale")
-    )
+    stale = await telemetry_repo.register_listener(make_listener_registration(instance_name="upstairs", name="stale"))
     sibling = await telemetry_repo.register_listener(
-        make_listener_registration(instance_name="downstairs", instance_index=1, name="stale")
+        make_listener_registration(instance_name="downstairs", name="stale")
     )
-    stale_job = await telemetry_repo.register_job(make_job_registration(instance_name="upstairs", instance_index=1))
-    sibling_job = await telemetry_repo.register_job(make_job_registration(instance_name="downstairs", instance_index=1))
+    stale_job = await telemetry_repo.register_job(make_job_registration(instance_name="upstairs"))
+    sibling_job = await telemetry_repo.register_job(make_job_registration(instance_name="downstairs"))
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_name="upstairs")
 

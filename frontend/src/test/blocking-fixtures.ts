@@ -34,9 +34,15 @@ export function createBlockingFinding(overrides: Partial<BlockingFinding> = {}):
     }),
     primitive: null,
     handlers: [
-      { kind: "job", id: 7, name: "scan_and_schedule", handler_method: "scan_and_schedule", instance_index: 0 },
+      {
+        kind: "job",
+        id: 7,
+        name: "scan_and_schedule",
+        handler_method: "scan_and_schedule",
+        instance_name: "carclimate_0",
+      },
     ],
-    instances: [{ index: 0, name: "CarClimate.0" }],
+    instances: [{ name: "carclimate_0" }],
     event_count: 9,
     max_stall_ms: 534,
     avg_stall_ms: 300,

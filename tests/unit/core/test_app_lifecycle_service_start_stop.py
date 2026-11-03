@@ -232,7 +232,6 @@ class TestStartApp:
         mock_registry.get_running_apps = Mock(return_value={})
         pruned_info = make_app_instance_info(
             app_key="test_app",
-            index=2,
             instance_name="stale_instance",
             class_name="TestApp",
             status=ResourceStatus.FAILED,
@@ -248,7 +247,6 @@ class TestStartApp:
         assert len(stopped_payloads) == 1
         payload = stopped_payloads[0]
         assert payload.app_key == "test_app"
-        assert payload.index == 2
         assert payload.previous_status == ResourceStatus.FAILED
         assert payload.exception is None  # STOPPED events don't carry the prior failure's exception info
 
@@ -273,7 +271,6 @@ class TestStartApp:
         mock_registry.get_running_apps = Mock(return_value={})
         failure_info = make_app_instance_info(
             app_key="test_app",
-            index=0,
             instance_name="test_app.0",
             class_name="TestApp",
             status=ResourceStatus.FAILED,
@@ -289,7 +286,6 @@ class TestStartApp:
         assert len(failed_payloads) == 1
         payload = failed_payloads[0]
         assert payload.app_key == "test_app"
-        assert payload.index == 0
         assert payload.instance_name == "test_app.0"
         assert payload.exception == "bad config"
 
@@ -471,7 +467,9 @@ class TestStopApp:
 
         await real_registry_service.stop_app("mixed_app")
 
-        stopped_payloads = [p for p in app_state_payloads(event_capture, ResourceStatus.STOPPED) if p.index == 1]
+        stopped_payloads = [
+            p for p in app_state_payloads(event_capture, ResourceStatus.STOPPED) if p.instance_name == "mixed_app.1"
+        ]
         assert len(stopped_payloads) == 1
         assert stopped_payloads[0].app_key == "mixed_app"
         assert stopped_payloads[0].previous_status == ResourceStatus.FAILED
@@ -493,7 +491,7 @@ class TestStopApp:
 
         assert app_state_payloads(event_capture, ResourceStatus.STOPPED) == []
         failed = app_state_payloads(event_capture, ResourceStatus.FAILED)
-        assert [p.index for p in failed] == [0]
+        assert [p.instance_name for p in failed] == ["test_app.0"]
         info = registry.resolve_instance_info("test_app", "test_app.0")
         assert info is not None
         assert info.status == ResourceStatus.FAILED
@@ -535,7 +533,6 @@ class TestShutdownInstanceLogContext:
         """Log records emitted while an instance shuts down carry its real app_key, not None."""
         inst = make_mock_app_instance(instance_name="inst_0")
         inst.app_key = "my_app"
-        inst.index = 0
         bound: dict[str, object] = {}
 
         async def capture_context() -> ShutdownOutcome:
@@ -548,5 +545,4 @@ class TestShutdownInstanceLogContext:
 
         assert bound["app_key"] == "my_app"
         assert bound["instance_name"] == "inst_0"
-        assert bound["instance_index"] == 0
         assert "app_key" not in structlog.contextvars.get_contextvars()

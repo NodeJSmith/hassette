@@ -157,11 +157,8 @@ class TestRefusalReason:
         assert refusal == f"needs a hassette restart (flagged at {record.info.flagged_at}: task t1 still pending)"
 
 
-class TestInstanceName:
+class TestDisplayNames:
     def test_a_flagged_untracked_name_outside_the_config_keeps_its_name(self, registry: AppRegistry) -> None:
         flag(registry, name="gone")
 
-        assert registry.instance_name("my_app", 1) == "gone"
-
-    def test_an_index_nothing_tracks_has_its_configured_label(self, registry: AppRegistry) -> None:
-        assert registry.instance_name("my_app", 3) == "MyApp.3"
+        assert "gone" in registry.display_names("my_app")

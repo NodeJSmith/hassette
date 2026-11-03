@@ -41,7 +41,7 @@ function renderOverviewTab({
   jobs = [createJob()],
   appKey = TEST_APP_KEY,
   instanceQs = "",
-  resolvedInstanceIndex = 0,
+  instanceName = undefined as string | undefined,
 } = {}) {
   return renderWithAppState(
     <OverviewTab
@@ -49,7 +49,7 @@ function renderOverviewTab({
       jobs={jobs}
       appKey={appKey}
       instanceQs={instanceQs}
-      resolvedInstanceIndex={resolvedInstanceIndex}
+      instanceName={instanceName}
     />,
     { storeOverrides: { uptimeSeconds: 120 } },
   );

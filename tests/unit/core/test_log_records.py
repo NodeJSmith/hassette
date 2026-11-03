@@ -109,7 +109,6 @@ class TestMigration001LogRecords:
             "exc_info",
             "app_key",
             "instance_name",
-            "instance_index",
             "execution_id",
             "author",
         }
@@ -229,7 +228,6 @@ def _make_rollback_test_record(now: float) -> dict:
         message="hello",
         app_key="my_app",
         instance_name="my_app_0",
-        instance_index=0,
         execution_id="exec-001",
     )
 
@@ -248,7 +246,6 @@ class TestInsertLogRecords:
                 message="hello",
                 app_key="my_app",
                 instance_name="my_app_0",
-                instance_index=0,
                 execution_id="exec-001",
             ),
             make_log_record_dict(
@@ -261,7 +258,6 @@ class TestInsertLogRecords:
                 message="warn msg",
                 app_key="my_app",
                 instance_name="my_app_0",
-                instance_index=0,
                 execution_id="exec-001",
             ),
         ]
@@ -297,7 +293,6 @@ class TestInsertLogRecords:
                 exc_info=exc_text,
                 app_key="test_app",
                 instance_name="test_app_0",
-                instance_index=0,
                 execution_id="exec-xyz",
             )
         ]
@@ -315,7 +310,6 @@ class TestInsertLogRecords:
         assert row["exc_info"] == exc_text
         assert row["app_key"] == "test_app"
         assert row["instance_name"] == "test_app_0"
-        assert row["instance_index"] == 0
         assert row["execution_id"] == "exec-xyz"
         assert row["author"] == "app"
 
@@ -405,7 +399,6 @@ async def seed_log_records(db_service: DatabaseService) -> None:
             message="debug msg",
             app_key="app_a",
             instance_name="app_a_0",
-            instance_index=0,
             execution_id="exec-1",
         ),
         make_log_record_dict(
@@ -417,7 +410,6 @@ async def seed_log_records(db_service: DatabaseService) -> None:
             message="info msg",
             app_key="app_a",
             instance_name="app_a_0",
-            instance_index=0,
             execution_id="exec-1",
         ),
         make_log_record_dict(
@@ -430,7 +422,6 @@ async def seed_log_records(db_service: DatabaseService) -> None:
             message="error msg",
             app_key="app_b",
             instance_name="app_b_0",
-            instance_index=0,
             execution_id="exec-2",
         ),
         make_log_record_dict(
@@ -471,7 +462,6 @@ class TestGetLogRecords:
                 message=message,
                 app_key="app_a",
                 instance_name="app_a_0",
-                instance_index=0,
                 execution_id="exec-1",
             )
 
@@ -553,7 +543,6 @@ class TestGetLogRecordsByExecution:
                 message=f"msg {i}",
                 app_key="app_x",
                 instance_name="x_0",
-                instance_index=0,
                 execution_id="exec-exec",
             )
             for i in range(1, 6)  # 5 records
@@ -570,7 +559,6 @@ class TestGetLogRecordsByExecution:
                 message="other exec",
                 app_key="app_y",
                 instance_name="y_0",
-                instance_index=0,
                 execution_id="exec-other",
             )
         )
@@ -697,7 +685,6 @@ class TestLogRecordModel:
         assert record.author == "framework"
         assert record.exc_info is None
         assert record.instance_name is None
-        assert record.instance_index is None
 
     def test_log_record_accepts_full_fields(self) -> None:
         """LogRecord model accepts all optional fields."""
@@ -714,7 +701,6 @@ class TestLogRecordModel:
             exc_info="Traceback...",
             app_key="my_app",
             instance_name="my_app_0",
-            instance_index=0,
             execution_id="exec-abc",
             author="app",
         )

@@ -23,7 +23,7 @@ from hassette_wire import (
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, AppRemovedError
-from hassette.schemas.app_config_shape import normalize_app_config
+from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.schemas.app_outcomes import InstanceOutcome as CoreInstanceOutcome
 from hassette.schemas.app_outcomes import OutcomeResult
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_app_statuses
@@ -61,13 +61,13 @@ APP_KEY_CODES = (ProblemCode.INVALID_APP_KEY,)
 KNOWN_APP_CODES = (ProblemCode.APP_NOT_FOUND,)
 """Codes ``_require_known_app`` raises."""
 
-INSTANCE_INDEX_CODES = (
+INSTANCE_ROUTE_CODES = (
     *APP_KEY_CODES,
     *KNOWN_APP_CODES,
     ProblemCode.ACTION_IN_PROGRESS,
     ProblemCode.INSTANCE_NOT_FOUND,
 )
-"""Codes ``_require_valid_instance_index`` raises."""
+"""Codes ``_require_addressable_instance`` raises."""
 
 STOP_ACTION_CODES = (
     *APP_KEY_CODES,
@@ -132,8 +132,8 @@ def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction
     return action == "stop" and bool(hassette.app_handler.registry.get_instances(app_key))
 
 
-def _orphan_instance_permitted(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> bool:
-    """Whether ``index`` is a still-tracked instance outside the app's current config.
+def _orphan_instance_permitted(app_key: str, instance_name: str, hassette: HassetteDep, action: AppAction) -> bool:
+    """Whether ``instance_name`` is a still-tracked instance outside the app's current config.
 
     When an instance leaves the config while it is still running, it is orphaned —
     ``AppRegistry.prune_stale_failed`` only prunes stale *failed* entries, never running ones, and
@@ -143,8 +143,7 @@ def _orphan_instance_permitted(app_key: str, index: int, hassette: HassetteDep, 
     ``start_instance``/``reload_instance`` report an unconfigured name as a failed outcome, so
     admitting them here would turn a clear 404 into a 500.
     """
-    registry = hassette.app_handler.registry
-    return action == "stop" and registry.instance_name(app_key, index) in registry.get_instances(app_key)
+    return action == "stop" and instance_name in hassette.app_handler.registry.get_instances(app_key)
 
 
 def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -> None:
@@ -164,38 +163,29 @@ def _require_manifest(app_key: str, hassette: HassetteDep) -> AppManifest:
     return manifest
 
 
-def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> str:
-    """Validate that ``app_key`` is known and ``index`` is addressable for ``action``, and return its name.
+def _require_addressable_instance(app_key: str, instance_name: str, hassette: HassetteDep, action: AppAction) -> None:
+    """Validate that ``app_key`` is known and ``instance_name`` is addressable for ``action``.
 
-    The one place an instance route turns its index into the name the lifecycle takes, until routes address
-    instances by name (#3100).
-
-    Runs before ``_run_app_action`` so an out-of-range index returns a fast 404 without
-    waiting for lock acquisition. ``AppLifecycleService`` re-validates the name itself after
-    acquiring the per-app-key lock (see ``_instance_in_config``) — this route-level check
-    is a fast path, not a substitute for that authoritative re-check under concurrent config
-    changes. Uses the shared ``normalize_app_config()`` (``hassette.schemas``) rather than a
-    web-local reimplementation, so this count can never drift from ``AppFactory``'s.
+    Runs before ``_run_app_action`` so an unknown name returns a fast 404 without waiting for lock
+    acquisition. ``AppLifecycleService`` re-validates the name itself after acquiring the per-app-key
+    lock (see ``_instance_in_config``) — this route-level check is a fast path, not a substitute for
+    that authoritative re-check under concurrent config changes.
 
     Rejects with ``action_in_progress`` before any of that, for the reason
     ``_require_no_action_in_progress`` gives.
 
-    Skips range validation for an orphaned app that ``action`` still permits (see
-    ``_orphan_app_permitted``'s docstring for the ``stop``-only rationale), and for a
-    still-tracked instance whose config block was removed (see ``_orphan_instance_permitted``).
+    A name outside the config is admitted only for ``stop``, on an orphaned app that ``action`` still
+    permits (see ``_orphan_app_permitted``'s docstring for the rationale) or a still-tracked instance
+    whose config block was removed (see ``_orphan_instance_permitted``).
     """
     _validate_app_key(app_key)
     _require_no_action_in_progress(app_key, hassette)
-    registry = hassette.app_handler.registry
-    manifest = registry.get_manifest(app_key)
-    if manifest is None:
-        if _orphan_app_permitted(app_key, hassette, action):
-            return registry.instance_name(app_key, index)
+    manifest = hassette.app_handler.registry.get_manifest(app_key)
+    if manifest is None and not _orphan_app_permitted(app_key, hassette, action):
         raise app_not_found(app_key)
-    valid_index_count = len(normalize_app_config(manifest.app_config))
-    if (index < 0 or index >= valid_index_count) and not _orphan_instance_permitted(app_key, index, hassette, action):
-        raise WebApiError(ProblemCode.INSTANCE_NOT_FOUND, f"Instance {index} not found for app {app_key!r}")
-    return registry.instance_name(app_key, index)
+    configured = manifest is not None and instance_name in configured_instance_names(manifest.app_config)
+    if not configured and not _orphan_instance_permitted(app_key, instance_name, hassette, action):
+        raise WebApiError(ProblemCode.INSTANCE_NOT_FOUND, f"Instance {instance_name!r} not found for app {app_key!r}")
 
 
 async def _run_app_action(
@@ -204,7 +194,7 @@ async def _run_app_action(
     hassette: HassetteDep,
     request: Request,
     operation: Callable[[], Awaitable[Sequence[CoreInstanceOutcome]]],
-    instance_index: int | None = None,
+    instance_name: str | None = None,
 ) -> ActionResponse:
     """Run one app lifecycle action behind the shared validation, error mapping, and logging.
 
@@ -232,8 +222,8 @@ async def _run_app_action(
     ``_admit_start()`` is awaited but only does a synchronous release check, and an uncontended
     lock is acquired without yielding. ``AppLifecycleService``'s tests pin this.
 
-    ``instance_index`` is echoed back on the response as-is (already validated by
-    ``_require_valid_instance_index`` before this function is called) so a caller can confirm
+    ``instance_name`` is echoed back on the response as-is (already validated by
+    ``_require_addressable_instance`` before this function is called) so a caller can confirm
     the server acted on the instance it intended.
     """
     _validate_app_key(app_key)
@@ -244,7 +234,7 @@ async def _run_app_action(
     if (code := _problem_code_for(outcomes)) is not None:
         raise WebApiError(code, action_detail(action, app_key, outcomes), outcomes=wire_outcomes)
     LOGGER.info("%s app %s (source=%s)", ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
-    return ActionResponse(app_key=app_key, action=action, instance_index=instance_index, outcomes=wire_outcomes)
+    return ActionResponse(app_key=app_key, action=action, instance_name=instance_name, outcomes=wire_outcomes)
 
 
 async def _await_operation(
@@ -430,38 +420,38 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
     )
 
 
-@action_route("/apps/{app_key}/instances/{index}/start", *INSTANCE_INDEX_CODES, *ACTION_CODES)
-async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Start one instance of the app by index, and report what the start did to it."""
-    instance_name = _require_valid_instance_index(app_key, index, hassette, "start")
+@action_route("/apps/{app_key}/instances/{instance_name}/start", *INSTANCE_ROUTE_CODES, *ACTION_CODES)
+async def start_instance(app_key: str, instance_name: str, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Start one instance of the app by name, and report what the start did to it."""
+    _require_addressable_instance(app_key, instance_name, hassette, "start")
     return await _run_app_action(
         "start",
         app_key,
         hassette,
         request,
         lambda: hassette.app_handler.start_instance(app_key, instance_name),
-        instance_index=index,
+        instance_name=instance_name,
     )
 
 
-@action_route("/apps/{app_key}/instances/{index}/stop", *INSTANCE_INDEX_CODES, *STOP_ACTION_CODES)
-async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Stop one instance of the app by index, and report what the stop did to it."""
-    instance_name = _require_valid_instance_index(app_key, index, hassette, "stop")
+@action_route("/apps/{app_key}/instances/{instance_name}/stop", *INSTANCE_ROUTE_CODES, *STOP_ACTION_CODES)
+async def stop_instance(app_key: str, instance_name: str, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Stop one instance of the app by name, and report what the stop did to it."""
+    _require_addressable_instance(app_key, instance_name, hassette, "stop")
     return await _run_app_action(
         "stop",
         app_key,
         hassette,
         request,
         lambda: hassette.app_handler.stop_instance(app_key, instance_name),
-        instance_index=index,
+        instance_name=instance_name,
     )
 
 
-@action_route("/apps/{app_key}/instances/{index}/reload", *INSTANCE_INDEX_CODES, *ACTION_CODES)
-async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
-    """Re-import the app from disk, restart one instance by index, and report what the reload did to it."""
-    instance_name = _require_valid_instance_index(app_key, index, hassette, "reload")
+@action_route("/apps/{app_key}/instances/{instance_name}/reload", *INSTANCE_ROUTE_CODES, *ACTION_CODES)
+async def reload_instance(app_key: str, instance_name: str, hassette: HassetteDep, request: Request) -> ActionResponse:
+    """Re-import the app from disk, restart one instance by name, and report what the reload did to it."""
+    _require_addressable_instance(app_key, instance_name, hassette, "reload")
     # Always re-import from disk, matching the full app-key reload endpoint's force_reload=True
     # convention (#1005) at instance granularity.
     return await _run_app_action(
@@ -470,7 +460,7 @@ async def reload_instance(app_key: str, index: int, hassette: HassetteDep, reque
         hassette,
         request,
         lambda: hassette.app_handler.reload_instance(app_key, instance_name, force_reload=True),
-        instance_index=index,
+        instance_name=instance_name,
     )
 
 

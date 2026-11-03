@@ -76,13 +76,13 @@ class TelemetryRepository:
         cursor = await db.execute(
             """
             INSERT INTO listeners (
-                app_key, instance_index, instance_name, handler_method, topic,
+                app_key, instance_name, handler_method, topic,
                 debounce, throttle, once, priority,
                 predicate_description, human_description,
                 source_location, registration_source, name, source_tier,
                 immediate, duration, entity_id, mode, backpressure
             ) VALUES (
-                :app_key, :instance_index, :instance_name, :handler_method, :topic,
+                :app_key, :instance_name, :handler_method, :topic,
                 :debounce, :throttle, :once, :priority,
                 :predicate_description, :human_description,
                 :source_location, :registration_source, :name, :source_tier,
@@ -90,7 +90,6 @@ class TelemetryRepository:
             )
             ON CONFLICT(app_key, instance_name, name, topic)
             DO UPDATE SET
-                instance_index = excluded.instance_index,
                 debounce = excluded.debounce,
                 throttle = excluded.throttle,
                 priority = excluded.priority,
@@ -140,7 +139,7 @@ class TelemetryRepository:
         cursor = await db.execute(
             """
             INSERT INTO scheduled_jobs (
-                app_key, instance_index, instance_name, job_name, handler_method,
+                app_key, instance_name, job_name, handler_method,
                 trigger_type,
                 trigger_label, trigger_detail,
                 repeat,
@@ -151,7 +150,7 @@ class TelemetryRepository:
                 schedule_status, schedule_status_reason,
                 next_run, fire_at, jitter
             ) VALUES (
-                :app_key, :instance_index, :instance_name, :job_name, :handler_method,
+                :app_key, :instance_name, :job_name, :handler_method,
                 :trigger_type,
                 :trigger_label, :trigger_detail,
                 :repeat,
@@ -164,7 +163,6 @@ class TelemetryRepository:
             )
             ON CONFLICT(app_key, instance_name, job_name)
             DO UPDATE SET
-                instance_index = excluded.instance_index,
                 handler_method = excluded.handler_method,
                 trigger_type = excluded.trigger_type,
                 trigger_label = excluded.trigger_label,
@@ -462,11 +460,11 @@ class TelemetryRepository:
             await db.execute(
                 """
                 INSERT INTO blocking_events (
-                    session_id, app_key, instance_name, instance_index,
+                    session_id, app_key, instance_name,
                     execution_id, tier, primitive, source_location,
                     stall_duration_ms, detected_ts, source_tier, reason, frames
                 ) VALUES (
-                    :session_id, :app_key, :instance_name, :instance_index,
+                    :session_id, :app_key, :instance_name,
                     :execution_id, :tier, :primitive, :source_location,
                     :stall_duration_ms, :detected_ts, :source_tier, :reason, :frames
                 )
@@ -475,7 +473,6 @@ class TelemetryRepository:
                     "session_id": event.session_id,
                     "app_key": event.app_key,
                     "instance_name": event.instance_name,
-                    "instance_index": event.instance_index,
                     "execution_id": event.execution_id,
                     "tier": event.tier,
                     "primitive": event.primitive,

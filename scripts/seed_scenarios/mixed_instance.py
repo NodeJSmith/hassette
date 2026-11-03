@@ -25,7 +25,7 @@ def scenario_mixed_instance(ctx: SeedContext) -> None:
     """One multi-instance app, ``split_brain``: instance 0 runs cleanly (successful
     executions, INFO logs) while instance 1 has failed (only error executions, ERROR logs).
 
-    Instance attribution lives on the listener/job rows (``instance_index``); executions
+    Instance attribution lives on the listener/job rows (``instance_name``); executions
     inherit it through their ``listener_id``/``job_id``. Both instances share one running
     session, since a session is the whole hassette process, not a single app instance.
     """
@@ -85,7 +85,7 @@ def scenario_mixed_instance(ctx: SeedContext) -> None:
     listener_id_1 = seed_listener(
         ctx,
         app_key=app_key,
-        instance_index=1,
+        instance_ordinal=1,
         handler_method=f"{class_name}.on_state_change",
         topic=STATE_CHANGED_TOPIC,
         name=f"{app_key}_state_listener",
@@ -94,7 +94,7 @@ def scenario_mixed_instance(ctx: SeedContext) -> None:
     job_id_1 = seed_job(
         ctx,
         app_key=app_key,
-        instance_index=1,
+        instance_ordinal=1,
         job_name=f"{app_key}_sync",
         handler_method=f"{class_name}.sync",
         trigger_type="interval",
@@ -134,7 +134,7 @@ def scenario_mixed_instance(ctx: SeedContext) -> None:
         count=3,
         app_key=app_key,
         class_name=class_name,
-        instance_index=1,
+        instance_ordinal=1,
         base_offset=FAILED_INSTANCE_OFFSET_SECONDS,
         level="ERROR",
         message_prefix=f"{class_name} instance 1 failed",

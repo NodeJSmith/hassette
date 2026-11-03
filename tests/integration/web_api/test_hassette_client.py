@@ -111,7 +111,7 @@ async def test_action_round_trips(session: aiohttp.ClientSession, server_url: st
 
     assert response.app_key == "my_app"
     assert response.action == "start"
-    assert response.instance_index is None
+    assert response.instance_name is None
 
 
 async def test_unknown_app_raises_app_not_found(session: aiohttp.ClientSession, server_url, mock_hassette) -> None:

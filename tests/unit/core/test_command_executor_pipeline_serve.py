@@ -187,7 +187,6 @@ def test_record_blocking_event_swallows_uninitialized_db() -> None:
         frames=(),
         app_key="test_app",
         instance_name="default",
-        instance_index=0,
         execution_id="01abc",
         tier="monkeypatch",
         detected_at=time.time(),

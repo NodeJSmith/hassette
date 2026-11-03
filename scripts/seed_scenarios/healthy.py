@@ -66,7 +66,6 @@ def scenario_healthy(ctx: SeedContext) -> None:
         session_id=None,
         app_key=None,
         instance_name=None,
-        instance_index=None,
         detected_ts=ts(60.0),
         source_tier="framework",
         stall_duration_ms=120.0,

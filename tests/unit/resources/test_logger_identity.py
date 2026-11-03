@@ -43,7 +43,6 @@ def framework_loggers(app: App) -> list[logging.Logger]:
 def build_identity_app(
     instance_name: str,
     *,
-    index: int = 0,
     app_key: str = "identity_app",
     log_level: LogLevel | None = None,
     framework_log_level: LogLevel | None = None,
@@ -53,7 +52,7 @@ def build_identity_app(
     for field in FRAMEWORK_CHILD_LEVEL_FIELDS:
         setattr(hassette.config.logging, field, "ERROR")
     config = AppConfig(instance_name=instance_name, log_level=log_level, framework_log_level=framework_log_level)
-    return App(hassette, app_config=config, index=index, app_key=app_key)
+    return App(hassette, app_config=config, app_key=app_key)
 
 
 @pytest.fixture
@@ -69,17 +68,15 @@ def buffered_records() -> Iterator[tuple[BufferingHandler, list[logging.Logger]]
 
 class TestAppLoggerIdentity:
     def test_app_logger_is_app_authored_and_owned_by_the_instance(self) -> None:
-        app = build_identity_app("identity_own", index=2)
+        app = build_identity_app("identity_own")
 
         assert get_logger_identity(app.logger) == LogIdentity(
-            author="app", app_key="identity_app", instance_name="identity_own", instance_index=2
+            author="app", app_key="identity_app", instance_name="identity_own"
         )
 
     def test_app_children_are_framework_authored_and_owned_by_the_app(self) -> None:
-        app = build_identity_app("identity_children", index=1)
-        owner = LogIdentity(
-            author="framework", app_key="identity_app", instance_name="identity_children", instance_index=1
-        )
+        app = build_identity_app("identity_children")
+        owner = LogIdentity(author="framework", app_key="identity_app", instance_name="identity_children")
 
         for child in (app.bus, app.scheduler, app.api, app.states):
             assert get_logger_identity(child.logger) == owner, child.class_name
@@ -119,7 +116,7 @@ class TestFrameworkLogLevel:
 
     def test_framework_log_level_is_scoped_to_its_own_app(self) -> None:
         raised = build_identity_app("fw_raised", framework_log_level="DEBUG")
-        sibling = App(raised.hassette, app_config=AppConfig(instance_name="fw_sibling"), index=0, app_key="other")
+        sibling = App(raised.hassette, app_config=AppConfig(instance_name="fw_sibling"), app_key="other")
 
         assert raised.bus.logger.level == logging.DEBUG
         assert sibling.bus.logger.level == logging.ERROR
@@ -128,11 +125,11 @@ class TestFrameworkLogLevel:
 
 class TestAppLifecycleLogger:
     def test_lifecycle_logger_is_framework_authored_and_owned_by_the_app(self) -> None:
-        app = build_identity_app("identity_lifecycle", index=4)
+        app = build_identity_app("identity_lifecycle")
 
         assert app.lifecycle_logger.name == f"{app.logger.name}.Lifecycle"
         assert get_logger_identity(app.lifecycle_logger) == LogIdentity(
-            author="framework", app_key="identity_app", instance_name="identity_lifecycle", instance_index=4
+            author="framework", app_key="identity_app", instance_name="identity_lifecycle"
         )
 
     def test_lifecycle_logger_level_follows_app_handler_not_app_log_level(self) -> None:
@@ -150,7 +147,7 @@ class TestAppLifecycleLogger:
         self, buffered_records: tuple[BufferingHandler, list[logging.Logger]]
     ) -> None:
         handler, attached = buffered_records
-        app = build_identity_app("identity_ready", index=3)
+        app = build_identity_app("identity_ready")
         app.lifecycle_logger.setLevel(logging.DEBUG)
         # On the app's logger, the handler sees both its direct lines and the lifecycle logger's propagated ones.
         app.logger.addHandler(handler)
@@ -164,7 +161,6 @@ class TestAppLifecycleLogger:
         assert record.author == "framework"  # pyright: ignore[reportAttributeAccessIssue]
         assert record.app_key == "identity_app"  # pyright: ignore[reportAttributeAccessIssue]
         assert record.instance_name == "identity_ready"  # pyright: ignore[reportAttributeAccessIssue]
-        assert record.instance_index == 3  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class TestFrameworkResourceIdentity:
@@ -178,14 +174,13 @@ class TestFrameworkResourceIdentity:
 
     def test_rebuilding_on_a_shared_logger_replaces_identity_without_adding_filters(self) -> None:
         """Hot reload rebuilds an app under the same logger name; the newest instance's identity wins."""
-        first = build_identity_app("identity_reload", index=0, app_key="old_key")
+        first = build_identity_app("identity_reload", app_key="old_key")
         filters_before = list(first.logger.filters)
 
-        second = build_identity_app("identity_reload", index=5, app_key="new_key")
+        second = build_identity_app("identity_reload", app_key="new_key")
 
         assert second.logger is first.logger
         assert second.logger.filters == filters_before
         identity = get_logger_identity(second.logger)
         assert identity is not None
         assert identity.app_key == "new_key"
-        assert identity.instance_index == 5

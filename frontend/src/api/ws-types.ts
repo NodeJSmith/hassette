@@ -35,10 +35,9 @@ export interface AppStatusChangedWsMessage {
  */
 export interface AppStatusChangedData {
   app_key: string;
-  index: number;
+  instance_name: string;
   status: ResourceStatus;
   previous_status?: ResourceStatus | null;
-  instance_name?: string | null;
   class_name?: string | null;
   exception?: string | null;
   exception_type?: string | null;
@@ -163,7 +162,6 @@ export interface ExecutionCompletedWsMessage {
 export interface ExecutionCompletedData {
   kind: "handler" | "job";
   app_key: string;
-  instance_index: number;
   status: ExecutionStatus;
   duration_ms: number;
   error_type?: string | null;

@@ -146,7 +146,7 @@ Reset functions are defined in `src/hassette/testing/_reset.py`.
 
 The `make_`/`create_`/`build_` prefix signals what a factory returns, not just that it builds something:
 
-- **`make_<real object>()`** — returns a real, fully-constructed instance of the production type. `make_scheduled_job()` returns a real `ScheduledJob` for unit/scheduler tests that exercise `ScheduledJob` behavior directly (`__post_init__`, `matches()`, `sort_index`). `make_real_job()` (`web_job_helpers.py`) also returns a real `ScheduledJob`, but with web-layer defaults (`app_key`, `instance_index`) for tests that exercise web-layer behavior against a real job.
+- **`make_<real object>()`** — returns a real, fully-constructed instance of the production type. `make_scheduled_job()` returns a real `ScheduledJob` for unit/scheduler tests that exercise `ScheduledJob` behavior directly (`__post_init__`, `matches()`, `sort_index`). `make_real_job()` (`web_job_helpers.py`) also returns a real `ScheduledJob`, but with web-layer defaults (`app_key`, `instance_name`) for tests that exercise web-layer behavior against a real job.
 - **`make_<name>()` returning `SimpleNamespace`** — a duck-typed stand-in, not a real instance. `make_job()` (`web_job_helpers.py`) returns a `SimpleNamespace` job for serialization tests that only need attribute access, not real `ScheduledJob` methods.
 - **`make_mock_*()`** — always returns a `Mock`/`MagicMock`/`AsyncMock`. `make_mock_executor()`, `make_mock_event()`, `make_mock_parent()` never construct the real production type.
 
@@ -195,11 +195,11 @@ Builds an `AppFullSnapshot` from a list of manifests with auto-computed status c
 
 ### `make_job(**kwargs)` — `tests/support/web_job_helpers.py`
 
-Builds a `SimpleNamespace` scheduler job with sensible defaults (name, owner_id, next_run, trigger, app_key, instance_index).
+Builds a `SimpleNamespace` scheduler job with sensible defaults (name, owner_id, next_run, trigger, app_key, instance_name).
 
 ### `make_real_job(**kwargs)` — `tests/support/web_job_helpers.py`
 
-Builds a real `ScheduledJob` with web-layer defaults (`app_key`, `instance_index`). Use for web-layer tests that exercise real `ScheduledJob` behavior; use `make_job()` instead for pure serialization tests.
+Builds a real `ScheduledJob` with web-layer defaults (`app_key`, `instance_name`). Use for web-layer tests that exercise real `ScheduledJob` behavior; use `make_job()` instead for pure serialization tests.
 
 ### `make_scheduled_job(**kwargs)` — `tests/support/factories.py`
 

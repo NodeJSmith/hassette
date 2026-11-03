@@ -130,7 +130,6 @@ def scenario_error(ctx: SeedContext) -> None:
             message=f"{class_name} session crashed",
             app_key=app_key,
             instance_name=make_instance_name(class_name, 0),
-            instance_index=0,
             author="app",
         )
         seq += 1

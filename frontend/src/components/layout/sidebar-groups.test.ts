@@ -13,7 +13,10 @@ describe("getGroupKey", () => {
     const manifest = createAppSummary({
       status: "degraded",
       instance_count: 2,
-      instances: [createInstance({ index: 0, status: "running" }), createInstance({ index: 1, status: "failed" })],
+      instances: [
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "failed" }),
+      ],
     });
     expect(getGroupKey(manifest, NO_LIVE_STATUSES)).toBe("warn");
   });
@@ -22,7 +25,10 @@ describe("getGroupKey", () => {
     const manifest = createAppSummary({
       status: "running",
       instance_count: 2,
-      instances: [createInstance({ index: 0, status: "running" }), createInstance({ index: 1, status: "starting" })],
+      instances: [
+        createInstance({ instance_name: "inst_0", status: "running" }),
+        createInstance({ instance_name: "inst_1", status: "starting" }),
+      ],
     });
     // "starting" is worse (lower priority number) than "running" in STATUS_PRIORITY, so the
     // group is derived from that reduced status rather than the cached manifest.status.
@@ -32,9 +38,14 @@ describe("getGroupKey", () => {
   it("derives the group from live WS status, not a stale cached manifest.status", () => {
     // Regression: manifest.status can lag a since-failed instance (see getGroupKey's doc comment).
     // FAILING group membership must catch this via the live appStatus store.
-    const manifest = createAppSummary({ app_key: "stale_running_app", status: "running", instance_count: 1 });
+    const manifest = createAppSummary({
+      app_key: "stale_running_app",
+      status: "running",
+      instance_count: 1,
+      instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
+    });
     const liveStatuses: LiveStatuses = {
-      "stale_running_app:0": { status: "failed", index: 0 },
+      "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("err");
   });
@@ -45,7 +56,7 @@ describe("getGroupKey", () => {
     // manifest-level config state must win over that stale per-instance status.
     const manifest = createAppSummary({ app_key: "disabled_app", status: "disabled", instance_count: 1 });
     const liveStatuses: LiveStatuses = {
-      "disabled_app:0": { status: "stopped", index: 0 },
+      "disabled_app:inst_0": { status: "stopped", instance_name: "inst_0" },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("disabled");
   });
@@ -53,7 +64,7 @@ describe("getGroupKey", () => {
   it("groups a blocked app under BLOCKED despite a leftover per-instance WS status", () => {
     const manifest = createAppSummary({ app_key: "blocked_app", status: "blocked", instance_count: 1 });
     const liveStatuses: LiveStatuses = {
-      "blocked_app:0": { status: "failed", index: 0 },
+      "blocked_app:inst_0": { status: "failed", instance_name: "inst_0" },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("blocked");
   });
@@ -64,13 +75,13 @@ describe("getGroupKey", () => {
       status: "degraded",
       instance_count: 2,
       instances: [
-        createInstance({ app_key: "recovered_app", index: 0, status: "running" }),
-        createInstance({ app_key: "recovered_app", index: 1, status: "failed" }),
+        createInstance({ app_key: "recovered_app", instance_name: "inst_0", status: "running" }),
+        createInstance({ app_key: "recovered_app", instance_name: "inst_1", status: "failed" }),
       ],
     });
     const liveStatuses: LiveStatuses = {
-      "recovered_app:0": { status: "running", index: 0 },
-      "recovered_app:1": { status: "running", index: 1 },
+      "recovered_app:inst_0": { status: "running", instance_name: "inst_0" },
+      "recovered_app:inst_1": { status: "running", instance_name: "inst_1" },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("ok");
   });
@@ -104,9 +115,14 @@ describe("findDuplicateDisplayNames", () => {
 
 describe("groupAndSortApps", () => {
   it("threads live statuses through to each manifest's group assignment", () => {
-    const manifest = createAppSummary({ app_key: "stale_running_app", status: "running", instance_count: 1 });
+    const manifest = createAppSummary({
+      app_key: "stale_running_app",
+      status: "running",
+      instance_count: 1,
+      instances: [createInstance({ app_key: "stale_running_app", instance_name: "inst_0", status: "running" })],
+    });
     const liveStatuses: LiveStatuses = {
-      "stale_running_app:0": { status: "failed", index: 0 },
+      "stale_running_app:inst_0": { status: "failed", instance_name: "inst_0" },
     };
     const { groups } = groupAndSortApps([manifest], liveStatuses);
     expect(groups.get("err")).toEqual([manifest]);

@@ -36,15 +36,15 @@ class TestCmdListener:
 
         assert any("/api/telemetry/app/my-app/listeners" in p for p in spy.paths)
 
-    def test_app_and_instance_passes_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
-        """Listener --app my-app --instance 0 passes instance_index=0 as a query param."""
-        listener = make_listener_summary(app_key="my-app", instance_index=0)
+    def test_app_and_instance_passes_instance_name(self, cli_client_factory: CLIClientFactory) -> None:
+        """Listener --app my-app --instance office passes instance_name=office as a query param."""
+        listener = make_listener_summary(app_key="my-app")
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
-        spy = runner.spy(client, cmd_listener, app="my-app", instance="0")
+        spy = runner.spy(client, cmd_listener, app="my-app", instance="office")
 
-        assert spy.params_for("listeners")["instance_index"] == 0
+        assert spy.params_for("listeners")["instance_name"] == "office"
 
     def test_instance_without_app_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener --instance 0 (without --app) exits non-zero with usage error."""

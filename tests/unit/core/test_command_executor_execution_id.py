@@ -299,7 +299,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
         _execution_id, token = executor.bind_execution_context(
             ExecutionContext(
                 app_key="my_app",
-                instance_index=0,
                 instance_name="my_instance",
             )
         )
@@ -308,12 +307,10 @@ class TestBindExecutionContextPrecomputedInstanceName:
             ctx = structlog.contextvars.get_contextvars()
             assert ctx["app_key"] == "my_app"
             assert ctx["instance_name"] == "my_instance"
-            assert ctx["instance_index"] == 0
             marker = executor.current_execution
             assert marker is not None
             assert marker.app_key == "my_app"
             assert marker.instance_name == "my_instance"
-            assert marker.instance_index == 0
             cast("MagicMock", executor.hassette).app_handler.get.assert_not_called()
         finally:
             executor.unbind_execution_context(token)
@@ -326,7 +323,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
         _execution_id, token = executor.bind_execution_context(
             ExecutionContext(
                 app_key="",
-                instance_index=0,
                 instance_name=None,
             )
         )
@@ -350,7 +346,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
         listener = make_mock_cmd_listener()
         listener.identity = MagicMock()
         listener.identity.app_key = "my_app"
-        listener.identity.instance_index = 0
         listener.identity.instance_name = "precomputed_instance"
 
         cmd = make_invoke_handler_cmd(listener=listener)
@@ -374,7 +369,6 @@ class TestBindExecutionContextPrecomputedInstanceName:
 
         cmd = make_execute_job_cmd()
         cmd.job.app_key = "my_app"
-        cmd.job.instance_index = 0
         cmd.job.instance_name = "precomputed_job_instance"
 
         original_bind = executor.bind_execution_context

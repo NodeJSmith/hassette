@@ -9,17 +9,16 @@ import { StatsStrip, type StatsStripCell } from "../shared/stats-strip";
 
 interface OverviewHealthStripProps {
   appKey: string;
-  resolvedInstanceIndex: number;
+  instanceName: string | undefined;
   /** Registered handlers and jobs. Health itself comes from the server and also counts runs of
    *  handlers and jobs removed since, so the two are not derived from the same rows. */
   handlerCount: number;
 }
 
-export function OverviewHealthStrip({ appKey, resolvedInstanceIndex, handlerCount }: OverviewHealthStripProps) {
+export function OverviewHealthStrip({ appKey, instanceName, handlerCount }: OverviewHealthStripProps) {
   const isSmallMobile = useMediaQuery(BREAKPOINT_SMALL_MOBILE);
-  const { data: health, isError } = useScopedQuery(
-    queryKeys.appHealth.base(appKey, resolvedInstanceIndex),
-    (since, signal) => getAppHealth(appKey, resolvedInstanceIndex, since, signal),
+  const { data: health, isError } = useScopedQuery(queryKeys.appHealth.base(appKey, instanceName), (since, signal) =>
+    getAppHealth(appKey, instanceName, since, signal),
   );
 
   const execution = useAppExecution(appKey);

@@ -58,7 +58,6 @@ def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
 def instance_outcome_from(outcome: CoreInstanceOutcome) -> InstanceOutcome:
     """Map one app action's per-instance outcome to its wire model."""
     return InstanceOutcome(
-        instance_index=outcome.instance_index,
         instance_name=outcome.instance_name,
         result=outcome.result.value,
         needs_restart=outcome.needs_restart,

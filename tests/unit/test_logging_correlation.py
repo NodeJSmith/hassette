@@ -122,7 +122,6 @@ class TestLogRecordEntryToDictIncludesSeq:
             author="app",
             execution_id="exec-1",
             instance_name="inst",
-            instance_index=2,
         )
         expected = {
             "seq": 3,
@@ -137,7 +136,6 @@ class TestLogRecordEntryToDictIncludesSeq:
             "app_key": "my_app",
             "execution_id": "exec-1",
             "instance_name": "inst",
-            "instance_index": 2,
         }
         d = entry.to_dict()
         assert d == expected
@@ -204,7 +202,7 @@ class TestAddExecutionIdProcessor:
 class TestLogRecordEntryCorrelationFields:
     """LogRecordEntry dataclass includes correlation fields."""
 
-    @pytest.mark.parametrize("field", ["execution_id", "instance_name", "instance_index"])
+    @pytest.mark.parametrize("field", ["execution_id", "instance_name"])
     def test_log_record_entry_correlation_field_defaults_to_none(self, field: str) -> None:
         # Constructs LogRecordEntry directly rather than via make_log_record_entry(): the subject here is the
         # dataclass's own default for each optional field, and the factory passes every optional
@@ -227,9 +225,8 @@ class TestLogRecordEntryCorrelationFields:
         assert d["execution_id"] == "exec-abc"
 
     def test_to_dict_includes_instance_name(self) -> None:
-        d = make_log_record_entry(instance_name="MyApp.0", instance_index=0).to_dict()
-        assert d["instance_name"] == "MyApp.0"
-        assert d["instance_index"] == 0
+        d = make_log_record_entry(instance_name="myapp_0").to_dict()
+        assert d["instance_name"] == "myapp_0"
 
 
 class TestSeqMovedToFilter:

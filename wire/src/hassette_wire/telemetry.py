@@ -132,7 +132,8 @@ class JobSummary(BaseModel):
 
     job_id: int
     app_key: str
-    instance_index: int
+    instance_name: str
+    """The instance that registered this job; framework rows hold ``__hassette__``."""
     job_name: str
     handler_method: str
     trigger_type: str | None
@@ -239,7 +240,8 @@ class ListenerSummary(BaseModel):
 
     listener_id: int
     app_key: str
-    instance_index: int = 0
+    instance_name: str
+    """The instance that registered this listener; framework rows hold ``__hassette__``."""
     topic: str
     listener_kind: OpenListenerKind = "event"
     handler_method: str

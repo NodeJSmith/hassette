@@ -236,7 +236,6 @@ class BusService(Service):
             human_description = summarize_top_level(listener.predicate)
         return ListenerRegistration(
             app_key=listener.identity.app_key,
-            instance_index=listener.identity.instance_index,
             instance_name=listener.identity.instance_name,
             handler_method=listener.identity.handler_name,
             topic=listener.topic,
@@ -589,7 +588,6 @@ class BusService(Service):
             error_message=str(exc),
             error_traceback=traceback_str,
             app_key=listener.identity.app_key,
-            instance_index=listener.identity.instance_index,
             source_tier=listener.identity.source_tier,
             execution_id=execution_id,
         )

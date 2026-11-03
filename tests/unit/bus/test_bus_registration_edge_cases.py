@@ -217,6 +217,6 @@ class TestStateChangeComparisonCondition:
         assert sub.listener.matches(decreased) is False
 
 
-def make_app_stub(*, app_key: str, index: int = 0, instance_name: str | None = None) -> "App[Any]":
+def make_app_stub(*, app_key: str, instance_name: str | None = None) -> "App[Any]":
     """Minimal stand-in for an App instance, exposing only what HassetteAppStateEvent.from_app reads."""
-    return cast("App[Any]", SimpleNamespace(app_key=app_key, index=index, instance_name=instance_name))
+    return cast("App[Any]", SimpleNamespace(app_key=app_key, instance_name=instance_name))

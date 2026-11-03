@@ -339,14 +339,14 @@ def test_invalid_handler_id_corrects_url(page: Page, base_url: str) -> None:
 
 
 def test_instance_query_param_loads_instance(page: Page, base_url: str) -> None:
-    """Navigating to /apps/multi_app?instance=1 loads instance 1."""
-    page.goto(base_url + "/apps/multi_app?instance=1")
+    """Navigating to /apps/multi_app?instance=multiapp_1 loads that instance."""
+    page.goto(base_url + "/apps/multi_app?instance=multiapp_1")
     page.wait_for_load_state("networkidle")
     # Instance switcher should be visible (we're in instance detail mode, not overview)
     switcher = page.locator("[data-testid='instance-switcher']")
     expect(switcher).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Instance 1 should be selected in the switcher
-    expect(switcher).to_contain_text("MultiApp[1]")
+    expect(switcher).to_contain_text("multiapp_1")
 
 
 def test_no_instance_param_shows_parent_overview(page: Page, base_url: str) -> None:
@@ -361,32 +361,23 @@ def test_no_instance_param_shows_parent_overview(page: Page, base_url: str) -> N
 
 def test_instance_param_persists_on_refresh(page: Page, base_url: str) -> None:
     """Instance selection via ?instance= persists on page refresh."""
-    page.goto(base_url + "/apps/multi_app?instance=1")
+    page.goto(base_url + "/apps/multi_app?instance=multiapp_1")
     page.wait_for_load_state("networkidle")
     expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Reload
     page.reload()
     page.wait_for_load_state("networkidle")
     # Should still be on instance 1
-    expect(page).to_have_url(re.compile(r"instance=1"))
+    expect(page).to_have_url(re.compile(r"instance=multiapp_1"))
     expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
-def test_out_of_range_instance_corrected_to_zero(page: Page, base_url: str) -> None:
-    """Navigating to ?instance=99 on an app with 3 instances corrects to ?instance=0."""
+def test_stale_instance_param_is_dropped(page: Page, base_url: str) -> None:
+    """A stale ?instance= (an old numeric bookmark here) lands on the parent page with no param."""
     page.goto(base_url + "/apps/multi_app?instance=99")
     page.wait_for_load_state("networkidle")
-    # Wait for URL correction
-    page.wait_for_timeout(1000)
-    current_url = page.url
-    # Should have corrected to instance=0, not instance=99
-    assert "instance=99" not in current_url, (
-        f"Expected out-of-range instance to be corrected, but URL is: {current_url}"
-    )
-    # Instance switcher should show instance 0
-    switcher = page.locator("[data-testid='instance-switcher']")
-    expect(switcher).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
-    expect(switcher).to_contain_text("MultiApp[0]")
+    expect(page).not_to_have_url(re.compile(r"instance="), timeout=DATA_LOAD_TIMEOUT_MS)
+    expect(page.locator("[data-testid='instance-card-multiapp_0']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_code_tab_with_line_param(page: Page, base_url: str) -> None:

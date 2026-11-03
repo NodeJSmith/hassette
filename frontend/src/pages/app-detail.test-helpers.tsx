@@ -19,8 +19,8 @@ export function setupMultiInstanceParent() {
   const manifest = createAppSummary({
     instance_count: 2,
     instances: [
-      createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
-      createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+      createInstance({ instance_name: "inst_0", status: "running" }),
+      createInstance({ instance_name: "inst_1", status: "stopped" }),
     ],
   });
   setupApi(manifest);

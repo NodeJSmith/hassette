@@ -184,7 +184,6 @@ class TestConsoleIdentityProcessor:
             "author": "app",
             "app_key": "garage",
             "instance_name": "garage_door",
-            "instance_index": 0,
             "listener_id": 7,
         }
         assert console_identity(None, "info", event) == {
@@ -212,9 +211,7 @@ class TestConsoleLineFormat:
     @pytest.fixture
     def app_logger(self) -> logging.Logger:
         logger = logging.getLogger("hassette.apps.example_app")
-        set_logger_identity(
-            logger, LogIdentity(author="app", app_key="example", instance_name="example_app", instance_index=0)
-        )
+        set_logger_identity(logger, LogIdentity(author="app", app_key="example", instance_name="example_app"))
         return logger
 
     def render(self, log_format: Literal["console", "compact"], emit: Callable[[], None]) -> str:

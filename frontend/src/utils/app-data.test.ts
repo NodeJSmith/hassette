@@ -7,7 +7,7 @@ import { appLiveStatus, appNeedsRestart, compareAppRows, hasFailedActivityPart, 
 
 const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
 
-/** A grid row for `appKey` whose cached instances have the given statuses, indexed from 0. */
+/** A grid row for `appKey` whose cached instances have the given statuses, named `inst_<position>`. */
 function instanceRow(appKey: string, status: AppStatus, instanceStatuses: ResourceStatus[]) {
   return toAppRow(
     createAppGridEntry({
@@ -15,7 +15,9 @@ function instanceRow(appKey: string, status: AppStatus, instanceStatuses: Resour
         app_key: appKey,
         status,
         instance_count: instanceStatuses.length,
-        instances: instanceStatuses.map((s, index) => createInstance({ app_key: appKey, index, status: s })),
+        instances: instanceStatuses.map((s, index) =>
+          createInstance({ app_key: appKey, instance_name: `inst_${index}`, status: s }),
+        ),
       },
     }),
   );
@@ -29,11 +31,11 @@ describe("appLiveStatus", () => {
 
   it("returns disabled as-is instead of letting a leftover per-instance WS status override it", () => {
     // Disabling an app tears down its instance, which emits a "stopped" WS event for that
-    // index. That event lingers in the live appStatus store after the manifest becomes
+    // instance. That event lingers in the live appStatus store after the manifest becomes
     // disabled — the config state must win, not the stale per-instance status.
     const row = toAppRow(createAppGridEntry({ app: { app_key: "disabled_app", status: "disabled", instances: [] } }));
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "disabled_app:0": { status: "stopped", index: 0 },
+      "disabled_app:inst_0": { status: "stopped", instance_name: "inst_0" },
     };
     expect(appLiveStatus(liveStatuses, row)).toBe("disabled");
   });
@@ -41,7 +43,7 @@ describe("appLiveStatus", () => {
   it("returns blocked as-is instead of letting a leftover per-instance WS status override it", () => {
     const row = toAppRow(createAppGridEntry({ app: { app_key: "blocked_app", status: "blocked", instances: [] } }));
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "blocked_app:0": { status: "failed", index: 0 },
+      "blocked_app:inst_0": { status: "failed", instance_name: "inst_0" },
     };
     expect(appLiveStatus(liveStatuses, row)).toBe("blocked");
   });
@@ -57,8 +59,8 @@ describe("appLiveStatus", () => {
     // "running" from the cache until an unrelated execution refetches it.
     const row = instanceRow("multi_app", "running", ["running", "running"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:0": { status: "running", index: 0 },
-      "multi_app:1": { status: "failed", index: 1 },
+      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
+      "multi_app:inst_1": { status: "failed", instance_name: "inst_1" },
     };
     expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
   });
@@ -66,34 +68,41 @@ describe("appLiveStatus", () => {
   it("clears a stale degraded row.status once live statuses show full recovery", () => {
     const row = instanceRow("multi_app", "degraded", ["running", "failed"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:0": { status: "running", index: 0 },
-      "multi_app:1": { status: "running", index: 1 },
+      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
+      "multi_app:inst_1": { status: "running", instance_name: "inst_1" },
     };
     expect(appLiveStatus(liveStatuses, row)).toBe("running");
   });
 
-  it("merges a live index absent from the cached instance snapshot", () => {
-    // A hot reload that expands a healthy single-instance app to two instances delivers a WS
-    // update for the new index before any execution event refetches the grid, so row.instances
-    // still only has index 0. The live index 1 must still be folded into the reduction.
-    const row = instanceRow("multi_app", "running", ["running"]);
+  it("ignores a store entry for a name the cached row does not list", () => {
+    // A removed instance's last status lingers in the store; only the refetched row decides membership.
+    const row = instanceRow("multi_app", "running", ["running", "running"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:0": { status: "running", index: 0 },
-      "multi_app:1": { status: "failed", index: 1 },
+      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
+      "multi_app:inst_1": { status: "running", instance_name: "inst_1" },
+      "multi_app:removed": { status: "failed", instance_name: "removed" },
     };
-    expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
+    expect(appLiveStatus(liveStatuses, row)).toBe("running");
   });
 
-  it("merges multiple live indices added beyond the cached snapshot in one reload", () => {
-    // A reload can add more than one instance at once; the forward probe must keep walking
-    // past the first new index rather than stopping after finding just one.
+  it("does not let a stale failed entry of a removed instance degrade a single-instance row", () => {
     const row = instanceRow("multi_app", "running", ["running"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:0": { status: "running", index: 0 },
-      "multi_app:1": { status: "running", index: 1 },
-      "multi_app:2": { status: "failed", index: 2 },
+      "multi_app:removed": { status: "failed", instance_name: "removed" },
     };
-    expect(appLiveStatus(liveStatuses, row)).toBe("degraded");
+    expect(appLiveStatus(liveStatuses, row)).toBe("running");
+  });
+
+  it("does not count a just-added name until the refetched row lists it", () => {
+    const liveStatuses: Record<string, AppStatusEntry> = {
+      "multi_app:inst_0": { status: "running", instance_name: "inst_0" },
+      "multi_app:inst_1": { status: "failed", instance_name: "inst_1" },
+    };
+    const before = instanceRow("multi_app", "running", ["running"]);
+    expect(appLiveStatus(liveStatuses, before)).toBe("running");
+
+    const after = instanceRow("multi_app", "running", ["running", "running"]);
+    expect(appLiveStatus(liveStatuses, after)).toBe("degraded");
   });
 
   it("still reduces per-instance statuses for multi-instance apps that are not degraded", () => {
@@ -175,18 +184,20 @@ describe("hasFailedActivityPart", () => {
 });
 
 describe("appNeedsRestart", () => {
-  it("counts a flag on an index the grid hasn't fetched yet", () => {
-    // A config reload added index 1 after the grid loaded; its only record is the WS event that flagged it.
+  it("ignores a flag on a name the grid hasn't listed", () => {
+    // A config reload added inst_1 after the grid loaded; it counts once the refetched row lists it.
     const row = instanceRow("multi_app", "running", ["running"]);
     const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:1": { status: "failed", index: 1, needs_restart: flag },
+      "multi_app:inst_1": { status: "failed", instance_name: "inst_1", needs_restart: flag },
     };
 
-    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 1, flag });
+    expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 0, flag: null });
+    const refetched = instanceRow("multi_app", "running", ["running", "running"]);
+    expect(appNeedsRestart(liveStatuses, refetched)).toEqual({ count: 1, flag });
   });
 
-  it("keeps a cached flag when the index's last WS event carried none", () => {
+  it("keeps a cached flag when the instance's last WS event carried none", () => {
     // The STOPPING event arrived before the flag was set, and the FAILED event that carried it was lost.
     const flag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
     const row = toAppRow(
@@ -195,18 +206,20 @@ describe("appNeedsRestart", () => {
           app_key: "multi_app",
           status: "failed",
           instance_count: 1,
-          instances: [createInstance({ app_key: "multi_app", index: 0, status: "failed", needs_restart: flag })],
+          instances: [
+            createInstance({ app_key: "multi_app", instance_name: "inst_0", status: "failed", needs_restart: flag }),
+          ],
         },
       }),
     );
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:0": { status: "stopping", index: 0, needs_restart: null },
+      "multi_app:inst_0": { status: "stopping", instance_name: "inst_0", needs_restart: null },
     };
 
     expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 1, flag });
   });
 
-  it("counts flags that come from the cached row and a WS event on different indices", () => {
+  it("counts flags that come from the cached row and a WS event on different instances", () => {
     const cachedFlag = { reason: "task loop still pending", pending_tasks: ["loop"], flagged_at: 1 };
     const liveFlag = { reason: "task poll still pending", pending_tasks: ["poll"], flagged_at: 2 };
     const row = toAppRow(
@@ -216,14 +229,19 @@ describe("appNeedsRestart", () => {
           status: "failed",
           instance_count: 2,
           instances: [
-            createInstance({ app_key: "multi_app", index: 0, status: "failed", needs_restart: cachedFlag }),
-            createInstance({ app_key: "multi_app", index: 1, status: "running" }),
+            createInstance({
+              app_key: "multi_app",
+              instance_name: "inst_0",
+              status: "failed",
+              needs_restart: cachedFlag,
+            }),
+            createInstance({ app_key: "multi_app", instance_name: "inst_1", status: "running" }),
           ],
         },
       }),
     );
     const liveStatuses: Record<string, AppStatusEntry> = {
-      "multi_app:1": { status: "failed", index: 1, needs_restart: liveFlag },
+      "multi_app:inst_1": { status: "failed", instance_name: "inst_1", needs_restart: liveFlag },
     };
 
     expect(appNeedsRestart(liveStatuses, row)).toEqual({ count: 2, flag: null });

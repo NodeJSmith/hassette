@@ -20,10 +20,14 @@ const FINDING_CARD_CLASS = "flex flex-col gap-1.5 rounded-md border border-[var(
  * finding naming its instances. `instance` is one instance's overview; `linkInstance` is the page's
  * `?instance=` value carried onto handler links (absent on a single-instance app's page).
  */
-export type BlockingScope = { kind: "app" } | { kind: "instance"; index: number; linkInstance: number | undefined };
+export type BlockingScope =
+  { kind: "app" } | { kind: "instance"; name: string | undefined; linkInstance: string | undefined };
 
-function instanceLabel(inst: BlockingFinding["instances"][number]): string {
-  return inst.name ?? `instance ${inst.index}`;
+/** Rows recorded before instance names were stored carry none; the server merges them into one ref. */
+const UNNAMED_INSTANCE_LABEL = "unnamed instance";
+
+function instanceLabel(name: string | null | undefined): string {
+  return name ?? UNNAMED_INSTANCE_LABEL;
 }
 
 /** The headline: where to look. A library call site names its package rather than posing as the fix. */
@@ -70,10 +74,6 @@ interface FindingProps {
 
 function FindingEntry({ finding, appKey, scope, testId }: FindingProps) {
   const acrossInstances = scope.kind === "app";
-  const instanceName = (index: number) => {
-    const inst = finding.instances.find((i) => i.index === index);
-    return inst ? instanceLabel(inst) : `instance ${index}`;
-  };
   const callsInto = callsIntoText(finding);
   const libraryLocation = finding.call_site && !finding.call_site_is_user_code ? frameLabel(finding.call_site) : null;
 
@@ -92,20 +92,20 @@ function FindingEntry({ finding, appKey, scope, testId }: FindingProps) {
               {i > 0 && ", "}
               <Link
                 href={handlerPath(appKey, h.kind, h.id, {
-                  instance: scope.kind === "app" ? h.instance_index : scope.linkInstance,
+                  instance: scope.kind === "app" ? (h.instance_name ?? undefined) : scope.linkInstance,
                 })}
                 className="font-mono text-primary hover:underline"
               >
                 {h.name}
               </Link>
-              {acrossInstances && ` (${instanceName(h.instance_index)})`}
+              {acrossInstances && ` (${instanceLabel(h.instance_name)})`}
             </span>
           ))}
         </div>
       )}
       {acrossInstances && (
         <div className={META_CLASS} data-testid={`${testId}-instances`}>
-          on {finding.instances.map(instanceLabel).join(", ")}
+          on {finding.instances.map((inst) => instanceLabel(inst.name)).join(", ")}
         </div>
       )}
       <div className={META_CLASS}>{statsText(finding)}</div>
@@ -126,9 +126,9 @@ interface Props {
  * result claims nothing, since detection is best-effort.
  */
 export function BlockingFindingsSection({ appKey, scope }: Props) {
-  const instanceIndex = scope.kind === "instance" ? scope.index : undefined;
-  const { data } = useScopedQuery(queryKeys.appBlocking.base(appKey, instanceIndex), (since, signal) =>
-    getAppBlockingFindings(appKey, instanceIndex, since, signal),
+  const instanceName = scope.kind === "instance" ? scope.name : undefined;
+  const { data } = useScopedQuery(queryKeys.appBlocking.base(appKey, instanceName), (since, signal) =>
+    getAppBlockingFindings(appKey, instanceName, since, signal),
   );
   // A blocking event is always produced by an execution, so refetch when one completes.
   const execution = useAppExecution(appKey);

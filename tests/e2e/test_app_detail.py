@@ -268,8 +268,8 @@ def test_multi_instance_app_shows_overview(page: Page, base_url: str) -> None:
 
 
 def test_multi_instance_detail_shows_switcher(page: Page, base_url: str) -> None:
-    """Multi-instance detail at /apps/multi_app?instance=0 shows instance switcher."""
-    page.goto(base_url + "/apps/multi_app?instance=0")
+    """Multi-instance detail at /apps/multi_app?instance=multiapp_0 shows instance switcher."""
+    page.goto(base_url + "/apps/multi_app?instance=multiapp_0")
     page.wait_for_load_state("networkidle")
     switcher = page.locator("[data-testid='instance-switcher']")
     expect(switcher).to_be_visible()
@@ -313,7 +313,7 @@ def test_instance_detail_action_button_fires_instance_scoped_route(page: Page, b
 
     Navigates to the multi-instance app's instance overview, opens a single
     instance's detail view via the instance card, then clicks Reload. The
-    request must go to /apps/{app_key}/instances/{index}/reload — not the
+    request must go to /apps/{app_key}/instances/{instance_name}/reload — not the
     app-wide /apps/{app_key}/reload — proving the `instance` prop threaded
     through app-detail-header reaches ActionButtons and the instance-level
     endpoint is used.
@@ -333,20 +333,20 @@ def test_instance_detail_action_button_fires_instance_scoped_route(page: Page, b
     page.goto(base_url + "/apps/multi_app")
     page.wait_for_load_state("networkidle")
 
-    instance_card = page.locator("[data-testid='instance-card-1']")
+    instance_card = page.locator("[data-testid='instance-card-multiapp_1']")
     expect(instance_card).to_be_visible()
     instance_card.click()
 
     switcher = page.locator("[data-testid='instance-switcher']")
     expect(switcher).to_be_visible()
 
-    reload_btn = page.get_by_label("Reload instance 'MultiApp[1]'")
+    reload_btn = page.get_by_label("Reload instance 'multiapp_1'")
     expect(reload_btn).to_be_visible()
-    with page.expect_request(lambda r: "/apps/multi_app/instances/1/reload" in r.url):
+    with page.expect_request(lambda r: "/apps/multi_app/instances/multiapp_1/reload" in r.url):
         reload_btn.click()
 
     assert reload_requests, "No /reload request was captured"
-    assert all("/instances/1/reload" in url for url in reload_requests), (
+    assert all("/instances/multiapp_1/reload" in url for url in reload_requests), (
         f"Expected instance-scoped reload route, got: {reload_requests}"
     )
 
@@ -396,7 +396,6 @@ def test_manual_job_run_now_shows_execution_activity(page: Page, live_server_ws_
                 {
                     "kind": "job",
                     "app_key": "my_app",
-                    "instance_index": 0,
                     "status": "success",
                     "duration_ms": 8.0,
                     "error_type": None,

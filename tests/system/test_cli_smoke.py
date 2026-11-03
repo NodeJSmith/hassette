@@ -170,7 +170,7 @@ async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: P
 
 
 async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> None:
-    """Per-app listener endpoint with instance_index=0 returns a valid subset."""
+    """Per-app listener endpoint with instance_name returns a valid subset."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with live_web_server(config, base_url):
         with _cli_client(config) as client:
@@ -186,7 +186,7 @@ async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> No
                 client.get,
                 f"/api/telemetry/app/{app_key}/listeners",
                 list,
-                {"instance_index": 0},
+                {"instance_name": "instance_0"},
             )
             instance_listeners = [ListenerSummary.model_validate(e) for e in instance_raw]
 

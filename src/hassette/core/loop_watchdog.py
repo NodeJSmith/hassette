@@ -104,9 +104,6 @@ class WatchdogEvent:
     instance_name: str | None
     """Human-readable instance name, or ``None``."""
 
-    instance_index: int | None
-    """0-based instance index from the execution marker, or ``None`` when the marker had none."""
-
     execution_id: str | None
     """UUIDv7 of the execution that froze the loop, or ``None`` when attribution was withheld
     (``reason`` is ``"displaced"``/``"framework"``) so no execution is named."""
@@ -397,7 +394,6 @@ class LoopWatchdog:
         event = WatchdogEvent(
             app_key=marker.app_key if is_attributed else None,
             instance_name=marker.instance_name if is_attributed else None,
-            instance_index=marker.instance_index if is_attributed else None,
             execution_id=marker.execution_id if is_attributed else None,
             stall_duration_ms=stall_seconds * 1000.0,
             tier="watchdog",

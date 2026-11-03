@@ -73,14 +73,13 @@ class TestLogsEndpoints:
     async def test_get_logs_recent_new_fields_present(
         self, client: "AsyncClient", mock_hassette: MagicMock, sample_records: list[dict]
     ) -> None:
-        """New fields (execution_id, instance_name, instance_index, author) are in the response."""
+        """New fields (execution_id, instance_name, author) are in the response."""
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=sample_records[:1])
         response = await client.get(LOGS_RECENT_PATH)
         assert response.status_code == 200
         entry = response.json()[0]
         assert "execution_id" in entry
         assert "instance_name" in entry
-        assert "instance_index" in entry
         assert "author" in entry
 
     async def test_get_logs_recent_accepts_execution_id_param(
@@ -109,17 +108,17 @@ class TestLogsEndpoints:
         assert "source_tier" not in forwarded
         assert forwarded["author"] is None
 
-    async def test_get_logs_recent_resolves_instance_index_to_its_name(
+    async def test_get_logs_recent_forwards_instance_name(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, "?app_key=x&instance_index=1")
+        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, "?app_key=x&instance_name=instance_1")
         assert forwarded["instance_name"] == "instance_1"
 
-    async def test_get_logs_recent_rejects_instance_index_without_app_key(
+    async def test_get_logs_recent_rejects_instance_name_without_app_key(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """An index only means something within an app, so the route refuses rather than ignoring it."""
-        response = await client.get("/api/logs/recent?instance_index=1")
+        """The route keeps requiring ``app_key`` with an instance filter, rather than ignoring it."""
+        response = await client.get("/api/logs/recent?instance_name=instance_1")
         assert response.status_code == 422
         assert response.json()["code"] == "validation_failed"
         mock_hassette.telemetry_query_service.get_log_records.assert_not_called()

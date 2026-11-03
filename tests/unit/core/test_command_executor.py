@@ -142,7 +142,6 @@ class TestBuildRecordTriggerMode:
         cmd = make_cmd_execute_job(source_tier="app", trigger_mode=trigger_mode)
         cmd.job = MagicMock()
         cmd.job.app_key = "test_app"
-        cmd.job.instance_index = 0
 
         record = build_execution_record(
             cmd, make_result(), time.time(), "exec-id", session_id=executor.hassette.try_session_id()

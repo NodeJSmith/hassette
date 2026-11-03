@@ -41,10 +41,8 @@ def finding(**overrides: Any) -> dict[str, Any]:
         call_site=frame_ref("calendar_service.py", 98, "get_calendar_events"),
         call_site_is_user_code=True,
         callee=frame_ref("gcsa/events.py", 5, "get_events"),
-        handlers=[
-            BlockingHandlerRef(kind="job", id=7, name="scan_and_schedule", handler_method="scan", instance_index=0)
-        ],
-        instances=[BlockingInstanceRef(index=0, name="CarClimate.0")],
+        handlers=[BlockingHandlerRef(kind="job", id=7, name="scan_and_schedule", handler_method="scan")],
+        instances=[BlockingInstanceRef(name="carclimate_0")],
         event_count=9,
         max_stall_ms=534.0,
         avg_stall_ms=300.0,
@@ -80,12 +78,12 @@ class TestPerApp:
         assert "gcsa/events.py get_events" in output
         assert "534ms" in output
         assert "2m ago" in output
-        assert "CarClimate.0" in output
+        assert "carclimate_0" in output
 
     def test_without_instance_requests_every_instance(self, client: HassetteCLIClient) -> None:
         spy = runner.spy(client, cmd_blocking, app="car_climate")
 
-        assert "instance_index" not in spy.params_for("car_climate/blocking")
+        assert "instance_name" not in spy.params_for("car_climate/blocking")
 
     @pytest.mark.parametrize("truncated", [False, True])
     def test_json_mode_outputs_findings_envelope(self, cli_client_factory: CLIClientFactory, truncated: bool) -> None:

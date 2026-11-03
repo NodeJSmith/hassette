@@ -130,7 +130,6 @@ class TestMakeMockParent:
     def test_defaults(self):
         parent = make_mock_parent()
         assert parent.app_key == "test_app"
-        assert parent.index == 0
         assert parent.unique_name == "test_app"
         assert parent.source_tier == "app"
         assert parent.class_name == "TestApp"
@@ -140,14 +139,12 @@ class TestMakeMockParent:
         app_config = MagicMock()
         parent = make_mock_parent(
             app_key="other_app",
-            index=2,
             unique_name="other_app.2",
             source_tier="framework",
             class_name="OtherApp",
             app_config=app_config,
         )
         assert parent.app_key == "other_app"
-        assert parent.index == 2
         assert parent.unique_name == "other_app.2"
         assert parent.source_tier == "framework"
         assert parent.class_name == "OtherApp"

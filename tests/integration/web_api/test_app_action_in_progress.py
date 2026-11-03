@@ -21,9 +21,9 @@ ACTIONS = [
     ("start", "start_app"),
     ("stop", "stop_app"),
     ("reload", "reload_app"),
-    ("instances/0/start", "start_instance"),
-    ("instances/0/stop", "stop_instance"),
-    ("instances/0/reload", "reload_instance"),
+    ("instances/instance_0/start", "start_instance"),
+    ("instances/instance_0/stop", "stop_instance"),
+    ("instances/instance_0/reload", "reload_instance"),
 ]
 """Each action route suffix and the ``AppHandler`` method it calls."""
 
@@ -46,7 +46,7 @@ class InFlightReload:
         async with self.lock:
             self.started.set()
             await self.release.wait()
-        return (InstanceOutcome(instance_index=0, instance_name="my_app", result=OutcomeResult.SUCCEEDED),)
+        return (InstanceOutcome(instance_name="my_app", result=OutcomeResult.SUCCEEDED),)
 
     async def begin(self, client: AsyncClient) -> "asyncio.Task":
         task = asyncio.create_task(client.post(f"{APPS_PATH}/my_app/reload"))
@@ -98,7 +98,7 @@ async def test_action_after_lock_released_is_accepted(client: AsyncClient, mock_
     mock_hassette.app_handler.start_app.assert_awaited_once_with("my_app")
 
 
-@pytest.mark.parametrize("suffix", ["stop", "instances/0/stop"])
+@pytest.mark.parametrize("suffix", ["stop", "instances/instance_0/stop"])
 async def test_busy_app_with_vanished_registry_entries_is_rejected_not_404(
     client: AsyncClient, mock_hassette: MagicMock, suffix: str
 ) -> None:

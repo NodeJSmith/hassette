@@ -25,7 +25,7 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
 import { appLiveStatus } from "../utils/app-data";
-import { appDetailPath, type AppDetailTab, parseInstanceParam } from "../utils/app-routes";
+import { appDetailPath, type AppDetailTab, instanceQueryString, parseInstanceParam } from "../utils/app-routes";
 
 const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
 
@@ -35,20 +35,17 @@ interface Props {
   params: { key: string; tab?: TabId; handler?: string; execId?: string };
 }
 
-// `instance_count` is the *size* of `instances`, which the backend builds as the union of the
-// configured indices and the still-tracked ones — so it counts an orphan without covering its
-// index. A running instance orphaned by a config shrink (configured=1, tracked={0, 2}) leaves
-// `instance_count` at 2 while the orphan sits at index 2, so the magnitude check alone would
-// redirect away from the only page offering its Stop control. The membership check is what
-// actually admits it; neither clause is redundant.
-function isAddressableInstance(manifest: AppManifest, index: number): boolean {
-  return index < manifest.instance_count || (manifest.instances?.some((i) => i.index === index) ?? false);
+// An `?instance=` value is addressable when the manifest lists that name. Orphans (tracked but no
+// longer configured) are listed too, so the page offering an orphan's Stop control stays reachable.
+function isAddressableInstance(manifest: AppManifest, instanceName: string): boolean {
+  return manifest.instances?.some((i) => i.instance_name === instanceName) ?? false;
 }
 
+// A stale `?instance=` (an old numeric bookmark, a renamed or removed name) drops the param rather
+// than picking an instance by position, so the corrected URL never depends on config order.
 function instanceCorrectionUrl(appKey: string, activeTab: TabId, lineParam: string | null): string {
   return appDetailPath(appKey, activeTab, {
     line: activeTab === "code" ? lineParam : null,
-    instance: 0,
   });
 }
 
@@ -57,18 +54,18 @@ function Tab({
   label,
   badge,
   appKey,
-  instanceIndex,
+  instanceName,
   activeTab,
 }: {
   id: TabId;
   label: string;
   badge?: number;
   appKey: string;
-  instanceIndex?: number;
+  instanceName?: string;
   activeTab: TabId;
 }) {
   const isActive = activeTab === id;
-  const href = appDetailPath(appKey, id, { instance: instanceIndex });
+  const href = appDetailPath(appKey, id, { instance: instanceName });
   return (
     <Link
       href={href}
@@ -118,17 +115,15 @@ export function AppDetailPage({ params }: Props) {
 
   const instanceParam = queryParams.get("instance");
   const lineParam = queryParams.get("line");
-  const instanceIndex = parseInstanceParam(instanceParam);
-
-  const resolvedInstanceIndex = instanceIndex ?? 0;
+  const instanceName = parseInstanceParam(instanceParam);
 
   const {
     data: listenersData,
     isPending: listenersLoading,
     error: listenersError,
   } = useScopedQuery(
-    queryKeys.appListeners.base(appKey, resolvedInstanceIndex),
-    (since, signal) => getAppListeners(appKey, resolvedInstanceIndex, since, signal),
+    queryKeys.appListeners.base(appKey, instanceName),
+    (since, signal) => getAppListeners(appKey, instanceName, since, signal),
     { placeholderData: keepPreviousData },
   );
   const {
@@ -136,8 +131,8 @@ export function AppDetailPage({ params }: Props) {
     isPending: jobsLoading,
     error: jobsError,
   } = useScopedQuery(
-    queryKeys.appJobs.base(appKey, resolvedInstanceIndex),
-    (since, signal) => getAppJobs(appKey, resolvedInstanceIndex, since, signal),
+    queryKeys.appJobs.base(appKey, instanceName),
+    (since, signal) => getAppJobs(appKey, instanceName, since, signal),
     { placeholderData: keepPreviousData },
   );
 
@@ -150,18 +145,23 @@ export function AppDetailPage({ params }: Props) {
   useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
-  const showParentOverview = isMultiInstance && instanceIndex === undefined;
+  const showParentOverview = isMultiInstance && instanceName === undefined;
 
-  const currentInstance = !showParentOverview
-    ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
-    : undefined;
+  // Without an `?instance=`, a single-instance app's only instance is the one to act on.
+  const currentInstance = showParentOverview
+    ? undefined
+    : instanceName !== undefined
+      ? manifest?.instances?.find((i) => i.instance_name === instanceName)
+      : manifest?.instances?.[0];
   // Resolving the status inside the selector — instead of subscribing to the whole `appStatus`
   // map — means this page only re-renders when its own app's status actually changes. The
   // selector must keep returning a primitive for that to hold; a fresh object would compare
   // unequal on every store write.
   const liveStatus = useAppStore((s) => {
     if (showParentOverview) return manifest ? appLiveStatus(s.appStatus, manifest) : "unknown";
-    const wsStatus = s.appStatus[appStatusKey(appKey, resolvedInstanceIndex)]?.status;
+    const wsStatus = currentInstance
+      ? s.appStatus[appStatusKey(appKey, currentInstance.instance_name)]?.status
+      : undefined;
     return wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   });
 
@@ -170,14 +170,11 @@ export function AppDetailPage({ params }: Props) {
 
   useEffect(() => {
     if (initialLoading) return;
-    if (manifest && instanceParam !== null && instanceIndex === undefined) {
-      correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
-      return;
-    }
-    if (manifest && instanceIndex !== undefined && !isAddressableInstance(manifest, instanceIndex)) {
+    if (!manifest || instanceParam === null) return;
+    if (instanceName === undefined || !isAddressableInstance(manifest, instanceName)) {
       correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
     }
-  }, [initialLoading, manifest, instanceParam, instanceIndex, appKey, activeTab, lineParam, correctUrl]);
+  }, [initialLoading, manifest, instanceParam, instanceName, appKey, activeTab, lineParam, correctUrl]);
 
   useEffect(() => {
     if (showParentOverview && activeTab === "handlers" && instanceParam === null) {
@@ -191,8 +188,8 @@ export function AppDetailPage({ params }: Props) {
     return <ErrorAlert>{(manifestError ?? listenersError ?? jobsError)!.message}</ErrorAlert>;
   }
 
-  const instanceQueryString = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";
-  const tabProps = { appKey, instanceIndex, activeTab };
+  const instanceQs = instanceQueryString(instanceName);
+  const tabProps = { appKey, instanceName, activeTab };
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
@@ -202,9 +199,9 @@ export function AppDetailPage({ params }: Props) {
           <InstanceSwitcher
             appKey={appKey}
             instances={manifest.instances}
-            currentIndex={resolvedInstanceIndex}
-            onNavigate={(idx) => {
-              navigate(appDetailPath(appKey, activeTab, { instance: idx }));
+            currentInstanceName={instanceName}
+            onNavigate={(name) => {
+              navigate(appDetailPath(appKey, activeTab, { instance: name }));
             }}
           />
         )}
@@ -214,7 +211,6 @@ export function AppDetailPage({ params }: Props) {
           liveStatus={liveStatus}
           manifest={manifest}
           currentInstance={currentInstance}
-          resolvedInstanceIndex={resolvedInstanceIndex}
           showParentOverview={showParentOverview}
         />
 
@@ -240,8 +236,8 @@ export function AppDetailPage({ params }: Props) {
               displayName={manifest.display_name ?? appKey}
               instances={manifest.instances ?? []}
               instanceCount={manifest.instance_count}
-              onNavigate={(idx) => {
-                navigate(appDetailPath(appKey, "overview", { instance: idx }));
+              onNavigate={(name) => {
+                navigate(appDetailPath(appKey, "overview", { instance: name }));
               }}
             />
           ) : (
@@ -249,8 +245,8 @@ export function AppDetailPage({ params }: Props) {
               listeners={displayListeners}
               jobs={displayJobs}
               appKey={appKey}
-              instanceQs={instanceQueryString}
-              resolvedInstanceIndex={resolvedInstanceIndex}
+              instanceQs={instanceQs}
+              instanceName={instanceName}
               appStatus={liveStatus}
             />
           )}
@@ -264,9 +260,9 @@ export function AppDetailPage({ params }: Props) {
             selectedHandler={params.handler ?? null}
             selectedExecId={params.execId ?? null}
             appKey={appKey}
-            instanceIndex={instanceIndex}
+            instanceName={instanceName}
             onSwitchToCode={(line) => {
-              navigate(appDetailPath(appKey, "code", { line, instance: instanceIndex }));
+              navigate(appDetailPath(appKey, "code", { line, instance: instanceName }));
             }}
           />
         </TabPanel>

@@ -168,19 +168,13 @@ function ActivityContent({
   );
 }
 
-export function RecentActivitySection({
-  appKey,
-  resolvedInstanceIndex,
-}: {
-  appKey: string;
-  resolvedInstanceIndex: number;
-}) {
+export function RecentActivitySection({ appKey, instanceName }: { appKey: string; instanceName: string | undefined }) {
   const {
     data: activity,
     isPending: loading,
     error: activityError,
-  } = useScopedQuery(queryKeys.appActivity.base(appKey, resolvedInstanceIndex), (since, signal) =>
-    getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_FETCH_LIMIT, since, signal),
+  } = useScopedQuery(queryKeys.appActivity.base(appKey, instanceName), (since, signal) =>
+    getAppActivity(appKey, instanceName, ACTIVITY_FETCH_LIMIT, since, signal),
   );
 
   const execution = useAppExecution(appKey);

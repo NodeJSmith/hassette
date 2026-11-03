@@ -314,14 +314,14 @@ class TestAppFactoryNeedsRestartGate:
         mock_load_class.return_value = make_app_class()
         mock_manifest.app_config = list(self.THREE_INSTANCES)
         flag_names(mock_registry, "instance_1")
-        outcomes = ActionOutcomes({"instance_0": 0, "instance_1": 1, "instance_2": 2})
+        outcomes = ActionOutcomes(["instance_0", "instance_1", "instance_2"])
 
         created = factory.create_instances("test_app", mock_manifest, outcomes=outcomes)
 
         assert created == {"instance_0", "instance_2"}
         assert sorted(registered(mock_registry)) == [("test_app", "instance_0"), ("test_app", "instance_2")]
-        assert [(o.instance_index, o.result, o.needs_restart, o.reason) for o in outcomes.snapshot()] == [
-            (1, OutcomeResult.REFUSED, True, "refused instance_1")
+        assert [(o.instance_name, o.result, o.needs_restart, o.reason) for o in outcomes.snapshot()] == [
+            ("instance_1", OutcomeResult.REFUSED, True, "refused instance_1")
         ]
         assert not [r for r in caplog.records if r.levelname == "ERROR"]
 
@@ -400,10 +400,10 @@ class TestAppFactoryNeedsRestartGate:
 
         factory.create_instances("test_app", mock_manifest, outcomes=outcomes)
 
-        assert [(o.instance_index, o.result, o.reason) for o in outcomes.snapshot()] == [
-            (0, OutcomeResult.REFUSED, "refused instance_0"),
-            (1, OutcomeResult.FAILED, "the app class failed to load: Failed to load"),
-            (2, OutcomeResult.FAILED, "the app class failed to load: Failed to load"),
+        assert [(o.instance_name, o.result, o.reason) for o in outcomes.snapshot()] == [
+            ("instance_0", OutcomeResult.REFUSED, "refused instance_0"),
+            ("instance_1", OutcomeResult.FAILED, "the app class failed to load: Failed to load"),
+            ("instance_2", OutcomeResult.FAILED, "the app class failed to load: Failed to load"),
         ]
 
 
@@ -421,7 +421,7 @@ class TestAppFactoryCreateSingleInstance:
 
         app_class = make_app_class(RenamingConfig)
         app_class.__name__ = "TestApp"
-        outcomes = ActionOutcomes({"test_instance": 0})
+        outcomes = ActionOutcomes(["test_instance"])
 
         created = factory.create_single_instance(
             "test_app", mock_manifest, "test_instance", as_app_class(app_class), outcomes=outcomes
@@ -442,7 +442,7 @@ class TestAppFactoryCreateSingleInstance:
         )
 
         mock_app_class.assert_called_once()
-        assert mock_app_class.call_args.kwargs["index"] == 1
+        assert mock_app_class.call_args.kwargs["app_config"].instance_name == "second"
         assert registered(mock_registry) == [("test_app", "second")]
         mock_registry.record_failure.assert_not_called()
 

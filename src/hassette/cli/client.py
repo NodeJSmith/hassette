@@ -6,13 +6,14 @@ Wraps ``httpx2.Client`` (synchronous) with:
 - Pydantic model deserialization
 - Structured error handling (human mode: Rich on stderr; JSON mode: stdout JSON)
 - ``--app`` endpoint routing (global vs. per-app telemetry paths)
-- ``--instance`` name-to-index resolution via app list lookup
+- ``--instance`` name check via app list lookup
 """
 
 import json
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
+from urllib.parse import quote
 
 import httpx2 as httpx
 from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstance, AppListResponse
@@ -33,25 +34,6 @@ APPS_PATH = "/api/apps"
 
 T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
-
-
-def _filter_instances(app_list: AppListResponse, app_key: str) -> list[AppInstance]:
-    """Flatten the instance list for ``app_key`` out of a full app list response.
-
-    Shared by :meth:`HassetteCLIClient._fetch_instances` and
-    :meth:`HassetteCLIClient._try_fetch_instances` so the filter has one source of truth.
-    """
-    return [inst for app in app_list.apps if app.app_key == app_key for inst in app.instances]
-
-
-def _name_for_index(instances: list[AppInstance] | None, index: int) -> str | None:
-    """Return the ``instance_name`` of the instance at ``index``, or ``None`` if unknown.
-
-    ``instances`` is ``None`` when the best-effort app list fetch failed.
-    """
-    if instances is None:
-        return None
-    return next((inst.instance_name for inst in instances if inst.index == index), None)
 
 
 def query_params(**values: Any) -> dict[str, Any]:
@@ -267,30 +249,27 @@ class HassetteCLIClient:
         return result
 
     def post_with_instance_routing(
-        self, app_key: str, action: AppAction, instance_index: int | None = None
+        self, app_key: str, action: AppAction, instance: str | None = None
     ) -> ActionResponse:
         """Perform a POST to an app mutation endpoint, routing to the app- or instance-scoped path.
 
         Mirrors :meth:`get_with_app_routing`'s app-level-vs-instance-scoped path selection, but
-        for POST action endpoints (start/stop/reload), which take an already-resolved instance
-        index rather than a raw selector string. Unlike the GET side, resolving the selector
-        can't happen inside this method: the caller needs the resolved index (and canonical
-        name, via :meth:`resolve_instance_with_name`) to build a confirmation prompt *before*
-        this mutating POST runs.
+        for POST action endpoints (start/stop/reload). Unlike the GET side, checking the name
+        can't happen inside this method: the caller checks it (:meth:`require_known_instance`)
+        before building a confirmation prompt, which comes *before* this mutating POST runs.
 
         Args:
             app_key: The app key to act on.
             action: One of ``"start"``, ``"stop"``, ``"reload"``.
-            instance_index: The already-resolved instance index, or ``None`` for an app-level
-                action.
+            instance: The instance name, or ``None`` for an app-level action.
 
         Returns:
             The deserialized :class:`~hassette_wire.ActionResponse`.
         """
         path = (
             f"{APPS_PATH}/{app_key}/{action}"
-            if instance_index is None
-            else f"{APPS_PATH}/{app_key}/instances/{instance_index}/{action}"
+            if instance is None
+            else f"{APPS_PATH}/{app_key}/instances/{quote(instance, safe='')}/{action}"
         )
         return self.post(path, ActionResponse)
 
@@ -308,14 +287,14 @@ class HassetteCLIClient:
         - No ``app_key``: uses ``global_path``
         - ``app_key`` only: uses ``per_app_path_template.format(app_key=app_key)``
         - ``instance`` without ``app_key``: usage error, exits non-zero
-        - ``instance`` + ``app_key``: resolves instance to index, adds ``instance_index`` param
+        - ``instance`` + ``app_key``: checks the name, adds it as the ``instance_name`` param
 
         Args:
             global_path: API path for the global (no app filter) case.
             per_app_path_template: API path template with ``{app_key}`` placeholder.
             model: Pydantic model class or ``list``/``dict`` for raw responses.
             app_key: Optional app key filter.
-            instance: Optional instance selector (integer string or name).
+            instance: Optional instance name.
             extra_params: Additional query parameters to include.
 
         Returns:
@@ -332,15 +311,9 @@ class HassetteCLIClient:
             path = per_app_path_template.format(app_key=app_key)
 
             if instance is not None:
-                instance_index = self.resolve_instance(app_key, instance)
-                params["instance_index"] = instance_index
+                params["instance_name"] = self.require_known_instance(app_key, instance)
 
         return self.get(path, model, params=params)
-
-    def _fetch_instances(self, app_key: str) -> list[AppInstance]:
-        """Fetch the app list and return the instance list for ``app_key``."""
-        app_list = self.get(APPS_PATH, AppListResponse)
-        return _filter_instances(app_list, app_key)
 
     def try_fetch_app_list(self) -> AppListResponse | None:
         """Best-effort ``GET /api/apps`` that never exits the process.
@@ -364,15 +337,11 @@ class HassetteCLIClient:
             return None
 
     def _try_fetch_instances(self, app_key: str) -> list[AppInstance] | None:
-        """Best-effort variant of :meth:`_fetch_instances`, built on :meth:`try_fetch_app_list`.
-
-        Resolving a numeric ``--instance`` selector to its canonical name is a purely cosmetic
-        lookup, and the mutating start/stop/reload action it supports has no telemetry dependency
-        of its own, so a telemetry outage must not block that action. Use this instead of
-        :meth:`_fetch_instances` wherever the caller has a numeric-index fallback available.
-        """
+        """The instances of ``app_key``, or ``None`` when the app list can't be read (see ``try_fetch_app_list``)."""
         app_list = self.try_fetch_app_list()
-        return None if app_list is None else _filter_instances(app_list, app_key)
+        if app_list is None:
+            return None
+        return [inst for app in app_list.apps if app.app_key == app_key for inst in app.instances]
 
     def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstance]) -> NoReturn:
         names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"
@@ -382,80 +351,24 @@ class HassetteCLIClient:
         """Return the instance whose ``instance_name`` matches ``name`` (names are unique across the config)."""
         return next((inst for inst in instances if inst.instance_name == name), None)
 
-    def resolve_instance(self, app_key: str, instance: str) -> int:
-        """Resolve an instance selector to an integer index.
+    def require_known_instance(self, app_key: str, instance: str) -> str:
+        """Return ``instance`` if ``app_key`` has it, so a typo errors instead of reading as "no activity".
 
-        Args:
-            app_key: The app key to look up.
-            instance: Either a digit string (e.g. ``"1"``) or an instance name.
-
-        Returns:
-            The resolved instance index.
+        The server treats an unmatched name on a read as a plain filter, so this check is what catches it. An
+        app list fetch that fails (e.g. a 503 from a degraded telemetry DB) skips the check rather than blocking a
+        start, stop or reload, which have no telemetry dependency of their own; the server answers for the name.
 
         Raises:
-            SystemExit: If ``instance`` is a name that doesn't match any instance.
+            SystemExit: If the app list doesn't include ``instance``.
         """
-        try:
-            return int(instance)
-        except ValueError:
-            pass
-
-        instances = self._fetch_instances(app_key)
-        match = self._find_by_name(instances, instance)
-        if match is not None:
-            return match.index
+        instances = self._try_fetch_instances(app_key)
+        if instances is None or self._find_by_name(instances, instance) is not None:
+            return instance
         return self._instance_not_found(app_key, instance, instances)
 
-    def resolve_instance_with_name(self, app_key: str, instance: str) -> tuple[int, str | None]:
-        """Resolve an instance selector to its index and, when known, its canonical ``instance_name``.
-
-        For a name selector, this always fetches the app list — there is no fallback,
-        since without it there is no way to resolve which index the name refers to.
-
-        For a digit selector, the app list name lookup is best-effort: it resolves to
-        the canonical ``instance_name`` when possible so a caller building a
-        human-facing message can report the same instance identity regardless of which
-        selector flavor the operator used, but it tolerates the app list fetch failing
-        outright (e.g. a 503 from a degraded telemetry DB — see
-        :meth:`_try_fetch_instances`) the same way it already tolerates an app list with
-        no matching index: both fall back to the raw selector. A numeric selector's
-        underlying mutating action (start/stop/reload) has no telemetry dependency of
-        its own, so a telemetry outage must not block it.
-
-        Args:
-            app_key: The app key to look up.
-            instance: Either a digit string (e.g. ``"1"``) or an instance name.
-
-        Returns:
-            ``(index, instance_name)``. For a name selector, ``instance_name`` is never
-            ``None`` — an unmatched name raises instead (see below). For a digit
-            selector, ``None`` means "resolved, but unverified against the current
-            app list" — not "not found": the index is still returned as-is.
-
-        Raises:
-            SystemExit: If ``instance`` is a name that doesn't match any known instance.
-        """
-        try:
-            index = int(instance)
-        except ValueError:
-            instances = self._fetch_instances(app_key)
-            match = self._find_by_name(instances, instance)
-            if match is not None:
-                return match.index, match.instance_name
-            return self._instance_not_found(app_key, instance, instances)
-        else:
-            # None when the app list has no entry for this index (out-of-range, or a race with
-            # an app list change) or the fetch itself failed — resolved, not
-            # unverified-as-in-not-found; see Returns above.
-            return index, _name_for_index(self._try_fetch_instances(app_key), index)
-
-    def resolve_instance_or_none(self, app_key: str, instance: str | None) -> int | None:
-        """Resolve an instance selector, passing ``None`` through unchanged.
-
-        Convenience wrapper for CLI commands where an unset ``--instance`` flag means
-        "all instances" and should stay ``None`` rather than resolve to an index.
-        """
-        return None if instance is None else self.resolve_instance(app_key, instance)
+    def known_instance_or_none(self, app_key: str, instance: str | None) -> str | None:
+        """``require_known_instance``, passing an unset ``--instance`` (every instance) through as ``None``."""
+        return None if instance is None else self.require_known_instance(app_key, instance)
 
     def _echo_success_target_and_warnings(self) -> None:
         """Surface the resolved non-loopback target and any TLS-verification warning on success.

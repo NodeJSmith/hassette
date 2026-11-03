@@ -490,14 +490,14 @@
         }
       }
     },
-    "/api/apps/{app_key}/instances/{index}/start": {
+    "/api/apps/{app_key}/instances/{instance_name}/start": {
       "post": {
         "tags": [
           "apps"
         ],
         "summary": "Start Instance",
-        "description": "Start one instance of the app by index, and report what the start did to it.",
-        "operationId": "start_instance_api_apps__app_key__instances__index__start_post",
+        "description": "Start one instance of the app by name, and report what the start did to it.",
+        "operationId": "start_instance_api_apps__app_key__instances__instance_name__start_post",
         "parameters": [
           {
             "name": "app_key",
@@ -509,12 +509,12 @@
             }
           },
           {
-            "name": "index",
+            "name": "instance_name",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Index"
+              "type": "string",
+              "title": "Instance Name"
             }
           }
         ],
@@ -543,7 +543,7 @@
             }
           },
           "404": {
-            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name",
             "x-problem-codes": [
               "app_not_found",
               "instance_not_found"
@@ -598,14 +598,14 @@
         }
       }
     },
-    "/api/apps/{app_key}/instances/{index}/stop": {
+    "/api/apps/{app_key}/instances/{instance_name}/stop": {
       "post": {
         "tags": [
           "apps"
         ],
         "summary": "Stop Instance",
-        "description": "Stop one instance of the app by index, and report what the stop did to it.",
-        "operationId": "stop_instance_api_apps__app_key__instances__index__stop_post",
+        "description": "Stop one instance of the app by name, and report what the stop did to it.",
+        "operationId": "stop_instance_api_apps__app_key__instances__instance_name__stop_post",
         "parameters": [
           {
             "name": "app_key",
@@ -617,12 +617,12 @@
             }
           },
           {
-            "name": "index",
+            "name": "instance_name",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Index"
+              "type": "string",
+              "title": "Instance Name"
             }
           }
         ],
@@ -651,7 +651,7 @@
             }
           },
           "404": {
-            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name",
             "x-problem-codes": [
               "app_not_found",
               "instance_not_found"
@@ -704,14 +704,14 @@
         }
       }
     },
-    "/api/apps/{app_key}/instances/{index}/reload": {
+    "/api/apps/{app_key}/instances/{instance_name}/reload": {
       "post": {
         "tags": [
           "apps"
         ],
         "summary": "Reload Instance",
-        "description": "Re-import the app from disk, restart one instance by index, and report what the reload did to it.",
-        "operationId": "reload_instance_api_apps__app_key__instances__index__reload_post",
+        "description": "Re-import the app from disk, restart one instance by name, and report what the reload did to it.",
+        "operationId": "reload_instance_api_apps__app_key__instances__instance_name__reload_post",
         "parameters": [
           {
             "name": "app_key",
@@ -723,12 +723,12 @@
             }
           },
           {
-            "name": "index",
+            "name": "instance_name",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
-              "title": "Index"
+              "type": "string",
+              "title": "Instance Name"
             }
           }
         ],
@@ -757,7 +757,7 @@
             }
           },
           "404": {
-            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name",
             "x-problem-codes": [
               "app_not_found",
               "instance_not_found"
@@ -1143,23 +1143,22 @@
             "description": "Filter log lines by who wrote them. Omit for the default view: app-authored lines plus framework lines at ERROR and above. 'all' returns every line; 'app' or 'framework' returns only that author's lines."
           },
           {
-            "name": "instance_index",
+            "name": "instance_name",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer",
-                  "minimum": 0
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "App instance index. Omit for every instance of the app.",
-              "title": "Instance Index"
+              "description": "App instance name. Omit for every instance of the app.",
+              "title": "Instance Name"
             },
-            "description": "App instance index. Omit for every instance of the app."
+            "description": "App instance name. Omit for every instance of the app."
           }
         ],
         "responses": {
@@ -1362,17 +1361,22 @@
             }
           },
           {
-            "name": "instance_index",
+            "name": "instance_name",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-              "default": 0,
-              "title": "Instance Index"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "App instance name. Omit for every instance of the app.",
+              "title": "Instance Name"
             },
-            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
+            "description": "App instance name. Omit for every instance of the app."
           },
           {
             "name": "since",
@@ -1524,17 +1528,22 @@
             "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
-            "name": "instance_index",
+            "name": "instance_name",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-              "default": 0,
-              "title": "Instance Index"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "App instance name. Omit for every instance of the app.",
+              "title": "Instance Name"
             },
-            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
+            "description": "App instance name. Omit for every instance of the app."
           },
           {
             "name": "since",
@@ -1641,17 +1650,22 @@
             "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
-            "name": "instance_index",
+            "name": "instance_name",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-              "default": 0,
-              "title": "Instance Index"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "App instance name. Omit for every instance of the app.",
+              "title": "Instance Name"
             },
-            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
+            "description": "App instance name. Omit for every instance of the app."
           },
           {
             "name": "since",
@@ -1749,23 +1763,22 @@
             "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
-            "name": "instance_index",
+            "name": "instance_name",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer",
-                  "minimum": 0
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "App instance index. Omit for every instance of the app.",
-              "title": "Instance Index"
+              "description": "App instance name. Omit for every instance of the app.",
+              "title": "Instance Name"
             },
-            "description": "App instance index. Omit for every instance of the app."
+            "description": "App instance name. Omit for every instance of the app."
           },
           {
             "name": "limit",
@@ -1875,17 +1888,22 @@
             "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
-            "name": "instance_index",
+            "name": "instance_name",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-              "default": 0,
-              "title": "Instance Index"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "App instance name. Omit for every instance of the app.",
+              "title": "Instance Name"
             },
-            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
+            "description": "App instance name. Omit for every instance of the app."
           },
           {
             "name": "since",
@@ -1968,7 +1986,7 @@
           "telemetry"
         ],
         "summary": "App Blocking Findings",
-        "description": "Blocking findings for one app: attributed events grouped by app call site.\n\nWithout ``instance_index``, findings cover every instance, which is what the multi-instance\nparent overview shows; with it, only that instance's events are counted.",
+        "description": "Blocking findings for one app: attributed events grouped by app call site.\n\nWithout ``instance_name``, findings cover every instance, which is what the multi-instance\nparent overview shows; with it, only that instance's events are counted.",
         "operationId": "app_blocking_findings_api_telemetry_app__app_key__blocking_get",
         "parameters": [
           {
@@ -1983,23 +2001,22 @@
             "description": "Use `__hassette__` to query framework-internal actor telemetry."
           },
           {
-            "name": "instance_index",
+            "name": "instance_name",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer",
-                  "minimum": 0
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "App instance index. Omit for every instance of the app.",
-              "title": "Instance Index"
+              "description": "App instance name. Omit for every instance of the app.",
+              "title": "Instance Name"
             },
-            "description": "App instance index. Omit for every instance of the app."
+            "description": "App instance name. Omit for every instance of the app."
           },
           {
             "name": "since",
@@ -2743,16 +2760,16 @@
             ],
             "title": "Action"
           },
-          "instance_index": {
+          "instance_name": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Instance Index"
+            "title": "Instance Name"
           },
           "outcomes": {
             "items": {
@@ -2760,18 +2777,18 @@
             },
             "type": "array",
             "title": "Outcomes",
-            "description": "One entry per instance the action targeted, in index order."
+            "description": "One entry per instance the action targeted: configured instances in config order, then orphans by name.\n\nA name a config change adds during the action comes last, so match outcomes to instances by ``instance_name``."
           }
         },
         "type": "object",
         "required": [
           "app_key",
           "action",
-          "instance_index",
+          "instance_name",
           "outcomes"
         ],
         "title": "ActionResponse",
-        "description": "Response for a start, stop or reload that succeeded on every instance it targeted.\n\nSent with 200 once the action has finished. ``instance_index`` is the server-confirmed instance the\naction ran against \u2014 ``None`` for an app-level action, the validated index for an instance-scoped one.\nCallers (the CLI and the frontend toast) compare this against the index they requested rather than\ntrusting their own request data, since a routing bug would otherwise still look like a plain 200."
+        "description": "Response for a start, stop or reload that succeeded on every instance it targeted.\n\nSent with 200 once the action has finished. ``instance_name`` is the server-confirmed instance the\naction ran against \u2014 ``None`` for an app-level action, the validated name for an instance-scoped one.\nCallers (the CLI and the frontend toast) compare this against the name they requested rather than\ntrusting their own request data, since a routing bug would otherwise still look like a plain 200."
       },
       "ActivityBucket": {
         "properties": {
@@ -3188,10 +3205,6 @@
             "type": "string",
             "title": "App Key"
           },
-          "index": {
-            "type": "integer",
-            "title": "Index"
-          },
           "instance_name": {
             "type": "string",
             "title": "Instance Name"
@@ -3239,7 +3252,7 @@
           "in_current_config": {
             "type": "boolean",
             "title": "In Current Config",
-            "description": "False for an instance still tracked at an index outside the app's configured range, such as one left\nrunning after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``\nand ``reload`` return 404.",
+            "description": "False for an instance still tracked under a name outside the app's config, such as one left running\nafter its config block was removed. Such an instance accepts only ``stop``; ``start`` and ``reload``\nreturn 404.",
             "default": true
           },
           "needs_restart": {
@@ -3257,13 +3270,12 @@
         "type": "object",
         "required": [
           "app_key",
-          "index",
           "instance_name",
           "class_name",
           "status"
         ],
         "title": "AppInstance",
-        "description": "One configured instance of an app and its lifecycle status.\n\nNested in ``AppSummary.instances``. ``index`` is the instance's position in the app's config;\n``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None``\nunless ``status`` is ``failed``."
+        "description": "One configured instance of an app and its lifecycle status.\n\nNested in ``AppSummary.instances``: configured instances in config order, then orphans by name.\n``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None`` unless ``status`` is\n``failed``."
       },
       "AppListResponse": {
         "properties": {
@@ -3547,7 +3559,7 @@
             },
             "type": "array",
             "title": "Instances",
-            "description": "The app instances these events came from, by index. A request for every instance merges\none call site's events across instances into one finding, since they share the code to fix."
+            "description": "The app instances these events came from, sorted by name. A request for every instance merges\none call site's events across instances into one finding, since they share the code to fix."
           },
           "event_count": {
             "type": "integer",
@@ -3695,10 +3707,17 @@
             "type": "string",
             "title": "Handler Method"
           },
-          "instance_index": {
-            "type": "integer",
-            "title": "Instance Index",
-            "description": "The app instance that registered this handler."
+          "instance_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Name",
+            "description": "The instance whose event reached this handler; ``None`` on a row stored before instance names."
           }
         },
         "type": "object",
@@ -3706,18 +3725,13 @@
           "kind",
           "id",
           "name",
-          "handler_method",
-          "instance_index"
+          "handler_method"
         ],
         "title": "BlockingHandlerRef",
         "description": "A handler or job whose execution reached a blocking call site."
       },
       "BlockingInstanceRef": {
         "properties": {
-          "index": {
-            "type": "integer",
-            "title": "Index"
-          },
           "name": {
             "anyOf": [
               {
@@ -3731,9 +3745,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "index"
-        ],
         "title": "BlockingInstanceRef",
         "description": "An app instance whose events are part of a finding."
       },
@@ -3995,10 +4006,6 @@
       },
       "InstanceOutcome": {
         "properties": {
-          "instance_index": {
-            "type": "integer",
-            "title": "Instance Index"
-          },
           "instance_name": {
             "type": "string",
             "title": "Instance Name"
@@ -4033,7 +4040,6 @@
         },
         "type": "object",
         "required": [
-          "instance_index",
           "instance_name",
           "result"
         ],
@@ -4050,9 +4056,10 @@
             "type": "string",
             "title": "App Key"
           },
-          "instance_index": {
-            "type": "integer",
-            "title": "Instance Index"
+          "instance_name": {
+            "type": "string",
+            "title": "Instance Name",
+            "description": "The instance that registered this job; framework rows hold ``__hassette__``."
           },
           "job_name": {
             "type": "string",
@@ -4367,7 +4374,7 @@
         "required": [
           "job_id",
           "app_key",
-          "instance_index",
+          "instance_name",
           "job_name",
           "handler_method",
           "trigger_type",
@@ -4473,10 +4480,10 @@
             "type": "string",
             "title": "App Key"
           },
-          "instance_index": {
-            "type": "integer",
-            "title": "Instance Index",
-            "default": 0
+          "instance_name": {
+            "type": "string",
+            "title": "Instance Name",
+            "description": "The instance that registered this listener; framework rows hold ``__hassette__``."
           },
           "topic": {
             "type": "string",
@@ -4766,6 +4773,7 @@
         "required": [
           "listener_id",
           "app_key",
+          "instance_name",
           "topic",
           "handler_method",
           "total_invocations",
@@ -4890,17 +4898,6 @@
               }
             ],
             "title": "Instance Name"
-          },
-          "instance_index": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Index"
           },
           "author": {
             "anyOf": [

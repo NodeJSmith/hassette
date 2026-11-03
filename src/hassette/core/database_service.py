@@ -72,7 +72,6 @@ LOG_RECORD_COLUMNS = (
     "exc_info",
     "app_key",
     "instance_name",
-    "instance_index",
     "execution_id",
     "author",
 )

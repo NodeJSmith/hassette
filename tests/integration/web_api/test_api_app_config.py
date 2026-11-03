@@ -69,7 +69,7 @@ class TestAppConfigEndpoint:
             filename="my_app.py",
             class_name="MyApp",
             enabled=True,
-            app_config={"instance_name": "MyApp.0", "brightness": 100},
+            app_config={"instance_name": "myapp_0", "brightness": 100},
         )
 
         data = response.json()
@@ -79,7 +79,7 @@ class TestAppConfigEndpoint:
         assert data["enabled"] is True
         # Plain (non-secret) fields render unmasked through the schema-driven path.
         assert data["app_config"]["brightness"] == 100
-        assert data["app_config"]["instance_name"] == "MyApp.0"
+        assert data["app_config"]["instance_name"] == "myapp_0"
         # config_toml is a valid TOML string wrapping the masked config.
         assert "config_toml" in data
         assert config_toml_section(response)["brightness"] == 100
@@ -95,8 +95,8 @@ class TestAppConfigEndpoint:
     async def test_multi_instance_app_returns_list_config(self, client, mock_hassette) -> None:
         """Returns list config for a multi-instance app."""
         list_config = [
-            {"instance_name": "MyApp.0", "zone": "kitchen"},
-            {"instance_name": "MyApp.1", "zone": "bedroom"},
+            {"instance_name": "myapp_0", "zone": "kitchen"},
+            {"instance_name": "myapp_1", "zone": "bedroom"},
         ]
         response = await get_app_config(
             client, mock_hassette, app_cls=AppWithBasicConfig, class_name="MyApp", app_config=list_config
@@ -116,8 +116,8 @@ class TestAppConfigEndpoint:
     async def test_multi_instance_array_of_tables_syntax(self, client, mock_hassette) -> None:
         """Multi-instance config with enough fields renders as [[section]] array-of-tables."""
         list_config = [
-            {"instance_name": "MyApp.0", "zone": "kitchen", "host": "192.168.1.1", "port": 8080, "enabled": True},
-            {"instance_name": "MyApp.1", "zone": "bedroom", "host": "192.168.1.2", "port": 8081, "enabled": False},
+            {"instance_name": "myapp_0", "zone": "kitchen", "host": "192.168.1.1", "port": 8080, "enabled": True},
+            {"instance_name": "myapp_1", "zone": "bedroom", "host": "192.168.1.2", "port": 8081, "enabled": False},
         ]
         response = await get_app_config(
             client, mock_hassette, app_cls=AppWithBasicConfig, class_name="MyApp", app_config=list_config
@@ -518,8 +518,8 @@ class TestGlobalConfigManifestMasking:
             mock_hassette,
             manifests=manifest_entry(
                 [
-                    {"instance_name": "MyApp.0", "api_key": "secret-0"},
-                    {"instance_name": "MyApp.1", "api_key": "secret-1"},
+                    {"instance_name": "myapp_0", "api_key": "secret-0"},
+                    {"instance_name": "myapp_1", "api_key": "secret-1"},
                 ]
             ),
             app_cls=AppWithMaskedKey,
@@ -529,7 +529,7 @@ class TestGlobalConfigManifestMasking:
         assert isinstance(app_config, list)
         assert app_config[0]["api_key"] == MASK_SENTINEL
         assert app_config[1]["api_key"] == MASK_SENTINEL
-        assert app_config[0]["instance_name"] == "MyApp.0"
+        assert app_config[0]["instance_name"] == "myapp_0"
 
     async def test_no_manifests_passes_through(self, client) -> None:
         """When no manifests exist in config values, the response is unchanged."""

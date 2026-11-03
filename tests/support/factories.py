@@ -55,7 +55,6 @@ ResourceT = TypeVar("ResourceT", bound=Resource)
 def make_listener_registration(
     *,
     app_key: str = DEFAULT_TEST_APP_KEY,
-    instance_index: int = 0,
     instance_name: str | None = DEFAULT_TEST_INSTANCE_NAME,
     handler_method: str = "test_app.on_event",
     topic: str = "hass.event.state_changed",
@@ -73,7 +72,6 @@ def make_listener_registration(
 ) -> ListenerRegistration:
     return ListenerRegistration(
         app_key=app_key,
-        instance_index=instance_index,
         instance_name=instance_name,
         handler_method=handler_method,
         topic=topic,
@@ -94,7 +92,6 @@ def make_listener_registration(
 def make_job_registration(
     *,
     app_key: str = DEFAULT_TEST_APP_KEY,
-    instance_index: int = 0,
     instance_name: str | None = DEFAULT_TEST_INSTANCE_NAME,
     job_name: str = "test_job",
     handler_method: str = "test_app.my_job",
@@ -114,7 +111,6 @@ def make_job_registration(
     return ScheduledJobRegistration(
         schedule_status=ScheduleStatus.SCHEDULED,
         app_key=app_key,
-        instance_index=instance_index,
         instance_name=instance_name,
         job_name=job_name,
         handler_method=handler_method,
@@ -143,7 +139,6 @@ def make_execution_record(
     listener_id: int | None = 1,
     job_id: int | None = None,
     app_key: str = DEFAULT_TEST_APP_KEY,
-    instance_index: int = 0,
     source_tier: SourceTier = "app",
     is_di_failure: bool = False,
     thread_leaked: bool = False,
@@ -174,7 +169,6 @@ def make_execution_record(
         listener_id=listener_id,
         job_id=job_id,
         app_key=app_key,
-        instance_index=instance_index,
         source_tier=source_tier,
         is_di_failure=is_di_failure,
         thread_leaked=thread_leaked,
@@ -287,7 +281,6 @@ def make_scheduler(
     mock_parent = make_mock_parent(
         app_key=app_key,
         source_tier=source_tier,
-        index=0,
     )
 
     _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
@@ -399,7 +392,6 @@ def make_log_record_entry(
     author: LogAuthor = "app",
     execution_id: str | None = None,
     instance_name: str | None = None,
-    instance_index: int | None = None,
 ) -> LogRecordEntry:
     """Build a `LogRecordEntry`, defaulting every required field to a neutral placeholder.
 
@@ -421,7 +413,6 @@ def make_log_record_entry(
         author=author,
         execution_id=execution_id,
         instance_name=instance_name,
-        instance_index=instance_index,
     )
 
 
@@ -437,7 +428,6 @@ def make_log_record_dict(
     exc_info: str | None = None,
     app_key: str | None = None,
     instance_name: str | None = None,
-    instance_index: int | None = None,
     execution_id: str | None = None,
     author: LogAuthor = "app",
 ) -> dict[str, Any]:
@@ -457,7 +447,6 @@ def make_log_record_dict(
         "exc_info": exc_info,
         "app_key": app_key,
         "instance_name": instance_name,
-        "instance_index": instance_index,
         "execution_id": execution_id,
         "author": author,
     }
@@ -632,7 +621,6 @@ def make_mock_listener(
     db_id: int | None = None,
     owner_id: str = "test_owner",
     app_key: str = "my_app",
-    instance_index: int = 1,
     topic: str = "hass.event.test",
     handler_name: str = "MyApp.on_event",
     invoke_side_effect: Any = None,
@@ -655,7 +643,6 @@ def make_mock_listener(
     listener.db_id = db_id
     listener.owner_id = owner_id
     listener.app_key = app_key
-    listener.instance_index = instance_index
     listener.topic = topic
     listener.handler_name = handler_name
     listener.debounce = None
@@ -671,7 +658,6 @@ def make_mock_listener(
 def make_mock_parent(
     *,
     app_key: str = DEFAULT_TEST_APP_KEY,
-    index: int = 0,
     unique_name: str | None = None,
     source_tier: SourceTier = "app",
     class_name: str = "TestApp",
@@ -685,14 +671,11 @@ def make_mock_parent(
     """
     parent = MagicMock()
     parent.app_key = app_key
-    parent.index = index
     parent.unique_name = unique_name if unique_name is not None else app_key
     parent.app_config = app_config
     parent._get_logger_name = MagicMock(return_value=f"{APP_LOGGER_PREFIX}.{parent.unique_name}")
     parent.owner_log_identity = MagicMock(
-        side_effect=lambda author: LogIdentity(
-            author=author, app_key=app_key, instance_name=parent.unique_name, instance_index=index
-        )
+        side_effect=lambda author: LogIdentity(author=author, app_key=app_key, instance_name=parent.unique_name)
     )
     parent.owner_framework_log_level = MagicMock(
         side_effect=lambda: getattr(parent.app_config, "framework_log_level", None)
@@ -765,7 +748,6 @@ def make_app(
     cls: type[App] | type[AppSync] = App,
     instance_name: str = "kitchen",
     app_key: str = "kitchen_lights",
-    index: int = 0,
     hassette: Any | None = None,
     **kwargs: Any,
 ) -> App | AppSync:
@@ -775,7 +757,7 @@ def make_app(
     """
     if hassette is None:
         hassette = make_mock_hassette(sealed=False)
-    return cls(hassette, app_config=AppConfig(instance_name=instance_name), index=index, app_key=app_key, **kwargs)
+    return cls(hassette, app_config=AppConfig(instance_name=instance_name), app_key=app_key, **kwargs)
 
 
 def make_probe_app(schedule_fn: Callable[[Any], Awaitable[Any]], *, counter: bool = False) -> type[Any]:

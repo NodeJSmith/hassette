@@ -193,18 +193,16 @@ async def test_jobs_execute_in_run_order(hassette_with_scheduler: HassetteHarnes
     assert actual == expected, f"Expected {expected}, got {actual}"
 
 
-def test_scheduled_job_has_app_key_and_instance_index() -> None:
-    """Create a Job with app_key and instance_index, verify fields are set."""
+def test_scheduled_job_has_app_key() -> None:
+    """Create a Job with app_key, verify the field is set."""
     job = Job(
         owner_id="MyApp.MyApp.0",
         next_run=ZonedDateTime(2030, 1, 1, 0, 0, 0, tz=SYSTEM_TZ),
         job=lambda: None,
         app_key="my_app",
-        instance_index=2,
     )
 
     assert job.app_key == "my_app"
-    assert job.instance_index == 2
     assert job.owner_id == "MyApp.MyApp.0"
 
 
@@ -217,7 +215,6 @@ def test_scheduled_job_defaults_empty_app_key() -> None:
     )
 
     assert job.app_key == ""
-    assert job.instance_index == 0
 
 
 # mark_registered() coverage lives in tests/unit/scheduler/test_scheduled_job_mark_registered.py.

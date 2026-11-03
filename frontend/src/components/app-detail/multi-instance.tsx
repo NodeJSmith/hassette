@@ -12,13 +12,13 @@ import { BlockingFindingsSection } from "./blocking-findings";
 export function InstanceSwitcher({
   appKey,
   instances,
-  currentIndex,
+  currentInstanceName,
   onNavigate,
 }: {
   appKey: string;
   instances: AppInstance[];
-  currentIndex: number;
-  onNavigate: (index: number) => void;
+  currentInstanceName: string | undefined;
+  onNavigate: (instanceName: string) => void;
 }) {
   const appStatus = useAppStore((s) => s.appStatus);
 
@@ -30,11 +30,11 @@ export function InstanceSwitcher({
       aria-label="Instance"
     >
       {instances.map((instance) => {
-        const isActive = instance.index === currentIndex;
+        const isActive = instance.instance_name === currentInstanceName;
         const liveStatus = instanceLiveStatus(appStatus, appKey, instance);
         return (
           <button
-            key={instance.index}
+            key={instance.instance_name}
             type="button"
             role="tab"
             aria-selected={isActive}
@@ -43,9 +43,9 @@ export function InstanceSwitcher({
               isActive &&
                 "cursor-default border-[var(--primary-border)] bg-[var(--primary-bg)] font-medium text-primary hover:bg-[var(--primary-bg)] hover:text-primary",
             )}
-            data-testid={`switcher-instance-${instance.index}`}
+            data-testid={`switcher-instance-${instance.instance_name}`}
             onClick={() => {
-              if (!isActive) onNavigate(instance.index);
+              if (!isActive) onNavigate(instance.instance_name);
             }}
           >
             <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_SHAPE_SIZE} />
@@ -66,15 +66,15 @@ function InstanceCard({
   instance: AppInstance;
   liveStatus: AppInstance["status"];
   liveErrorMessage: string | null | undefined;
-  onNavigate: (index: number) => void;
+  onNavigate: (instanceName: string) => void;
 }) {
   return (
     <button
       type="button"
       className="flex cursor-pointer flex-col gap-2 rounded-md border border-[var(--border-strong)] bg-card p-4 text-left [font-family:inherit] text-sm text-foreground shadow-[var(--shadow-2)] transition-[border-color,box-shadow] hover:shadow-[var(--shadow-3)]"
-      data-testid={`instance-card-${instance.index}`}
+      data-testid={`instance-card-${instance.instance_name}`}
       onClick={() => {
-        onNavigate(instance.index);
+        onNavigate(instance.instance_name);
       }}
       aria-label={`View ${instance.instance_name}`}
     >
@@ -107,7 +107,7 @@ export function MultiInstanceOverview({
   displayName: string;
   instances: AppInstance[];
   instanceCount: number;
-  onNavigate: (index: number) => void;
+  onNavigate: (instanceName: string) => void;
 }) {
   const appStatus = useAppStore((s) => s.appStatus);
 
@@ -127,7 +127,7 @@ export function MultiInstanceOverview({
       <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4" data-testid="instance-grid">
         {instances.map((instance) => (
           <InstanceCard
-            key={instance.index}
+            key={instance.instance_name}
             instance={instance}
             liveStatus={instanceLiveStatus(appStatus, appKey, instance)}
             liveErrorMessage={instanceLiveError(appStatus, appKey, instance)}

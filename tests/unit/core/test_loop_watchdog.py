@@ -367,7 +367,6 @@ def test_watchdog_event_fields() -> None:
     event = WatchdogEvent(
         app_key="lights_app",
         instance_name="office",
-        instance_index=0,
         execution_id="exec-abc",
         stall_duration_ms=350.0,
         tier="watchdog",
@@ -379,7 +378,6 @@ def test_watchdog_event_fields() -> None:
     assert event.app_key == "lights_app"
     assert event.stall_duration_ms == 350.0
     assert event.instance_name == "office"
-    assert event.instance_index == 0
     assert event.frames == ()
     assert event.stack_text is None
     assert event.reason == "attributed"

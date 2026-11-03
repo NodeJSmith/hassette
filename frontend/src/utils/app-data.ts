@@ -95,7 +95,7 @@ export type AppSortState = SortState<AppSortKey>;
 /** "disabled" and "blocked" are manifest-level configuration states, not derived from instance
  *  activity, so they must override any live or synthetic per-instance status a caller uses to
  *  decide what to render or which actions to allow — a leftover per-instance WS status, or a
- *  not-yet-tracked configured index's synthetic "stopped" placeholder (see
+ *  not-yet-tracked configured instance's synthetic "stopped" placeholder (see
  *  AppRegistry.build_manifest_info() on the backend), would otherwise mask the app-level
  *  config state. Single source of truth for this rule — `appLiveStatus` and the per-instance
  *  action-button gating in `AppTableRow`/`AppDetailHeader` all call this instead of
@@ -105,7 +105,7 @@ export function configStatusOverride(status: AppStatus | ResourceStatus): "disab
 }
 
 /** Resolve the live status for an app row's parent view.
- *  Single-instance: WS status for index 0.
+ *  Single-instance: WS status for that instance.
  *  Multi-instance: overlays live per-instance WS statuses (falling back to the snapshot's
  *  per-instance status where no WS update has arrived yet) and derives "degraded" from that
  *  live view whenever a "running" and a "failed" instance coexist — mirroring `AppRegistry`'s
@@ -117,30 +117,11 @@ export function configStatusOverride(status: AppStatus | ResourceStatus): "disab
  *  stale in either direction (still "running" after an instance fails, or still "degraded"
  *  after all instances recover) for as long as no execution event happens to refetch it.
  *
- *  The index set is also live, not just the statuses: a hot reload that adds an instance
- *  delivers a WS update for the new index before any execution event refetches the grid, so
- *  the cached `row.instances` list can be missing an index entirely. Server-side, instance
- *  indices are always assigned contiguously from 0 (`enumerate(app_configs)` in
- *  `AppFactory.create_instances`), so a reload only ever extends the range upward — probing
- *  forward from the highest cached index with direct key lookups finds any new indices without
- *  scanning the whole (cross-app) `appStatuses` record or prefix-matching app_key by hand.
+ *  Only the cached `row.instances` count: the WS store is an overlay on them, never a source of
+ *  membership. A store entry for a name the row doesn't list (a removed instance, or one added
+ *  before the refetch lands) is ignored until the refetched row lists it.
  *
  *  Config states win over any live status — see `configStatusOverride`. */
-/** An app's instance indices: the grid's cached ones plus any past them that only a WS event has
- *  reported so far, such as an instance a config reload added after the grid loaded. */
-function liveIndices(
-  appStatuses: Record<string, AppStatusEntry>,
-  appKey: string,
-  instances: readonly { index: number }[],
-): Set<number> {
-  const indices = new Set(instances.map((inst) => inst.index));
-  const maxKnownIndex = indices.size > 0 ? Math.max(...indices) : -1;
-  for (let index = maxKnownIndex + 1; appStatuses[appStatusKey(appKey, index)]; index++) {
-    indices.add(index);
-  }
-  return indices;
-}
-
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
@@ -148,47 +129,42 @@ export function appLiveStatus(
   const override = configStatusOverride(row.status);
   if (override) return override;
   const instances = row.instances ?? [];
-  const knownIndices = liveIndices(appStatuses, row.app_key, instances);
-  // Fast path for the common case (0 or 1 known indices) — skips the two-way includes() check
-  // and the per-index instances.find() scan below, both of which only matter once there's more
-  // than one index to reduce over.
-  if (knownIndices.size <= 1) {
-    const index = knownIndices.size === 1 ? [...knownIndices][0] : 0;
-    return appStatuses[appStatusKey(row.app_key, index)]?.status ?? row.status;
+  // Fast path for the common case (0 or 1 instances): no per-instance reduction needed.
+  if (instances.length <= 1) {
+    const live =
+      instances.length === 1 ? appStatuses[appStatusKey(row.app_key, instances[0].instance_name)] : undefined;
+    return live?.status ?? row.status;
   }
-  const liveStatuses = [...knownIndices].map(
-    (index) =>
-      appStatuses[appStatusKey(row.app_key, index)]?.status ??
-      instances.find((inst) => inst.index === index)?.status ??
-      row.status,
+  const liveStatuses = instances.map(
+    (inst) => appStatuses[appStatusKey(row.app_key, inst.instance_name)]?.status ?? inst.status,
   );
   if (liveStatuses.includes("running") && liveStatuses.includes("failed")) return "degraded";
   return liveStatuses.reduce((worst, live) => (statusPriority(live) < statusPriority(worst) ? live : worst));
 }
 
-/** Resolve the live status for a single instance row: the WS status for that exact index,
+/** Resolve the live status for a single instance row: the WS status for that exact name,
  *  falling back to the cached instance's own status. Unlike `appLiveStatus`, this is a plain
- *  single-key overlay, not a rollup — no degraded derivation, no forward index-probing, since
- *  a per-instance row only ever represents the one index it's given, not the whole app. */
+ *  single-key overlay, not a rollup — no degraded derivation, since
+ *  a per-instance row only ever represents the one name it's given, not the whole app. */
 export function instanceLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   appKey: string,
-  inst: { index: number; status: ResourceStatus },
+  inst: { instance_name: string; status: ResourceStatus },
 ): ResourceStatus {
-  return appStatuses[appStatusKey(appKey, inst.index)]?.status ?? inst.status;
+  return appStatuses[appStatusKey(appKey, inst.instance_name)]?.status ?? inst.status;
 }
 
 /** Resolve the live error message for a single instance row. Once a WS `app_status_changed`
- *  event has been seen for this index, its `exception` field is authoritative — including
+ *  event has been seen for this instance, its `exception` field is authoritative — including
  *  `null`, which means the instance recovered and the cached manifest's `error_message` (from
  *  before the config reload that produced this row) must not keep showing. Only fall back to
- *  the cached value when no live status has been observed for this index yet. */
+ *  the cached value when no live status has been observed for this instance yet. */
 export function instanceLiveError(
   appStatuses: Record<string, AppStatusEntry>,
   appKey: string,
-  inst: { index: number; error_message?: string | null },
+  inst: { instance_name: string; error_message?: string | null },
 ): string | null | undefined {
-  const entry = appStatuses[appStatusKey(appKey, inst.index)];
+  const entry = appStatuses[appStatusKey(appKey, inst.instance_name)];
   return entry ? entry.exception : inst.error_message;
 }
 
@@ -198,22 +174,21 @@ export function instanceLiveError(
 export function instanceLiveNeedsRestart(
   appStatuses: Record<string, AppStatusEntry>,
   appKey: string,
-  inst: { index: number; needs_restart?: NeedsRestart | null },
+  inst: { instance_name: string; needs_restart?: NeedsRestart | null },
 ): NeedsRestart | null {
-  const entry = appStatuses[appStatusKey(appKey, inst.index)];
+  const entry = appStatuses[appStatusKey(appKey, inst.instance_name)];
   return entry?.needs_restart ?? inst.needs_restart ?? null;
 }
 
 /** An app's needs-restart summary for its row: how many instances are flagged, and the flag itself when
- *  exactly one is, so the row can show that instance's reason. Counts the row's cached instances plus any
- *  only a WS event has reported, as in `appLiveStatus`. */
+ *  exactly one is, so the row can show that instance's reason. Counts only the row's cached instances,
+ *  with WS flags overlaid, as in `appLiveStatus`. */
 export function appNeedsRestart(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "instances">,
 ): { count: number; flag: NeedsRestart | null } {
-  const flags = [...liveIndices(appStatuses, row.app_key, row.instances)].flatMap((index) => {
-    const cached = row.instances.find((inst) => inst.index === index);
-    const flag = instanceLiveNeedsRestart(appStatuses, row.app_key, { index, needs_restart: cached?.needs_restart });
+  const flags = row.instances.flatMap((inst) => {
+    const flag = instanceLiveNeedsRestart(appStatuses, row.app_key, inst);
     return flag ? [flag] : [];
   });
   return { count: flags.length, flag: flags.length === 1 ? flags[0] : null };

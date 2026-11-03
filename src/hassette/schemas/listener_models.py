@@ -24,7 +24,7 @@ class ListenerSummaryRow(BaseModel):
 
     listener_id: int
     app_key: str
-    instance_index: int
+    instance_name: str
     handler_method: str
     topic: str
     debounce: float | None
