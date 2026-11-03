@@ -138,7 +138,7 @@ Built-in `P.*` predicate objects overload Python's bitwise operators as shorthan
 
 The handler fires when a light turns on or goes unavailable, except for `light.office`. Python gives `&` higher precedence than `|`, so the OR branch needs parentheses.
 
-Chains flatten instead of nesting: `a & b & c` builds `P.AllOf((a, b, c))`, so the summary shown by `hassette listener` reads the same as the explicit form. The result is an ordinary predicate, so operators and explicit combinators mix freely. Wrap a custom callable in `P.Guard` when you want it to participate in operator chains.
+Chains flatten instead of nesting: `a & b & c` builds `P.AllOf((a, b, c))`, so the summary shown by `hassette listener` reads the same as the explicit form. The result is an ordinary predicate, so operators and explicit combinators mix freely. Wrap a custom callable in [`P.Guard`](predicate-reference.md#logic-combinators) to use it in operator chains, as in `P.Guard(is_weekend) & P.StateTo("on")`.
 
 Conditions (`C.*`) do not support these operators. They test extracted values, not events, so they compose through predicates instead.
 
