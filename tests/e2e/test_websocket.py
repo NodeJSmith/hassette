@@ -275,7 +275,7 @@ def test_stopped_app_status_survives_back_navigation(page: Page, live_server_ws_
     broadcast_sync(
         {
             "type": "app_status_changed",
-            "data": {"app_key": "my_app", "instance_name": "MyApp.0", "status": "stopped"},
+            "data": {"app_key": "my_app", "instance_name": "myapp_0", "status": "stopped"},
             "timestamp": time.time(),
         }
     )
@@ -306,23 +306,23 @@ def test_multi_instance_overview_shows_live_instance_status_after_stop(page: Pag
     ws_indicator = page.locator("[data-testid='ws-indicator']")
     expect(ws_indicator.first).to_have_text("Connected", timeout=10000)
 
-    card0 = page.locator("[data-testid='instance-card-MultiApp.0']")
+    card0 = page.locator("[data-testid='instance-card-multiapp_0']")
     expect(card0).to_be_visible(timeout=10000)
     expect(card0).to_contain_text("running")
 
     card0.click()
-    expect(page).to_have_url(base + "/apps/multi_app/overview?instance=MultiApp.0")
+    expect(page).to_have_url(base + "/apps/multi_app/overview?instance=multiapp_0")
 
-    page.get_by_test_id("btn-stop-multi_app-MultiApp.0").click()
+    page.get_by_test_id("btn-stop-multi_app-multiapp_0").click()
     page.get_by_test_id("confirm-btn-danger").click()
 
-    # The confirm click fires the real POST /apps/multi_app/instances/MultiApp.0/stop (202, no-op on
+    # The confirm click fires the real POST /apps/multi_app/instances/multiapp_0/stop (202, no-op on
     # the mock backend). Simulate the app_status_changed broadcast a real backend would send
     # once the stop actually completes.
     broadcast_sync(
         {
             "type": "app_status_changed",
-            "data": {"app_key": "multi_app", "instance_name": "MultiApp.0", "status": "stopped"},
+            "data": {"app_key": "multi_app", "instance_name": "multiapp_0", "status": "stopped"},
             "timestamp": time.time(),
         }
     )

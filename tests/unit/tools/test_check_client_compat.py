@@ -26,7 +26,7 @@ from check_client_compat import (
 from generate_client_compat_fixtures import generate, release_response_types, schema_type_spec, write_fixtures
 from hassette_wire import AppSummary, Execution, LogEntry
 
-from tests.unit.tools.test_generate_client_compat_fixtures import HEAD_OPENAPI
+from tests.unit.tools.test_generate_client_compat_fixtures import HEAD_OPENAPI, as_released
 
 JSON = "application/json"
 PROBLEM = "application/problem+json"
@@ -283,7 +283,8 @@ async def test_main_passes_generated_fixtures_and_names_a_broken_one(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     fixtures = tmp_path / "fixtures"
-    generated = await generate(["healthy"], release_response_types(json.loads(HEAD_OPENAPI.read_text())), tmp_path)
+    release_types = as_released(release_response_types(json.loads(HEAD_OPENAPI.read_text())))
+    generated = await generate(["healthy"], release_types, tmp_path)
     write_fixtures(fixtures, generated, f"v{version('hassette-client')}")
     elsewhere = tmp_path / "elsewhere"
 

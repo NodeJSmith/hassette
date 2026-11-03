@@ -2,7 +2,7 @@ import { type MouseEvent as ReactMouseEvent, useState } from "react";
 import { Link } from "wouter";
 
 import type { NeedsRestart } from "@/api/endpoints";
-import { ActionButtons, getStableInstanceRef } from "@/components/shared/action-buttons";
+import { ActionButtons } from "@/components/shared/action-buttons";
 import { AppLink } from "@/components/shared/app-link";
 import { IconChevron } from "@/components/shared/icons";
 import { MiniSparkline } from "@/components/shared/mini-sparkline";
@@ -299,7 +299,7 @@ export function AppTableRow({
                   appKey={app.app_key}
                   status={instActionStatus}
                   confirmStop
-                  instance={getStableInstanceRef(inst.instance_name)}
+                  instance={inst.instance_name}
                   instanceOrphaned={!inst.in_current_config}
                 />
               </td>

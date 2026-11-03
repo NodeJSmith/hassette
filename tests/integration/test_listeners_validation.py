@@ -91,7 +91,7 @@ class TestDependencyValidationErrors:
         assert len(calls) == 0
 
 
-class TestListenerAppKeyAndInstanceIndex:
+class TestListenerAppKey:
     """Test the app_key field on Listener."""
 
     async def test_listener_has_app_key(self, bucket: TaskBucket) -> None:

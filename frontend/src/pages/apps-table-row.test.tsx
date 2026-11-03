@@ -23,11 +23,10 @@ vi.mock("../components/shared/action-buttons", () => ({
       data-testid="action-buttons"
       data-status={props.status ?? ""}
       data-confirm-stop={props.confirmStop ? "true" : "false"}
-      data-instance={props.instance ? JSON.stringify(props.instance) : ""}
+      data-instance={props.instance ?? ""}
       data-instance-orphaned={props.instanceOrphaned ? "true" : "false"}
     />
   ),
-  getStableInstanceRef: (name: string) => ({ name }),
 }));
 
 vi.mock("../components/shared/mini-sparkline", () => ({
@@ -481,12 +480,12 @@ describe("AppTableRow", () => {
       const row0 = getByTestId("instance-row-my_app-inst_0");
       const actionButtons0 = within(row0).getByTestId("action-buttons");
       expect(actionButtons0.getAttribute("data-confirm-stop")).toBe("true");
-      expect(actionButtons0.getAttribute("data-instance")).toBe(JSON.stringify({ name: "inst_0" }));
+      expect(actionButtons0.getAttribute("data-instance")).toBe("inst_0");
 
       const row1 = getByTestId("instance-row-my_app-inst_1");
       const actionButtons1 = within(row1).getByTestId("action-buttons");
       expect(actionButtons1.getAttribute("data-confirm-stop")).toBe("true");
-      expect(actionButtons1.getAttribute("data-instance")).toBe(JSON.stringify({ name: "inst_1" }));
+      expect(actionButtons1.getAttribute("data-instance")).toBe("inst_1");
     });
 
     it("passes the instance's own live status to ActionButtons when the parent app is not blocked", () => {

@@ -40,32 +40,6 @@ const ACTIONS = {
 type ActionName = keyof typeof ACTIONS;
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
 
-export interface InstanceRef {
-  name: string;
-}
-
-// Unbounded, process-lifetime, never evicted — deliberately: the key space is every
-// instance name across every app instance the running Hassette config defines, which
-// for a monitoring dashboard is small and static for the life of a browser tab. Revisit if
-// this pattern gets reused somewhere the key space can actually grow unbounded.
-const instanceRefCache = new Map<string, InstanceRef>();
-
-/**
- * Returns a referentially-stable {name} object for one instance name.
- *
- * Both call sites (`AppDetailHeader`, `AppTableRow`'s instance rows) build this prop from
- * scratch on every render — one of them inside a `.map()`, where `useMemo` isn't an option.
- * Interning by identity here means the reference stays stable regardless, so introducing
- * `React.memo` on `ActionButtons` or a parent later won't be silently defeated by this prop.
- */
-export function getStableInstanceRef(name: string): InstanceRef {
-  const cached = instanceRefCache.get(name);
-  if (cached) return cached;
-  const ref: InstanceRef = { name };
-  instanceRefCache.set(name, ref);
-  return ref;
-}
-
 interface ActionButtonSpec {
   action: ActionName;
   visible: boolean;
@@ -80,14 +54,14 @@ interface ActionButtonSpec {
 // The request returns 200 once the action has finished on every instance, and an error
 // (409/500) naming each instance it didn't succeed on otherwise; the toast shows either.
 // The status changes themselves arrive over the WebSocket.
-async function performAction(appKey: string, name: ActionName, instance?: InstanceRef) {
+async function performAction(appKey: string, name: ActionName, instance?: string) {
   const { request, instanceRequest, verb, outcome } = ACTIONS[name];
   try {
     if (instance) {
-      const response = await instanceRequest(appKey, instance.name);
-      if (response.instance_name !== instance.name) {
+      const response = await instanceRequest(appKey, instance);
+      if (response.instance_name !== instance) {
         console.warn(
-          `Requested instance '${instance.name}' of '${appKey}' but server confirmed instance '${response.instance_name}'`,
+          `Requested instance '${instance}' of '${appKey}' but server confirmed instance '${response.instance_name}'`,
         );
       }
     } else {
@@ -96,14 +70,14 @@ async function performAction(appKey: string, name: ActionName, instance?: Instan
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (instance) {
-      toast.error(`Failed to ${verb} instance '${instance.name}' of '${appKey}': ${message}`);
+      toast.error(`Failed to ${verb} instance '${instance}' of '${appKey}': ${message}`);
     } else {
       toast.error(`Failed to ${verb} '${appKey}': ${message}`);
     }
     throw err;
   }
   if (instance) {
-    toast.success(`Instance '${instance.name}' of '${appKey}' ${outcome}`);
+    toast.success(`Instance '${instance}' of '${appKey}' ${outcome}`);
   } else {
     toast.success(`App '${appKey}' ${outcome}`);
   }
@@ -112,7 +86,7 @@ async function performAction(appKey: string, name: ActionName, instance?: Instan
 function buildButtonSpecs(
   status: ActionButtonStatusKey,
   handlers: Record<ActionName, () => void>,
-  instance?: InstanceRef,
+  instance?: string,
   instanceOrphaned = false,
 ): ActionButtonSpec[] {
   return [
@@ -123,7 +97,7 @@ function buildButtonSpecs(
       textVariant: "success",
       icon: <IconPlay />,
       label: "Start",
-      ariaLabel: instance ? `Start instance '${instance.name}'` : "Start app",
+      ariaLabel: instance ? `Start instance '${instance}'` : "Start app",
       onClick: handlers.start,
     },
     {
@@ -133,7 +107,7 @@ function buildButtonSpecs(
       textVariant: "outline",
       icon: <IconRefresh />,
       label: "Reload",
-      ariaLabel: instance ? `Reload instance '${instance.name}'` : "Reload app",
+      ariaLabel: instance ? `Reload instance '${instance}'` : "Reload app",
       onClick: handlers.reload,
     },
     {
@@ -143,7 +117,7 @@ function buildButtonSpecs(
       textVariant: "danger",
       icon: <IconSquare />,
       label: "Stop",
-      ariaLabel: instance ? `Stop instance '${instance.name}'` : "Stop app",
+      ariaLabel: instance ? `Stop instance '${instance}'` : "Stop app",
       onClick: handlers.stop,
     },
   ];
@@ -154,11 +128,11 @@ interface ActionButtonProps {
   appKey: string;
   isIcon: boolean;
   disabled: boolean;
-  instance?: InstanceRef;
+  instance?: string;
 }
 
 function ActionButton({ spec, appKey, isIcon, disabled, instance }: ActionButtonProps) {
-  const testId = instance ? `btn-${spec.action}-${appKey}-${instance.name}` : `btn-${spec.action}-${appKey}`;
+  const testId = instance ? `btn-${spec.action}-${appKey}-${instance}` : `btn-${spec.action}-${appKey}`;
   return (
     <Button
       variant={isIcon ? spec.iconVariant : spec.textVariant}
@@ -220,7 +194,7 @@ interface Props {
   status: ActionButtonStatusKey;
   variant?: "icon" | "text";
   confirmStop?: boolean;
-  instance?: InstanceRef;
+  instance?: string;
   // The instance's name is no longer in the app's configuration (its `in_current_config` is
   // false) — the backend rejects start/reload for it with a 404, so only Stop is offered.
   instanceOrphaned?: boolean;
@@ -284,7 +258,7 @@ export function ActionButtons({
           onConfirm={() => {
             void exec("stop");
           }}
-          instanceName={instance?.name}
+          instanceName={instance}
         />
       )}
     </>

@@ -83,7 +83,7 @@ def minimal_app_instance(**overrides: Any) -> AppInstance:
         AppInstance,
         {
             "app_key": "my_app",
-            "instance_name": "MyApp.0",
+            "instance_name": "myapp_0",
             "class_name": "MyApp",
             "status": ResourceStatus.RUNNING,
         },

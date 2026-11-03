@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
-import { appHandlersPath, handlerPath } from "../../utils/app-routes";
+import { appHandlersPath, handlerPath, instanceQueryString } from "../../utils/app-routes";
 import { EmptyState } from "../shared/empty-state";
 import { ExecutionDetailFetcher } from "./execution-detail";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
@@ -104,7 +104,7 @@ export function HandlersTab({
   }, []);
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
-  const instanceQs = instanceName !== undefined ? `?instance=${instanceName}` : "";
+  const instanceQs = instanceQueryString(instanceName);
 
   const parsed = parseSelectedHandler(selectedHandler);
 

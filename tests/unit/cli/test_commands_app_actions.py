@@ -130,13 +130,25 @@ class TestCmdAppActionRouting:
     def test_with_instance_checks_and_hits_instance_route(
         self, cli_client_factory: CLIClientFactory, cmd, action: AppAction, verb: str, extra: dict[str, Any]
     ) -> None:
-        """--instance 1 resolves the index and sends POST /api/apps/{key}/instances/inst1/{action}."""
+        """--instance inst1 sends POST /api/apps/{key}/instances/inst1/{action}."""
         client = cli_client_factory.build_with_routes(_instance_action_routes(action))
         spy = make_post_spy(client)
         with patch.object(client, "post", spy):
             runner.stdout(client, cmd, "my_app", instance="inst1", **extra)
 
         spy.assert_called_once_with(f"/api/apps/my_app/instances/inst1/{action}", ActionResponse)
+
+    def test_instance_is_quoted_into_the_route(self, cli_client_factory: CLIClientFactory) -> None:
+        """A name that skipped the known-instance check (app list unreadable) still can't change the route."""
+        path = "/api/apps/my_app/instances/a%2F..%2Fb/stop"
+        client = cli_client_factory.build_with_routes(
+            [("POST", path, 200, _action_response(action="stop").model_dump())]
+        )
+        spy = make_post_spy(client)
+        with patch.object(client, "post", spy):
+            client.post_with_instance_routing("my_app", "stop", "a/../b")
+
+        spy.assert_called_once_with(path, ActionResponse)
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_success_message_app_level(

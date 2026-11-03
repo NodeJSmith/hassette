@@ -47,12 +47,12 @@ def make_app_instance_info(
 ) -> AppInstanceInfo:
     """Build an AppInstanceInfo with sensible defaults.
 
-    ``instance_name`` defaults to ``"{class_name}.0"``, the name the seed scenarios store for a class's
+    ``instance_name`` defaults to ``"{class_name.lower()}_0"``, the name the seed scenarios store for a class's
     first instance, so callers only pass it when a test asserts on a different one.
     """
     return AppInstanceInfo(
         app_key=app_key,
-        instance_name=instance_name if instance_name is not None else f"{class_name}.0",
+        instance_name=instance_name if instance_name is not None else f"{class_name.lower()}_0",
         class_name=class_name,
         status=status,
         error=error,

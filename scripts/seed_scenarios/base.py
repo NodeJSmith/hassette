@@ -104,8 +104,8 @@ def make_execution_id(scenario: str, app_key: str, index: int) -> str:
 
 
 def make_instance_name(class_name: str, ordinal: int) -> str:
-    """Name a class's ``ordinal``-th seeded instance. Rows store it as an opaque string, never parsed as config."""
-    return f"{class_name}.{ordinal}"
+    """Name a class's ``ordinal``-th seeded instance, in a shape a real config accepts (``myapp_0``)."""
+    return f"{class_name.lower()}_{ordinal}"
 
 
 def _quote_column(name: str) -> str:

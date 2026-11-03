@@ -24,7 +24,7 @@ from hassette.types.types import SchedulerPredicate
 
 def make_job(
     name: str = "check_lights",
-    owner_id: str = "MyApp.MyApp[0]",
+    owner_id: str = "MyApp.MyApp.0",
     next_run: str = "2024-01-01T00:05:00",
     trigger_type: str | None = "interval",
     trigger_detail: str | None = None,
@@ -67,7 +67,7 @@ def make_job(
 
 def make_real_job(
     name: str = "test_job",
-    owner_id: str = "MyApp.MyApp[0]",
+    owner_id: str = "MyApp.MyApp.0",
     trigger: object | None = None,
     jitter: float | None = None,
     group: str | None = None,
@@ -84,7 +84,7 @@ def make_real_job(
 
     Args:
         name: Job name. Defaults to ``"test_job"``.
-        owner_id: Owner ID. Defaults to ``"MyApp.MyApp[0]"``.
+        owner_id: Owner ID. Defaults to ``"MyApp.MyApp.0"``.
         trigger: Optional trigger. Defaults to ``None``.
         jitter: Optional jitter in seconds.
         group: Optional group name.

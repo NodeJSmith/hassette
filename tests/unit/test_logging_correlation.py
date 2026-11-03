@@ -225,8 +225,8 @@ class TestLogRecordEntryCorrelationFields:
         assert d["execution_id"] == "exec-abc"
 
     def test_to_dict_includes_instance_name(self) -> None:
-        d = make_log_record_entry(instance_name="MyApp.0").to_dict()
-        assert d["instance_name"] == "MyApp.0"
+        d = make_log_record_entry(instance_name="myapp_0").to_dict()
+        assert d["instance_name"] == "myapp_0"
 
 
 class TestSeqMovedToFilter:

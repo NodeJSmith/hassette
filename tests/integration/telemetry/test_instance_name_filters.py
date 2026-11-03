@@ -17,8 +17,8 @@ from tests.integration.telemetry.helpers import (
 FRAMEWORK_KEY = "__hassette__.BusService"
 
 
-async def two_instances_at_one_index(db: DbFixture) -> tuple[int, int]:
-    """A listener with one run under each of two names, both stored at index 0 (as a reorder leaves old rows)."""
+async def two_named_instances(db: DbFixture) -> tuple[int, int]:
+    """One listener and one run under each of two names, on the same app."""
     db_svc, session_id = db
     upstairs = await insert_listener(db_svc, instance_name="upstairs", handler_method="on_upstairs")
     downstairs = await insert_listener(db_svc, instance_name="downstairs", handler_method="on_downstairs")
@@ -28,7 +28,7 @@ async def two_instances_at_one_index(db: DbFixture) -> tuple[int, int]:
 
 
 async def test_listener_summary_filters_by_name_not_index(query_service: TelemetryQueryService, db: DbFixture) -> None:
-    await two_instances_at_one_index(db)
+    await two_named_instances(db)
 
     row = await only_row(query_service.get_listener_summary("test_app", "upstairs"))
 
@@ -46,7 +46,7 @@ async def test_job_summary_filters_by_name_not_index(query_service: TelemetryQue
 
 
 async def test_health_aggregates_filter_by_name(query_service: TelemetryQueryService, db: DbFixture) -> None:
-    await two_instances_at_one_index(db)
+    await two_named_instances(db)
 
     upstairs = await query_service.get_app_health_aggregates("test_app", "upstairs")
     every_instance = await query_service.get_app_health_aggregates("test_app", None)
@@ -57,7 +57,7 @@ async def test_health_aggregates_filter_by_name(query_service: TelemetryQuerySer
 
 async def test_recent_activity_filters_by_name(query_service: TelemetryQueryService, db: DbFixture) -> None:
     db_svc, session_id = db
-    await two_instances_at_one_index(db)
+    await two_named_instances(db)
     job_id = await insert_job(db_svc, instance_name="upstairs")
     await insert_execution(db_svc, job_id, session_id)
 
@@ -71,10 +71,10 @@ async def test_a_name_with_no_rows_answers_empty_rather_than_another_instance(
     query_service: TelemetryQueryService, db: DbFixture
 ) -> None:
     """An index with no configured name resolves to a display label, which no stored row can hold."""
-    await two_instances_at_one_index(db)
+    await two_named_instances(db)
 
-    assert await query_service.get_listener_summary("test_app", "MyApp.7") == []
-    assert (await query_service.get_app_health_aggregates("test_app", "MyApp.7")).total_invocations == 0
+    assert await query_service.get_listener_summary("test_app", "myapp_7") == []
+    assert (await query_service.get_app_health_aggregates("test_app", "myapp_7")).total_invocations == 0
 
 
 async def test_framework_rows_answer_without_a_name_filter(query_service: TelemetryQueryService, db: DbFixture) -> None:

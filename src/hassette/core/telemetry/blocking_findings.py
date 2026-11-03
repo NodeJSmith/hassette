@@ -76,6 +76,7 @@ class _FindingBuilder:
             callee=self.callee,
             primitive=self.primitive,
             handlers=list(self.handlers.values()),
+            # Named refs by name, then the merged no-name ref last.
             instances=sorted(self.instances.values(), key=lambda inst: (inst.name is None, inst.name or "")),
             event_count=self.event_count,
             max_stall_ms=self.max_stall_ms,

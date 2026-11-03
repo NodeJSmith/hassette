@@ -246,7 +246,7 @@ describe("ConfigSchemaView", () => {
     const values = {
       brightness: 100,
       zone: "kitchen",
-      instance_name: "MyApp.0",
+      instance_name: "myapp_0",
       log_level: "INFO",
       enabled: true,
       autostart: true,

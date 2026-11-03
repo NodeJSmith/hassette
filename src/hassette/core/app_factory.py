@@ -164,8 +164,7 @@ class AppFactory:
         """
         # Each instance config's name is set by AppManifest.model_post_init (resolve_instance_name).
         configs = self.normalize_configs(manifest.app_config)
-        position = [config[INSTANCE_NAME_KEY] for config in configs].index(instance_name)
-        config_dict = configs[position]
+        config_dict = {config[INSTANCE_NAME_KEY]: config for config in configs}[instance_name]
 
         try:
             validated = app_class.app_config_cls.model_validate(config_dict)

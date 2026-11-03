@@ -114,7 +114,7 @@ Home Assistant URLs: REST http://ha.local:8123/lovelace/0/api/, WebSocket ws://h
 
 ## Required `instance_name`
 
-This applies when upgrading from 0.59 or earlier. Each app section in `hassette.toml` runs one instance of the app, or one per `[[...config]]` block (see [Multiple Instances](../core-concepts/apps/configuration.md#multiple-instances)). Every instance must now set `instance_name` in its `config`. Earlier versions filled in a missing name as `ClassName.<index>` (for example `PresenceApp.0`); Hassette no longer does. A section whose instance has no `instance_name` stops Hassette at startup with an error naming the app key and instance index. That includes a section with no `config` at all, and sections with `enabled = false` or `autostart = false`. Add a name to each:
+This applies when upgrading from 0.59 or earlier. Each app section in `hassette.toml` runs one instance of the app, or one per `[[...config]]` block (see [Multiple Instances](../core-concepts/apps/configuration.md#multiple-instances)). Every instance must now set `instance_name` in its `config`. Earlier versions filled in a missing name as `ClassName.<index>` (for example `PresenceApp.0`); Hassette no longer does. A section whose instance has no `instance_name` stops Hassette at startup with an error naming the app key and the instance's position in the config. That includes a section with no `config` at all, and sections with `enabled = false` or `autostart = false`. Add a name to each:
 
 === "Before"
 

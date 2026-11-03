@@ -256,7 +256,7 @@ describe("AppDetailPage instances", () => {
       ],
     });
     setupApi(manifest);
-    // Instance 0 is specified via query param
+    // inst_0 is specified via query param
     mockSearchString = "instance=inst_0";
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("instance-switcher")).toBeDefined();
@@ -318,7 +318,7 @@ describe("AppDetailPage instances", () => {
     expect(inst1Btn.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("corrects out-of-range instance index to instance 0 via correctUrl", async () => {
+  it("drops an instance param that names no instance via correctUrl", async () => {
     const manifest = createAppSummary({
       instance_count: 2,
       instances: [

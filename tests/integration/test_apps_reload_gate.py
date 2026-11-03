@@ -238,7 +238,7 @@ class TestReloadLockAndNeedsRestartGate:
         assert old.needs_restart is not None
 
     async def test_stop_reports_an_orphan_after_the_configured_instances(self, lifecycle: AppLifecycleService) -> None:
-        """A running instance outside the config stays stoppable, at the index the instance list shows for it."""
+        """A running instance outside the config stays stoppable, under the name the instance list shows for it."""
         app_key = MULTI_INSTANCE_APP_KEY
         lifecycle.set_apps_configs({app_key: multi_instance_manifest()})
         await lifecycle.start_app(app_key)

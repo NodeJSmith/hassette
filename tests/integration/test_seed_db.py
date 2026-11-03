@@ -28,6 +28,7 @@ import seed_scenarios
 from seed_scenarios.base import REFERENCE_INSTANT, ts
 from whenever import Instant
 
+from hassette.config.classes import instance_name_reason
 from tests.support.factories import make_execution_record
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -494,3 +495,23 @@ def test_cli_queries_against_seeded_db():
 
 # Lint and type checking have no automated test here -- they are verified by `prek -a`
 # (ruff + pyright) during pre-commit review, not by this test suite.
+
+
+@pytest.mark.parametrize("scenario", ALL_SCENARIOS)
+def test_seeded_instance_names_are_ones_a_config_accepts(scenario: str, tmp_path: Path):
+    """Seeded rows stand in for a real config's instances, so a page served from them sees real name shapes."""
+    output = tmp_path / "seed.db"
+    result = _run_seed_script(scenario, output)
+    assert result.returncode == 0, result.stderr
+
+    conn = sqlite3.connect(output)
+    try:
+        names = {
+            name
+            for table in ("listeners", "scheduled_jobs", "log_records", "blocking_events")
+            for (name,) in conn.execute(f"SELECT DISTINCT instance_name FROM {table}")
+        }
+    finally:
+        conn.close()
+
+    assert not {name for name in names - {None, "__hassette__"} if instance_name_reason(name)}

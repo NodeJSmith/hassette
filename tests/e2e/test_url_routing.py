@@ -339,14 +339,14 @@ def test_invalid_handler_id_corrects_url(page: Page, base_url: str) -> None:
 
 
 def test_instance_query_param_loads_instance(page: Page, base_url: str) -> None:
-    """Navigating to /apps/multi_app?instance=MultiApp.1 loads that instance."""
-    page.goto(base_url + "/apps/multi_app?instance=MultiApp.1")
+    """Navigating to /apps/multi_app?instance=multiapp_1 loads that instance."""
+    page.goto(base_url + "/apps/multi_app?instance=multiapp_1")
     page.wait_for_load_state("networkidle")
     # Instance switcher should be visible (we're in instance detail mode, not overview)
     switcher = page.locator("[data-testid='instance-switcher']")
     expect(switcher).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Instance 1 should be selected in the switcher
-    expect(switcher).to_contain_text("MultiApp.1")
+    expect(switcher).to_contain_text("multiapp_1")
 
 
 def test_no_instance_param_shows_parent_overview(page: Page, base_url: str) -> None:
@@ -361,14 +361,14 @@ def test_no_instance_param_shows_parent_overview(page: Page, base_url: str) -> N
 
 def test_instance_param_persists_on_refresh(page: Page, base_url: str) -> None:
     """Instance selection via ?instance= persists on page refresh."""
-    page.goto(base_url + "/apps/multi_app?instance=MultiApp.1")
+    page.goto(base_url + "/apps/multi_app?instance=multiapp_1")
     page.wait_for_load_state("networkidle")
     expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
     # Reload
     page.reload()
     page.wait_for_load_state("networkidle")
     # Should still be on instance 1
-    expect(page).to_have_url(re.compile(r"instance=MultiApp\.1"))
+    expect(page).to_have_url(re.compile(r"instance=multiapp_1"))
     expect(page.locator("[data-testid='instance-switcher']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
@@ -377,7 +377,7 @@ def test_stale_instance_param_is_dropped(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/multi_app?instance=99")
     page.wait_for_load_state("networkidle")
     expect(page).not_to_have_url(re.compile(r"instance="), timeout=DATA_LOAD_TIMEOUT_MS)
-    expect(page.locator("[data-testid='instance-card-MultiApp.0']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
+    expect(page.locator("[data-testid='instance-card-multiapp_0']")).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)
 
 
 def test_code_tab_with_line_param(page: Page, base_url: str) -> None:

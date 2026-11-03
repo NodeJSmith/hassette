@@ -19,6 +19,11 @@ function buildQuery(query?: RouteQuery): string {
   return queryString ? `?${queryString}` : "";
 }
 
+/** The `?instance=<name>` query for a page scoped to one instance, or an empty string for the whole app. */
+export function instanceQueryString(instanceName: string | undefined): string {
+  return buildQuery({ instance: instanceName });
+}
+
 export interface NavPage {
   path: string;
   label: string;

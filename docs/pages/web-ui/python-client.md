@@ -217,7 +217,7 @@ pages/web-ui/snippets/python_client_skew.py:check
 Against a server that's too old, it prints a message like:
 
 ```text
-hassette server 0.55.0 reports no API schema, older than 3, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
+hassette server 0.55.0 reports no API schema, older than 5, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
 ```
 
 The message names the two fixes: upgrade Hassette, or pin `hassette-client` to the release matching the server.

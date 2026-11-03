@@ -36,7 +36,7 @@ def event(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "id": 1,
         "app_key": "car_climate",
-        "instance_name": "CarClimate.0",
+        "instance_name": "carclimate_0",
         "tier": "watchdog",
         "primitive": None,
         "stall_duration_ms": 100.0,

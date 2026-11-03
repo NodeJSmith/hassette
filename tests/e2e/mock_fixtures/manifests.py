@@ -17,7 +17,7 @@ from tests.e2e.mock_fixtures.constants import (
 )
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest, make_manifest_db_row
 
-MY_APP_INSTANCE_NAME = "MyApp.0"
+MY_APP_INSTANCE_NAME = "myapp_0"
 """The name the seed scenarios store for ``my_app``'s one instance (``make_instance_name``)."""
 
 BROKEN_APP_ERROR = "Init error: bad config"
@@ -100,7 +100,7 @@ def build_manifests() -> list[AppManifestInfo]:
             instances=[
                 make_app_instance_info(
                     app_key=APP_KEY_MULTI_APP,
-                    instance_name=f"MultiApp.{index}",
+                    instance_name=f"multiapp_{index}",
                     class_name="MultiApp",
                     owner_id=f"MultiApp.{index}",
                 )

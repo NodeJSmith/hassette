@@ -533,7 +533,6 @@ class TestShutdownInstanceLogContext:
         """Log records emitted while an instance shuts down carry its real app_key, not None."""
         inst = make_mock_app_instance(instance_name="inst_0")
         inst.app_key = "my_app"
-        inst.index = 0
         bound: dict[str, object] = {}
 
         async def capture_context() -> ShutdownOutcome:

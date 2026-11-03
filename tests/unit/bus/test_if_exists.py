@@ -43,7 +43,7 @@ async def handler_b(event) -> None:
 
 
 def make_bus_listener(bus: "Bus", *, handler: HandlerType = handler_a, name: str = "test_listener") -> Listener:
-    """Build a listener whose identity fields (app key, instance index, owner) come off `bus`."""
+    """Build a listener whose identity fields (app key, instance name, owner) come off `bus`."""
     assert bus.parent is not None
     return create_listener(
         handler=handler,

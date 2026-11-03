@@ -163,7 +163,8 @@ def _action_message(action: AppAction, key: str, instance_label: str | None) -> 
 def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
     """Shared implementation for ``start``/``stop``/``reload``: confirm, POST, render result."""
     client = make_client(ctx)
-    client.known_instance_or_none(key, instance)
+    if instance is not None:
+        client.require_known_instance(key, instance)
 
     if action in ACTIONS_REQUIRING_CONFIRMATION and not yes:
         if ctx.json_mode:

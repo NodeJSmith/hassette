@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionResponse } from "../../api/endpoints";
-import { ActionButtons, getStableInstanceRef } from "./action-buttons";
+import { ActionButtons } from "./action-buttons";
 
 // Mock the API endpoints — we test the component logic, not the network.
 vi.mock("../../api/endpoints", () => ({
@@ -254,7 +254,7 @@ describe("ActionButtons", () => {
 
   // -- Instance-level routing --
 
-  const instance = { name: "office" };
+  const instance = "office";
 
   it("calls startInstance (not startApp) when instance prop is provided", async () => {
     const user = userEvent.setup();
@@ -407,19 +407,5 @@ describe("ActionButtons", () => {
     await user.click(screen.getByTestId("confirm-btn-danger"));
 
     expect(stopInstance).toHaveBeenCalledWith("my_app", "office");
-  });
-});
-
-describe("getStableInstanceRef", () => {
-  it("returns the same object reference for the same name", () => {
-    const first = getStableInstanceRef("office");
-    const second = getStableInstanceRef("office");
-    expect(first).toBe(second);
-  });
-
-  it("returns distinct references for different names", () => {
-    const office = getStableInstanceRef("office");
-    const warehouse = getStableInstanceRef("warehouse");
-    expect(office).not.toBe(warehouse);
   });
 });

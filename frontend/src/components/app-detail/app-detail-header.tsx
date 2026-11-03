@@ -1,6 +1,6 @@
 import type { AppStatus, ResourceStatus } from "@/api/endpoints";
 import type { components } from "@/api/generated-types";
-import { ActionButtons, getStableInstanceRef } from "@/components/shared/action-buttons";
+import { ActionButtons } from "@/components/shared/action-buttons";
 import { AlertShell } from "@/components/shared/alert-shell";
 import { ErrorBanner } from "@/components/shared/error-banner";
 import { StatusShape } from "@/components/shared/status-shape";
@@ -78,7 +78,7 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
             confirmStop
             {...(instanceScoped && currentInstance
               ? {
-                  instance: getStableInstanceRef(currentInstance.instance_name),
+                  instance: currentInstance.instance_name,
                   instanceOrphaned,
                 }
               : {})}

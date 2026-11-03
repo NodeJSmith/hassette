@@ -13,6 +13,7 @@ import json
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
+from urllib.parse import quote
 
 import httpx2 as httpx
 from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstance, AppListResponse
@@ -276,7 +277,7 @@ class HassetteCLIClient:
         path = (
             f"{APPS_PATH}/{app_key}/{action}"
             if instance is None
-            else f"{APPS_PATH}/{app_key}/instances/{instance}/{action}"
+            else f"{APPS_PATH}/{app_key}/instances/{quote(instance, safe='')}/{action}"
         )
         return self.post(path, ActionResponse)
 

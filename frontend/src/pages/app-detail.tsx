@@ -25,7 +25,7 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
 import { appLiveStatus } from "../utils/app-data";
-import { appDetailPath, type AppDetailTab, parseInstanceParam } from "../utils/app-routes";
+import { appDetailPath, type AppDetailTab, instanceQueryString, parseInstanceParam } from "../utils/app-routes";
 
 const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
 
@@ -188,7 +188,7 @@ export function AppDetailPage({ params }: Props) {
     return <ErrorAlert>{(manifestError ?? listenersError ?? jobsError)!.message}</ErrorAlert>;
   }
 
-  const instanceQueryString = instanceName !== undefined ? `?instance=${instanceName}` : "";
+  const instanceQs = instanceQueryString(instanceName);
   const tabProps = { appKey, instanceName, activeTab };
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
@@ -245,7 +245,7 @@ export function AppDetailPage({ params }: Props) {
               listeners={displayListeners}
               jobs={displayJobs}
               appKey={appKey}
-              instanceQs={instanceQueryString}
+              instanceQs={instanceQs}
               instanceName={instanceName}
               appStatus={liveStatus}
             />

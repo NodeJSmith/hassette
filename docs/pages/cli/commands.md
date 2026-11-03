@@ -85,7 +85,7 @@ Read this value with `log_persistence_active`; the counter changes only while pe
 
 ## `hassette app`
 
-Lists all loaded apps with key, status, display name, instance count, handler invocations over the last hour, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and it is the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
+Lists all loaded apps with key, status, display name, instance count, handler invocations over the last hour, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and it is the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance, but the same class can run multiple times, each with its own config and `instance_name`.
 
 ```console
 $ hassette app
@@ -175,7 +175,7 @@ $ hassette app health bus_handler_app
 ╰──────────────────────────────────────╯
 ```
 
-Health counts every run in the window, including runs of handlers and jobs removed since. `hassette dashboard` uses the same rule across all of an app's instances, so the two agree whenever only one instance ran in the window.
+Health counts every run in the window, including runs of handlers and jobs removed since. `hassette dashboard` uses the same rule, so the two agree unless `--instance` or `--since` narrows `app health`.
 
 ??? note "Runs that drop out of health"
     Health reads stored executions. Retention deletes old ones, and a restart deletes the previous session's `once=True` listeners along with their executions, so those runs stop counting.

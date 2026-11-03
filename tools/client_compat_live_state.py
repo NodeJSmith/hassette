@@ -183,7 +183,7 @@ def live_manifests() -> list[AppManifestInfo]:
     degraded_instances = [
         make_app_instance_info(
             app_key=APP_KEY_DEGRADED_APP,
-            instance_name=f"DegradedApp.{index}",
+            instance_name=f"degradedapp_{index}",
             class_name="DegradedApp",
             status=status,
             error_message=f"instance {index} {status}" if status in FAULTED_STATUSES else None,

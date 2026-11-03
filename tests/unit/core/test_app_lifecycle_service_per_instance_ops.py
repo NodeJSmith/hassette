@@ -32,7 +32,7 @@ class TestReloadInstanceEvents:
     ) -> None:
         # dup-ignore-end
         """Per-instance reload emits a HassetteAppStateEvent with the correct
-        instance identity (app_key, index, instance_name) for the target instance only.
+        instance identity (app_key, instance_name) for the target instance only.
         """
         event_capture.install(mock_hassette)
         mock_manifest.app_config = [{"instance_name": "inst_0"}, {"instance_name": "inst_1"}]

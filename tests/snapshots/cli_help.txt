@@ -67,7 +67,7 @@ Show recent activity for an app (GET /api/telemetry/app/{key}/activity).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ *  KEY --key            [required]                                                               │
-│    INSTANCE --instance  Filter by app instance (integer index or instance name). Requires --app. │
+│    INSTANCE --instance  Filter by app instance name. Requires --app.                             │
 │    SINCE --since        Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute      │
 │                         (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use local │
 │                         time.                                                                    │
@@ -118,8 +118,7 @@ Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ *  KEY --key                  [required]                                                         │
-│    INSTANCE --instance        Filter by app instance (integer index or instance name). Requires  │
-│                               --app.                                                             │
+│    INSTANCE --instance        Filter by app instance name. Requires --app.                       │
 │    SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or         │
 │                               absolute (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive       │
 │                               timestamps use local time.                                         │
@@ -146,7 +145,7 @@ Reload an app or app instance (POST /api/apps/{key}/reload).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ *  KEY --key            [required]                                                               │
-│    INSTANCE --instance  Targets a specific app instance (index or name).                         │
+│    INSTANCE --instance  Targets a specific app instance by name.                                 │
 │    YES --yes            Skip the confirmation prompt. [default: False]                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
@@ -190,7 +189,7 @@ Start an app or app instance (POST /api/apps/{key}/start).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ *  KEY --key            [required]                                                               │
-│    INSTANCE --instance  Targets a specific app instance (index or name).                         │
+│    INSTANCE --instance  Targets a specific app instance by name.                                 │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │
@@ -212,7 +211,7 @@ Stop an app or app instance (POST /api/apps/{key}/stop).
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ *  KEY --key            [required]                                                               │
-│    INSTANCE --instance  Targets a specific app instance (index or name).                         │
+│    INSTANCE --instance  Targets a specific app instance by name.                                 │
 │    YES --yes            Skip the confirmation prompt. [default: False]                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
@@ -235,7 +234,7 @@ Show blocking findings: calls that stalled the event loop.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ APP --app            Filter by app key.                                                          │
-│ INSTANCE --instance  Filter by app instance (integer index or instance name). Requires --app.    │
+│ INSTANCE --instance  Filter by app instance name. Requires --app.                                │
 │ SINCE --since        Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute         │
 │                      (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use local    │
 │                      time.                                                                       │
@@ -325,8 +324,7 @@ List scheduled jobs, show execution history, or trigger a job.
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ JOB-ID --job-id                                                                                  │
 │ APP --app                  Filter by app key.                                                    │
-│ INSTANCE --instance        Filter by app instance (integer index or instance name). Requires     │
-│                            --app.                                                                │
+│ INSTANCE --instance        Filter by app instance name. Requires --app.                          │
 │ SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute   │
 │                            (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use    │
 │                            local time.                                                           │
@@ -376,8 +374,7 @@ List listeners and invocation history.
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ LISTENER-ID --listener-id                                                                        │
 │ APP --app                  Filter by app key.                                                    │
-│ INSTANCE --instance        Filter by app instance (integer index or instance name). Requires     │
-│                            --app.                                                                │
+│ INSTANCE --instance        Filter by app instance name. Requires --app.                          │
 │ SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute   │
 │                            (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use    │
 │                            local time.                                                           │
