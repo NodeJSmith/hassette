@@ -24,11 +24,6 @@ CoverageKind = Literal["route", "empty", "problem"]
 
 EXCLUDED: dict[tuple[CoverageKind, str], str] = {
     ("route", "POST /api/auth/session"): "browser-only: hassette-client has no method for it",
-    # The released client's route templates, until a release ships the {instance_name} ones (#3100). A stale
-    # entry fails this check, so these come out with that release.
-    ("route", "POST /api/apps/{app_key}/instances/{index}/start"): "renamed to {instance_name} by #3100",
-    ("route", "POST /api/apps/{app_key}/instances/{index}/stop"): "renamed to {instance_name} by #3100",
-    ("route", "POST /api/apps/{app_key}/instances/{index}/reload"): "renamed to {instance_name} by #3100",
     ("problem", ProblemCode.INVALID_TOKEN.value): (
         "only POST /api/auth/session answers it, and that route is excluded; a wrong bearer token gets "
         "not_authenticated"
