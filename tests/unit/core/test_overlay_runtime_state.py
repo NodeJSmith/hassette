@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import AppStatus, ResourceStatus
 
+from hassette.config.classes import AppManifest
 from hassette.core.app_registry import AppRegistry, listed_apps, overlay_runtime_state
 from hassette.types.enums import BlockReason
 from tests.support.helpers import create_app_manifest
@@ -24,6 +25,15 @@ def mock_app() -> MagicMock:
     app.class_name = "TestApp"
     app.status = ResourceStatus.RUNNING
     return app
+
+
+def register_running_app(registry: AppRegistry, app: MagicMock, suffix: str, app_dir: Path) -> AppManifest:
+    """Configure one app in ``registry`` and register ``app`` as its running instance."""
+    manifest = create_app_manifest(suffix, app_dir)
+    registry.set_manifests({manifest.app_key: manifest})
+    app.instance_name = manifest.app_key
+    registry.register_app(manifest.app_key, app)
+    return manifest
 
 
 class TestOverlayRuntimeState:
@@ -49,10 +59,7 @@ class TestOverlayRuntimeState:
     def test_configured_running_app_shows_running_status(
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
     ) -> None:
-        manifest = create_app_manifest("running", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-        mock_app.instance_name = manifest.app_key
-        registry.register_app(manifest.app_key, mock_app)
+        manifest = register_running_app(registry, mock_app, "running", tmp_path)
 
         rows = [make_manifest_db_row(manifest.app_key)]
         results = overlay_runtime_state(rows, registry)
@@ -66,10 +73,7 @@ class TestOverlayRuntimeState:
         assert info.display_name == "My App"
 
     def test_mixed_in_config_and_db_only_apps(self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path) -> None:
-        manifest = create_app_manifest("live", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-        mock_app.instance_name = manifest.app_key
-        registry.register_app(manifest.app_key, mock_app)
+        manifest = register_running_app(registry, mock_app, "live", tmp_path)
 
         rows = [make_manifest_db_row(manifest.app_key), make_manifest_db_row("removed_app")]
         results = overlay_runtime_state(rows, registry)
@@ -163,15 +167,12 @@ class TestOverlayRuntimeState:
         assert results[0].enabled is False
 
 
-class TestDropRemovedApps:
+class TestListedApps:
     def test_drops_an_app_known_only_from_its_db_row(
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
     ) -> None:
         """A removed app's row outlives it until its history ages out; lists must not show it as stopped."""
-        manifest = create_app_manifest("live", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-        mock_app.instance_name = manifest.app_key
-        registry.register_app(manifest.app_key, mock_app)
+        manifest = register_running_app(registry, mock_app, "live", tmp_path)
         rows = [make_manifest_db_row(manifest.app_key), make_manifest_db_row("removed_app")]
 
         listed = listed_apps(overlay_runtime_state(rows, registry))
