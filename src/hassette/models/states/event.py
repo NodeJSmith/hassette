@@ -37,7 +37,6 @@ class EventAttributes(AttributesBase):
     device_class: EventDeviceClass | None = Field(default=None)
     event_types: list[str] | None = Field(default=None)
     event_type: str | None = Field(default=None)
-    """The event type that last fired; `None` when the state is restored or unavailable."""
 
 
 class EventState(StringBaseState):
