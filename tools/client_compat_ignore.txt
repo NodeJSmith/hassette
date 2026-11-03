@@ -12,7 +12,7 @@
 #
 # This file intentionally starts empty (comment lines only).
 
-# #3100: instances are addressed by name, so the integer position released clients require is gone from these
+# #3100 (cleanup: #3767): instances are addressed by name, so the integer position released clients require is gone from these
 # responses (spec 144 D1). hass-hassette needs a release pinning the new client.
 GET /api/telemetry/app/{app_key}/blocking (adversarial--app-blocking.json)
 GET /api/telemetry/app-grid (adversarial--app-grid-since.json)
