@@ -40,6 +40,14 @@ def insert_row(conn, table: str, values: dict[str, object]) -> int:
     return conn.execute(sql, tuple(filled.values())).lastrowid
 
 
+def identities_after_migrating(db_path: Path, table: str) -> tuple[list[tuple[str, str]], int]:
+    """Migrate to the latest version and read back ``table``'s row identities and the active listener count."""
+    run_migrations(db_path)
+    with sqlite_conn(db_path) as conn:
+        rows = conn.execute(f"SELECT app_key, instance_name FROM {table}").fetchall()
+        return [tuple(row) for row in rows], conn.execute("SELECT COUNT(*) FROM active_listeners").fetchone()[0]
+
+
 @pytest.mark.parametrize("table", TABLES)
 def test_rows_survive_the_rewrite_of_every_table(tmp_path: Path, table: str) -> None:
     db_path = tmp_path / "test.db"
@@ -63,10 +71,7 @@ def test_rows_survive_the_rewrite_of_every_table(tmp_path: Path, table: str) -> 
         insert_row(conn, "log_records", {**identity, "level": "INFO"})
         conn.commit()
 
-    run_migrations(db_path)
+    rows, active_listeners = identities_after_migrating(db_path, table)
 
-    with sqlite_conn(db_path) as conn:
-        rows = conn.execute(f"SELECT app_key, instance_name FROM {table}").fetchall()
-        active_listeners = conn.execute("SELECT COUNT(*) FROM active_listeners").fetchone()[0]
-    assert [tuple(row) for row in rows] == [("my_app", "office")]
+    assert rows == [("my_app", "office")]
     assert active_listeners == 1
