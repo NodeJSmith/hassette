@@ -10,9 +10,9 @@ from check_pr_screenshots import branch_scoped_raw_prefixes, evaluate, has_visua
 
 SHA = "5257d88b6a9fcdf7a5df250b6fda5f62ade45b3d"
 RAW_BASE = "https://raw.githubusercontent.com/NodeJSmith/hassette"
-BRANCH_URL = f"{RAW_BASE}/autofix/issue-2219/docs/pr-evidence/x.png"
-MAIN_URL = f"{RAW_BASE}/main/docs/pr-evidence/x.png"
-SHA_URL = f"{RAW_BASE}/{SHA}/docs/pr-evidence/x.png"
+BRANCH_URL = f"{RAW_BASE}/autofix/issue-2219/.pr-screenshots/x.png"
+MAIN_URL = f"{RAW_BASE}/main/.pr-screenshots/x.png"
+SHA_URL = f"{RAW_BASE}/{SHA}/.pr-screenshots/x.png"
 
 
 @pytest.mark.parametrize(
@@ -92,7 +92,7 @@ def test_sha_pinned_raw_url_in_body_satisfies() -> None:
 
 
 def test_branch_scoped_url_ignored_when_docs_png_committed() -> None:
-    files = ["frontend/src/App.tsx", "docs/pr-evidence/x.png"]
+    files = ["frontend/src/App.tsx", "docs/_static/x.png"]
     assert evaluate(files, f"![after]({BRANCH_URL})", []) == (True, True)
 
 
@@ -106,7 +106,7 @@ def test_branch_scoped_raw_prefixes_reports_only_unpinned_once_each() -> None:
 
 
 def test_refs_heads_raw_url_is_flagged() -> None:
-    body = f"![after]({RAW_BASE}/refs/heads/autofix/issue-2219/docs/pr-evidence/x.png)"
+    body = f"![after]({RAW_BASE}/refs/heads/autofix/issue-2219/.pr-screenshots/x.png)"
     assert branch_scoped_raw_prefixes(body) == [f"{RAW_BASE}/refs/"]
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
 
@@ -143,4 +143,4 @@ def test_branch_scoped_non_image_raw_link_is_flagged() -> None:
 
 def test_uppercase_host_branch_scoped_url_is_flagged() -> None:
     url = MAIN_URL.replace("raw.githubusercontent.com", "RAW.GitHubUserContent.com")
-    assert branch_scoped_raw_prefixes(f"![after]({url})") == [url.removesuffix("docs/pr-evidence/x.png")]
+    assert branch_scoped_raw_prefixes(f"![after]({url})") == [url.removesuffix(".pr-screenshots/x.png")]

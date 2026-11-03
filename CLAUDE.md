@@ -119,7 +119,7 @@ class MyApp(App[MyConfig]):
 
 - **Core changes** (`src/hassette/core/`, `src/hassette/resources/`, `src/hassette/types/enums.py`): the local gate is the unit/integration suite, lint + pyright, and the schema-freshness check. CI runs `nox -s system_with_coverage` and `nox -s e2e` on every push, so don't run those locally unless you're debugging (`uv run nox -s system` needs Docker).
 - **Docs changes** (`docs/pages/`): run `doc-persona-review` and `doc-accuracy-review` on the touched pages. See `.claude/rules/doc-rules.md`.
-- **UI changes**: use the demo stack (`mise run demo`) for visual QA, and capture screenshots only via `scripts/capture_screenshots.py`, never raw Playwright. Details in `.claude/rules/demo-and-screenshots.md`.
+- **UI changes**: use the demo stack (`mise run demo`) for visual QA, and capture screenshots only via `scripts/capture_screenshots.py`, never raw Playwright. Host PR screenshots with `tools/frontend/attach_pr_screenshots.py`. Details in `.claude/rules/demo-and-screenshots.md`.
 
 ## GitHub
 

@@ -56,6 +56,9 @@ RAW_URL_PREFIX_RE = re.compile(
 )
 COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}", re.IGNORECASE)
 NO_VISUAL_CHANGE_LABEL = "no-visual-change"
+ATTACH_HINT = (
+    "Hint: tools/frontend/attach_pr_screenshots.py hosts images without merging them and prints SHA-pinned links."
+)
 
 
 def is_rendering_file(path: str) -> bool:
@@ -151,6 +154,7 @@ def main() -> int:
         sha = head_sha or "<commit-sha>"
         print("Pin each link to a full commit SHA instead of the branch name:", file=sys.stderr)
         print(f"  https://raw.githubusercontent.com/<owner>/<repo>/{sha}/<path>", file=sys.stderr)
+        print(ATTACH_HINT, file=sys.stderr)
         print(
             f"Alternatively, commit the screenshot under docs/ (a *.png) or add the '{NO_VISUAL_CHANGE_LABEL}' label.",
             file=sys.stderr,
@@ -163,6 +167,7 @@ def main() -> int:
     print("      (pin raw.githubusercontent.com links to a commit SHA, not the branch),", file=sys.stderr)
     print("  (b) include an updated screenshot under docs/ (a *.png) in the diff, or", file=sys.stderr)
     print(f"  (c) add the '{NO_VISUAL_CHANGE_LABEL}' label if the change is genuinely not visible.", file=sys.stderr)
+    print(ATTACH_HINT, file=sys.stderr)
     return 1
 
 

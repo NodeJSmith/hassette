@@ -11,8 +11,9 @@ Operational scripts for building, running, and demoing hassette.
   by `hassette_demo.py` and `capture_screenshots.py`; not run directly.
 - **`capture_screenshots.py`** — regenerate `docs/_static/web_ui_*.png` and
   `docs/_static/ha-*.png` from `docs/screenshots.yml` (`--only <name>` to scope). Starts
-  the demo stack via `DemoStack`, runs shot-scraper, tears down. See
-  `.claude/rules/demo-and-screenshots.md`.
+  the demo stack via `DemoStack`, runs shot-scraper, tears down. `--against <port>`
+  instead captures ad-hoc URLs from a hassette you already started (PR evidence for
+  seeded states). See `.claude/rules/demo-and-screenshots.md`.
 - **`screenshot_page_helpers.js`** — `window.docShot` helpers that `capture_screenshots.py`
   injects into each page, for entries that drive shadow-DOM UI and draw the green circle.
 - **`hassette_demo.py`** — thin wrapper around `DemoStack` for interactive visual
