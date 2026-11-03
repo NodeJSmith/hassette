@@ -595,6 +595,19 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     return results
 
 
+def listed_apps(infos: Iterable[AppManifestInfo]) -> list[AppManifestInfo]:
+    """The apps an app list shows: every configured app, and a removed one only while an instance is flagged.
+
+    A removed app's ``app_manifests`` row outlives it until its history ages out of retention
+    (``build_prune_removed_app_manifests_query``), and ``overlay_runtime_state`` reports such a row as
+    STOPPED. Lists leave it out so it never reads as a stopped app; ``GET /apps/{app_key}`` still
+    answers for it. A removed app with a flagged needs-restart instance stays listed, as FAILED, because
+    that instance's work may still be running.
+    """
+    # A removed app's snapshot lists instances only through build_orphaned_flag_info, i.e. flagged ones.
+    return [info for info in infos if info.in_current_config or info.instances]
+
+
 def name_in_current_config(instance_name: str, manifest: "AppManifest | None") -> bool:
     """Whether ``manifest`` configures ``instance_name``.
 

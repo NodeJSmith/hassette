@@ -64,7 +64,7 @@ The visual system should reflect Hassette's actual domain:
 - Health combines current state with recent behavior.
 - Time windows change the evidence being inspected.
 - Logs, source, configuration, and tracebacks explain outcomes.
-- Disabled autostart and removed apps remain useful configuration or historical evidence.
+- Disabled-autostart apps remain useful configuration evidence. Removed apps leave the lists; their history stays reachable from a direct link.
 - Home Assistant is a connected external system, not the visual model for this UI.
 
 Use this vocabulary in labels and explanations. Prefer `app`, `handler`, `job`, `execution`, `listener`, and `instance` over organizational or infrastructure metaphors.

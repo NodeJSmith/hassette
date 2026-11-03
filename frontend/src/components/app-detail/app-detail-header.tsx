@@ -52,6 +52,11 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
   const actionStatus = manifest?.status === "blocked" ? "blocked" : liveStatus;
   const instanceScoped = !!manifest && manifest.instance_count > 1 && !showParentOverview;
   const instanceOrphaned = instanceScoped && currentInstance?.in_current_config === false;
+  // App lists leave a removed app out unless an instance is flagged needs-restart, so a direct
+  // link is usually the only way here. With no instances there is nothing to act on, and the
+  // backend 404s every action.
+  const appRemoved = manifest?.in_current_config === false;
+  const nothingToActOn = appRemoved && manifest.instance_count === 0;
 
   return (
     <>
@@ -71,18 +76,20 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
             <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_SHAPE_SIZE} /> {liveStatus}
           </Badge>
-          <ActionButtons
-            appKey={appKey}
-            status={actionStatus}
-            variant="text"
-            confirmStop
-            {...(instanceScoped && currentInstance
-              ? {
-                  instance: currentInstance.instance_name,
-                  instanceOrphaned,
-                }
-              : {})}
-          />
+          {!nothingToActOn && (
+            <ActionButtons
+              appKey={appKey}
+              status={actionStatus}
+              variant="text"
+              confirmStop
+              {...(instanceScoped && currentInstance
+                ? {
+                    instance: currentInstance.instance_name,
+                    instanceOrphaned,
+                  }
+                : {})}
+            />
+          )}
         </div>
       </div>
 
@@ -90,7 +97,7 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
         {manifest?.filename ?? appKey}
         {manifest?.class_name && manifest.class_name !== appKey && <> &middot; {manifest.class_name}</>}
         {instanceScoped && currentInstance && <> &middot; instance {currentInstance.instance_name}</>}
-        {instanceOrphaned && <MetaBadge label="not in config" testId="not-in-config-badge" />}
+        {(appRemoved || instanceOrphaned) && <MetaBadge label="not in config" testId="not-in-config-badge" />}
         {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
             loading, and we must not flash the chip before the manifest arrives. */}
         {manifest?.autostart === false && <MetaBadge label="no autostart" testId="no-autostart-badge" />}

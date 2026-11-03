@@ -263,4 +263,26 @@ describe("AppDetailPage header", () => {
     expect(await findByTestId("btn-reload-test_app-backup")).toBeDefined();
     expect(queryByTestId("not-in-config-badge")).toBeNull();
   });
+
+  it("marks an app removed from config and offers no actions for it", async () => {
+    // Lists leave a removed app out, but a direct link still opens its detail page; a stopped
+    // pill with a Start button would read as an app that can be started.
+    const manifest = createAppSummary({
+      app_key: "test_app",
+      status: "stopped",
+      instance_count: 0,
+      in_current_config: false,
+    });
+    setupApi(manifest);
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("not-in-config-badge")).toBeDefined();
+    expect(queryByTestId("btn-start-test_app")).toBeNull();
+  });
+
+  it("does not mark a configured app as removed", async () => {
+    setupApi(createAppSummary({ app_key: "test_app", status: "stopped" }));
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-start-test_app")).toBeDefined();
+    expect(queryByTestId("not-in-config-badge")).toBeNull();
+  });
 });

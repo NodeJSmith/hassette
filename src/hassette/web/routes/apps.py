@@ -357,15 +357,15 @@ def _build_app_config_view(
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
 )
 async def get_apps(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppListResponse:
-    """Return every persisted app, overlaid with live runtime state.
+    """Return every app in the current config, plus a removed one while an instance is flagged needs-restart.
 
     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
     failure) and overlaid with live runtime state via
-    ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
-    no loaded manifest are still included.
+    ``RuntimeQueryService.overlay_listed_manifest_rows()``, which leaves out the other removed apps
+    (see ``listed_apps``). ``GET /apps/{app_key}`` still answers for any of them.
     """
     db_rows = await telemetry.get_all_app_manifests()
-    manifest_infos = runtime.overlay_manifest_rows(db_rows)
+    manifest_infos = runtime.overlay_listed_manifest_rows(db_rows)
 
     full_snapshot = AppFullSnapshot(
         manifests=tuple(manifest_infos),

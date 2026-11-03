@@ -43,9 +43,9 @@ export function buildStaticPageItems(navigate: (path: string) => void): PaletteI
   }));
 }
 
-/** Removed apps (in_current_config: false) are historical/DB-only — the runtime doesn't know
- * about them, so they're excluded from every actionable palette result (stop/reload would 404
- * or no-op, and "jump to…" is for apps a user can actually act on). */
+/** The app list carries an app outside config (in_current_config: false) only while one of its
+ * instances is flagged needs-restart. The backend admits only stop for it, so it's excluded from
+ * every actionable palette result. */
 function activeManifests(manifests: AppManifest[]): AppManifest[] {
   return manifests.filter((m) => m.in_current_config);
 }
