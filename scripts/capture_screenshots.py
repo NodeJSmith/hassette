@@ -479,20 +479,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Playwright page timeout in milliseconds (default: 30000). "
         "Increase if Page.screenshot times out waiting for fonts or rendering.",
     )
-    against = parser.add_argument_group("--against mode", "capture ad-hoc URLs from an already-running hassette")
-    against.add_argument("--against", type=int, metavar="PORT", help="web API port of the running hassette")
-    against.add_argument("--token-file", type=Path, help="the instance's web API token file: <data_dir>/.web_api_token")
-    against.add_argument(
+    against_group = parser.add_argument_group("--against mode", "capture ad-hoc URLs from an already-running hassette")
+    against_group.add_argument("--against", type=int, metavar="PORT", help="web API port of the running hassette")
+    against_group.add_argument(
+        "--token-file", type=Path, help="the instance's web API token file: <data_dir>/.web_api_token"
+    )
+    against_group.add_argument(
         "--url", action="append", default=[], help="page path to capture, e.g. /apps/pet_feeder (repeatable)"
     )
-    against.add_argument("--out", type=Path, help="output directory; keep it outside docs/")
-    against.add_argument(
+    against_group.add_argument("--out", type=Path, help="output directory; keep it outside docs/")
+    against_group.add_argument(
         "--width", type=int, default=AGAINST_DEFAULT_WIDTH, help="viewport width (default: %(default)s)"
     )
-    against.add_argument(
+    against_group.add_argument(
         "--height", type=int, default=AGAINST_DEFAULT_HEIGHT, help="viewport height (default: %(default)s)"
     )
-    against.add_argument(
+    against_group.add_argument(
         "--wait",
         type=int,
         default=AGAINST_DEFAULT_WAIT_MS,

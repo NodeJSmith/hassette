@@ -128,9 +128,9 @@ def attach(repo: Path, images: list[Path]) -> str:
         git(repo, "push", remote, f"{remove_sha}:{merge_ref}")
     except AttachError as exc:
         raise AttachError(f"{exc}\nIf the remote branch moved ahead, pull it and rerun.") from exc
+    markdown = screenshots_markdown(slug, add_sha, images)
     # Move the local branch to the pushed tip so it isn't left behind its upstream. The remove
     # commit's tree is HEAD's own, so the worktree and index still match.
-    markdown = screenshots_markdown(slug, add_sha, images)
     try:
         git(repo, "update-ref", f"refs/heads/{branch}", remove_sha, head)
     except AttachError as exc:
