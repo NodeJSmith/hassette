@@ -5,6 +5,148 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.62.0](https://github.com/NodeJSmith/hassette/compare/v0.61.0...v0.62.0) (2026-11-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* App instances are addressed by `instance_name` everywhere, and the integer position is removed.
+    #### Routes and API responses
+    - `POST /api/apps/{key}/instances/{index}/{action}` becomes
+    `/instances/{instance_name}/{action}`, and the `instance_index` query
+    parameter becomes `instance_name`. A leftover `instance_index` is
+    ignored, so that request answers with every instance.
+    - `/api/telemetry/app/{key}/health`, `/listeners` and `/jobs` with no
+    instance now cover every instance instead of the first, including runs
+    stored under a name that was since renamed or removed.
+    - The integer position is gone from `AppInstance`, `InstanceOutcome`,
+    `ActionResponse`, `LogEntry`, listener and job summaries, blocking
+    references and WebSocket messages. Instances are listed in config order,
+    then any still running outside the config, by name. Match `outcomes` to
+    instances by `instance_name`. Listener and job summaries gain
+    `instance_name`.
+    #### Client and integration
+    - `hassette-client` methods take `instance_name=`, and
+    `action(instance=)` takes a name. Releases before this one can't read
+    the new responses: `hass-hassette` stops updating until a release pins
+    the new client.
+    #### CLI
+    - `--instance` takes a name, and `--instance 0` fails with the list of
+    known names. The CLI refuses a renamed or removed name, even though the
+    API can still read its history. `app start|stop|reload --json` reports
+    `instance_name` instead of `instance_index`, including under `outcomes`.
+    #### Apps and events
+    - `App.index`, the `index` constructor argument and the test harness's
+    `index` are removed. So are `AppStateChangePayload.index`,
+    `ExecutionCompletedPayload.instance_index` and the `instance_index`
+    argument of `HassetteExecutionCompletedEvent.from_record`.
+    `AppStateChangePayload.instance_name` is required and is now the second
+    positional field.
+    #### Web UI and storage
+    - `?instance=` takes a name, and an old numeric bookmark lands on the
+    app's page.
+    - Migration 020 rewrites four telemetry tables at the first start, which
+    can take longer on a large database. If it times out on slow storage,
+    raise `database.migration_timeout_seconds`. Rolling back past this
+    release requires deleting the telemetry database. Rows stored with no
+    name show as "unnamed instance" until retention deletes them.
+* App instances are keyed on their name, which moves default cache directories and removes the index from the app lookup APIs.
+    #### Default cache directories
+    - The default cache directory moves from `{app_key}/{index}` to
+    `{app_key}/{instance_name}`. Default caches start empty after upgrading,
+    and the old directories stay on disk. To keep an old cache, stop
+    Hassette and move `{app_key}/{index}` to `{app_key}/{instance_name}`. A
+    single-instance app can instead set `cache_key = "{app_key}/0"`; don't
+    set it on a multi-instance app, because every instance would share one
+    cache file.
+    #### App lookup
+    - `Hassette.get_app` is removed. Use `hassette.app_handler.get(app_key,
+    instance_name=...)`.
+    - `AppHandler.get` takes `instance_name` by keyword only and no longer
+    takes an index, so `get(key, 0)` now raises `TypeError`.
+* `DateTimeBaseState` subclasses no longer accept naive or date-only strings, or `PlainDateTime` and `Date` objects, when validated outside the conversion pipeline (direct `State.model_validate()`, or a `BaseEntity` validating its nested state). `PlainDateTime` and `Date` objects also fail in the pipeline; strings from Home Assistant still convert as before. Pass raw state dicts through `StateRegistry.try_convert_state()`, and convert `PlainDateTime` and `Date` objects to `ZonedDateTime` before validating. Code branching on `isinstance(state.value, PlainDateTime)` or `Date` can drop those branches.
+* Upgrading resets per-instance listener and job views, because rows from before this release are retired without a backfill; they stay queryable by id until retention removes them, and no action is needed.
+    #### Instance names are now identity
+    - Renaming an instance in config starts a new telemetry history.
+    Renaming it back restores the old one until retention deletes it.
+    - An `App` constructed directly, outside config loading and
+    `AppTestHarness`, must pass a non-empty `instance_name` before
+    registering a listener or job. It now raises `ValueError` otherwise.
+    #### Web API
+    - `GET /api/logs/recent` with `instance_index` and no `app_key` now
+    answers 422 `validation_failed`.
+    `hassette_client.get_logs(instance_index=...)` callers must also pass
+    `app_key`.
+    - A negative `instance_index` now answers 422 `validation_failed` on
+    every route that takes one.
+* `[hassette.file_watcher]` no longer accepts `debounce_milliseconds` or `step_milliseconds`, and `[hassette.blocking_io]` no longer accepts `watchdog_interval_seconds`; setting any of them in hassette.toml or via `HASSETTE__*` is an unknown-key error. Remove these keys from your configuration. The values are now fixed at 3000ms, 500ms and 250ms, including in `dev_mode`.
+* `auto_loaded` is gone from `GET /api/apps`, `GET /api/apps/{app_key}` and `GET /api/telemetry/app-grid` responses and from the `hassette_wire` `AppSummary` model. Code reading it should drop the read; the value has always been false since autodetection was removed. Installs still on hass-hassette v0.3.0 pin hassette-client 0.59.0, which requires the field, so they create no app devices until updated to hass-hassette v0.4.0 or later.
+
+### Features
+
+* address app instances by name across the API, CLI and web UI ([#3765](https://github.com/NodeJSmith/hassette/issues/3765)) ([7fc6d84](https://github.com/NodeJSmith/hassette/commit/7fc6d845a2b7fb56f8b35ae45cd22b369d0b444b))
+* **cli:** mark default values in hassette config output ([#3634](https://github.com/NodeJSmith/hassette/issues/3634)) ([5371b68](https://github.com/NodeJSmith/hassette/commit/5371b686f8b12fc321e2c43d78c752ff83ae96ea))
+* keep instance telemetry history when config is reordered ([#3673](https://github.com/NodeJSmith/hassette/issues/3673)) ([73a0d1c](https://github.com/NodeJSmith/hassette/commit/73a0d1ced78002f7ce63cfdb3755217e967f2373))
+* key app instances on their name so a config reorder restarts nothing ([#3733](https://github.com/NodeJSmith/hassette/issues/3733)) ([016bbd6](https://github.com/NodeJSmith/hassette/commit/016bbd6aa7e298a37eb70a042f579a0c8387e820))
+* remove the deprecated auto_loaded field from app API responses ([#3640](https://github.com/NodeJSmith/hassette/issues/3640)) ([d3de6df](https://github.com/NodeJSmith/hassette/commit/d3de6dffe02e06d1c914535ded51efb830635cb9))
+* report each config field's default in the config API ([#3628](https://github.com/NodeJSmith/hassette/issues/3628)) ([b99149f](https://github.com/NodeJSmith/hassette/commit/b99149fb8214af28a3f4903c1c582a1e17209b1b))
+
+
+### Bug Fixes
+
+* answer the app grid within one read timeout when the DB stalls ([#3724](https://github.com/NodeJSmith/hassette/issues/3724)) ([15ba289](https://github.com/NodeJSmith/hassette/commit/15ba289b660d22ed49b863b9fa08c42fffc972c3))
+* derive the stall warning threshold from each handler's and job's timeout ([#3712](https://github.com/NodeJSmith/hassette/issues/3712)) ([f243d82](https://github.com/NodeJSmith/hassette/commit/f243d8257219132f3ac12a055dfb1745f598e0db))
+* export WhereClause from hassette.types and document EventEntityFresh for input_button ([#3717](https://github.com/NodeJSmith/hassette/issues/3717)) ([490cd8d](https://github.com/NodeJSmith/hassette/commit/490cd8d1305a595fda4d1cd03d677e7966c07efd))
+* keep on_error handlers and listener keys registered in on_initialize through startup ([#3737](https://github.com/NodeJSmith/hassette/issues/3737)) ([09bd15a](https://github.com/NodeJSmith/hassette/commit/09bd15a546c466b32cecd3557d45db05801c0d2c))
+* log app start and stop outcomes at INFO ([#3710](https://github.com/NodeJSmith/hassette/issues/3710)) ([1d91d9b](https://github.com/NodeJSmith/hassette/commit/1d91d9b9c290beb312ecacd2a455e65552246e38))
+* make every Hassette exception survive pickle and deepcopy ([#3699](https://github.com/NodeJSmith/hassette/issues/3699)) ([ee2c49d](https://github.com/NodeJSmith/hassette/commit/ee2c49d39cd8fd3a568136ce2fdf4afddc5e1409))
+* narrow DateTimeBaseState value type to ZonedDateTime | None ([#3704](https://github.com/NodeJSmith/hassette/issues/3704)) ([71a7228](https://github.com/NodeJSmith/hassette/commit/71a72283debd3cc93280adeffeec726d3b6c3e55))
+* release the web API port when serve is cancelled during startup ([#3688](https://github.com/NodeJSmith/hassette/issues/3688)) ([62f1631](https://github.com/NodeJSmith/hassette/commit/62f1631b174b1dc99ff95f1e67639978611e549c))
+* return 404 from app health for an unknown app key ([#3701](https://github.com/NodeJSmith/hassette/issues/3701)) ([674e8b2](https://github.com/NodeJSmith/hassette/commit/674e8b268f4975e54cdefceb74807f7eadccb419))
+* return logs that use custom log levels instead of failing /api/logs/recent ([#3708](https://github.com/NodeJSmith/hassette/issues/3708)) ([2a981f6](https://github.com/NodeJSmith/hassette/commit/2a981f6a5be60d35a6c90347ace95b8b2b8ef999))
+* send local CLI credentials only to the local instance's port ([#3718](https://github.com/NodeJSmith/hassette/issues/3718)) ([f02bbbb](https://github.com/NodeJSmith/hassette/commit/f02bbbb1172b1340c115ac8a90b660c808588a7e))
+* stop retrying REST 4xx errors that can't succeed on retry ([#3698](https://github.com/NodeJSmith/hassette/issues/3698)) ([fe138f3](https://github.com/NodeJSmith/hassette/commit/fe138f3851604c1555c33d1922bff9a434a7b519))
+
+
+### Refactoring
+
+* remove file watcher timing and watchdog interval settings ([#3647](https://github.com/NodeJSmith/hassette/issues/3647)) ([c4b7230](https://github.com/NodeJSmith/hassette/commit/c4b723093a7b9fdde784ac5dbaf69de453e6c713))
+
+
+### Documentation
+
+* correct cache TTL cleanup, forgotten-await and pickling claims ([#3747](https://github.com/NodeJSmith/hassette/issues/3747)) ([7c2f7a1](https://github.com/NodeJSmith/hassette/commit/7c2f7a1c9e48dbe9cabc8ff63a272b3c9eedc203))
+* correct changed=, EventEntityFresh and dict-match claims in bus filtering ([#3713](https://github.com/NodeJSmith/hassette/issues/3713)) ([b50f1a3](https://github.com/NodeJSmith/hassette/commit/b50f1a32a23de79572249fe8a28d31c6e17ad2f9))
+* correct the app config env override claim and broadcast example imports ([#3645](https://github.com/NodeJSmith/hassette/issues/3645)) ([2fb7422](https://github.com/NodeJSmith/hassette/commit/2fb74226037bb0af5f7cc97fbb14f256d7c289e7))
+* correct the backpressure page's silent-loss claim and registration scope ([#3692](https://github.com/NodeJSmith/hassette/issues/3692)) ([d3d3920](https://github.com/NodeJSmith/hassette/commit/d3d39203331da939efcfd325e1426934e7162e18))
+* correct the blocking-call fail-fast advice for harness tests ([#3690](https://github.com/NodeJSmith/hassette/issues/3690)) ([5c25860](https://github.com/NodeJSmith/hassette/commit/5c25860638234f0bbde9abc2ae1a3132d932c365))
+* correct the test harness install prerequisite ([#3626](https://github.com/NodeJSmith/hassette/issues/3626)) ([b654547](https://github.com/NodeJSmith/hassette/commit/b654547d012d34bd0b5d01f785942a5f858b9d7f))
+* explain how to clear the app_blocked error ([#3632](https://github.com/NodeJSmith/hassette/issues/3632)) ([766bbd3](https://github.com/NodeJSmith/hassette/commit/766bbd3d5ca2f64aa59a4de5ebd115d32d861b26))
+* explain where custom state classes live and when they register ([#3711](https://github.com/NodeJSmith/hassette/issues/3711)) ([ee09bff](https://github.com/NodeJSmith/hassette/commit/ee09bff3bd0384b8e2e121713d5a0c5dd0a63178))
+* explain which sidebar groups FAILED and DEGRADED apps appear under ([#3666](https://github.com/NodeJSmith/hassette/issues/3666)) ([510735e](https://github.com/NodeJSmith/hassette/commit/510735ed0fca10f8df6712d382277e523704cf98))
+* fix below-limit variation and crossing verification in sensor-threshold recipe ([#3598](https://github.com/NodeJSmith/hassette/issues/3598)) ([6c72cd6](https://github.com/NodeJSmith/hassette/commit/6c72cd62d9966dfb8c901386a283cd8f02238acf))
+* fix contradictory Config tab override guidance ([#3653](https://github.com/NodeJSmith/hassette/issues/3653)) ([76af82c](https://github.com/NodeJSmith/hassette/commit/76af82c1183b24974156c943856e7f090e6828ef))
+* fix the .env pointer and name setting tables in configuration docs ([#3667](https://github.com/NodeJSmith/hassette/issues/3667)) ([b9f3e8b](https://github.com/NodeJSmith/hassette/commit/b9f3e8bd8d2abfe1284ea061cfb6bbbb3ce732a4))
+* fix the verify step and light setup in the vacation mode recipe ([#3641](https://github.com/NodeJSmith/hassette/issues/3641)) ([8754694](https://github.com/NodeJSmith/hassette/commit/8754694158193975779320b5bca00a46b64b5440))
+* list the fields of each helper params model ([#3672](https://github.com/NodeJSmith/hassette/issues/3672)) ([52e2c16](https://github.com/NodeJSmith/hassette/commit/52e2c16fa465d5a805c0ed9bacac9bffc8370955))
+* make the motion-lights recipe's log output, timer check, and split-handler variation match the code ([#3595](https://github.com/NodeJSmith/hassette/issues/3595)) ([8987e8b](https://github.com/NodeJSmith/hassette/commit/8987e8b2363073876ed4da1feaad734f872903d3))
+* note that D.EventData skips the handler for a None payload ([#3728](https://github.com/NodeJSmith/hassette/issues/3728)) ([b23940c](https://github.com/NodeJSmith/hassette/commit/b23940c8c8e4f2803a39476f2455377eb0caa377))
+* point readers seeing zero handler runs to the 7d preset ([#3630](https://github.com/NodeJSmith/hassette/issues/3630)) ([1e0a0c3](https://github.com/NodeJSmith/hassette/commit/1e0a0c3f2c508c6d444b51d701cd3e3e3d48d4c0))
+* register handlers and explain source_type on the custom extractors page ([#3696](https://github.com/NodeJSmith/hassette/issues/3696)) ([0c08c32](https://github.com/NodeJSmith/hassette/commit/0c08c32a461520301e6748792e5f1767ba2d871f))
+* say execution filter URLs need the full execution ID ([#3664](https://github.com/NodeJSmith/hassette/issues/3664)) ([4181167](https://github.com/NodeJSmith/hassette/commit/4181167c8934ababbca0335c83b97ca011bc3e97))
+* say where automatic reload settings are set in manage apps ([#3657](https://github.com/NodeJSmith/hassette/issues/3657)) ([12e1740](https://github.com/NodeJSmith/hassette/commit/12e174037f3def29789db931a3330134beef2f4f))
+* show how to call parse_response on a saved response ([#3659](https://github.com/NodeJSmith/hassette/issues/3659)) ([f254472](https://github.com/NodeJSmith/hassette/commit/f25447225e4b811b6cdb22c0844be86f52cb916c))
+* show how to disable SSL verification with --ha-verify-ssl ([#3662](https://github.com/NodeJSmith/hassette/issues/3662)) ([79efd92](https://github.com/NodeJSmith/hassette/commit/79efd92c1f3299c1eaeb23d3ca61a61b7e7fd380))
+* show how to gate bus subscriptions on presence with where= ([#3714](https://github.com/NodeJSmith/hassette/issues/3714)) ([7c94be2](https://github.com/NodeJSmith/hassette/commit/7c94be2dd59b81b17b85f0be02db150ca118e459))
+* show how to use state dicts with make_typed_state ([#3635](https://github.com/NodeJSmith/hassette/issues/3635)) ([eb72725](https://github.com/NodeJSmith/hassette/commit/eb727253eb2dbb8ac3146843b816891bbb5d2563))
+* show the app under test and where to save files in the testing quick start ([#3623](https://github.com/NodeJSmith/hassette/issues/3623)) ([b6465ed](https://github.com/NodeJSmith/hassette/commit/b6465ed413c371d75764c334a5ba0d23395749c4))
+* show the command that runs tests in parallel with pytest-xdist ([#3639](https://github.com/NodeJSmith/hassette/issues/3639)) ([ae32dca](https://github.com/NodeJSmith/hassette/commit/ae32dca452c3743ca5ddbed3d30c1413b7e00ff9))
+* state the exceptions to custom log level mapping ([#3744](https://github.com/NodeJSmith/hassette/issues/3744)) ([3b76cab](https://github.com/NodeJSmith/hassette/commit/3b76cab1e3a568f241048fc466f92220d7b165c4))
+* stop documenting Api's raw transport methods as public API ([#3685](https://github.com/NodeJSmith/hassette/issues/3685)) ([98d6131](https://github.com/NodeJSmith/hassette/commit/98d61316c3bc35a507a6f2a3cadab92241fc1253))
+* update the Home Assistant token guide for the new Profile layout ([#3637](https://github.com/NodeJSmith/hassette/issues/3637)) ([3777119](https://github.com/NodeJSmith/hassette/commit/3777119bb4638f8e83d917c723ef3badc1b032e4))
+* warn about the handler feedback loop in the service-call glob recipe ([#3600](https://github.com/NodeJSmith/hassette/issues/3600)) ([011cc17](https://github.com/NodeJSmith/hassette/commit/011cc17d897f6c46b677d82da8142aeb121d5d2f))
+* warn that the app env-var override breaks multi-instance apps ([#3642](https://github.com/NodeJSmith/hassette/issues/3642)) ([c22b056](https://github.com/NodeJSmith/hassette/commit/c22b056f4ec6e6536483ed010fa28ddbaad9442b))
+
 ## [0.61.0](https://github.com/NodeJSmith/hassette/compare/v0.60.0...v0.61.0) (2026-10-29)
 
 This release completes the **Resource Lifecycle** milestone ([milestone 19](https://github.com/NodeJSmith/hassette/milestone/19), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/134-resource-lifecycle-outcomes/design.md)). Hassette now records what happened to each service and app instead of inferring it. Hassette no longer restarts failed services in-process: a required service's failure exits the process for your supervisor to restart, and an optional one stays dead with one ERROR. A service is RUNNING only once its initialization finishes, and a failure at boot fails startup. If the event bus dies, the process shuts down without hanging. If a timed-out hook may have left an app's work running, that instance is flagged as needing a restart, and nothing replaces it until Hassette restarts. App actions report each instance's own outcome, and every app gets its full shutdown timeout at exit. The breaking changes come first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps. Instance Identity, which re-keys stored history and routes on the instance name, comes next.
