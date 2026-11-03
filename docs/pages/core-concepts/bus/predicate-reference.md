@@ -11,7 +11,7 @@ from hassette import P, C, A
 
 **Event types:** Tables below reference three event types. [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] fires on entity state changes. [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent] fires on service calls. [`HassEvent`][hassette.events.hass.hass.HassEvent] is the base type for all Home Assistant events.
 
-**Key types in signatures:** `ChangeType` is a union of literal value, `C.*` condition instance, glob string, or callable `(value) -> bool`. `ComparisonCondition` is a two-argument callable `(old_value, new_value) -> bool` — accepts `C.Increased`, `C.Decreased`, `C.CrossedAbove`, `C.CrossedBelow`, or a custom function. [`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event (distinct from `None`). Its sibling [`NOT_PROVIDED`][hassette.const.NOT_PROVIDED] is the default for the `changed_from=`/`changed_to=` parameters on [`on_state_change()`](methods.md#on_state_changeentity_id) — it marks an argument the caller did not pass, so `None` stays usable as a real filter value.
+**Key types in signatures:** `ChangeType` is a union of a literal value, `None`, a `FalseySentinel` member (`MISSING_VALUE`, `NOT_PROVIDED`, `ANY_VALUE`), a `C.*` condition instance or callable `(value) -> bool`, or a `ComparisonCondition`. A bare string is a literal, compared by equality, so `"light.*"` matches only that exact text. Wrap a glob pattern in `C.Glob` to match it as a glob. `ComparisonCondition` is a two-argument callable `(old_value, new_value) -> bool` — accepts `C.Increased`, `C.Decreased`, `C.CrossedAbove`, `C.CrossedBelow`, or a custom function. [`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event (distinct from `None`). Its sibling [`NOT_PROVIDED`][hassette.const.NOT_PROVIDED] is the default for the `changed_from=`/`changed_to=` parameters on [`on_state_change()`](methods.md#on_state_changeentity_id) — it marks an argument the caller did not pass, so `None` stays usable as a real filter value.
 
 ## Predicates (`P`)
 
@@ -43,7 +43,7 @@ Works with: any event type.
 | `P.IsPresent` | `IsPresent(source: Callable)` | Returns `True` when the value extracted by `source` is not `MISSING_VALUE`. |
 | `P.IsMissing` | `IsMissing(source: Callable)` | Returns `True` when the value extracted by `source` is `MISSING_VALUE`. |
 
-`condition` accepts a literal value, a `C.*` condition instance, a glob string, or any callable `(value) -> bool`.
+`condition` accepts a literal value, a `C.*` condition instance, or any callable `(value) -> bool`. A bare string compares by equality, not as a glob. For glob matching, pass `C.Glob("light.*")`.
 
 ### Entity / Domain / Service Matching
 
@@ -122,7 +122,7 @@ A condition is a single-value callable `(value) -> bool`. Predicates like `P.Val
 | `C.StartsWith` | `StartsWith(prefix: str)` | Returns `True` when the string value starts with `prefix`. |
 | `C.EndsWith` | `EndsWith(suffix: str)` | Returns `True` when the string value ends with `suffix`. |
 | `C.Contains` | `Contains(substring: str)` | Returns `True` when the string value contains `substring`. |
-| `C.Regex` | `Regex(pattern: str)` | Returns `True` when the string value matches the compiled regex pattern. |
+| `C.Regex` | `Regex(pattern: str)` | Returns `True` when the pattern matches at the start of the string value (`re.match`). `Regex("abc")` matches `"abcdef"` but not `"xabc"`. Prefix the pattern with `.*` to match anywhere, or end it with `$` to match the whole value. |
 
 ### Exact Match
 
