@@ -539,7 +539,7 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
       flagged needs-restart, in which case it is FAILED and lists its flagged instances
       (``AppRegistry.build_orphaned_flag_info``).
 
-    Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``) always
+    Static metadata (``class_name``, ``display_name``, ``description``, ``filename``, ``autostart``) always
     comes from the DB row, never from the in-memory manifest — the DB is the source of truth
     for metadata, the registry is the source of truth for live status.
     ``enabled`` is the exception: it is also the highest-priority input to the registry's
@@ -567,6 +567,7 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
         static_fields = {
             "class_name": db_row["class_name"],
             "display_name": db_row["display_name"],
+            "description": db_row["description"],
             "filename": db_row["filename"],
             "autostart": bool(db_row["autostart"]),
         }

@@ -339,6 +339,7 @@ def _app_manifest_scenario(ctx: seed_scenarios.SeedContext) -> None:
         app_key="manifest_test_app",
         class_name="ManifestTestApp",
         display_name="Manifest Test App",
+        description="Exercises the seed helper",
         filename="manifest_test_app.py",
         enabled=False,
         autostart=False,
@@ -359,7 +360,7 @@ def test_add_app_manifest_inserts_row_with_correct_fields(tmp_path: Path, monkey
     conn = sqlite3.connect(output)
     try:
         row = conn.execute(
-            "SELECT app_key, class_name, display_name, filename, enabled, autostart "
+            "SELECT app_key, class_name, display_name, description, filename, enabled, autostart "
             "FROM app_manifests WHERE app_key = ?",
             ("manifest_test_app",),
         ).fetchone()
@@ -367,7 +368,15 @@ def test_add_app_manifest_inserts_row_with_correct_fields(tmp_path: Path, monkey
         conn.close()
 
     # positions match the SELECT column list above: ..., enabled=0, autostart=0
-    assert row == ("manifest_test_app", "ManifestTestApp", "Manifest Test App", "manifest_test_app.py", 0, 0)
+    assert row == (
+        "manifest_test_app",
+        "ManifestTestApp",
+        "Manifest Test App",
+        "Exercises the seed helper",
+        "manifest_test_app.py",
+        0,
+        0,
+    )
 
 
 def _bad_fk_scenario(ctx: seed_scenarios.SeedContext) -> None:
