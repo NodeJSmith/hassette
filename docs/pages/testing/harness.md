@@ -1,6 +1,6 @@
 # Test Harness Reference
 
-`AppTestHarness` wires an [App][hassette.app.app.App] subclass into Hassette's test infrastructure without a live Home Assistant connection. It exposes the app's bus, scheduler, seeded state, and a `RecordingApi` that records every API call.
+`AppTestHarness` wires an [App][hassette.app.app.App] subclass into Hassette's test infrastructure without a live Home Assistant connection. It exposes the app's bus, scheduler, seeded state, and a `RecordingApi` that records the app's write calls.
 
 ## Basic Pattern
 
@@ -23,8 +23,8 @@ Tests also need pytest and pytest-asyncio: [Write Your First Test](index.md)
 covers installing them and the `pyproject.toml` setup.
 
 Every example on this page is an `async def` test, so pytest-asyncio must run
-with `asyncio_mode = "auto"`. Without it, async tests silently pass without
-executing. [Write Your First Test](index.md#install) shows the configuration.
+with `asyncio_mode = "auto"`. Without it, pytest fails each async test with
+"async def functions are not natively supported". [Write Your First Test](index.md#install) shows the configuration.
 
 ## Seeding State
 
@@ -249,13 +249,13 @@ detail.
 
 ## Asserting API Calls
 
-`harness.api_recorder` exposes a `RecordingApi` that records every call the
-app makes through `self.api`: `turn_on`, `turn_off`, `call_service`,
+`harness.api_recorder` exposes a `RecordingApi` that records the write calls
+the app makes through `self.api`: `turn_on`, `turn_off`, `call_service`,
 `set_state`, `fire_event`, and the `self.api.helpers` create/update/delete
 methods for Home Assistant helper entities (`input_boolean`, `counter`, and so
 on — see [Managing Helpers](../core-concepts/api/managing-helpers.md)).
-`self.api.helpers.list()` reads the recorder's helper store without recording
-a call, so it cannot be asserted with `assert_called`.
+Reads such as `get_state` and `self.api.helpers.list()` record nothing.
+`assert_called` raises `ValueError` when given a read method's name.
 
 Helper writes record under names built from the helper domain:
 
@@ -367,8 +367,8 @@ A patched method no longer records calls, so assert on the mock itself
 `AppConfigurationError` raises during `async with AppTestHarness(...)` entry
 when the `config` dict fails validation. The `async with` body never runs.
 
-A `config` that sets only `instance_name` omits `MotionLights`'s required
-`motion_entity` field and fails validation. A `config` without `instance_name`
+A `config` that sets only `instance_name` omits both of `MotionLights`'s
+required fields, `motion_entity` and `light_entity`, and fails validation. A `config` without `instance_name`
 raises `AppConfigurationError` the same way:
 
 ```python
@@ -383,8 +383,8 @@ raises `AppConfigurationError` the same way:
 ## Testing Startup Failures
 
 When `on_initialize()` raises, the harness startup times out with a plain
-`TimeoutError`. This is distinct from `DrainTimeout`, which only surfaces from
-`simulate_*` methods.
+`TimeoutError`. This is distinct from `DrainTimeout`, which surfaces only from
+`simulate_*` methods and `drain_task_bucket()`.
 
 The original exception is not attached to the `TimeoutError`. It appears in
 the log output, where pytest's `caplog` fixture captures it:
@@ -414,7 +414,7 @@ the log output, where pytest's `caplog` fixture captures it:
 | `harness.app` | `App` | Fully initialized app instance |
 | `harness.bus` | [Bus][hassette.bus.bus.Bus] | Test bus owned by the app |
 | `harness.scheduler` | [Scheduler][hassette.scheduler.scheduler.Scheduler] | Test scheduler owned by the app |
-| `harness.api_recorder` | `RecordingApi` | Records every API call the app makes |
+| `harness.api_recorder` | `RecordingApi` | Records the app's API write calls |
 | `harness.states` | [StateManager][hassette.state_manager.state_manager.StateManager] | State manager owned by the app |
 
 ## Next Steps

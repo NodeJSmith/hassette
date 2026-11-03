@@ -16,8 +16,6 @@ async def test_get_calls():
             "binary_sensor.motion", old_value="off", new_value="on"
         )
 
-        calls = harness.api_recorder.get_calls("call_service")
+        calls = harness.api_recorder.get_calls("turn_on")
         for call in calls:
-            print(
-                call.kwargs
-            )  # e.g. {"domain": "light", "service": "turn_on", ...}
+            print(call.kwargs)  # e.g. {"entity_id": "light.kitchen", ...}

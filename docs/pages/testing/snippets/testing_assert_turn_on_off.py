@@ -3,7 +3,7 @@ from hassette.testing import AppTestHarness
 from my_apps.motion_lights import MotionLights
 
 
-async def test_turn_on_off_recording():
+async def test_turn_on_recording():
     async with AppTestHarness(
         MotionLights,
         config={
@@ -19,7 +19,5 @@ async def test_turn_on_off_recording():
         # Your app calls: await self.api.turn_on("light.kitchen")
         harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
 
-        # Your app calls: await self.api.turn_off("light.kitchen")
-        harness.api_recorder.assert_called(
-            "turn_off", entity_id="light.kitchen"
-        )
+        # turn_on records under its own name, so call_service stays empty
+        harness.api_recorder.assert_not_called("call_service")

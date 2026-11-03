@@ -16,5 +16,5 @@ async def test_assert_not_called():
             "binary_sensor.motion", old_value="off", new_value="on"
         )
 
-        # The off handler needs 120 seconds of "off", so nothing turned the light off
+        # MotionLights only turns lights on, so nothing turned the light off
         harness.api_recorder.assert_not_called("turn_off")
