@@ -310,6 +310,14 @@ class AppRegistry:
             if any(entry.is_running for entry in entries.values())
         ]
 
+    def flagged_app_keys(self) -> list[str]:
+        """Get all app keys with at least one instance flagged needs-restart.
+
+        Retention keeps these apps' manifest rows, so this must cover every removed app ``listed_apps``
+        keeps. ``_needs_restart`` is a defaultdict, so a key can hold an empty dict; ``if records`` skips it.
+        """
+        return [app_key for app_key, records in self._needs_restart.items() if records]
+
     def get(self, app_key: str, instance_name: str | None = None) -> "App[AppConfig] | None":
         """Get a running app instance by name; with no name, the first running one in display order."""
         entries = self._instances.get(app_key, {})

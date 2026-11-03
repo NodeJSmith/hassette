@@ -3414,7 +3414,7 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
-            "description": "Number of entries in ``instances``: every configured instance, including ones never started or\nindependently stopped, plus any instance still running beyond the configured count (e.g. after the config\nwas reduced). Always len(instances).\n\nFor an app removed from the config, the number of its flagged needs-restart instances, otherwise 0.",
+            "description": "Number of entries in ``instances``: every configured instance, including ones never started or\nindependently stopped, plus any instance still running beyond the configured count (e.g. after the config\nwas reduced). Always len(instances).\n\nAn app removed from the config lists instances only while one is flagged needs-restart; then this counts\nevery instance it still tracks (``needs_restart_count`` counts the flagged ones). Otherwise it is 0.",
             "default": 0
           },
           "instances": {

@@ -77,7 +77,8 @@ class AppSummary(BaseModel):
     independently stopped, plus any instance still running beyond the configured count (e.g. after the config
     was reduced). Always len(instances).
 
-    For an app removed from the config, the number of its flagged needs-restart instances, otherwise 0."""
+    An app removed from the config lists instances only while one is flagged needs-restart; then this counts
+    every instance it still tracks (``needs_restart_count`` counts the flagged ones). Otherwise it is 0."""
     instances: list[AppInstance] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None

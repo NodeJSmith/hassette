@@ -14,7 +14,7 @@ Run `hassette app` to see each app's key and display name. Every app device show
 
 ## Prerequisites
 
-- **Hassette 0.56.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
+- **Hassette 0.62.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
 - **HACS** installed in Home Assistant.
 - **Home Assistant 2026.9 or newer**.
 

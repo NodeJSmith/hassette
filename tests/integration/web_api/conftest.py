@@ -6,24 +6,28 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from hassette_wire import AppStatus
 from httpx2 import ASGITransport, AsyncClient
 
 import hassette.web.app as web_app  # module alias so `stub_spa` can monkeypatch `_SPA_DIR`
 import hassette.web.errors as web_errors  # module alias so the code check can wrap the handler
+from hassette.config.classes import AppManifest
+from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
 from hassette.web.spa import BASE_MARKER
 from tests.support.problem_codes import checking_handler
-from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest, make_manifest_db_row
+from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 _SEED_TIMESTAMP = "2024-01-01T00:00:00"
 
 DB_LOCKED_MSG = "database is locked"
 """The stand-in storage failure every DB-degradation test in this package raises."""
+
+SEEDED_APP_DIR = Path("/apps")
+"""App directory of the manifests ``seed_grid_apps`` configures; never read, so it needn't exist."""
 
 # Route paths hit by tests in more than one file — single source of truth so a route rename
 # only needs to change here.
@@ -193,17 +197,27 @@ def telemetry_error(message: str = DB_LOCKED_MSG) -> AsyncMock:
 def seed_grid_apps(mock_hassette: MagicMock, *app_keys: str) -> None:
     """Make the app grid's DB spine return one manifest row per app key, each app in the current config.
 
-    The list routes leave out apps removed from config, so each key also gets an in-memory manifest
-    on the stub registry, which builds a stopped snapshot for it.
+    The list routes leave out apps removed from config, so each key is also configured on a real
+    ``AppRegistry`` (never started, so each lists as stopped). It replaces the stub's registry.
     """
     mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
         return_value=[make_manifest_db_row(app_key=key) for key in app_keys]
     )
-    registry = mock_hassette.app_handler.registry
-    registry.manifests = {key: MagicMock(name=f"manifest:{key}") for key in app_keys}
-    registry.build_manifest_info = MagicMock(
-        side_effect=lambda key, _manifest: make_manifest(app_key=key, status=AppStatus.STOPPED, instance_count=0)
+    registry = AppRegistry()
+    registry.set_manifests(
+        {
+            key: AppManifest(
+                app_key=key,
+                filename=f"{key}.py",
+                class_name="MyApp",
+                app_dir=SEEDED_APP_DIR,
+                full_path=SEEDED_APP_DIR / f"{key}.py",
+                app_config={"instance_name": key},
+            )
+            for key in app_keys
+        }
     )
+    mock_hassette._app_handler.registry = registry
 
 
 def set_websocket_state(mock_hassette: MagicMock, *, connected: bool, ever_connected: bool) -> None:

@@ -52,11 +52,12 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
   const actionStatus = manifest?.status === "blocked" ? "blocked" : liveStatus;
   const instanceScoped = !!manifest && manifest.instance_count > 1 && !showParentOverview;
   const instanceOrphaned = instanceScoped && currentInstance?.in_current_config === false;
-  // App lists leave a removed app out unless an instance is flagged needs-restart, so a direct
-  // link is usually the only way here. With no instances there is nothing to act on, and the
-  // backend 404s every action.
+  // A removed app's app-level status is only ever failed or stopped. Those offer Start and never
+  // Stop (CAN_STOP), and the backend 404s Start for an app with no manifest, so its app-level
+  // actions are hidden. When it still tracks more than one instance, each instance's page keeps
+  // the Stop that ActionButtons offers an out-of-config instance (instanceOrphaned).
   const appRemoved = manifest?.in_current_config === false;
-  const nothingToActOn = appRemoved && manifest.instance_count === 0;
+  const hideAppActions = appRemoved && !instanceScoped;
 
   return (
     <>
@@ -76,7 +77,7 @@ export function AppDetailHeader({ appKey, liveStatus, manifest, currentInstance,
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
             <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_SHAPE_SIZE} /> {liveStatus}
           </Badge>
-          {!nothingToActOn && (
+          {!hideAppActions && (
             <ActionButtons
               appKey={appKey}
               status={actionStatus}

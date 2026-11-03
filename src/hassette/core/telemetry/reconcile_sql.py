@@ -181,7 +181,7 @@ def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[s
     deleted row.
 
     Args:
-        live_app_keys: Every app key in the current config or with a running instance.
+        live_app_keys: Every app key retention treats as present (``DatabaseRetentionMixin.live_app_keys``).
 
     Returns:
         A ``(sql, params)`` tuple.
