@@ -107,9 +107,13 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 
 `attributes.has_feature(flag)` tests a bit in `supported_features`. Each domain defines its own `IntFlag` enum for feature constants. `LightEntityFeature` has `EFFECT`, `FLASH`, and `TRANSITION`.
 
+```python
+--8<-- "pages/core-concepts/states/snippets/states_has_feature.py"
+```
+
 ## Built-in State Types
 
-Hassette auto-generates typed state classes for 55 Home Assistant domains from HA core source. All classes are available from the `states` module:
+Hassette auto-generates typed state classes for Home Assistant domains from HA core source. All classes are available from the `states` module:
 
 ```python
 --8<-- "pages/core-concepts/snippets/states_import.py"
@@ -121,7 +125,7 @@ Three common examples:
 - **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: SensorDeviceClass | str | None`
 - **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: BinarySensorDeviceClass | None`
 
-The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](custom-states.md).
+The API reference lists every class with its full attribute signatures. Domains not covered there are handled by [Custom States](custom-states.md).
 
 ## Sensor Value Shapes
 

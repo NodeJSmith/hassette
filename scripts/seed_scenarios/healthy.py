@@ -19,17 +19,18 @@ def scenario_healthy(ctx: SeedContext) -> None:
     A single minimal blocking event is included (see the comment below) so this scenario
     still populates all 6 telemetry tables without undermining the "healthy install" narrative.
     """
+    # Two apps have no description, so the UI shows both the described and undescribed shape.
     apps = [
-        ("weather_watcher", "WeatherWatcher", 0),
-        ("garage_door", "GarageDoor", 1),
-        ("plant_monitor", "PlantMonitor", 0),
-        ("media_controller", "MediaController", 1),
-        ("pet_feeder", "PetFeeder", 0),
+        ("weather_watcher", "WeatherWatcher", 0, "Announces rain in the forecast before the morning commute"),
+        ("garage_door", "GarageDoor", 1, "Closes the garage door if it's left open after dark"),
+        ("plant_monitor", "PlantMonitor", 0, None),
+        ("media_controller", "MediaController", 1, "Pauses living room media when the doorbell rings"),
+        ("pet_feeder", "PetFeeder", 0, None),
     ]
     seq = 1
-    for i, (app_key, class_name, n_errors) in enumerate(apps):
+    for i, (app_key, class_name, n_errors, description) in enumerate(apps):
         base = i * APP_TIME_SPACING_SECONDS
-        ctx.add_app_manifest(app_key=app_key, class_name=class_name)
+        ctx.add_app_manifest(app_key=app_key, class_name=class_name, description=description)
         seed_simple_app(
             ctx,
             scenario="healthy",

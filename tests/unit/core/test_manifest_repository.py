@@ -52,6 +52,7 @@ def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
         "app_key": manifest.app_key,
         "class_name": manifest.class_name,
         "display_name": manifest.display_name,
+        "description": manifest.description,
         "filename": manifest.filename,
         "enabled": 0,
         "autostart": 0,
@@ -135,6 +136,33 @@ async def test_upsert_app_manifest_updates_existing_row_preserves_id(
     row = await cursor.fetchone()
     assert row is not None
     assert row["count"] == 1, "Upsert should produce a single row, not two inserts"
+
+
+# dup-ignore-start: pytest test function signature — Python has no way to share a function
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
+async def test_upsert_app_manifest_persists_and_clears_description(
+    telemetry_repo: TelemetryRepository,
+    telemetry_db: aiosqlite.Connection,
+    tmp_path: Path,
+) -> None:
+    """The description is stored on insert, and a re-upsert without one clears it rather than keeping the old text."""
+    # dup-ignore-end
+    manifest = create_app_manifest("described", tmp_path)
+    manifest.description = "Turns on the porch light at sunset"
+    manifest_id = await telemetry_repo.upsert_app_manifest(manifest)
+
+    cursor = await telemetry_db.execute("SELECT description FROM app_manifests WHERE id = ?", (manifest_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["description"] == "Turns on the porch light at sunset"
+
+    manifest.description = None
+    await telemetry_repo.upsert_app_manifest(manifest)
+
+    cursor = await telemetry_db.execute("SELECT description FROM app_manifests WHERE id = ?", (manifest_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row["description"] is None
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function

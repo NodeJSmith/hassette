@@ -190,6 +190,7 @@ def manifest_insert_params(manifest: AppManifest) -> dict[str, Any]:
         "app_key": manifest.app_key,
         "class_name": manifest.class_name,
         "display_name": manifest.display_name,
+        "description": manifest.description,
         "filename": manifest.filename,
         "enabled": 1 if manifest.enabled else 0,
         "autostart": 1 if manifest.autostart else 0,

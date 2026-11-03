@@ -150,6 +150,7 @@ def make_manifest_db_row(app_key: str = DEFAULT_TEST_APP_KEY, **overrides: Any) 
         "app_key": app_key,
         "class_name": "MyApp",
         "display_name": "My App",
+        "description": None,
         "filename": "my_app.py",
         "enabled": 1,
         "autostart": 1,

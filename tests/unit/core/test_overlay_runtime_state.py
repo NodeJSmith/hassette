@@ -27,15 +27,6 @@ def mock_app() -> MagicMock:
     return app
 
 
-def register_running_app(registry: AppRegistry, app: MagicMock, suffix: str, app_dir: Path) -> AppManifest:
-    """Configure one app in ``registry`` and register ``app`` as its running instance."""
-    manifest = create_app_manifest(suffix, app_dir)
-    registry.set_manifests({manifest.app_key: manifest})
-    app.instance_name = manifest.app_key
-    registry.register_app(manifest.app_key, app)
-    return manifest
-
-
 class TestOverlayRuntimeState:
     def test_db_only_app_defaults_to_stopped(self, registry: AppRegistry) -> None:
         """A DB row with no matching registry entry is a removed/historical app."""
@@ -56,10 +47,24 @@ class TestOverlayRuntimeState:
         assert info.enabled is True
         assert info.autostart is True
 
+    def test_description_comes_from_db_row(self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path) -> None:
+        """Both a configured app and a removed one serve the description their DB row holds."""
+        manifest = configure_running_app(registry, mock_app, tmp_path, "live")
+        manifest.description = "Stale in-memory text"
+
+        rows = [
+            make_manifest_db_row(manifest.app_key, description="Persisted text"),
+            make_manifest_db_row("removed_app", description="Removed app text"),
+        ]
+        by_key = {info.app_key: info for info in overlay_runtime_state(rows, registry)}
+
+        assert by_key[manifest.app_key].description == "Persisted text"
+        assert by_key["removed_app"].description == "Removed app text"
+
     def test_configured_running_app_shows_running_status(
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
     ) -> None:
-        manifest = register_running_app(registry, mock_app, "running", tmp_path)
+        manifest = configure_running_app(registry, mock_app, tmp_path, "running")
 
         rows = [make_manifest_db_row(manifest.app_key)]
         results = overlay_runtime_state(rows, registry)
@@ -73,7 +78,7 @@ class TestOverlayRuntimeState:
         assert info.display_name == "My App"
 
     def test_mixed_in_config_and_db_only_apps(self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path) -> None:
-        manifest = register_running_app(registry, mock_app, "live", tmp_path)
+        manifest = configure_running_app(registry, mock_app, tmp_path, "live")
 
         rows = [make_manifest_db_row(manifest.app_key), make_manifest_db_row("removed_app")]
         results = overlay_runtime_state(rows, registry)
@@ -172,7 +177,7 @@ class TestListedApps:
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
     ) -> None:
         """A removed app's row outlives it until its history ages out; lists must not show it as stopped."""
-        manifest = register_running_app(registry, mock_app, "live", tmp_path)
+        manifest = configure_running_app(registry, mock_app, tmp_path, "live")
         rows = [make_manifest_db_row(manifest.app_key), make_manifest_db_row("removed_app")]
 
         listed = listed_apps(overlay_runtime_state(rows, registry))
@@ -195,3 +200,12 @@ class TestListedApps:
 
         assert [info.app_key for info in listed] == ["gone_app"]
         assert listed[0].in_current_config is False
+
+
+def configure_running_app(registry: AppRegistry, mock_app: MagicMock, tmp_path: Path, suffix: str) -> AppManifest:
+    """Put one app in ``registry``'s current config with ``mock_app`` running as its single instance."""
+    manifest = create_app_manifest(suffix, tmp_path)
+    registry.set_manifests({manifest.app_key: manifest})
+    mock_app.instance_name = manifest.app_key
+    registry.register_app(manifest.app_key, mock_app)
+    return manifest
