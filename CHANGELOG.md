@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.62.0](https://github.com/NodeJSmith/hassette/compare/v0.61.0...v0.62.0) (2026-11-03)
+
+This release completes the **Instance Identity** milestone ([milestone 18](https://github.com/NodeJSmith/hassette/milestone/18), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/133-log-identity-axes/design.md)). An app instance is now identified by its `instance_name` everywhere: in stored telemetry, the app registry, cache directories, routes, the CLI, the web UI and `hassette-client`. Reordering `config` blocks no longer restarts anything or moves an instance's history, adding a block starts only that instance, and removing one stops only that instance. The breaking changes come first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps.
+
+**Using the Home Assistant integration?** hass-hassette releases before 0.5.0 can't read this release's API, so their entities stay unavailable until you update the integration. Upgrade Hassette first (the add-on updates on its own), then update hass-hassette to 0.5.0 or later.
+
+### Breaking Changes
+
+- **Instances are addressed by name, and the integer position is gone** — everything that took an instance's position now takes its `instance_name` (#3765):
+    - **Routes:** `POST /api/apps/{key}/instances/{index}/{action}` becomes `/instances/{instance_name}/{action}`, and the `instance_index` query parameter becomes `instance_name`. A leftover `instance_index` is ignored, so that request answers with every instance. `/api/telemetry/app/{key}/health`, `/listeners` and `/jobs` with no instance now cover every instance instead of the first, including runs stored under a name that was since renamed or removed.
+    - **Responses:** the position is removed from `AppInstance`, `InstanceOutcome`, `ActionResponse`, `LogEntry`, listener and job summaries, blocking references and WebSocket messages. Instances are listed in config order, then any still running outside the config, by name. Match `outcomes` to instances by `instance_name`. Listener and job summaries gain `instance_name`.
+    - **Client:** `hassette-client` methods take `instance_name=`, and `action(instance=)` takes a name. Earlier client releases can't read the new responses, which is why hass-hassette needs 0.5.0 (see above).
+    - **CLI:** `--instance` takes a name, and `--instance 0` fails with the list of known names. The CLI refuses a renamed or removed name, even though the API can still read its history. `app start|stop|reload --json` reports `instance_name` instead of `instance_index`, including under `outcomes`.
+    - **Apps and events:** `App.index`, the `index` constructor argument and the test harness's `index` are removed, as are `AppStateChangePayload.index`, `ExecutionCompletedPayload.instance_index` and the `instance_index` argument of `HassetteExecutionCompletedEvent.from_record`. `AppStateChangePayload.instance_name` is required and is now the second positional field.
+    - **Web UI:** `?instance=` takes a name, and an old numeric bookmark lands on the app's page.
+- **App lookup takes a name** — `Hassette.get_app` is removed; use `hassette.app_handler.get(app_key, instance_name=...)`. `AppHandler.get` takes `instance_name` by keyword only and no longer takes an index, so `get(key, 0)` now raises `TypeError`. (#3733)
+- **Default cache directories move** — from `{app_key}/{index}` to `{app_key}/{instance_name}`. Default caches start empty after upgrading, and the old directories stay on disk. To keep an old cache, stop Hassette and move `{app_key}/{index}` to `{app_key}/{instance_name}`. A single-instance app can instead set `cache_key = "{app_key}/0"`; don't set it on a multi-instance app, because every instance would share one cache file. (#3733)
+- **Telemetry is keyed on the instance name** (#3673, #3765):
+    - Upgrading resets per-instance listener and job views. Rows from before this release are retired without a backfill; they stay queryable by id until retention removes them, and no action is needed. Rows stored with no name show as "unnamed instance" until retention deletes them.
+    - Renaming an instance in config starts a new telemetry history. Renaming it back restores the old one until retention deletes it.
+    - Migration 020 rewrites four telemetry tables at the first start, which can take longer on a large database. If it times out on slow storage, raise `database.migration_timeout_seconds`. Rolling back past this release requires deleting the telemetry database.
+    - An `App` constructed directly, outside config loading and `AppTestHarness`, must pass a non-empty `instance_name` before registering a listener or job, and raises `ValueError` otherwise.
+    - `GET /api/logs/recent` with `instance_index` and no `app_key` answers 422 `validation_failed`, so `hassette_client.get_logs(instance_index=...)` callers must also pass `app_key`. A negative `instance_index` answers 422 on every route that took one.
+- **`auto_loaded` is removed** — from `GET /api/apps`, `GET /api/apps/{app_key}` and `GET /api/telemetry/app-grid` responses and from the `hassette_wire` `AppSummary` model. Drop any read of it; it has always been false since autodetection was removed. (#3640)
+- **Stricter `DateTimeBaseState` validation** — subclasses no longer accept naive or date-only strings, or `PlainDateTime` and `Date` objects, when validated outside the conversion pipeline (direct `State.model_validate()`, or a `BaseEntity` validating its nested state). `PlainDateTime` and `Date` objects also fail in the pipeline; strings from Home Assistant still convert as before. Pass raw state dicts through `StateRegistry.try_convert_state()`, and convert `PlainDateTime` and `Date` objects to `ZonedDateTime` before validating. The value type is now `ZonedDateTime | None`. (#3704)
+- **Removed settings** — `[hassette.file_watcher]` `debounce_milliseconds` and `step_milliseconds`, and `[hassette.blocking_io]` `watchdog_interval_seconds`, are now unknown-key errors in `hassette.toml` and `HASSETTE__*` variables. Delete them. The values are fixed at 3000 ms, 500 ms and 250 ms, including in `dev_mode`. (#3647)
+
+### For App Authors: You Can Now Delete
+
+- **Keeping `config` blocks in a fixed order, or only appending new ones at the end** — reordering, adding or removing a block no longer restarts siblings or moves their history, cache or needs-restart flag. (#3733, #3673)
+- **Registering `on_error` handlers outside `on_initialize`, or a try/except in every handler to stand in for them** — handlers registered in `on_initialize` were wiped when the Bus and Scheduler started; they now stay registered. (#3737)
+- **Importing `WhereClause` from `hassette.types.types`, or quoting it to dodge `get_type_hints` errors** — import it from `hassette.types`; it's a real type alias now. (#3717)
+- **`isinstance(state.value, PlainDateTime)` or `Date` branches on datetime states** — the value is always a `ZonedDateTime` or `None`. (#3704)
+- **Mapping custom log levels (`TRACE`, `SUCCESS`, ...) back to standard ones so the Logs page loads** — records at custom levels are now stored under the highest standard level at or below theirs. (#3708)
+- **Converting Hassette exceptions before pickling or deep-copying them** — every `HassetteError` now survives `pickle` and `copy.deepcopy`. (#3699)
+- **`timeout_disabled=True` or log filters to silence stall warnings on long handlers and jobs** — the stall warning now follows each invocation's own timeout (see Bus & Scheduler). (#3712)
+
+### Configuration
+
+- `GET /api/config` returns `config_defaults` alongside `config_schema` and `config_values`, holding each field's schema default. (#3628)
+- `hassette config` marks entries that match their default with `(default)`, so overrides stand out. `--json` output is unchanged. (#3634)
+
+### Bus & Scheduler
+
+- The stall warning threshold is now `max(60, 0.8 × timeout)` for the timeout each handler or job invocation actually runs under, instead of a flat 60 s. With the default 600 s timeout, a stall now warns at 480 s; an invocation with no timeout still warns at 60 s. The warning says where its threshold came from. `HandlerInvoker.dispatch()` and `run_with_mode()` now take a required `config_resolver`. (#3712)
+- Listeners registered in `on_initialize` now count for duplicate-name detection, so `if_exists` sees them after startup. (#3737)
+
+### Bug Fixes
+
+- **Security:** the CLI sends local credentials only to the local instance's port. (#3718)
+- REST calls that fail with a 4xx other than 408 or 429 now raise on the first attempt instead of being retried five times with backoff. 5xx, 408, 429, connection errors and timeouts still retry. (#3698)
+- `GET /api/logs/recent`, the Logs page, `hassette log` and `get_recent_logs()` no longer fail with a 500 when a stored record uses a custom log level. Migration 019 rewrites existing custom-level rows to `INFO`. (#3708)
+- The app grid answers within one read timeout when the database stalls. (#3724)
+- App health returns 404 for an unknown app key. (#3701)
+- App start and stop outcomes are logged at INFO. (#3710)
+- The web API releases its port when serving is cancelled during startup. (#3688)
+
+### Documentation
+
+- Corrections across the bus, cache, logging, configuration and API pages: `changed=`, `EventEntityFresh` (now covering `input_button`) and dict matching in filtering, cache TTL cleanup, the forgotten-await and pickling claims, backpressure's silent-loss claim, custom log level mapping, the `.env` pointer, the Config tab override guidance, the app env-var override (and a warning that it breaks multi-instance apps), and `Api`'s raw transport methods, which are no longer documented as public. (#3713, #3747, #3692, #3744, #3667, #3653, #3645, #3642, #3685)
+- New how-tos: gating subscriptions on presence with `where=`, state dicts with `make_typed_state`, calling `parse_response` on a saved response, disabling SSL verification with `--ha-verify-ssl`, clearing the `app_blocked` error, and where custom state classes live. (#3714, #3635, #3659, #3662, #3632, #3711)
+- Testing docs: the harness install prerequisite, the app under test in the quick start, parallel runs with pytest-xdist, and the blocking-call fail-fast advice. (#3626, #3623, #3639, #3690)
+- Recipes: motion lights, sensor threshold, vacation mode, and the service-call glob feedback loop. (#3595, #3598, #3641, #3600)
+- Smaller clarifications: helper params model fields, the sidebar groups for FAILED and DEGRADED apps, execution filter IDs, reload settings, `D.EventData` with a `None` payload, the 7d preset for zero handler runs, the custom extractors page, and the Home Assistant token guide. (#3672, #3666, #3664, #3657, #3728, #3630, #3696, #3637)
+
 ## [0.61.0](https://github.com/NodeJSmith/hassette/compare/v0.60.0...v0.61.0) (2026-10-29)
 
 This release completes the **Resource Lifecycle** milestone ([milestone 19](https://github.com/NodeJSmith/hassette/milestone/19), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/134-resource-lifecycle-outcomes/design.md)). Hassette now records what happened to each service and app instead of inferring it. Hassette no longer restarts failed services in-process: a required service's failure exits the process for your supervisor to restart, and an optional one stays dead with one ERROR. A service is RUNNING only once its initialization finishes, and a failure at boot fails startup. If the event bus dies, the process shuts down without hanging. If a timed-out hook may have left an app's work running, that instance is flagged as needing a restart, and nothing replaces it until Hassette restarts. App actions report each instance's own outcome, and every app gets its full shutdown timeout at exit. The breaking changes come first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps. Instance Identity, which re-keys stored history and routes on the instance name, comes next.
