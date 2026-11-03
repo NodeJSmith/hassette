@@ -1,7 +1,7 @@
 # Design: Address app instances by name
 
 **Date:** 2026-11-02
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3100
 **Parent:** design/specs/133-log-identity-axes/design.md
@@ -210,7 +210,7 @@ Where each piece lives:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - The CLI's `--instance` check skips when the app list can't be read, for reads as well as actions: a telemetry outage must not block a start, stop or reload, and a read would fail on its own in that outage anyway. The server answers for the name then.

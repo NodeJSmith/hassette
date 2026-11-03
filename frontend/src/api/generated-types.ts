@@ -809,7 +809,9 @@ export interface components {
             instance_name: string | null;
             /**
              * Outcomes
-             * @description One entry per instance the action targeted, in config order.
+             * @description One entry per instance the action targeted: configured instances in config order, then orphans by name.
+             *
+             *     A name a config change adds during the action comes last, so match outcomes to instances by ``instance_name``.
              */
             outcomes: components["schemas"]["InstanceOutcome"][];
         };
@@ -1018,8 +1020,9 @@ export interface components {
          * AppInstance
          * @description One configured instance of an app and its lifecycle status.
          *
-         *     Nested in ``AppSummary.instances``, in config order. ``error_message`` and ``error_traceback`` describe why
-         *     the instance failed, and are ``None`` unless ``status`` is ``failed``.
+         *     Nested in ``AppSummary.instances``: configured instances in config order, then orphans by name.
+         *     ``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None`` unless ``status`` is
+         *     ``failed``.
          */
         AppInstance: {
             /** App Key */

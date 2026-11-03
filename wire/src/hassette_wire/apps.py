@@ -28,8 +28,9 @@ class NeedsRestart(BaseModel):
 class AppInstance(BaseModel):
     """One configured instance of an app and its lifecycle status.
 
-    Nested in ``AppSummary.instances``, in config order. ``error_message`` and ``error_traceback`` describe why
-    the instance failed, and are ``None`` unless ``status`` is ``failed``.
+    Nested in ``AppSummary.instances``: configured instances in config order, then orphans by name.
+    ``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None`` unless ``status`` is
+    ``failed``.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -132,7 +133,10 @@ class ActionResponse(BaseModel):
     action: OpenAppAction
     instance_name: str | None
     outcomes: list[InstanceOutcome]
-    """One entry per instance the action targeted, in config order."""
+    """One entry per instance the action targeted: configured instances in config order, then orphans by name.
+
+    A name a config change adds during the action comes last, so match outcomes to instances by ``instance_name``.
+    """
 
 
 class AppConfigResponse(BaseModel):
