@@ -216,7 +216,13 @@ Where each piece lives:
 - The CLI's `--instance` check skips when the app list can't be read, for reads as well as actions: a telemetry outage must not block a start, stop or reload, and a read would fail on its own in that outage anyway. The server answers for the name then.
 - A `/instances/{name}/...` on an app with no manifest and an untracked name answers `instance_not_found`, and with nothing tracked at all answers `app_not_found`: the first is a real orphaned app with a wrong name, the second is no app.
 - `ActionOutcomes` keeps first-targeted order instead of re-sorting: `_targets` sorts names into display order on entry, and a name a config change adds during a reload goes after the existing ones.
-- Seed scenarios keep an `instance_ordinal` helper argument, local to the generators, to name a class's nth seeded instance (`Class.N`). It writes only the name.
-- `make_app_instance_info` and the e2e fixtures name a default instance `Class.0`, the shape the seed scenarios store, and the e2e manifests' `app_config` lists the same names, so routes accept what the UI sends.
+- Seed scenarios keep an `instance_ordinal` helper argument, local to the generators, to name a class's nth seeded instance (`myapp_0`). It writes only the name, in a shape `instance_name_reason` accepts, so a served seed exercises real names.
+- `make_app_instance_info` and the e2e fixtures name a default instance `myapp_0`, the shape the seed scenarios store, and the e2e manifests' `app_config` lists the same names, so routes accept what the UI sends.
+- The palette's sub text is just the app key, and the app detail header's meta shows `instance <name>` only when the page resolves a current instance: an unaddressed parent page has no instance to name.
+- The blocking card's instance scope uses the page's `?instance=` value and is app-wide without one, matching D3. An unnamed instance ref stays plain text in the "on ..." line, as D7 links it nowhere.
+- A single-instance row with no WebSocket entry falls back to `row.status`, and the D5 overlay otherwise applies as ratified.
+- The config tab heads each block with its `instance_name` rather than `Instance <position>`, since a positional label is what this change removes.
+- `InstanceRef` and its interning cache are gone: with `index` removed it held one string, and `ActionButtons` takes the name directly.
+- The Handlers page puts `instance_name` on its own muted line in the desktop app cell rather than inline, because the narrow column truncated an inline suffix out of view. A single-instance app whose instance is named after its key repeats that name, accepted so every row reads the same way.
 - The released client's `{index}` route templates are in `EXCLUDED` (`tools/client_compat_coverage.py`) until a release ships the `{instance_name}` ones; a stale entry fails that check, so they come out with that release.
-- The Handlers page shows `instance_name` as a muted suffix in the app cell, hidden on framework rows, and its handler link carries `?instance=`, since a multi-instance app's handler link without it bounces to the overview.
+- The Handlers page hides `instance_name` on framework rows, and its handler link carries `?instance=`, since a multi-instance app's handler link without it bounces to the overview.

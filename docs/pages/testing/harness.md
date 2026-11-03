@@ -189,8 +189,8 @@ build. Another app's status change is the common case, since
 --8<-- "pages/testing/snippets/testing_simulate_event.py"
 ```
 
-`app_key` is the key under `[hassette.apps.<key>]` in `hassette.toml`. `instance_name` is the
-instance's name.
+`app_key` is the key under `[hassette.apps.<key>]` in `hassette.toml`. `instance_name` is the value set in that
+instance's `config`.
 
 `topic` takes a [`Topic`][hassette.types.enums.Topic] value from
 `hassette.types`. The event and payload classes come from

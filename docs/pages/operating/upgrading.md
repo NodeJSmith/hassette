@@ -165,7 +165,7 @@ Don't use `cache_key` on an app with several instances. An explicit `cache_key` 
 
 This applies when upgrading from 0.61 or earlier. Everything that addressed an app instance by its position in the config now takes its `instance_name`:
 
-- **Routes:** `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}`, and an `instance_name` query parameter in place of `instance_index`. Hassette ignores a leftover `instance_index`, so such a request answers with every instance.
+- **Routes:** `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}`, and an `instance_name` query parameter in place of `instance_index`. Hassette ignores a leftover `instance_index`, so a request that still sends it answers with every instance.
 - **Telemetry with no instance:** `/api/telemetry/app/{key}/health`, `/listeners` and `/jobs` used to report the first instance. They now cover every instance, as `/blocking`, `/activity` and the log routes already did, including runs stored under a name that was since renamed or removed.
 - **API responses:** the integer position is gone from `AppInstance`, `InstanceOutcome`, `ActionResponse`, `LogEntry`, listener and job summaries, blocking references, and WebSocket messages. Instances are listed in config order. Listener and job summaries gain `instance_name`.
 - **CLI:** `--instance` takes a name, and `--instance 0` now fails with the list of known names. `app start|stop|reload --json` reports `instance_name` instead of `instance_index`, including under `outcomes`.
@@ -173,9 +173,9 @@ This applies when upgrading from 0.61 or earlier. Everything that addressed an a
 - **Apps:** `App.index`, the `index` constructor argument and the test harness's `index` are removed.
 - **Web UI links:** `?instance=` takes a name. An old numeric bookmark lands on the app's page.
 
-`hassette-client` releases before this one can't read the new responses. The Home Assistant integration stops updating until you install a release that pins the new client.
+Older `hassette-client` releases can't read the new responses. The Home Assistant integration stops updating until a release pins the new client.
 
-Rows recorded before instance names can show in blocking findings as "unnamed instance" until retention deletes them. The upgrade rewrites four telemetry tables at startup, so the first start can take longer on a large database. Rolling back past this release means deleting the telemetry database.
+Rows recorded before instance names can show in blocking findings as "unnamed instance" until retention deletes them. The upgrade rewrites four telemetry tables at startup, so the first start can take longer on a large database. Rolling back past this release requires deleting the telemetry database.
 
 ## App Lifecycle Log Lines
 

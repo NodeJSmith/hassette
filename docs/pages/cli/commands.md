@@ -530,9 +530,9 @@ Invalid values cause a non-zero exit with an error listing accepted formats.
 
 ### `--instance` resolution
 
-`--instance` requires `--app` (or a positional `<key>` argument on `app health`, `app activity`, `app start`, `app stop`, and `app reload`). It takes the instance name, and the CLI checks it against the app's instances first: if no instance matches, it exits non-zero and lists the available names. The check skips when the app list can't be read, and the server answers for the name.
+`--instance` requires `--app` (or a positional `<key>` argument on `app health`, `app activity`, `app start`, `app stop`, and `app reload`). It takes the instance name, and the CLI checks it against the app's instances first: if no instance matches, it exits non-zero and lists the available names. When the CLI can't read the app list, it skips the check and the server answers for the name.
 
-Because of that check, the CLI refuses a name that has been renamed or removed, even though its history stays readable through the API until retention deletes it.
+The check also rejects the old name of a renamed or removed instance, even though the API keeps that instance's history readable until retention deletes it.
 
 Without `--instance`, read commands cover every instance of the app, including runs under a name that was since renamed or removed, until retention deletes them.
 

@@ -125,7 +125,15 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
       </td>
       <td className="font-mono text-sm">
         <AppLink appKey={row.app_key} />
-        <InstanceSuffix name={instanceName} />
+        {instanceName !== null && (
+          <div
+            className="truncate text-xs text-muted-foreground"
+            title={instanceName}
+            data-testid="handler-row-instance"
+          >
+            {instanceName}
+          </div>
+        )}
       </td>
       <td className="font-mono text-sm" title={row.handler_method}>
         <AppLink
