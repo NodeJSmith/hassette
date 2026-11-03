@@ -1,0 +1,9 @@
+# HA writes the fired event type into `state_attributes` from a private `__last_event_type`, not a
+# cached property, so the extractor never discovers it. Add it so handlers read `attributes.event_type`
+# instead of reaching into pydantic extras.
+# Integrations emit arbitrary strings from `event_types`, so it's `str`, not the ButtonEventType /
+# DoorbellEventType enums.
+[[property_overrides]]
+name = "event_type"
+type = "str | None"
+add = true
