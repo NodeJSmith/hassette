@@ -5,6 +5,8 @@ paths:
   - "docs/_static/**"
   - "docs/pages/**"
   - "scripts/capture_screenshots.py"
+  - "tools/frontend/attach_pr_screenshots.py"
+  - "tools/frontend/check_pr_screenshots.py"
   - "scripts/demo_stack.py"
   - "scripts/hassette_demo.py"
   - "examples/**"
@@ -32,7 +34,7 @@ Gotchas:
 
 ## Screenshots (docs and PR evidence)
 
-The docs site embeds `docs/_static/web_ui_*.png` and `docs/_static/ha-*.png`, generated from the manifest `docs/screenshots.yml`. Always capture screenshots — for docs or PR visual evidence — via `scripts/capture_screenshots.py`, never via raw Playwright MCP/browser automation. The script owns auth (session cookie minting, Home Assistant login), animation-disabling, viewport sizing, and demo-stack lifecycle. Needs Docker + Playwright + shot-scraper (`uv sync --group dev`).
+The docs site embeds `docs/_static/web_ui_*.png` and `docs/_static/ha-*.png`, generated from the manifest `docs/screenshots.yml`. Always capture screenshots — for docs or PR visual evidence — via `scripts/capture_screenshots.py`, never via raw Playwright MCP/browser automation (PR-specific steps: "PR screenshots" below). The script owns auth (session cookie minting, Home Assistant login), animation-disabling, viewport sizing, and demo-stack lifecycle. Needs Playwright + shot-scraper (`uv sync --group dev`), plus Docker for the demo stack.
 
 ```bash
 uv run python scripts/capture_screenshots.py                                   # all
@@ -50,3 +52,25 @@ Home Assistant pages render in shadow DOM, which `selector` and `wait_for` can't
 If a UI state isn't config-driven (e.g. it needs a crashed instance), add a demo fixture in `scripts/demo_apps/` (see `degraded_demo.py` and its entry in `scripts/demo_apps/hassette.toml`) rather than faking the state. Never add one to `examples/`: that directory holds only apps users copy as templates.
 
 After a UI change that alters a view documented with a screenshot, regenerate the affected `web_ui_*.png`. PRs touching rendered frontend files need visual evidence — see `.claude/rules/design-completeness.md`.
+
+## PR screenshots
+
+### States the demo stack can't produce
+
+The demo stack starts from an empty DB, so it can't show history, a large or adversarial dataset, or an app that left the config but still has an `app_manifests` row. For those, run your own hassette against a seeded DB and point `capture_screenshots.py --against` at it. Don't seed rows into the demo stack's DB by hand.
+
+1. Seed a DB (scenarios are in `scripts/seed_scenarios/`): `uv run python scripts/seed_db.py --scenario healthy --output <dir>/data/hassette.db`
+2. Write `<dir>/hassette.toml` with `data_dir = "<dir>/data"`, an unreachable `base_url` (e.g. `http://127.0.0.1:1`) and any `token`, a spare `[hassette.web_api] port`, and `[hassette.apps] directory = "<dir>/apps"`. Every configured app needs a stub file in that directory and `config = { instance_name = "..." }`, or config validation fails. To show removed apps, configure only some of the seed's apps: the rest keep their DB rows but leave the config.
+3. Build the SPA so hassette serves the UI: `cd frontend && npm run build`
+4. `uv run hassette run -c <dir>/hassette.toml`
+5. `uv run python scripts/capture_screenshots.py --against <port> --token-file <dir>/data/.web_api_token --url /apps --url /apps/<app_key> --out <shots-dir>`. Viewport and wait flags are on `--help`. Keep `<shots-dir>` outside `docs/`.
+
+### Attaching screenshots to a PR
+
+Don't commit PR screenshots into the tree: they'd merge into `main` and grow every clone. With the PR branch pushed, run:
+
+```bash
+uv run python tools/frontend/attach_pr_screenshots.py <shots-dir>/*.png
+```
+
+It pushes two commits to the branch, one adding the images and one removing them, and prints a `### Screenshots` block linking each image at the add commit's SHA. Paste that block into the PR body yourself; the tool never edits it. The squash merge drops both commits, and the links keep working after the branch is deleted because GitHub keeps PR commits under `refs/pull/<N>/head`. Rerun it after retaking screenshots and replace the block.

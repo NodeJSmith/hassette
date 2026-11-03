@@ -3,7 +3,7 @@
   "projectTitle": "Hassette",
   "description": "Async-first Python framework for building typed Home Assistant automations",
   "folders": ["docs/pages", "examples"],
-  "excludeFolders": ["design", ".claude", "tests", "docs/pr-evidence"],
+  "excludeFolders": ["design", ".claude", "tests"],
   "excludeFiles": ["CHANGELOG.md"],
   "rules": [
     "Bus registration methods (on_state_change, on_attribute_change, on_call_service, on) are async and must be awaited.",

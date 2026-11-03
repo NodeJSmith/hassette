@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Capture all doc screenshots defined in docs/screenshots.yml.
+"""Capture doc screenshots from docs/screenshots.yml, or ad-hoc PR screenshots from a running hassette.
 
 Usage:
     uv run python scripts/capture_screenshots.py
+    uv run python scripts/capture_screenshots.py --against 18799 --token-file <data_dir>/.web_api_token \
+        --url /apps/pet_feeder --url /apps --out /tmp/pr-shots
 
 Requirements:
-    - Docker must be running (used by the demo stack for HA + hassette + Vite)
+    - Docker must be running for docs mode (used by the demo stack for HA + hassette + Vite);
+      --against mode doesn't need it
     - Playwright and Chromium must be installed:
           uv run playwright install --with-deps chromium
     - shot-scraper must be installed (dev dependency):
           uv sync --group dev
 
-Flow:
+Docs-mode flow:
     1. Delete stale demo DB files
     2. Start the demo stack (HA + hassette + Vite) via DemoStack
     3. Poll until demo_stimulator has generated error data (up to 90 seconds)
@@ -33,12 +36,20 @@ Adding a new screenshot:
     Add an entry to docs/screenshots.yml with the URL path, output filename,
     and any selector/javascript needed to set up the UI state.  No changes to
     this script are needed.
+
+--against mode (PR evidence for states the demo stack can't produce):
+    Captures each --url from a hassette you already started (a seeded DB, a
+    config naming only some of the seed's apps, ...) instead of the demo stack.
+    It skips the demo stack, the manifest and the Home Assistant login, and
+    writes <out>/<url-slug>.png. The token file is the instance's
+    <data_dir>/.web_api_token. Recipe: .claude/rules/demo-and-screenshots.md.
 """
 
 import argparse
 import contextlib
 import http.cookies
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -46,6 +57,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
@@ -66,17 +78,12 @@ PAGE_HELPERS_JS = (Path(__file__).resolve().parent / "screenshot_page_helpers.js
 
 # Single source of truth: scripts/docker/.env, also read by ha-demo.yml (via docker-compose's
 # auto env-file loading) and .mise/tasks/demo-verify (via grep).
-_DEMO_ENV_PATH = Path(__file__).resolve().parent / "docker" / ".env"
-_DEMO_ENV = dotenv_values(_DEMO_ENV_PATH)
-DEMO_AUTH_TOKEN = _DEMO_ENV.get("DEMO_AUTH_TOKEN")
-if not DEMO_AUTH_TOKEN:
-    print(f"ERROR: DEMO_AUTH_TOKEN not found in {_DEMO_ENV_PATH}", file=sys.stderr, flush=True)
-    sys.exit(1)
+DEMO_ENV_PATH = Path(__file__).resolve().parent / "docker" / ".env"
 
-HA_ACCESS_TOKEN = _DEMO_ENV.get("HA_ACCESS_TOKEN")
-if not HA_ACCESS_TOKEN:
-    print(f"ERROR: HA_ACCESS_TOKEN not found in {_DEMO_ENV_PATH}", file=sys.stderr, flush=True)
-    sys.exit(1)
+AGAINST_DEFAULT_WIDTH = 1400
+AGAINST_DEFAULT_HEIGHT = 900
+AGAINST_DEFAULT_WAIT_MS = 2000
+URL_SLUG_UNSAFE_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
 EXPECTED_COOKIE_COUNT = 1
 """Set-Cookie from POST /api/auth/session mints exactly one cookie (the session cookie)."""
@@ -89,6 +96,15 @@ ANIMATION_DISABLE_JS = (
     "}';"
     "document.head.appendChild(s);"
 )
+
+
+def demo_env_value(key: str) -> str:
+    """Read `key` from scripts/docker/.env, exiting if it's missing or empty."""
+    value = dotenv_values(DEMO_ENV_PATH).get(key)
+    if not value:
+        print(f"ERROR: {key} not found in {DEMO_ENV_PATH}", file=sys.stderr, flush=True)
+        sys.exit(1)
+    return value
 
 
 def _clean_stale_demo_db(repo_root: Path) -> None:
@@ -113,7 +129,7 @@ def _clean_stale_demo_db(repo_root: Path) -> None:
         print(f"Cleaned stale demo DB files: {', '.join(deleted_files)}", flush=True)
 
 
-def _wait_for_error_data(hassette_port: int) -> None:
+def _wait_for_error_data(hassette_port: int, auth_token: str) -> None:
     """Poll until demo_stimulator has produced at least one failed job.
 
     Soft failure: prints a warning and returns instead of exiting, since
@@ -126,7 +142,7 @@ def _wait_for_error_data(hassette_port: int) -> None:
 
     while time.monotonic() < deadline:
         try:
-            req = urllib.request.Request(jobs_url, headers={"Authorization": f"Bearer {DEMO_AUTH_TOKEN}"})
+            req = urllib.request.Request(jobs_url, headers={"Authorization": f"Bearer {auth_token}"})
             with urllib.request.urlopen(req, timeout=HTTP_SOCKET_TIMEOUT_SECONDS) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read())
@@ -148,11 +164,11 @@ def _wait_for_error_data(hassette_port: int) -> None:
         )
 
 
-def _ha_login_origin(ha_port: int) -> dict[str, object]:
-    """Build the storage-state origin that logs the Home Assistant frontend in with HA_ACCESS_TOKEN."""
+def _ha_login_origin(ha_port: int, ha_access_token: str) -> dict[str, object]:
+    """Build the storage-state origin that logs the Home Assistant frontend in with `ha_access_token`."""
     ha_url = f"http://localhost:{ha_port}"
     tokens = {
-        "access_token": HA_ACCESS_TOKEN,
+        "access_token": ha_access_token,
         "token_type": "Bearer",
         "expires_in": HA_LOGIN_TTL_SECONDS,
         "hassUrl": ha_url,
@@ -163,8 +179,10 @@ def _ha_login_origin(ha_port: int) -> dict[str, object]:
     return {"origin": ha_url, "localStorage": [{"name": HA_FRONTEND_TOKENS_KEY, "value": json.dumps(tokens)}]}
 
 
-def _mint_auth_storage_state(hassette_port: int, ha_port: int) -> dict[str, object]:
-    """Build Playwright storage state holding a hassette session cookie and a Home Assistant login.
+def _mint_auth_storage_state(
+    hassette_port: int, auth_token: str, origins: Sequence[dict[str, object]] = ()
+) -> dict[str, object]:
+    """Build Playwright storage state holding a hassette session cookie minted from `auth_token`, plus `origins`.
 
     shot-scraper's ``--auth`` flag loads its argument file's JSON directly as Playwright's
     ``storage_state`` context argument (``shot_scraper.cli._browser_context``), so building that
@@ -175,10 +193,11 @@ def _mint_auth_storage_state(hassette_port: int, ha_port: int) -> dict[str, obje
     ``http://localhost:{vite_port}``, which Vite proxies to hassette server-side (see
     ``VITE_PROXY_TARGET`` in ``scripts/docker/ha-demo.yml``) — so the browser only ever talks to
     one origin, ``localhost``, regardless of which port is behind it. Home Assistant ignores that
-    cookie and reads its login from localStorage, which is keyed by port (``_ha_login_origin``).
+    cookie and reads its login from localStorage, which is keyed by port, so a caller that also
+    captures HA pages passes ``_ha_login_origin`` in `origins`.
     """
     session_url = f"http://localhost:{hassette_port}/api/auth/session"
-    body = json.dumps({"token": DEMO_AUTH_TOKEN}).encode("utf-8")
+    body = json.dumps({"token": auth_token}).encode("utf-8")
     req = urllib.request.Request(
         session_url,
         data=body,
@@ -190,7 +209,8 @@ def _mint_auth_storage_state(hassette_port: int, ha_port: int) -> dict[str, obje
             set_cookie = resp.headers.get("Set-Cookie")
     except (urllib.error.HTTPError, urllib.error.URLError, OSError, TimeoutError) as exc:
         print(
-            f"ERROR: POST /api/auth/session failed ({exc}) -- check DEMO_AUTH_TOKEN in {_DEMO_ENV_PATH}",
+            f"ERROR: POST {session_url} failed ({exc}) -- "
+            "check that hassette is running and that the token comes from its data_dir",
             file=sys.stderr,
             flush=True,
         )
@@ -221,7 +241,7 @@ def _mint_auth_storage_state(hassette_port: int, ha_port: int) -> dict[str, obje
                 "sameSite": "Strict",
             }
         ],
-        "origins": [_ha_login_origin(ha_port)],
+        "origins": list(origins),
     }
 
 
@@ -241,7 +261,7 @@ def _needs_xvfb() -> bool:
         return True
 
 
-def _resolve_manifest(entries: list[object], port: str, ha_port: str) -> list[dict[str, object]]:
+def _resolve_manifest(entries: Sequence[object], port: str, ha_port: str) -> list[dict[str, object]]:
     """Replace {port} and {ha_port} placeholders and prepend the animation-disabling JS and page helpers."""
     resolved: list[dict[str, object]] = []
     for i, entry in enumerate(entries):
@@ -314,7 +334,135 @@ def _run_shot_scraper(
             Path(tmp_manifest_path).unlink(missing_ok=True)
 
 
-def main() -> None:
+def url_slug(path: str) -> str:
+    """Turn a URL path into a filename stem: ``/apps/pet_feeder`` -> ``apps-pet_feeder``, ``/`` -> ``index``."""
+    return URL_SLUG_UNSAFE_RE.sub("-", path).strip("-") or "index"
+
+
+def against_entries(
+    urls: list[str], port: int, out_dir: Path, width: int, height: int, wait_ms: int
+) -> list[dict[str, object]]:
+    """Build shot-scraper entries for `--against` mode, one per URL path, written to ``<out_dir>/<slug>.png``.
+
+    Raises:
+        ValueError: A URL doesn't start with ``/``, or two URLs map to the same output file.
+    """
+    entries: list[dict[str, object]] = []
+    outputs: dict[Path, str] = {}
+    for url in urls:
+        if not url.startswith("/"):
+            raise ValueError(f"--url takes a path starting with '/', got {url!r}")
+        output = out_dir / f"{url_slug(url)}.png"
+        if output in outputs:
+            raise ValueError(f"--url {url!r} and {outputs[output]!r} would both write {output.name}")
+        outputs[output] = url
+        # Entries go through the same resolver as docs/screenshots.yml's, which fills the {port}
+        # placeholder and prepends the animation-disabling JS and page helpers.
+        entries.append(
+            {
+                "url": f"http://localhost:{{port}}{url}",
+                "output": str(output),
+                "width": width,
+                "height": height,
+                "wait": wait_ms,
+            }
+        )
+    return _resolve_manifest(entries, str(port), "")
+
+
+def run_capture(
+    authenticated: list[dict[str, object]],
+    unauthenticated: list[dict[str, object]],
+    storage_state: dict[str, object],
+    repo_root: Path,
+    timeout_ms: int,
+) -> int:
+    """Run shot-scraper over both entry groups, the first with `storage_state` as its auth, returning the exit code.
+
+    The login view (`unauthenticated: true` in the manifest) must be captured with no session
+    cookie applied, or it redirects straight to the dashboard -- every other entry needs the
+    cookie. shot-scraper only accepts one `--auth` file per invocation, so the two groups run as
+    separate shot-scraper calls rather than a per-entry override. An empty group is skipped.
+    """
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".json",
+        delete=False,
+        prefix="hassette-auth-",
+    ) as tmp_auth:
+        json.dump(storage_state, tmp_auth)
+        tmp_auth_path = tmp_auth.name
+
+    try:
+        return_code = _run_shot_scraper(authenticated, repo_root, timeout_ms, tmp_auth_path)
+        return _run_shot_scraper(unauthenticated, repo_root, timeout_ms, None) or return_code
+    finally:
+        with contextlib.suppress(OSError):
+            Path(tmp_auth_path).unlink(missing_ok=True)
+
+
+def capture_docs(repo_root: Path, only: str | None, timeout_ms: int) -> int:
+    """Capture docs/screenshots.yml's entries against a fresh demo stack."""
+    auth_token = demo_env_value("DEMO_AUTH_TOKEN")
+    ha_access_token = demo_env_value("HA_ACCESS_TOKEN")
+
+    manifest_path = repo_root / "docs" / "screenshots.yml"
+    with manifest_path.open() as f:
+        entries = yaml.safe_load(f)
+
+    if not isinstance(entries, list) or not entries:
+        print(f"ERROR: {manifest_path} did not parse to a non-empty list", file=sys.stderr, flush=True)
+        sys.exit(1)
+
+    _clean_stale_demo_db(repo_root)
+
+    print("Starting demo stack...", flush=True)
+    with DemoStack() as demo:
+        _wait_for_error_data(demo.hassette_port, auth_token)
+
+        resolved = _resolve_manifest(entries, str(demo.vite_port), str(demo.ha_port))
+
+        if only:
+            filters = [f.strip() for f in only.split(",")]
+            resolved = [e for e in resolved if any(f in str(e.get("output", "")) for f in filters)]
+            if not resolved:
+                print(f"ERROR: --only {only!r} matched no manifest entries", file=sys.stderr, flush=True)
+                sys.exit(1)
+            print(f"Filtered to {len(resolved)} entries matching --only {only!r}", flush=True)
+
+        storage_state = _mint_auth_storage_state(
+            demo.hassette_port, auth_token, [_ha_login_origin(demo.ha_port, ha_access_token)]
+        )
+        return run_capture(
+            [e for e in resolved if not e.get("unauthenticated")],
+            [e for e in resolved if e.get("unauthenticated")],
+            storage_state,
+            repo_root,
+            timeout_ms,
+        )
+
+
+def capture_against(args: argparse.Namespace, repo_root: Path) -> int:
+    """Capture `--url` paths from the already-running hassette on port `--against`."""
+    # shot-scraper runs from repo_root, so a relative --out must be resolved against the caller's cwd first.
+    out_dir = args.out.resolve()
+    try:
+        entries = against_entries(args.url, args.against, out_dir, args.width, args.height, args.wait)
+        auth_token = args.token_file.read_text().strip()
+    except (ValueError, OSError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr, flush=True)
+        return 2
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    storage_state = _mint_auth_storage_state(args.against, auth_token)
+    return_code = run_capture(entries, [], storage_state, repo_root, args.timeout)
+    if return_code == 0:
+        for entry in entries:
+            print(entry["output"], flush=True)
+    return return_code
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -331,59 +479,49 @@ def main() -> None:
         help="Playwright page timeout in milliseconds (default: 30000). "
         "Increase if Page.screenshot times out waiting for fonts or rendering.",
     )
-    args = parser.parse_args()
+    against_group = parser.add_argument_group("--against mode", "capture ad-hoc URLs from an already-running hassette")
+    against_group.add_argument("--against", type=int, metavar="PORT", help="web API port of the running hassette")
+    against_group.add_argument(
+        "--token-file", type=Path, help="the instance's web API token file: <data_dir>/.web_api_token"
+    )
+    against_group.add_argument(
+        "--url", action="append", default=[], help="page path to capture, e.g. /apps/pet_feeder (repeatable)"
+    )
+    against_group.add_argument("--out", type=Path, help="output directory; keep it outside docs/")
+    against_group.add_argument(
+        "--width", type=int, default=AGAINST_DEFAULT_WIDTH, help="viewport width (default: %(default)s)"
+    )
+    against_group.add_argument(
+        "--height", type=int, default=AGAINST_DEFAULT_HEIGHT, help="viewport height (default: %(default)s)"
+    )
+    against_group.add_argument(
+        "--wait",
+        type=int,
+        default=AGAINST_DEFAULT_WAIT_MS,
+        help="ms to wait before each capture (default: %(default)s)",
+    )
+    args = parser.parse_args(argv)
 
-    repo_root = Path(__file__).resolve().parent.parent
-
-    manifest_path = repo_root / "docs" / "screenshots.yml"
-    with manifest_path.open() as f:
-        entries = yaml.safe_load(f)
-
-    if not isinstance(entries, list) or not entries:
-        print(f"ERROR: {manifest_path} did not parse to a non-empty list", file=sys.stderr, flush=True)
-        sys.exit(1)
-
-    _clean_stale_demo_db(repo_root)
-
-    print("Starting demo stack...", flush=True)
-    with DemoStack() as demo:
-        _wait_for_error_data(demo.hassette_port)
-
-        resolved = _resolve_manifest(entries, str(demo.vite_port), str(demo.ha_port))
-
+    against_only = {"--token-file": args.token_file, "--url": args.url, "--out": args.out}
+    if args.against is None:
+        stray = [flag for flag, value in against_only.items() if value]
+        if stray:
+            parser.error(f"{', '.join(stray)}: valid only with --against")
+    else:
         if args.only:
-            filters = [f.strip() for f in args.only.split(",")]
-            resolved = [e for e in resolved if any(f in e.get("output", "") for f in filters)]
-            if not resolved:
-                print(f"ERROR: --only {args.only!r} matched no manifest entries", file=sys.stderr, flush=True)
-                sys.exit(1)
-            print(f"Filtered to {len(resolved)} entries matching --only {args.only!r}", flush=True)
+            parser.error("--only filters docs/screenshots.yml and doesn't apply with --against")
+        missing = [flag for flag, value in against_only.items() if not value]
+        if missing:
+            parser.error(f"--against needs {', '.join(missing)}")
+    return args
 
-        # The login view (`unauthenticated: true` in the manifest) must be captured with no
-        # session cookie applied, or it redirects straight to the dashboard -- every other entry
-        # needs the cookie. shot-scraper only accepts one `--auth` file per invocation, so the two
-        # groups run as separate shot-scraper calls rather than a per-entry override.
-        unauthenticated_entries = [e for e in resolved if e.get("unauthenticated")]
-        authenticated_entries = [e for e in resolved if not e.get("unauthenticated")]
 
-        auth_storage_state = _mint_auth_storage_state(demo.hassette_port, demo.ha_port)
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".json",
-            delete=False,
-            prefix="hassette-auth-",
-        ) as tmp_auth:
-            json.dump(auth_storage_state, tmp_auth)
-            tmp_auth_path = tmp_auth.name
-
-        try:
-            return_code = _run_shot_scraper(authenticated_entries, repo_root, args.timeout, tmp_auth_path)
-            return_code = _run_shot_scraper(unauthenticated_entries, repo_root, args.timeout, None) or return_code
-        finally:
-            with contextlib.suppress(OSError):
-                Path(tmp_auth_path).unlink(missing_ok=True)
-
-    sys.exit(return_code)
+def main() -> None:
+    args = parse_args()
+    repo_root = Path(__file__).resolve().parent.parent
+    if args.against is not None:
+        sys.exit(capture_against(args, repo_root))
+    sys.exit(capture_docs(repo_root, args.only, args.timeout))
 
 
 if __name__ == "__main__":

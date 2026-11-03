@@ -41,7 +41,7 @@ Frontend changes include:
 
 "The field exists in the DB but isn't shown in the UI" is a bug, not a follow-up. If the data is persisted and queryable, it should be visible.
 
-A PR that changes rendered frontend files (`frontend/src/**/*.tsx`, `*.css`) must carry visual evidence — a Screenshots section or embedded image in the PR body, an updated `docs/**/*.png`, or the `no-visual-change` label. This is enforced structurally by `tools/frontend/check_pr_screenshots.py` (CI workflow `pr-screenshots.yml`) so it does not depend on this rule being read at the right moment.
+A PR that changes rendered frontend files (`frontend/src/**/*.tsx`, `*.css`) must carry visual evidence — a Screenshots section or embedded image in the PR body, an updated `docs/**/*.png`, or the `no-visual-change` label. This is enforced structurally by `tools/frontend/check_pr_screenshots.py` (CI workflow `pr-screenshots.yml`) so it does not depend on this rule being read at the right moment. Host PR screenshots with `tools/frontend/attach_pr_screenshots.py`, which prints the body section to paste (see `.claude/rules/demo-and-screenshots.md`, "PR screenshots").
 
 When a UI change alters a view that the docs site documents with a screenshot, regenerate the affected `docs/_static/web_ui_*.png` rather than hand-capturing it: `uv run python scripts/capture_screenshots.py --only <name>`. The manifest is `docs/screenshots.yml`. See `.claude/rules/demo-and-screenshots.md` for the full workflow, including states that need demo setup to render.
 
