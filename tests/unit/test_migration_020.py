@@ -67,22 +67,6 @@ def test_rows_survive_the_rewrite_of_every_table(tmp_path: Path, table: str) -> 
 
     with sqlite_conn(db_path) as conn:
         rows = conn.execute(f"SELECT app_key, instance_name FROM {table}").fetchall()
+        active_listeners = conn.execute("SELECT COUNT(*) FROM active_listeners").fetchone()[0]
     assert [tuple(row) for row in rows] == [("my_app", "office")]
-
-
-def test_existing_rows_and_their_names_survive(tmp_path: Path) -> None:
-    db_path = tmp_path / "test.db"
-    run_migrations(db_path, target=19)
-    with sqlite_conn(db_path) as conn:
-        conn.execute(
-            "INSERT INTO listeners (app_key, instance_index, instance_name, name, handler_method, topic, "
-            "source_location) VALUES ('my_app', 1, 'office', 'l', 'on_x', 'light.x', 'app.py:1')"
-        )
-        conn.commit()
-
-    run_migrations(db_path)
-
-    with sqlite_conn(db_path) as conn:
-        rows = conn.execute("SELECT app_key, instance_name FROM listeners").fetchall()
-        assert [tuple(row) for row in rows] == [("my_app", "office")]
-        assert conn.execute("SELECT COUNT(*) FROM active_listeners").fetchone()[0] == 1
+    assert active_listeners == 1

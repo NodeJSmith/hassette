@@ -36,14 +36,6 @@ T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 
 
-def _filter_instances(app_list: AppListResponse, app_key: str) -> list[AppInstance]:
-    """Flatten the instance list for ``app_key`` out of a full app list response.
-
-    Used by :meth:`HassetteCLIClient._try_fetch_instances`.
-    """
-    return [inst for app in app_list.apps if app.app_key == app_key for inst in app.instances]
-
-
 def query_params(**values: Any) -> dict[str, Any]:
     """Build a query-parameter dict from CLI flags, dropping every flag left unset.
 
@@ -347,7 +339,9 @@ class HassetteCLIClient:
     def _try_fetch_instances(self, app_key: str) -> list[AppInstance] | None:
         """The instances of ``app_key``, or ``None`` when the app list can't be read (see ``try_fetch_app_list``)."""
         app_list = self.try_fetch_app_list()
-        return None if app_list is None else _filter_instances(app_list, app_key)
+        if app_list is None:
+            return None
+        return [inst for app in app_list.apps if app.app_key == app_key for inst in app.instances]
 
     def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstance]) -> NoReturn:
         names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"

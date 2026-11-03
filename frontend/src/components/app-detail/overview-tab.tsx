@@ -7,7 +7,6 @@ import { TableCard } from "@/components/shared/table-card";
 import { TableFooter } from "@/components/shared/table-footer";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/state/store";
-import { parseInstanceParam } from "@/utils/app-routes";
 import { INACTIVE_STATUSES } from "@/utils/status";
 
 import { BlockingFindingsSection } from "./blocking-findings";
@@ -109,7 +108,7 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, instanceName,
         scope={{
           kind: "instance",
           name: instanceName,
-          linkInstance: parseInstanceParam(new URLSearchParams(instanceQs).get("instance")),
+          linkInstance: instanceName,
         }}
       />
 

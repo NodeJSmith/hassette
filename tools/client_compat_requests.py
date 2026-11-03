@@ -22,6 +22,7 @@ from client_compat_live_state import (
     SeedIds,
 )
 from hassette_wire import ProblemCode
+from seed_scenarios.base import make_instance_name
 
 from hassette.web.body_limit import MAX_REQUEST_BODY_BYTES
 from tests.e2e.mock_fixtures.constants import (
@@ -265,7 +266,7 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
             "app-multi-instance-stop",
             "POST",
             "/api/apps/{app_key}/instances/{instance_name}/stop",
-            {**multi_app, "instance_name": "multiapp_1"},
+            {**multi_app, "instance_name": make_instance_name("MultiApp", 1)},
         ),
         FixtureRequest("app-config", "GET", "/api/apps/{app_key}/config", my_app),
         FixtureRequest("app-multi-config", "GET", "/api/apps/{app_key}/config", multi_app),

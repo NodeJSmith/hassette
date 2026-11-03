@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette_wire import AppStatus, ExecutionStatus, ResourceStatus, StackFrame
-from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext
+from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext, make_instance_name
 from whenever import ZonedDateTime
 
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
@@ -183,7 +183,7 @@ def live_manifests() -> list[AppManifestInfo]:
     degraded_instances = [
         make_app_instance_info(
             app_key=APP_KEY_DEGRADED_APP,
-            instance_name=f"degradedapp_{index}",
+            instance_name=make_instance_name("DegradedApp", index),
             class_name="DegradedApp",
             status=status,
             error_message=f"instance {index} {status}" if status in FAULTED_STATUSES else None,

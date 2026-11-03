@@ -121,7 +121,7 @@ function AppConfigContent({
   );
 }
 
-function instanceLabel(instanceConfig: unknown): string {
+function configInstanceHeading(instanceConfig: unknown): string {
   const name = isConfigRecord(instanceConfig) ? instanceConfig.instance_name : undefined;
   return typeof name === "string" ? name : "Instance";
 }
@@ -142,7 +142,7 @@ function ConfigInstance({
   return (
     <div className="min-w-0" data-testid={`config-instance-${idx}`}>
       <h4 className="mb-3 border-b border-[var(--border-strong)] pb-2 font-sans text-sm font-semibold uppercase tracking-[var(--text-label-tracking-mid)] text-foreground-secondary">
-        {instanceLabel(instanceConfig)}
+        {configInstanceHeading(instanceConfig)}
       </h4>
       {isConfigRecord(instanceConfig) ? (
         <AppConfigContent

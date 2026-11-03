@@ -184,7 +184,7 @@ class AppRegistry:
     ) -> AppInstanceInfo | None:
         """The effective snapshot of one ``(app_key, instance_name)``, or ``None`` when nothing is tracked there.
 
-        ``manifest`` orders and classifies the instance; it defaults to the loaded manifest for ``app_key``.
+        ``manifest`` classifies the instance; it defaults to the loaded manifest for ``app_key``.
         """
         return self._combine_instance_info(app_key, instance_name, manifest or self._manifests.get(app_key))
 

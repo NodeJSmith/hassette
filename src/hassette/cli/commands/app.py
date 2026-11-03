@@ -145,18 +145,18 @@ def cmd_app_source(
     cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 
-def _confirmation_prompt(action: AppAction, key: str, instance_label: str | None) -> str:
+def _confirmation_prompt(action: AppAction, key: str, instance: str | None) -> str:
     """Return the question asked before ``action`` runs, naming the instance when one was targeted."""
-    if instance_label is not None:
-        return f"{action.capitalize()} instance {instance_label!r} of {key!r}?"
+    if instance is not None:
+        return f"{action.capitalize()} instance {instance!r} of {key!r}?"
     return f"{action.capitalize()} app {key!r}?"
 
 
-def _action_message(action: AppAction, key: str, instance_label: str | None) -> str:
+def _action_message(action: AppAction, key: str, instance: str | None) -> str:
     """Return the success message for a completed ``action``, naming the instance when one was targeted."""
     verb = ACTION_PAST_TENSE[action]
-    if instance_label is not None:
-        return f"Instance {instance_label!r} of {key!r} {verb}"
+    if instance is not None:
+        return f"Instance {instance!r} of {key!r} {verb}"
     return f"App {key!r} {verb}"
 
 
