@@ -34,7 +34,9 @@ def scenario_adversarial(ctx: SeedContext) -> None:
     # -- long_handler_names_app: 100+ character handler names, long nested-predicate topics --
     app_key, class_name = "long_handler_names_app", "LongHandlerNamesApp"
     base = 0.0
-    ctx.add_app_manifest(app_key=app_key, class_name=class_name)
+    # A description exactly at the limit: max_length on AppManifest.description (hassette/config/classes.py).
+    long_description = ("Watches every sensor in the house and logs a verbose trace of each change " * 3)[:200]
+    ctx.add_app_manifest(app_key=app_key, class_name=class_name, description=long_description)
     session_id = add_running_session(ctx, base)
     long_handler = (
         f"{class_name}.on_extremely_verbose_state_change_handler_that_describes_"

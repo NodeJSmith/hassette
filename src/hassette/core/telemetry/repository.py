@@ -213,14 +213,15 @@ class TelemetryRepository:
         cursor = await db.execute(
             """
             INSERT INTO app_manifests (
-                app_key, class_name, display_name, filename, enabled, autostart
+                app_key, class_name, display_name, description, filename, enabled, autostart
             ) VALUES (
-                :app_key, :class_name, :display_name, :filename, :enabled, :autostart
+                :app_key, :class_name, :display_name, :description, :filename, :enabled, :autostart
             )
             ON CONFLICT(app_key)
             DO UPDATE SET
                 class_name = excluded.class_name,
                 display_name = excluded.display_name,
+                description = excluded.description,
                 filename = excluded.filename,
                 enabled = excluded.enabled,
                 autostart = excluded.autostart,

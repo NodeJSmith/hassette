@@ -46,6 +46,23 @@ class TestOverlayRuntimeState:
         assert info.enabled is True
         assert info.autostart is True
 
+    def test_description_comes_from_db_row(self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path) -> None:
+        """Both a configured app and a removed one serve the description their DB row holds."""
+        manifest = create_app_manifest("live", tmp_path)
+        manifest.description = "Stale in-memory text"
+        registry.set_manifests({manifest.app_key: manifest})
+        mock_app.instance_name = manifest.app_key
+        registry.register_app(manifest.app_key, mock_app)
+
+        rows = [
+            make_manifest_db_row(manifest.app_key, description="Persisted text"),
+            make_manifest_db_row("removed_app", description="Removed app text"),
+        ]
+        by_key = {info.app_key: info for info in overlay_runtime_state(rows, registry)}
+
+        assert by_key[manifest.app_key].description == "Persisted text"
+        assert by_key["removed_app"].description == "Removed app text"
+
     def test_configured_running_app_shows_running_status(
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
     ) -> None:

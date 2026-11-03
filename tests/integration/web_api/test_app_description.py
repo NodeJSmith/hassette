@@ -32,7 +32,8 @@ def seed_registry(mock_hassette: MagicMock, tmp_path: Path, description: str | N
     registry.set_manifests({APP_KEY: manifest})
     mock_hassette._app_handler.registry = registry
 
-    row = make_manifest_db_row(app_key=APP_KEY, display_name=manifest.display_name)
+    # The API serves the DB row's description; the manifest holds the same value, as after a real upsert.
+    row = make_manifest_db_row(app_key=APP_KEY, display_name=manifest.display_name, description=description)
     mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(return_value=[row])
     mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(return_value=row)
 
@@ -56,14 +57,14 @@ async def test_description_served_by_app_list_and_detail(
         assert body["in_current_config"] is True
 
 
-async def test_description_is_null_for_db_only_app(client: "AsyncClient", mock_hassette: MagicMock) -> None:
-    """An app known only from recorded history has no live manifest, so no description."""
+async def test_db_only_app_serves_its_persisted_description(client: "AsyncClient", mock_hassette: MagicMock) -> None:
+    """An app removed from config still serves the description its app_manifests row last recorded."""
     mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
-        return_value=make_manifest_db_row(app_key=APP_KEY, display_name="Porch Light")
+        return_value=make_manifest_db_row(app_key=APP_KEY, display_name="Porch Light", description=DESCRIPTION)
     )
 
     resp = await client.get(f"/api/apps/{APP_KEY}")
 
     assert resp.status_code == 200
     assert resp.json()["in_current_config"] is False
-    assert resp.json()["description"] is None
+    assert resp.json()["description"] == DESCRIPTION

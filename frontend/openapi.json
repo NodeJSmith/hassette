@@ -3395,7 +3395,7 @@
               }
             ],
             "title": "Description",
-            "description": "One-line description of what the app does, from the app's config; ``None`` when unset, and for an app\nknown only from recorded history (``in_current_config`` is ``False``)."
+            "description": "One-line description of what the app does, from the app's config as last recorded (an app removed from\nconfig keeps its last description); ``None`` when unset."
           },
           "status": {
             "$ref": "#/components/schemas/AppStatus"

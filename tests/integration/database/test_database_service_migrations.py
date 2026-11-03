@@ -143,6 +143,7 @@ EXPECTED_TABLES = {
         "app_key",
         "class_name",
         "display_name",
+        "description",
         "filename",
         "enabled",
         "autostart",
