@@ -8,7 +8,7 @@ from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import fmt_log_author, fmt_log_message, fmt_relative_time
 from hassette.cli.output import Column, render_table
-from hassette.cli.types import AppKeyArg, AuthorArg, LimitArg, LogInstanceArg, SinceArg
+from hassette.cli.types import AppKeyArg, AuthorArg, LevelArg, LimitArg, LogInstanceArg, SinceArg
 
 # Shared log entry column definitions (used by both log and execution)
 
@@ -38,6 +38,7 @@ def cmd_log(
     since: SinceArg = None,
     limit: LimitArg = None,
     author: AuthorArg = None,
+    level: LevelArg = None,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
@@ -50,7 +51,7 @@ def cmd_log(
     raw: list[Any] = client.get(
         "/api/logs/recent",
         list,
-        params=query_params(app_key=app, since=since, limit=limit, author=author),
+        params=query_params(app_key=app, since=since, limit=limit, author=author, level=level),
     )
     entries = parse_wire_list(LogEntry, raw)
     render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)

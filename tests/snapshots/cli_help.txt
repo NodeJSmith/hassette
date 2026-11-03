@@ -407,6 +407,9 @@ Show recent log entries.
 │ LIMIT --limit    Maximum number of results to return.                                            │
 │ AUTHOR --author  Filter log lines by who wrote them: 'app', 'framework', or 'all'. Omit for app  │
 │                  lines plus framework lines at ERROR and above. [choices: app, framework, all]   │
+│ LEVEL --level    Show only log lines at this level (DEBUG, INFO, WARNING, ERROR, CRITICAL;       │
+│                  case-insensitive). Exact match, not a minimum. Hassette's own lines below ERROR │
+│                  stay hidden unless --author is 'all'.                                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │

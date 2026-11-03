@@ -111,6 +111,15 @@ AuthorArg = Annotated[
     ),
 ]
 
+LevelArg = Annotated[
+    str | None,
+    Parameter(
+        name=["--level"],
+        help="Show only log lines at this level (DEBUG, INFO, WARNING, ERROR, CRITICAL; case-insensitive). "
+        "Exact match, not a minimum. Hassette's own lines below ERROR stay hidden unless --author is 'all'.",
+    ),
+]
+
 AppKeyArg = Annotated[str | None, Parameter(name=["--app"], help="Filter by app key.")]
 
 InstanceArg = Annotated[

@@ -79,6 +79,28 @@ class TestCmdLog:
 
         assert "author" not in spy.params_for("logs/recent")
 
+    def test_level_passed_as_param(self, logs_client: HassetteCLIClient) -> None:
+        """Log --level error forwards level=error unchanged; the server uppercases and validates it."""
+        spy = runner.spy(logs_client, cmd_log, level="error")
+
+        assert spy.params_for("logs/recent")["level"] == "error"
+
+    def test_level_omitted_by_default(self, logs_client: HassetteCLIClient) -> None:
+        """Without --level no level param is sent, so every level comes back."""
+        spy = runner.spy(logs_client, cmd_log)
+
+        assert "level" not in spy.params_for("logs/recent")
+
+    def test_invalid_level_exits_with_http_error(self, cli_client_factory: CLIClientFactory) -> None:
+        """A 422 for an invalid --level exits through the CLI's HTTP error path, not a traceback."""
+        detail = {"detail": "Invalid level 'loud'"}
+        client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 422, detail)])
+
+        code, stderr = runner.usage_error(client, cmd_log, level="loud")
+
+        assert code == 1
+        assert "Invalid level 'loud'" in stderr
+
     def test_instance_flag_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Log --instance 0 exits non-zero with a usage error (not supported on log)."""
         client = cli_client_factory.build_with_routes([])
