@@ -340,9 +340,9 @@ $ hassette log --author all --limit 5
 
 A line logged with an exception shows the exception's type and message, such as `ValueError: kaboom`, under its message. `--json` includes the full traceback in `exc_info`, and the dashboard's log detail shows it too. A line logged with `stack_info=True` stores its call stack at the end of the message.
 
-By default, the list holds app-authored lines plus Hassette's own lines at ERROR and above. `--author all` adds the rest of Hassette's lines. The Author column marks Hassette's lines `framework`. `--author app` and `--author framework` show only one side.
+By default, the list holds app-authored lines plus Hassette's own lines at `ERROR` and above. `--author all` adds the rest of Hassette's lines. The Author column marks Hassette's lines `framework`. `--author app` and `--author framework` show only one side.
 
-`--level error` shows only lines at that exact level, not that level and above. The level is case-insensitive, and an unknown level exits with the server's error. Hassette's own lines below ERROR stay hidden under `--level` too, so `--level info --author all` is needed to see its INFO lines.
+`--level error` shows only lines at that exact level, not that level and above. The level is case-insensitive, and an unknown level exits with the server's error. Hassette's own lines below `ERROR` stay hidden under `--level` too, so `--level info --author all` is needed to see its `INFO` lines.
 
 `--instance` is not supported on this command; the CLI exits with a usage error if provided. `--app` filters by app key.
 
