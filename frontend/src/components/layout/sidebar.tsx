@@ -181,9 +181,9 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
   // one connection event.
   const chromeLivesInStatusBar = useSidebarHidden();
   const { data: manifestsData = [], isPending: manifestsLoading } = useManifests();
-  // Removed apps (in_current_config: false) are historical/DB-only — they belong on the
-  // apps page (which badges them explicitly), not in primary navigation where they'd be
-  // indistinguishable from live apps.
+  // The app list carries a removed app (in_current_config: false) only while one of its
+  // instances is flagged needs-restart. The apps page badges it; primary navigation is for
+  // live apps.
   const liveManifests = manifestsData.filter((m) => m.in_current_config);
   // Computed once against the full list, not the search-filtered subset — see #1452.
   const duplicateDisplayNames = findDuplicateDisplayNames(liveManifests);

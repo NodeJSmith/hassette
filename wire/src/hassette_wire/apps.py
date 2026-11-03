@@ -77,13 +77,15 @@ class AppSummary(BaseModel):
     independently stopped, plus any instance still running beyond the configured count (e.g. after the config
     was reduced). Always len(instances).
 
-    0 when ``in_current_config`` is ``False``."""
+    An app removed from the config lists instances only while one is flagged needs-restart; then this counts
+    every instance it still tracks (``needs_restart_count`` counts the flagged ones). Otherwise it is 0."""
     instances: list[AppInstance] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
     in_current_config: bool = True
-    """True if the app is present in the currently-loaded config; False for an app known only from recorded
-    history, such as one removed from the config."""
+    """True if the app is present in the currently-loaded config; False for an app removed from it. App lists
+    return a removed app only while one of its instances is flagged needs-restart; ``GET /apps/{app_key}``
+    returns it until its recorded history ages out."""
     needs_restart_count: int = 0
     """Number of ``instances`` flagged ``needs_restart``. Nonzero means hassette must restart to recover them."""
 

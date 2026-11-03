@@ -256,7 +256,7 @@ class DatabaseRetentionMixin:
         return TargetDeleteResult(total_deleted, exhausted=exhausted)
 
     def live_app_keys(self) -> list[str]:
-        """Return every app key retention must treat as present: in the current config, or running.
+        """Return every app key retention must treat as present: in the current config, running, or flagged.
 
         Config alone is not enough: a hot reload installs the new config before it stops the
         apps it removed, so an app about to be stopped would look removed. The registry covers
@@ -264,6 +264,9 @@ class DatabaseRetentionMixin:
         an app that is still shutting down can be retired; that is harmless, because retiring
         deletes nothing and re-registration clears it. Read fresh on every cycle, so nothing
         about an app's removal is stored and a failed cycle simply retries on the next one.
+
+        A flagged needs-restart app stays listed (``listed_apps``) until a restart clears the flag, so its
+        manifest row must outlive its history until then.
 
         Config and ``registry.manifests`` hold the same apps: ``refresh_config()`` updates both
         with no ``await`` between, and this runs on the DB write-queue task.
@@ -277,6 +280,7 @@ class DatabaseRetentionMixin:
             self.logger.debug("AppHandler not wired; treating config apps as the live set")
         else:
             keys.update(app_handler.registry.app_keys())
+            keys.update(app_handler.registry.flagged_app_keys())
         return sorted(keys)
 
     def live_instances(self) -> list[tuple[str, str]]:

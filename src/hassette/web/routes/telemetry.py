@@ -387,12 +387,12 @@ async def app_grid(
     telemetry: TelemetryDep,
     since: SinceQuery = None,
 ) -> AppGridResponse:
-    """Every app joined with its activity over ``since``, for the Apps grid.
+    """Every app ``GET /apps`` lists, joined with its activity over ``since``, for the Apps grid.
 
     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
     failure) and overlaid with live runtime state via
-    ``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one
-    all-apps query that fills one ``AppActivity`` part. A query that raises
+    ``RuntimeQueryService.overlay_listed_manifest_rows()``, which leaves out removed apps (see ``listed_apps``).
+    Each telemetry enrichment below is one all-apps query that fills one ``AppActivity`` part. A query that raises
     ``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at
     200, with one summary warning naming the failed parts; any other error is a bug and returns 500
     — see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a
@@ -402,7 +402,7 @@ async def app_grid(
     not the manifest-driven app grid.
     """
     db_rows = await telemetry.get_all_app_manifests()
-    manifest_infos = runtime.overlay_manifest_rows(db_rows)
+    manifest_infos = runtime.overlay_listed_manifest_rows(db_rows)
 
     # Concurrent so the read timeouts overlap, bounding a DB stall to about one timeout, not one per query.
     summaries = asyncio.create_task(

@@ -73,12 +73,12 @@ export interface paths {
         };
         /**
          * Get Apps
-         * @description Return every persisted app, overlaid with live runtime state.
+         * @description Return every app in the current config, plus a removed one while an instance is flagged needs-restart.
          *
          *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
          *     failure) and overlaid with live runtime state via
-         *     ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
-         *     no loaded manifest are still included.
+         *     ``RuntimeQueryService.overlay_listed_manifest_rows()``, which leaves out the other removed apps
+         *     (see ``listed_apps``). ``GET /apps/{app_key}`` still answers for any of them.
          */
         get: operations["get_apps_api_apps_get"];
         put?: never;
@@ -699,12 +699,12 @@ export interface paths {
         };
         /**
          * App Grid
-         * @description Every app joined with its activity over ``since``, for the Apps grid.
+         * @description Every app ``GET /apps`` lists, joined with its activity over ``since``, for the Apps grid.
          *
          *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
          *     failure) and overlaid with live runtime state via
-         *     ``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one
-         *     all-apps query that fills one ``AppActivity`` part. A query that raises
+         *     ``RuntimeQueryService.overlay_listed_manifest_rows()``, which leaves out removed apps (see ``listed_apps``).
+         *     Each telemetry enrichment below is one all-apps query that fills one ``AppActivity`` part. A query that raises
          *     ``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at
          *     200, with one summary warning naming the failed parts; any other error is a bug and returns 500
          *     — see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a
@@ -1127,7 +1127,8 @@ export interface components {
              *     independently stopped, plus any instance still running beyond the configured count (e.g. after the config
              *     was reduced). Always len(instances).
              *
-             *     0 when ``in_current_config`` is ``False``.
+             *     An app removed from the config lists instances only while one is flagged needs-restart; then this counts
+             *     every instance it still tracks (``needs_restart_count`` counts the flagged ones). Otherwise it is 0.
              * @default 0
              */
             instance_count: number;
@@ -1139,8 +1140,9 @@ export interface components {
             error_traceback?: string | null;
             /**
              * In Current Config
-             * @description True if the app is present in the currently-loaded config; False for an app known only from recorded
-             *     history, such as one removed from the config.
+             * @description True if the app is present in the currently-loaded config; False for an app removed from it. App lists
+             *     return a removed app only while one of its instances is flagged needs-restart; ``GET /apps/{app_key}``
+             *     returns it until its recorded history ages out.
              * @default true
              */
             in_current_config: boolean;

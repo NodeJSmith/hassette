@@ -7,7 +7,7 @@ import pytest
 from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.config.classes import AppManifest
-from hassette.core.app_registry import AppRegistry, overlay_runtime_state
+from hassette.core.app_registry import AppRegistry, listed_apps, overlay_runtime_state
 from hassette.types.enums import BlockReason
 from tests.support.helpers import create_app_manifest
 from tests.support.web_manifest_helpers import make_manifest_db_row
@@ -170,6 +170,36 @@ class TestOverlayRuntimeState:
 
         assert results[0].in_current_config is False
         assert results[0].enabled is False
+
+
+class TestListedApps:
+    def test_drops_an_app_known_only_from_its_db_row(
+        self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
+    ) -> None:
+        """A removed app's row outlives it until its history ages out; lists must not show it as stopped."""
+        manifest = configure_running_app(registry, mock_app, tmp_path, "live")
+        rows = [make_manifest_db_row(manifest.app_key), make_manifest_db_row("removed_app")]
+
+        listed = listed_apps(overlay_runtime_state(rows, registry))
+
+        assert [info.app_key for info in listed] == [manifest.app_key]
+
+    def test_keeps_a_configured_app_that_has_not_started(self, registry: AppRegistry, tmp_path: Path) -> None:
+        manifest = create_app_manifest("pending", tmp_path, enabled=False)
+        registry.set_manifests({manifest.app_key: manifest})
+
+        listed = listed_apps(overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry))
+
+        assert [info.app_key for info in listed] == [manifest.app_key]
+
+    def test_keeps_a_removed_app_whose_instance_is_still_flagged(self, registry: AppRegistry) -> None:
+        """A flagged instance may still have work running, so its app stays listed until a restart."""
+        registry.flag_needs_restart("gone_app", "gone_app", class_name="MyApp", reason="hung", pending_tasks=("t1",))
+
+        listed = listed_apps(overlay_runtime_state([make_manifest_db_row("gone_app")], registry))
+
+        assert [info.app_key for info in listed] == ["gone_app"]
+        assert listed[0].in_current_config is False
 
 
 def configure_running_app(registry: AppRegistry, mock_app: MagicMock, tmp_path: Path, suffix: str) -> AppManifest:

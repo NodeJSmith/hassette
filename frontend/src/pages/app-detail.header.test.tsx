@@ -263,4 +263,62 @@ describe("AppDetailPage header", () => {
     expect(await findByTestId("btn-reload-test_app-backup")).toBeDefined();
     expect(queryByTestId("not-in-config-badge")).toBeNull();
   });
+
+  it("marks an app removed from config and offers no actions for it", async () => {
+    // Lists leave a removed app out, but a direct link still opens its detail page; a stopped
+    // pill with a Start button would read as an app that can be started.
+    const manifest = createAppSummary({
+      app_key: "test_app",
+      status: "stopped",
+      instance_count: 0,
+      in_current_config: false,
+    });
+    setupApi(manifest);
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("not-in-config-badge")).toBeDefined();
+    expect(queryByTestId("btn-start-test_app")).toBeNull();
+  });
+
+  it("offers no app-level Start for a removed app with a flagged instance", async () => {
+    // A flagged removed app is listed as failed, and CAN_START would offer Start, which the
+    // backend rejects for an app with no manifest.
+    const manifest = createAppSummary({
+      app_key: "test_app",
+      status: "failed",
+      instance_count: 1,
+      instances: [createInstance({ instance_name: "test_app", status: "failed", in_current_config: false })],
+      in_current_config: false,
+      needs_restart_count: 1,
+    });
+    setupApi(manifest);
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("not-in-config-badge")).toBeDefined();
+    expect(queryByTestId("btn-start-test_app")).toBeNull();
+  });
+
+  it("keeps Stop on an instance page of a removed app that still tracks several instances", async () => {
+    const manifest = createAppSummary({
+      app_key: "test_app",
+      status: "failed",
+      instance_count: 2,
+      instances: [
+        createInstance({ instance_name: "hung", status: "failed", in_current_config: false }),
+        createInstance({ instance_name: "live", status: "running", in_current_config: false }),
+      ],
+      in_current_config: false,
+      needs_restart_count: 1,
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=live";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-stop-test_app-live")).toBeDefined();
+    expect(queryByTestId("btn-start-test_app-live")).toBeNull();
+  });
+
+  it("does not mark a configured app as removed", async () => {
+    setupApi(createAppSummary({ app_key: "test_app", status: "stopped" }));
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-start-test_app")).toBeDefined();
+    expect(queryByTestId("not-in-config-badge")).toBeNull();
+  });
 });

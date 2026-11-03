@@ -22,7 +22,7 @@ from hassette_wire import (
 from pydantic import BaseModel
 
 from hassette.bus import Bus
-from hassette.core.app_registry import overlay_runtime_state
+from hassette.core.app_registry import listed_apps, overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
 from hassette.core.pipeline_counters import PipelineCounter
@@ -323,6 +323,13 @@ class RuntimeQueryService(Resource):
         ``tools/check_module_boundaries.py``).
         """
         return overlay_runtime_state(db_rows, self.hassette.app_handler.registry)
+
+    def overlay_listed_manifest_rows(self, db_rows: list[dict[str, Any]]) -> list[AppManifestInfo]:
+        """Overlay ``app_manifests`` rows for an app list, leaving out apps removed from config.
+
+        See ``listed_apps`` for which removed apps stay listed.
+        """
+        return listed_apps(self.overlay_manifest_rows(db_rows))
 
     def get_registry_only_apps(self) -> list[str]:
         """Return the exclusive-app filter (``--app`` CLI flag), sorted.

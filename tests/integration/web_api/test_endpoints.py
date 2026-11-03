@@ -561,23 +561,17 @@ class TestGetAppEndpoint:
 
 
 class TestAppListEndpoint:
-    async def test_get_apps_includes_db_only_apps(self, client: "AsyncClient", mock_hassette) -> None:
-        """A DB-only app (no matching in-memory manifest) appears in the app list."""
+    async def test_get_apps_omits_apps_removed_from_config(self, client: "AsyncClient", mock_hassette) -> None:
+        """A DB-only app (removed from config, nothing still tracked) is left out of the list and its counts."""
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
             return_value=[make_manifest_db_row(app_key="orphan_app", display_name="Orphan App")]
         )
 
-        response = await client.get(APPS_PATH)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total"] == 1
-        assert data["status_counts"]["stopped"] == 1
-        app_keys = {m["app_key"] for m in data["apps"]}
-        assert "orphan_app" in app_keys
-        orphan = next(m for m in data["apps"] if m["app_key"] == "orphan_app")
-        assert orphan["display_name"] == "Orphan App"
-        assert orphan["status"] == "stopped"
-        assert orphan["in_current_config"] is False
+        data = await get_json(client, APPS_PATH)
+
+        assert data["apps"] == []
+        assert data["total"] == 0
+        assert data["status_counts"]["stopped"] == 0
 
     async def test_get_apps_shows_degraded_status_for_mixed_running_and_failed_instances(
         self, client: "AsyncClient", mock_hassette, tmp_path: Path

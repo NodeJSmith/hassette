@@ -310,6 +310,14 @@ class AppRegistry:
             if any(entry.is_running for entry in entries.values())
         ]
 
+    def flagged_app_keys(self) -> list[str]:
+        """Get all app keys with at least one instance flagged needs-restart.
+
+        Retention keeps these apps' manifest rows, so this must cover every removed app ``listed_apps``
+        keeps. ``_needs_restart`` is a defaultdict, so a key can hold an empty dict; ``if records`` skips it.
+        """
+        return [app_key for app_key, records in self._needs_restart.items() if records]
+
     def get(self, app_key: str, instance_name: str | None = None) -> "App[AppConfig] | None":
         """Get a running app instance by name; with no name, the first running one in display order."""
         entries = self._instances.get(app_key, {})
@@ -594,6 +602,19 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
         results.append(info)
 
     return results
+
+
+def listed_apps(infos: Iterable[AppManifestInfo]) -> list[AppManifestInfo]:
+    """The apps an app list shows: every configured app, and a removed one only while an instance is flagged.
+
+    A removed app's ``app_manifests`` row outlives it until its history ages out of retention
+    (``build_prune_removed_app_manifests_query``), and ``overlay_runtime_state`` reports such a row as
+    STOPPED. Lists leave it out so it never reads as a stopped app; ``GET /apps/{app_key}`` still
+    answers for it. A removed app with a flagged needs-restart instance stays listed, as FAILED, because
+    that instance's work may still be running.
+    """
+    # A removed app's snapshot lists instances only through build_orphaned_flag_info, i.e. flagged ones.
+    return [info for info in infos if info.in_current_config or info.instances]
 
 
 def name_in_current_config(instance_name: str, manifest: "AppManifest | None") -> bool:

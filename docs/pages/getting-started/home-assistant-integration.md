@@ -14,7 +14,7 @@ Run `hassette app` to see each app's key and display name. Every app device show
 
 ## Prerequisites
 
-- **Hassette 0.56.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
+- **Hassette 0.62.0 or newer**, running where Home Assistant can reach its web API over the network: on another machine or in its own container.
 - **HACS** installed in Home Assistant.
 - **Home Assistant 2026.9 or newer**.
 
@@ -139,7 +139,7 @@ In `web_api.trusted_proxies`, list the address Home Assistant's requests arrive 
 - **Polling.** The integration checks Hassette every 30 seconds. A switch flip or button press refreshes every entity as soon as Hassette answers. Changes made in the web UI or the CLI show on the next check.
 - **Disabled and blocked apps.** These apps keep their status sensor, but their switch and reload button are unavailable. Hassette can't start them from Home Assistant. Set `enabled = true`, or drop the `--app` filter, to control them again.
 - **Hassette unreachable or starting.** Entities become unavailable after two missed checks, about a minute. The integration retries on its own. They're also unavailable until Hassette connects to Home Assistant and starts its apps. If they stay unavailable, check that connection with `hassette status`.
-- **Removed apps.** Hassette keeps listing a removed app until its history ages out of retention. Its entities stay, unavailable. Delete the device from its device page to clear it.
+- **Removed apps.** Hassette stops listing an app once it leaves config, unless one of its instances needs a Hassette restart. Its entities stay, unavailable. Delete the device from its device page to clear it.
 - **Token changes.** Home Assistant asks you to re-authenticate: "hassette at {url} rejected the stored token. Enter its current web API token."
 - **Connection changes.** Choose **Reconfigure** on the integration to change the URL, token, or SSL check. Devices and their settings are kept.
 

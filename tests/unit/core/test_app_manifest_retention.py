@@ -121,6 +121,20 @@ async def test_removed_app_without_telemetry_is_pruned(
     assert not await manifest_exists(db, REMOVED_APP)
 
 
+async def test_removed_app_with_a_flagged_instance_is_kept(
+    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock
+) -> None:
+    """App lists show a flagged removed app until a restart, so its row must outlive its history."""
+    registry = AppRegistry()
+    registry.flag_needs_restart(REMOVED_APP, REMOVED_APP, class_name="RemovedApp", reason="hung", pending_tasks=("t1",))
+    mock_hassette_for_db.app_handler.registry = registry
+    await insert_manifest(db, REMOVED_APP)
+
+    await run_cleanup(db, retention_service)
+
+    assert await manifest_exists(db, REMOVED_APP)
+
+
 async def test_app_in_current_config_is_never_pruned(
     db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
 ) -> None:

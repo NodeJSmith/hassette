@@ -63,7 +63,7 @@ class TestAppGrid:
         assert entry["app"]["app_key"] == "my_app"
         assert entry["app"]["class_name"] == "MyApp"
         assert entry["app"]["filename"] == "my_app.py"
-        assert entry["app"]["in_current_config"] is False
+        assert entry["app"]["in_current_config"] is True
         assert "recent_invocations_1h" not in entry["app"]
         assert "auto_loaded" not in entry["app"]
         # No summary for the app: zero counts and an all-zero health record with no averages.
@@ -77,25 +77,15 @@ class TestAppGrid:
             "job_avg_duration_ms": None,
         }
 
-    async def test_app_grid_includes_db_only_apps(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
-        """A DB-only app (no matching in-memory manifest) appears in the grid."""
+    async def test_app_grid_omits_apps_removed_from_config(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
+        """A DB-only app (removed from config, nothing still tracked) is left out of the grid."""
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[
-                make_manifest_db_row(
-                    app_key="orphan_app",
-                    class_name="OrphanApp",
-                    display_name="Orphan App",
-                    filename="orphan_app.py",
-                )
-            ]
+            return_value=[make_manifest_db_row(app_key="orphan_app")]
         )
 
         data = await get_json(client, APP_GRID_PATH)
 
-        orphan = next(e["app"] for e in data["apps"] if e["app"]["app_key"] == "orphan_app")
-        assert orphan["status"] == "stopped"
-        assert orphan["in_current_config"] is False
-        assert orphan["instance_count"] == 0
+        assert data["apps"] == []
 
     async def test_app_grid_carries_blocking_event_counts(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
         """Each entry gets its app's blocking-event count for the requested window; absent apps read 0."""
