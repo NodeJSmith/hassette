@@ -20,7 +20,7 @@ The app key (`presence` here) also names the app's [cache directory](../cache/in
 
 Every configured app needs an `instance_name`, including blocks with `enabled = false` or `autostart = false`. A block without one fails at config load.
 
-`enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
+`enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /api/apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
 
 ```toml
 [hassette.apps.heavy_processor]
@@ -30,7 +30,7 @@ autostart = false
 config = { instance_name = "heavy_processor" }
 ```
 
-`enabled = false` is the hard off-switch — the app never loads or starts, but it stays registered and the apps dashboard lists it as **disabled**. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
+`enabled = false` is the config-level off-switch. Hassette never loads or starts the app on its own, but the app stays registered and the apps dashboard lists it as **disabled**. A manual **Start** from the UI or API still runs it until Hassette restarts. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
 
 ## Passing Configuration
 
@@ -59,7 +59,7 @@ lights = ["light.entry"]
 ```
 
 !!! note "Two TOML paths, two purposes"
-    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields, including `instance_name`, live at `[hassette.apps.<key>.config]`. Placing app config values directly under `[hassette.apps.<key>]` without the `config` sub-key generates a warning in the startup logs.
+    App registration fields (`filename`, `class_name`, `enabled`, `autostart`, `display_name`, `description`) live at `[hassette.apps.<key>]`. App configuration fields, including `instance_name`, live at `[hassette.apps.<key>.config]`. Hassette silently ignores app config values placed directly under `[hassette.apps.<key>]` without the `config` sub-key. The app never receives them and no warning is logged, so put every config value under `config`.
 
 Environment variables override individual `config` values at startup on an app with a single `config` table. The pattern is `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>`. For example, `HASSETTE__APPS__PRESENCE__CONFIG__MOTION_SENSOR=binary_sensor.hall_v2` overrides `motion_sensor` for the `presence` app. Environment variable values take precedence over TOML.
 
@@ -145,7 +145,7 @@ The values supplied under `config` are validated at startup against an [`AppConf
     --8<-- "pages/core-concepts/apps/snippets/app_config_blocking_io.py"
     ```
 
-    `BlockingIOBehavior` is imported from `hassette`. Under `"warn"`, each detection logs a warning and records the call. Recorded calls appear on the app's overview, the apps list, and `hassette blocking`. `"ignore"` turns off both the warning and the record for this app. It suits legacy code that still uses synchronous I/O. `"error"` lets a warning filter turn call-site (Tier 2) detections into exceptions that stop the blocking call. Loop-watchdog (Tier 1) stalls are reported after the call finishes and never raise. See [Blocking-Call Detection](../blocking-io-detection.md) for where detections show up and how to set up that filter. [Global Settings](../configuration/index.md#blocking-io-detection) covers the global defaults.
+    `BlockingIOBehavior` is imported from `hassette`. Under `"warn"`, each detection records the call and most log a warning. A loop-watchdog (Tier 1) stall's first sighting from a given place logs at DEBUG instead, and a repeat warns. Recorded calls appear on the app's overview, the apps list, and `hassette blocking`. `"ignore"` turns off both the warning and the record for this app. It suits legacy code that still uses synchronous I/O. `"error"` lets a warning filter turn call-site (Tier 2) detections into exceptions that stop the blocking call. Loop-watchdog (Tier 1) stalls are reported after the call finishes and never raise. See [Blocking-Call Detection](../blocking-io-detection.md) for where detections show up and how to set up that filter. [Global Settings](../configuration/index.md#blocking-io-detection) covers the global defaults.
 
 ## Next Steps
 
