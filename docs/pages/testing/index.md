@@ -27,7 +27,7 @@ Add this to your `pyproject.toml`:
 --8<-- "pages/testing/snippets/testing_asyncio_mode.toml"
 ```
 
-`asyncio_mode = "auto"` tells pytest-asyncio to treat every `async def test_*` as an async test. Without it, async tests silently pass without running. This is the most common cause of false-green test suites.
+`asyncio_mode = "auto"` tells pytest-asyncio to treat every `async def test_*` as an async test. Without it, pytest fails each async test with "async def functions are not natively supported".
 
 ## Write the Test
 
@@ -45,7 +45,7 @@ Save this as `test_my_app.py` in your project root, next to `my_apps/` and `pypr
 --8<-- "pages/testing/snippets/testing_quick_start.py"
 ```
 
-[`AppTestHarness`][hassette.testing.AppTestHarness] runs your app against a test environment. The harness wires in a `RecordingApi` automatically — it replaces the live HA connection and records every API call your app makes. You assert on those recordings via `harness.api_recorder`. The `config` dict maps to your `AppConfig` fields — the same keys you would set in `hassette.toml`. `instance_name` comes from the `AppConfig` base class and names this app instance (see [Instance Names](../core-concepts/apps/configuration.md#instance-names)).
+[`AppTestHarness`][hassette.testing.AppTestHarness] runs your app against a test environment. The harness wires in a `RecordingApi` automatically — it replaces the live HA connection and records every write call your app makes, such as `turn_on`. You assert on those recordings via `harness.api_recorder`. The `config` dict maps to your `AppConfig` fields — the same keys you would set in `hassette.toml`. `instance_name` comes from the `AppConfig` base class and names this app instance (see [Instance Names](../core-concepts/apps/configuration.md#instance-names)).
 
 ```python
 --8<-- "pages/testing/snippets/testing_quick_start.py:harness_setup"

@@ -12,6 +12,6 @@ async def test_missing_config_raises():
         ) as harness:
             pass
 
-    # The error message includes the field name and validation failure reason
+    # The error message counts the failures and names the first failing field
     print(exc_info.value)
-    # AppConfigurationError for MotionLights: 1 validation error — field 'motion_entity': Field required
+    # AppConfigurationError for MotionLights: 2 validation errors — field 'motion_entity': Field required

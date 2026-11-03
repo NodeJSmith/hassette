@@ -41,7 +41,7 @@ Each xdist worker runs in its own process with its own `threading.Lock`. Workers
 
 ## pytest-asyncio Mode
 
-`asyncio_mode = "auto"` is required. Without it, async tests silently pass without executing. The [Testing index](index.md#install) covers setup and the false-green warning.
+`asyncio_mode = "auto"` is required. Without it, pytest fails each async test with "async def functions are not natively supported". The [Testing index](index.md#install) covers the setup.
 
 ## Next Steps
 

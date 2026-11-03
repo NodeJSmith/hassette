@@ -20,6 +20,10 @@ async def test_recorder_reset():
         await harness.simulate_state_change(
             "binary_sensor.motion", old_value="on", new_value="off"
         )
-        harness.api_recorder.assert_called(
-            "turn_off", entity_id="light.hallway", domain="light"
+        await harness.simulate_state_change(
+            "binary_sensor.motion", old_value="off", new_value="on"
+        )
+        # Only the second motion event's call remains
+        harness.api_recorder.assert_call_count(
+            "turn_on", 1, entity_id="light.hallway"
         )
