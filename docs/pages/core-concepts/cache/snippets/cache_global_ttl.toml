@@ -1,0 +1,2 @@
+[hassette]
+default_cache_ttl = 3600  # seconds

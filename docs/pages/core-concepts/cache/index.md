@@ -63,10 +63,16 @@ The entry expires after the given number of seconds; `get` returns `None` for an
 2. The app subclass's `default_cache_ttl` class attribute
 3. `default_cache_ttl` in `hassette.toml` (a global fallback under `[hassette]`)
 
-When none of these are set, entries persist indefinitely. An app that sets a class-level default looks like this:
+When none of these are set, entries persist indefinitely. Both `default_cache_ttl` settings are in seconds, like `ttl`. A class-level default applies to every `set` call in the app that omits `ttl`:
 
 ```python
---8<-- "pages/core-concepts/cache/snippets/cache_expiring.py"
+--8<-- "pages/core-concepts/cache/snippets/cache_default_ttl.py"
+```
+
+The global fallback covers every app that sets no class-level default:
+
+```toml
+--8<-- "pages/core-concepts/cache/snippets/cache_global_ttl.toml"
 ```
 
 !!! warning "`ttl=0` deletes, it doesn't store"
@@ -87,13 +93,13 @@ val = self.cache.sync.get("temp")
 
 `DummyCache` is an in-memory implementation of the same interface. Pass it to `App.__init__` via the `cache` parameter — or use the `dummy_cache` pytest fixture from `hassette.testing` — to exercise cache-using code without touching disk. `DummyCache` supports the full API — `get`, `set`, `delete`, `get_or_set`, `clear`, `invalidate`, and `.sync` — with the same TTL semantics as the real cache.
 
-`dummy_cache` and Hassette's other Tier 1 fixtures aren't auto-discovered — register them once in `conftest.py`:
+The `dummy_cache` fixture isn't auto-discovered. Register it once in `conftest.py`:
 
 ```python
 pytest_plugins = ["hassette.testing.fixtures"]
 ```
 
-This makes `dummy_cache` and `event_capture` available to every test in the suite.
+This makes `dummy_cache` available to every test in the suite.
 
 ## What Can Be Cached
 
@@ -109,13 +115,22 @@ The cache stores any Python object that supports pickling, Python's built-in ser
 
 ## Verify It Works
 
-Check that cache data persists across restarts with `hassette log`:
+A run counter shows whether cache data survives a restart. This app reads `run_count`, stores it incremented, and logs the new value:
+
+```python
+--8<-- "pages/core-concepts/cache/snippets/cache_run_count.py"
+```
+
+Restart Hassette, then read the app's log:
 
 ```
 hassette log --app my_app --since 1h
 ```
 
-Corruption and deserialization failures are logged as warnings. Normal cache reads and writes do not produce log output.
+Each restart logs a count one higher than the last. A count stuck at `1` means the cache file isn't persisting.
+
+!!! note
+    Corruption and deserialization failures are logged as warnings. Normal cache reads and writes produce no log output.
 
 ## See Also
 
