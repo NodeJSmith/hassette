@@ -131,8 +131,12 @@ def test_registry_can_convert_all_domains(
 def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[HassStateDict]):
     """Every entity in the JSONL fixture must parse as its registered state class.
 
-    Catches bad captured data (e.g. manually-set test values) before it cascades
-    into unrelated test failures.
+    Covers only the captured sample in the fixture, which skips registered domains and
+    attributes. The authority on whether models match what Home Assistant publishes is
+    ``tests/system/test_state_models.py``, which runs against the pinned HA. This test stays
+    as a Docker-free local signal, and because it is the only conversion check for ``tts``, a
+    domain the system HA cannot provide. It also catches bad captured data before it cascades
+    into the other tests that use the fixture.
     """
     failures: list[str] = []
 

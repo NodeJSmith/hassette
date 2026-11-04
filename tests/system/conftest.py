@@ -127,6 +127,10 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     # The hass-hassette volume mounts here; pre-creating it keeps Docker from making it root-owned,
     # which pytest could not clean up.
     (config_tmp / "custom_components" / "hassette").mkdir(parents=True)
+    # Loading automation: and script: makes HA copy its default blueprints into these folders unless
+    # they already exist; pre-creating them empty keeps HA from leaving root-owned files there too.
+    for domain in ("automation", "script"):
+        (config_tmp / "blueprints" / domain / "homeassistant").mkdir(parents=True)
 
     # Pin HA_ACCESS_TOKEN, SYSTEM_HA_PORT and HASS_HASSETTE_VERSION to the fixture values even if
     # the invoking shell exports its own — Docker Compose's interpolation precedence favors the

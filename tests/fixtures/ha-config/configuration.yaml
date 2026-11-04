@@ -5,6 +5,112 @@ homeassistant:
 demo:
 recorder:
 history:
+# Everything below `test` exists for tests/system/test_state_models.py, which needs a live entity
+# for every registered state-model domain it can get, and drives the helpers through transitions.
 input_boolean:
   test:
     name: System Test Toggle
+  state_model_scene_target:
+    name: State Model Scene Target
+  # Never changed, so the alert stays idle.
+  state_model_alert_source:
+    name: State Model Alert Source
+sun:
+timer:
+  state_model:
+    name: State Model Timer
+    duration: "00:05:00"
+    restore: true
+counter:
+  state_model:
+    name: State Model Counter
+    initial: 0
+    step: 1
+    minimum: 0
+    maximum: 10
+input_number:
+  state_model:
+    name: State Model Number
+    min: 0
+    max: 100
+    step: 5
+    initial: 10
+input_select:
+  state_model:
+    name: State Model Select
+    options:
+      - first
+      - second
+input_text:
+  state_model:
+    name: State Model Text
+    min: 0
+    max: 32
+    pattern: "[a-z]*"
+input_datetime:
+  state_model:
+    name: State Model Datetime
+    has_date: true
+    has_time: true
+input_button:
+  state_model:
+    name: State Model Button
+# Active all week, so next_event is always set.
+schedule:
+  state_model:
+    name: State Model Schedule
+    monday: &all_day
+      - from: "00:00:00"
+        to: "23:59:59"
+    tuesday: *all_day
+    wednesday: *all_day
+    thursday: *all_day
+    friday: *all_day
+    saturday: *all_day
+    sunday: *all_day
+# Holds on a long delay so it publishes last_action while running; the test turns it off.
+# parallel mode publishes max, and so does the automation's.
+script:
+  state_model:
+    alias: State Model Script
+    mode: parallel
+    sequence:
+      - alias: Hold
+        delay: "01:00:00"
+# Never triggers on its own; the test fires it with automation.trigger.
+automation:
+  - id: state_model
+    alias: State Model Automation
+    mode: parallel
+    triggers:
+      - trigger: event
+        event_type: state_model_never_fired
+    actions:
+      - action: input_boolean.toggle
+        target:
+          entity_id: input_boolean.state_model_scene_target
+scene:
+  - name: State Model Scene
+    entities:
+      input_boolean.state_model_scene_target: "on"
+group:
+  state_model:
+    name: State Model Group
+    entities:
+      - input_boolean.state_model_scene_target
+      - input_boolean.state_model_alert_source
+alert:
+  state_model:
+    name: State Model Alert
+    entity_id: input_boolean.state_model_alert_source
+    state: "on"
+    repeat: 30
+    notifiers: []
+person:
+  - name: State Model Person
+    id: state_model
+    # The fixture's admin user in .storage/auth; with picture, populates user_id and entity_picture.
+    user_id: "00000000000000000000000000000001"
+    picture: /local/state_model_person.png
+    device_trackers:
+      - device_tracker.demo_paulus
