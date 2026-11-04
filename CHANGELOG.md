@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.63.0](https://github.com/NodeJSmith/hassette/compare/v0.62.0...v0.63.0) (2026-11-04)
+
+
+### Features
+
+* **cli:** add --level filter to hassette log ([#3776](https://github.com/NodeJSmith/hassette/issues/3776)) ([ba28282](https://github.com/NodeJSmith/hassette/commit/ba282820951dcfda91acf7c602dfa61b9a064c46))
+* expose event_type as a typed attribute on event entity states ([#3777](https://github.com/NodeJSmith/hassette/issues/3777)) ([0108e05](https://github.com/NodeJSmith/hassette/commit/0108e05d819961be12eb53bf2c43a6eba82d8dbf))
+* persist app descriptions so removed apps keep theirs ([#3783](https://github.com/NodeJSmith/hassette/issues/3783)) ([cc72425](https://github.com/NodeJSmith/hassette/commit/cc72425453657f21ef1d85fb06ed0e5f9ffcc55b))
+
+
+### Bug Fixes
+
+* convert transitioned Home Assistant timers to TimerState ([#3797](https://github.com/NodeJSmith/hassette/issues/3797)) ([133b29c](https://github.com/NodeJSmith/hassette/commit/133b29c9cd23b32ba02fb8869db8c710578116fb))
+* stop listing apps removed from config as stopped ([#3782](https://github.com/NodeJSmith/hassette/issues/3782)) ([dadbb3b](https://github.com/NodeJSmith/hassette/commit/dadbb3bd3ac3bf7c84b0b96e25c2493632b4a00c))
+
+
+### Documentation
+
+* correct cache TTL default example and make the restart check verifiable ([#3768](https://github.com/NodeJSmith/hassette/issues/3768)) ([7b8622a](https://github.com/NodeJSmith/hassette/commit/7b8622a6eebb6488c5f4ce7e64d39f43516fc1b4))
+* correct stray-key, disabled-app and start-route claims on app configuration page ([#3778](https://github.com/NodeJSmith/hassette/issues/3778)) ([9b3e4b3](https://github.com/NodeJSmith/hassette/commit/9b3e4b380ea4ea85f7569b4c092316a74fa11b70))
+* drop stale state class count and add a has_feature example ([#3781](https://github.com/NodeJSmith/hassette/issues/3781)) ([5a95abf](https://github.com/NodeJSmith/hassette/commit/5a95abf93d6b90d6239a4cf351457a18a93c0434))
+* fix glob and regex matching claims in the predicate reference ([#3788](https://github.com/NodeJSmith/hassette/issues/3788)) ([e022122](https://github.com/NodeJSmith/hassette/commit/e022122a31efa61fe935d2cd4474e4cce09c2b60))
+* make testing harness examples pass against the MotionLights app ([#3786](https://github.com/NodeJSmith/hassette/issues/3786)) ([ac74356](https://github.com/NodeJSmith/hassette/commit/ac74356540c769cefb97c384f63693e6c76f892a))
+* show the scheduler jitter range as the closed interval [0, jitter] ([#3790](https://github.com/NodeJSmith/hassette/issues/3790)) ([56b7980](https://github.com/NodeJSmith/hassette/commit/56b79803de0a2812ff189656cfa6fbe7690b4355))
+
 ## [0.62.0](https://github.com/NodeJSmith/hassette/compare/v0.61.0...v0.62.0) (2026-11-03)
 
 This release completes the **Instance Identity** milestone ([milestone 18](https://github.com/NodeJSmith/hassette/milestone/18), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/133-log-identity-axes/design.md)). An app instance is now identified by its `instance_name` everywhere: in stored telemetry, the app registry, cache directories, routes, the CLI, the web UI and `hassette-client`. Reordering `config` blocks no longer restarts anything or moves an instance's history, adding a block starts only that instance, and removing one stops only that instance. The breaking changes come first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps.
