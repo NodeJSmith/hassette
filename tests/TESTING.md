@@ -621,6 +621,11 @@ One file per user-visible subsystem:
 | `test_shutdown.py` | Graceful shutdown: session status, resource teardown |
 | `test_web_api.py` | Web API endpoints: health, apps, config, telemetry, WebSocket events |
 | `test_hass_hassette.py` | The pinned hass-hassette integration end to end: config flow, per-app devices and entities, stopping an app from its switch |
+| `test_state_models.py` | Every registered state model converts what the pinned HA publishes, with no `BaseState` fallback; domain and hand-typed-attribute coverage gates |
+
+`test_state_models.py` samples the entities in `tests/fixtures/ha-config/` (the `demo` integration, the helpers and YAML-only domains in `configuration.yaml`, and the config entries in `.storage/core.config_entries`). When a domain or hand-typed attribute fails its coverage gate, add an entity to that config, or a step to the test's `DRIVE`, that publishes it. Allowlist it in the test module only when the system HA can't provide it, and give the reason.
+
+`.storage/core.config_entries` is hand-written: it holds a `shopping_list` entry so the system HA has a `todo` entity. Its `minor_version` must be the `core.config_entries` storage version of the pinned HA release, or HA migrates the file on load, so check it when bumping HA.
 
 ### Infrastructure
 

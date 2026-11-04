@@ -156,8 +156,17 @@ Behavior to pin:
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs: the system-test table and fixture notes in `tests/TESTING.md`; no user-facing docs (test infrastructure only)
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- `todo` comes from a static `shopping_list` config entry in `tests/fixtures/ha-config/.storage/core.config_entries`: `shopping_list` has no YAML setup and the pinned demo has no todo platform. It's static fixture config like the YAML (D3 rejected creating entities at test time, not `.storage`).
+- `person` is a YAML person linked to the fixture's admin user (from `.storage/auth`) and given a `picture`, so `user_id` and `entity_picture` are observed instead of allowlisted.
+- D4 kept the JSONL test: the live check covers every JSONL domain except `tts`. The pinned demo's `tts` is a legacy provider, which creates no entity, so `tts` is domain-allowlisted. The test's docstring now scopes it to the captured sample.
+- Both allowlists live in the test module, each entry with its reason. The domain allowlist is the predicted domains plus `tts`. Attribute entries cover attributes the demo platforms don't publish (demo air_quality pollutants, modern-tracker attributes the legacy demo trackers lack, `group.auto`, demo face-detection attributes).
+- The `state_changed` subscription is `on_state_change("*", changed=False, mode="parallel")`. `changed=False` keeps attribute-only changes; `parallel` never drops an event that arrives while the handler runs.
+- Failure attribution labels each observed state with its kind (new, old or snapshot) and the drive step running when it arrived. Drive waits match only new states, since an old state is what the entity left.
+- Loading `automation:` and `script:` makes HA create root-owned blueprint folders in the session's temp config copy, so `ha_container` pre-creates them, as it already does for `custom_components`.
+- The hand-typed derivation reuses codegen's `load_manifest` and `load_overrides` rather than re-parsing either file.
+- Hand-typed models are matched against `.generated-manifest` by path relative to the installed `hassette` package, so the check works whether or not hassette is installed editable.
