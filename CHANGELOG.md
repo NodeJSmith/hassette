@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.63.0](https://github.com/NodeJSmith/hassette/compare/v0.62.0...v0.63.0) (2026-11-04)
+
+### For App Authors: You Can Now Delete
+
+- **Timer workarounds.** If you read `timer.*` entities as `BaseState` or raw attribute dicts, or filtered the repeated `Failed to convert state ... to class 'TimerState'` errors out of your logs, that code can go. `self.states[TimerState]` and typed timer handlers now work. `last_transition` is the transition name (`"started"`, `"finished"`, ...), not a datetime. (#3797)
+- **`getattr(..., "event_type", None)` on event entities.** Read `new_state.attributes.event_type` directly. It's a typed `str | None` field now. (#3777)
+- **Client-side filtering of removed apps.** If your scripts or dashboards dropped apps with `in_current_config == false` from `GET /api/apps` or `/api/telemetry/app-grid`, they no longer need to. Those apps aren't listed anymore. (#3782)
+
+### State Models
+
+- `EventAttributes.event_type` is a typed attribute on `event.*` entity states (buttons, remotes, doorbells), defaulting to `None` when the state is restored or unavailable (#3777)
+
+### Apps & Web UI
+
+- Apps removed from config no longer show up as "stopped" in the Apps page, sidebar, CLI, or Home Assistant integration while their telemetry ages out. A removed app with an instance flagged needs-restart still shows as FAILED, since its work may still be running. Direct links to a removed app's page still work and show a "not in config" badge with no Start button (#3782)
+- App descriptions are stored in the telemetry database, so a removed app keeps the description it last had (#3783)
+
+### CLI
+
+- `hassette log --level <level>` shows only lines at that exact level (e.g. `--level error`). Hassette's own lines below ERROR stay hidden unless you add `--author all` (#3776)
+
+### Bug Fixes
+
+- Timer entities that have transitioned at least once now convert to `TimerState` instead of logging an ERROR and a WARNING on every state change and falling back to `BaseState` (#3797, reported by @nimakalantar — thanks!)
+
+### Documentation
+
+- Testing: harness examples now pass against the `MotionLights` app they're written for, and the pages note that `drain_task_bucket()` can raise `DrainTimeout` (#3786)
+- App configuration: config keys placed outside the `config` sub-key are silently ignored (no warning is logged), `enabled = false` doesn't block a manual Start from the UI or API, and the start route is `POST /api/apps/{key}/start` (#3778)
+- Predicates: a bare string in `ChangeType` or `condition` arguments is an exact match, not a glob (use `C.Glob`), and `C.Regex` is anchored at the start of the value (#3788)
+- Cache: corrected the class-level TTL default example and replaced the "Verify It Works" check with a restart counter that actually shows persistence (#3768)
+- States: added a `has_feature` example and removed the stale domain count (#3781)
+- Scheduler: the jitter offset is drawn from the closed interval `[0, jitter]` (#3790)
+
 ## [0.62.0](https://github.com/NodeJSmith/hassette/compare/v0.61.0...v0.62.0) (2026-11-03)
 
 This release completes the **Instance Identity** milestone ([milestone 18](https://github.com/NodeJSmith/hassette/milestone/18), [design](https://github.com/NodeJSmith/hassette/blob/main/design/specs/133-log-identity-axes/design.md)). An app instance is now identified by its `instance_name` everywhere: in stored telemetry, the app registry, cache directories, routes, the CLI, the web UI and `hassette-client`. Reordering `config` blocks no longer restarts anything or moves an instance's history, adding a block starts only that instance, and removing one stops only that instance. The breaking changes come first; the [Upgrading page](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/) has the migration steps.
