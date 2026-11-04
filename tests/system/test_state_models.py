@@ -42,12 +42,12 @@ from hassette.testing import wait_for
 
 from .conftest import make_system_config, startup_context
 
-pytestmark = [pytest.mark.system]
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = Path(hassette.__file__).resolve().parent
 PACKAGE_ROOT_IN_REPO = Path("src") / "hassette"
 TRANSITION_TIMEOUT_SECONDS = 15.0
+
+pytestmark = [pytest.mark.system]
 
 TIMER = "timer.state_model"
 SCRIPT = "script.state_model"
