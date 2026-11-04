@@ -151,6 +151,17 @@ loads the pinned hass-hassette release into the new HA image there. If only that
 the integration needs a release that supports the new HA version. Report that rather than
 holding the bump.
 
+`tests/system/test_state_models.py` checks every registered state model against what the new
+HA publishes, so a bump is when it goes red. When Docker is available, run it before
+committing: `timeout 300 uv run pytest tests/system/test_state_models.py -m system -n 0`.
+Its failures name what to change:
+- **A conversion failure** is a mistyped model. Fix the override or model in this bump.
+- **A domain-gate failure** means a newly registered domain has no live entity, or a
+  `DOMAIN_ALLOWLIST` entry is now stale. Add an entity to `tests/fixtures/ha-config/` or
+  update the allowlist; `tests/TESTING.md` covers both, and the `todo` config entry.
+- **An attribute-gate failure** means a hand-typed attribute is never observed. Drive it or
+  allowlist it with a reason. A key HA renamed shows up here, not as a conversion failure.
+
 ## Phase 5: Read the developer blog
 
 Find the date of the last version bump commit (`git log --follow -1 --format=%aI --

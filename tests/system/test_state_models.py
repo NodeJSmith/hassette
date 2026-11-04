@@ -10,10 +10,12 @@ judges that one set three ways:
    attribute fails here instead of silently degrading.
 2. Domain gate: every registered domain has at least one observed state, unless it is on
    ``DOMAIN_ALLOWLIST``. An allowlisted domain that is now observed fails as stale.
-3. Attribute gate: for hand-typed models (their file is not codegen output, or their codegen
-   override is ``discovery = "manual"``), every declared attribute is seen with a non-null value at
-   least once, unless it is on ``ATTRIBUTE_ALLOWLIST``. Attribute entries are not stale-checked:
-   demo entities change on their own, so whether an attribute appears varies between runs.
+3. Attribute gate: every hand-typed attribute is seen with a non-null value at least once, under
+   any key its field accepts, unless it is on ``ATTRIBUTE_ALLOWLIST``. Hand-typed means every
+   attribute of a model whose file is not codegen output or whose codegen override is
+   ``discovery = "manual"``, plus each field a ``[[property_overrides]]`` entry renames, retypes or
+   aliases in a discovered model. Attribute entries are not stale-checked: demo entities change on
+   their own, so whether an attribute appears varies between runs.
 
 Allowlisted domains and attributes stay unverified. Domains with no registered model are ignored;
 ``hassette-codegen check-coverage`` reports those.
@@ -28,6 +30,7 @@ from typing import Any, Literal
 import pytest
 from hassette_codegen.manifest import load_manifest, manifest_exists
 from hassette_codegen.overrides import load_overrides
+from pydantic import AliasChoices
 
 import hassette
 from hassette import STATE_REGISTRY
@@ -48,9 +51,6 @@ TRANSITION_TIMEOUT_SECONDS = 15.0
 
 TIMER = "timer.state_model"
 SCRIPT = "script.state_model"
-AUTOMATION = "automation.state_model_automation"
-# The script waits on RELEASE, the automation turns it back off, and the alert fires while it's on.
-RELEASE = "input_boolean.state_model_release"
 
 DOMAIN_ALLOWLIST: dict[str, str] = {
     "ai_task": "needs an AI provider integration; nothing offline provides one",
@@ -69,8 +69,29 @@ observed fails the test as stale, so remove its entry."""
 DEMO_AIR_QUALITY = "the demo air_quality entities don't publish this pollutant"
 LEGACY_TRACKER = "the demo device trackers are legacy GPS trackers; only modern tracker entities publish this"
 DEMO_FACE_DETECTION = "the demo face-detection entities don't publish it"
+DEMO_WEATHER = "the demo weather entities don't publish it"
+DEMO_WATER_HEATER = "the demo water heaters publish it as null"
+NOT_AN_ATTRIBUTE = "HA never publishes it as a state attribute"
+WRONG_WIRE_KEY = "known model bug #3799: HA publishes it under a different key, so it stays None"
 
 ATTRIBUTE_ALLOWLIST: dict[str, dict[str, str]] = {
+    "climate": {
+        "hvac_mode": "HA publishes the HVAC mode as the state, not an attribute",
+        "target_temp_step": "no demo climate entity sets a target temperature step",
+        "temperature_unit": NOT_AN_ATTRIBUTE,
+    },
+    "cover": dict.fromkeys(("current_cover_position", "current_cover_tilt_position"), WRONG_WIRE_KEY),
+    "event": {"event_type": "set only once the event entity fires, which nothing in the drive can trigger"},
+    "number": dict.fromkeys(("max_value", "min_value"), WRONG_WIRE_KEY),
+    "water_heater": {
+        **dict.fromkeys(
+            ("current_temperature", "target_temperature_high", "target_temperature_low"), DEMO_WATER_HEATER
+        ),
+        "temperature_unit": NOT_AN_ATTRIBUTE,
+    },
+    "weather": dict.fromkeys(
+        ("apparent_temperature", "cloud_coverage", "dew_point", "visibility", "wind_gust_speed"), DEMO_WEATHER
+    ),
     "air_quality": dict.fromkeys(
         (
             "air_quality_index",
@@ -88,7 +109,8 @@ ATTRIBUTE_ALLOWLIST: dict[str, dict[str, str]] = {
     "group": {"auto": "HA sets it only on groups it generates itself; a YAML group never carries it"},
     "image_processing": dict.fromkeys(("camera_entity", "confidence"), DEMO_FACE_DETECTION),
 }
-"""Hand-typed attributes the drive cannot populate, keyed by domain, each with the reason."""
+"""Hand-typed attributes the drive cannot populate, keyed by domain, each with the reason. An entry
+naming an issue is a known model bug: remove it when the issue is fixed."""
 
 
 @dataclass(frozen=True)
@@ -143,20 +165,19 @@ DRIVE: list[DriveStep] = [
     ),
     DriveStep("input_button", "press", "input_button.state_model", state_known("pressed")),
     DriveStep("scene", "turn_on", "scene.state_model_scene", state_known("activated")),
-    # The script stays running until RELEASE turns on. last_action appears once the run reaches
-    # its wait step, which keeps the release from racing a script that hasn't started waiting.
+    # The script holds on a long delay, publishing last_action while it runs, until turned off.
     DriveStep("script", "turn_on", SCRIPT, attribute_set("last_action")),
-    # Must stay last: RELEASE_EFFECTS are waited on from the moment it runs.
-    DriveStep("input_boolean", "turn_on", RELEASE, state_is("on")),
+    DriveStep("script", "turn_off", SCRIPT, state_is("off")),
+    DriveStep("automation", "trigger", "automation.state_model_automation", attribute_set("last_triggered")),
+    DriveStep("fan", "set_percentage", "fan.living_room_fan", attribute_set("percentage"), {"percentage": 50}),
+    DriveStep(
+        "camera",
+        "enable_motion_detection",
+        "camera.demo_camera",
+        Expect("motion_detection on", lambda s: s["attributes"].get("motion_detection") is True),
+    ),
 ]
 """Service calls that populate conditional attributes, in order. Each waits for its expected state."""
-
-RELEASE_EFFECTS: list[tuple[str, Expect]] = [
-    (SCRIPT, state_is("off", "(released)")),
-    (AUTOMATION, attribute_set("last_triggered")),
-    (RELEASE, state_is("off", "(reset by the automation)")),
-]
-"""What the last drive step causes on other entities, waited on before the snapshot."""
 
 
 @dataclass(frozen=True)
@@ -213,6 +234,9 @@ class StateRecorder:
         await self.wait_for_new_state(start, step.entity_id, step.expect)
 
 
+# The drive mutates helpers on the session-scoped HA and isn't idempotent, so a rerun would time out
+# on the helpers the first attempt already moved and report that instead of the real failure.
+@pytest.mark.flaky(reruns=0)
 async def test_live_states_convert_to_registered_models(ha_container: str, tmp_path: Path) -> None:
     """Every observed state converts strictly, and the coverage gates pass."""
     config = make_system_config(ha_container, tmp_path)
@@ -225,25 +249,33 @@ async def test_live_states_convert_to_registered_models(ha_container: str, tmp_p
             "*", handler=recorder.record, changed=False, mode="parallel", name="state_models"
         )
 
-        *setup_steps, release_step = DRIVE
-        assert release_step.entity_id == RELEASE, "the last DRIVE step must turn RELEASE on"
-        for step in setup_steps:
+        for step in DRIVE:
             await recorder.run_step(hassette.api, step)
-        release_start = len(recorder.observed)
-        await recorder.run_step(hassette.api, release_step)
-        for entity_id, expect in RELEASE_EFFECTS:
-            await recorder.wait_for_new_state(release_start, entity_id, expect)
 
         recorder.observed.extend(ObservedState("snapshot", "snapshot", s) for s in await hassette.api.get_states_raw())
 
     observed = recorder.observed
-    models = {str(key.domain): cls for key, cls in STATE_REGISTRY.items()}
+    models = shipped_models()
     failures = [
         *conversion_failures(observed, models),
         *domain_gate_failures(observed, models),
         *attribute_gate_failures(observed, models),
     ]
     assert not failures, f"{len(failures)} state model check(s) failed:\n" + "\n".join(failures)
+
+
+def shipped_models() -> dict[str, type[BaseState]]:
+    """Registered models defined inside the hassette package, keyed by domain.
+
+    The registry is process-global: test modules that define a state class at import (pytest
+    imports every module before filtering by marker) register it too. Those aren't models
+    hassette ships, so they are left out.
+    """
+    return {
+        str(key.domain): cls
+        for key, cls in STATE_REGISTRY.items()
+        if Path(inspect.getfile(cls)).resolve().is_relative_to(PACKAGE_ROOT)
+    }
 
 
 def conversion_failures(observed: list[ObservedState], models: dict[str, type[BaseState]]) -> list[str]:
@@ -283,49 +315,72 @@ def domain_gate_failures(observed: list[ObservedState], models: dict[str, type[B
 
 
 def attribute_gate_failures(observed: list[ObservedState], models: dict[str, type[BaseState]]) -> list[str]:
-    """Declared attributes of hand-typed models that no observed state carried with a value."""
+    """Hand-typed attributes that no observed state carried with a value under any key the field accepts."""
     seen: dict[str, set[str]] = {}
     for o in observed:
         attrs = o.state.get("attributes") or {}
         seen.setdefault(o.domain, set()).update(name for name, value in attrs.items() if value is not None)
 
     failures: list[str] = []
-    for domain in sorted(hand_typed_domains(models)):
+    for domain, fields in sorted(hand_typed_attributes(models).items()):
         if domain in DOMAIN_ALLOWLIST or domain not in seen:
             continue  # the domain gate already reports an unobserved domain
         allowed = ATTRIBUTE_ALLOWLIST.get(domain, {})
-        missing = sorted(declared_attributes(models[domain]) - seen[domain] - set(allowed))
         failures.extend(
             f"attribute gate: {domain}.{name} never observed with a value; drive an entity that publishes it "
             "or allowlist it in ATTRIBUTE_ALLOWLIST with a reason"
-            for name in missing
+            for name, keys in sorted(fields.items())
+            if name not in allowed and not keys & seen[domain]
         )
     return failures
 
 
-def hand_typed_domains(models: dict[str, type[BaseState]]) -> set[str]:
-    """Domains whose model types are hand-declared rather than taken from HA source annotations.
+def hand_typed_attributes(models: dict[str, type[BaseState]]) -> dict[str, dict[str, set[str]]]:
+    """The attributes whose types or wire keys are hand-declared, per domain: field name to accepted keys.
 
-    A model is hand-typed when its module is not codegen output (absent from codegen's manifest)
-    or its domain's codegen override sets ``discovery = "manual"``. Module paths are taken relative
-    to the installed package, so this holds whether or not hassette is installed editable.
+    A whole model is hand-typed when its module is not codegen output (absent from codegen's
+    manifest) or its domain's codegen override sets ``discovery = "manual"``. In a discovered
+    model, only the fields a ``[[property_overrides]]`` entry renames, retypes or aliases are.
+    Module paths are taken relative to the installed package, so this holds whether or not
+    hassette is installed editable.
     """
     assert manifest_exists(REPO_ROOT), "no codegen manifest: every model would count as hand-typed"
     generated = load_manifest(REPO_ROOT)
-    manual = {domain for domain, override in load_overrides().items() if override.discovery == "manual"}
-    return {
-        domain
-        for domain, cls in models.items()
-        if domain in manual
-        or PACKAGE_ROOT_IN_REPO / Path(inspect.getfile(cls)).resolve().relative_to(PACKAGE_ROOT) not in generated
-    }
+    overrides = load_overrides()
+    result: dict[str, dict[str, set[str]]] = {}
+    for domain, cls in models.items():
+        fields = declared_attributes(cls)
+        override = overrides.get(domain)
+        module = PACKAGE_ROOT_IN_REPO / Path(inspect.getfile(cls)).resolve().relative_to(PACKAGE_ROOT)
+        if module not in generated or (override is not None and override.discovery == "manual"):
+            result[domain] = fields
+        elif override is not None:
+            overridden = {o.wire_name or o.name for o in override.property_overrides if not o.remove}
+            if picked := {name: keys for name, keys in fields.items() if name in overridden}:
+                result[domain] = picked
+    # Canary on the derivation: timer, script and automation are hand-typed only through their
+    # manual overrides, climate's fields only through property overrides, and light's fields are
+    # never all hand-typed. A codegen move that silently empties a source would otherwise shrink
+    # the attribute gate while the test stays green.
+    assert {"timer", "script", "automation", "climate"} <= set(result), f"overrides not found: {sorted(overrides)}"
+    light = set(result.get("light", {}))
+    assert light != set(declared_attributes(models["light"])), "codegen manifest not matched: light is all hand-typed"
+    return result
 
 
-def declared_attributes(state_cls: type[BaseState]) -> set[str]:
-    """Attribute keys the model declares beyond ``AttributesBase``, by the name HA publishes."""
+def declared_attributes(state_cls: type[BaseState]) -> dict[str, set[str]]:
+    """Attributes the model declares beyond ``AttributesBase``: field name to every key HA may publish it under."""
     attrs_cls = state_cls.model_fields["attributes"].annotation
     assert isinstance(attrs_cls, type), state_cls
     assert issubclass(attrs_cls, AttributesBase), state_cls
-    return {
-        info.alias or name for name, info in attrs_cls.model_fields.items() if name not in AttributesBase.model_fields
-    }
+    result: dict[str, set[str]] = {}
+    for name, info in attrs_cls.model_fields.items():
+        if name in AttributesBase.model_fields:
+            continue
+        keys = {info.alias or name}
+        if isinstance(info.validation_alias, AliasChoices):
+            keys.update(choice for choice in info.validation_alias.choices if isinstance(choice, str))
+        elif isinstance(info.validation_alias, str):
+            keys.add(info.validation_alias)
+        result[name] = keys
+    return result

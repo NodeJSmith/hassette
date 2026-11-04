@@ -1,7 +1,7 @@
 # Design: Validate state models against a live Home Assistant
 
 **Date:** 2026-11-04
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Prior art:** design/research/2026-11-04-ha-state-model-drift/prior-art.md
 
@@ -23,7 +23,7 @@ The change adds a system test (new file, `tests/system/test_state_models.py`) th
   - The drive uses service calls only (`timer.start`, `timer.pause`, `timer.finish`, `timer.cancel`, and the equivalents for the other helpers). It never waits out a real duration.
   - After each call, the test waits with a timeout for the resulting state to appear among the observed states. A timeout fails the test, naming the entity and the expected state.
   - `timer.finish` is issued on an active timer, because HA ignores it on an idle one.
-- A coverage gate fails when a registered domain has no live sample, unless the domain is on an allowlist kept in the test module. Each allowlist entry carries a reason. An entry whose domain now has a sample fails as stale, following the `tools/client_compat_ignore.txt` convention. For hand-typed models the gate also works per attribute (D2).
+- A coverage gate fails when a registered domain has no live sample, unless the domain is on an allowlist kept in the test module. Each allowlist entry carries a reason. An entry whose domain now has a sample fails as stale, following the `tools/client_compat_ignore.txt` convention. For hand-typed attributes the gate also works per attribute (D2).
 - Domains with no registered model are ignored. `hassette-codegen check-coverage` already reports those.
 
 Out of scope:
@@ -85,7 +85,7 @@ Behavior to pin:
 **Pick A instead if** you'd rather keep the gate cheap and accept that a conditional attribute can still slip through.
 **Pick C instead if** you don't trust codegen's source-annotation types either.
 **Reversibility:** easy (the gate's scope is one set in the test)
-**Ratified:** Chose B over A and C, to catch never-observed attributes where types are hand-declared, accepting an allowlist of tens of hand-typed attributes the drive can't populate. "Hand-typed" means a model whose file isn't in `.generated-manifest`, or whose domain's override TOML has `discovery = "manual"`. The test derives that set from those two sources, never from a hand-kept list. Attribute allowlist entries carry a reason but are not stale-checked. Only domain entries fail as stale, because demo entities change on their own, so whether an attribute appears varies between runs. An outdated attribute entry hides nothing, since every observed value is still converted. Known limitation, accepted: an attribute counts as verified after one observed non-null value, so a second value form that appears only in an undriven state can go unchecked.
+**Ratified:** Chose B over A and C, to catch never-observed attributes where types are hand-declared, accepting an allowlist of tens of hand-typed attributes the drive can't populate. "Hand-typed" means every attribute of a model whose file isn't in `.generated-manifest` or whose domain's override TOML has `discovery = "manual"`, plus, in a discovered model, each field a `[[property_overrides]]` entry renames, retypes or aliases (widened at the ship-time challenge: a wrong hand-written `wire_name` leaves the field `None` without failing conversion, the #3794 shape). An attribute counts as observed under any key the field accepts (its name, alias or validation aliases). The test derives that set from those sources, never from a hand-kept list. Attribute allowlist entries carry a reason but are not stale-checked. Only domain entries fail as stale, because demo entities change on their own, so whether an attribute appears varies between runs. An outdated attribute entry hides nothing, since every observed value is still converted. Known limitation, accepted: an attribute counts as verified after one observed non-null value, so a second value form that appears only in an undriven state can go unchecked.
 
 ### D3: How are the helper entities provided to the system HA?
 
@@ -158,7 +158,7 @@ Behavior to pin:
 
 - [x] Implementation and tests committed
 - [x] Docs: the system-test table and fixture notes in `tests/TESTING.md`; no user-facing docs (test infrastructure only)
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `todo` comes from a static `shopping_list` config entry in `tests/fixtures/ha-config/.storage/core.config_entries`: `shopping_list` has no YAML setup and the pinned demo has no todo platform. It's static fixture config like the YAML (D3 rejected creating entities at test time, not `.storage`).
@@ -167,6 +167,12 @@ Behavior to pin:
 - Both allowlists live in the test module, each entry with its reason. The domain allowlist is the predicted domains plus `tts`. Attribute entries cover attributes the demo platforms don't publish (demo air_quality pollutants, modern-tracker attributes the legacy demo trackers lack, `group.auto`, demo face-detection attributes).
 - The `state_changed` subscription is `on_state_change("*", changed=False, mode="parallel")`. `changed=False` keeps attribute-only changes; `parallel` never drops an event that arrives while the handler runs.
 - Failure attribution labels each observed state with its kind (new, old or snapshot) and the drive step running when it arrived. Drive waits match only new states, since an old state is what the entity left.
+- The checked models are the registry entries defined inside the installed `hassette` package. CI runs `pytest -m system` with no path, which imports unit-test modules that register their own state classes; the registry is process-global, so without the filter those fail the domain gate.
+- The test opts out of CI's `--reruns` (`flaky(reruns=0)`): the drive mutates helpers on the session-scoped HA and isn't idempotent, so a rerun would report a timeout instead of the first failure.
+- The drive is linear: the script holds on a long `delay` and is turned off, and the automation is fired with `automation.trigger`. A cross-entity release chain was dropped at the ship-time challenge because it needed an ordering invariant and raced the script's trigger.
+- The drive also sets a demo fan's percentage and enables a demo camera's motion detection, so those overridden attributes are observed rather than allowlisted.
+- The widened attribute gate found four model fields that are always `None` because HA publishes them under other keys (cover position, number min/max). They're allowlisted naming #3799 rather than fixed here, keeping this change test-only (`known-issues.md` KI-003).
+- The `ha-version-bump` skill's Phase 4 names this test and what each of its failures means, since a bump is when it goes red.
 - Loading `automation:` and `script:` makes HA create root-owned blueprint folders in the session's temp config copy, so `ha_container` pre-creates them, as it already does for `custom_components`.
 - The hand-typed derivation reuses codegen's `load_manifest` and `load_overrides` rather than re-parsing either file.
 - Hand-typed models are matched against `.generated-manifest` by path relative to the installed `hassette` package, so the check works whether or not hassette is installed editable.

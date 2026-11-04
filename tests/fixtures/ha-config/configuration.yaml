@@ -10,12 +10,11 @@ history:
 input_boolean:
   test:
     name: System Test Toggle
-  # Drive trigger: turning it on finishes the waiting script, triggers the automation (which turns
-  # it back off) and fires the alert.
-  state_model_release:
-    name: State Model Release
   state_model_scene_target:
     name: State Model Scene Target
+  # Never changed, so the alert stays idle.
+  state_model_alert_source:
+    name: State Model Alert Source
 sun:
 timer:
   state_model:
@@ -69,32 +68,27 @@ schedule:
     friday: *all_day
     saturday: *all_day
     sunday: *all_day
-# Waits on the release boolean, so it publishes last_action while running. parallel mode
-# publishes max, and so does the automation's.
+# Holds on a long delay so it publishes last_action while running; the test turns it off.
+# parallel mode publishes max, and so does the automation's.
 script:
   state_model:
     alias: State Model Script
     mode: parallel
     sequence:
-      # A trigger, not a wait_template: the automation turns the boolean straight back off, and a
-      # template that re-reads the current state can miss the moment it was on.
-      - alias: Wait for release
-        wait_for_trigger:
-          - trigger: state
-            entity_id: input_boolean.state_model_release
-            to: "on"
+      - alias: Hold
+        delay: "01:00:00"
+# Never triggers on its own; the test fires it with automation.trigger.
 automation:
   - id: state_model
     alias: State Model Automation
     mode: parallel
     triggers:
-      - trigger: state
-        entity_id: input_boolean.state_model_release
-        to: "on"
+      - trigger: event
+        event_type: state_model_never_fired
     actions:
-      - action: input_boolean.turn_off
+      - action: input_boolean.toggle
         target:
-          entity_id: input_boolean.state_model_release
+          entity_id: input_boolean.state_model_scene_target
 scene:
   - name: State Model Scene
     entities:
@@ -103,12 +97,12 @@ group:
   state_model:
     name: State Model Group
     entities:
-      - input_boolean.state_model_release
       - input_boolean.state_model_scene_target
+      - input_boolean.state_model_alert_source
 alert:
   state_model:
     name: State Model Alert
-    entity_id: input_boolean.state_model_release
+    entity_id: input_boolean.state_model_alert_source
     state: "on"
     repeat: 30
     notifiers: []
