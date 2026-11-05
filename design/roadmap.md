@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-29
+Last reviewed: 2026-11-05
 
 ## How the pieces fit
 
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **Instance identity** | *Instance Identity* | Design: `design/specs/133-log-identity-axes/design.md`. Re-keys DB rows, registry, routes and client on the instance name. Unblocked now that *Log Identity* is closed; #3098's migration needs a challenge before it's built |
+| **Diagnostic evidence** | *Diagnostic Evidence* | Answers "why didn't it run" from the API and CLI, without app source or `docker logs`. Design: `design/specs/142-diagnostic-evidence/design.md`. Unblocked now that *Instance Identity* is closed, so new telemetry tables key on the instance name |
 
 ## Next
 
@@ -57,7 +57,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
-| **Diagnostic evidence** | *Diagnostic Evidence* | Answers "why didn't it run" from the API and CLI, without app source or `docker logs`. Design: `design/specs/142-diagnostic-evidence/design.md`. Its migrations chain after #3098 |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
@@ -86,8 +85,6 @@ testing redesign + all breaking changes ──> v1.0 tag
 #2992, #1446, #2991 job timing, #2555 apps cleanup ──> #2993 apps from DB ──> #2996 snapshot mode
 #1446 projector ──> #2890 mixed-instance scenario ──> #2996 snapshot mode
 #2989 seed anchor ──> #2996 snapshot mode
-Log Identity milestone closed ──> #3098 DB keyed by name, #3099 registry by name ──> #3100 routes by name
-#3098 DB keyed by name ──> Diagnostic Evidence (#3676, #1817, #3677, #3678)
 ```
 
 Remove a chain once every step on it has closed.
