@@ -12,6 +12,8 @@ A leak or alarm sensor can fire repeatedly during a single incident. Storing a t
 --8<-- "pages/core-concepts/cache/snippets/cache_rate_limit.py"
 ```
 
+`mobile_app_phone` is a placeholder for a real notify service, which Home Assistant names `mobile_app_<device>`. The app needs a service name from its own Home Assistant instance, and [`get_notify_services()`](../api/methods.md#get_notify_services) lists the valid ones. `call_service` does not wait for Home Assistant to confirm the call, so a wrong name fails silently. The cooldown log lines still appear, but no notification arrives.
+
 `P` is `hassette.event_handling.predicates` — helper functions that filter which events trigger a handler (see [Predicates](../bus/filtering.md)). `P.StateTo("on")` fires the handler only when the entity transitions to `"on"`.
 
 `await self.cache.get(cache_key)` returns `None` on the first call, so the notification goes out immediately. The timestamp is written after sending. On subsequent triggers, the handler compares the stored timestamp against the cooldown threshold — `last_sent > self.now().subtract(hours=4)` is true when the last notification was sent less than 4 hours ago. For per-entity rate limiting, include the entity ID in the key: `f"last_notification:{entity_id}"`.
@@ -83,19 +85,18 @@ Cache access is a SQLite read. For values read many times per second, loading in
 
 ### Cache Not Persisting
 
-If values do not survive a restart, check five common causes:
+If values do not survive a restart, check six common causes:
 
 - **Write targets a local variable instead of `self.cache`.** Verify the call is `await self.cache.set("key", value)`, not an assignment to a local dict.
 - **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs: no exception and no write. The only signal is a log line containing `RuntimeWarning: coroutine 'AsyncCache.set' was never awaited`. Every data method on `self.cache` is a coroutine.
 - **Exception during initialization.** The app may raise before the write executes. Check `hassette log --app <key>` for errors.
+- **No `cache.db` file exists.** After the first successful write, `{data_dir}/{app_key}/{instance_name}/cache/` holds a `cache.db` file. A missing file means no write has completed. `data_dir` is a global setting (see [Data Directory and Upgrades](../configuration/index.md#data-directory-and-upgrades)).
 - **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{app_key}/{instance_name}/cache/` — the Hassette process must own the directory.
 - **Stored value is not picklable.** Unpicklable objects raise at write time. File handles, locks, sockets, and generators usually raise `TypeError`. Lambdas and other functions pickle cannot reference raise `pickle.PicklingError`, or `AttributeError` for local ones on Python 3.11-3.13.
 
 ### Cache Grows Large
 
 The cache has no size limit, and nothing purges expired entries in the background. An expired entry is removed only when its key is next read. A `ttl` keeps stale values from being returned, but it frees the row only for keys read again. `await self.cache.invalidate(*keys)` deletes keys that are no longer read. `await self.cache.clear()` deletes all entries and reclaims disk space (it runs `VACUUM` and truncates the WAL after deleting, so the file actually shrinks).
-
-The cache directory at `{data_dir}/{app_key}/{instance_name}/cache/` should contain a `cache.db` file after the first successful write.
 
 ## See Also
 

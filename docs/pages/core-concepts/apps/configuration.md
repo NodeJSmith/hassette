@@ -20,7 +20,7 @@ The app key (`presence` here) also names the app's [cache directory](../cache/in
 
 Every configured app needs an `instance_name`, including blocks with `enabled = false` or `autostart = false`. A block without one fails at config load.
 
-`enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /api/apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
+`enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /api/apps/{app_key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
 
 ```toml
 [hassette.apps.heavy_processor]

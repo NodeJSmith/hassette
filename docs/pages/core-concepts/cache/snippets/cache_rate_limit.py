@@ -23,10 +23,10 @@ class WaterLeakAlertApp(App[AppConfig]):
                 self.logger.info("Skipping notification - last sent %s ago", time_since_last)
                 return
 
-        # Send the notification
+        # Send the notification (replace mobile_app_phone with your own notify service)
         await self.api.call_service(
             "notify",
-            "mobile_app",
+            "mobile_app_phone",
             message="Water leak detected!",
             title="Alert",
         )
