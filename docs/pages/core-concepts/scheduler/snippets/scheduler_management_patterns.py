@@ -21,6 +21,12 @@ class ManagementPatternApp(App[AppConfig]):
 
     # --8<-- [end:remove_group]
 
+    # --8<-- [start:remove_all]
+    async def on_disable(self) -> None:
+        await self.scheduler.remove_all_jobs()
+
+    # --8<-- [end:remove_all]
+
     # --8<-- [start:list_jobs]
     async def show_jobs(self) -> None:
         all_jobs = self.scheduler.list_jobs()

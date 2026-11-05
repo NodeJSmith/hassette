@@ -32,6 +32,18 @@ Sometimes the status alone doesn't say why a job is in it. `schedule_status_reas
 
 Calling `remove()` on an already-removed job is a silent no-op. The scheduler checks dequeue state at entry and returns immediately if the job is already gone.
 
+`self.scheduler.remove_job(job)` does the same removal from the scheduler side. It raises `ValueError` for a job that belongs to another scheduler. `job.remove()` raises `RuntimeError` for a job never registered with a scheduler. Jobs returned by a scheduling call are always registered.
+
+### Remove every job
+
+`remove_all_jobs()` removes every job the app registered: scheduled, waiting, completed, and manual. It suits a disable switch that pauses the whole app without stopping it:
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_management_patterns.py:remove_all"
+```
+
+`remove_all_jobs()` returns an `asyncio.Future[None]`. The removal runs in the background, and the future resolves once every job has left the scheduler and its removal is recorded. Awaiting the future guarantees no job fires after the switch flips.
+
 ## Check whether a job is active
 
 `Job` has no `removed` attribute. Removal takes the job out of the scheduler's internal index. The canonical check is membership in `list_jobs()`:
@@ -84,9 +96,17 @@ A job can remove itself from inside its own handler. The `Job` reference is stor
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_register_manual.py:submit"
 ```
 
-`submit()` goes through the same overlap guard as an automatic fire. A `single`-mode job already running suppresses the submission; a full `queued` cap drops it. Both outcomes are recorded in telemetry, not raised as an exception — `submit()` always accepts a live job. The [Execution Modes](execution-modes.md#manual-submission) page covers overlap behavior for manual submissions in detail.
+`submit()` goes through the same overlap guard as an automatic fire. A `single`-mode job already running suppresses the submission; a full `queued` cap drops it. Both outcomes are recorded in telemetry, not raised as an exception. The [Execution Modes](execution-modes.md#manual-submission) page covers overlap behavior for manual submissions in detail.
 
-Submitting a removed job's handle raises `JobRemovedError`. The [Run Now button](../../web-ui/debug-handler.md) in the monitoring UI, and the REST API it calls, use the same submission path — see [Scheduler Overview](index.md#register-a-job-with-no-automatic-schedule) for registering a manual-only job.
+`submit()` raises in three cases:
+
+| Exception | When |
+|---|---|
+| `JobRemovedError` | The job's registration has been removed. |
+| `TaskBucketSealedError` | The scheduler service was force-terminated and accepts no more work. This happens only during framework teardown. |
+| `RuntimeError` | The job has no owning scheduler service. Jobs returned by `schedule()` or `register()` always have one. |
+
+The [Run Now button](../../web-ui/debug-handler.md) in the monitoring UI, and the REST API it calls, use the same submission path — see [Scheduler Overview](index.md#register-a-job-with-no-automatic-schedule) for registering a manual-only job.
 
 ## Prevent overlapping executions
 
@@ -123,7 +143,7 @@ On exception, Hassette logs the error, records it for telemetry, and keeps the j
 
 ### App-level handler
 
-`scheduler.on_error(handler)` registers a fallback handler for all jobs on this scheduler that lack a per-registration handler. The handler resolves at dispatch time, not at registration time.
+`scheduler.on_error(handler)` registers a fallback handler for all jobs on this scheduler that lack a per-registration handler. The handler resolves at dispatch time, not at registration time. A later `on_error()` call replaces the earlier handler; the scheduler holds one app-level handler at a time.
 
 !!! warning "Registration order matters"
     `on_error()` must run before any job is registered in `on_initialize()`. For example, if you call `run_in(handler, delay=1)` before `on_error()`, and the job fires within that 1-second window while `on_initialize()` is still running, no error handler is registered for that execution.
@@ -142,6 +162,8 @@ The `on_error=` parameter on any scheduling method takes precedence over the app
 
 Both levels accept sync or async callables.
 
+Error handlers run as fire-and-forget tasks. Handlers that start near app shutdown may be cancelled before they complete. Error handlers are not a reliable delivery channel during system teardown.
+
 ### Fields in the error handler
 
 | Field | Type | Description |
@@ -152,6 +174,7 @@ Both levels accept sync or async callables.
 | `job_group` | `str \| None` | Group name if the job was registered with `group=`. |
 | `args` | `tuple[Any, ...]` | Positional arguments the job was scheduled with. |
 | `kwargs` | `dict[str, Any]` | Keyword arguments the job was scheduled with. |
+| `execution_id` | `str \| None` | UUIDv7 identifying the execution that failed, or `None`. Matches the execution's log lines and telemetry record. |
 
 !!! note "Error handler failures"
     When an error handler itself raises or times out, Hassette logs the failure and counts it against the executor's error handler failure counter. The original job's telemetry record is unaffected.
@@ -183,6 +206,11 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
 | `jitter` | `float \| None` | Seconds of random offset added to each run, if configured. |
 | `fire_at` | `ZonedDateTime \| None` | Actual dispatch time including the jitter offset. Equals `next_run` when `jitter` is not set. `None` for every status except `scheduled`. |
 | `db_id` | `int \| None` | Database row ID assigned after registration. Valid immediately when the scheduling call returns. |
+| `mode` | `ExecutionMode` | Resolved overlap mode: `single`, `restart`, `queued`, or `parallel`. See [Execution Modes](execution-modes.md). |
+| `timeout` | `float \| None` | Per-job timeout in seconds. `None` uses the global `scheduler.job_timeout_seconds` setting. |
+| `timeout_disabled` | `bool` | `True` when timeout enforcement is off for this job. |
+| `source_location` | `str` | `file:line` of the app code that scheduled the job. |
+| `registration_source` | `str` | Source text of the scheduling call. |
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_metadata.py"
