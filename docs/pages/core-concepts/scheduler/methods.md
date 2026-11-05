@@ -183,9 +183,9 @@ These parameters are accepted by every scheduling method. Individual method tabl
 |---|---|---|---|
 | `name` | `str` | — | Required. Identifies the job in logs and the monitoring UI. Omitting it raises `TypeError` (no default value); an empty string raises `SchedulerNameRequiredError`. Must be unique within the app instance — see [Idempotent Registration](#idempotent-registration). |
 | `group` | `str \| None` | `None` | Group name for bulk management. See [Job Management](management.md) for grouping. |
-| `jitter` | `float \| None` | `None` | Random offset in seconds added to each run. See [Job Management](management.md) for jitter. |
-| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler.job_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
-| `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job, regardless of the global default. |
+| `jitter` | `float \| None` | `None` | Random offset in seconds added to each run. A negative value raises `ValueError` at registration. See [Job Management](management.md) for jitter. |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler.job_timeout_seconds` from [`hassette.toml`](../configuration/index.md). A zero or negative value raises `ValueError` at registration. |
+| `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this job, regardless of the global default. Combining it with `timeout` raises `ValueError` at registration. |
 | `mode` | `ExecutionMode \| str \| None` | `None` | Overlap behavior when a run becomes due while the previous one is still running: `"single"`, `"restart"`, `"queued"`, or `"parallel"`. `None` resolves to `"single"` for app jobs. See [Execution Modes](execution-modes.md). |
 | `on_error` | `SchedulerErrorHandlerType \| None` | `None` | Per-job error handler. Overrides the app-level handler set via `scheduler.on_error()`. Invoked on any exception except `CancelledError`. |
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with the same name already exists. See [Idempotent Registration](#idempotent-registration). |
@@ -195,7 +195,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 
 ## Conditional execution with where
 
-`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`Job`][hassette.scheduler.classes.Job] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `Job` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time.
+`where=` accepts a predicate — a callable returning `bool` — evaluated at dispatch time, immediately before the handler runs. A predicate with no [`Job`][hassette.scheduler.classes.Job] annotation is called with zero arguments — the common case for checking HA state or another external condition. A predicate with a positional parameter annotated as `Job` receives the job instance at dispatch time, for access to `job.args` and `job.kwargs`. Predicates must be synchronous. An async predicate raises `TypeError` at registration time. A predicate with `*args` or positional-only parameters raises `DependencyInjectionError` at registration; use regular named parameters instead.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_where_state_check.py:where_state"
@@ -236,7 +236,7 @@ Job names must be unique within an app instance. Registering a second job with a
 | `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, `kwargs`, `on_error` handler, `mode`, and `where` predicate. |
 | `"replace"` | Removes the existing job and registers the new one. The new job's configuration does not need to match the old one. Removing a `single`, `restart`, or `queued` job cancels its running invocation; a running `parallel` invocation always finishes. When the replace is called from the job's own callback (sync or async), that invocation runs to completion, so a one-shot job can re-arm itself under its own name. |
 
-`if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by `hassette reload`, or by config changes when automatic reloads are on).
+`if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by `hassette app reload <key>`, or by config changes when automatic reloads are on).
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:idempotent_registration"
