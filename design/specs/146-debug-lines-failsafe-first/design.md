@@ -1,7 +1,7 @@
 # Design: Delete persisted DEBUG lines first when over the size limit
 
 **Date:** 2026-11-05
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3675
 **Parent:** design/specs/142-diagnostic-evidence/design.md
@@ -86,7 +86,7 @@ Out of scope: a database dominated by INFO-and-above lines, which stay exempt (#
 **Recommendation:** A. It removes the flag and the second branch outright, and with them every way a long run can starve other writers. The overshoot it allows needs a DEBUG capture that is both fast and sustained, which per-app capture (#3679) is designed to end. The existing over-limit WARNINGs report a capped tier, and users can raise `size_failsafe_max_iterations` or `size_failsafe_delete_batch`.
 **Pick B instead if** D9's "overshoot is at most one interval of capture" must hold even during heavy capture. **Pick C instead if** multi-hundred-MB DEBUG backlogs are unrealistic for this audience. **Pick D instead if** the limit must be restored within one run while writes keep flowing.
 **Reversibility:** easy (adding an exemption later is the drafted flag and branch)
-**Ratified:** Chose putting the DEBUG tier on the failsafe's existing shared budget over a budget exemption (time-boxed, uncapped, or chunked), to add no failsafe machinery and never starve other writers, accepting that a capture faster than the budget's ~2.8 rows/s keeps the database over `max_size_mb` until capture stops, with executions still protected because a capped DEBUG tier stops the run. Supersedes parent D9's "outside the shared budget; each run deletes until under the limit".
+**Ratified:** Chose putting the DEBUG tier on the failsafe's existing shared budget over a budget exemption (time-boxed, uncapped, or chunked), to add no failsafe machinery and never starve other writers, accepting that a capture faster than the budget's ~2.8 rows/s keeps the database over `max_size_mb` until capture stops, and that a stored DEBUG backlog larger than one run's budget (such as the first over-limit run after upgrading an install that already persisted DEBUG lines) keeps it over the limit until the backlog drains at one budget per failsafe interval, with executions untrimmed in both cases because a capped DEBUG tier stops the run. Supersedes parent D9's "outside the shared budget; each run deletes until under the limit".
 
 ## Assumed
 
@@ -102,10 +102,11 @@ Out of scope: a database dominated by INFO-and-above lines, which stay exempt (#
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `build_tier_where` renamed to `build_filter_where`, with a shared `row_filter_terms` helper both WHERE builders use: it now filters by level as well as tier, and the shared helper keeps the failsafe and age filters from drifting apart.
 - `RetentionTarget.level` is typed `Literal["DEBUG"] | None`: only DEBUG has the partial index, so another level would silently scan `idx_lr_time`.
 - `docs/pages/operating/log-levels.md` gets a one-sentence pointer next to `log_retention_days`: it is where users turn DEBUG persistence on, so they learn there that the size limit deletes those lines first.
+- The age pass walks `_RETENTION_TABLES` sorted by `priority` (chosen at the ship-time challenge), so `priority` alone owns the DEBUG-first order for both passes instead of list position plus a comment.
 - The partial-index test captures the statements the failsafe actually runs and explains each one, rather than restating the SQL, so a change to the production query shape can't pass unnoticed.

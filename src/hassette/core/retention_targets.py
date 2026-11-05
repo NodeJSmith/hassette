@@ -8,8 +8,8 @@ Targets may overlap: ``debug log records`` selects the DEBUG rows of ``log_recor
 exempt ``log records`` target also covers. Both share ``log_retention_days``, so the overlap changes
 nothing about which rows expire by age. It matters to the failsafe, where the exempt target
 protects INFO and above and the DEBUG target makes persisted DEBUG lines the first thing deleted.
-The age pass walks the DEBUG target first, so ``log records`` finds no expired DEBUG rows unless
-the DEBUG target hit its per-cycle batch cap.
+The age pass walks targets by ``priority`` too, so it reaches the DEBUG target first and ``log
+records`` finds no expired DEBUG rows unless the DEBUG target hit its per-cycle batch cap.
 
 The WHERE-clause builders live here too, since they read nothing but ``RetentionTarget`` fields.
 """
@@ -32,8 +32,8 @@ class RetentionTarget:
     table: str
     timestamp_col: str
     priority: int
-    """Position in the size failsafe's deletion chain (lower number = deleted first). Carried
-    but never read for ``failsafe_exempt`` targets, which the chain skips entirely."""
+    """Processing order, lower number first: the size failsafe's deletion chain and the age pass
+    both walk targets by it. ``failsafe_exempt`` targets only use it for the age pass."""
     retention_days_getter: Callable[["HassetteConfig"], int]
     failsafe_label: str
     source_tier: SourceTier | None = None

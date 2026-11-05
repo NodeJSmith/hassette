@@ -294,7 +294,9 @@ class DatabaseSizeFailsafeMixin:
                         capped_early = True
                         self.logger.warning(
                             "Size failsafe %s capped at %d iterations; live data still %.1f MB (limit %.1f MB) — "
-                            "stopping this cycle without touching lower-priority tiers",
+                            "stopping this cycle without touching lower-priority tiers; raise "
+                            "database.size_failsafe_max_iterations or database.size_failsafe_delete_batch "
+                            "to delete faster",
                             group_label,
                             max_iterations,
                             live_mb,
