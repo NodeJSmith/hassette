@@ -1,0 +1,25 @@
+# The autofix pipeline's recipe for this repo, read from the default branch at the start of each
+# run (Dotfiles packages/autofix/src/autofix/recipe.py). A PR can't change what its own review
+# session runs: edits here take effect once they merge.
+schema_version = 1
+
+[review]
+# Workflow `name:` values whose failures get CI triage (rerun or park) instead of a review session.
+test_workflows = ["Tests", "E2E Tests", "Docker Integration Tests"]
+# Inserted into the review skill as its "Repo checks" section.
+checks = """
+**Triage.** The `file-sizes` and `duplicate-code` gates are the ones autofix PRs trip most: a red one always means this PR grew an oversized file or added a duplicate block, so it's a **Fix**, never a skip (`.claude/reference/github-workflow.md` explains both gates). Shrink or move code to fix a file-size failure; don't contort it just to hit the count. An aggregate job like `lint-complete` fails whenever one of its inputs does, so fix the input.
+
+**After each fix.** If the fix touches web models or schemas, regenerate: `uv run python scripts/export_schemas.py --types`
+
+**Before committing.** Run `prek -a` and `prek run pyright -a --stage pre-push`.
+
+**After committing.** Run the two merge-blocking gates the way CI's new-code steps do (`.github/workflows/lint.yml`). The `check-file-size-regressions` and `check-duplicate-code` pre-push hooks run the same commands, but run them here anyway so the result doesn't depend on hooks being installed; a fix can trip them on its own. Both compare commits, so run them after committing. `check_duplicate_code.py` needs Java, because it runs PMD CPD.
+
+```bash
+uv run python tools/check_file_size_regressions.py origin/main HEAD
+uv run python tools/check_duplicate_code.py --gate-new-code origin/main HEAD
+```
+
+If either fails, fix it, amend, and repeat the before-committing checks and these gates on the amended commit before pushing. Moving code to fix a file-size failure can break imports or types or add duplication, and a duplication fix can grow a file, so earlier results don't cover the amended `HEAD`.
+"""
