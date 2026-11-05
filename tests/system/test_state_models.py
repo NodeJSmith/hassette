@@ -70,7 +70,6 @@ DEMO_FACE_DETECTION = "the demo face-detection entities don't publish it"
 DEMO_WEATHER = "the demo weather entities don't publish it"
 DEMO_WATER_HEATER = "the demo water heaters publish it as null"
 NOT_AN_ATTRIBUTE = "HA never publishes it as a state attribute"
-WRONG_WIRE_KEY = "known model bug #3799: HA publishes it under a different key, so it stays None"
 
 ATTRIBUTE_ALLOWLIST: dict[str, dict[str, str]] = {
     "air_quality": dict.fromkeys(
@@ -91,12 +90,10 @@ ATTRIBUTE_ALLOWLIST: dict[str, dict[str, str]] = {
         "target_temp_step": "no demo climate entity sets a target temperature step",
         "temperature_unit": NOT_AN_ATTRIBUTE,
     },
-    "cover": dict.fromkeys(("current_cover_position", "current_cover_tilt_position"), WRONG_WIRE_KEY),
     "device_tracker": dict.fromkeys(("battery_level", "host_name", "in_zones", "ip", "mac"), DEMO_LEGACY_TRACKER),
     "event": {"event_type": "set only once the event entity fires, which nothing in the drive can trigger"},
     "group": {"auto": "HA sets it only on groups it generates itself; a YAML group never carries it"},
     "image_processing": dict.fromkeys(("camera_entity", "confidence"), DEMO_FACE_DETECTION),
-    "number": dict.fromkeys(("max_value", "min_value"), WRONG_WIRE_KEY),
     "water_heater": {
         **dict.fromkeys(
             ("current_temperature", "target_temperature_high", "target_temperature_low"), DEMO_WATER_HEATER

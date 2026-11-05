@@ -1,7 +1,7 @@
 from enum import IntFlag, StrEnum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from .base import AttributesBase, StringBaseState
 
@@ -49,8 +49,12 @@ class CoverEntityFeature(IntFlag):
 
 
 class CoverAttributes(AttributesBase):
-    current_cover_position: int | float | None = Field(default=None)
-    current_cover_tilt_position: int | float | None = Field(default=None)
+    current_cover_position: int | float | None = Field(
+        default=None, validation_alias=AliasChoices("current_position", "current_cover_position")
+    )
+    current_cover_tilt_position: int | float | None = Field(
+        default=None, validation_alias=AliasChoices("current_tilt_position", "current_cover_tilt_position")
+    )
     device_class: CoverDeviceClass | None = Field(default=None)
     is_closed: bool | None = Field(default=None)
     is_closing: bool | None = Field(default=None)

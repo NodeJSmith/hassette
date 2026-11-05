@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from .base import AttributesBase, NumericBaseState
 
@@ -89,8 +89,8 @@ class NumberAttributes(AttributesBase):
     native_unit_of_measurement: str | None = Field(default=None)
     native_value: float | None = Field(default=None)
     step: float | None = Field(default=None)
-    min_value: float | None = Field(default=None)
-    max_value: float | None = Field(default=None)
+    min_value: float | None = Field(default=None, validation_alias=AliasChoices("min", "min_value"))
+    max_value: float | None = Field(default=None, validation_alias=AliasChoices("max", "max_value"))
     unit_of_measurement: str | None = Field(default=None)
 
 

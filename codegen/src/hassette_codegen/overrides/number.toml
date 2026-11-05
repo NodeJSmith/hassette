@@ -8,15 +8,18 @@ name = "step"
 type = "float | None"
 add = true
 
+# HA publishes these as `min`/`max` (ATTR_MIN/ATTR_MAX); `aliases` maps the wire keys.
 [[property_overrides]]
 name = "min_value"
 type = "float | None"
 add = true
+aliases = ["min"]
 
 [[property_overrides]]
 name = "max_value"
 type = "float | None"
 add = true
+aliases = ["max"]
 
 [[property_overrides]]
 name = "unit_of_measurement"

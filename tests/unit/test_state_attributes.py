@@ -15,6 +15,7 @@ from hassette.models.states.humidifier import HumidifierAttributes
 from hassette.models.states.light import LightAttributes
 from hassette.models.states.lock import LockAttributes
 from hassette.models.states.media_player import MediaPlayerAttributes, MediaType, RepeatMode
+from hassette.models.states.number import NumberAttributes
 from hassette.models.states.sensor import SensorAttributes, SensorDeviceClass, SensorStateClass
 from hassette.models.states.water_heater import WaterHeaterAttributes
 from hassette.models.states.weather import WeatherAttributes
@@ -142,6 +143,28 @@ class TestSetpointWireKeys:
         attrs = WaterHeaterAttributes.model_validate({"target_temp_step": 0.5})
 
         assert attrs.target_temperature_step == 0.5
+
+
+class TestPublishedAttributeKeys:
+    """Cover positions and number bounds are published under keys other than the field names (#3799)."""
+
+    @pytest.mark.parametrize(
+        ("attrs_cls", "wire_key", "field", "value"),
+        [
+            (CoverAttributes, "current_position", "current_cover_position", 70),
+            (CoverAttributes, "current_tilt_position", "current_cover_tilt_position", 50),
+            (NumberAttributes, "min", "min_value", 0.0),
+            (NumberAttributes, "max", "max_value", 100.0),
+        ],
+    )
+    def test_published_key_populates_field(
+        self, attrs_cls: type[CoverAttributes | NumberAttributes], wire_key: str, field: str, value: float
+    ) -> None:
+        attrs = attrs_cls.model_validate({wire_key: value})
+
+        assert getattr(attrs, field) == value
+        assert attrs.extras == {}
+        assert attrs_cls.model_validate(attrs.model_dump()) == attrs
 
 
 class TestWeatherAttributes:
