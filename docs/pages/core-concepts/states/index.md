@@ -50,7 +50,7 @@ A *conversion* turns the raw state dict HA returns into a typed state object. Wh
 |---|---|---|
 | `self.states.light["kitchen"]` | raises `KeyError` | raises `UnableToConvertStateError` |
 | `self.states.light.get("kitchen")` | returns `None` | raises `UnableToConvertStateError` |
-| `self.states.get("light.kitchen")` | returns `None` | returns `None` |
+| `self.states.get("light.kitchen")` | returns `None` | falls back to `BaseState` (logged at WARNING); returns `None` only if `BaseState` conversion also fails |
 
 `UnableToConvertStateError` (from `hassette.exceptions`) carries `entity_id` and `state_class` fields. They identify which entity and target type failed. The error signals a shape mismatch between the HA state dict and the domain model — for example, an `int` attribute arriving as a string that cannot be coerced.
 
@@ -87,7 +87,7 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 
 **`is_unknown`** and **`is_unavailable`** are `True` when HA reports the entity as `"unknown"` or `"unavailable"`, respectively. Both flags are `False` for normal states.
 
-**`is_group`** is `True` when the entity is a group. For group entities, the `entity_id` attribute holds a list of member entity IDs rather than the group's own ID.
+**`is_group`** is `True` when the entity's `entity_id` attribute is a list of more than one member entity ID. A group with a single member reports `False`. For group entities, the `entity_id` attribute holds a list of member entity IDs rather than the group's own ID.
 
 **`extras`** and **`extra(key, default=None)`** access untyped state fields not declared on the `BaseState` model. Typed attributes cover the common cases; these handle the rest.
 
