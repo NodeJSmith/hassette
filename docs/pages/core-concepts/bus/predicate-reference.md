@@ -217,7 +217,7 @@ Works with: `HassEvent` (any event).
 |---|---|---|---|
 | `A.get_domain` | `get_domain` | `str \| MISSING_VALUE` | The domain portion of the event (e.g., `"light"` from `"light.kitchen"`). |
 | `A.get_entity_id` | `get_entity_id` | `str \| MISSING_VALUE` | The `entity_id` from the event payload, or from `service_data` for `CallServiceEvent`. |
-| `A.get_context` | `get_context` | `HassContext` | The context dict from the event payload. |
+| `A.get_context` | `get_context` | `HassContext` | The `HassContext` object (`id`, `parent_id`, `user_id`) from the event payload. |
 
 ### Service
 
