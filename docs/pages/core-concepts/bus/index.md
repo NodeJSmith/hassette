@@ -8,8 +8,8 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 
 [`Bus`][hassette.bus.Bus] provides typed subscription methods for common event types. Each returns a [`Subscription`][hassette.bus.listeners.Subscription] handle — call `sub.cancel()` to unregister the handler.
 
-!!! warning "All registration methods must be awaited"
-    Every `on_*` and `add_listener` call returns a coroutine. Without `await`, the listener is never registered and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
+!!! warning "All subscription methods must be awaited"
+    Every `on_*` subscription method and `add_listener` returns a coroutine. `bus.on_error()` is the exception: it sets an error handler synchronously and is called without `await`. Without `await`, the listener is never registered and no error is raised at the call site. A forgotten `await` produces a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the offending app when the coroutine is GC'd (subject to [configuration](../../troubleshooting.md#forgotten-await)). Pyright's `reportUnusedCoroutine` catches this at edit time — see [Enabling Pyright](../../troubleshooting.md#enabling-pyright).
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_basic_subscribe.py"
