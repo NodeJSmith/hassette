@@ -1,12 +1,12 @@
 # Image Tags
 
-Hassette ships as a Docker image hosted at `ghcr.io/nodejsmith/hassette` (GitHub Container Registry). Each tag combines a Hassette version and a Python version — for example, `v0.39.0-py3.13`. That version is an example, not the current release.
+Hassette ships as a Docker image hosted at `ghcr.io/nodejsmith/hassette` (GitHub Container Registry). Each tag combines a Hassette version and a Python version — for example, `0.39.0-py3.13`. That version is an example, not the current release.
 
 The tag goes on the `image:` line of your `docker-compose.yml` from [Docker Setup](index.md).
 
 ## Which Tag to Use
 
-For production, use a tag with a specific version number. Pick the newest `vX.Y.Z-py3.NN` tag from the [package's tag list](https://github.com/NodeJSmith/hassette/pkgs/container/hassette).
+For production, use a tag with a specific version number. Pick the newest `X.Y.Z-py3.NN` tag from the [package's tag list](https://github.com/NodeJSmith/hassette/pkgs/container/hassette).
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/tag-pinned-compose.yml"
