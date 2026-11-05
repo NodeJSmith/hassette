@@ -1,13 +1,17 @@
 # HA platforms sometimes assign a float to these state attributes despite the base entity
 # class annotating them as int (#1751). Widened to int | float; see media_player.toml for the
 # canonical evidence-and-rationale comment shared by every field this issue widened.
+# The field names come from HA's entity properties, but state_attributes publishes them as
+# current_position/current_tilt_position (ATTR_CURRENT_*_POSITION), so `aliases` maps the wire keys.
 [[property_overrides]]
 name = "current_cover_position"
 type = "int | float | None"
+aliases = ["current_position"]
 
 [[property_overrides]]
 name = "current_cover_tilt_position"
 type = "int | float | None"
+aliases = ["current_tilt_position"]
 
 # Read-side widening above must be mirrored on the write side: `cover.set_cover_position(
 # position=state.attributes.current_cover_position)` -- the natural read-then-write round trip
