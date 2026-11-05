@@ -96,7 +96,7 @@ Replace `42` with the listener ID from step 3. Each row shows status, duration, 
 hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
-This shows every log entry emitted during that specific handler invocation. The `Function` and `Line` columns tell you exactly where in your code each message came from.
+The summary at the top shows what triggered the run: the entity and the change (`off → on`) that fired the handler, which tells a wildcard or multi-entity listener's runs apart. Below it is every log entry emitted during that invocation. The `Function` and `Line` columns tell you exactly where in your code each message came from.
 
 ## Monitoring a Specific App
 

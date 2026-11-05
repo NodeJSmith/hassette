@@ -105,6 +105,13 @@ class TestListenerConfigMatches:
         assert a.config_matches(b) is False
         assert "entity_watch" in a.diff_fields(b)
 
+    def test_different_tracked_attribute_not_matching(self) -> None:
+        """Watches differing only in tracked attribute don't match."""
+        a = create_listener(handler=fn, entity_id="light.kitchen", attribute="brightness")
+        b = create_listener(handler=fn, entity_id="light.kitchen", attribute="color_temp")
+        assert a.config_matches(b) is False
+        assert "entity_watch" in a.diff_fields(b)
+
     def test_both_entity_watch_none_matches(self) -> None:
         """Both entity_watch=None → matches (treated as equal)."""
         a = create_listener(handler=fn)

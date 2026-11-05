@@ -106,7 +106,7 @@ class DurationHoldManager:
             return predicate(event)
         except Exception as exc:
             self.logger.exception("Predicate raised for %s; treating as non-match", listener)
-            self.record_predicate_failure(listener, event.topic, event, exc, predicate_start)
+            self.record_predicate_failure(listener, listener.topic, event, exc, predicate_start)
             return False
 
     async def immediate_fire_task(self, listener: Listener) -> None:
@@ -146,7 +146,7 @@ class DurationHoldManager:
             invoke_fn = build_tracked_invoke_fn(
                 listener,
                 synthetic_event,
-                synthetic_event.topic,
+                listener.topic,
                 self.executor,
                 self.config_resolver,
                 is_synthetic=True,

@@ -8,6 +8,7 @@ from hassette_wire import ExecutionStatus
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.core.bus_service import BusService
+from hassette.testing import create_state_change_event
 from tests.support.factories import make_hassette_event
 from tests.support.helpers import create_listener
 
@@ -70,6 +71,20 @@ class TestRecordPredicateFailure:
         assert record.listener_id == 99
         assert record.session_id == 42
         assert record.execution_id is not None
+
+    def test_records_trigger_summary_of_the_breaking_event(self) -> None:
+        bs, executor = make_bus_service()
+        listener = make_listener_with_error_handler()
+        event = create_state_change_event(entity_id="light.office", old_value="off", new_value="on")
+
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("boom"), time.time())
+
+        record = executor.enqueue_record.call_args[0][0]
+        assert record.trigger_entity_id == "light.office"
+        assert record.trigger_topic == "hass.event.state_changed"
+        assert (record.trigger_old_value, record.trigger_new_value) == ("off", "on")
+        assert record.trigger_context_id == event.payload.context.id
+        assert record.trigger_origin == "LOCAL"
 
     def test_session_id_fallback_on_runtime_error(self) -> None:
         bs, executor = make_bus_service()

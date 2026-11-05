@@ -151,6 +151,8 @@ async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
     assert attr_predicates, "Expected AttrDidChange predicate to be included"
     attr_pred = attr_predicates[0]
     assert attr_pred.attr_name == "brightness"
+    assert listener.entity_watch is not None
+    assert listener.entity_watch.attribute == "brightness"
 
     matching_event = create_state_change_event(
         entity_id="light.office",

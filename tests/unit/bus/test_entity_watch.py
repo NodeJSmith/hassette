@@ -24,9 +24,9 @@ class TestEntityWatchConstruction:
         cfg = EntityWatch(entity_id="light.kitchen", duration=5.0)
         assert cfg.immediate is False
 
-    def test_default_is_attribute_listener(self) -> None:
+    def test_default_attribute_is_none(self) -> None:
         cfg = EntityWatch(entity_id="light.kitchen", duration=5.0)
-        assert cfg.is_attribute_listener is False
+        assert cfg.attribute is None
 
     def test_default_hold_predicate(self) -> None:
         cfg = EntityWatch(entity_id="light.kitchen", duration=5.0)
@@ -41,9 +41,9 @@ class TestEntityWatchConstruction:
         cfg = EntityWatch(entity_id="light.kitchen", duration=5.0, immediate=True)
         assert cfg.immediate is True
 
-    def test_set_is_attribute_listener(self) -> None:
-        cfg = EntityWatch(entity_id="light.kitchen", duration=5.0, is_attribute_listener=True)
-        assert cfg.is_attribute_listener is True
+    def test_set_attribute(self) -> None:
+        cfg = EntityWatch(entity_id="light.kitchen", duration=5.0, attribute="brightness")
+        assert cfg.attribute == "brightness"
 
     def test_set_hold_predicate(self) -> None:
         pred = MagicMock()

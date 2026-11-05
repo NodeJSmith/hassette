@@ -6,17 +6,17 @@ from typing import Literal
 from hassette_wire import ExecutionStatus, SourceTier
 
 SYNTHETIC_ORIGIN = "HASSETTE_SYNTHETIC"
-"""trigger_origin value for immediate-fire synthetic events with no HA counterpart."""
+"""trigger_origin value for immediate-fire runs, whose event hassette built from the cached state."""
 
 
 @dataclass(frozen=True)
 class ExecutionRecord:
     """Unified record of a single handler invocation or job execution.
 
-    ``kind`` discriminates between the two execution types.  Handler-only fields
-    (``trigger_context_id``, ``trigger_origin``) default to ``None`` for job
-    executions.  Job-only fields (``args_json``, ``kwargs_json``) are included
-    on both kinds; handlers use the defaults (``'[]'`` / ``'{}'``).
+    ``kind`` discriminates between the two execution types.  Handler-only ``trigger_*`` fields
+    (everything except ``trigger_mode``) default to ``None`` for job executions.  Job-only fields
+    (``args_json``, ``kwargs_json``) are included on both kinds; handlers use the defaults
+    (``'[]'`` / ``'{}'``).
     """
 
     kind: Literal["handler", "job"]
@@ -83,9 +83,10 @@ class ExecutionRecord:
 
     # Handler-only fields
     trigger_context_id: str | None = None
-    """event_id from the triggering HA event payload.
+    """event_id of the triggering event: the HA context id, or a Hassette event's uuid4.
 
-    None for job executions and for non-event-triggered or synthetic handler invocations.
+    None for job executions. An immediate-fire run records the context of the change that set the
+    cached state it was built from.
     """
 
     trigger_origin: str | None = None
@@ -93,6 +94,25 @@ class ExecutionRecord:
 
     None for job executions and when origin is not available.
     """
+
+    trigger_parent_id: str | None = None
+    """``context.parent_id`` of the triggering HA event. None for Hassette events and job executions."""
+
+    trigger_topic: str | None = None
+    """The triggering event's own topic (e.g. ``hass.event.state_changed``), not the listener's route."""
+
+    trigger_entity_id: str | None = None
+    """Entity the triggering event is about. None for events without one (e.g. ``call_service``)."""
+
+    trigger_old_value: str | None = None
+    """Tracked value before the change: the state, or the listener's tracked attribute.
+
+    A display string capped at ``TRIGGER_VALUE_MAX_CHARS`` (see ``execution_record_builder``).
+    None when the old state is missing or the event is not a state change.
+    """
+
+    trigger_new_value: str | None = None
+    """Tracked value after the change; same rules as ``trigger_old_value``."""
 
     # Reserved unified-table columns (001.sql)
     # These columns exist in the schema and round-trip through persistence/queries.

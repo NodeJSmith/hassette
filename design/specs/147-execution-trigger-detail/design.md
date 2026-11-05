@@ -208,10 +208,17 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 ## Build
 
 - [x] `refactor:` commit renaming `DurationConfig` to `EntityWatch` (D4), before the feature commit
-- [ ] Implementation and tests committed
-- [ ] Compat checks: run `check_wire_compat` and `uv run nox -s client_compat`; add each line they print to `tools/wire_compat_ignore.txt` / `tools/client_compat_ignore.txt` with a reason comment
+- [x] Implementation and tests committed
+- [x] Compat checks: run `check_wire_compat` and `uv run nox -s client_compat`; add each line they print to `tools/wire_compat_ignore.txt` / `tools/client_compat_ignore.txt` with a reason comment (both passed against v0.63.0 with no output to ignore: the released client parses the nested shape and reads `None` for the removed flat fields, as D1 expected)
 - [ ] PR title uses `feat!:`; the body ends with exactly one `BREAKING CHANGE:` footer naming (1) the removed flat `Execution.trigger_context_id`/`trigger_origin`, which released clients now read as `None`, (2) `DurationConfig` → `EntityWatch` and `Listener.duration_config` → `Listener.entity_watch`, and (3) `hassette execution --json` returning an object
-- [ ] Docs
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- Route topic on synthetic and predicate-failure paths: `DurationHoldManager.evaluate_predicate` and the immediate-fire invoke now pass `listener.topic` as the route, not `event.topic`. Both used the synthetic event's entity-suffixed topic as the route; after D7 that topic is the base topic, and `BusErrorContext.topic`/`InvokeHandler.topic` are documented as the matched route.
+- Extraction-failure logging is once per failed row (each listener run), not once per event: the summary is built per `InvokeHandler`, and deduplicating across listeners would need shared per-event state for a failure that should be rare.
+- `HassetteCLIClient.try_get_nullable`: a new non-exiting GET for the execution record, modeled on `try_fetch_app_list`. The normal `get` exits on failure, and in `--json` mode it writes the error document to stdout, which would break D6's single `{"execution", "logs"}` document.
+- The human summary block shows kind, status, started, duration, trigger mode and error when set, then a Trigger section (topic, entity, `old → new`, context id, parent id, origin). The not-found message goes to stderr, like `No results.`
+- An extraction failure keeps the event's context id, origin, parent id and topic, which are read straight off the payload; only the entity and values are left NULL. This matches the Wire bullet in the Summary (a failed row "still shows" context and origin); the Posture's "leaves the fields NULL" applies to the shape-dependent fields.
+- Summary-block values from Home Assistant or exceptions are Rich-escaped, and an empty-string value shows as `""` rather than `—`, so it stays distinct from a missing value (D2 stores them differently).
+- Seed scenarios don't gain trigger data: no seeded row set trigger fields before, and the UI shows only context and origin. The client-compat live-state row carries topic, entity and values so compat fixtures exercise the new fields.

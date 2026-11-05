@@ -658,7 +658,7 @@ class Bus(Resource):
         immediate: bool = False,
         duration: float | None = None,
         entity_id: str | None = None,
-        is_attribute_listener: bool = False,
+        attribute: str | None = None,
         hold_preds: list["Predicate"] | None = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
@@ -695,7 +695,7 @@ class Bus(Resource):
                 entity_id=entity_id,
                 duration=duration,
                 immediate=immediate,
-                is_attribute_listener=is_attribute_listener,
+                attribute=attribute,
                 hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
             )
 
@@ -937,7 +937,7 @@ class Bus(Resource):
                 duration=duration,
                 entity_id=entity_id,
                 hold_preds=hold_preds if duration is not None else None,
-                is_attribute_listener=True,
+                attribute=attr,
                 name=name,
                 on_error=on_error,
                 source_location=source_location,

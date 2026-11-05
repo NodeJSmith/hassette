@@ -404,8 +404,8 @@ class EntityWatch:
     immediate: bool = False
     """If True, fire the handler immediately with the current entity state on registration."""
 
-    is_attribute_listener: bool = False
-    """True when this listener was registered via on_attribute_change."""
+    attribute: str | None = None
+    """Attribute name an ``on_attribute_change`` listener tracks. None for state listeners."""
 
     hold_predicate: "Predicate | None" = None
     """State-value predicates only (excludes transition predicates like StateFrom, StateDidChange).
@@ -699,7 +699,7 @@ def _entity_watches_match(a: EntityWatch | None, b: EntityWatch | None) -> bool:
     """Compare two EntityWatch objects by their logical-configuration scalars.
 
     Both None → equal. One None, one non-None → not equal. Compares entity_id,
-    duration, immediate, is_attribute_listener, and hold_predicate. Excludes the
+    duration, immediate, attribute, and hold_predicate. Excludes the
     attached _timer (runtime state).
     """
     if a is None and b is None:
@@ -710,7 +710,7 @@ def _entity_watches_match(a: EntityWatch | None, b: EntityWatch | None) -> bool:
         a.entity_id == b.entity_id
         and a.duration == b.duration
         and a.immediate == b.immediate
-        and a.is_attribute_listener == b.is_attribute_listener
+        and a.attribute == b.attribute
         and a.hold_predicate == b.hold_predicate
     )
 

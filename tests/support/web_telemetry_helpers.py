@@ -8,6 +8,7 @@ from hassette_wire import (
     Execution,
     ExecutionMode,
     ExecutionStatus,
+    ExecutionTrigger,
     ListenerSummary,
     LogAuthor,
     LogEntry,
@@ -169,6 +170,7 @@ def make_execution(
     execution_id: str | None = None,
     listener_id: int | None = None,
     job_id: int | None = None,
+    trigger: ExecutionTrigger | None = None,
 ) -> Execution:
     """Build an Execution with sensible defaults."""
     return Execution(
@@ -181,6 +183,7 @@ def make_execution(
         execution_id=execution_id,
         listener_id=listener_id,
         job_id=job_id,
+        trigger=trigger,
     )
 
 

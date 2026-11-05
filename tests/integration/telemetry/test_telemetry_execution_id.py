@@ -1,17 +1,18 @@
-"""Integration tests for execution_id, trigger_context_id, trigger_origin persist/query roundtrip.
+"""Integration tests for the execution_id and trigger columns' persist/query roundtrip.
 
-Covers the new columns added to the unified executions table (001.sql).
+Covers execution_id and the trigger columns of the unified executions table (001.sql, 023.sql).
 """
 
 import time
 
 import pytest
-from hassette_wire import ExecutionStatus
+from hassette_wire import ExecutionStatus, ExecutionTrigger
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.insert_params import execution_insert_params
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry.repository import TelemetryRepository
+from tests.support.factories import make_execution_record
 
 from .helpers import (
     DbFixture,
@@ -81,8 +82,9 @@ class TestHandlerInvocationExecutionId:
 
         inv = await only_row(query_service.get_executions(listener_id=listener_id, kind="handler", limit=10))
         assert inv.execution_id == "abc-123"
-        assert inv.trigger_context_id == "ctx-456"
-        assert inv.trigger_origin == "LOCAL"
+        assert inv.trigger is not None
+        assert inv.trigger.context_id == "ctx-456"
+        assert inv.trigger.origin == "LOCAL"
 
     async def test_null_execution_id_persists_and_queries(
         self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
@@ -176,7 +178,7 @@ class TestJobExecutionExecutionId:
 
         je = await only_row(query_service.get_executions(job_id=job_id, kind="job", limit=10))
         assert je.execution_id == "def-789"
-        assert je.trigger_context_id is None, "Job executions must have trigger_context_id=None"
+        assert je.trigger is None, "Job executions must have trigger=None"
 
     async def test_job_shared_params_match_persist_batch_columns(self, db: DbFixture) -> None:
         """execution_insert_params() keys for kind=job must match the executions table columns."""
@@ -231,10 +233,59 @@ class TestGetExecutionById:
 
         assert result is not None
         assert result.execution_id == "find-me-abc"
-        assert result.trigger_context_id == "ctx-999"
-        assert result.trigger_origin == "REMOTE"
+        assert result.trigger is not None
+        assert result.trigger.context_id == "ctx-999"
+        assert result.trigger.origin == "REMOTE"
         assert result.kind == "handler"
         assert result.listener_id == listener_id
+
+    async def test_event_summary_round_trips_into_nested_trigger(
+        self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
+    ) -> None:
+        db_svc, session_id = db
+        listener_id = await insert_listener(db_svc)
+        record = make_execution_record(
+            session_id=session_id,
+            listener_id=listener_id,
+            execution_id="summary-1",
+            trigger_context_id="ctx-1",
+            trigger_origin="LOCAL",
+            trigger_parent_id="ctx-parent",
+            trigger_topic="hass.event.state_changed",
+            trigger_entity_id="light.office",
+            trigger_old_value="off",
+            trigger_new_value="on",
+        )
+        await repo.persist_execution_batch([record])
+
+        result = await query_service.get_execution_by_id("summary-1")
+
+        assert result is not None
+        assert result.trigger == ExecutionTrigger(
+            topic="hass.event.state_changed",
+            entity_id="light.office",
+            old_value="off",
+            new_value="on",
+            context_id="ctx-1",
+            parent_id="ctx-parent",
+            origin="LOCAL",
+        )
+
+    async def test_handler_row_without_summary_still_gets_trigger_object(
+        self, db: DbFixture, repo: TelemetryRepository, query_service: TelemetryQueryService
+    ) -> None:
+        """A row with only context and origin (pre-023, or a failed extraction) keeps both."""
+        db_svc, session_id = db
+        listener_id = await insert_listener(db_svc)
+        record = make_inv_record(
+            listener_id, session_id, execution_id="old-row", trigger_context_id="ctx-old", trigger_origin="LOCAL"
+        )
+        await repo.persist_execution_batch([record])
+
+        result = await query_service.get_execution_by_id("old-row")
+
+        assert result is not None
+        assert result.trigger == ExecutionTrigger(context_id="ctx-old", origin="LOCAL")
 
     async def test_returns_none_when_not_found(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         result = await query_service.get_execution_by_id("nonexistent-id-xyz")

@@ -336,6 +336,27 @@ class HassetteCLIClient:
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError):
             return None
 
+    def try_get_nullable(self, path: str, model: type[M]) -> tuple[M | None, str | None]:
+        """Best-effort GET for an endpoint whose body is a ``model`` or JSON ``null``; never exits.
+
+        Returns ``(value, None)`` on success, ``(None, None)`` when the body is ``null``, and
+        ``(None, reason)`` when the request fails (network error, non-2xx status, unusable body),
+        so a supporting lookup can't stop the command it supports or write an error to stdout.
+        """
+        try:
+            response = self._client.get(path, timeout=self.timeout)
+        except httpx.RequestError as exc:
+            return None, f"request failed ({exc})"
+
+        if not response.is_success:
+            return None, f"HTTP {response.status_code}"
+
+        try:
+            data = response.json()
+            return (None if data is None else parse_wire(model, data)), None
+        except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as exc:
+            return None, f"unusable response body ({type(exc).__name__})"
+
     def _try_fetch_instances(self, app_key: str) -> list[AppInstance] | None:
         """The instances of ``app_key``, or ``None`` when the app list can't be read (see ``try_fetch_app_list``)."""
         app_list = self.try_fetch_app_list()

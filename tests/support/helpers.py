@@ -497,7 +497,7 @@ def create_listener(
     immediate: bool = False,
     duration: float | None = None,
     entity_id: str | None = None,
-    is_attribute_listener: bool = False,
+    attribute: str | None = None,
     hold_predicate: "Predicate | None" = None,
     error_handler: "BusErrorHandlerType | None" = None,
     app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
@@ -569,7 +569,7 @@ def create_listener(
             entity_id=entity_id,
             duration=duration,
             immediate=immediate,
-            is_attribute_listener=is_attribute_listener,
+            attribute=attribute,
             hold_predicate=hold_predicate,
         )
 

@@ -252,14 +252,14 @@ class TestHandlerRecordTriggerFields:
         assert record.trigger_context_id is not None
         assert is_valid_uuid4(record.trigger_context_id)
 
-    async def test_synthetic_event_nulls_trigger_context_id(self) -> None:
-        """Synthetic events (immediate=True) should have trigger_context_id=None."""
+    async def test_synthetic_event_keeps_real_trigger_context_id(self) -> None:
+        """Synthetic events (immediate=True) record the cached state's real context id (D7)."""
         executor = make_executor()
-        event = make_hass_event()
+        event = make_hass_event(context_id="ctx-cached-state")
 
         record = await execute_handler_and_get_record(executor, event, is_synthetic=True)
 
-        assert record.trigger_context_id is None
+        assert record.trigger_context_id == "ctx-cached-state"
 
     async def test_synthetic_event_uses_hassette_synthetic_origin(self) -> None:
         """Synthetic events should have trigger_origin='HASSETTE_SYNTHETIC'."""
@@ -286,6 +286,9 @@ class TestJobRecordFields:
         assert record.kind == "job"
         assert record.trigger_context_id is None
         assert record.trigger_origin is None
+        assert record.trigger_topic is None
+        assert record.trigger_entity_id is None
+        assert record.trigger_parent_id is None
 
 
 class TestBindExecutionContextPrecomputedInstanceName:

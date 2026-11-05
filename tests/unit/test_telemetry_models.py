@@ -177,7 +177,7 @@ class TestExecution:
         assert model.listener_id is None
         assert model.job_id is None
         assert model.execution_id is None
-        assert model.trigger_context_id is None
+        assert model.trigger is None
 
     def test_error_traceback_round_trips(self) -> None:
         model = Execution.model_validate(

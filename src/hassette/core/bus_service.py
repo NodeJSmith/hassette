@@ -4,7 +4,6 @@ import traceback
 import typing
 from collections import defaultdict
 from typing import Any, ClassVar
-from uuid import uuid4
 
 import uuid_utils
 from hassette_wire import BackpressurePolicy, ExecutionStatus, LogLevel
@@ -18,6 +17,7 @@ from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_filter import EventFilter
 from hassette.core.execution_record import ExecutionRecord
+from hassette.core.execution_record_builder import summarize_trigger
 from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
@@ -590,6 +590,7 @@ class BusService(Service):
             app_key=listener.identity.app_key,
             source_tier=listener.identity.source_tier,
             execution_id=execution_id,
+            **summarize_trigger(event, listener, is_synthetic=False),
         )
         self._executor.enqueue_record(record)
 
@@ -750,12 +751,17 @@ class BusService(Service):
 
 
 def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:
-    """Build a synthetic RawStateChangeEvent with old_state=None.
+    """Build a synthetic RawStateChangeEvent with old_state=None from the cached state.
 
-    Injected into the bus kernel so it stays free of HA event type imports.
+    Carries the cached state's real context (the change that last set it) and the same base topic
+    a real state_changed event has, so nothing reading the event records a fabricated context id or
+    a second topic shape. Callers that need to label the run synthetic do so on the command
+    (``InvokeHandler.is_synthetic``). Injected into the bus kernel so it stays free of HA event type
+    imports.
     """
+    context = current_state["context"]
     return RawStateChangeEvent(
-        topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+        topic=Topic.HASS_EVENT_STATE_CHANGED,
         payload=HassPayload(
             event_type=_HASS_EVENT_STATE_CHANGED,
             data=RawStateChangePayload(
@@ -763,9 +769,11 @@ def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -
                 old_state=None,
                 new_state=current_state,
             ),
+            # The run's record is labelled HASSETTE_SYNTHETIC from InvokeHandler.is_synthetic (D7 of
+            # design/specs/147-execution-trigger-detail), not from this payload.
             origin="LOCAL",
             time_fired=_date_utils.now(),
-            context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
+            context=HassContext(id=context["id"], parent_id=context.get("parent_id"), user_id=context.get("user_id")),
         ),
     )
 
@@ -783,7 +791,7 @@ def compute_elapsed(current_state: "HassStateDict", entity_watch: EntityWatch) -
     if duration is None:
         return 0.0
 
-    if entity_watch.is_attribute_listener:
+    if entity_watch.attribute is not None:
         return 0.0
 
     last_changed_raw = current_state.get("last_changed")

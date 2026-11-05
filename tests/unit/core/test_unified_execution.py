@@ -10,7 +10,7 @@ Covers:
 from typing import Literal
 
 import pytest
-from hassette_wire import Execution, ExecutionStatus
+from hassette_wire import Execution, ExecutionStatus, ExecutionTrigger
 from pydantic import ValidationError
 
 from hassette.core.execution_record import ExecutionRecord
@@ -29,8 +29,7 @@ def build_execution(
     execution_id: str | None = None,
     listener_id: int | None = None,
     job_id: int | None = None,
-    trigger_context_id: str | None = None,
-    trigger_origin: str | None = None,
+    trigger: ExecutionTrigger | None = None,
     trigger_mode: str | None = None,
     retry_count: int = 0,
     attempt_number: int = 1,
@@ -54,8 +53,7 @@ def build_execution(
         execution_id=execution_id,
         listener_id=listener_id,
         job_id=job_id,
-        trigger_context_id=trigger_context_id,
-        trigger_origin=trigger_origin,
+        trigger=trigger,
         trigger_mode=trigger_mode,
         retry_count=retry_count,
         attempt_number=attempt_number,
@@ -112,15 +110,14 @@ class TestExecutionModelKindHandler:
 
     def test_handler_only_fields_present_on_handler(self) -> None:
         """Handler-only fields can be set when kind='handler'."""
-        model = build_execution(duration_ms=5.0, trigger_context_id="ctx-abc", trigger_origin="LOCAL")
-        assert model.trigger_context_id == "ctx-abc"
-        assert model.trigger_origin == "LOCAL"
+        trigger = ExecutionTrigger(context_id="ctx-abc", origin="LOCAL", entity_id="light.office")
+        model = build_execution(duration_ms=5.0, trigger=trigger)
+        assert model.trigger == trigger
 
     def test_handler_only_fields_default_none_on_job(self) -> None:
-        """trigger_context_id and trigger_origin default to None when kind='job'."""
+        """Trigger defaults to None when kind='job'."""
         model = build_execution(kind="job", duration_ms=8.0)
-        assert model.trigger_context_id is None
-        assert model.trigger_origin is None
+        assert model.trigger is None
 
     def test_fk_identity_fields_default_none_and_settable(self) -> None:
         """listener_id is set for handler rows, job_id for job rows; both default None."""

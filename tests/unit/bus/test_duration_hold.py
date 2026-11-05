@@ -498,7 +498,7 @@ class TestComputeElapsed:
     def test_attribute_listener_returns_zero(self) -> None:
         """compute_elapsed returns 0.0 for attribute listeners."""
         state = make_state_dict("light.kitchen", "on")
-        dc = EntityWatch(entity_id="light.kitchen", duration=60.0, is_attribute_listener=True)
+        dc = EntityWatch(entity_id="light.kitchen", duration=60.0, attribute="brightness")
         result = compute_elapsed(cast("HassStateDict", state), dc)
         assert result == 0.0
 

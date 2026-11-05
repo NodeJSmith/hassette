@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-from hassette_wire import ActivityFeedEntry, Execution, QuerySourceTier
+from hassette_wire import ActivityFeedEntry, Execution, ExecutionTrigger, QuerySourceTier
 
 from hassette.core.telemetry.helpers import (
     SQL_FAILED_STATUSES,
@@ -27,12 +27,24 @@ if TYPE_CHECKING:
     import aiosqlite
 
 
-_EXECUTION_SELECT_COLUMNS = """
-    e.kind, e.listener_id, e.job_id, e.execution_start_ts, e.duration_ms,
-    e.status, e.source_tier, e.error_type, e.error_message, e.error_traceback,
-    e.execution_id, e.trigger_context_id, e.trigger_origin, e.trigger_mode,
-    e.retry_count, e.attempt_number, e.args_json, e.kwargs_json, e.thread_leaked
-""".strip()
+# executions column → ExecutionTrigger field: the handler-only columns nested under Execution.trigger.
+# The SELECT list below is built from it, so a column added here is always read back.
+TRIGGER_COLUMNS: dict[str, str] = {
+    "trigger_topic": "topic",
+    "trigger_entity_id": "entity_id",
+    "trigger_old_value": "old_value",
+    "trigger_new_value": "new_value",
+    "trigger_context_id": "context_id",
+    "trigger_parent_id": "parent_id",
+    "trigger_origin": "origin",
+}
+
+_EXECUTION_SELECT_COLUMNS = (
+    "e.kind, e.listener_id, e.job_id, e.execution_start_ts, e.duration_ms, "
+    "e.status, e.source_tier, e.error_type, e.error_message, e.error_traceback, "
+    "e.execution_id, e.trigger_mode, e.retry_count, e.attempt_number, e.args_json, e.kwargs_json, "
+    "e.thread_leaked, " + ", ".join(f"e.{column}" for column in TRIGGER_COLUMNS)
+)
 
 
 class ExecutionQueriesMixin:
@@ -87,7 +99,7 @@ class ExecutionQueriesMixin:
         """
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [Execution.model_validate(row_to_dict(row)) for row in rows]
+        return [execution_from_row(row_to_dict(row)) for row in rows]
 
     async def get_execution_by_id(self, execution_id: str) -> Execution | None:
         """Return a single execution record by its UUID, or None if not found."""
@@ -101,7 +113,7 @@ class ExecutionQueriesMixin:
             row = await cursor.fetchone()
         if row is None:
             return None
-        return Execution.model_validate(row_to_dict(row))
+        return execution_from_row(row_to_dict(row))
 
     async def get_app_recent_activity(
         self,
@@ -308,3 +320,16 @@ class ExecutionQueriesMixin:
         if row is not None:
             return float(row[0]) < cutoff
         return False
+
+
+def execution_from_row(row: dict[str, Any]) -> Execution:
+    """Build the wire ``Execution`` from an executions row, nesting the ``trigger_*`` columns.
+
+    ``trigger`` is None for job rows; every handler row gets an object, with any column the row has
+    no value for left None.
+    """
+    base = {key: value for key, value in row.items() if key not in TRIGGER_COLUMNS}
+    trigger = None
+    if row["kind"] == "handler":
+        trigger = ExecutionTrigger(**{field: row[column] for column, field in TRIGGER_COLUMNS.items()})
+    return Execution.model_validate({**base, "trigger": trigger})

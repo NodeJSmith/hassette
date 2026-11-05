@@ -416,6 +416,10 @@ def seed_failed_execution(ctx: SeedContext, conn: sqlite3.Connection, base: Base
             execution_id=execution_id,
             trigger_context_id="01JCLIENTCOMPAT0000000000",
             trigger_origin="LOCAL",
+            trigger_topic="hass.event.state_changed",
+            trigger_entity_id="sensor.client_compat",
+            trigger_old_value="on",
+            trigger_new_value="unavailable",
         )
     )
     linked = {"app_key": base.app_key, "instance_name": base.instance_name}

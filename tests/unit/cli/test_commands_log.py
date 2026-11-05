@@ -4,6 +4,7 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
+from hassette_wire import ExecutionTrigger
 from pydantic import BaseModel, ValidationError
 from rich.console import Console
 
@@ -11,14 +12,16 @@ import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.log import (
     EXECUTION_LOG_COLUMNS,
+    EXECUTION_NOT_FOUND_MESSAGE,
     LOG_COLUMNS,
     cmd_execution,
     cmd_log,
+    execution_summary,
 )
 from hassette.cli.formatters import fmt_log_message
 from hassette.cli.output import Column, render_table
 from hassette.utils.exception_utils import get_traceback_string
-from tests.support.web_telemetry_helpers import make_log_entry, make_logs_by_execution_response
+from tests.support.web_telemetry_helpers import make_execution, make_log_entry, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
 NARROW_CONSOLE_WIDTH = 100
@@ -28,6 +31,15 @@ TRACEBACK_MESSAGE = "Job error in demo_stimulator.tick: something went wrong\n" 
 )
 
 runner = CommandRunner("hassette.cli.commands.log.make_client")
+
+OFFICE_TRIGGER = ExecutionTrigger(
+    topic="hass.event.state_changed",
+    entity_id="light.office",
+    old_value="off",
+    new_value="on",
+    context_id="ctx-1",
+    origin="LOCAL",
+)
 
 # cmd_log — recent log entries
 
@@ -222,17 +234,97 @@ class TestCmdExecution:
 
         assert "ERROR" in output or "Level" in output
 
-    def test_json_mode_outputs_records_list(self, cli_client_factory: CLIClientFactory) -> None:
-        """Execution --json outputs the records list as a JSON array."""
+    def test_json_mode_outputs_execution_and_logs_object(self, cli_client_factory: CLIClientFactory) -> None:
+        """Execution --json outputs {"execution": ..., "logs": [...]}, trigger included."""
         entry = make_log_entry(message="Executed ok", level="INFO")
-        response_obj = make_logs_by_execution_response(records=[entry])
+        logs = make_logs_by_execution_response(records=[entry])
+        execution = make_execution(execution_id="exec-3", trigger=OFFICE_TRIGGER)
         client = cli_client_factory.build_with_routes(
-            [("GET", "/api/executions/exec-3", 200, response_obj.model_dump())]
+            [
+                ("GET", "/api/executions/exec-3", 200, logs.model_dump()),
+                ("GET", "/api/telemetry/execution/exec-3", 200, execution.model_dump(mode="json")),
+            ]
         )
 
         parsed = runner.json_output(client, cmd_execution, uuid="exec-3")
-        assert isinstance(parsed, list)
-        assert parsed[0]["message"] == "Executed ok"
+        assert parsed["logs"][0]["message"] == "Executed ok"
+        assert parsed["execution"]["trigger"]["entity_id"] == "light.office"
+        assert parsed["execution"]["trigger"]["new_value"] == "on"
+
+    def test_json_mode_missing_record_is_null_and_logs_still_shown(self, cli_client_factory: CLIClientFactory) -> None:
+        logs = make_logs_by_execution_response(records=[make_log_entry(message="still here")])
+        client = cli_client_factory.build_with_routes(
+            [
+                ("GET", "/api/executions/exec-5", 200, logs.model_dump()),
+                ("GET", "/api/telemetry/execution/exec-5", 200, None),
+            ]
+        )
+
+        parsed = runner.json_output(client, cmd_execution, uuid="exec-5")
+        assert parsed["execution"] is None
+        assert parsed["logs"][0]["message"] == "still here"
+
+    def test_failed_record_call_warns_on_stderr_and_keeps_logs(self, cli_client_factory: CLIClientFactory) -> None:
+        logs = make_logs_by_execution_response(records=[make_log_entry(message="still here")])
+        routes = [
+            ("GET", "/api/executions/exec-6", 200, logs.model_dump()),
+            ("GET", "/api/telemetry/execution/exec-6", 500, {"detail": "boom"}),
+        ]
+
+        parsed = runner.json_output(cli_client_factory.build_with_routes(routes), cmd_execution, uuid="exec-6")
+        assert parsed == {"execution": None, "logs": [logs.records[0].model_dump(mode="json")]}
+        stderr = runner.stderr(cli_client_factory.build_with_routes(routes), cmd_execution, uuid="exec-6")
+        assert "could not read the execution record: HTTP 500" in stderr
+
+    def test_human_mode_missing_record_names_batching_and_retention(self, cli_client_factory: CLIClientFactory) -> None:
+        logs = make_logs_by_execution_response(records=[make_log_entry()])
+        client = cli_client_factory.build_with_routes(
+            [
+                ("GET", "/api/executions/exec-7", 200, logs.model_dump()),
+                ("GET", "/api/telemetry/execution/exec-7", 200, None),
+            ]
+        )
+
+        assert EXECUTION_NOT_FOUND_MESSAGE in runner.stderr(client, cmd_execution, uuid="exec-7")
+
+    def test_human_mode_shows_trigger_block_above_logs(self, cli_client_factory: CLIClientFactory) -> None:
+        logs = make_logs_by_execution_response(records=[make_log_entry(message="handler ran")])
+        execution = make_execution(execution_id="exec-8", trigger=OFFICE_TRIGGER)
+        client = cli_client_factory.build_with_routes(
+            [
+                ("GET", "/api/executions/exec-8", 200, logs.model_dump()),
+                ("GET", "/api/telemetry/execution/exec-8", 200, execution.model_dump(mode="json")),
+            ]
+        )
+
+        output = runner.stdout(client, cmd_execution, uuid="exec-8")
+        assert "light.office" in output
+        assert "off → on" in output
+        assert output.index("light.office") < output.index("handler ran")
+
+    def test_bracketed_values_render_literally(self, cli_client_factory: CLIClientFactory) -> None:
+        """A state like "[Live] Show" or "[/x]" is shown as-is, not parsed as Rich markup."""
+        logs = make_logs_by_execution_response(records=[make_log_entry()])
+        trigger = ExecutionTrigger(entity_id="media_player.tv", old_value="[Live] Show", new_value="[/x]")
+        execution = make_execution(execution_id="exec-9", trigger=trigger)
+        client = cli_client_factory.build_with_routes(
+            [
+                ("GET", "/api/executions/exec-9", 200, logs.model_dump()),
+                ("GET", "/api/telemetry/execution/exec-9", 200, execution.model_dump(mode="json")),
+            ]
+        )
+
+        assert "[Live] Show → [/x]" in runner.stdout(client, cmd_execution, uuid="exec-9")
+
+    def test_empty_string_value_is_distinct_from_missing(self) -> None:
+        trigger = ExecutionTrigger(old_value="", new_value="hello")
+        summary = execution_summary(make_execution(trigger=trigger))
+        assert summary["trigger"]["change"] == '"" → hello'
+
+    def test_job_summary_has_no_trigger_section(self) -> None:
+        summary = execution_summary(make_execution(kind="job", job_id=1))
+        assert "trigger" not in summary
+        assert summary["kind"] == "job"
 
     def test_empty_execution_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution shows no-results message when records list is empty."""

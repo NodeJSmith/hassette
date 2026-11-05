@@ -1350,8 +1350,7 @@ export interface components {
          * Execution
          * @description One run of a handler or scheduled job.
          *
-         *     ``kind`` says which. Handler-only fields (``trigger_context_id``, ``trigger_origin``) are
-         *     ``None`` for job executions.
+         *     ``kind`` says which. ``trigger`` is ``None`` for job executions and set on every handler row.
          */
         Execution: {
             /**
@@ -1395,18 +1394,10 @@ export interface components {
              */
             execution_id?: string | null;
             /**
-             * Trigger Context Id
-             * @description event_id from the triggering event payload. None for job executions, synthetic immediate-fire
-             *     invocations, and handler rows recorded because the listener's predicate raised.
+             * @description The event that fired a handler execution. None for job executions. Fields the row has no value
+             *     for are None, so a handler row recorded before a field existed still carries the rest.
              */
-            trigger_context_id?: string | null;
-            /**
-             * Trigger Origin
-             * @description Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for
-             *     immediate-fire synthetic invocations). None for job executions and for handler rows recorded because
-             *     the listener's predicate raised.
-             */
-            trigger_origin?: string | null;
+            trigger?: components["schemas"]["ExecutionTrigger"] | null;
             /**
              * Trigger Mode
              * @description How this execution was triggered (e.g., "manual" for a run-now request). None when not set.
@@ -1461,6 +1452,57 @@ export interface components {
          * @enum {string}
          */
         ExecutionStatus: "success" | "error" | "cancelled" | "timed_out" | "skipped";
+        /**
+         * ExecutionTrigger
+         * @description The event that fired a handler execution: which event, entity and value change.
+         *
+         *     Old and new values are display strings, not typed values: a string as Home Assistant reports
+         *     it, anything else as compact JSON, cut to 255 characters with a trailing ``…``. Duration and
+         *     debounced runs describe the event that started the hold or debounce, not the state when the
+         *     handler ran.
+         */
+        ExecutionTrigger: {
+            /**
+             * Topic
+             * @description The event's own topic (e.g. ``hass.event.state_changed``), not the route the listener matched.
+             *     None on rows recorded before this field existed.
+             */
+            topic?: string | null;
+            /**
+             * Entity Id
+             * @description The entity the event is about. None for events without one (e.g. ``call_service``).
+             */
+            entity_id?: string | null;
+            /**
+             * Old Value
+             * @description The tracked value before the change: the state, or the attribute an ``on_attribute_change``
+             *     listener tracks. None when there was no old state (an immediate fire, or a new entity) or the
+             *     tracked attribute was absent; an explicit JSON null is the string ``"null"``.
+             */
+            old_value?: string | null;
+            /**
+             * New Value
+             * @description The tracked value after the change. None when the entity was removed or the tracked attribute is absent.
+             */
+            new_value?: string | null;
+            /**
+             * Context Id
+             * @description The Home Assistant context id of the event, or a Hassette event's own id. An immediate-fire
+             *     run carries the context of the change that set the state it fired on.
+             */
+            context_id?: string | null;
+            /**
+             * Parent Id
+             * @description The Home Assistant context's ``parent_id``. None for Hassette events and most HA events.
+             */
+            parent_id?: string | null;
+            /**
+             * Origin
+             * @description Origin of the event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for an
+             *     immediate-fire run, whose event hassette built from the cached state).
+             */
+            origin?: string | null;
+        };
         /**
          * InstanceOutcome
          * @description What one start, stop or reload did to one instance it targeted.
