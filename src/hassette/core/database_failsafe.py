@@ -11,7 +11,7 @@ from hassette.core.database_sql import (
     get_live_data_mb,
     reclaim_free_pages,
 )
-from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_tier_where
+from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_filter_where
 from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.utils.aiosqlite_utils import CHECKPOINT_TRUNCATE_SQL, checkpoint_blocked
 
@@ -30,12 +30,12 @@ async def _execute_failsafe_delete(
 ) -> int:
     """Delete the oldest ``batch_limit`` rows in ``target.table`` for the size failsafe.
 
-    Rows are filtered by ``target.source_tier`` when set.
+    Rows are filtered by the target's ``source_tier`` and ``level`` when set.
 
     Each statement autocommits (the write connection is ``isolation_level=None``), so there is no
     transaction to commit.
     """
-    where_clause, params = build_tier_where(target)
+    where_clause, params = build_filter_where(target)
     cursor = await db.execute(
         f"DELETE FROM {target.table} WHERE id IN "
         f"(SELECT id FROM {target.table} {where_clause}ORDER BY {target.timestamp_col} ASC LIMIT ?)",
@@ -129,7 +129,7 @@ class DatabaseSizeFailsafeMixin:
         Iterates _FAILSAFE_TABLES grouped by priority (lower priority number = deleted
         first) -- targets marked ``failsafe_exempt`` are never touched here, no matter how far
         over the limit the database is. Within each priority tier, all tables in the group are
-        deleted together per iteration; a target's ``source_tier`` filter (when set) is applied
+        deleted together per iteration; a target's ``source_tier`` and ``level`` filters (when set) are applied
         inside the inner SELECT so each tier's own oldest-N rows are deleted, not the
         globally-oldest N rows filtered down afterward. The process stops as soon as live data
         falls within the limit.
@@ -268,7 +268,7 @@ class DatabaseSizeFailsafeMixin:
                 # because of other, lower-priority tiers. Probe before declaring this tier
                 # capped; an unnecessary cap here would skip those other tiers unnecessarily.
                 for target in group:
-                    where_clause, stale_params = build_tier_where(target)
+                    where_clause, stale_params = build_filter_where(target)
                     try:
                         # Closed before shrink_database_file() runs: an open read statement on this
                         # connection makes wal_checkpoint fail with "database table is locked".
@@ -294,7 +294,9 @@ class DatabaseSizeFailsafeMixin:
                         capped_early = True
                         self.logger.warning(
                             "Size failsafe %s capped at %d iterations; live data still %.1f MB (limit %.1f MB) — "
-                            "stopping this cycle without touching lower-priority tiers",
+                            "stopping this cycle without touching lower-priority tiers; raise "
+                            "database.size_failsafe_max_iterations or database.size_failsafe_delete_batch "
+                            "to delete faster",
                             group_label,
                             max_iterations,
                             live_mb,

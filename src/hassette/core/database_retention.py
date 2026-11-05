@@ -70,7 +70,7 @@ async def _execute_target_delete(
 ) -> int:
     """Delete up to ``batch_limit`` rows in ``target.table`` older than ``cutoff``.
 
-    Used for age-based retention cleanup; rows are filtered by ``target.source_tier`` when set.
+    Used for age-based retention cleanup; rows are filtered by the target's ``source_tier`` and ``level`` when set.
 
     Does not manage transactions -- the caller owns BEGIN/commit/rollback.
     """
@@ -424,7 +424,7 @@ class DatabaseRetentionMixin:
     async def _do_run_retention_cleanup(self) -> None:
         """Execute the retention DELETE queries; called by the write-queue worker or the startup catch-up.
 
-        Iterates _RETENTION_TABLES for tier-aware, batched age-based deletes — each target
+        Iterates _RETENTION_TABLES in ``priority`` order for tier-aware, batched age-based deletes — each target
         gets its own per-batch transaction, bounding per-batch lock duration, and a failure
         on one target does not roll back deletes already committed for another.
         Parent-guard deletes for listeners/scheduled_jobs only run once every target has both
@@ -449,7 +449,7 @@ class DatabaseRetentionMixin:
         failed_labels: set[str] = set()
         incomplete_labels: set[str] = set()
 
-        for target in _RETENTION_TABLES:
+        for target in sorted(_RETENTION_TABLES, key=lambda t: t.priority):
             result = await self._delete_target_batched(target, now, config)
             # Recorded on success and failure alike: a failed target's earlier committed batches are
             # real, durable progress, so report them rather than a false zero.

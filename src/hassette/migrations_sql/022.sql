@@ -1,0 +1,11 @@
+-- Migration 022: partial index for the size failsafe's DEBUG log tier.
+--
+-- Persisted DEBUG lines are the size failsafe's first target (the "debug log records" entry in
+-- core/retention_targets.py). Its failsafe delete reads the oldest DEBUG rows first, and its
+-- stale-row probe and age delete filter on level = 'DEBUG' too. Without this index they walk
+-- idx_lr_time from the oldest row and skip every INFO-and-above line, a scan that grows with the
+-- table and runs on every over-limit cycle even when no DEBUG lines exist. The index holds only DEBUG rows, so other levels pay no write cost for it.
+--
+-- SQLite uses a partial index only when the query's WHERE implies this predicate; a bound
+-- `level = ?` with 'DEBUG' qualifies.
+CREATE INDEX idx_lr_debug_time ON log_records(timestamp) WHERE level = 'DEBUG';

@@ -11,7 +11,9 @@ import aiosqlite
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
+from hassette.core import database_retention
 from hassette.core.database_service import DatabaseService
+from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget  # pyright: ignore[reportPrivateUsage]
 from hassette.logging_ import LogPersistenceHandler
 from tests.support.factories import make_log_record
 
@@ -57,6 +59,54 @@ class TestRetentionCleanup:
         cursor = await db.execute("SELECT message FROM log_records ORDER BY seq")
         remaining = [row[0] for row in await cursor.fetchall()]
         assert remaining == ["recent"]
+
+    async def test_retention_walks_targets_in_priority_order(
+        self, retention_service: DatabaseService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The age pass orders targets by ``priority``, not by their position in the registry list."""
+        visited: list[str] = []
+
+        async def record_visit(
+            target: RetentionTarget, _now: float, _config: Any
+        ) -> database_retention.TargetDeleteResult:
+            visited.append(target.failsafe_label)
+            return database_retention.TargetDeleteResult(0)
+
+        monkeypatch.setattr(database_retention, "_RETENTION_TABLES", list(reversed(_RETENTION_TABLES)))
+        monkeypatch.setattr(retention_service, "_delete_target_batched", record_visit)
+
+        await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
+
+        assert visited == [t.failsafe_label for t in sorted(_RETENTION_TABLES, key=lambda t: t.priority)]
+        assert visited[0] == "debug log records"
+
+    async def test_retention_ages_out_debug_lines_on_log_retention_days(
+        self,
+        db: aiosqlite.Connection,
+        db_service_writer: DatabaseService,
+        retention_service: DatabaseService,
+    ) -> None:
+        """DEBUG lines expire on log_retention_days like every other level; there is no separate age.
+
+        Guards the age pass as a whole: the level-agnostic ``log records`` target would also delete
+        these rows, so the DEBUG target's own cutoff is pinned by the getter test instead.
+        """
+        now = time.time()
+        old_ts = now - (5 * SECONDS_PER_DAY)  # older than log_retention_days=3
+        recent_ts = now - (1 * SECONDS_PER_DAY)
+        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
+            [
+                make_log_record_row(1, old_ts, "old debug", level="DEBUG"),
+                make_log_record_row(2, old_ts, "old info"),
+                make_log_record_row(3, recent_ts, "recent debug", level="DEBUG"),
+                make_log_record_row(4, recent_ts, "recent info"),
+            ],
+        )
+
+        await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
+
+        cursor = await db.execute("SELECT message FROM log_records ORDER BY seq")
+        assert [row[0] for row in await cursor.fetchall()] == ["recent debug", "recent info"]
 
     async def test_retention_keeps_within_log_retention_days(
         self,
