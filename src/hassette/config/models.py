@@ -93,8 +93,9 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     max_size_mb: float = Field(default=500, ge=0)
     """Maximum live data in MB. The limit applies to in-use database pages, not the file on disk:
     free pages and the WAL don't count, so the file can sit above the limit by that amount until
-    reclaim runs. When live data exceeds it, oldest execution and blocking-event records are
-    deleted; log records are exempt and expire only on ``logging.log_retention_days``.
+    reclaim runs. When live data exceeds it, the oldest persisted DEBUG log lines are deleted
+    first, then execution and blocking-event records; log lines at INFO and above are exempt and
+    expire only on ``logging.log_retention_days``.
     0 disables the size failsafe."""
 
     migration_timeout_seconds: int = Field(default=120, ge=10)

@@ -4,13 +4,20 @@ Two lists live here, and they differ only by :attr:`RetentionTarget.failsafe_exe
 :data:`_RETENTION_TABLES` is the full set that age-based retention walks, and
 :data:`_FAILSAFE_TABLES` is the subset the size failsafe is allowed to delete from.
 
+Targets may overlap: ``debug log records`` selects the DEBUG rows of ``log_records``, which the
+exempt ``log records`` target also covers. Both share ``log_retention_days``, so the overlap changes
+nothing about which rows expire by age. It matters to the failsafe, where the exempt target
+protects INFO and above and the DEBUG target makes persisted DEBUG lines the first thing deleted.
+The age pass walks the DEBUG target first, so ``log records`` finds no expired DEBUG rows unless
+the DEBUG target hit its per-cycle batch cap.
+
 The WHERE-clause builders live here too, since they read nothing but ``RetentionTarget`` fields.
 """
 
 import typing
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from hassette_wire import SourceTier
 
@@ -32,14 +39,28 @@ class RetentionTarget:
     source_tier: SourceTier | None = None
     """Restrict this target to rows of one source tier. ``None`` means no tier filter (the
     target's table has no ``source_tier`` column, or every row in it should be managed together)."""
+    level: Literal["DEBUG"] | None = None
+    """Restrict this target to rows at one log ``level`` (``log_records`` only). ``None`` means no
+    level filter. Only ``DEBUG`` is allowed: migration 022's partial index serves ``level = 'DEBUG'``,
+    and a filter on another level would scan ``idx_lr_time`` instead."""
     failsafe_exempt: bool = False
     """Exclude this target from the size failsafe's emergency deletion, leaving it managed by
     age-based retention alone. Set for tables that are structurally small relative to the size
     limit — deleting them reclaims almost nothing while destroying the data most needed to
-    diagnose whatever caused the overage."""
+    diagnose whatever caused the overage. ``log records`` carries it, so INFO and above are never
+    deleted by size; its DEBUG rows are still deleted by size through the ``debug log records``
+    target."""
 
 
 _RETENTION_TABLES: list[RetentionTarget] = [
+    RetentionTarget(
+        table="log_records",
+        timestamp_col="timestamp",
+        priority=0,
+        retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
+        failsafe_label="debug log records",
+        level="DEBUG",
+    ),
     RetentionTarget(
         table="executions",
         timestamp_col="execution_start_ts",
@@ -63,6 +84,8 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         failsafe_label="app executions",
         source_tier="app",
     ),
+    # Deliberately level-agnostic: it matches DEBUG rows too, but its exemption only protects
+    # INFO and above, since "debug log records" puts DEBUG rows in the failsafe chain first.
     RetentionTarget(
         table="log_records",
         timestamp_col="timestamp",
@@ -81,25 +104,37 @@ _FAILSAFE_TABLES: list[RetentionTarget] = [t for t in _RETENTION_TABLES if not t
 since the table is small relative to the size limit."""
 
 
-def build_tier_where(target: RetentionTarget) -> tuple[str, list[Any]]:
-    """Build a ``WHERE source_tier = ?`` clause (with trailing space) for ``target``.
-
-    Returns an empty clause when ``target`` carries no tier filter. Shared by the size failsafe's
-    delete and its stale-row probe, which filter by tier alone (no age cutoff).
-    """
+def row_filter_terms(target: RetentionTarget) -> tuple[list[str], list[Any]]:
+    """Return ``target``'s row-filter terms (``source_tier``, ``level``) and their parameters."""
+    terms: list[str] = []
+    params: list[Any] = []
     if target.source_tier:
-        return "WHERE source_tier = ? ", [target.source_tier]
-    return "", []
+        terms.append("source_tier = ?")
+        params.append(target.source_tier)
+    if target.level is not None:
+        terms.append("level = ?")
+        params.append(target.level)
+    return terms, params
+
+
+def build_filter_where(target: RetentionTarget) -> tuple[str, list[Any]]:
+    """Build a ``WHERE`` clause (with trailing space) from ``target``'s row filters.
+
+    Returns an empty clause when ``target`` carries no filter. Shared by the size failsafe's
+    delete and its stale-row probe, which filter by target alone (no age cutoff).
+    """
+    terms, params = row_filter_terms(target)
+    if not terms:
+        return "", []
+    return f"WHERE {' AND '.join(terms)} ", params
 
 
 def build_age_where(target: RetentionTarget, cutoff: float) -> tuple[str, list[Any]]:
-    """Build the ``WHERE ... < cutoff`` clause (plus tier filter, when set) for ``target``.
+    """Build the ``WHERE ... < cutoff`` clause (plus the target's row filters) for ``target``.
 
     Shared by the age-based retention delete and its stale-row probe.
     """
-    where = f"{target.timestamp_col} < ?"
-    params: list[Any] = [cutoff]
-    if target.source_tier:
-        where = f"source_tier = ? AND {where}"
-        params.insert(0, target.source_tier)
-    return where, params
+    terms, params = row_filter_terms(target)
+    terms.append(f"{target.timestamp_col} < ?")
+    params.append(cutoff)
+    return " AND ".join(terms), params

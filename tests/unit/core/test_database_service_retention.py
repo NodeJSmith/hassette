@@ -53,15 +53,18 @@ def test_retention_tables_contains_expected_tables() -> None:
     assert table_names == {"log_records", "executions", "blocking_events"}
 
 
-def test_retention_tables_has_four_entries() -> None:
-    """Executions appears twice — once per source tier — plus blocking_events and log_records."""
-    assert len(_RETENTION_TABLES) == 4
+def test_retention_tables_has_five_entries() -> None:
+    """Executions and log_records each appear twice (per source tier, and DEBUG plus all levels),
+    plus blocking_events.
+    """
+    assert len(_RETENTION_TABLES) == 5
 
 
 def test_retention_tables_priority_ordering() -> None:
     by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
     assert (
-        by_label["framework executions"].priority
+        by_label["debug log records"].priority
+        < by_label["framework executions"].priority
         < by_label["blocking events"].priority
         < by_label["app executions"].priority
         < by_label["log records"].priority
@@ -71,15 +74,33 @@ def test_retention_tables_priority_ordering() -> None:
 def test_failsafe_tables_excludes_exempt_targets() -> None:
     """The size failsafe operates on _FAILSAFE_TABLES, which drops failsafe_exempt targets.
 
-    log_records is structurally tiny next to executions, so deleting it reclaims almost nothing
-    while destroying the data most needed to diagnose whatever filled the database.
+    Of log_records, only the DEBUG rows are in the chain, and they go first: INFO and above are
+    small next to executions and hold the data most needed to diagnose whatever filled the database.
     """
-    assert "log_records" not in {t.table for t in _FAILSAFE_TABLES}
+    log_targets = [t for t in _FAILSAFE_TABLES if t.table == "log_records"]
+    assert [t.level for t in log_targets] == ["DEBUG"]
     assert [t.failsafe_label for t in _FAILSAFE_TABLES] == [
+        "debug log records",
         "framework executions",
         "blocking events",
         "app executions",
     ]
+
+
+def test_debug_log_target_is_alone_in_its_priority_group() -> None:
+    """The DEBUG tier is drained and capped on its own, before any execution tier is touched."""
+    debug = next(t for t in _RETENTION_TABLES if t.failsafe_label == "debug log records")
+    assert debug.table == "log_records"
+    assert debug.level == "DEBUG"
+    assert [t.failsafe_label for t in _FAILSAFE_TABLES if t.priority == debug.priority] == ["debug log records"]
+    assert all(t.priority > debug.priority for t in _FAILSAFE_TABLES if t is not debug)
+
+
+def test_debug_log_target_ages_out_with_log_records(mock_hassette: MagicMock) -> None:
+    """DEBUG lines share log_retention_days with every other log line; there is no separate age."""
+    mock_hassette.config.logging.log_retention_days = 3
+    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
+    assert by_label["debug log records"].retention_days_getter(mock_hassette.config) == 3
 
 
 def test_retention_tables_still_manages_exempt_targets() -> None:

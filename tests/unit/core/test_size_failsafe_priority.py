@@ -28,9 +28,10 @@ __all__ = ["db", "db_service_writer", "mock_hassette_for_db", "retention_service
 
 
 class TestSizeFailsafePriority:
-    """Priority ordering per ``_FAILSAFE_TABLES``: framework executions (1) < blocking events (2)
-    < app executions (3). ``log_records`` is ``failsafe_exempt`` and never appears in this chain
-    at all — it expires only through age-based retention.
+    """Priority ordering per ``_FAILSAFE_TABLES``: debug log records (0) < framework executions (1)
+    < blocking events (2) < app executions (3). Only DEBUG ``log_records`` rows are in this chain;
+    the ``log records`` target covering INFO and above is ``failsafe_exempt`` and expires only
+    through age-based retention.
     The DELETE queries filter by ``source_tier`` inside the inner SELECT (when a target declares
     one), so each tier's own oldest-N rows are targeted rather than the globally-oldest N rows
     filtered down afterward.
@@ -61,10 +62,10 @@ class TestSizeFailsafePriority:
         """The failsafe stops mid-drain as soon as the database is back under the limit.
 
         ``seed_both_tables`` inserts executions without an explicit ``source_tier``, so they
-        fall in the default 'app' tier (priority 3) — the framework tier (priority 1) and
-        blocking_events (priority 2) are empty and each consume one end-of-priority size check
-        before priority 3 is even reached: entry check, priority-1-empty, and priority-2-empty
-        (3 checks) precede the priority-3 batch that actually deletes rows.
+        fall in the default 'app' tier (priority 3) — the DEBUG log tier (priority 0, its log rows
+        are INFO), the framework tier (priority 1) and blocking_events (priority 2) are empty and
+        each consume one end-of-priority size check before priority 3 is even reached: entry check
+        plus the three empty-tier checks (4 checks) precede the priority-3 batch that deletes rows.
         """
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
@@ -75,7 +76,7 @@ class TestSizeFailsafePriority:
         async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            if calls <= 3:
+            if calls <= 4:
                 return 10.0
             return 0.0
 
@@ -162,9 +163,9 @@ class TestSizeFailsafePriority:
         async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit for the entry check; under limit immediately after the first
-            # batch — confines the whole run to a single priority-1 batch.
-            return 10.0 if calls <= 1 else 0.0
+            # Over limit for the entry check and the empty DEBUG tier's end-of-tier check; under
+            # limit immediately after the first batch — confines the run to one priority-1 batch.
+            return 10.0 if calls <= 2 else 0.0
 
         await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=mock_size)
 
@@ -191,9 +192,9 @@ class TestSizeFailsafePriority:
         retention_service: DatabaseService,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """When the DB stays over limit through every tier, deletion proceeds framework
-        executions -> blocking events -> app executions, in that order, and stops there —
-        the exempt ``log_records`` is never reached however far over the limit the DB stays.
+        """When the DB stays over limit through every tier, deletion proceeds debug log records
+        -> framework executions -> blocking events -> app executions, in that order, and stops
+        there — INFO-and-above log records are never deleted however far over the limit the DB stays.
         """
         now = time.time()
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_FRAMEWORK)
@@ -201,7 +202,7 @@ class TestSizeFailsafePriority:
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
         await db.commit()
         await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(1, now - 10, "log")]
+            [make_log_record_row(1, now - 10, "log"), make_log_record_row(2, now - 10, "debug", level="DEBUG")]
         )
 
         original_execute = db.execute
@@ -215,9 +216,12 @@ class TestSizeFailsafePriority:
                 delete_order.append("app executions")
             elif stripped.startswith("DELETE FROM blocking_events"):
                 delete_order.append("blocking events")
+            elif stripped.startswith("DELETE FROM log_records") and "DEBUG" in (args[0] if args else ()):
+                # The level filter is a bound parameter, so the DEBUG target shows in the params.
+                delete_order.append("debug log records")
             elif stripped.startswith("DELETE FROM log_records"):
-                # Tripwire, not a live branch: log_records is failsafe_exempt, so reaching this
-                # means the exemption regressed and the unique_order assertion below will fail.
+                # Tripwire, not a live branch: the unfiltered log records target is
+                # failsafe_exempt, so reaching this means the exemption regressed.
                 delete_order.append("log records")
             return await original_execute(sql, *args, **kwargs)
 
@@ -229,9 +233,10 @@ class TestSizeFailsafePriority:
         # Each group's inner loop runs one extra (no-op) iteration after draining its rows, so
         # dedupe consecutive repeats while preserving first-seen order.
         unique_order = list(dict.fromkeys(delete_order))
-        assert unique_order == ["framework executions", "blocking events", "app executions"]
+        assert unique_order == ["debug log records", "framework executions", "blocking events", "app executions"]
 
-        assert await count_rows(db, "log_records") == 1
+        assert await count_rows(db, "log_records", level="DEBUG") == 0
+        assert await count_rows(db, "log_records", level="INFO") == 1
 
     async def test_size_failsafe_blocking_events_deleted_at_priority_two(
         self,
@@ -240,7 +245,7 @@ class TestSizeFailsafePriority:
         retention_service: DatabaseService,
     ) -> None:
         """blocking_events (priority 2) drains after framework executions (1) and before
-        app executions (3) / log_records (4).
+        app executions (3).
         """
         now = time.time()
         for i in range(3):
@@ -255,9 +260,9 @@ class TestSizeFailsafePriority:
         async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit through the entry check and the framework-tier pass (no rows there);
-            # under limit once blocking_events' first batch has been deleted.
-            return 10.0 if calls <= 2 else 0.0
+            # Over limit through the entry check and the DEBUG and framework-tier passes (no rows
+            # there); under limit once blocking_events' first batch has been deleted.
+            return 10.0 if calls <= 3 else 0.0
 
         await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=mock_size)
 

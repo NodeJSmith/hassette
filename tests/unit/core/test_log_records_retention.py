@@ -58,6 +58,34 @@ class TestRetentionCleanup:
         remaining = [row[0] for row in await cursor.fetchall()]
         assert remaining == ["recent"]
 
+    async def test_retention_ages_out_debug_lines_on_log_retention_days(
+        self,
+        db: aiosqlite.Connection,
+        db_service_writer: DatabaseService,
+        retention_service: DatabaseService,
+    ) -> None:
+        """DEBUG lines expire on log_retention_days like every other level; there is no separate age.
+
+        Guards the age pass as a whole: the level-agnostic ``log records`` target would also delete
+        these rows, so the DEBUG target's own cutoff is pinned by the getter test instead.
+        """
+        now = time.time()
+        old_ts = now - (5 * SECONDS_PER_DAY)  # older than log_retention_days=3
+        recent_ts = now - (1 * SECONDS_PER_DAY)
+        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
+            [
+                make_log_record_row(1, old_ts, "old debug", level="DEBUG"),
+                make_log_record_row(2, old_ts, "old info"),
+                make_log_record_row(3, recent_ts, "recent debug", level="DEBUG"),
+                make_log_record_row(4, recent_ts, "recent info"),
+            ],
+        )
+
+        await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
+
+        cursor = await db.execute("SELECT message FROM log_records ORDER BY seq")
+        assert [row[0] for row in await cursor.fetchall()] == ["recent debug", "recent info"]
+
     async def test_retention_keeps_within_log_retention_days(
         self,
         db: aiosqlite.Connection,

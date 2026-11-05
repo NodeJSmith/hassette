@@ -552,7 +552,7 @@
         },
         "max_size_mb": {
           "default": 500,
-          "description": "Maximum live data in MB. The limit applies to in-use database pages, not the file on disk:\nfree pages and the WAL don't count, so the file can sit above the limit by that amount until\nreclaim runs. When live data exceeds it, oldest execution and blocking-event records are\ndeleted; log records are exempt and expire only on ``logging.log_retention_days``.\n0 disables the size failsafe.",
+          "description": "Maximum live data in MB. The limit applies to in-use database pages, not the file on disk:\nfree pages and the WAL don't count, so the file can sit above the limit by that amount until\nreclaim runs. When live data exceeds it, the oldest persisted DEBUG log lines are deleted\nfirst, then execution and blocking-event records; log lines at INFO and above are exempt and\nexpire only on ``logging.log_retention_days``.\n0 disables the size failsafe.",
           "minimum": 0,
           "title": "Max Size Mb",
           "type": "number"

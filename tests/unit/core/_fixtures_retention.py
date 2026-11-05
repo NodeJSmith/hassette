@@ -160,8 +160,8 @@ async def count_rows(db: aiosqlite.Connection, table: str, **filters: object) ->
     return row[0]
 
 
-def make_log_record_row(seq: int, timestamp: float, message: str) -> dict[str, Any]:
-    """Build a log_records row dict with fixed metadata fields; only seq/timestamp/message vary.
+def make_log_record_row(seq: int, timestamp: float, message: str, *, level: str = "INFO") -> dict[str, Any]:
+    """Build a log_records row dict with fixed metadata fields; only seq/timestamp/message/level vary.
 
     ``lineno`` mirrors ``seq`` — every call site in this file already uses the same value for
     both.
@@ -169,7 +169,7 @@ def make_log_record_row(seq: int, timestamp: float, message: str) -> dict[str, A
     return {
         "seq": seq,
         "timestamp": timestamp,
-        "level": "INFO",
+        "level": level,
         "logger_name": "x",
         "func_name": "f",
         "lineno": seq,

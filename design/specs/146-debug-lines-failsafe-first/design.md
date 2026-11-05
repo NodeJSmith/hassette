@@ -100,8 +100,12 @@ Out of scope: a database dominated by INFO-and-above lines, which stay exempt (#
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- `build_tier_where` renamed to `build_filter_where`, with a shared `row_filter_terms` helper both WHERE builders use: it now filters by level as well as tier, and the shared helper keeps the failsafe and age filters from drifting apart.
+- `RetentionTarget.level` is typed `Literal["DEBUG"] | None`: only DEBUG has the partial index, so another level would silently scan `idx_lr_time`.
+- `docs/pages/operating/log-levels.md` gets a one-sentence pointer next to `log_retention_days`: it is where users turn DEBUG persistence on, so they learn there that the size limit deletes those lines first.
+- The partial-index test captures the statements the failsafe actually runs and explains each one, rather than restating the SQL, so a change to the production query shape can't pass unnoticed.
