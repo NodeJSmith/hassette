@@ -17,9 +17,9 @@ ALWAYS_OVER_LIMIT_MB = 10.0
 NON_DEBUG_LEVELS = ("INFO", "WARNING", "ERROR", "CRITICAL")
 
 
-async def seed_executions(db: aiosqlite.Connection, session_id: int, n: int, now: float) -> None:
+async def seed_executions(db: aiosqlite.Connection, session_id: int, count: int, now: float) -> None:
     await seed_listener_for_fk(db)
-    for i in range(n):
+    for i in range(count):
         await db.execute(
             "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status,"
             " source_tier) VALUES ('handler', 1, ?, ?, 10.0, 'success', ?)",
@@ -34,6 +34,29 @@ async def seed_logs(db: aiosqlite.Connection, levels: list[str], oldest_ts: floa
             "INSERT INTO log_records (seq, timestamp, level, logger_name, message) VALUES (?, ?, ?, 'test', 'hello')",
             (i, oldest_ts + i, level),
         )
+
+
+async def seed_debug_behind_older_executions(service: DatabaseService) -> aiosqlite.Connection:
+    """Seed 4 executions older than every one of 5 DEBUG lines, and return the service's connection."""
+    db = service.db
+    now = time.time()
+    await seed_executions(db, service.hassette.session_id, 4, now - 10_000)
+    await seed_logs(db, ["DEBUG"] * 5, now - 50)
+    await db.commit()
+    return db
+
+
+def arm_failsafe(service: DatabaseService, live_size: AsyncMock, *, max_iterations: int | None = None) -> None:
+    """Force the tiny size limit and script the live data sizes the failsafe reads.
+
+    When ``max_iterations`` is given, it caps the run's batches and each batch deletes 2 rows.
+    """
+    config = service.hassette.config.database
+    config.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+    if max_iterations is not None:
+        config.size_failsafe_max_iterations = max_iterations
+        config.size_failsafe_delete_batch = 2
+    service.get_live_data_size_mb = live_size  # pyright: ignore[reportAttributeAccessIssue]
 
 
 async def test_size_failsafe_leaves_info_and_above_log_records_untouched(initialized_service: DatabaseService) -> None:
@@ -73,18 +96,9 @@ async def test_size_failsafe_deletes_debug_lines_before_executions(initialized_s
     """DEBUG lines are the first tier: when deleting them brings live data under the limit, no
     execution is touched, even executions older than every DEBUG line.
     """
-    session_id = initialized_service.hassette.session_id
-    db = initialized_service.db
-    now = time.time()
-    await seed_executions(db, session_id, 4, now - 10_000)
-    await seed_logs(db, ["DEBUG"] * 5, now - 50)
-    await db.commit()
-
-    initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+    db = await seed_debug_behind_older_executions(initialized_service)
     # Over the limit at the entry check, under it after the DEBUG tier's first batch.
-    initialized_service.get_live_data_size_mb = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
-        side_effect=[ALWAYS_OVER_LIMIT_MB, 0.0, 0.0]
-    )
+    arm_failsafe(initialized_service, AsyncMock(side_effect=[ALWAYS_OVER_LIMIT_MB, 0.0, 0.0]))
 
     await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
@@ -96,20 +110,8 @@ async def test_capped_debug_tier_stops_the_run_before_executions(initialized_ser
     """The DEBUG tier spends the shared budget like any other tier; when it runs out with DEBUG lines
     left, the run stops there and executions are protected until the next cycle.
     """
-    session_id = initialized_service.hassette.session_id
-    db = initialized_service.db
-    now = time.time()
-    await seed_executions(db, session_id, 4, now - 10_000)
-    await seed_logs(db, ["DEBUG"] * 5, now - 50)
-    await db.commit()
-
-    config = initialized_service.hassette.config.database
-    config.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-    config.size_failsafe_max_iterations = 1
-    config.size_failsafe_delete_batch = 2
-    initialized_service.get_live_data_size_mb = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
-        return_value=ALWAYS_OVER_LIMIT_MB
-    )
+    db = await seed_debug_behind_older_executions(initialized_service)
+    arm_failsafe(initialized_service, AsyncMock(return_value=ALWAYS_OVER_LIMIT_MB), max_iterations=1)
 
     await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
@@ -127,14 +129,8 @@ async def test_debug_tier_queries_use_the_partial_index(
     await seed_logs(db, ["DEBUG"] * 3, time.time() - 50)
     await db.commit()
 
-    config = initialized_service.hassette.config.database
-    config.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
     # One full batch with rows left over sends the tier through the stale-row probe too.
-    config.size_failsafe_max_iterations = 1
-    config.size_failsafe_delete_batch = 2
-    initialized_service.get_live_data_size_mb = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
-        return_value=ALWAYS_OVER_LIMIT_MB
-    )
+    arm_failsafe(initialized_service, AsyncMock(return_value=ALWAYS_OVER_LIMIT_MB), max_iterations=1)
 
     captured: list[tuple[str, list[Any]]] = []
     original_execute = db.execute
@@ -144,9 +140,9 @@ async def test_debug_tier_queries_use_the_partial_index(
             captured.append((sql, list(params)))
         return await original_execute(sql, params)
 
-    monkeypatch.setattr(db, "execute", capturing_execute)
-    await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
-    monkeypatch.undo()
+    with monkeypatch.context() as patch:
+        patch.setattr(db, "execute", capturing_execute)
+        await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
     assert any(sql.lstrip().startswith("DELETE") for sql, _ in captured)
     assert any(sql.lstrip().startswith("SELECT 1") for sql, _ in captured)

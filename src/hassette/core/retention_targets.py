@@ -84,8 +84,6 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         failsafe_label="app executions",
         source_tier="app",
     ),
-    # Deliberately level-agnostic: it matches DEBUG rows too, but its exemption only protects
-    # INFO and above, since "debug log records" puts DEBUG rows in the failsafe chain first.
     RetentionTarget(
         table="log_records",
         timestamp_col="timestamp",

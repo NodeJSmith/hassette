@@ -12,7 +12,6 @@ import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core import database_retention
-from hassette.core.database_retention import TargetDeleteResult
 from hassette.core.database_service import DatabaseService
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget  # pyright: ignore[reportPrivateUsage]
 from hassette.logging_ import LogPersistenceHandler
@@ -67,12 +66,14 @@ class TestRetentionCleanup:
         """The age pass orders targets by ``priority``, not by their position in the registry list."""
         visited: list[str] = []
 
-        async def record(target: RetentionTarget, _now: float, _config: Any) -> TargetDeleteResult:
+        async def record_visit(
+            target: RetentionTarget, _now: float, _config: Any
+        ) -> database_retention.TargetDeleteResult:
             visited.append(target.failsafe_label)
-            return TargetDeleteResult(0)
+            return database_retention.TargetDeleteResult(0)
 
         monkeypatch.setattr(database_retention, "_RETENTION_TABLES", list(reversed(_RETENTION_TABLES)))
-        monkeypatch.setattr(retention_service, "_delete_target_batched", record)
+        monkeypatch.setattr(retention_service, "_delete_target_batched", record_visit)
 
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
