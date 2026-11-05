@@ -65,7 +65,7 @@ Registration cleanup also clears out apps removed from config, so it runs only o
 
 Hassette decides which apps were removed from its own config and running apps, so a database belongs to one running Hassette process. Don't point two instances at the same `path` or `data_dir`.
 
-Size-based retention runs after time-based retention. When live data (the database's in-use pages, excluding free pages and the WAL) exceeds `max_size_mb`, the oldest records are deleted in priority order: DEBUG log lines first, then framework executions, then blocking events, then app executions.
+In the hourly cycle, size-based retention runs after time-based retention; the one-time catch-up at startup runs it first. When live data (the database's in-use pages, excluding free pages and the WAL) exceeds `max_size_mb`, the oldest records are deleted in priority order: DEBUG log lines first, then framework executions, then blocking events, then app executions.
 
 DEBUG log lines are only stored when `logging.log_persistence_level` (which defaults to `logging.log_level`) is `DEBUG`, and they can outgrow everything else in the database, so they go first. Log lines at INFO and above are exempt from this failsafe entirely: only the time-based pass deletes them, on `logging.log_retention_days`. Without DEBUG lines the table stays small next to executions, so deleting from it would reclaim little space while destroying the records most needed to work out what filled the database in the first place.
 
