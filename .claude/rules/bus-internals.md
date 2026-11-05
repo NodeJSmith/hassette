@@ -12,7 +12,7 @@ The internal `Listener` dataclass composes four sub-structs:
 - `ListenerIdentity` — ownership/telemetry fields
 - `ListenerOptions` — behavioral timing parameters
 - `HandlerInvoker` — handler invocation, dispatch, rate limiting
-- `DurationConfig` — duration-hold configuration and timer lifecycle
+- `EntityWatch` — the entity a listener tracks (from `on_state_change`/`on_attribute_change`), plus its duration hold and timer lifecycle
 
 ## Registration
 

@@ -387,11 +387,15 @@ class HandlerInvoker:
 
 
 @dataclass(slots=True)
-class DurationConfig:
-    """Groups duration-hold configuration fields and owns the timer lifecycle; timer is attached via attach_timer()."""
+class EntityWatch:
+    """The entity a listener tracks, plus its duration-hold settings; owns the timer lifecycle.
+
+    Every ``on_state_change`` / ``on_attribute_change`` listener carries one, with or without a
+    duration. The timer is attached via attach_timer().
+    """
 
     entity_id: str
-    """Entity ID this duration listener is tracking. Required — non-empty."""
+    """Entity ID this listener is tracking. Required — non-empty."""
 
     duration: float | None = None
     """Duration in seconds the entity must remain in the matching state before the handler fires.
@@ -462,7 +466,7 @@ class DurationConfig:
 class Listener:
     """A listener for events with a specific topic and handler.
 
-    Composes four focused sub-structs (identity, invoker, options, duration_config)
+    Composes four focused sub-structs (identity, invoker, options, entity_watch)
     plus routing fields (topic, predicate) and minimal runtime state.
     """
 
@@ -484,7 +488,7 @@ class Listener:
     options: ListenerOptions
     """Behavioral execution parameters."""
 
-    duration_config: DurationConfig | None
+    entity_watch: EntityWatch | None
     """Duration-hold configuration and timer. None for non-duration listeners."""
 
     listener_id: int = field(default_factory=next_id, init=False)
@@ -535,8 +539,8 @@ class Listener:
         self._cancelled = True
         self.invoker.mark_fired()
         self.invoker.cancel()
-        if self.duration_config is not None:
-            self.duration_config.cancel_timer()
+        if self.entity_watch is not None:
+            self.entity_watch.cancel_timer()
         # release_guard is async (it awaits the cancelled task's settling under a lock); cancel()
         # is sync, so spawn the release on the same bucket that runs handler tasks. For ``parallel``
         # listeners this is a cheap no-op; for the others it drops the in-flight task and queue.
@@ -599,7 +603,7 @@ class Listener:
         options: ListenerOptions,
         invoker: HandlerInvoker,
         where: WhereClause = None,
-        duration_config: DurationConfig | None = None,
+        entity_watch: EntityWatch | None = None,
         logger: Logger = LOGGER,
     ) -> "Listener":
         """Create a Listener from pre-built sub-structs.
@@ -607,7 +611,7 @@ class Listener:
         Cross-concern validation (duration + debounce incompatibility) runs
         here since it spans two sub-structs.
         """
-        if duration_config is not None and duration_config.duration is not None:
+        if entity_watch is not None and entity_watch.duration is not None:
             if options.debounce is not None:
                 raise ValueError("Cannot combine 'duration' with 'debounce'")
             if options.throttle is not None:
@@ -621,7 +625,7 @@ class Listener:
             identity=identity,
             invoker=invoker,
             options=options,
-            duration_config=duration_config,
+            entity_watch=entity_watch,
         )
 
     @classmethod
@@ -668,7 +672,7 @@ class Listener:
             identity=identity,
             invoker=invoker,
             options=options,
-            duration_config=None,
+            entity_watch=None,
         )
 
 
@@ -691,8 +695,8 @@ class Subscription:
         self.unsubscribe()
 
 
-def _duration_configs_match(a: DurationConfig | None, b: DurationConfig | None) -> bool:
-    """Compare two DurationConfig objects by their logical-configuration scalars.
+def _entity_watches_match(a: EntityWatch | None, b: EntityWatch | None) -> bool:
+    """Compare two EntityWatch objects by their logical-configuration scalars.
 
     Both None → equal. One None, one non-None → not equal. Compares entity_id,
     duration, immediate, is_attribute_listener, and hold_predicate. Excludes the
@@ -727,7 +731,7 @@ _CONFIG_MATCH_FIELDS: tuple[tuple[str, Callable[["Listener", "Listener"], bool]]
     ("backpressure", lambda a, b: a.options.backpressure == b.options.backpressure),
     ("kwargs", lambda a, b: a.invoker.kwargs == b.invoker.kwargs),
     ("error_handler", lambda a, b: a.invoker.error_handler is b.invoker.error_handler),
-    ("duration_config", lambda a, b: _duration_configs_match(a.duration_config, b.duration_config)),
+    ("entity_watch", lambda a, b: _entity_watches_match(a.entity_watch, b.entity_watch)),
 )
 
 

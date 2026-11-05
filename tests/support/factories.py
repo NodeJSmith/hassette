@@ -651,7 +651,7 @@ def make_mock_listener(
     listener.once = False
     listener.priority = 0
     listener.predicate = None
-    listener.duration_config = None
+    listener.entity_watch = None
     return listener
 
 

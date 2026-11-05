@@ -76,11 +76,11 @@ def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> Non
 async def test_raising_hold_predicate_on_duration_fire_is_recorded_and_routed() -> None:
     svc = make_service_with_state()
     listener = make_registered_listener(11, duration=60.0, hold_predicate=raising_predicate, error_handler=on_error)
-    assert listener.duration_config is not None
+    assert listener.entity_watch is not None
     mock_timer = MagicMock()
-    listener.duration_config._timer = mock_timer
+    listener.entity_watch._timer = mock_timer
 
-    svc._duration_hold.start_duration_timer(listener, ENTITY_ID, listener.duration_config, AsyncMock())
+    svc._duration_hold.start_duration_timer(listener, ENTITY_ID, listener.entity_watch, AsyncMock())
     on_fire = mock_timer.start.call_args[0][0]
     await on_fire()
     await asyncio.sleep(0)

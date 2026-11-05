@@ -652,10 +652,10 @@ async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, immediate=True, name="kitchen_immediate")
-    duration_config = subscription.listener.duration_config
-    assert duration_config is not None
-    assert duration_config.immediate is True
-    assert duration_config.entity_id == "light.kitchen"
+    entity_watch = subscription.listener.entity_watch
+    assert entity_watch is not None
+    assert entity_watch.immediate is True
+    assert entity_watch.entity_id == "light.kitchen"
 
 
 async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
@@ -665,10 +665,10 @@ async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, duration=5.0, name="kitchen_duration")
-    duration_config = subscription.listener.duration_config
-    assert duration_config is not None
-    assert duration_config.duration == 5.0
-    assert duration_config.entity_id == "light.kitchen"
+    entity_watch = subscription.listener.entity_watch
+    assert entity_watch is not None
+    assert entity_watch.duration == 5.0
+    assert entity_watch.entity_id == "light.kitchen"
 
 
 async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
@@ -693,10 +693,10 @@ async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
     subscription = await bus.on_attribute_change(
         "light.kitchen", "brightness", handler=handler, immediate=True, name="kitchen_brightness_immediate"
     )
-    duration_config = subscription.listener.duration_config
-    assert duration_config is not None
-    assert duration_config.immediate is True
-    assert duration_config.entity_id == "light.kitchen"
+    entity_watch = subscription.listener.entity_watch
+    assert entity_watch is not None
+    assert entity_watch.immediate is True
+    assert entity_watch.entity_id == "light.kitchen"
 
 
 async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
@@ -708,10 +708,10 @@ async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
     subscription = await bus.on_attribute_change(
         "light.kitchen", "brightness", handler=handler, duration=5.0, name="kitchen_brightness_duration"
     )
-    duration_config = subscription.listener.duration_config
-    assert duration_config is not None
-    assert duration_config.duration == 5.0
-    assert duration_config.entity_id == "light.kitchen"
+    entity_watch = subscription.listener.entity_watch
+    assert entity_watch is not None
+    assert entity_watch.duration == 5.0
+    assert entity_watch.entity_id == "light.kitchen"
 
 
 async def test_on_attribute_change_rejects_glob_with_immediate(bus: "Bus") -> None:

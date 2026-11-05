@@ -13,7 +13,7 @@ import hassette.utils.date_utils as _date_utils
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.bus.listeners import DurationConfig, Listener, Subscription
+from hassette.bus.listeners import EntityWatch, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_filter import EventFilter
@@ -193,7 +193,7 @@ class BusService(Service):
         Returns:
             The db_id assigned to the listener by the database.
         """
-        if listener.duration_config is not None and listener.duration_config.duration is not None:
+        if listener.entity_watch is not None and listener.entity_watch.duration is not None:
 
             def make_cancel_sub() -> Subscription:
                 return self._duration_hold.create_cancel_listener(listener)
@@ -201,7 +201,7 @@ class BusService(Service):
             def on_timer_cancel() -> None:
                 self._duration_hold.decrement_timers_active()
 
-            listener.duration_config.attach_timer(
+            listener.entity_watch.attach_timer(
                 task_bucket=self.task_bucket,
                 owner_id=listener.identity.owner_id,
                 create_cancel_sub=make_cancel_sub,
@@ -217,7 +217,7 @@ class BusService(Service):
         # Sync: insert route — listener is routable after DB registration.
         self.router.add_route(listener.topic, listener)
 
-        if listener.duration_config is not None and listener.duration_config.immediate:
+        if listener.entity_watch is not None and listener.entity_watch.immediate:
             self._dispatch_pending += 1
             self._dispatch_idle_event.clear()
             immediate_task = self.task_bucket.spawn(
@@ -249,9 +249,9 @@ class BusService(Service):
             registration_source=registration_source,
             name=listener.identity.name,
             source_tier=listener.identity.source_tier,
-            immediate=listener.duration_config.immediate if listener.duration_config else False,
-            duration=listener.duration_config.duration if listener.duration_config else None,
-            entity_id=listener.duration_config.entity_id if listener.duration_config else None,
+            immediate=listener.entity_watch.immediate if listener.entity_watch else False,
+            duration=listener.entity_watch.duration if listener.entity_watch else None,
+            entity_id=listener.entity_watch.entity_id if listener.entity_watch else None,
             mode=listener.options.mode,
             backpressure=listener.options.backpressure,
         )
@@ -622,12 +622,12 @@ class BusService(Service):
         # — the handler receives the event that started the timer.
         invoke_fn = build_tracked_invoke_fn(listener, event, topic, self._executor, self._config_resolver)
 
-        if listener.duration_config is not None and listener.duration_config.duration is not None:
+        if listener.entity_watch is not None and listener.entity_watch.duration is not None:
             if listener.is_cancelled:
                 return
 
-            duration_config = listener.duration_config
-            entity_id = duration_config.entity_id
+            entity_watch = listener.entity_watch
+            entity_id = entity_watch.entity_id
             if not entity_id:
                 self.logger.error(
                     "duration_fire: listener has no entity_id — construction invariant violated. "
@@ -637,7 +637,7 @@ class BusService(Service):
                 )
                 return
 
-            self._duration_hold.start_duration_timer(listener, entity_id, duration_config, invoke_fn)
+            self._duration_hold.start_duration_timer(listener, entity_id, entity_watch, invoke_fn)
             return
 
         # Non-duration path (unchanged behavior).
@@ -770,20 +770,20 @@ def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -
     )
 
 
-def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:
+def compute_elapsed(current_state: "HassStateDict", entity_watch: EntityWatch) -> float:
     """Compute how long an entity has been in its current state.
 
     Reads the HA-specific ``last_changed`` field from the state dict. Injected
     into the bus kernel so it stays free of HA event type imports.
 
     For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
-    Returns a value clamped to [0.0, duration_config.duration].
+    Returns a value clamped to [0.0, entity_watch.duration].
     """
-    duration = duration_config.duration
+    duration = entity_watch.duration
     if duration is None:
         return 0.0
 
-    if duration_config.is_attribute_listener:
+    if entity_watch.is_attribute_listener:
         return 0.0
 
     last_changed_raw = current_state.get("last_changed")

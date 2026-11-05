@@ -39,8 +39,8 @@ def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTim
     """Get the DurationTimer for the first duration-enabled listener on an entity."""
     topic = entity_topic(entity_id)
     for listener in harness.bus_service.router.get_topic_listeners(topic):
-        if listener.duration_config and listener.duration_config.timer:
-            return listener.duration_config.timer
+        if listener.entity_watch and listener.entity_watch.timer:
+            return listener.entity_watch.timer
     return None
 
 
