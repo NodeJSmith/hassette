@@ -237,7 +237,7 @@ def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
 
 
 def get_context(event: "HassEvent") -> "HassContext":
-    """Get the context dict from the event payload."""
+    """Get the `HassContext` object (`id`, `parent_id`, `user_id`) from the event payload."""
     return cast("HassContext", get_path("payload.context")(event))
 
 
