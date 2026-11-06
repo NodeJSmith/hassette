@@ -27,10 +27,10 @@ pip install --upgrade hassette
 **uv (project dependency)**
 
 ```bash
-uv add hassette@latest
+uv add hassette --upgrade-package hassette
 ```
 
-This updates `pyproject.toml` and installs the new version into your project environment. If you installed Hassette as a uv tool rather than a project dependency, run `uv tool upgrade hassette` instead.
+This moves `uv.lock` to the newest release your `pyproject.toml` constraint allows and installs it. `pyproject.toml` doesn't change, so an exact pin such as `hassette==0.60.0` stays until you edit it. If you installed Hassette as a uv tool rather than a project dependency, run `uv tool upgrade hassette` instead.
 
 A running Hassette process keeps the version it started with. After any of the commands above, restart Hassette, then run `hassette --version` to confirm the new version (`uv run hassette --version` for a uv project dependency, so it checks the project's copy rather than whatever `hassette` is on your `PATH`).
 
@@ -199,7 +199,7 @@ Upgrading from 0.56 or earlier, four changes can break an existing setup: Hasset
 
 ```console
 $ hassette run --check
-CONFIG_DIR=/home/you/project/config
+CONFIG_DIR=/home/you/.config/hassette/v0
 CONFIG_HOME=/home/you/project
 APPS_DIR=/home/you/project/apps
 ```
@@ -218,7 +218,7 @@ An apps directory that doesn't exist is a warning, not an error: the check still
 ```console
 $ hassette run --check
 Warning: Apps directory /home/you/project/config/src/myapps does not exist. Did you mean /home/you/project/src/myapps? A path in a config file is relative to that file's directory, so from /home/you/project/config it is written ../src/myapps
-CONFIG_DIR=/home/you/project/config
+CONFIG_DIR=/home/you/.config/hassette/v0
 CONFIG_HOME=/home/you/project
 APPS_DIR=/home/you/project/config/src/myapps
 ```
@@ -235,7 +235,7 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 
 **Unknown keys are startup errors.** A `HASSETTE__*` environment variable or `hassette.toml` key that matches no setting stops `hassette run` with exit code 78. Earlier versions ignored these silently. App definitions aren't checked: `[hassette.apps.<key>]` tables and `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` overrides keep working as before.
 
-**Retired items** fail as unknown keys. Replace each one:
+**Retired items** fail as unknown keys. `config_dir` in a config file is the exception: it fails with its own message. Both exit with code 78. Replace each one:
 
 | Retired | Replacement |
 |---|---|
