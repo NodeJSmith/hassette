@@ -198,3 +198,8 @@ def fmt_names(value: Any) -> str:
 def fmt_nonzero_count(value: Any) -> str:
     """A count, or blank when it is zero, so a column of mostly-zero counts shows only the ones that matter."""
     return str(value) if value else ""
+
+
+def fmt_flagged(value: Any) -> str:
+    """``yes`` when a nullable flag object is set, blank otherwise, so only flagged rows stand out."""
+    return "yes" if value is not None else ""
