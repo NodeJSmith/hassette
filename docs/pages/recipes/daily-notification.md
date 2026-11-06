@@ -27,7 +27,7 @@ The section name (`daily_notification`) is the app key — the same key the `has
 
 Every `App` instance carries `self.scheduler` (runs functions on a schedule), `self.api` (calls HA services), and `self.app_config` (the validated config) — Hassette provides them at startup. Lifecycle hooks and handlers are `async def`; Hassette runs the event loop, so the pattern works without prior async experience.
 
-`DailyNotificationConfig` defines three fields: the wall-clock time as an `"HH:MM"` string (24-hour local time), the notify service name, and the message body. All three carry defaults and can be overridden per instance in [`hassette.toml`](../core-concepts/configuration/index.md). Find your notify service name in HA under **Developer Tools → Services**, filter for `notify` — it looks like `mobile_app_your_device_name`. The `model_config = SettingsConfigDict(...)` line is standard boilerplate from `pydantic-settings` (installed with Hassette — nothing extra to install); its `env_prefix` means environment variables like `DAILY_NOTIFICATION_MESSAGE=...` also override config file values.
+`DailyNotificationConfig` defines three fields: the wall-clock time as an `"HH:MM"` string (24-hour local time), the notify service name, and the message body. All three carry defaults and can be overridden per instance in [`hassette.toml`](../core-concepts/configuration/index.md). Find your notify service name in HA under **Developer Tools → Services**, filter for `notify` — it looks like `mobile_app_your_device_name`. The `model_config = SettingsConfigDict(...)` line is standard boilerplate from `pydantic-settings` (installed with Hassette — nothing extra to install); its `env_prefix` lets an environment variable like `DAILY_NOTIFICATION_MESSAGE=...` supply a field the `hassette.toml` config block leaves unset. A value set in `hassette.toml` takes precedence over the environment variable.
 
 `on_initialize` calls `self.scheduler.run_daily(self.send_notification, at=...)` with the configured time string. `run_daily` registers a [`Daily`][hassette.scheduler.triggers.Daily] trigger that recalculates the next fire time after each trigger, so clock-forward and clock-back DST transitions do not cause double-fires or skips. The notification fires at 08:00 local time year-round.
 
@@ -41,17 +41,12 @@ Run these from your project directory while Hassette is running. Confirm the job
 hassette job --app daily_notification
 ```
 
-Expected output (`instance 0` is the default when one copy of the app runs):
-
-```
-daily_notification (instance 0)
-  send_notification   next: 2026-06-03 08:00:00 local   trigger: daily@08:00
-```
+The output is a table with one row per job. Expect a row with App `daily_notification`, Handler `send_notification`, Trigger `cron`, and Status `Scheduled`. Next Run shows a relative time such as `in 5h`.
 
 !!! tip "Test delivery without waiting a day"
     The default fire time may be hours away. For a first test, set `notify_time` in the
     `[hassette.apps.daily_notification.config]` block to a minute or two from now. Restart
-    Hassette, wait for that minute, and check for the log lines below. Then set `notify_time`
+    Hassette, wait for that minute, and check for the log rows below. Then set `notify_time`
     back to your daily time.
 
 After the scheduled time fires, check the log to confirm delivery:
@@ -60,14 +55,14 @@ After the scheduled time fires, check the log to confirm delivery:
 hassette log --app daily_notification --since 1d
 ```
 
-Expected output includes two lines:
+Expected output includes two rows at level `INFO` whose Message column reads:
 
 ```
-INFO  Daily notification scheduled at 08:00 via notify.mobile_app_phone
-INFO  Daily notification sent.
+Daily notification scheduled at 08:00 via notify.mobile_app_phone
+Daily notification sent.
 ```
 
-If the second line is missing, check the Home Assistant logs (**Settings → System → Logs**) for a failed service call.
+`call_service` sends the call without waiting for Home Assistant's reply. "Daily notification sent." appears even if Home Assistant rejects the call. If no notification arrives, check the Home Assistant logs (**Settings → System → Logs**). To have Hassette raise `FailedMessageError` on a rejected call, pass `wait_for_ack=True` to `call_service`.
 
 ## Variations
 
