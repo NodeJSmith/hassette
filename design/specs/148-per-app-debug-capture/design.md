@@ -1,7 +1,7 @@
 # Design: Per-app debug capture
 
 **Date:** 2026-11-06
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3679
 **Parent:** design/specs/142-diagnostic-evidence/design.md
@@ -221,7 +221,7 @@ Out of scope: a CLI view that lists an app's instances (#3845; D4's column is pe
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
