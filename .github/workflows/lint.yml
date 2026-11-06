@@ -376,10 +376,10 @@ jobs:
                   # halves of this gate agree on which tree they're looking at.
                   ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
-            - name: Install uv
-              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-              with:
-                  python-version: "3.13"
+            # mise installs the repo's pinned tools (Python, uv, Java for PMD CPD), so the gate task
+            # below runs the same way it does locally and in the pre-push hooks.
+            - name: Install tools
+              uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
 
             - run: uv sync
 
@@ -414,7 +414,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   BASE_SHA: ${{ github.event.pull_request.base.sha }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-              run: uv run python tools/check_file_size_regressions.py "$BASE_SHA" "$HEAD_SHA"
+              run: mise run gates:file-sizes "$BASE_SHA" "$HEAD_SHA"
 
     # PMD CPD scans both Python and TypeScript — trigger on either.
     duplicate-code:
@@ -438,18 +438,12 @@ jobs:
                   # scan below and the HEAD_SHA it's diffed against describe the same tree.
                   ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
-            - name: Install uv
-              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
-              with:
-                  python-version: "3.13"
+            # mise installs the repo's pinned tools (Python, uv, Java for PMD CPD), so the gate task
+            # below runs the same way it does locally and in the pre-push hooks.
+            - name: Install tools
+              uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
 
             - run: uv sync
-
-            - name: Set up Java 21  # PMD CPD is a JVM tool
-              uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
-              with:
-                  distribution: temurin
-                  java-version: "21"
 
             - name: Check duplicate code (full backlog)
               # Informational only (continue-on-error) — tracks the full backlog without
@@ -472,7 +466,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   BASE_SHA: ${{ github.event.pull_request.base.sha }}
                   HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-              run: uv run python tools/check_duplicate_code.py --gate-new-code "$BASE_SHA" "$HEAD_SHA"
+              run: mise run gates:duplicates "$BASE_SHA" "$HEAD_SHA"
 
     lint-complete:
         needs: [secrets, python, frontend, codegen-freshness, ha-version-staleness, security, lockfile-fresh, slotscheck, link-check, file-sizes, duplicate-code]
