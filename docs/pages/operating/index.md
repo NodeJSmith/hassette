@@ -148,6 +148,8 @@ Individual subscriptions and jobs override the global default with `timeout=` or
 --8<-- "pages/operating/snippets/timeout_overrides.py:overrides"
 ```
 
+Both keys accept only a positive number of seconds, so `hassette.toml` can't turn either global timeout off. TOML has no null value, and `0`, `"none"` and `""` all fail validation. A job or handler that needs no limit sets `timeout_disabled=True` on its own registration instead.
+
 ### Limitations
 
 **Synchronous handlers.** A synchronous (non-`async`) handler runs in a dedicated thread pool. When its timeout fires, the caller unblocks and the invocation is recorded as `timed_out` — but the thread keeps running until it returns naturally. Python cannot forcibly stop a running thread mid-call. The thread holds its pool slot until it completes; if enough threads stall simultaneously, the pool fills and new sync work queues up. At shutdown, Hassette interrupts any threads still alive after the join budget using `SystemExit` — so sync workers do stop at process teardown, within the configured budget.

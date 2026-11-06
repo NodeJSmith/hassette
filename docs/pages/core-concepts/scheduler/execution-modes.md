@@ -197,8 +197,7 @@ ticks always log at DEBUG.
 The threshold follows the job's effective timeout, either `timeout=` or
 `job_timeout_seconds`. It is 80% of that timeout, and never less than 60
 seconds. The default 600-second timeout warns at 480 seconds. A job with
-`timeout=300` warns at 240 seconds. A job with `timeout_disabled=True`, or with
-no per-job or global timeout, warns at 60 seconds. The WARNING names the threshold's source,
+`timeout=300` warns at 240 seconds. A job with `timeout_disabled=True` warns at 60 seconds. The WARNING names the threshold's source,
 such as `240s (80% of its 300s timeout)`.
 
 The per-job `timeout` still applies and ultimately releases the guard
