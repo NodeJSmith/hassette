@@ -1,6 +1,7 @@
 """BusService/SchedulerService factories for tests/unit/core/."""
 
 import asyncio
+from functools import partial
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.bus.duration_hold import DurationHoldManager
@@ -48,7 +49,7 @@ def make_bus_service(
         logger=svc.logger,
         make_synthetic_event=make_synthetic_state_event,
         compute_elapsed=compute_elapsed,
-        record_predicate_failure=svc._record_predicate_failure,
+        record_predicate_failure=partial(svc.record_predicate_failure_safely, is_synthetic=True),
     )
     svc._dispatch_pending = 0
     svc._dispatch_idle_event = asyncio.Event()

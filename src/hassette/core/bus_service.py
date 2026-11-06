@@ -3,6 +3,7 @@ import time
 import traceback
 import typing
 from collections import defaultdict
+from functools import partial
 from typing import Any, ClassVar
 
 import uuid_utils
@@ -119,7 +120,8 @@ class BusService(Service):
             logger=self.logger,
             make_synthetic_event=make_synthetic_state_event,
             compute_elapsed=compute_elapsed,
-            record_predicate_failure=self.record_predicate_failure_safely,
+            # The hold manager evaluates only events it built from the cached state.
+            record_predicate_failure=partial(self.record_predicate_failure_safely, is_synthetic=True),
         )
 
         self._removal_callbacks = {}
@@ -424,7 +426,9 @@ class BusService(Service):
                 except Exception as exc:
                     failed.add(listener.listener_id)
                     self.logger.exception("Predicate raised for %s; skipping this listener", listener)
-                    self.record_predicate_failure_safely(listener, route, event, exc, predicate_start)
+                    self.record_predicate_failure_safely(
+                        listener, route, event, exc, predicate_start, is_synthetic=False
+                    )
                     continue
                 if matched:
                     chosen[listener.listener_id] = (route, listener)
@@ -544,7 +548,14 @@ class BusService(Service):
         return self._duration_hold.duration_timers_active
 
     def record_predicate_failure_safely(
-        self, listener: "Listener", topic: str, event: "AnyEvent", exc: Exception, start_ts: float
+        self,
+        listener: "Listener",
+        topic: str,
+        event: "AnyEvent",
+        exc: Exception,
+        start_ts: float,
+        *,
+        is_synthetic: bool,
     ) -> None:
         """Call ``_record_predicate_failure``, logging (not raising) if recording itself fails.
 
@@ -552,12 +563,19 @@ class BusService(Service):
         crash a dispatch loop or a spawned timer task.
         """
         try:
-            self._record_predicate_failure(listener, topic, event, exc, start_ts)
+            self._record_predicate_failure(listener, topic, event, exc, start_ts, is_synthetic=is_synthetic)
         except Exception:
             self.logger.exception("Failed to record predicate failure for %s", listener)
 
     def _record_predicate_failure(
-        self, listener: "Listener", topic: str, event: "AnyEvent", exc: Exception, start_ts: float
+        self,
+        listener: "Listener",
+        topic: str,
+        event: "AnyEvent",
+        exc: Exception,
+        start_ts: float,
+        *,
+        is_synthetic: bool,
     ) -> None:
         """Record a raising predicate as a failed execution and route to error handlers.
 
@@ -572,6 +590,8 @@ class BusService(Service):
             event: The event being dispatched when the predicate raised.
             exc: The exception the predicate raised.
             start_ts: Unix timestamp when predicate evaluation began.
+            is_synthetic: True when ``event`` was built from the cached state (immediate fire or the
+                duration fire-time recheck), so the row is labelled ``HASSETTE_SYNTHETIC``.
         """
         session_id = self.hassette.try_session_id()
 
@@ -590,7 +610,7 @@ class BusService(Service):
             app_key=listener.identity.app_key,
             source_tier=listener.identity.source_tier,
             execution_id=execution_id,
-            **summarize_trigger(event, listener, is_synthetic=False),
+            **summarize_trigger(event, listener, is_synthetic=is_synthetic),
         )
         self._executor.enqueue_record(record)
 

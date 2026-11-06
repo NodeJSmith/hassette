@@ -60,7 +60,8 @@ class DurationHoldManager:
                 bus kernel does not import HA event types.
             record_predicate_failure: Records a raising predicate as a failed execution and
                 routes it to the listener's (or app-level) error handler. Takes
-                ``(listener, topic, event, exc, start_ts)`` and must not raise. Injected from
+                ``(listener, topic, event, exc, start_ts)`` and must not raise. Every event it receives
+                was built by ``make_synthetic_event``, so it records the row as synthetic. Injected from
                 ``BusService`` so the duration-hold paths share the main dispatch path's
                 failure handling.
         """

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from hassette_wire import ExecutionStatus
 
 from hassette.bus.error_context import BusErrorContext
+from hassette.core.execution_record import SYNTHETIC_ORIGIN
 from hassette.events.base import AnyEvent, Event, EventPayload
 from hassette.testing import create_state_change_event, wait_for
 from tests.support.helpers import HANG_GUARD_TIMEOUT_SECONDS
@@ -51,6 +52,8 @@ async def test_predicate_failure_enqueues_error_record(hassette_with_bus: "Hasse
     assert record.error_traceback is not None
     assert "ZeroDivisionError" in record.error_traceback
     assert record.execution_id is not None
+    # Main dispatch evaluates the real event, so the row is not labelled synthetic.
+    assert record.trigger_origin != SYNTHETIC_ORIGIN
 
 
 async def test_predicate_failure_invokes_per_listener_error_handler(hassette_with_bus: "HassetteHarness") -> None:

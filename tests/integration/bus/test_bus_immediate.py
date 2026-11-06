@@ -8,10 +8,15 @@ import asyncio
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from hassette_wire import ExecutionStatus
 from whenever import SYSTEM_TZ, ZonedDateTime
 
+from hassette.core.execution_record import SYNTHETIC_ORIGIN
+from hassette.core.execution_record_builder import build_execution_record
 from hassette.events import HassStateDict, RawStateChangeEvent
 from hassette.testing import HassetteHarness, make_state_dict, wait_for
+from hassette.types.enums import Topic
+from hassette.utils.execution import ExecutionResult
 from tests.support.helpers import settle
 
 from .conftest import (
@@ -21,7 +26,7 @@ from .conftest import (
     ELAPSED_REMAINING_OFFSET_SECONDS,
     REMAINING_FIRE_TIMEOUT,
 )
-from .helpers import make_collector, seed, send_live_event_and_wait_drain
+from .helpers import make_collector, mock_bus_executor, seed, send_live_event_and_wait_drain
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -98,10 +103,16 @@ async def test_immediate_no_fire_entity_not_found(bus_harness: tuple[HassetteHar
 
 
 async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
-    """Synthetic event has old_state=None, new_state=current, ZonedDateTime time_fired, unique context.id."""
+    """An immediate fire's synthetic event, and the execution record built from it, describe the cached state.
+
+    The event has old_state=None, new_state=current, a ZonedDateTime time_fired, the base state_changed
+    topic, and the cached state's real context; the record is labelled HASSETTE_SYNTHETIC.
+    """
     harness, hassette, bus = bus_harness
 
     await seed(harness, "sensor.temp", "25.5")
+    cached = hassette.state_proxy.get_state("sensor.temp")
+    assert cached is not None
 
     handler, received, fired = make_collector(hassette)
 
@@ -124,9 +135,56 @@ async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHa
     assert data.new_state is not None
     assert data.new_state["state"] == "25.5"
     assert isinstance(event.payload.time_fired, ZonedDateTime)
-    assert event.payload.context.id  # non-empty UUID string
-    assert event.payload.context.parent_id is None
-    assert event.payload.context.user_id is None
+    assert event.topic == Topic.HASS_EVENT_STATE_CHANGED
+    assert event.payload.context.id == cached["context"]["id"]
+    assert event.payload.context.parent_id == cached["context"]["parent_id"]
+
+    cmd = next(c.args[0] for c in mock_bus_executor(harness).execute.call_args_list if c.args[0].event is event)
+    result = ExecutionResult()
+    result.status = ExecutionStatus.SUCCESS
+    record = build_execution_record(cmd, result, 0.0, "exec-immediate", session_id=None)
+    assert record.trigger_context_id == cached["context"]["id"]
+    assert record.trigger_old_value is None
+    assert record.trigger_new_value == "25.5"
+    assert record.trigger_topic == str(Topic.HASS_EVENT_STATE_CHANGED)
+    assert record.trigger_origin == SYNTHETIC_ORIGIN
+
+
+async def test_immediate_raising_where_records_synthetic_error_row(
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+) -> None:
+    """A ``where=`` raising on an immediate fire enqueues an error row labelled HASSETTE_SYNTHETIC.
+
+    Goes through the real ``BusService`` wiring of the duration-hold manager's failure callback.
+    """
+    harness, hassette, bus = bus_harness
+    executor = mock_bus_executor(harness)
+    executor.enqueue_record.reset_mock()
+
+    await seed(harness, "sensor.raising_where", "7")
+
+    def raising_where(_event: object) -> bool:
+        raise ValueError("where boom")
+
+    handler, received, _fired = make_collector(hassette)
+    await bus.on_state_change(
+        "sensor.raising_where",
+        handler=handler,
+        changed=False,
+        immediate=True,
+        where=raising_where,
+        name="immediate_raising_where",
+    )
+
+    await wait_for(lambda: executor.enqueue_record.call_count > 0, desc="predicate-failure record enqueued")
+
+    record = executor.enqueue_record.call_args[0][0]
+    assert record.status is ExecutionStatus.ERROR
+    assert record.error_type == "ValueError"
+    assert record.trigger_origin == SYNTHETIC_ORIGIN
+    assert record.trigger_old_value is None
+    assert record.trigger_new_value == "7"
+    assert received == []
 
 
 async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:

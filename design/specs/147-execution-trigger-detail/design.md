@@ -1,7 +1,7 @@
 # Design: Execution Trigger Detail
 
 **Date:** 2026-11-05
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3676
 **Parent:** design/specs/142-diagnostic-evidence/design.md
@@ -27,7 +27,7 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 
 ## Posture
 
-- **Failure handling:** best-effort, carried from the parent. Building the summary never raises into dispatch or a handler; a failure leaves the fields NULL and logs through `logger.exception` with no values, once per failing event, which is loud on purpose if a payload change breaks every row.
+- **Failure handling:** best-effort, carried from the parent. Building the summary never raises into dispatch or a handler; a failure leaves the fields NULL and logs through `logger.exception` with no values, once per failed row (each matching listener's run), which is loud on purpose if a payload change breaks every row, accepting one traceback per listener per event in that case.
 - **Compatibility:** clean breaks (pre-V1). Wire changes go through `client_compat` and `check_wire_compat`; an accepted break gets an ignore-file entry with a reason.
 - **Scope:** the issue's acceptance criteria only. The frontend changes only to keep its existing readers working.
 - **Rollout:** ships outright. Migration `023` adds nullable columns, with no backfill.
@@ -56,7 +56,7 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 **Recommendation:** A, because it gives one home for trigger facts and a model #1817 can reuse. Pre-V1 allows the break, and the released client still parses. This supersedes the parent's "additive" posture for this one model.
 **Pick B instead if** a deployed client or script reads `trigger_context_id` and you want it to keep working until V1. **Pick C instead if** you'd rather not introduce a nested wire model before #1817 confirms the shape.
 **Reversibility:** easy until V1 (wire shape)
-**Ratified:** Chose a nested `trigger` object with the flat `trigger_context_id`/`trigger_origin` removed, over keeping the flat pair or going flat-only, to give trigger facts one home that #1817 can reuse, accepting a clean wire break (released clients read `None` for context and origin) and four frontend files to update.
+**Ratified:** Chose a nested `trigger` object with the flat `trigger_context_id`/`trigger_origin` removed, over keeping the flat pair or going flat-only, to give trigger facts one home that #1817 can reuse, accepting a clean wire break (released clients read `None` for context and origin), four frontend files to update, and a handler row written before migration 023 carrying a `trigger` object with every field None, so consumers check its fields rather than the object.
 
 ### D2: How are old and new values stored, and where are they truncated?
 
@@ -78,7 +78,7 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 **Pick B instead if** you often track large attributes and want them whole. **Pick C instead if** callers should get typed values they can compare in code.
 **Storage rule:** a string value is stored as-is; any other value is stored as `json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)`. A missing state or attribute stores NULL, while an explicit JSON `null` stores `"null"`. The 255 limit counts code points of the stored string, `…` included.
 **Reversibility:** easy (a constant; existing rows keep their cut)
-**Ratified:** Chose display strings (strings as-is, other values as compact `json.dumps` with `ensure_ascii=False` and `default=str`; NULL for a missing value, `"null"` for an explicit null) cut at 255 code points with a trailing `…`, over a 1024 cap or typed JSON values dropped over the cap, to match Home Assistant's own state limit and keep rows near the parent's size estimate, accepting untyped values on the wire, cut-off large attributes, and values stored as Home Assistant reports them with no redaction.
+**Ratified:** Chose display strings (strings as-is, other values as compact `json.dumps` with `ensure_ascii=False` and `default=str`; NULL for a missing value, `"null"` for an explicit null) cut at 255 code points with a trailing `…`, over a 1024 cap or typed JSON values dropped over the cap, to match Home Assistant's own state limit and keep rows near the parent's size estimate, accepting untyped values on the wire, cut-off large attributes, values stored as Home Assistant reports them with no redaction, and each value serialized in full before it is cut, so a large, fast-changing tracked attribute pays the full serialization on every run.
 
 ### D3: What does the "event type" column hold?
 
@@ -154,7 +154,7 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 **Pick B instead if** existing scripts parse `hassette execution --json` as a list. **Pick C instead if** you want logs and the record as separate commands.
 **Missing or failed record:** when the execution call returns `null`, `--json` holds `"execution": null`, the command exits 0, and the logs are still shown; human mode says the record is "not recorded yet (rows are written in batches) or removed by retention; retry in a few seconds". A failed execution call is reported on stderr and treated as `null`. A failed logs call fails as it does today. `docs/pages/cli/commands.md` documents this.
 **Reversibility:** easy until V1 (CLI output)
-**Ratified:** Chose a summary and trigger block above the log table, with `--json` becoming `{"execution": ..., "logs": [...]}`, over a human-only block or a separate subcommand, to show trigger and logs in one command with room for #3677's additions, and a lenient contract when the record is missing or its call fails (`"execution": null`, exit 0, logs shown, a message naming batching and retention) over a strict non-zero exit, so logs reach the user in the seconds after a failure, accepting a pre-V1 break for scripts that parse `--json` as a list and scripts having to check for `null` rather than an exit code.
+**Ratified:** Chose a summary and trigger block above the log table, with `--json` becoming `{"execution": ..., "logs": [...]}`, over a human-only block or a separate subcommand, to show trigger and logs in one command with room for #3677's additions, and a lenient contract when the record is missing or its call fails (`"execution": null`, exit 0, logs shown, a message naming batching and retention) over a strict non-zero exit, so logs reach the user in the seconds after a failure, accepting a pre-V1 break for scripts that parse `--json` as a list and scripts having to check for `null` rather than an exit code, and a failed lookup reading the same `"execution": null` as a missing record in `--json`, with the reason on stderr only.
 
 ### D7: How is the synthetic immediate-fire event built?
 
@@ -166,19 +166,20 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 |---|---|---|---|---|
 | Fabricated context anywhere | No | No | No | Avoided only where each consumer knows to |
 | Normal immediate-fire rows | Real context, origin `HASSETTE_SYNTHETIC` | Real context, origin `LOCAL`, told apart only by NULL old value | Real context, `HASSETTE_SYNTHETIC` | NULL context, `HASSETTE_SYNTHETIC` |
-| Predicate-error rows on an immediate fire | Real context, origin `LOCAL` (unlabelled) | Same | Labelled | Needs an `is_synthetic` flag threaded through the predicate-failure path |
+| Predicate-error rows on an immediate fire | Real context, origin `LOCAL` (unlabelled; as ratified, before the ship-time amendment took on D's threaded flag) | Same | Labelled | Needs an `is_synthetic` flag threaded through the predicate-failure path |
 | New machinery | None; the builder stops nulling the context | Less: removes a flag and a constant | A payload field on every event | A threaded flag plus topic normalization |
 | What peers do | NetDaemon `WithCurrent` and Node-RED "output on connect" reuse the real current state and its context; Node-RED and pyscript keep a call-side flag | AppDaemon and NetDaemon rely on `old_state` being absent | No peer marks the payload | No peer fabricates a context |
 | Handler-visible change | `event.payload.context` becomes real; `event.topic` loses the entity suffix | Same | Same plus the new field | None |
 
-**Recommendation:** A. `make_synthetic_state_event` builds `HassContext` from `current_state["context"]` and uses topic `Topic.HASS_EVENT_STATE_CHANGED`, so every consumer of the event records honest data. `build_execution_record` keeps origin `HASSETTE_SYNTHETIC` for `cmd.is_synthetic` but stops nulling the context id. The only unlabelled case is a raising `where=` during an immediate fire, and that row's context is real and its old value NULL. #3677's pickup should note that an immediate-fire row's context can match the API write that set the current value, so `caused_by` would point at it.
+**Recommendation:** A. `make_synthetic_state_event` builds `HassContext` from `current_state["context"]` and uses topic `Topic.HASS_EVENT_STATE_CHANGED`, so every consumer of the event records honest data. `build_execution_record` keeps origin `HASSETTE_SYNTHETIC` for `cmd.is_synthetic` but stops nulling the context id. A raising predicate on a synthetic event (`where=` during an immediate fire, or the hold predicate at the duration fire-time recheck) is labelled too, per the ship-time amendment; that row's context is real and its old value NULL. #3677's pickup should note that an immediate-fire row's context can match the API write that set the current value, so `caused_by` would point at it.
 **Pick B instead if** you want less code and accept immediate-fire rows looking like ordinary `LOCAL` changes. **Pick C instead if** every consumer must label synthetic events from the event alone. **Pick D instead if** this PR should stay away from the synthetic-event factory.
 **Reversibility:** easy (pre-V1; handler-visible `event.topic` and `context` on immediate fires)
-**Ratified:** Chose building the synthetic event from the cached state's real context and the base state-changed topic while keeping the command-side `HASSETTE_SYNTHETIC` origin label, over dropping the label, adding a payload marker, or working around the fake event per consumer, so no row carries a fabricated context and every event kind has one topic shape, as NetDaemon and Node-RED do, accepting that predicate-error rows on an immediate fire are unlabelled and that handlers see a changed `event.topic` and a real context on immediate fires.
+**Ratified:** Chose building the synthetic event from the cached state's real context and the base state-changed topic while keeping the command-side `HASSETTE_SYNTHETIC` origin label, over dropping the label, adding a payload marker, or working around the fake event per consumer, so no row carries a fabricated context and every event kind has one topic shape, as NetDaemon and Node-RED do, accepting that handlers see a changed `event.topic` and a real context on immediate fires (left out of the `BREAKING CHANGE:` footer, as the synthetic event's topic and context are internal), and that a cached state without `context`, which neither Home Assistant nor the testing factories produce, skips that listener's immediate fire with a WARNING and drops its duration recheck.
+**Amended at ship time:** as first ratified, predicate-error rows on synthetic events were left unlabelled (origin `LOCAL`), on the belief that a raising `where=` during an immediate fire was the only such case. The ship-time challenge found a second: a hold predicate that raises at the duration fire-time recheck. Chose labelling both over documenting them, so no predicate-error row on a synthetic event passes for a Home Assistant change, accepting an `is_synthetic` keyword on `BusService.record_predicate_failure_safely`. `BusService` binds it to `True` where it wires the callback into `DurationHoldManager`, since every event the hold manager evaluates is built from the cached state, and passes `False` from main dispatch.
 
 ### D8: Does a delayed fire record the triggering event or the state at fire time?
 
-**Situation:** a duration listener's invoke function closes over the event that started the hold; the fire-time recheck builds a throwaway synthetic event used only for `hold_matches`, which never reaches the record (`src/hassette/bus/duration_hold.py`). Debounced listeners likewise fire with the event they were given. So the recorded values can be N seconds older than `execution_start_ts`.
+**Situation:** a duration listener's invoke function closes over the event that started the hold; the fire-time recheck builds a throwaway synthetic event used only for `hold_matches`, which reaches a record only when its hold predicate raises (then labelled `HASSETTE_SYNTHETIC`, see D7's amendment) (`src/hassette/bus/duration_hold.py`). Debounced listeners likewise fire with the event they were given. So the recorded values can be N seconds older than `execution_start_ts`.
 
 **Deciding factor:** the row describes the same event the handler received.
 
@@ -212,7 +213,7 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 - [x] Compat checks: run `check_wire_compat` and `uv run nox -s client_compat`; add each line they print to `tools/wire_compat_ignore.txt` / `tools/client_compat_ignore.txt` with a reason comment (both passed against v0.63.0 with no output to ignore: the released client parses the nested shape and reads `None` for the removed flat fields, as D1 expected)
 - [ ] PR title uses `feat!:`; the body ends with exactly one `BREAKING CHANGE:` footer naming (1) the removed flat `Execution.trigger_context_id`/`trigger_origin`, which released clients now read as `None`, (2) `DurationConfig` → `EntityWatch` and `Listener.duration_config` → `Listener.entity_watch`, and (3) `hassette execution --json` returning an object
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - Route topic on synthetic and predicate-failure paths: `DurationHoldManager.evaluate_predicate` and the immediate-fire invoke now pass `listener.topic` as the route, not `event.topic`. Both used the synthetic event's entity-suffixed topic as the route; after D7 that topic is the base topic, and `BusErrorContext.topic`/`InvokeHandler.topic` are documented as the matched route.

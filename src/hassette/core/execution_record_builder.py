@@ -120,8 +120,9 @@ def summarize_trigger(event: "AnyEvent", listener: "Listener", *, is_synthetic: 
     depend on the payload's shape, so a failure there leaves only those three None and is logged,
     without the event's values, once per failed row instead of failing the run.
 
-    An immediate-fire run (``is_synthetic``) keeps its event's real context but is labelled with
-    ``SYNTHETIC_ORIGIN``, since its event was built from the cached state, not sent by Home Assistant.
+    A row whose event was built from the cached state (``is_synthetic``: an immediate-fire run, or a
+    predicate that raised on an immediate fire or a duration fire-time recheck) keeps the event's real
+    context but is labelled with ``SYNTHETIC_ORIGIN``, since Home Assistant didn't send that event.
     """
     payload = event.payload
     fields: TriggerRecordFields = {

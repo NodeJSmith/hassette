@@ -60,7 +60,7 @@ class TestRecordPredicateFailure:
         exc = ValueError("boom")
 
         start_ts = time.time()
-        bs._record_predicate_failure(listener, "test.pred", event, exc, start_ts)
+        bs._record_predicate_failure(listener, "test.pred", event, exc, start_ts, is_synthetic=False)
 
         executor.enqueue_record.assert_called_once()
         record = executor.enqueue_record.call_args[0][0]
@@ -77,7 +77,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler()
         event = create_state_change_event(entity_id="light.office", old_value="off", new_value="on")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("boom"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("boom"), time.time(), is_synthetic=False)
 
         record = executor.enqueue_record.call_args[0][0]
         assert record.trigger_entity_id == "light.office"
@@ -93,7 +93,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler()
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         record = executor.enqueue_record.call_args[0][0]
         assert record.session_id is None
@@ -107,7 +107,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler(error_handler=on_error)
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         cast("MagicMock", bs.task_bucket).spawn.assert_called_once()
 
@@ -120,7 +120,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler(app_resolver=lambda: app_handler)
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         cast("MagicMock", bs.task_bucket).spawn.assert_called_once()
 
@@ -129,7 +129,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler()
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         cast("MagicMock", bs.task_bucket).spawn.assert_not_called()
 
