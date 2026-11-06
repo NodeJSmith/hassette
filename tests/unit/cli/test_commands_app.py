@@ -4,16 +4,18 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import AppInstance, AppListResponse, AppStatus, ExecutionStatus, ResourceStatus
+from hassette_wire import AppInstance, AppListResponse, AppStatus, ExecutionStatus, NeedsRestart, ResourceStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
     APP_ACTIVITY_COLUMNS,
+    APP_INSTANCE_COLUMNS,
     APP_LIST_COLUMNS,
     cmd_app,
     cmd_app_activity,
     cmd_app_config,
     cmd_app_health,
+    cmd_app_instances,
     cmd_app_source,
 )
 from hassette.cli.context import CLIContext
@@ -175,6 +177,76 @@ class TestCmdApp:
         plain = runner.stdout(client, cmd_app)
         assert "failed" in plain
         assert "\x1b[" not in plain
+
+
+# cmd_app_instances
+
+
+class TestCmdAppInstances:
+    @pytest.fixture
+    def summary_body(self) -> dict[str, Any]:
+        """my-app with a running instance, a failed one flagged needs-restart, and one outside the config."""
+        instances = [
+            AppInstance(app_key="my-app", instance_name="office", class_name="MyApp", status=ResourceStatus.RUNNING),
+            AppInstance(
+                app_key="my-app",
+                instance_name="garage",
+                class_name="MyApp",
+                status=ResourceStatus.FAILED,
+                error_message="boom in garage",
+                needs_restart=NeedsRestart(reason="1 task still pending", flagged_at=0.0),
+            ),
+            AppInstance(
+                app_key="my-app",
+                instance_name="attic",
+                class_name="MyApp",
+                status=ResourceStatus.RUNNING,
+                in_current_config=False,
+            ),
+        ]
+        return make_app_summary(app_key="my-app", instance_count=3, instances=instances).model_dump(mode="json")
+
+    def test_reads_the_app_summary_endpoint(
+        self, cli_client_factory: CLIClientFactory, summary_body: dict[str, Any]
+    ) -> None:
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app", 200, summary_body)])
+        spy = runner.spy(client, cmd_app_instances, "my-app")
+
+        assert any(p.endswith("/api/apps/my-app") for p in spy.paths)
+
+    def test_human_mode_renders_one_row_per_instance(
+        self, cli_client_factory: CLIClientFactory, summary_body: dict[str, Any]
+    ) -> None:
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app", 200, summary_body)])
+        lines = runner.stdout(client, cmd_app_instances, "my-app").splitlines()
+
+        garage = next(line for line in lines if "garage" in line)
+        attic = next(line for line in lines if "attic" in line)
+        office = next(line for line in lines if "office" in line)
+        assert all(text in garage for text in ("failed", "boom in garage", "yes"))
+        assert "False" in attic
+        assert "True" in office
+        assert "yes" not in office
+
+    def test_json_mode_prints_the_app_summary_unchanged(
+        self, cli_client_factory: CLIClientFactory, summary_body: dict[str, Any]
+    ) -> None:
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app", 200, summary_body)], json_mode=True)
+
+        assert runner.json_output(client, cmd_app_instances, "my-app") == summary_body
+
+    def test_unknown_app_exits_nonzero_with_the_server_detail(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes([("GET", "/api/apps/typo", 404, UNKNOWN_APP_PROBLEM)])
+
+        code, stderr = runner.usage_error(client, cmd_app_instances, "typo")
+
+        assert code == 1
+        assert "App 'typo' not found" in stderr
+
+    def test_instance_column_paths_name_instance_fields(self, summary_body: dict[str, Any]) -> None:
+        """No column is blank because its path is stale: each one names a key of the dumped instance."""
+        instance = summary_body["instances"][0]
+        assert {c.field for c in APP_INSTANCE_COLUMNS} <= instance.keys()
 
 
 # cmd_app_health
