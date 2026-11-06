@@ -556,7 +556,7 @@ class Bus(Resource):
         listeners, ``single`` for app listeners). An explicit mode always wins.
 
         Called by on() (with entity_watch=None) and by _subscribe() (which
-        builds EntityWatch from duration/entity_id when provided).
+        builds EntityWatch from entity_id and its watch settings when entity_id is provided).
 
         source_location and registration_source are captured in the public def (user
         frame live there) and threaded down here to populate ListenerIdentity — the
@@ -688,7 +688,7 @@ class Bus(Resource):
             if hold_preds is not None:
                 hold_preds = [*hold_preds, normalized_where]
 
-        # Build EntityWatch when entity_id is provided (for duration or immediate listeners)
+        # Every entity-scoped (state or attribute) registration tracks its entity in an EntityWatch
         entity_watch: EntityWatch | None = None
         if entity_id:
             entity_watch = EntityWatch(

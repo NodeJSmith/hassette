@@ -223,3 +223,8 @@ Out of scope: `caused_by` (#3677), near-miss rows (#1817, which reuses this summ
 - An extraction failure keeps the event's context id, origin, parent id and topic, which are read straight off the payload; only the entity and values are left NULL. This matches the Wire bullet in the Summary (a failed row "still shows" context and origin); the Posture's "leaves the fields NULL" applies to the shape-dependent fields.
 - Summary-block values from Home Assistant or exceptions are Rich-escaped, and an empty-string value shows as `""` rather than `—`, so it stays distinct from a missing value (D2 stores them differently).
 - Seed scenarios don't gain trigger data: no seeded row set trigger fields before, and the UI shows only context and origin. The client-compat live-state row carries topic, entity and values so compat fixtures exercise the new fields.
+
+## Addendum
+
+### 2026-11-06: the synthetic-event factory moved out of `bus_service.py`
+`make_synthetic_state_event`, `compute_elapsed` and `strip_old_state` now live in `src/hassette/core/duration_hold_adapters.py`, not `src/hassette/core/bus_service.py` as the Summary, D4 and D7 say. This PR had grown `bus_service.py` past the repo's file-size regression gate. These three are the Home Assistant state adapters `BusService` injects into `DurationHoldManager`, so they moved together. Behaviour is unchanged.

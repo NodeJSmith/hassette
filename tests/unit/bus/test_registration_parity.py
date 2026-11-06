@@ -24,10 +24,10 @@ EXEMPTIONS: set[str] = {
     # Computed at registration time by BusService, not stored on sub-structs
     "predicate_description",  # describe_predicate(listener.predicate), computed from Listener.predicate at registration
     "human_description",  # summarize_top_level(listener.predicate), computed from Listener.predicate at registration
-    # Duration fields sourced from EntityWatch, not ListenerIdentity or ListenerOptions
-    "immediate",  # EntityWatch.immediate — duration concern, not behavioral option or identity
-    "duration",  # EntityWatch.duration — duration concern, not behavioral option or identity
-    "entity_id",  # EntityWatch.entity_id — duration concern, not behavioral option or identity
+    # Entity-watch fields sourced from EntityWatch, not ListenerIdentity or ListenerOptions
+    "immediate",  # EntityWatch.immediate — entity-watch concern, not behavioral option or identity
+    "duration",  # EntityWatch.duration — entity-watch concern, not behavioral option or identity
+    "entity_id",  # EntityWatch.entity_id — entity-watch concern, not behavioral option or identity
 }
 
 # All field names on ListenerIdentity

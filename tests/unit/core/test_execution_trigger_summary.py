@@ -6,7 +6,7 @@ import logging
 import pytest
 from hassette_wire import ExecutionStatus, ExecutionTrigger
 
-from hassette.core.bus_service import make_synthetic_state_event
+from hassette.core.duration_hold_adapters import make_synthetic_state_event
 from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
 from hassette.core.execution_record_builder import (
     TRIGGER_VALUE_MAX_CHARS,

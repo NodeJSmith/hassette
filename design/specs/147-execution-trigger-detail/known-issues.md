@@ -9,7 +9,7 @@ Recorded: 2026-11-06 (3676)
 Source: ship-challenge
 Reason not fixed now: accepted-limitation
 Affected files:
-- src/hassette/core/bus_service.py
+- src/hassette/core/duration_hold_adapters.py
 - src/hassette/bus/duration_hold.py
 
 Issue:

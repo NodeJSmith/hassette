@@ -489,7 +489,7 @@ class Listener:
     """Behavioral execution parameters."""
 
     entity_watch: EntityWatch | None
-    """Duration-hold configuration and timer. None for non-duration listeners."""
+    """The entity this listener tracks, with its duration-hold settings and timer. None for ``on()`` listeners."""
 
     listener_id: int = field(default_factory=next_id, init=False)
     """Unique identifier for the listener instance."""
@@ -561,7 +561,7 @@ class Listener:
 
         Compares handler callable, filter predicate, timing options (once, debounce,
         throttle, timeout, timeout_disabled, priority), the execution mode, handler kwargs,
-        per-registration error handler (by identity), and duration configuration scalars.
+        per-registration error handler (by identity), and entity-watch scalars.
 
         Does not compare runtime state: listener_id, db_id, _cancelled, or the
         attached DurationTimer. Lambda/closure predicates and callable conditions
@@ -640,7 +640,7 @@ class Listener:
         """Create a framework cancel-listener with sensible defaults.
 
         Produces a listener with source_tier='framework'. No rate limiter,
-        no error handler, no duration config.
+        no error handler, no entity watch.
         """
         handler_name = callable_name(handler)
         short_name = callable_short_name(handler)

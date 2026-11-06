@@ -19,7 +19,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.listeners import EntityWatch, Listener, Subscription
 from hassette.bus.router import Router
-from hassette.core.bus_service import compute_elapsed, make_synthetic_state_event
+from hassette.core.duration_hold_adapters import compute_elapsed, make_synthetic_state_event
 from hassette.events.hass.raw import HassStateDict
 from hassette.testing import make_state_dict
 from tests.support.factories import make_mock_executor
@@ -170,12 +170,12 @@ def hold_matches_with_predicate(
 def compute_elapsed_for(state: dict[str, Any], *, duration: float = 60.0) -> float:
     """Build the standard light.kitchen EntityWatch and call compute_elapsed.
 
-    Collapses the ``dc = EntityWatch(...)`` + ``compute_elapsed(state, dc)`` pair shared by
+    Collapses the ``watch = EntityWatch(...)`` + ``compute_elapsed(state, watch)`` pair shared by
     several TestComputeElapsed cases — those tests all target the same entity_id and duration;
     only the `state` dict (built to control ``last_changed`` precisely) varies per test.
     """
-    dc = EntityWatch(entity_id="light.kitchen", duration=duration)
-    return compute_elapsed(cast("HassStateDict", state), dc)
+    watch = EntityWatch(entity_id="light.kitchen", duration=duration)
+    return compute_elapsed(cast("HassStateDict", state), watch)
 
 
 class TestConstruction:
@@ -498,8 +498,8 @@ class TestComputeElapsed:
     def test_attribute_listener_returns_zero(self) -> None:
         """compute_elapsed returns 0.0 for attribute listeners."""
         state = make_state_dict("light.kitchen", "on")
-        dc = EntityWatch(entity_id="light.kitchen", duration=60.0, attribute="brightness")
-        result = compute_elapsed(cast("HassStateDict", state), dc)
+        watch = EntityWatch(entity_id="light.kitchen", duration=60.0, attribute="brightness")
+        result = compute_elapsed(cast("HassStateDict", state), watch)
         assert result == 0.0
 
     def test_missing_last_changed_returns_zero(self) -> None:
@@ -525,8 +525,8 @@ class TestComputeElapsed:
     def test_none_duration_returns_zero(self) -> None:
         """compute_elapsed returns 0.0 when entity_watch.duration is None."""
         state = make_state_dict("light.kitchen", "on")
-        dc = EntityWatch(entity_id="light.kitchen", duration=None)
-        result = compute_elapsed(cast("HassStateDict", state), dc)
+        watch = EntityWatch(entity_id="light.kitchen", duration=None)
+        result = compute_elapsed(cast("HassStateDict", state), watch)
         assert result == 0.0
 
     def test_elapsed_clamped_to_duration(self) -> None:

@@ -323,18 +323,8 @@ class HassetteCLIClient:
         any failure (network error, non-2xx status, unparseable body) returns ``None`` rather than
         calling ``sys.exit``.
         """
-        try:
-            response = self._client.get(APPS_PATH, timeout=self.timeout)
-        except httpx.RequestError:
-            return None
-
-        if not response.is_success:
-            return None
-
-        try:
-            return parse_wire(AppListResponse, response.json())
-        except (json.JSONDecodeError, ValidationError, UnicodeDecodeError):
-            return None
+        app_list, _reason = self.try_get_nullable(APPS_PATH, AppListResponse)
+        return app_list
 
     def try_get_nullable(self, path: str, model: type[M]) -> tuple[M | None, str | None]:
         """Best-effort GET for an endpoint whose body is a ``model`` or JSON ``null``; never exits.
@@ -352,8 +342,10 @@ class HassetteCLIClient:
             return None, f"HTTP {response.status_code}"
 
         try:
-            data = response.json()
-            return (None if data is None else parse_wire(model, data)), None
+            body = response.json()
+            if body is None:
+                return None, None
+            return parse_wire(model, body), None
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as exc:
             return None, f"unusable response body ({type(exc).__name__})"
 

@@ -98,17 +98,26 @@ class TestListenerConfigMatches:
         b = create_listener(handler=fn, error_handler=eh)
         assert a.config_matches(b) is True
 
-    def test_different_entity_watch_not_matching(self) -> None:
-        """Different entity_watch scalars → 'entity_watch' in diff_fields."""
-        a = create_listener(handler=fn, entity_id="light.kitchen", duration=5.0)
-        b = create_listener(handler=fn, entity_id="light.kitchen", duration=10.0)
-        assert a.config_matches(b) is False
-        assert "entity_watch" in a.diff_fields(b)
-
-    def test_different_tracked_attribute_not_matching(self) -> None:
-        """Watches differing only in tracked attribute don't match."""
-        a = create_listener(handler=fn, entity_id="light.kitchen", attribute="brightness")
-        b = create_listener(handler=fn, entity_id="light.kitchen", attribute="color_temp")
+    @pytest.mark.parametrize(
+        ("a_kwargs", "b_kwargs"),
+        [
+            pytest.param(
+                {"entity_id": "light.kitchen", "duration": 5.0},
+                {"entity_id": "light.kitchen", "duration": 10.0},
+                id="different-duration",
+            ),
+            pytest.param(
+                {"entity_id": "light.kitchen", "attribute": "brightness"},
+                {"entity_id": "light.kitchen", "attribute": "color_temp"},
+                id="different-tracked-attribute",
+            ),
+            pytest.param({}, {"entity_id": "light.kitchen"}, id="one-entity-watch-none"),
+        ],
+    )
+    def test_differing_entity_watch_not_matching(self, a_kwargs: dict, b_kwargs: dict) -> None:
+        """Listeners whose entity watches differ (or only one has one) don't match; diff names 'entity_watch'."""
+        a = create_listener(handler=fn, **a_kwargs)
+        b = create_listener(handler=fn, **b_kwargs)
         assert a.config_matches(b) is False
         assert "entity_watch" in a.diff_fields(b)
 
@@ -119,13 +128,6 @@ class TestListenerConfigMatches:
         assert a.entity_watch is None
         assert b.entity_watch is None
         assert a.config_matches(b) is True
-
-    def test_one_entity_watch_none_not_matching(self) -> None:
-        """One entity_watch=None, other non-None → not matching."""
-        a = create_listener(handler=fn)
-        b = create_listener(handler=fn, entity_id="light.kitchen")
-        assert a.config_matches(b) is False
-        assert "entity_watch" in a.diff_fields(b)
 
     def test_runtime_state_excluded_listener_id(self) -> None:
         """Different listener_id values do not affect config_matches."""
