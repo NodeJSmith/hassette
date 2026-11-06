@@ -52,7 +52,8 @@ class AppInstance(BaseModel):
     debug_capture: bool = False
     """Whether debug capture is on: the instance and the framework loggers it owns log at ``DEBUG``, and every line
     is stored. Set by ``PUT /api/apps/{app_key}/debug``; it ends when turned off or when hassette restarts. Held for a
-    stopped instance too, whose levels apply when it starts."""
+    stopped instance too, whose levels apply when it starts. Fresh only when read: no WebSocket event reports a
+    change, so a client caching app state refetches ``GET /api/apps`` to see it."""
 
 
 class AppSummary(BaseModel):

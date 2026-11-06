@@ -137,6 +137,20 @@ class TestToggle:
         assert app.debug_capture is False
         assert app.bus.logger.level > logging.DEBUG
 
+    def test_repeating_a_state_repairs_a_live_instance_whose_flag_drifted(self, handler: AppHandler) -> None:
+        """The App's flag is a mirror: a repeat request re-applies it even though the registry says nothing changed."""
+        app = make_app(instance_name="alpha", app_key=APP_KEY)
+        handler.registry.register_app(APP_KEY, app)
+        handler.set_debug_capture(APP_KEY, "alpha", enabled=True)
+        app.set_debug_capture(False)
+        assert app.bus.logger.level > logging.DEBUG
+
+        handler.set_debug_capture(APP_KEY, "alpha", enabled=True)
+
+        assert app.debug_capture is True
+        assert app.logger.level == logging.DEBUG
+        assert app.bus.logger.level == logging.DEBUG
+
     def test_each_change_warns_attributed_to_its_instance(
         self, handler: AppHandler, handler_records: BufferingHandler
     ) -> None:

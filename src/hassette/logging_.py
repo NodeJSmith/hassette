@@ -117,6 +117,11 @@ class LogCaptureHandler(logging.Handler):
     actually persists: every record it receives, whatever its level. ``LoggingService`` turns hints off
     (``hints_enabled``) when the persistence handler couldn't be created, since no hint could then be
     followed by a successful fetch.
+
+    Hints are coalesced: while one is scheduled and hasn't run yet, further records send none, since a hint only
+    tells clients to refetch and the pending one's refetch already covers them. A burst of lines therefore costs the
+    event loop at most one pending broadcast, not one per line, and the hint's ``timestamp`` is that of the burst's
+    first record.
     """
 
     _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
@@ -126,25 +131,31 @@ class LogCaptureHandler(logging.Handler):
 
     shutting_down: bool
 
+    _hint_pending: bool
+    """Set on the emitting thread when a hint is scheduled. Only the scheduled callback clears it, on the loop, just
+    before the broadcast; a failed schedule or a re-wired loop resets it."""
+
     def __init__(self) -> None:
         super().__init__()
         self._broadcast_fn = None
         self._loop = None
         self.shutting_down = False
         self.hints_enabled = True
+        self._hint_pending = False
 
     def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
         self._loop = loop
+        self._hint_pending = False
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Schedule a ``log_hint`` broadcast on the event loop for ``record``.
+        """Schedule a ``log_hint`` broadcast on the event loop for ``record``, unless one is already pending.
 
         Does nothing while shutting down, before ``set_broadcast`` has wired a running loop, or while
         hints are disabled.
         """
-        if self.shutting_down or not self.hints_enabled:
+        if self.shutting_down or not self.hints_enabled or self._hint_pending:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
@@ -155,10 +166,18 @@ class LogCaptureHandler(logging.Handler):
             payload = {"type": "log_hint", "timestamp": record.created}
 
             def _schedule_broadcast() -> None:
+                # Cleared before the broadcast is created, so a record emitted from here on schedules a new hint;
+                # one emitted earlier is already covered by this hint's refetch.
+                self._hint_pending = False
                 with contextlib.suppress(RuntimeError):
                     loop.create_task(fn(payload))
 
-            loop.call_soon_threadsafe(_schedule_broadcast)
+            self._hint_pending = True
+            try:
+                loop.call_soon_threadsafe(_schedule_broadcast)
+            except RuntimeError:
+                # The loop closed after the is_running() check; the callback that would clear the flag never runs.
+                self._hint_pending = False
 
 
 @dataclass(frozen=True)

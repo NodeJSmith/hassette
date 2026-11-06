@@ -236,6 +236,38 @@ class TestLogCaptureHandlerHints:
         loop.call_soon_threadsafe.assert_not_called()
 
 
+class TestLogCaptureHandlerCoalescing:
+    """A burst of records costs at most one pending hint: a hint only asks clients to refetch."""
+
+    def test_records_while_a_hint_is_pending_schedule_none(self) -> None:
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
+
+        for _ in range(5):
+            handler.emit(make_log_record(level=logging.DEBUG))
+
+        loop.call_soon_threadsafe.assert_called_once()
+
+    def test_a_record_after_the_pending_hint_runs_schedules_a_new_one(self) -> None:
+        handler, loop, broadcast_fn = make_wired_capture_handler()
+        handler.emit(make_log_record(level=logging.DEBUG))
+
+        loop.call_soon_threadsafe.call_args.args[0]()
+        handler.emit(make_log_record(level=logging.DEBUG))
+
+        assert loop.call_soon_threadsafe.call_count == 2
+        broadcast_fn.assert_called_once()
+
+    def test_a_failed_schedule_does_not_silence_later_hints(self) -> None:
+        """A loop that closed after the running check can't clear the flag, so emit() resets it itself."""
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
+        loop.call_soon_threadsafe.side_effect = [RuntimeError("Event loop is closed"), None]
+
+        handler.emit(make_log_record(level=logging.DEBUG))
+        handler.emit(make_log_record(level=logging.DEBUG))
+
+        assert loop.call_soon_threadsafe.call_count == 2
+
+
 def emit_and_capture_broadcast(handler: LogCaptureHandler, loop: MagicMock, broadcast_fn: MagicMock) -> dict:
     """Emit one record and return the envelope dict passed to the broadcast fn.
 

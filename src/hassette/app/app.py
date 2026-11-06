@@ -168,8 +168,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.states = self.add_child(StateManager)
         if debug_capture:
             self._lifecycle_logger.warning(
-                "Debug capture is on: this instance and the framework loggers it owns log at DEBUG, and every "
-                "line is stored. It ends at `hassette app debug %s off` or a hassette restart.",
+                "Debug capture is on: this instance and the framework loggers it owns log at DEBUG. "
+                "It ends at `hassette app debug %s off` or a hassette restart.",
                 app_key,
             )
 

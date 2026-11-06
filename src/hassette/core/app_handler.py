@@ -167,9 +167,10 @@ class AppHandler(Service):
         """Turn debug capture on or off for one instance, or app-wide, and return each targeted name's state.
 
         App-wide ``on`` captures every configured instance; app-wide ``off`` ends capture for every name under
-        ``app_key``, configured or not. A running instance's levels are re-applied at once; a stopped one gets them
-        when it starts, since ``AppFactory`` passes the flag in at construction. Each instance whose state changed
-        gets a WARNING attributed to it.
+        ``app_key``, configured or not. Every targeted running instance has its levels re-applied at once, which
+        also repairs an instance whose flag drifted from the registry; a stopped one gets them when it starts,
+        since ``AppFactory`` passes the flag in at construction. Each instance whose state changed gets a WARNING
+        attributed to it.
 
         Takes no lifecycle lock and must never await (spec 148 D6): app construction and registration are
         synchronous, so on one event loop a concurrent build sees the registry either before or after this whole
@@ -194,17 +195,21 @@ class AppHandler(Service):
             # App-wide off also reaches captured names that left the config, before the next start prunes them.
             targets = [*configured, *sorted(registry.debug_captured_names(app_key).difference(configured))]
 
-        changed = [name for name in targets if registry.is_debug_captured(app_key, name) != enabled]
+        changed = {name for name in targets if registry.is_debug_captured(app_key, name) != enabled}
         registry.set_debug_capture(app_key, targets, enabled)
 
-        for name in changed:
+        for name in targets:
+            # Every live target is re-applied, not only the changed ones: the App's flag is a mirror, so a repeat
+            # request repairs one that drifted from the registry. Re-applying is idempotent.
             if (app := registry.get(app_key, name)) is not None:
                 app.set_debug_capture(enabled)
+            if name not in changed:
+                continue
             with structlog.contextvars.bound_contextvars(app_key=app_key, instance_name=name):
                 if enabled:
                     self.logger.warning(
-                        "Debug capture on for %s/%s: its own and its framework loggers log at DEBUG, and every line "
-                        "is stored. It ends at `hassette app debug %s off` or a hassette restart.",
+                        "Debug capture on for %s/%s: its own and its framework loggers log at DEBUG. "
+                        "It ends at `hassette app debug %s off` or a hassette restart.",
                         app_key,
                         name,
                         app_key,
