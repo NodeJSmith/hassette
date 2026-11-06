@@ -146,15 +146,6 @@ class TestLogPersistenceHandlerConstructor:
             "set_database() still exists on LogPersistenceHandler — remove it"
         )
 
-    def test_constructor_sets_persistence_level(self) -> None:
-        db_service = make_db_service()
-        loop = asyncio.new_event_loop()
-        try:
-            handler = LogPersistenceHandler(db_service, loop, persistence_level=logging.WARNING)
-            assert handler._persistence_level == logging.WARNING
-        finally:
-            loop.close()
-
     async def test_flush_calls_enqueue_on_db_service(self) -> None:
         """After construction, flush() should call db_service.enqueue() — no wiring step."""
         db_service = make_db_service()
@@ -237,36 +228,12 @@ class TestLoggingServiceOnInitialize:
         # mark_ready still called
         assert svc.is_ready()
 
-    async def test_on_initialize_persistence_level_follows_log_level(self, track_service: TrackService) -> None:
-        """An unset persistence level follows log_level, so DEBUG records stay queryable in the UI."""
+    async def test_on_initialize_enables_hints_with_persistence(self, track_service: TrackService) -> None:
+        """Every record reaching the persistence handler is stored, so every record may send a hint."""
         svc = track_service(await make_logging_service_with_config(log_level="DEBUG"))
 
         assert svc.persistence_handler is not None
-        assert svc.persistence_handler._persistence_level == logging.DEBUG
-
-    async def test_on_initialize_keeps_persistence_level_below_log_level(self, track_service: TrackService) -> None:
-        """A persistence_level deliberately set lower than log_level is left alone."""
-        svc = track_service(await make_logging_service_with_config(log_level="INFO", log_persistence_level="DEBUG"))
-
-        assert svc.persistence_handler is not None
-        assert svc.persistence_handler._persistence_level == logging.DEBUG
-
-    async def test_on_initialize_sets_capture_handler_notify_level_to_persistence_level(
-        self, track_service: TrackService
-    ) -> None:
-        """capture_handler's notify floor tracks whatever the persistence handler actually uses.
-
-        Regression coverage: a per-service logger override (e.g. LoggingConfig.scheduler_service)
-        or a runtime PUT /logs/level change can let a record through below the global log_level,
-        independent of the persistence_level computed here — filtering by this floor at emit()
-        time (see LogCaptureHandler) closes that gap for any logger without having to track their
-        effective levels in LoggingService itself.
-        """
-        svc = track_service(await make_logging_service_with_config(log_level="DEBUG"))
-
-        assert svc.persistence_handler is not None
-        assert svc.capture_handler._min_notify_level == svc.persistence_handler._persistence_level
-        assert svc.capture_handler._min_notify_level == logging.DEBUG
+        assert svc.capture_handler.hints_enabled is True
 
     async def test_on_initialize_disables_notify_when_persistence_handler_creation_fails(
         self, track_service: TrackService
@@ -287,7 +254,7 @@ class TestLoggingServiceOnInitialize:
             await svc.on_initialize()
 
         assert svc.persistence_handler is None
-        assert svc.capture_handler._min_notify_level > logging.CRITICAL
+        assert svc.capture_handler.hints_enabled is False
 
     async def test_on_initialize_swaps_stream_handler_for_queue_handler(self, track_service: TrackService) -> None:
         """After init, the hassette logger uses QueueHandler not StreamHandler."""

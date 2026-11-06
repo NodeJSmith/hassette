@@ -16,6 +16,9 @@ from hassette_wire import (
     AppListResponse,
     AppSource,
     AppSummary,
+    DebugCaptureRequest,
+    DebugCaptureResponse,
+    InstanceDebugCapture,
     InstanceOutcome,
     ProblemCode,
 )
@@ -61,6 +64,12 @@ APP_KEY_CODES = (ProblemCode.INVALID_APP_KEY,)
 KNOWN_APP_CODES = (ProblemCode.APP_NOT_FOUND,)
 """Codes ``_require_known_app`` raises."""
 
+DEBUG_CAPTURE_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES)
+"""Codes the app-wide debug-capture route raises: no ``action_in_progress``, since it takes no lifecycle lock."""
+
+INSTANCE_DEBUG_CAPTURE_CODES = (*DEBUG_CAPTURE_CODES, ProblemCode.INSTANCE_NOT_FOUND)
+"""Codes the instance debug-capture route raises."""
+
 INSTANCE_ROUTE_CODES = (
     *APP_KEY_CODES,
     *KNOWN_APP_CODES,
@@ -94,6 +103,11 @@ def action_route(path: str, *codes: ProblemCode) -> Callable[[DecoratedCallable]
 def app_not_found(app_key: str) -> WebApiError:
     """Build the 404 error raised when no app is registered under ``app_key``."""
     return WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
+
+
+def instance_not_found(app_key: str, instance_name: str) -> WebApiError:
+    """Build the 404 error raised when ``app_key``'s config has no instance named ``instance_name``."""
+    return WebApiError(ProblemCode.INSTANCE_NOT_FOUND, f"Instance {instance_name!r} not found for app {app_key!r}")
 
 
 def source_not_found(app_key: str) -> WebApiError:
@@ -185,7 +199,7 @@ def _require_addressable_instance(app_key: str, instance_name: str, hassette: Ha
         raise app_not_found(app_key)
     configured = manifest is not None and instance_name in configured_instance_names(manifest.app_config)
     if not configured and not _orphan_instance_permitted(app_key, instance_name, hassette, action):
-        raise WebApiError(ProblemCode.INSTANCE_NOT_FOUND, f"Instance {instance_name!r} not found for app {app_key!r}")
+        raise instance_not_found(app_key, instance_name)
 
 
 async def _run_app_action(
@@ -461,6 +475,61 @@ async def reload_instance(app_key: str, instance_name: str, hassette: HassetteDe
         request,
         lambda: hassette.app_handler.reload_instance(app_key, instance_name, force_reload=True),
         instance_name=instance_name,
+    )
+
+
+@router.put(
+    "/apps/{app_key}/debug", response_model=DebugCaptureResponse, responses=problem_responses(*DEBUG_CAPTURE_CODES)
+)
+async def set_app_debug_capture(
+    app_key: str, body: DebugCaptureRequest, hassette: HassetteDep, request: Request
+) -> DebugCaptureResponse:
+    """Turn debug capture on or off for every instance of the app, and report each instance's capture state.
+
+    ``enabled: true`` captures every configured instance; ``enabled: false`` ends capture for every instance of the
+    app. Answers while a start, stop or reload is running, since it takes no lifecycle lock.
+    """
+    _validate_app_key(app_key)
+    _require_manifest(app_key, hassette)
+    return _set_debug_capture(app_key, None, body.enabled, hassette, request)
+
+
+@router.put(
+    "/apps/{app_key}/instances/{instance_name}/debug",
+    response_model=DebugCaptureResponse,
+    responses=problem_responses(*INSTANCE_DEBUG_CAPTURE_CODES),
+)
+async def set_instance_debug_capture(
+    app_key: str, instance_name: str, body: DebugCaptureRequest, hassette: HassetteDep, request: Request
+) -> DebugCaptureResponse:
+    """Turn debug capture on or off for one configured instance, running or not, and report its capture state.
+
+    A stopped instance gets its DEBUG levels when it next starts. A name outside the app's config is a 404, as for
+    ``start``: a running orphan can only be stopped.
+    """
+    _validate_app_key(app_key)
+    manifest = _require_manifest(app_key, hassette)
+    if instance_name not in configured_instance_names(manifest.app_config):
+        raise instance_not_found(app_key, instance_name)
+    return _set_debug_capture(app_key, instance_name, body.enabled, hassette, request)
+
+
+def _set_debug_capture(
+    app_key: str, instance_name: str | None, enabled: bool, hassette: HassetteDep, request: Request
+) -> DebugCaptureResponse:
+    """Apply a validated debug-capture change and build its response."""
+    states = hassette.app_handler.set_debug_capture(app_key, instance_name, enabled)
+    LOGGER.info(
+        "Set debug capture %s for app %s%s (source=%s)",
+        "on" if enabled else "off",
+        app_key,
+        f" instance {instance_name}" if instance_name is not None else "",
+        peer_address_or_unknown(request),
+    )
+    return DebugCaptureResponse(
+        app_key=app_key,
+        instance_name=instance_name,
+        instances=[InstanceDebugCapture(instance_name=name, debug_capture=on) for name, on in states.items()],
     )
 
 

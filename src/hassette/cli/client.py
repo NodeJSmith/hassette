@@ -36,6 +36,13 @@ T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 
 
+def app_route_path(app_key: str, instance: str | None = None) -> str:
+    """The app-scoped API path for ``app_key``, or the instance-scoped one when ``instance`` is given."""
+    if instance is None:
+        return f"{APPS_PATH}/{app_key}"
+    return f"{APPS_PATH}/{app_key}/instances/{quote(instance, safe='')}"
+
+
 def query_params(**values: Any) -> dict[str, Any]:
     """Build a query-parameter dict from CLI flags, dropping every flag left unset.
 
@@ -131,10 +138,16 @@ class HassetteCLIClient:
         self, path: str, model: type[T], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
     ) -> T: ...
 
-    def _send(self, method: Literal["GET", "POST"], path: str, params: dict[str, Any] | None = None) -> httpx.Response:
+    def _send(
+        self,
+        method: Literal["GET", "POST", "PUT"],
+        path: str,
+        params: dict[str, Any] | None = None,
+        body: BaseModel | None = None,
+    ) -> httpx.Response:
         """Perform an HTTP request, translating transport failures into a usage-error exit.
 
-        Shared by :meth:`get` and :meth:`post` — the only difference between the two verbs
+        Shared by :meth:`get`, :meth:`post` and :meth:`put` — the only difference between the verbs
         is what happens to the response afterward (status/503 handling, deserialization
         target), not how connection failures become a ``SystemExit``. :meth:`try_fetch_app_list`
         is the one intentional exception: it needs failures to return ``None`` rather than exit,
@@ -143,6 +156,10 @@ class HassetteCLIClient:
         try:
             if method == "GET":
                 response = self._client.get(path, params=params, timeout=self.timeout)
+            elif method == "PUT":
+                content = body.model_dump_json() if body is not None else None
+                headers = {"Content-Type": "application/json"}
+                response = self._client.put(path, content=content, headers=headers, timeout=self.timeout)
             else:
                 response = self._client.post(path, timeout=self.timeout)
         except httpx.ConnectError as exc:
@@ -232,8 +249,20 @@ class HassetteCLIClient:
                 successful-looking response whose body is not valid JSON or doesn't match
                 ``model`` (code 1).
         """
-        response = self._send("POST", path)
+        return self._parse_mutation(self._send("POST", path), model)
 
+    def put(self, path: str, model: type[M], body: BaseModel) -> M:
+        """Perform a PUT request that sets a state, deserialize, and handle errors like :meth:`post`.
+
+        Args:
+            path: API path of the endpoint, relative to the resolved server URL.
+            model: The wire model the endpoint returns on success.
+            body: The request body, sent as JSON.
+        """
+        return self._parse_mutation(self._send("PUT", path, body=body), model)
+
+    def _parse_mutation(self, response: httpx.Response, model: type[M]) -> M:
+        """Exit on an error status or a malformed body, else return the parsed ``model``."""
         if not response.is_success:
             self.errors.handle_http_error(response)
 
@@ -266,12 +295,7 @@ class HassetteCLIClient:
         Returns:
             The deserialized :class:`~hassette_wire.ActionResponse`.
         """
-        path = (
-            f"{APPS_PATH}/{app_key}/{action}"
-            if instance is None
-            else f"{APPS_PATH}/{app_key}/instances/{quote(instance, safe='')}/{action}"
-        )
-        return self.post(path, ActionResponse)
+        return self.post(f"{app_route_path(app_key, instance)}/{action}", ActionResponse)
 
     def get_with_app_routing(
         self,

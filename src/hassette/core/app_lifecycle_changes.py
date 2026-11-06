@@ -110,6 +110,11 @@ class AppChangeReconcilerMixin:
         for app_key in changes.orphans:
             self.logger.debug("Stopping orphaned app %s", app_key)
             await self.stop_app(app_key)
+            # Its debug routes now answer 404, so nothing could end a capture left behind (spec 148 D8), including on
+            # an instance the stop failed to remove.
+            for survivor in self.registry.get_running_apps(app_key).values():
+                survivor.set_debug_capture(False)
+            self.registry.clear_debug_capture(app_key)
         if changes.orphans:
             self._queue_retire_unconfigured_instances()
 

@@ -179,11 +179,37 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     def _setup_logger(self) -> None:
         self.logger = getLogger(self._get_logger_name())
-        # Only an app's own logger is app-authored; its children and every framework resource write
-        # framework lines.
-        author: LogAuthor = "app" if self.role is ResourceRole.APP else "framework"
-        apply_log_level(self.logger, self.resolve_log_level(author, self.config_log_level), self.unique_name)
-        set_logger_identity(self.logger, self.owner_log_identity(author))
+        self.apply_own_log_level()
+        set_logger_identity(self.logger, self.owner_log_identity(self.logger_author))
+
+    @property
+    def logger_author(self) -> LogAuthor:
+        """Who writes through this resource's own logger.
+
+        Only an app's own logger is app-authored; its children and every framework resource write
+        framework lines.
+        """
+        return "app" if self.role is ResourceRole.APP else "framework"
+
+    def apply_own_log_level(self) -> None:
+        """Resolve this resource's logger level and set it."""
+        apply_log_level(
+            self.logger, self.resolve_log_level(self.logger_author, self.config_log_level), self.unique_name
+        )
+
+    def reapply_log_levels(self) -> None:
+        """Re-resolve the level of every logger this resource and its descendants own, and set it.
+
+        Used when an input to level resolution changes on a live resource (an app's debug capture). Covers
+        this resource's own TaskBucket, which isn't tracked in ``children``, but not a TaskBucket passed in
+        from elsewhere.
+        """
+        self.apply_own_log_level()
+        bucket = self.task_bucket
+        if bucket is not self and bucket.parent is self:
+            bucket.reapply_log_levels()
+        for child in self.children:
+            child.reapply_log_levels()
 
     def resolve_log_level(self, author: LogAuthor, default_level: LogLevel) -> LogLevel:
         """Level for a logger this resource builds: the owning app's override, else ``default_level``.

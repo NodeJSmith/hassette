@@ -62,6 +62,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_apps()` | `GET /api/apps` |
 | `get_app(app_key)` | `GET /api/apps/{app_key}` |
 | `action(app_key, action, *, instance=None)` | `POST /api/apps/{app_key}/{action}` or `POST /api/apps/{app_key}/instances/{instance}/{action}` |
+| `set_debug_capture(app_key, enabled, *, instance=None)` | `PUT /api/apps/{app_key}/debug` or `PUT /api/apps/{app_key}/instances/{instance}/debug` |
 | `get_app_config(app_key)` | `GET /api/apps/{app_key}/config` |
 | `get_app_source(app_key)` | `GET /api/apps/{app_key}/source` |
 | `get_app_grid()` | `GET /api/telemetry/app-grid` |

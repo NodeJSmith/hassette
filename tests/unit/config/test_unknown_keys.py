@@ -147,6 +147,11 @@ class TestFlagged:
                 "blocking_io.watchdog_interval_seconds",
                 id="removed-watchdog-interval",
             ),
+            pytest.param(
+                '[logging]\nlog_persistence_level = "DEBUG"\n',
+                "logging.log_persistence_level",
+                id="removed-log-persistence-level",
+            ),
         ],
     )
     def test_toml_key(self, cfg: Path, toml: str, dotted: str) -> None:

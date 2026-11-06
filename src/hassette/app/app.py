@@ -110,6 +110,14 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     logger: Logger
     """Logger for the instance."""
 
+    debug_capture: bool
+    """Whether debug capture is on for this instance: it and the framework loggers it owns log at ``DEBUG``.
+
+    Framework-supplied: ``AppFactory`` passes it in from the app registry, and ``AppHandler.set_debug_capture``
+    changes it on a live instance through `set_debug_capture`. The registry stays the source of truth for the
+    status read; this copy is what level resolution reads.
+    """
+
     _lifecycle_logger: Logger
     """Backs ``lifecycle_logger``; built by ``_setup_logger()`` during construction."""
 
@@ -141,6 +149,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         api_factory: type[Resource] | None = None,
         parent: Resource | None = None,
         cache: CacheProtocol | None = None,
+        debug_capture: bool = False,
     ) -> None:
         # A directly constructed App gets the same name check config loading applies, so an unnamed one fails
         # here instead of sharing a cache directory and logger name with its siblings.
@@ -150,11 +159,19 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.app_config = app_config
         self._app_key = app_key
         self.app_manifest = app_manifest
+        # Read by level resolution, which runs inside super().__init__, so it is set first too.
+        self.debug_capture = debug_capture
         super().__init__(hassette, parent=parent)
         self.api = cast("Api", self.add_child(api_factory or Api))
         self.scheduler = self.add_child(Scheduler)
         self.bus = self.add_child(Bus, priority=0)
         self.states = self.add_child(StateManager)
+        if debug_capture:
+            self._lifecycle_logger.warning(
+                "Debug capture is on: this instance and the framework loggers it owns log at DEBUG, and every "
+                "line is stored. It ends at `hassette app debug %s off` or a hassette restart.",
+                app_key,
+            )
 
         if cache is not None:
             self.cache = cache
@@ -187,8 +204,25 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         # here instead of on the app's own logger. Its level is the app's framework_log_level, else
         # LoggingConfig.app_handler, never the app's log_level.
         self._lifecycle_logger = getLogger(f"{self.logger.name}.Lifecycle")
-        self._lifecycle_logger.setLevel(self.resolve_log_level("framework", self.hassette.config.logging.app_handler))
+        self.apply_lifecycle_log_level()
         set_logger_identity(self._lifecycle_logger, self.owner_log_identity("framework"))
+
+    def apply_lifecycle_log_level(self) -> None:
+        """Resolve the lifecycle logger's level and set it."""
+        self._lifecycle_logger.setLevel(self.resolve_log_level("framework", self.hassette.config.logging.app_handler))
+
+    def reapply_log_levels(self) -> None:
+        """Re-resolve every logger this app owns, its lifecycle logger included."""
+        super().reapply_log_levels()
+        self.apply_lifecycle_log_level()
+
+    def set_debug_capture(self, enabled: bool) -> None:
+        """Turn debug capture on or off for this live instance and re-apply every owned logger's level.
+
+        Framework-internal: ``AppHandler.set_debug_capture`` calls it after updating the registry.
+        """
+        self.debug_capture = enabled
+        self.reapply_log_levels()
 
     @property
     def lifecycle_logger(self) -> Logger:
@@ -200,15 +234,22 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         return LogIdentity(author=author, app_key=self.app_key, instance_name=self.instance_name)
 
     def owner_framework_log_level(self) -> LogLevel | None:
-        """Return this app's ``framework_log_level``, or None when unset.
+        """Return this app's ``framework_log_level``, or None when unset; ``DEBUG`` while debug capture is on.
 
         The level for the framework loggers this app owns, not its own logger's level (`config_log_level`).
         """
+        if self.debug_capture:
+            return "DEBUG"
         return self.app_config.framework_log_level
 
     @property
     def config_log_level(self) -> LogLevel:
-        """Return the app's own log level, falling back to the global ``logging.apps`` level."""
+        """Return the app's own log level, falling back to the global ``logging.apps`` level.
+
+        ``DEBUG`` while debug capture is on.
+        """
+        if self.debug_capture:
+            return "DEBUG"
         return self.app_config.log_level or self.hassette.config.logging.apps
 
     @property

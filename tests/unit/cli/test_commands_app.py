@@ -84,6 +84,28 @@ class TestCmdApp:
         assert " 7 " in stuck_line
         assert " 0 " not in ok_line
 
+    def test_debug_column_marks_an_app_with_any_captured_instance(self, cli_client_factory: CLIClientFactory) -> None:
+        """A forgotten capture shows in the default listing (spec 148 D4)."""
+        instances = [
+            AppInstance(
+                app_key="loud_app",
+                instance_name=name,
+                class_name="LoudApp",
+                status=ResourceStatus.RUNNING,
+                debug_capture=name == "b",
+            )
+            for name in ("a", "b")
+        ]
+        loud = make_app_summary(app_key="loud_app", instances=instances)
+        entries = [make_app_grid_entry(app=loud), make_app_grid_entry(app=make_app_summary(app_key="quiet_app"))]
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body(entries))])
+        output = runner.stdout(client, cmd_app)
+        assert "Debug" in output
+        [loud_line] = [line for line in output.splitlines() if "loud_app" in line]
+        [quiet_line] = [line for line in output.splitlines() if "quiet_app" in line]
+        assert " on " in loud_line
+        assert " on " not in quiet_line
+
     def test_json_mode_outputs_app_activity_rows(self, cli_client_factory: CLIClientFactory) -> None:
         """App --json outputs the grid rows as a JSON array of {app, activity}."""
         entry = make_app_grid_entry(app=make_app_summary(app_key="my_app"))
@@ -160,8 +182,8 @@ class TestCmdApp:
         assert {c.field for c in APP_LIST_COLUMNS if resolve_path(row, c.field) is None} == set()
 
     def test_app_list_columns_count_is_compact(self) -> None:
-        """APP_LIST_COLUMNS uses at most 9 columns for readability."""
-        assert len(APP_LIST_COLUMNS) <= 9
+        """APP_LIST_COLUMNS uses at most 10 columns for readability."""
+        assert len(APP_LIST_COLUMNS) <= 10
 
     def test_status_is_colored_on_a_terminal_and_plain_when_piped(self, cli_client_factory: CLIClientFactory) -> None:
         entry = make_app_grid_entry(app=make_app_summary(app_key="my_app", status=AppStatus.FAILED))

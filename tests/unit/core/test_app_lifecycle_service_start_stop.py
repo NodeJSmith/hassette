@@ -182,6 +182,21 @@ class TestStartApp:
 
         mock_registry.prune_stale_failed.assert_called_once_with("test_app", ["test_instance"])
 
+    async def test_prunes_stale_debug_capture_at_start(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+    ) -> None:
+        """A capture pair whose name left the config is pruned when the app starts (spec 148 D8)."""
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_running_apps = Mock(return_value={})
+
+        await lifecycle_service.start_app("test_app")
+
+        mock_registry.prune_stale_debug_capture.assert_called_once_with("test_app", ["test_instance"])
+
     async def test_prunes_before_creating_instances_not_after(
         self,
         lifecycle_service: AppLifecycleService,

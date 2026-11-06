@@ -812,6 +812,174 @@
         }
       }
     },
+    "/api/apps/{app_key}/debug": {
+      "put": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Set App Debug Capture",
+        "description": "Turn debug capture on or off for every instance of the app, and report each instance's capture state.\n\n``enabled: true`` captures every configured instance; ``enabled: false`` ends capture for every instance of the\napp. Answers while a start, stop or reload is running, since it takes no lifecycle lock.",
+        "operationId": "set_app_debug_capture_api_apps__app_key__debug_put",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebugCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DebugCaptureResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/instances/{instance_name}/debug": {
+      "put": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Set Instance Debug Capture",
+        "description": "Turn debug capture on or off for one configured instance, running or not, and report its capture state.\n\nA stopped instance gets its DEBUG levels when it next starts. A name outside the app's config is a 404, as for\n``start``: a running orphan can only be stopped.",
+        "operationId": "set_instance_debug_capture_api_apps__app_key__instances__instance_name__debug_put",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "instance_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebugCaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DebugCaptureResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/apps/{app_key}/config": {
       "get": {
         "tags": [
@@ -3265,6 +3433,12 @@
               }
             ],
             "description": "Set when a teardown of this instance left work that may still be running. ``status`` is then ``failed``\nuntil hassette restarts."
+          },
+          "debug_capture": {
+            "type": "boolean",
+            "title": "Debug Capture",
+            "description": "Whether debug capture is on: the instance and the framework loggers it owns log at ``DEBUG``, and every line\nis stored. Set by ``PUT /api/apps/{app_key}/debug``; it ends when turned off or when hassette restarts. Held for a\nstopped instance too, whose levels apply when it starts.",
+            "default": false
           }
         },
         "type": "object",
@@ -3802,6 +3976,56 @@
         "title": "ConfigSchemaResponse",
         "description": "Complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)\nderived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current\nconfiguration serialized to JSON with ``SecretStr`` fields replaced by a masked\nplaceholder.  Every field and nested group is present \u2014 nothing is omitted.\n``config_defaults`` mirrors the shape of ``config_values`` and holds each field's schema\ndefault; a field with no schema default (including ``default_factory`` fields) is omitted."
       },
+      "DebugCaptureRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether debug capture should be on."
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "DebugCaptureRequest",
+        "description": "Request body for ``PUT /api/apps/{app_key}/debug`` and its instance-scoped twin."
+      },
+      "DebugCaptureResponse": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "instance_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Name"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceDebugCapture"
+            },
+            "type": "array",
+            "title": "Instances",
+            "description": "Each targeted instance, configured instances in config order first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "instance_name",
+          "instances"
+        ],
+        "title": "DebugCaptureResponse",
+        "description": "Response for a ``PUT .../debug``: the capture state of each instance it targeted.\n\nAn app-wide ``enabled: true`` targets every configured instance. An app-wide ``enabled: false`` targets every\nconfigured instance plus any other name still captured. ``instance_name`` is the server-confirmed instance for an\ninstance-scoped request, ``None`` for an app-wide one."
+      },
       "Execution": {
         "properties": {
           "kind": {
@@ -4081,6 +4305,25 @@
         "type": "object",
         "title": "ExecutionTrigger",
         "description": "The event that fired a handler execution: which event, entity and value change.\n\nOld and new values are display strings, not typed values: a string as Home Assistant reports\nit, anything else as compact JSON, cut to 255 characters with a trailing ``\u2026``. Duration and\ndebounced runs describe the event that started the hold or debounce, not the state when the\nhandler ran."
+      },
+      "InstanceDebugCapture": {
+        "properties": {
+          "instance_name": {
+            "type": "string",
+            "title": "Instance Name"
+          },
+          "debug_capture": {
+            "type": "boolean",
+            "title": "Debug Capture"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_name",
+          "debug_capture"
+        ],
+        "title": "InstanceDebugCapture",
+        "description": "One instance's debug capture state after a ``PUT .../debug``."
       },
       "InstanceOutcome": {
         "properties": {

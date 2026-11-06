@@ -1,7 +1,7 @@
-"""App-related CLI commands: the ``hassette app`` listing, health, activity, config, source, start/stop/reload."""
+"""App-related CLI commands: the ``hassette app`` listing, health, activity, config, source, actions, debug."""
 
 import sys
-from typing import Any
+from typing import Any, Literal
 
 from hassette_wire import (
     ActivityFeedEntry,
@@ -10,11 +10,13 @@ from hassette_wire import (
     AppGridResponse,
     AppHealth,
     AppSource,
+    DebugCaptureRequest,
+    DebugCaptureResponse,
 )
 
 import hassette.cli.formatters as cli_formatters
 import hassette.cli.output as cli_output
-from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
+from hassette.cli.client import APP_GRID_PATH, app_route_path, make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
 from hassette.const.misc import SECONDS_PER_HOUR
@@ -38,6 +40,7 @@ APP_LIST_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("app.display_name", "Display Name", max_width=22),
     cli_output.Column("app.instance_count", "Instances", max_width=9),
     cli_output.Column("app.needs_restart_count", "Restart", max_width=7, formatter=cli_formatters.fmt_nonzero_count),
+    cli_output.Column("app.instances", "Debug", max_width=5, formatter=cli_formatters.fmt_debug_capture),
     cli_output.Column(
         "activity.stats.total_invocations",
         f"Invocations/{APP_LIST_WINDOW_SECONDS // SECONDS_PER_HOUR}h",
@@ -181,12 +184,7 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
             sys.exit(0)
 
     result = client.post_with_instance_routing(key, action, instance)
-    if instance is not None and result.instance_name != instance:
-        cli_output.stderr_console.print(
-            f"[bold yellow]Warning:[/bold yellow] requested instance {instance!r} of {key!r} "
-            f"but server confirmed instance {result.instance_name!r}",
-            highlight=False,
-        )
+    warn_on_instance_mismatch(key, instance, result.instance_name)
 
     message = _action_message(action, key, instance)
     detail = {
@@ -199,6 +197,16 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
         # The human panel stays a one-line success; scripts get what the action did to each instance.
         detail["outcomes"] = [outcome.model_dump(mode="json") for outcome in result.outcomes]
     cli_output.render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
+
+
+def warn_on_instance_mismatch(key: str, requested: str | None, confirmed: str | None) -> None:
+    """Warn on stderr when the server confirms a different instance than the one requested."""
+    if requested is not None and confirmed != requested:
+        cli_output.stderr_console.print(
+            f"[bold yellow]Warning:[/bold yellow] requested instance {requested!r} of {key!r} "
+            f"but server confirmed instance {confirmed!r}",
+            highlight=False,
+        )
 
 
 def cmd_app_start(
@@ -231,3 +239,32 @@ def cmd_app_reload(
 ) -> None:
     """Reload an app or app instance (POST /api/apps/{key}/reload)."""
     run_app_action(key, "reload", instance, yes=yes, ctx=ctx)
+
+
+def cmd_app_debug(
+    key: str,
+    state: Literal["on", "off"],
+    instance: InstanceActionArg = None,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
+) -> None:
+    """Turn debug capture on or off for an app or app instance (PUT /api/apps/{key}/debug).
+
+    While on, the instance and the framework loggers it owns log at DEBUG, and every line is stored and shows in
+    ``hassette log``. It ends at ``off`` or a hassette restart. ``on`` for a stopped instance applies when it starts.
+    """
+    client = make_client(ctx)
+    if instance is not None:
+        client.require_known_instance(key, instance)
+    body = DebugCaptureRequest(enabled=state == "on")
+    result = client.put(f"{app_route_path(key, instance)}/debug", DebugCaptureResponse, body)
+    warn_on_instance_mismatch(key, instance, result.instance_name)
+    if ctx.json_mode:
+        # Scripts get every targeted instance's state; the human panel is a one-line summary.
+        cli_output.render_detail_dict(result.model_dump(mode="json"), "Debug Capture", json_mode=True)
+        return
+    message = f"Debug capture {state} for instance {instance!r} of {key!r}"
+    if instance is None:
+        names = ", ".join(entry.instance_name for entry in result.instances) or "none"
+        message = f"Debug capture {state} for app {key!r} (instances: {names})"
+    cli_output.render_detail_dict({"app_key": result.app_key, "message": message}, "Debug Capture", json_mode=False)

@@ -85,7 +85,7 @@ Read this value with `log_persistence_active`; the counter changes only while pe
 
 ## `hassette app`
 
-Lists all loaded apps with key, status, display name, instance count, handler invocations over the last hour, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and it is the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance, but the same class can run multiple times, each with its own config and `instance_name`.
+Lists all loaded apps with key, status, display name, instance count, restart flags, debug capture, handler invocations over the last hour, enabled state, autostart setting, and source file. **Debug** reads `on` when any instance of the app has [debug capture](#hassette-app-debug-key-onoff) on. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and it is the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance, but the same class can run multiple times, each with its own config and `instance_name`.
 
 ```console
 $ hassette app
@@ -120,6 +120,7 @@ A part is `null` when the server couldn't compute it. The table shows that as a 
 | `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`                    |
 | `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`                     |
 | `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`                   |
+| `hassette app debug <key> on\|off` | Turns debug capture on or off. | `PUT /api/apps/{key}/debug`             |
 
 The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}` instead of the app-level path shown above.
 
@@ -152,6 +153,15 @@ Reloads an app from disk, or a specific instance with `--instance`. Prompts for 
 ```bash
 hassette app reload my-app --yes
 hassette app reload my-app --instance office --yes
+```
+
+### `hassette app debug <key> on|off` { #hassette-app-debug-key-onoff }
+
+Turns debug capture on or off for an app, or one instance with `--instance`. While capture is on, the app's own logger and the framework loggers it owns log at `DEBUG`, and every line is stored, so `hassette log --app <key> --author all` shows it. Capture ends at `off` or a Hassette restart. It doesn't prompt, and it answers while another action on the app is still running. With `--instance`, it calls `PUT /api/apps/{key}/instances/{instance_name}/debug`. [Debug Capture for One App](../operating/log-levels.md#debug-capture-for-one-app) covers what it changes.
+
+```bash
+hassette app debug my-app on
+hassette app debug my-app off --instance office
 ```
 
 !!! warning
@@ -323,7 +333,7 @@ $ hassette job trigger 1
 
 ## `hassette log`
 
-Recent log entries from the telemetry database. Log persistence is always enabled and has no setting to turn it off, but it can fail to start. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Only records at or above `log_persistence_level` are stored.
+Recent log entries from the telemetry database. Log persistence is always enabled and has no setting to turn it off, but it can fail to start. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Every line a logger writes at its current level is stored, so `DEBUG` lines appear once that logger is at `DEBUG`.
 
 ```console
 $ hassette log --author all --limit 5

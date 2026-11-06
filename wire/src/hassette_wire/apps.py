@@ -49,6 +49,10 @@ class AppInstance(BaseModel):
     needs_restart: NeedsRestart | None = None
     """Set when a teardown of this instance left work that may still be running. ``status`` is then ``failed``
     until hassette restarts."""
+    debug_capture: bool = False
+    """Whether debug capture is on: the instance and the framework loggers it owns log at ``DEBUG``, and every line
+    is stored. Set by ``PUT /api/apps/{app_key}/debug``; it ends when turned off or when hassette restarts. Held for a
+    stopped instance too, whose levels apply when it starts."""
 
 
 class AppSummary(BaseModel):
@@ -165,3 +169,37 @@ class AppSource(BaseModel):
     filename: str
     content: str
     line_count: int
+
+
+class DebugCaptureRequest(BaseModel):
+    """Request body for ``PUT /api/apps/{app_key}/debug`` and its instance-scoped twin."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    enabled: bool
+    """Whether debug capture should be on."""
+
+
+class InstanceDebugCapture(BaseModel):
+    """One instance's debug capture state after a ``PUT .../debug``."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    instance_name: str
+    debug_capture: bool
+
+
+class DebugCaptureResponse(BaseModel):
+    """Response for a ``PUT .../debug``: the capture state of each instance it targeted.
+
+    An app-wide ``enabled: true`` targets every configured instance. An app-wide ``enabled: false`` targets every
+    configured instance plus any other name still captured. ``instance_name`` is the server-confirmed instance for an
+    instance-scoped request, ``None`` for an app-wide one.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    app_key: str
+    instance_name: str | None
+    instances: list[InstanceDebugCapture]
+    """Each targeted instance, configured instances in config order first."""

@@ -7,7 +7,7 @@ initialises them as sub-models, not independent settings roots.
 
 import os
 from functools import partial
-from logging import getLevelNamesMapping, getLogger
+from logging import getLogger
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -206,14 +206,6 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_queue_max: int = Field(default=2000, ge=1)
     """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
 
-    log_persistence_level: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
-    """Minimum log level for database persistence. Records below this level are not stored. Defaults to log_level.
-
-    May not be stricter than ``log_level`` (a validation error otherwise): the web UI's log view reads
-    exclusively from persisted records, so a stricter floor would make records visible in the live log
-    stream unqueryable through the UI. Lower it (e.g. to ``"DEBUG"``) to persist records you don't
-    otherwise log at the global level, such as a per-service override logging at ``"DEBUG"``."""
-
     log_retention_days: int = Field(default=30, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""
 
@@ -302,18 +294,6 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
                 'root logger; "hassette"/"py.warnings" are already managed by Hassette\'s own logging setup)'
             )
         return value
-
-    @model_validator(mode="after")
-    def reject_persistence_stricter_than_log_level(self) -> "LoggingConfig":
-        """Reject a ``log_persistence_level`` above ``log_level`` (see the field docstring for why)."""
-        levels = getLevelNamesMapping()
-        if levels[self.log_persistence_level] > levels[self.log_level]:
-            raise ValueError(
-                f"log_persistence_level ({self.log_persistence_level}) may not be stricter than "
-                f"log_level ({self.log_level}): records shown in the live log would be missing from the "
-                "web UI's log view. Lower log_persistence_level or raise log_level."
-            )
-        return self
 
     all_hass_events: bool = Field(default=False)
     """Whether to include all Home Assistant events in bus debug logging. Should be used sparingly."""

@@ -113,20 +113,16 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
 class LogCaptureHandler(logging.Handler):
     """Captures log records and broadcasts a hint to WS clients.
 
-    Only notifies for records at or above ``_min_notify_level``, which ``LoggingService`` keeps
-    in lockstep with whatever ``LogPersistenceHandler`` is actually persisting. A hint promises
-    the frontend a fetchable record — it never checks levels itself, so without this floor it
-    would fire for a record from *any* logger whose effective level currently lets it through
-    (a per-service override in ``LoggingConfig``, or a runtime ``PUT /logs/level`` on an arbitrary
-    logger), even when that record falls below the persistence threshold and can never be found by
-    the `/logs/recent` refetch the hint triggers. Filtering here instead of trying to keep a
-    second copy of "every logger's current effective level" in sync closes that gap for any
-    logger, present or future, without enumerating them.
+    A hint promises the frontend a fetchable record, so hints follow what ``LogPersistenceHandler``
+    actually persists: every record it receives, whatever its level. ``LoggingService`` turns hints off
+    (``hints_enabled``) when the persistence handler couldn't be created, since no hint could then be
+    followed by a successful fetch.
     """
 
     _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
     _loop: asyncio.AbstractEventLoop | None
-    _min_notify_level: int
+    hints_enabled: bool
+    """False when nothing persists, so no hint is sent; set by ``LoggingService.on_initialize()``."""
 
     shutting_down: bool
 
@@ -135,26 +131,20 @@ class LogCaptureHandler(logging.Handler):
         self._broadcast_fn = None
         self._loop = None
         self.shutting_down = False
-        self._min_notify_level = logging.NOTSET
+        self.hints_enabled = True
 
     def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
         self._loop = loop
 
-    def set_min_notify_level(self, level: int) -> None:
-        """Called by ``LoggingService.on_initialize()`` to match the active persistence floor."""
-        self._min_notify_level = level
-
     def emit(self, record: logging.LogRecord) -> None:
-        """Schedule a ``log_hint`` broadcast on the event loop for a record at or above the notify floor.
+        """Schedule a ``log_hint`` broadcast on the event loop for ``record``.
 
-        Does nothing while shutting down, before ``set_broadcast`` has wired a running loop, or for
-        records below the floor.
+        Does nothing while shutting down, before ``set_broadcast`` has wired a running loop, or while
+        hints are disabled.
         """
-        if self.shutting_down:
-            return
-        if record.levelno < self._min_notify_level:
+        if self.shutting_down or not self.hints_enabled:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
@@ -435,7 +425,6 @@ class LogPersistenceHandler(logging.Handler):
     _loop: asyncio.AbstractEventLoop
     _batch: list[dict]
     _dropped: int
-    _persistence_level: int
 
     BATCH_SIZE: int = 50
 
@@ -443,7 +432,6 @@ class LogPersistenceHandler(logging.Handler):
         self,
         db_service: "DatabaseService",
         loop: asyncio.AbstractEventLoop,
-        persistence_level: int = logging.INFO,
     ) -> None:
         super().__init__()
         self._db_service = db_service
@@ -451,7 +439,6 @@ class LogPersistenceHandler(logging.Handler):
         self._batch = []
         self._dropped = 0
         self._dropped_lock = threading.Lock()
-        self._persistence_level = persistence_level
 
     @property
     def db_write_queue_drops(self) -> int:
@@ -460,12 +447,11 @@ class LogPersistenceHandler(logging.Handler):
             return self._dropped
 
     def emit(self, record: logging.LogRecord) -> None:
-        """Add a record at or above the persistence level to the batch, flushing once it reaches ``BATCH_SIZE``.
+        """Add ``record`` to the batch, flushing once it reaches ``BATCH_SIZE``.
 
-        A record that fails to convert is routed to ``handleError`` and left out of the batch.
+        Every record that reaches this handler is stored: there is no persistence floor apart from the
+        loggers' own levels. A record that fails to convert is routed to ``handleError`` and left out of the batch.
         """
-        if record.levelno < self._persistence_level:
-            return
         try:
             row = self.record_to_dict(record)
         except Exception:

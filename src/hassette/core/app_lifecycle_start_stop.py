@@ -159,6 +159,8 @@ class AppStartStopMixin:
         # for app_key before this runs, so there's nothing left to prune. This only ever does real
         # work for a standalone start_app() call.
         await self._emit_discarded_entry_events(self.registry.prune_stale_failed(app_key, configured_names))
+        # A capture pair under a name that left the config would otherwise sit unseen until a restart (spec 148 D8).
+        self.registry.prune_stale_debug_capture(app_key, configured_names)
 
         try:
             self.logger.debug("Creating instances for app %s", app_key)

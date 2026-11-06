@@ -15,6 +15,8 @@ from hassette_wire import (
     AppSummary,
     BlockingFindingsResponse,
     ConfigSchemaResponse,
+    DebugCaptureRequest,
+    DebugCaptureResponse,
     Execution,
     ExecutionKind,
     JobSummary,
@@ -162,6 +164,32 @@ class HassetteClient:
         if instance is not None:
             path += f"/instances/{path_segment(instance)}"
         return await self._transport.request("POST", f"{path}/{path_segment(action)}", ActionResponse)
+
+    async def set_debug_capture(
+        self, app_key: str, enabled: bool, *, instance: str | None = None
+    ) -> DebugCaptureResponse:
+        """Turn debug capture on or off for an app, or one of its instances.
+
+        While capture is on, the instance and the framework loggers it owns log at ``DEBUG`` and every line is
+        stored, until it is turned off or hassette restarts. A stopped instance gets its levels when it starts.
+        Sending the same request again is safe, and the server answers it while another action is running.
+
+        Args:
+            app_key: The app to act on.
+            enabled: Whether capture should be on.
+            instance: An instance name, to act on that instance alone. ``None`` acts on every instance; turning
+                capture off app-wide also ends it for names no longer in the app's config.
+
+        Raises:
+            InvalidAppKeyError: ``app_key`` isn't a valid app key.
+            AppNotFoundError: No app with this key is configured.
+            InstanceNotFoundError: The app's config has no instance named ``instance``.
+        """
+        path = app_path(app_key)
+        if instance is not None:
+            path += f"/instances/{path_segment(instance)}"
+        body = DebugCaptureRequest(enabled=enabled)
+        return await self._transport.request("PUT", f"{path}/debug", DebugCaptureResponse, body=body)
 
     async def get_app_config(self, app_key: str) -> AppConfigResponse:
         """Get an app's configuration, with secret fields masked.

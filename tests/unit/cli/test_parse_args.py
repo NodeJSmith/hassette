@@ -141,6 +141,13 @@ class TestFlagCombinations:
         assert bound.arguments["instance"] == "1"
         assert bound.arguments["yes"] is True
 
+    def test_app_debug_state_and_instance(self) -> None:
+        cmd, bound, _ = app.parse_args(["app", "debug", "test-app", "on", "--instance", "1"])
+
+        assert cmd.__name__ == "cmd_app_debug"
+        assert bound.arguments["state"] == "on"
+        assert bound.arguments["instance"] == "1"
+
     def test_execution_uuid_limit(self) -> None:
         _cmd, bound, _ = app.parse_args(["execution", "abc-123-def", "--limit", "100"])
 
@@ -186,6 +193,7 @@ class TestInvalidInputRejection:
         [
             pytest.param(["log", "--since", "banana"], id="invalid-since"),
             pytest.param(["log", "--author", "bogus"], id="invalid-author"),
+            pytest.param(["app", "debug", "test-app", "maybe"], id="invalid-debug-state"),
             pytest.param(["log", "--source-tier", "app"], id="log-rejects-source-tier"),
             pytest.param(["execution"], id="missing-required-arg"),
             pytest.param(["run", "--base-url", "http://ha:8123"], id="rejects-base-url"),

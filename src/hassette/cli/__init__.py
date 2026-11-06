@@ -9,6 +9,7 @@ from hassette.cli.commands.app import (
     cmd_app,
     cmd_app_activity,
     cmd_app_config,
+    cmd_app_debug,
     cmd_app_health,
     cmd_app_reload,
     cmd_app_source,
@@ -112,6 +113,7 @@ apps_app.command(cmd_app_source, name="source")
 apps_app.command(cmd_app_start, name="start")
 apps_app.command(cmd_app_stop, name="stop")
 apps_app.command(cmd_app_reload, name="reload")
+apps_app.command(cmd_app_debug, name="debug")
 
 listener_app.default(cmd_listener)
 job_app.default(cmd_job)

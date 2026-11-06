@@ -873,18 +873,6 @@
           "title": "Log Queue Max",
           "type": "integer"
         },
-        "log_persistence_level": {
-          "description": "Minimum log level for database persistence. Records below this level are not stored. Defaults to log_level.\n\nMay not be stricter than ``log_level`` (a validation error otherwise): the web UI's log view reads\nexclusively from persisted records, so a stricter floor would make records visible in the live log\nstream unqueryable through the UI. Lower it (e.g. to ``\"DEBUG\"``) to persist records you don't\notherwise log at the global level, such as a per-service override logging at ``\"DEBUG\"``.",
-          "enum": [
-            "DEBUG",
-            "INFO",
-            "WARNING",
-            "ERROR",
-            "CRITICAL"
-          ],
-          "title": "Log Persistence Level",
-          "type": "string"
-        },
         "log_retention_days": {
           "default": 30,
           "description": "Number of days to retain persisted log records. Must be <= database.retention_days.",

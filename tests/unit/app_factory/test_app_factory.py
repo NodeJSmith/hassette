@@ -181,6 +181,23 @@ class TestAppFactoryCreateInstances:
         assert mock_app_class.call_args.kwargs["app_key"] == "kitchen_lights"
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_passes_each_instance_capture_state(
+        self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
+    ) -> None:
+        """Each App is built with its own registry capture state, so a captured one starts at DEBUG (spec 148 D7)."""
+        mock_load_class.return_value = mock_app_class = make_app_class()
+        mock_manifest.app_config = [{"instance_name": "captured"}, {"instance_name": "plain"}]
+        mock_registry.is_debug_captured = Mock(side_effect=lambda _key, name: name == "captured")
+
+        factory.create_instances("test_app", mock_manifest, outcomes=AnyNameOutcomes())
+
+        flags = {
+            call.kwargs["app_config"].instance_name: call.kwargs["debug_capture"]
+            for call in mock_app_class.call_args_list
+        }
+        assert flags == {"captured": True, "plain": False}
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_registers_each_app(
         self, mock_load_class, factory: AppFactory, mock_registry: Mock, mock_manifest
     ):

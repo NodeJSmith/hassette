@@ -219,8 +219,19 @@ Out of scope: a CLI view that lists an app's instances (#3845; D4's column is pe
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- `LogCaptureHandler`'s level floor became a `hints_enabled` boolean: with no persistence floor, the only two states left are "every record" and "none", so the level-valued setter and the `_NOTIFY_DISABLED_LEVEL` sentinel had nothing left to express.
+- The status field is set in `AppRegistry._combine_instance_info` (covering running, failed and flagged instances) and on `build_manifest_info`'s STOPPED placeholder, rather than in `_info_from_entry`: a stopped or never-started instance has no entry, and D5 lets it be captured.
+- `Resource.reapply_log_levels` also re-applies the resource's own `TaskBucket` when that bucket's parent is the resource: TaskBuckets aren't in `children`, but their loggers resolve through the owning app like any child's.
+- The toggle logs only for instances whose state changed: a repeated `on` or an `off` on an uncaptured instance starts or ends nothing, so a WARNING would announce a change that didn't happen.
+- API schema bumped to 6 (`API_SCHEMA_VERSION`, `MIN_API_SCHEMA_VERSION`): the client's new `set_debug_capture` depends on routes v0.63.0 lacks (`.claude/rules/client-schema-floor.md`).
+- The `hassette app` column cap test rises from 9 to 10, as #3550 did for the Restart column, to fit D4's Debug column.
+- The CLI command pre-checks `--instance` against the app list and warns on a server-confirmed mismatch, as `start`/`stop`/`reload` do, so a typo gets the same error in every `hassette app` subcommand.
+- The debug routes validate with `_require_manifest` plus a configured-name check, not `_require_known_app`/`_require_addressable_instance` with a borrowed `"start"` action: the admitted names are the same (D5), without reading as a start.
+- An app removed from config also has capture ended on any instance its stop left running, since its debug routes answer 404 and nothing else could end it.
+- `App.set_debug_capture` sets the flag and re-applies levels in one call, so the toggle can't do half of it.

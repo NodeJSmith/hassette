@@ -139,6 +139,7 @@ def stub_app(app_config: AppConfig, apps_level: LogLevel) -> App:
     app = App.__new__(App)
     app.hassette = make_mock_hassette(sealed=False, logging={"log_level": "INFO", "apps": apps_level})
     app.app_config = app_config
+    app.debug_capture = False
     return app
 
 

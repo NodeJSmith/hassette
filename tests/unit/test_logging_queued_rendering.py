@@ -201,7 +201,7 @@ class TestQueuedPersistedRow:
         with queued_pipeline(stream_handler, collector):
             emit()
         # record_to_dict only reads the record; the database and loop are never touched.
-        persistence = LogPersistenceHandler(db_service=MagicMock(), loop=MagicMock(), persistence_level=logging.DEBUG)
+        persistence = LogPersistenceHandler(db_service=MagicMock(), loop=MagicMock())
         return persistence.record_to_dict(collector.records[-1])
 
     def test_structlog_message_is_the_event(self) -> None:
