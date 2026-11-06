@@ -12,7 +12,7 @@ The [Migration Guide overview](index.md) covers pre-migration setup (installing 
 
 - [ ] Convert `appdaemon.yaml` connection settings to `hassette.toml` `[hassette]` section
 - [ ] Convert each app entry in `apps.yaml` to an `[apps.your_app]` table in `hassette.toml`
-- [ ] Set a unique `instance_name` (starting with a lowercase letter, then lowercase letters, digits and `_`; see [Instance Names](../core-concepts/apps/configuration.md#instance-names)) in each app's `config`. Hassette requires one for every configured instance
+- [ ] Set a unique `instance_name` (starting with a lowercase letter, then lowercase letters, digits and `_`, not ending in `_`, at most 128 characters; see [Instance Names](../core-concepts/apps/configuration.md#instance-names)) in each app's `config`. Hassette requires one for every configured instance
 - [ ] Create a typed [`AppConfig`][hassette.app.app_config.AppConfig] subclass for each app. Move all `self.args["args"]["key"]` accesses to `self.app_config.key`
 - [ ] Verify required fields raise a clear error if missing (run the app without a required config key)
 
@@ -21,7 +21,7 @@ See [Configuration](configuration.md) for the full conversion guide.
 ## Step 2: App Structure
 
 - [ ] Change base class from `Hass` (or `ADAPI`) to [App][hassette.app.app.App] (async) or [`AppSync`][hassette.app.app.AppSync] (sync). Rule of thumb: if your callbacks never block (no `time.sleep`, no `requests.get`), use `App`; if they do and you can't convert them yet, use `AppSync`.
-- [ ] If you chose `AppSync`: use the `.sync` facades everywhere in steps 3–5 — `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)` — with no `await`. Calling the async methods from sync hooks silently does nothing.
+- [ ] If you chose `AppSync`: use the `.sync` facades everywhere in steps 3–5 — `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)` — with no `await`. Calling the async methods from sync hooks does nothing apart from logging a `HassetteForgottenAwaitWarning`.
 - [ ] Rename `initialize()` to the correct hook for your base class:
     - `App`: `async def on_initialize(self)`. Must be `async def`.
     - `AppSync`: `def on_initialize_sync(self)`. Must be a plain synchronous method. Do **not** override `on_initialize` on `AppSync` (it is `@final`; overriding raises `CannotOverrideFinalError` at class definition time).
@@ -50,10 +50,11 @@ See [`Bus` & Events](bus.md) for side-by-side examples.
 
 ## Step 4: Scheduler
 
-- [ ] Convert each `self.run_in(cb, seconds)` to `await self.scheduler.run_in(cb, delay=seconds)`
-- [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM")`
-- [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval)`
-- [ ] Convert each `self.run_daily(cb, time(H, M))` to `await self.scheduler.run_daily(cb, at="HH:MM")`
+- [ ] Add `name=` to every scheduler call. Omitting it raises `TypeError`.
+- [ ] Convert each `self.run_in(cb, seconds)` to `await self.scheduler.run_in(cb, delay=seconds, name="porch_off")`
+- [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM", name="morning_check")`
+- [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval, name="poll_sensor")`. Hassette's first run happens one interval after registration; if you relied on `"now"`, also call the callback directly in `on_initialize` (`run_in` rejects delays under 1 second, so it can't schedule an immediate run)
+- [ ] Convert each `self.run_daily(cb, time(H, M))` to `await self.scheduler.run_daily(cb, at="HH:MM", name="nightly_report")`
 - [ ] Replace `self.cancel_timer(handle)` with `job.remove()` — each scheduling call returns a [`Job`][hassette.scheduler.classes.Job]; store it (`job = await self.scheduler.run_in(...)`) to remove later
 - [ ] Check for blocking work inside callbacks. For apps with heavy sync logic, switch to `AppSync`. For isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`.
 
@@ -90,9 +91,9 @@ See [Testing](testing.md) for the test harness guide.
 ## Common Pitfalls
 
 !!! warning "Async gotchas"
-    - Forgetting `await` on `self.api.*` calls is the most common migration mistake. The call returns a coroutine object and silently does nothing — see [Async Basics](async-basics.md) for the full explanation.
+    - Forgetting `await` on `self.api.*` calls is the most common migration mistake. The call returns a coroutine object and does nothing. The only signal is a `HassetteForgottenAwaitWarning` in the logs naming the call site — see [Async Basics](async-basics.md) for the full explanation.
     - Every `self.bus.on_*()` call requires `name=`. Omitting it raises `TypeError`; an empty name raises `ListenerNameRequiredError`.
-    - In `AppSync`, use `.sync` facades for bus, scheduler, and API: `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)`. Calling the async methods from sync hooks returns un-awaited coroutines that silently do nothing.
+    - In `AppSync`, use `.sync` facades for bus, scheduler, and API: `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)`. Calling the async methods from sync hooks returns un-awaited coroutines that do nothing apart from logging a `HassetteForgottenAwaitWarning`.
     - Do not use `.sync` facades inside `App` lifecycle methods. Use the async API instead, or switch to `AppSync`.
 
 The two APIs you'll use most often after migration are configuration and state access. Both are shorter than their AppDaemon equivalents.
