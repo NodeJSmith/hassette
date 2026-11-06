@@ -206,3 +206,8 @@ def fmt_debug_capture(instances: Sequence[AppInstance]) -> str:
     Blank rather than ``off``, so a forgotten capture stands out in the ``hassette app`` table.
     """
     return "on" if any(instance.debug_capture for instance in instances) else ""
+
+
+def fmt_flagged(value: Any) -> str:
+    """``yes`` when a nullable flag object is set, blank otherwise, so only flagged rows stand out."""
+    return "yes" if value is not None else ""

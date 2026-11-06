@@ -11,6 +11,7 @@ from hassette.cli.commands.app import (
     cmd_app_config,
     cmd_app_debug,
     cmd_app_health,
+    cmd_app_instances,
     cmd_app_reload,
     cmd_app_source,
     cmd_app_start,
@@ -106,6 +107,7 @@ dashboard_app.default(cmd_dashboard)
 config_app.default(cmd_config)
 
 apps_app.default(cmd_app)
+apps_app.command(cmd_app_instances, name="instances")
 apps_app.command(cmd_app_health, name="health")
 apps_app.command(cmd_app_activity, name="activity")
 apps_app.command(cmd_app_config, name="config")

@@ -69,3 +69,10 @@ instance before the status event is sent? Does a new path that creates an instan
 `AppFactory.create_instances` or `_create_instance_unlocked` in `src/hassette/core/app_lifecycle_start_stop.py`,
 whose `AppRegistry.refusal_reason` check keeps a replacement off a flagged name? That gate covers `(app_key, name)` only: a renamed instance
 or a name moved to another app passes it by design (see the `refusal_reason` docstring).
+
+## Debug-Capture State Sourcing
+`AppRegistry` holds per-instance debug capture; `App.debug_capture` is a mirror that level resolution reads.
+Does a new toggle or writer go through `AppHandler.set_debug_capture` (registry first, then the live instance)
+rather than setting the attribute directly? Does every new path that removes an app or an instance name from
+the config reach `prune_stale_debug_capture` or `clear_debug_capture`, so no pair is left that no route or
+status read can see?

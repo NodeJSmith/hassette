@@ -1,4 +1,4 @@
-"""App-related CLI commands: the ``hassette app`` listing, health, activity, config, source, actions, debug."""
+"""App CLI commands: the ``hassette app`` listing, instances, health, activity, config, source, actions, debug."""
 
 import sys
 from typing import Any, Literal
@@ -10,13 +10,14 @@ from hassette_wire import (
     AppGridResponse,
     AppHealth,
     AppSource,
+    AppSummary,
     DebugCaptureRequest,
     DebugCaptureResponse,
 )
 
 import hassette.cli.formatters as cli_formatters
 import hassette.cli.output as cli_output
-from hassette.cli.client import APP_GRID_PATH, app_route_path, make_client, parse_wire_list, query_params
+from hassette.cli.client import APP_GRID_PATH, APPS_PATH, app_route_path, make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
 from hassette.const.misc import SECONDS_PER_HOUR
@@ -51,6 +52,14 @@ APP_LIST_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("app.filename", "File", max_width=20),
 ]
 
+APP_INSTANCE_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("instance_name", "Instance", max_width=22),
+    cli_output.Column("status", "Status", max_width=10, style=cli_output.status_style),
+    cli_output.Column("in_current_config", "In Config", max_width=9),
+    cli_output.Column("needs_restart", "Restart", max_width=7, formatter=cli_formatters.fmt_flagged),
+    cli_output.Column("error_message", "Error", wrap=True),
+]
+
 APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
     cli_output.Column("row_id", "ID", max_width=10),
     cli_output.Column("kind", "Kind", max_width=8),
@@ -74,6 +83,23 @@ def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     result = client.get(APP_GRID_PATH, AppGridResponse, params=params)
     cli_output.warn_missing_activity(result)
     cli_output.render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
+
+
+def cmd_app_instances(
+    key: str,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
+) -> None:
+    """List an app's instances with status and restart flag (GET /api/apps/{key}).
+
+    ``--json`` prints the whole app summary, the same object ``GET /api/apps/{key}`` returns.
+    """
+    client = make_client(ctx)
+    result = client.get(f"{APPS_PATH}/{key}", AppSummary)
+    if ctx.json_mode:
+        cli_output.render_detail(result, json_mode=True)
+        return
+    cli_output.render_table(result.instances, APP_INSTANCE_COLUMNS, json_mode=False)
 
 
 def cmd_app_health(

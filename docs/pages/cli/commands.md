@@ -112,6 +112,7 @@ A part is `null` when the server couldn't compute it. The table shows that as a 
 | Subcommand                    | Description                 | API endpoint                                    |
 | ----------------------------- | --------------------------- | ----------------------------------------------- |
 | `hassette app`                | Lists all apps.             | `GET /api/telemetry/app-grid` (last hour)       |
+| `hassette app instances <key>` | Every instance of one app.  | `GET /api/apps/{key}`                           |
 | `hassette app health <key>`   | Health metrics for one app. | `GET /api/telemetry/app/{key}/health`           |
 | `hassette app activity <key>` | Recent activity feed.       | `GET /api/telemetry/app/{key}/activity`         |
 | `hassette app config <key>`   | Resolved configuration.     | `GET /api/apps/{key}/config`                    |
@@ -158,6 +159,18 @@ hassette app reload my-app --instance office --yes
     `stop` and `reload` prompt for confirmation by default. In non-interactive
     contexts (scripts, cron, CI) pass `--yes`, or the command exits 0 without
     performing the action.
+
+### `hassette app instances <key>`
+
+Lists every instance of an app, one row each. Columns: instance name, status, whether the instance is in the current config, the needs-restart flag, and the error message of a failed instance. Find instance names here for any `--instance` flag.
+
+```bash
+hassette app instances my-app
+```
+
+`In Config` is `False` for an instance still tracked after its config block was removed. Such an instance accepts only `stop`. `Restart` shows `yes` when a teardown left work running, and only a hassette restart clears it. [`hassette status`](#hassette-status) shows the reason and pending tasks for each flagged instance.
+
+`--json` prints the app summary that `GET /api/apps/{key}` returns, with the full `instances` list.
 
 ### `hassette app debug <key> on|off` { #hassette-app-debug-key-onoff }
 
