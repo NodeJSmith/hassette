@@ -26,10 +26,10 @@ Bind-all addresses are rewritten for the derived path: when `web_api.host` resol
 An explicit `server_url` must include a scheme (`http://` or `https://`). It must not end in `/api` — command paths already start with `/api`, so a URL ending there would double to `/api/api/health`. A trailing slash is stripped automatically, and a path prefix survives through to every request: `--server-url https://hassette.example.com/hassette` reaches `https://hassette.example.com/hassette/api/health`.
 
 !!! tip "Remote instances"
-    Point the CLI at a remote Hassette instance with `--server-url`:
+    A remote target needs its own credential: the remote instance's web API token. That instance writes it to `<data_dir>/.web_api_token` on first start, or reads it from its own `web_api.auth_token`. Copy that value into a file on the CLI's machine, then pass the file with `--token-file`:
 
     ```bash
-    hassette --server-url https://hassette.example.com status
+    hassette --server-url https://hassette.example.com --token-file ~/.config/hassette/remote-token status
     ```
 
     Or persistently in `hassette.toml`:
@@ -37,9 +37,14 @@ An explicit `server_url` must include a scheme (`http://` or `https://`). It mus
     ```toml
     [hassette.cli]
     server_url = "https://hassette.example.com"
+    token_file = "/home/me/.config/hassette/remote-token"
     ```
 
-    A remote target needs its own authentication: a bearer credential (see [Web API Token](#web-api-token) below), or, when the remote instance trusts the proxy in front of it, a `trusted_proxies` entry that skips the credential check entirely (see [Web UI](../web-ui/index.md#enabling-and-accessing)). `web_api.host`/`web_api.port` (and `HASSETTE__WEB_API__HOST`) answer "where does the server bind?", not "where does the CLI connect?" — they no longer supply a remote target.
+    `cli.token_file` takes the path as written, with no `~` expansion, so give it an absolute path.
+
+    A remote instance that trusts the proxy in front of it needs no token. Its `trusted_proxies` entry skips the credential check (see [Web UI](../web-ui/index.md#enabling-and-accessing)).
+
+    `web_api.host` and `web_api.port` still supply a target when no `server_url` is set: `HASSETTE__WEB_API__HOST=192.0.2.1 hassette status` connects to `192.0.2.1`. That target receives no server-scoped credential (`web_api.auth_token`, `web_api.token_file`), so it needs a `cli.*` credential like any other remote target. Use `--server-url` for remote instances; `web_api.*` describes where the local server binds.
 
 ### Token
 
@@ -47,7 +52,7 @@ The access token (`HASSETTE__TOKEN`) is the long-lived HA token that `hassette r
 
 ### Web API Token
 
-The server's web API requires authentication for every request (see [Web UI](../web-ui/index.md)). The CLI attaches its credential automatically as `Authorization: Bearer <token>`, resolved from up to five sources. Which sources apply depends on the resolved target:
+The server's web API requires authentication for every request except three: the two health probes (`GET /api/health/live`, `GET /api/health/ready`) and `POST /api/auth/session` (see [Web UI](../web-ui/index.md)). The CLI attaches its credential automatically as `Authorization: Bearer <token>`, resolved from up to five sources. Which sources apply depends on the resolved target:
 
 | Source | Scope | Applies to |
 |---|---|---|
@@ -59,7 +64,7 @@ The server's web API requires authentication for every request (see [Web UI](../
 
 Precedence runs top to bottom: `--token-file` wins over `cli.token_file`, which wins over `cli.auth_token`, and so on.
 
-`web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `web_api.token_file` is the file that server reads its token from, and writes on first start if it's missing or empty (`<data_dir>/.web_api_token` unless configured). Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (`127.0.0.1`, `::1`, or `localhost`) and its port equals `web_api.port`. For any other target it skips both and falls back to a `cli.*` source. That includes a second instance on the same machine, which shares the host but listens on its own port. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
+`web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `web_api.token_file` is the file that server reads its token from, and writes on first start if it's missing or empty (`<data_dir>/.web_api_token` unless configured). Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (any `127.0.0.0/8` address, `::1`, `localhost`, or an IPv4-mapped form such as `::ffff:127.0.0.1`) and its port equals `web_api.port`. For any other target it skips both and falls back to a `cli.*` source. That includes a second instance on the same machine, which shares the host but listens on its own port. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
 
 A `server_url` with `user:password@` userinfo conflicts with a resolved credential. The CLI sends userinfo as Basic authentication, and a request carries only one `Authorization` header. When both are present, the CLI exits with a usage error before sending anything (see [Common Errors](#common-errors)). Remove the userinfo from `server_url`, or remove the token setting.
 
@@ -112,10 +117,10 @@ $ hassette status --json
 
 In `--json` mode:
 
-- stdout contains exactly one JSON document, either the success result or an error object
-- Exit code distinguishes success (`0`) from failure (`1` for HTTP errors, `2` for network errors)
+- stdout contains exactly one JSON document, either the success result or an error object. Argument parse errors are the exception: an invalid flag or unknown command leaves stdout empty and exits `2` (see [Exit Codes](#exit-codes)).
+- Exit code distinguishes success (`0`) from failure (`1` for HTTP and usage errors, `2` for network and argument parse errors)
 - No Rich formatting or human-readable text appears on stdout
-- Against a non-loopback target, stderr shows a `Target:` line naming the instance that answered, plus a warning when `cli.verify_ssl = false` turns off TLS verification. Human mode prints the same lines.
+- On success, stderr shows a `Target:` line naming a non-loopback instance that answered. It also shows a warning whenever `cli.verify_ssl = false` turns off TLS verification, for any target. On failure, these move into the error object as `target` and `tls_verified` (see [JSON Error Format](#json-error-format)). Human mode prints both lines on stderr on success and on HTTP errors. Human-mode network errors print only the TLS warning, not the `Target:` line.
 
 ### `NO_COLOR`
 
@@ -168,11 +173,13 @@ Omitting `--shell` from either command triggers auto-detection of the current sh
 
 ### Exit Codes
 
-| Code | Meaning                                                                     |
-| ---- | --------------------------------------------------------------------------- |
-| `0`  | Success                                                                     |
-| `1`  | Server error (4xx/5xx) or usage error (invalid flag, unknown instance name) |
-| `2`  | Network error (connection refused or request timed out)                     |
+| Code | Meaning                                                                                                        |
+| ---- | -------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                        |
+| `1`  | Server error (4xx/5xx) or Hassette usage error (unknown instance name, conflicting config)                     |
+| `2`  | Network error (connection refused or request timed out) or argument parse error (invalid flag, unknown command) |
+
+The CLI parser rejects an invalid flag or unknown command before any Hassette code runs. It prints the error to stderr and exits `2`, even in `--json` mode. Scripts that need to tell a parse error from a network error check stdout: a network error writes a JSON error object there, a parse error writes nothing.
 
 ### Common Errors
 
@@ -190,7 +197,7 @@ Hassette is not running, or the configured address is wrong. The address comes f
 Network error: Request timed out after 10.0s connecting to http://127.0.0.1:8126
 ```
 
-The server is reachable but not responding. Server logs may show blocking operations. The 10-second request timeout is fixed; it is not configurable.
+The server accepted the connection but did not respond in time, or the connection itself timed out. A connect timeout usually means an unreachable address, such as a firewalled host. A server that accepted the connection may be blocked; its logs may show blocking operations. The 10-second request timeout is fixed; it is not configurable.
 
 **Port already in use (on `hassette run`):**
 
@@ -277,12 +284,12 @@ The resolved `server_url` contains `user:password@` (or just `user@` or `:passwo
 **Redirect response (3xx):**
 
 ```text
-Error 302: Found (this response is a redirect — likely a forward-auth login page in front
-of the target, not Hassette itself. See the reverse-proxy section of the CLI configuration
+Error 302:  (this response is a redirect — likely a forward-auth login page in front of
+the target, not Hassette itself. See the reverse-proxy section of the CLI configuration
 docs.)
 ```
 
-A gateway in front of the target redirected the request instead of passing it through — usually a forward-auth login page. See [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy) above.
+The text after `Error 302:` is the response body, not a reason phrase. A redirect body is often empty, as above, or an HTML page. A gateway in front of the target redirected the request instead of passing it through — usually a forward-auth login page. See [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy) above.
 
 ### JSON Error Format
 
