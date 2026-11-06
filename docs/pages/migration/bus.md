@@ -155,7 +155,7 @@ These are the values Hassette can inject into service-call handler parameters â€
 - `Annotated[str, A.get_service]`, the service name
 - `Annotated[Any, A.get_service_data]`, the full service data dict
 
-AppDaemon passes extra kwargs from `listen_event()` into the callback via `**kwargs`. Hassette uses `where=` for filtering instead. Pass a dict or predicate to match on domain, service, entity ID, or arbitrary fields.
+AppDaemon passes extra kwargs from `listen_event()` into the callback via `**kwargs`. Hassette uses `where=` for filtering instead. Filter on domain and service with the `domain=` and `service=` arguments. Pass a dict to `where=` to match `service_data` fields such as `entity_id`. Pass a predicate for any other condition.
 
 ## Canceling Subscriptions
 
