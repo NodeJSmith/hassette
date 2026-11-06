@@ -53,7 +53,7 @@ See [`Bus` & Events](bus.md) for side-by-side examples.
 - [ ] Add `name=` to every scheduler call. Omitting it raises `TypeError`.
 - [ ] Convert each `self.run_in(cb, seconds)` to `await self.scheduler.run_in(cb, delay=seconds, name="porch_off")`
 - [ ] Convert each `self.run_once(cb, time(H, M))` to `await self.scheduler.run_once(cb, at="HH:MM", name="morning_check")`
-- [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval, name="poll_sensor")`. Hassette's first run happens one interval after registration; if you relied on `"now"`, also schedule an immediate `run_in(cb, name=...)`
+- [ ] Convert each `self.run_every(cb, "now", interval)` to `await self.scheduler.run_every(cb, seconds=interval, name="poll_sensor")`. Hassette's first run happens one interval after registration; if you relied on `"now"`, also call the callback directly in `on_initialize` (`run_in` rejects delays under 1 second, so it can't schedule an immediate run)
 - [ ] Convert each `self.run_daily(cb, time(H, M))` to `await self.scheduler.run_daily(cb, at="HH:MM", name="nightly_report")`
 - [ ] Replace `self.cancel_timer(handle)` with `job.remove()` — each scheduling call returns a [`Job`][hassette.scheduler.classes.Job]; store it (`job = await self.scheduler.run_in(...)`) to remove later
 - [ ] Check for blocking work inside callbacks. For apps with heavy sync logic, switch to `AppSync`. For isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`.
