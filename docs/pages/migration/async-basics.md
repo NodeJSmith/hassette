@@ -34,12 +34,13 @@ Anything that talks to Home Assistant or registers future work is async. Reads f
 |---|---|
 | `self.api.call_service(...)` | Yes |
 | `self.api.get_state(...)` | Yes |
-| `self.bus.on_state_change(...)` and all `on_*` methods | Yes |
+| `self.bus.on_state_change(...)` and the other `on_*` registration methods | Yes |
 | `self.scheduler.run_in(...)` and all scheduling methods | Yes |
 | `self.task_bucket.run_in_thread(...)` | Yes |
 | `self.states.light.get(...)` | No — synchronous |
 | `self.states.get(...)` | No — synchronous |
 | `subscription.cancel()` / `job.remove()` | No — synchronous |
+| `self.bus.on_error(...)` | No — synchronous |
 
 `await` only works inside an `async def` method, so converting a call usually means converting the method that contains it too — AppDaemon's `def on_motion(self, ...):` becomes `async def on_motion(self):`. (`self.task_bucket`, like `self.bus` and `self.api`, is available on every `App` instance — see [Task Bucket](../core-concepts/apps/task-bucket.md).)
 
