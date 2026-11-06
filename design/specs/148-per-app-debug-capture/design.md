@@ -239,3 +239,7 @@ Out of scope: a CLI view that lists an app's instances (#3845; D4's column is pe
 - The public `stop_app`/`stop_instance` prune capture pairs no configured or running name holds, so D8's "`stop` ends both" holds for a running orphan; a reload's internal stop doesn't, since the start that follows prunes the same way.
 - The removed-app capture clear in `apply_changes` runs in a `finally` around the orphan's stop, so a cancelled stop doesn't strand capture behind routes that answer 404.
 - The capture WARNINGs no longer say every line is stored: with persistence down they would claim storage that isn't happening.
+
+## Addendum
+
+- 2026-11-06 (PR #3853 review): an instance whose stop left work running was unregistered with its loggers still at DEBUG, out of reach of `off`. `shutdown_instance` now returns a departing captured instance's loggers to config in its `finally`, the one point every unregistered instance passes. Capture pairs stay name-keyed intent: the per-instance config-change stop doesn't prune them, and per D8 a name returning to config comes back captured. Prior art (`design/research/2026-11-06-debug-override-lifecycle/prior-art.md`): Home Assistant's logger overrides are likewise keyed by name and left alone on unload.
