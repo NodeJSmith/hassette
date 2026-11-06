@@ -11,11 +11,11 @@ from hassette.core.app_registry import AppRegistry
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.testing import HassetteHarness, wait_for
+from tests.support.app_manifests import make_test_app_manifest
 from tests.support.factories import (
     make_change_set,
     make_job_registration,
     make_listener_registration,
-    make_test_app_manifest,
 )
 from tests.support.helpers import noop
 

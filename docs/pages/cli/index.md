@@ -27,17 +27,16 @@ $ hassette status
 
 ```console
 $ hassette app
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
-┃ App             ┃ Status  ┃ Display     ┃ Instances ┃ Restart ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File              ┃
-┃                 ┃         ┃ Name        ┃           ┃         ┃                ┃         ┃           ┃                   ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
-│ config_app      │ running │ ConfigApp   │ 1         │         │ 0              │ True    │ True      │ config_app.py     │
-│ trivial_app     │ running │ TrivialApp  │ 1         │         │ 0              │ True    │ True      │ trivial_app.py    │
-│ bus_handler_app │ running │ BusHandler… │ 1         │         │ 0              │ True    │ True      │ bus_handler_app.py│
-└─────────────────┴─────────┴─────────────┴───────────┴─────────┴────────────────┴─────────┴───────────┴───────────────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Display Name    ┃ Instances ┃ Restart ┃ Debug ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File               ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ config_app      │ running │ ConfigApp       │ 1         │         │       │ 0              │ True    │ True      │ config_app.py      │
+│ trivial_app     │ running │ TrivialApp      │ 1         │         │       │ 0              │ True    │ True      │ trivial_app.py     │
+│ bus_handler_app │ running │ BusHandlerApp   │ 1         │         │       │ 0              │ True    │ True      │ bus_handler_app.py │
+└─────────────────┴─────────┴─────────────────┴───────────┴─────────┴───────┴────────────────┴─────────┴───────────┴────────────────────┘
 ```
 
-`hassette app` lists every loaded app. The `App` column is the identifier other commands take via `--app` — it comes from the `[hassette.apps.<key>]` section name in `hassette.toml` (see [Application Configuration](../core-concepts/apps/configuration.md#registering-an-app)). `Instances` counts running copies of the app; most apps run one. `Restart` counts the app's instances that need a Hassette restart, and is blank when none do (see [Instances that need a restart](../operating/index.md#instances-that-need-a-restart)). `Invocations/1h` counts how many times the app's handlers ran in the last hour — 0 is normal for apps that react to infrequent events.
+`hassette app` lists every loaded app. The `App` column is the identifier other commands take via `--app` — it comes from the `[hassette.apps.<key>]` section name in `hassette.toml` (see [Application Configuration](../core-concepts/apps/configuration.md#registering-an-app)). `Instances` counts running copies of the app; most apps run one. `Restart` counts the app's instances that need a Hassette restart, and is blank when none do (see [Instances that need a restart](../operating/index.md#instances-that-need-a-restart)). `Debug` reads `on` when any instance of the app has [debug capture](commands.md#hassette-app-debug-key-onoff) on. `Invocations/1h` counts how many times the app's handlers ran in the last hour — 0 is normal for apps that react to infrequent events.
 
 ```console
 $ hassette log --limit 5

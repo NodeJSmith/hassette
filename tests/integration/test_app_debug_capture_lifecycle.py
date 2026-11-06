@@ -1,6 +1,7 @@
 """Debug capture through the real app build, stop and change paths (spec 148 D6, D7, D8)."""
 
 import asyncio
+import contextlib
 import logging
 import sys
 import typing
@@ -12,7 +13,8 @@ from hassette.config.classes import AppManifest
 from hassette.core.app_handler import AppHandler
 from hassette.testing import HassetteHarness
 from hassette.utils.app_utils import load_app_class_from_manifest
-from tests.support.factories import make_change_set, make_test_app_manifest
+from tests.support.app_manifests import make_test_app_manifest
+from tests.support.factories import make_change_set
 
 GATED_KEY = "gated_init"
 MULTI_KEY = "multi_instance"
@@ -94,23 +96,42 @@ async def test_stopping_a_running_orphan_ends_its_capture(handler: AppHandler) -
     assert handler.registry.debug_captured_names(MULTI_KEY) == {"alpha"}
 
 
-async def test_removed_app_capture_is_cleared_even_when_its_stop_is_cancelled(
-    handler: AppHandler, monkeypatch: pytest.MonkeyPatch
+async def test_starting_an_app_prunes_a_captured_name_outside_its_config(handler: AppHandler) -> None:
+    """D8: a pair under a name no config block or running instance holds is dropped at the app's next start."""
+    handler.lifecycle.set_apps_configs({MULTI_KEY: multi_manifest([{"instance_name": "alpha"}])})
+    handler.registry.set_debug_capture(MULTI_KEY, ["alpha", "gone"], enabled=True)
+
+    await handler.lifecycle.start_app(MULTI_KEY)
+
+    assert handler.registry.debug_captured_names(MULTI_KEY) == {"alpha"}
+
+
+async def stop_left_running(_app_key: str) -> None:
+    """A stop that returns but fails to remove the instance."""
+
+
+async def stop_cancelled(_app_key: str) -> typing.NoReturn:
+    raise asyncio.CancelledError
+
+
+@pytest.mark.parametrize("stop", [stop_left_running, stop_cancelled], ids=["left_running", "cancelled"])
+async def test_removed_app_capture_ends_even_when_its_stop_does_not_finish(
+    handler: AppHandler,
+    monkeypatch: pytest.MonkeyPatch,
+    stop: typing.Callable[[str], typing.Awaitable[None]],
 ) -> None:
-    """D8: the removed app's routes answer 404, so a cancelled stop must not strand its capture."""
+    """D8: a removed app's routes answer 404, so neither a stop that leaves an instance running nor a cancelled stop
+    may strand its capture.
+    """
     handler.lifecycle.set_apps_configs({MULTI_KEY: multi_manifest([{"instance_name": "alpha"}])})
     await handler.lifecycle.start_app(MULTI_KEY)
     handler.set_debug_capture(MULTI_KEY, None, enabled=True)
     survivor = handler.registry.get(MULTI_KEY, "alpha")
     assert survivor is not None
-
-    async def cancelled_stop(_app_key: str) -> typing.NoReturn:
-        raise asyncio.CancelledError
-
-    monkeypatch.setattr(handler.lifecycle, "stop_app", cancelled_stop)
+    monkeypatch.setattr(handler.lifecycle, "stop_app", stop)
 
     # The orphan loop runs first and reads neither config, so empty ones are enough.
-    with pytest.raises(asyncio.CancelledError):
+    with contextlib.suppress(asyncio.CancelledError):
         await handler.lifecycle.apply_changes(make_change_set(orphans={MULTI_KEY}), {}, {})
 
     assert handler.registry.debug_captured_names(MULTI_KEY) == set()

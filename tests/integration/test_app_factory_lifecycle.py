@@ -16,8 +16,8 @@ from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppPrecheckFailedError, InvalidInheritanceError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.utils import app_utils
+from tests.support.app_manifests import make_test_app_manifest
 from tests.support.app_staging_helpers import clear_loaded_class_caches
-from tests.support.factories import make_test_app_manifest
 from tests.support.outcomes import AnyNameOutcomes
 
 if TYPE_CHECKING:

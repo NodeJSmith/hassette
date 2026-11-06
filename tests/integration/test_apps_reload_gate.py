@@ -17,7 +17,8 @@ from hassette.exceptions import AppBlockedError, AppRemovedError
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.testing import HassetteHarness, wait_for
 from hassette.types.enums import BlockReason
-from tests.support.factories import make_change_set, make_test_app_manifest
+from tests.support.app_manifests import make_test_app_manifest
+from tests.support.factories import make_change_set
 
 MULTI_INSTANCE_APP_KEY = "multi_instance"
 STOP_TIMEOUT_REASON = "on_shutdown timed out"

@@ -59,25 +59,11 @@ class TestApplyChanges:
         await lifecycle_service.apply_changes(changes, {}, {})
 
         lifecycle_service.stop_app.assert_called_once_with("orphan_app")
-        mock_registry.clear_debug_capture.assert_called_once_with("orphan_app")
         stubs.stop_app_unlocked.assert_any_call("reimport_app", outcomes=ANY)
         stubs.stop_app_unlocked.assert_any_call("reload_app", outcomes=ANY)
         stubs.start_app_unlocked.assert_any_call("reimport_app", stubs.manifest, True, outcomes=ANY)
         stubs.start_app_unlocked.assert_any_call("reload_app", stubs.manifest, False, outcomes=ANY)
         lifecycle_service.start_app.assert_called_once_with("new_app")
-
-    async def test_removed_app_capture_ends_on_an_instance_the_stop_left_running(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """A removed app's debug routes answer 404, so its capture ends on any survivor too (spec 148 D8)."""
-        survivor = MagicMock()
-        lifecycle_service.stop_app = AsyncMock()
-        mock_registry.get_running_apps = Mock(return_value={"stuck": survivor})
-
-        await lifecycle_service.apply_changes(make_change_set(orphans={"orphan_app"}), {}, {})
-
-        survivor.set_debug_capture.assert_called_once_with(False)
-        mock_registry.clear_debug_capture.assert_called_once_with("orphan_app")
 
     async def test_blocked_app_raise_does_not_abort_remaining_apps(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
