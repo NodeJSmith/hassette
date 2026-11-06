@@ -30,6 +30,7 @@ from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.core.migration_runner import run_migrations
 from hassette.models.states.catalog import restore_catalog, snapshot_catalog
 from hassette.task_bucket import TaskBucket
+from tests.support.app_manifests import TEST_APPS_PATH
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
@@ -46,7 +47,6 @@ TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
 TEST_CONFIG_PATH = TEST_DATA_PATH / "config"
 TEST_EVENTS_PATH = TEST_DATA_PATH / "events"
 TEST_API_RESPONSES_PATH = TEST_DATA_PATH / "api_responses"
-TEST_APPS_PATH = TEST_DATA_PATH / "apps"
 
 ENV_FILE = TEST_CONFIG_PATH / ".env"
 TEST_TOML_FILE = TEST_CONFIG_PATH / "hassette.toml"

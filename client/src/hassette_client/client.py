@@ -160,9 +160,7 @@ class HassetteClient:
             ActionFailedError: The action failed on at least one targeted instance.
             HassetteTimeoutError: No answer in time. The action may still have run, or still be running.
         """
-        path = app_path(app_key)
-        if instance is not None:
-            path += f"/instances/{path_segment(instance)}"
+        path = app_target_path(app_key, instance)
         return await self._transport.request("POST", f"{path}/{path_segment(action)}", ActionResponse)
 
     async def set_debug_capture(
@@ -185,9 +183,7 @@ class HassetteClient:
             AppNotFoundError: No app with this key is configured.
             InstanceNotFoundError: The app's config has no instance named ``instance``.
         """
-        path = app_path(app_key)
-        if instance is not None:
-            path += f"/instances/{path_segment(instance)}"
+        path = app_target_path(app_key, instance)
         body = DebugCaptureRequest(enabled=enabled)
         return await self._transport.request("PUT", f"{path}/debug", DebugCaptureResponse, body=body)
 
@@ -492,6 +488,12 @@ class HassetteClient:
 def app_path(app_key: str) -> str:
     """Return the path of one app's routes, ``/api/apps/{app_key}``."""
     return f"/api/apps/{path_segment(app_key)}"
+
+
+def app_target_path(app_key: str, instance: str | None) -> str:
+    """Return the routes path of an app, or of one of its instances when ``instance`` is given."""
+    path = app_path(app_key)
+    return path if instance is None else f"{path}/instances/{path_segment(instance)}"
 
 
 def telemetry_app_path(app_key: str, resource: str) -> str:

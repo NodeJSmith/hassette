@@ -518,18 +518,17 @@ def _set_debug_capture(
     app_key: str, instance_name: str | None, enabled: bool, hassette: HassetteDep, request: Request
 ) -> DebugCaptureResponse:
     """Apply a validated debug-capture change and build its response."""
-    states = hassette.app_handler.set_debug_capture(app_key, instance_name, enabled)
-    LOGGER.info(
-        "Set debug capture %s for app %s%s (source=%s)",
-        "on" if enabled else "off",
-        app_key,
-        f" instance {instance_name}" if instance_name is not None else "",
-        peer_address_or_unknown(request),
-    )
+    capture_by_instance = hassette.app_handler.set_debug_capture(app_key, instance_name, enabled)
+    state = "on" if enabled else "off"
+    target = app_key if instance_name is None else f"{app_key} instance {instance_name}"
+    LOGGER.info("Set debug capture %s for app %s (source=%s)", state, target, peer_address_or_unknown(request))
     return DebugCaptureResponse(
         app_key=app_key,
         instance_name=instance_name,
-        instances=[InstanceDebugCapture(instance_name=name, debug_capture=on) for name, on in states.items()],
+        instances=[
+            InstanceDebugCapture(instance_name=name, debug_capture=captured)
+            for name, captured in capture_by_instance.items()
+        ],
     )
 
 

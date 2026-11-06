@@ -250,9 +250,7 @@ class AppStartStopMixin:
         No route or status read could reach such a pair. Called by the public stops only: a reload's stop is
         followed by a start, which prunes the same way.
         """
-        manifest = self.registry.get_manifest(app_key)
-        configured = configured_instance_names(manifest.app_config) if manifest is not None else []
-        self.registry.prune_stale_debug_capture(app_key, configured)
+        self.registry.prune_stale_debug_capture(app_key, self.registry.configured_names(app_key))
 
     def _stop_targets(self, app_key: str) -> set[str]:
         """A whole-app stop's targets: every configured name, plus any tracked name outside the config."""

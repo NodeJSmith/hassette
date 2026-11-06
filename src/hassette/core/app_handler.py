@@ -11,6 +11,7 @@ from typing import ClassVar
 import structlog
 from hassette_wire import LogLevel
 
+from hassette.app.app import DEBUG_CAPTURE_ENDS
 from hassette.bus import Bus
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_change_detector import ChangeSet
@@ -21,7 +22,6 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.service import Service
 from hassette.resources.shutdown_outcome import ShutdownOutcome, merge_outcomes
-from hassette.schemas.app_config_shape import configured_instance_names
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.types import Topic
 
@@ -185,8 +185,7 @@ class AppHandler(Service):
             Each targeted instance name, in display order, mapped to whether capture is now on for it.
         """
         registry = self.registry
-        manifest = registry.get_manifest(app_key)
-        configured = configured_instance_names(manifest.app_config) if manifest is not None else []
+        configured = registry.configured_names(app_key)
         if instance_name is not None:
             targets = [instance_name]
         elif enabled:
@@ -208,11 +207,10 @@ class AppHandler(Service):
             with structlog.contextvars.bound_contextvars(app_key=app_key, instance_name=name):
                 if enabled:
                     self.logger.warning(
-                        "Debug capture on for %s/%s: its own and its framework loggers log at DEBUG. "
-                        "It ends at `hassette app debug %s off` or a hassette restart.",
+                        "Debug capture on for %s/%s: its own and its framework loggers log at DEBUG. %s",
                         app_key,
                         name,
-                        app_key,
+                        DEBUG_CAPTURE_ENDS % app_key,
                     )
                 else:
                     self.logger.warning("Debug capture off for %s/%s: levels are back to config", app_key, name)

@@ -191,18 +191,17 @@ class AppRegistry:
         """Turn debug capture off for every name under ``app_key``."""
         self.set_debug_capture(app_key, self.debug_captured_names(app_key), enabled=False)
 
-    def prune_stale_debug_capture(self, app_key: str, configured_names: Iterable[str]) -> set[str]:
+    def prune_stale_debug_capture(self, app_key: str, configured_names: Iterable[str]) -> None:
         """Drop capture pairs of ``app_key`` whose name left the config and that no live instance holds.
 
         Nothing else would show or end such a pair: the status read lists configured and tracked names only, and
         the instance route answers 404 for a name outside the config. A running orphan keeps its pair, so the status
-        read matches its live levels until it is stopped. Returns the pruned names.
+        read matches its live levels until it is stopped.
         """
         configured = set(configured_names)
         running = set(self.get_running_apps(app_key))
         stale = {name for name in self.debug_captured_names(app_key) if name not in configured and name not in running}
         self.set_debug_capture(app_key, stale, enabled=False)
-        return stale
 
     def display_names(self, app_key: str, manifest: "AppManifest | None" = None) -> list[str]:
         """Each name of ``app_key``, in display order.
@@ -370,6 +369,11 @@ class AppRegistry:
     def get_manifest(self, app_key: str) -> "AppManifest | None":
         """Get the manifest for an app key."""
         return self._manifests.get(app_key)
+
+    def configured_names(self, app_key: str) -> list[str]:
+        """The instance names ``app_key``'s config declares, in config order; empty for an unknown app."""
+        manifest = self._manifests.get(app_key)
+        return configured_instance_names(manifest.app_config) if manifest is not None else []
 
     def all_apps(self) -> list["App[AppConfig]"]:
         """Get all running app instances."""

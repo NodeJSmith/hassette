@@ -21,6 +21,7 @@ MULTI_KEY = "multi_instance"
 
 
 def multi_manifest(app_config: list[dict]) -> AppManifest:
+    """The ``multi_instance`` test app's manifest with ``app_config``."""
     return make_test_app_manifest(MULTI_KEY, "multi_instance_app.py", "MultiInstanceApp", app_config)
 
 
@@ -111,6 +112,7 @@ async def stop_left_running(_app_key: str) -> None:
 
 
 async def stop_cancelled(_app_key: str) -> typing.NoReturn:
+    """A stop cancelled partway."""
     raise asyncio.CancelledError
 
 

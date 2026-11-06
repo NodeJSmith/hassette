@@ -83,9 +83,8 @@ class TestRegistryState:
         registry.register_app(APP_KEY, make_app_instance(APP_KEY, "running_orphan"))
         registry.set_debug_capture(APP_KEY, ["alpha", "gone", "running_orphan"], enabled=True)
 
-        pruned = registry.prune_stale_debug_capture(APP_KEY, ["alpha", "beta"])
+        registry.prune_stale_debug_capture(APP_KEY, ["alpha", "beta"])
 
-        assert pruned == {"gone"}
         assert registry.debug_captured_names(APP_KEY) == {"alpha", "running_orphan"}
 
     def test_clear_all_ends_capture(self, registry: AppRegistry) -> None:

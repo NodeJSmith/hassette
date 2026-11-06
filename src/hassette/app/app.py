@@ -27,6 +27,9 @@ LOGGER = getLogger(__name__)
 
 APP_LOGGER_PREFIX = "hassette.apps"
 
+DEBUG_CAPTURE_ENDS = "It ends at `hassette app debug %s off` or a hassette restart."
+"""How debug capture ends, worded for the WARNINGs that announce it; ``%s`` is the app key."""
+
 AppT = TypeVar("AppT", bound="App")
 
 _APP_PUBLIC_API: frozenset[str] = frozenset(
@@ -168,9 +171,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.states = self.add_child(StateManager)
         if debug_capture:
             self._lifecycle_logger.warning(
-                "Debug capture is on: this instance and the framework loggers it owns log at DEBUG. "
-                "It ends at `hassette app debug %s off` or a hassette restart.",
-                app_key,
+                "Debug capture is on: this instance and the framework loggers it owns log at DEBUG. %s",
+                DEBUG_CAPTURE_ENDS % app_key,
             )
 
         if cache is not None:
