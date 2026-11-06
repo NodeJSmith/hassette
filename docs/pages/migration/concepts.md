@@ -62,7 +62,7 @@ AppDaemon returns raw strings and dicts. `self.get_state("light.kitchen")` retur
 
 Hassette uses typed models throughout — objects with named, validated fields instead of raw dicts (powered by Pydantic).
 
-**Entity states** are typed objects. `self.states.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.LightState] with typed fields. Your IDE knows the shape, and a type checker like Pyright catches typos at development time, not at 2am.
+**Entity states** are typed objects. `self.states.light.get("light.kitchen")` returns a [`LightState`][hassette.models.states.light.LightState] with typed fields. Your IDE knows the shape, and a type checker like Pyright catches typos at development time, not at 2am.
 
 **App configuration** is a validated Pydantic model. You declare fields with types and defaults; Hassette loads and validates them at startup. A missing required field raises an error before any handler fires.
 
