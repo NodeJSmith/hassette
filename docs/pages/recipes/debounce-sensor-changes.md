@@ -31,7 +31,7 @@ The bus (`self.bus`) delivers Home Assistant events to subscribed handlers — e
 
 `D.StateNew[states.SensorState]` is a [dependency injection](../core-concepts/bus/dependency-injection.md) annotation. `D` is an alias for `hassette.event_handling.dependencies` — Hassette inspects the handler's parameter types at registration and passes the extracted value in automatically. `D.StateNew` delivers the new state, already converted to a [`SensorState`][hassette.models.states.sensor.SensorState] object. `SensorState.value` is `str | None` — the framework sets it to `None` when the entity is `"unavailable"` or `"unknown"` — so the handler converts it to a `float` before comparing against `THRESHOLD`. The `try`/`except` guards against the `None` and non-numeric values that HA sensors report during startup.
 
-`name=` on `on_state_change` is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `TypeError` at registration time.
+`name=` on `on_state_change` is required — it labels the listener in logs. Omitting it raises `TypeError` at registration time.
 
 When that last rising reading meets or exceeds `THRESHOLD`, a log line records the new value, the previous value, and the debounce duration.
 
@@ -45,7 +45,7 @@ Run these from your project directory while Hassette is running. Confirm the han
 hassette listener --app debounce_sensor
 ```
 
-Expected output shows one listener named `outdoor_temp_debounced` with `debounce=10.0` and `changed=Increased`.
+Expected output shows one listener targeting `sensor.outdoor_temperature` with handler `on_temperature_stable`. Add `--json` to see its `debounce` (`10.0`) and `predicate_description`.
 
 After a burst of rising readings ends at or above `THRESHOLD` and 10 seconds of quiet pass, check invocations:
 
