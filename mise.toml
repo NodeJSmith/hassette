@@ -30,3 +30,39 @@ if [ -d frontend ]; then
   cd frontend && npm install
 fi
 """
+
+# CI's two new-code gates. The gate steps of the `file-sizes` and `duplicate-code` jobs in
+# lint.yml, the `check-file-size-regressions` and `check-duplicate-code` pre-push hooks, and the
+# autofix recipe's prose (.github/autofix.toml) all run these tasks, so the gate commands live
+# only here.
+# Both compare BASE..HEAD (default origin/HEAD..HEAD) and judge only code the change touched.
+# Running under `mise run` puts the real Java on PATH, which the duplicate gate's PMD CPD needs
+# from the temp dir it re-scans the base tree in, where the `java` shim can't resolve.
+[tasks."gates:file-sizes"]
+description = "New-code gate: fail if BASE..HEAD grows a file past the size limit"
+usage = '''
+arg "[base]" default="origin/HEAD"
+arg "[head]" default="HEAD"
+'''
+run = 'uv run python tools/check_file_size_regressions.py "$usage_base" "$usage_head"'
+
+[tasks."gates:duplicates"]
+description = "New-code gate: fail if BASE..HEAD adds a 3rd+ copy of a code block (PMD CPD)"
+usage = '''
+arg "[base]" default="origin/HEAD"
+arg "[head]" default="HEAD"
+'''
+run = 'uv run python tools/check_duplicate_code.py --gate-new-code "$usage_base" "$usage_head"'
+
+[tasks.gates]
+description = "Both new-code gates; runs each even if the first fails"
+usage = '''
+arg "[base]" default="origin/HEAD"
+arg "[head]" default="HEAD"
+'''
+run = '''
+status=0
+mise run gates:file-sizes "$usage_base" "$usage_head" || status=1
+mise run gates:duplicates "$usage_base" "$usage_head" || status=1
+exit $status
+'''

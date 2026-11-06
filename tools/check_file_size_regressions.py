@@ -23,8 +23,9 @@ Usage:
 event's base.sha/head.sha) -- this script resolves their merge-base itself and diffs against
 that, not against <base-ref> directly (see git_merge_base's docstring in lint_helpers.py for
 why). Both refs must already be fetched in the current checkout -- see
-.github/workflows/lint.yml for how CI does that before calling this. The
-`check-file-size-regressions` pre-push hook in prek.toml runs it locally as `origin/main HEAD`.
+.github/workflows/lint.yml for how CI does that before calling this. CI, the
+`check-file-size-regressions` pre-push hook and autofix all run it through the `gates:file-sizes`
+mise task (mise.toml), which defaults to `origin/HEAD HEAD`.
 """
 
 import json

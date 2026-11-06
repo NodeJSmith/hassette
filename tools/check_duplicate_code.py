@@ -93,8 +93,9 @@ Wired into CI (`.github/workflows/lint.yml`) twice: a non-blocking step (`contin
 true`) that reports the full backlog, and a blocking `--gate-new-code` step (no
 `continue-on-error`) that fails only when the current PR's own diff introduces a new violation.
 The full-backlog step means the ~226-item backlog (#1559-#1570) never needs to hit zero for the
-gate to matter — it only needs each PR to not add to it. The `check-duplicate-code` pre-push hook
-in prek.toml runs the same `--gate-new-code` check locally against `origin/main HEAD`.
+gate to matter — it only needs each PR to not add to it. CI's gate step, the `check-duplicate-code`
+pre-push hook and autofix all run `--gate-new-code` through the `gates:duplicates` mise task
+(mise.toml), which defaults to `origin/HEAD HEAD`.
 """
 
 import ast
