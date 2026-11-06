@@ -62,6 +62,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_apps()` | `GET /api/apps` |
 | `get_app(app_key)` | `GET /api/apps/{app_key}` |
 | `action(app_key, action, *, instance=None)` | `POST /api/apps/{app_key}/{action}` or `POST /api/apps/{app_key}/instances/{instance}/{action}` |
+| `set_debug_capture(app_key, enabled, *, instance=None)` | `PUT /api/apps/{app_key}/debug` or `PUT /api/apps/{app_key}/instances/{instance}/debug` |
 | `get_app_config(app_key)` | `GET /api/apps/{app_key}/config` |
 | `get_app_source(app_key)` | `GET /api/apps/{app_key}/source` |
 | `get_app_grid()` | `GET /api/telemetry/app-grid` |
@@ -217,7 +218,7 @@ pages/web-ui/snippets/python_client_skew.py:check
 Against a server that's too old, it prints a message like:
 
 ```text
-hassette server 0.55.0 reports no API schema, older than 5, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
+hassette server 0.40.0 reports no API schema, older than 6, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
 ```
 
 The message names the two fixes: upgrade Hassette, or pin `hassette-client` to the release matching the server.

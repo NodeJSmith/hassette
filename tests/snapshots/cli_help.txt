@@ -41,6 +41,7 @@ List and inspect apps.
 ╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────╮
 │ activity   Show recent activity for an app (GET /api/telemetry/app/{key}/activity).              │
 │ config     Show app configuration (GET /api/apps/{key}/config).                                  │
+│ debug      Turn debug capture on or off for an app or app instance (PUT /api/apps/{key}/debug).  │
 │ health     Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).        │
 │ instances  List an app's instances with status and restart flag (GET /api/apps/{key}).           │
 │ reload     Reload an app or app instance (POST /api/apps/{key}/reload).                          │
@@ -98,6 +99,33 @@ reader needs.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ *  KEY --key  [required]                                                                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c PATH         Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e PATH      Path to the .env file, instead of searching.                       │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s STR           Base URL of a remote Hassette instance to connect to.              │
+│ --token-file PATH             Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette app debug --help
+Usage: hassette app debug [OPTIONS] KEY STATE [ARGS]
+
+Turn debug capture on or off for an app or app instance (PUT /api/apps/{key}/debug).
+
+While on, the instance and the framework loggers it owns log at DEBUG, and every line is stored and
+shows in hassette log. It ends at off or a hassette restart. on for a stopped instance applies when
+it starts.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  KEY --key            [required]                                                               │
+│ *  STATE --state        [choices: on, off] [required]                                            │
+│    INSTANCE --instance  Targets a specific app instance by name.                                 │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │

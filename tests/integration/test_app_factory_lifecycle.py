@@ -3,7 +3,6 @@
 import contextvars
 import logging
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -17,6 +16,7 @@ from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppPrecheckFailedError, InvalidInheritanceError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.utils import app_utils
+from tests.support.app_manifests import make_test_app_manifest
 from tests.support.app_staging_helpers import clear_loaded_class_caches
 from tests.support.outcomes import AnyNameOutcomes
 
@@ -25,9 +25,6 @@ if TYPE_CHECKING:
     from hassette.app.app import App
     from hassette.app.app_config import AppConfig
     from hassette.testing import HassetteHarness
-
-
-TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
 
 def get_app(registry: AppRegistry, key: str, instance_name: str | None = None) -> "App[AppConfig]":
@@ -65,23 +62,6 @@ async def app_lifecycle(
     await lifecycle.shutdown_all()
 
 
-def make_manifest(  # factory-local: returns AppManifest, not AppManifestInfo
-    app_key: str, filename: str, class_name: str, app_config: dict | list[dict] | None = None, enabled: bool = True
-) -> AppManifest:
-    """Helper to create AppManifest instances for testing."""
-    config = app_config or {"instance_name": app_key}
-    return AppManifest(
-        app_key=app_key,
-        filename=filename,
-        class_name=class_name,
-        app_dir=TEST_APPS_PATH,
-        app_config=config,
-        enabled=enabled,
-        display_name=class_name,
-        full_path=TEST_APPS_PATH / filename,
-    )
-
-
 def create_app(
     app_factory: AppFactory, app_registry: AppRegistry, manifest: AppManifest
 ) -> dict[str, "App[AppConfig]"]:
@@ -103,13 +83,13 @@ async def bring_up_app(
 @pytest.fixture
 def failing_manifest() -> AppManifest:
     """Manifest for the app whose ``on_initialize()`` always raises."""
-    return make_manifest("failing", "failing_init_app.py", "FailingInitApp")
+    return make_test_app_manifest("failing", "failing_init_app.py", "FailingInitApp")
 
 
 @pytest.fixture
 def multi_instance_manifest() -> AppManifest:
     """Single-instance manifest for ``MultiInstanceApp``."""
-    return make_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
+    return make_test_app_manifest("multi_instance", "multi_instance_app.py", "MultiInstanceApp")
 
 
 @pytest.fixture
@@ -147,7 +127,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_loads_real_app_class(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Verify factory loads actual MyApp class from filesystem."""
-        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+        manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
 
         create_app(app_factory, app_registry, manifest)
 
@@ -161,7 +141,7 @@ class TestAppFactoryIntegration:
         uvicorn runs each request in an empty ``contextvars.Context``, so a web-triggered reload
         reaches the loader with no ambient Hassette instance or config.
         """
-        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+        manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
 
         app_class = contextvars.Context().run(app_factory.load_class, "my_app", manifest, force_reload=True)
 
@@ -170,7 +150,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_creates_real_app_instance(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Verify created instance is actual App subclass with working methods."""
-        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+        manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
 
         create_app(app_factory, app_registry, manifest)
 
@@ -183,7 +163,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_validates_config_with_pydantic(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Config validation works with real AppConfig subclass."""
-        manifest = make_manifest(
+        manifest = make_test_app_manifest(
             "my_app",
             "my_app.py",
             "MyApp",
@@ -197,7 +177,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_creates_multiple_instances(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Creates separate instances with different configs."""
-        manifest = make_manifest(
+        manifest = make_test_app_manifest(
             "multi_instance",
             "multi_instance_app.py",
             "MultiInstanceApp",
@@ -215,7 +195,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_instances_have_unique_configs(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Each instance has its own validated config."""
-        manifest = make_manifest(
+        manifest = make_test_app_manifest(
             "multi_instance",
             "multi_instance_app.py",
             "MultiInstanceApp",
@@ -236,7 +216,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_records_failure_for_invalid_module(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Records failure when module path is wrong."""
-        manifest = make_manifest("invalid", "nonexistent_file.py", "SomeClass")
+        manifest = make_test_app_manifest("invalid", "nonexistent_file.py", "SomeClass")
 
         create_app(app_factory, app_registry, manifest)
 
@@ -246,7 +226,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_records_failure_for_missing_class(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Records failure when class doesn't exist in module."""
-        manifest = make_manifest("invalid", "my_app.py", "NonExistentClass")
+        manifest = make_test_app_manifest("invalid", "my_app.py", "NonExistentClass")
 
         create_app(app_factory, app_registry, manifest)
 
@@ -257,7 +237,7 @@ class TestAppFactoryIntegration:
     def test_factory_records_failure_for_invalid_config(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Pydantic validation failure with real config class."""
         # MyAppUserConfig has test_entity as str, not a complex object
-        manifest = make_manifest(
+        manifest = make_test_app_manifest(
             "my_app",
             "my_app.py",
             "MyApp",
@@ -273,7 +253,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_caches_loaded_class(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Second call returns same class object."""
-        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+        manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
 
         create_app(app_factory, app_registry, manifest)
         first_instance = get_app(app_registry, "my_app")
@@ -290,7 +270,7 @@ class TestAppFactoryIntegration:
 
     def test_factory_force_reload_reloads_class(self, app_factory: AppFactory, app_registry: AppRegistry):
         """force_reload=True reimports the module."""
-        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+        manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
 
         create_app(app_factory, app_registry, manifest)
         first_instance = get_app(app_registry, "my_app")
@@ -314,7 +294,7 @@ class TestAppFactoryIntegration:
         Regression for #1005: a manual reload of a previously-failed app must re-import
         from disk rather than re-raising the cached failure.
         """
-        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+        manifest = make_test_app_manifest("my_app", "my_app.py", "MyApp")
         cache_key = app_utils.app_cache_key(manifest.full_path, manifest.class_name)
 
         # Simulate a prior failed load (e.g. a syntax error the user has since fixed).
@@ -368,7 +348,7 @@ class TestAppLifecycleServiceIntegration:
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """All instances in dict get initialized."""
-        manifest = make_manifest(
+        manifest = make_test_app_manifest(
             "multi_instance",
             "multi_instance_app.py",
             "MultiInstanceApp",
@@ -540,7 +520,9 @@ class TestFailedInitShutdown:
         app_lifecycle: AppLifecycleService,
         app_registry: AppRegistry,
     ):
-        manifest = make_manifest("registers_then_fails", "registers_then_fails_app.py", "RegistersThenFailsApp")
+        manifest = make_test_app_manifest(
+            "registers_then_fails", "registers_then_fails_app.py", "RegistersThenFailsApp"
+        )
         instances = await bring_up_app(app_factory, app_lifecycle, app_registry, manifest)
         inst = instances["registers_then_fails"]
         hassette = hassette_with_app_handler.hassette
@@ -611,13 +593,13 @@ class TestFullIntegrationFlow:
         self, app_factory: AppFactory, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """Multiple app types created and initialized together."""
-        manifest1 = make_manifest(
+        manifest1 = make_test_app_manifest(
             "multi1",
             "multi_instance_app.py",
             "MultiInstanceApp",
             app_config={"instance_name": "multi1_inst", "value": "v1"},
         )
-        manifest2 = make_manifest("my_app", "my_app.py", "MyApp")
+        manifest2 = make_test_app_manifest("my_app", "my_app.py", "MyApp")
 
         app_registry.set_manifests({"multi1": manifest1, "my_app": manifest2})
 
@@ -699,7 +681,7 @@ class TestInvalidInheritanceBlocksLoad:
 
     def test_precheck_fails_for_invalid_inheritance(self, test_config: "HassetteConfig"):
         """run_apps_pre_check reports the app as failed and blocks startup."""
-        manifest = make_manifest("invalid_inheritance", "invalid_inheritance_app.py", "InvalidInheritanceApp")
+        manifest = make_test_app_manifest("invalid_inheritance", "invalid_inheritance_app.py", "InvalidInheritanceApp")
         apps = test_config.apps.model_copy(update={"manifests": {"invalid_inheritance": manifest}})
         config = test_config.model_copy(update={"apps": apps})
 
@@ -714,7 +696,7 @@ class TestInvalidInheritanceBlocksLoad:
         self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
     ):
         """start_app creates no instance and records the inheritance error as the app's failure."""
-        manifest = make_manifest("invalid_inheritance", "invalid_inheritance_app.py", "InvalidInheritanceApp")
+        manifest = make_test_app_manifest("invalid_inheritance", "invalid_inheritance_app.py", "InvalidInheritanceApp")
         app_registry.set_manifests({"invalid_inheritance": manifest})
 
         await app_lifecycle.start_app("invalid_inheritance", admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)

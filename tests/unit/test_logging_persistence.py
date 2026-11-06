@@ -49,8 +49,6 @@ def _make_dropping_db_service(
 @contextmanager
 def _persistence_handler(
     db_service: MagicMock | None = None,
-    *,
-    persistence_level: int = logging.DEBUG,
 ) -> Generator[tuple[LogPersistenceHandler, asyncio.AbstractEventLoop], None, None]:
     """Set up a LogPersistenceHandler with a throwaway event loop.
 
@@ -62,7 +60,7 @@ def _persistence_handler(
     loop = asyncio.new_event_loop()
     if db_service is None:
         db_service = _make_dropping_db_service()
-    handler = LogPersistenceHandler(db_service, loop, persistence_level=persistence_level)
+    handler = LogPersistenceHandler(db_service, loop)
     try:
         yield handler, loop
     finally:
@@ -121,14 +119,13 @@ class TestLogPersistenceHandlerBatching:
             loop.run_until_complete(asyncio.sleep(0))
             assert handler.db_write_queue_drops == 100
 
-    def test_skips_records_below_persistence_level(self) -> None:
-        """Records below persistence_level are not batched."""
+    def test_batches_records_at_every_level(self) -> None:
+        """The handler has no level floor of its own: a DEBUG record a logger emitted is stored (spec 148 D2)."""
         db_service = MagicMock()
-        with _persistence_handler(db_service, persistence_level=logging.WARNING) as (handler, _loop):
-            handler.emit(make_log_record(msg="debug msg"))
+        with _persistence_handler(db_service) as (handler, _loop):
+            handler.emit(make_log_record(level=logging.DEBUG, msg="debug msg"))
 
-            assert len(handler._batch) == 0
-            assert handler.db_write_queue_drops == 0
+            assert len(handler._batch) == 1
 
     def test_close_flushes_pending(self) -> None:
         """close() calls flush_if_pending() before closing."""
@@ -231,7 +228,7 @@ class TestDequeueTimeoutFlush:
         q: queue.Queue[logging.LogRecord] = queue.Queue()
         loop = asyncio.new_event_loop()
         db_service = _make_dropping_db_service()
-        persistence = LogPersistenceHandler(db_service, loop, persistence_level=logging.DEBUG)
+        persistence = LogPersistenceHandler(db_service, loop)
 
         listener = HassetteQueueListener(q, persistence)
         listener.start()

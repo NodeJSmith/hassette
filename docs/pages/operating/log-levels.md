@@ -70,15 +70,13 @@ Console lines carry nothing else. App key, listener and job IDs, and the full ex
 
 A JSON line logged with `stack_info=True` carries the call stack under `stack`. A JSON line logged with an exception carries the formatted traceback under `exception`. Both keys work the same for `logging` loggers (such as `self.logger`) and structlog loggers.
 
-`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `log_level`. `DEBUG` makes debug output queryable via `hassette log` and visible on the dashboard.
+Every line that reaches Hassette's logging pipeline is stored in the [telemetry database](../core-concepts/database-telemetry.md), at whatever level it was emitted. That database is what `hassette log` and the web UI's log view read. The pipeline covers the `hassette.*` loggers and the loggers in [`extra_loggers`](#attaching-loggers-outside-the-hassette-tree). Storage has no level floor of its own: a logger's level decides what it writes, and everything it writes is stored. A per-service field, an app's `log_level` or `framework_log_level`, a [runtime change](#runtime-log-level-changes), or [debug capture](#debug-capture-for-one-app) at `DEBUG` stores that logger's `DEBUG` lines too.
 
-Persistence can never be stricter than what's actually being logged. Setting `log_persistence_level` above `log_level` (e.g. `WARNING` while `log_level` stays `INFO`) is a configuration error, because records shown in the console would be missing from the log view. Left unset, it follows `log_level`, so raising `log_level` to `DEBUG` lowers the persistence floor with it.
-
-`log_persistence_level` is only useful for persisting *more* than the default. A per-service override that logs at `DEBUG` while the global `log_level` stays `INFO` requires `log_persistence_level` to be `DEBUG` as well. There's no setting that makes storage quieter than whatever is currently being logged.
+A third-party logger in `extra_loggers` follows the global `log_level`. At `DEBUG`, its lines are stored as well, and a library's debug lines can carry request URLs and parameters.
 
 `log_retention_days` (default 30) sets how long persisted records live before the hourly retention pass deletes them. It must be ≤ `retention_days` under `[hassette.database]` (see [Database & Telemetry](../core-concepts/database-telemetry.md)). Persisted `DEBUG` lines can go sooner: when the database grows past `max_size_mb` (also on that page), they're the first thing the size limit deletes.
 
-`log_queue_max` (default 2000) caps how many records can wait for persistence at once. When the queue is full, new records are dropped rather than blocking the app. Raise it only if sustained `DEBUG` persistence reports drops.
+`log_queue_max` (default 2000) caps how many records can wait for persistence at once. When the queue is full, new records are dropped rather than blocking the app. A burst of `DEBUG` lines can fill it and crowd out other records; [Dropped Log Records](#dropped-log-records) shows where. Raise it only if sustained `DEBUG` logging reports drops.
 
 ## Attaching Loggers Outside the `hassette.` Tree
 
@@ -142,6 +140,28 @@ Shared services, such as the command executor that runs handlers and jobs, also 
 
 !!! note "Upgrading from 0.59 or earlier"
     Lifecycle lines about an app used to be written on the app's own logger, so they followed the app's `log_level` and were marked `app`. They now follow the app's `framework_log_level`, else `logging.app_handler`, and are marked `framework`. An app at `DEBUG` no longer shows Hassette's lifecycle detail unless its `framework_log_level` is also `DEBUG`. An app at `ERROR` now shows lifecycle warnings, such as cleanup timeouts, at the default `app_handler` level.
+
+## Debug Capture for One App
+
+Debug capture puts one app at `DEBUG` on a running Hassette, with no restart and no config edit. `hassette app debug <key> on` sets the app's own logger and every framework logger it owns (the table in [Per-App Log Levels](#per-app-log-levels)) to `DEBUG`:
+
+```bash
+--8<-- "pages/operating/snippets/debug_capture.sh"
+```
+
+The captured lines are stored like any others, so `hassette log --app presence --author all` and the app's log view show them. An app-wide `on` captures every configured instance; `--instance` narrows it to one. An app-wide `off` ends capture for every instance.
+
+Capture lives in memory. It survives reloads and ends at `off` or a Hassette restart. `off` returns each logger to its configured level, replacing any [runtime change](#runtime-log-level-changes) made to the app's loggers.
+
+Capture also works on an instance that isn't running; its levels apply when it starts. An instance added to the app's config while capture is on isn't captured until `on` runs again. A captured name removed from the config loses its capture at the app's next start.
+
+Turning capture on logs a WARNING for each instance, naming the command that ends it. Each start or reload of a captured instance logs the same WARNING on its lifecycle logger. `hassette app` shows `on` in the **Debug** column for an app with any captured instance, and `GET /api/apps` reports `debug_capture` on each instance.
+
+`off` doesn't delete stored lines. They age out with `log_retention_days`, and the database size limit deletes `DEBUG` lines first.
+
+Capture covers only loggers the app owns. Shared services, such as the command executor, keep their own levels. A logger created with `logging.getLogger(__name__)` isn't owned by the app, so capture leaves it alone; `self.logger` and `self.logger.getChild(...)` are captured.
+
+The API accepts the same request: `PUT /api/apps/{key}/debug`, or `PUT /api/apps/{key}/instances/{instance_name}/debug` for one instance, with the body `{"enabled": true}`. Capture responds while a start, stop or reload is still running, so it can catch a slow startup.
 
 ## Runtime Log Level Changes
 

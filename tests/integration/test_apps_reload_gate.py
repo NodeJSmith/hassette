@@ -6,7 +6,6 @@ import asyncio
 import typing
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
 
@@ -18,9 +17,9 @@ from hassette.exceptions import AppBlockedError, AppRemovedError
 from hassette.schemas.app_outcomes import InstanceOutcome, OutcomeResult
 from hassette.testing import HassetteHarness, wait_for
 from hassette.types.enums import BlockReason
+from tests.support.app_manifests import make_test_app_manifest
 from tests.support.factories import make_change_set
 
-TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 MULTI_INSTANCE_APP_KEY = "multi_instance"
 STOP_TIMEOUT_REASON = "on_shutdown timed out"
 
@@ -29,15 +28,8 @@ def multi_instance_manifest(app_config: list[dict] | None = None) -> AppManifest
     """The ``multi_instance`` test app's manifest; two instances, ``alpha`` and ``beta``, unless given a config."""
     if app_config is None:
         app_config = [{"value": "a", "instance_name": "alpha"}, {"value": "b", "instance_name": "beta"}]
-    return AppManifest(
-        app_key=MULTI_INSTANCE_APP_KEY,
-        filename="multi_instance_app.py",
-        class_name="MultiInstanceApp",
-        app_dir=TEST_APPS_PATH,
-        app_config=app_config,
-        enabled=True,
-        display_name="Multi Instance",
-        full_path=TEST_APPS_PATH / "multi_instance_app.py",
+    return make_test_app_manifest(
+        MULTI_INSTANCE_APP_KEY, "multi_instance_app.py", "MultiInstanceApp", app_config, display_name="Multi Instance"
     )
 
 

@@ -32,8 +32,26 @@ APP_GRID_PATH = "/api/telemetry/app-grid"
 
 APPS_PATH = "/api/apps"
 
+TELEMETRY_APP_PATH = "/api/telemetry/app"
+
 T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
+
+
+def app_route_path(app_key: str, instance: str | None = None) -> str:
+    """The app-scoped API path for ``app_key``, or the instance-scoped one when ``instance`` is given.
+
+    Each name is percent-encoded whole, ``/`` included, so no app key or instance name can change the route.
+    """
+    path = f"{APPS_PATH}/{quote(app_key, safe='')}"
+    if instance is None:
+        return path
+    return f"{path}/instances/{quote(instance, safe='')}"
+
+
+def telemetry_app_path(app_key: str, resource: str) -> str:
+    """The path of ``app_key``'s telemetry ``resource``, such as ``"listeners"``, the key percent-encoded."""
+    return f"{TELEMETRY_APP_PATH}/{quote(app_key, safe='')}/{resource}"
 
 
 def query_params(**values: Any) -> dict[str, Any]:
@@ -131,10 +149,16 @@ class HassetteCLIClient:
         self, path: str, model: type[T], params: dict[str, Any] | None = None, *, tolerate_503: bool = False
     ) -> T: ...
 
-    def _send(self, method: Literal["GET", "POST"], path: str, params: dict[str, Any] | None = None) -> httpx.Response:
+    def _send(
+        self,
+        method: Literal["GET", "POST", "PUT"],
+        path: str,
+        params: dict[str, Any] | None = None,
+        body: BaseModel | None = None,
+    ) -> httpx.Response:
         """Perform an HTTP request, translating transport failures into a usage-error exit.
 
-        Shared by :meth:`get` and :meth:`post` — the only difference between the two verbs
+        Shared by :meth:`get`, :meth:`post` and :meth:`put` — the only difference between the verbs
         is what happens to the response afterward (status/503 handling, deserialization
         target), not how connection failures become a ``SystemExit``. :meth:`try_fetch_app_list`
         is the one intentional exception: it needs failures to return ``None`` rather than exit,
@@ -143,6 +167,10 @@ class HassetteCLIClient:
         try:
             if method == "GET":
                 response = self._client.get(path, params=params, timeout=self.timeout)
+            elif method == "PUT":
+                content = body.model_dump_json() if body is not None else None
+                headers = {"Content-Type": "application/json"}
+                response = self._client.put(path, content=content, headers=headers, timeout=self.timeout)
             else:
                 response = self._client.post(path, timeout=self.timeout)
         except httpx.ConnectError as exc:
@@ -232,8 +260,20 @@ class HassetteCLIClient:
                 successful-looking response whose body is not valid JSON or doesn't match
                 ``model`` (code 1).
         """
-        response = self._send("POST", path)
+        return self._parse_mutation(self._send("POST", path), model)
 
+    def put(self, path: str, model: type[M], body: BaseModel) -> M:
+        """Perform a PUT request that sets a state, deserialize, and handle errors like :meth:`post`.
+
+        Args:
+            path: API path of the endpoint, relative to the resolved server URL.
+            model: The wire model the endpoint returns on success.
+            body: The request body, sent as JSON.
+        """
+        return self._parse_mutation(self._send("PUT", path, body=body), model)
+
+    def _parse_mutation(self, response: httpx.Response, model: type[M]) -> M:
+        """Exit on an error status or a malformed body, else return the parsed ``model``."""
         if not response.is_success:
             self.errors.handle_http_error(response)
 
@@ -266,17 +306,12 @@ class HassetteCLIClient:
         Returns:
             The deserialized :class:`~hassette_wire.ActionResponse`.
         """
-        path = (
-            f"{APPS_PATH}/{app_key}/{action}"
-            if instance is None
-            else f"{APPS_PATH}/{app_key}/instances/{quote(instance, safe='')}/{action}"
-        )
-        return self.post(path, ActionResponse)
+        return self.post(f"{app_route_path(app_key, instance)}/{action}", ActionResponse)
 
     def get_with_app_routing(
         self,
         global_path: str,
-        per_app_path_template: str,
+        per_app_resource: str,
         model: type[T],
         app_key: str | None = None,
         instance: str | None = None,
@@ -285,13 +320,13 @@ class HassetteCLIClient:
         """Perform a GET request with ``--app`` and ``--instance`` routing.
 
         - No ``app_key``: uses ``global_path``
-        - ``app_key`` only: uses ``per_app_path_template.format(app_key=app_key)``
+        - ``app_key`` only: uses the app's telemetry ``per_app_resource`` path, the key percent-encoded
         - ``instance`` without ``app_key``: usage error, exits non-zero
         - ``instance`` + ``app_key``: checks the name, adds it as the ``instance_name`` param
 
         Args:
             global_path: API path for the global (no app filter) case.
-            per_app_path_template: API path template with ``{app_key}`` placeholder.
+            per_app_resource: The per-app telemetry resource, such as ``"listeners"``.
             model: Pydantic model class or ``list``/``dict`` for raw responses.
             app_key: Optional app key filter.
             instance: Optional instance name.
@@ -308,7 +343,7 @@ class HassetteCLIClient:
         if app_key is None:
             path = global_path
         else:
-            path = per_app_path_template.format(app_key=app_key)
+            path = telemetry_app_path(app_key, per_app_resource)
 
             if instance is not None:
                 params["instance_name"] = self.require_known_instance(app_key, instance)

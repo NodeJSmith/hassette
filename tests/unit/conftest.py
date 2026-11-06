@@ -368,7 +368,7 @@ def persistence_handler() -> PersistenceFixture:
     mock_loop.call_soon_threadsafe = MagicMock(side_effect=lambda fn: fn())
     mock_loop.is_running = MagicMock(return_value=True)
 
-    handler = LogPersistenceHandler(mock_db_service, mock_loop, persistence_level=logging.DEBUG)
+    handler = LogPersistenceHandler(mock_db_service, mock_loop)
 
     return PersistenceFixture(
         handler=handler,

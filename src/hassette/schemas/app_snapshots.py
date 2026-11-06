@@ -57,6 +57,9 @@ class AppInstanceInfo:
     needs_restart: NeedsRestartInfo | None = None
     """Set when a teardown of this instance left work that may still be running. Such an instance reports
     FAILED until hassette restarts."""
+    debug_capture: bool = False
+    """Whether debug capture is on for this instance (spec 148). Held for a stopped instance too, whose levels
+    apply when it starts."""
 
 
 @dataclass(frozen=True)

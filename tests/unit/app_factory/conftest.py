@@ -46,6 +46,7 @@ def mock_registry() -> Mock:
     registry.get = Mock(return_value=None)
     registry.get_running_apps = Mock(return_value={})
     registry.refusal_reason = Mock(return_value=None)
+    registry.is_debug_captured = Mock(return_value=False)
     return registry
 
 

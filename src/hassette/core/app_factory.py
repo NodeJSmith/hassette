@@ -186,6 +186,7 @@ class AppFactory:
                 app_config=validated,
                 app_key=app_key,
                 app_manifest=manifest,
+                debug_capture=self.registry.is_debug_captured(app_key, instance_name),
             )
             self.registry.register_app(app_key, app_instance)
         except Exception as exc:

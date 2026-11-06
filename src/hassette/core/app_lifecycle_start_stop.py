@@ -159,6 +159,8 @@ class AppStartStopMixin:
         # for app_key before this runs, so there's nothing left to prune. This only ever does real
         # work for a standalone start_app() call.
         await self._emit_discarded_entry_events(self.registry.prune_stale_failed(app_key, configured_names))
+        # A capture pair under a name that left the config would otherwise sit unseen until a restart (spec 148 D8).
+        self.registry.prune_stale_debug_capture(app_key, configured_names)
 
         try:
             self.logger.debug("Creating instances for app %s", app_key)
@@ -239,7 +241,16 @@ class AppStartStopMixin:
         async with self._get_app_key_lock(app_key):
             outcomes = self._outcomes_for(app_key, self._stop_targets(app_key))
             await self._stop_app_unlocked(app_key, outcomes=outcomes)
+            self._prune_stopped_debug_capture(app_key)
             return outcomes.finish()
+
+    def _prune_stopped_debug_capture(self, app_key: str) -> None:
+        """Drop capture pairs whose name is neither configured nor running, such as a stopped orphan's (spec 148 D8).
+
+        No route or status read could reach such a pair. Called by the public stops only: a reload's stop is
+        followed by a start, which prunes the same way.
+        """
+        self.registry.prune_stale_debug_capture(app_key, self.registry.configured_names(app_key))
 
     def _stop_targets(self, app_key: str) -> set[str]:
         """A whole-app stop's targets: every configured name, plus any tracked name outside the config."""
@@ -580,6 +591,7 @@ class AppStartStopMixin:
         async with self._get_app_key_lock(app_key):
             outcomes = self._outcomes_for(app_key, [instance_name])
             await self._stop_instance_unlocked(app_key, instance_name, outcomes=outcomes)
+            self._prune_stopped_debug_capture(app_key)
             return outcomes.finish()
 
     async def start_instance(

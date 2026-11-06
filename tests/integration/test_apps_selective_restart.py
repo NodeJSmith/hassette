@@ -1,7 +1,6 @@
 import asyncio
 import typing
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
 
@@ -12,10 +11,13 @@ from hassette.core.app_registry import AppRegistry
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.testing import HassetteHarness, wait_for
-from tests.support.factories import make_change_set, make_job_registration, make_listener_registration
+from tests.support.app_manifests import make_test_app_manifest
+from tests.support.factories import (
+    make_change_set,
+    make_job_registration,
+    make_listener_registration,
+)
 from tests.support.helpers import noop
-
-TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
 
 class TestPerInstanceSelectiveRestart:
@@ -31,15 +33,12 @@ class TestPerInstanceSelectiveRestart:
     MULTI_INSTANCE_APP_KEY = "multi_instance"
 
     def _make_manifest(self, app_config: list[dict]) -> AppManifest:
-        return AppManifest(
-            app_key=self.MULTI_INSTANCE_APP_KEY,
-            filename="multi_instance_app.py",
-            class_name="MultiInstanceApp",
-            app_dir=TEST_APPS_PATH,
-            app_config=app_config,
-            enabled=True,
+        return make_test_app_manifest(
+            self.MULTI_INSTANCE_APP_KEY,
+            "multi_instance_app.py",
+            "MultiInstanceApp",
+            app_config,
             display_name="Multi Instance",
-            full_path=TEST_APPS_PATH / "multi_instance_app.py",
         )
 
     @pytest.fixture

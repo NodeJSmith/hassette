@@ -211,54 +211,61 @@ class TestLogCaptureHandlerShutdownGuard:
         loop.call_soon_threadsafe.assert_called_once()
 
 
-class TestLogCaptureHandlerNotifyLevel:
-    """emit() only broadcasts a hint for records at or above set_min_notify_level().
+class TestLogCaptureHandlerHints:
+    """emit() broadcasts a hint for a record at any level while hints are enabled, and none once disabled.
 
-    Regression coverage for the case where a per-service logger override (e.g.
-    LoggingConfig.scheduler_service) or a runtime PUT /logs/level change lets a record through at
-    a level lower than what LogPersistenceHandler is actually persisting — the hint must not
-    promise a record the frontend's hint-triggered `/logs/recent` refetch can never find.
+    The persistence handler stores every record it receives (spec 148 D2), so a hint can't promise a record the
+    hint-triggered ``/logs/recent`` refetch won't find, unless persistence failed to start.
     """
 
-    def test_defaults_to_notset_so_everything_notifies_until_wired(self) -> None:
-        """Before LoggingService.on_initialize() wires it, notify-gating is a no-op."""
+    def test_debug_record_broadcasts_by_default(self) -> None:
+        """A DEBUG record notifies: there is no level floor."""
         handler, loop, _broadcast_fn = make_wired_capture_handler()
 
         handler.emit(make_log_record(level=logging.DEBUG))
 
         loop.call_soon_threadsafe.assert_called_once()
 
-    def test_record_below_min_notify_level_does_not_broadcast(self) -> None:
-        """A DEBUG record is suppressed once the floor is raised to INFO."""
+    def test_disabled_hints_suppress_every_record(self) -> None:
+        """With hints disabled (persistence down), even an ERROR record sends no hint."""
         handler, loop, _broadcast_fn = make_wired_capture_handler()
-        handler.set_min_notify_level(logging.INFO)
+        handler.hints_enabled = False
 
-        handler.emit(make_log_record(level=logging.DEBUG))
+        handler.emit(make_log_record(level=logging.ERROR))
 
         loop.call_soon_threadsafe.assert_not_called()
 
-    def test_record_at_or_above_min_notify_level_still_broadcasts(self) -> None:
-        """An INFO record still notifies once the floor is raised to INFO."""
-        handler, loop, _broadcast_fn = make_wired_capture_handler()
-        handler.set_min_notify_level(logging.INFO)
 
-        handler.emit(make_log_record(level=logging.INFO))
+class TestLogCaptureHandlerCoalescing:
+    """A burst of records costs at most one pending hint: a hint only asks clients to refetch."""
+
+    def test_records_while_a_hint_is_pending_schedule_none(self) -> None:
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
+
+        for _ in range(5):
+            handler.emit(make_log_record(level=logging.DEBUG))
 
         loop.call_soon_threadsafe.assert_called_once()
 
-    def test_per_logger_override_below_the_notify_floor_is_still_suppressed(self) -> None:
-        """A logger whose own effective level is more permissive than the notify floor doesn't
-        bypass it — emit() filters by the record's level, not by which logger produced it,
-        so a per-service override (e.g. scheduler_service: DEBUG) can't punch a hole in the
-        floor set from the global persistence level.
-        """
+    def test_a_record_after_the_pending_hint_runs_schedules_a_new_one(self) -> None:
+        handler, loop, broadcast_fn = make_wired_capture_handler()
+        handler.emit(make_log_record(level=logging.DEBUG))
+
+        loop.call_soon_threadsafe.call_args.args[0]()
+        handler.emit(make_log_record(level=logging.DEBUG))
+
+        assert loop.call_soon_threadsafe.call_count == 2
+        broadcast_fn.assert_called_once()
+
+    def test_a_failed_schedule_does_not_silence_later_hints(self) -> None:
+        """A loop that closed after the running check can't clear the flag, so emit() resets it itself."""
         handler, loop, _broadcast_fn = make_wired_capture_handler()
-        handler.set_min_notify_level(logging.INFO)
+        loop.call_soon_threadsafe.side_effect = [RuntimeError("Event loop is closed"), None]
 
-        record = make_log_record(name="hassette.scheduler_service", level=logging.DEBUG)
-        handler.emit(record)
+        handler.emit(make_log_record(level=logging.DEBUG))
+        handler.emit(make_log_record(level=logging.DEBUG))
 
-        loop.call_soon_threadsafe.assert_not_called()
+        assert loop.call_soon_threadsafe.call_count == 2
 
 
 def emit_and_capture_broadcast(handler: LogCaptureHandler, loop: MagicMock, broadcast_fn: MagicMock) -> dict:

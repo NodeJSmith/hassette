@@ -92,6 +92,12 @@ hassette run --config-dir ~/.config/hassette/v0
 
 Docker users don't need to set `data_dir`. The image sets `HASSETTE__DATA_DIR=/data`, so the data path stays `/data` across major versions. Before a major upgrade, back up whatever is mounted at `/data`. In the compose file from [Docker Setup](../getting-started/docker/index.md), that is the `data` volume.
 
+## Log Persistence Level Removed
+
+This applies when upgrading from 0.63 or earlier. `log_persistence_level` under `[hassette.logging]` is gone. A config that still sets it stops Hassette at startup with the unknown-key error. Delete the line.
+
+Storage no longer has a level floor of its own: every line a logger writes is stored. A per-service field, `log_level` or `framework_log_level` at `DEBUG` used to show its `DEBUG` lines on the console only. Those lines are now stored too, and show in `hassette log` and the web UI. Stored `DEBUG` lines are the first thing the database size limit deletes. To keep them out, set that logger's level back above `DEBUG`.
+
 ## `base_url` Paths
 
 `base_url` (in `[hassette]` of `hassette.toml`, or `HASSETTE__BASE_URL`) is the address Hassette builds its Home Assistant URLs from. Versions up to 0.57 dropped any path in it. Newer versions keep the path as a prefix: `https://example.com/ha` connects to `https://example.com/ha/api/` and `wss://example.com/ha/api/websocket`.

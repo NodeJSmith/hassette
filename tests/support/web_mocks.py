@@ -268,6 +268,10 @@ def wire_app_handler(
         succeeded = (InstanceOutcome(instance_name="instance_0", result=OutcomeResult.SUCCEEDED),)
         for name in ("start_app", "stop_app", "reload_app", "start_instance", "stop_instance", "reload_instance"):
             setattr(handler, name, AsyncMock(return_value=succeeded))
+        # The debug-capture toggle reports the requested state on the instance it targeted, or on instance_0.
+        handler.set_debug_capture = MagicMock(
+            side_effect=lambda _app_key, instance_name, enabled: {instance_name or "instance_0": enabled}
+        )
 
 
 def wire_bus_and_scheduler(hassette: MagicMock, *, scheduler_jobs: list[Any] | None) -> None:

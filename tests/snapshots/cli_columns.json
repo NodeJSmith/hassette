@@ -132,6 +132,13 @@
         "overflow": "ellipsis"
       },
       {
+        "field": "app.instances",
+        "formatter": "fmt_debug_capture",
+        "header": "Debug",
+        "max_width": 5,
+        "overflow": "ellipsis"
+      },
+      {
         "field": "activity.stats.total_invocations",
         "formatter": null,
         "header": "Invocations/1h",

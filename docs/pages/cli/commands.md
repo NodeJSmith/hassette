@@ -85,18 +85,17 @@ Read this value with `log_persistence_active`; the counter changes only while pe
 
 ## `hassette app`
 
-Lists all loaded apps with key, status, display name, instance count, handler invocations over the last hour, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and it is the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance, but the same class can run multiple times, each with its own config and `instance_name`.
+Lists all loaded apps with key, status, display name, instance count, restart flags, debug capture, handler invocations over the last hour, enabled state, autostart setting, and source file. **Restart** counts the app's instances that [need a Hassette restart](../operating/index.md#instances-that-need-a-restart), and is blank when none do. **Debug** reads `on` when any instance of the app has [debug capture](#hassette-app-debug-key-onoff) on. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and it is the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance, but the same class can run multiple times, each with its own config and `instance_name`.
 
 ```console
 $ hassette app
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
-┃ App             ┃ Status  ┃ Display     ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File              ┃
-┃                 ┃         ┃ Name        ┃           ┃                ┃         ┃           ┃                   ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
-│ config_app      │ running │ ConfigApp   │ 1         │ 0              │ True    │ True      │ config_app.py     │
-│ trivial_app     │ running │ TrivialApp  │ 1         │ 0              │ True    │ True      │ trivial_app.py    │
-│ bus_handler_app │ running │ BusHandler… │ 1         │ 0              │ True    │ True      │ bus_handler_app.py│
-└─────────────────┴─────────┴─────────────┴───────────┴────────────────┴─────────┴───────────┴───────────────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Display Name    ┃ Instances ┃ Restart ┃ Debug ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File               ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ config_app      │ running │ ConfigApp       │ 1         │         │       │ 0              │ True    │ True      │ config_app.py      │
+│ trivial_app     │ running │ TrivialApp      │ 1         │         │ on    │ 0              │ True    │ True      │ trivial_app.py     │
+│ bus_handler_app │ running │ BusHandlerApp   │ 1         │         │       │ 0              │ True    │ True      │ bus_handler_app.py │
+└─────────────────┴─────────┴─────────────────┴───────────┴─────────┴───────┴────────────────┴─────────┴───────────┴────────────────────┘
 ```
 
 `--json` prints one object per app with two keys: `app` (the app's identity, status and instances) and `activity` (what it did over the last hour). `activity` has four parts:
@@ -121,6 +120,7 @@ A part is `null` when the server couldn't compute it. The table shows that as a 
 | `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`                    |
 | `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`                     |
 | `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`                   |
+| `hassette app debug <key> on\|off` | Turns debug capture on or off. | `PUT /api/apps/{key}/debug`             |
 
 The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{instance_name}/{start,stop,reload}` instead of the app-level path shown above.
 
@@ -171,6 +171,15 @@ hassette app instances my-app
 `In Config` is `False` for an instance still tracked after its config block was removed. Such an instance accepts only `stop`. `Restart` shows `yes` when a teardown left work running, and only a hassette restart clears it. [`hassette status`](#hassette-status) shows the reason and pending tasks for each flagged instance.
 
 `--json` prints the app summary that `GET /api/apps/{key}` returns, with the full `instances` list.
+
+### `hassette app debug <key> on|off` { #hassette-app-debug-key-onoff }
+
+Turns debug capture on or off for an app, or for one instance with `--instance`. While capture is on, the app's own logger and the framework loggers it owns log at `DEBUG`, and every line is stored, so `hassette log --app <key> --author all` shows it. Capture ends at `off` or a Hassette restart. The command doesn't prompt, and it responds while another action on the app is still running. With `--instance`, it calls `PUT /api/apps/{key}/instances/{instance_name}/debug`. [Debug Capture for One App](../operating/log-levels.md#debug-capture-for-one-app) covers what it changes.
+
+```bash
+hassette app debug my-app on
+hassette app debug my-app off --instance office
+```
 
 ### `hassette app health <key>`
 
@@ -227,7 +236,7 @@ hassette app source my-app
 
 | Flag            | Applies to                        | Description                                              |
 | --------------- | ---------------------------------- | -------------------------------------------------------- |
-| `--instance`    | `health`, `activity`, `start`, `stop`, `reload` | Filters to (read commands) or targets (action commands) a specific app instance by name. Without it, read commands cover every instance of the app. |
+| `--instance`    | `health`, `activity`, `start`, `stop`, `reload`, `debug` | Filters to (read commands) or targets (action commands) a specific app instance by name. Without it, read commands cover every instance of the app. |
 | `--since`       | `health`, `activity`               | Time window for metrics. See [formats](#--since-format). |
 | `--source-tier` | `health`                           | Filters by source tier — `app` is your code, `framework` is Hassette internals. See [Shared Flags](#shared-flags). |
 | `--limit`       | `activity`                         | Maximum records to return.                               |
@@ -336,7 +345,7 @@ $ hassette job trigger 1
 
 ## `hassette log`
 
-Recent log entries from the telemetry database. Log persistence is always enabled and has no setting to turn it off, but it can fail to start. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Only records at or above `log_persistence_level` are stored.
+Recent log entries from the telemetry database. Log persistence is always enabled and has no setting to turn it off, but it can fail to start. If this returns nothing, check `log_persistence_active` in [`hassette status`](#hassette-status). Every line a logger writes at its current level is stored, so `DEBUG` lines appear once that logger is at `DEBUG`.
 
 ```console
 $ hassette log --author all --limit 5
@@ -501,7 +510,7 @@ These flags appear across multiple commands.
 | Flag                   | Format                       | Commands                                                     | Description                                                                                                                                 |
 | ---------------------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--app <key>`          | string                       | `listener`, `job`, `log`, `blocking`                         | Filters results to a specific app key.                                                                                                      |
-| `--instance <name>`    | string                       | `listener`, `job`, `blocking`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance by name. Requires `--app` for `listener`/`job`/`blocking`; requires the positional `<key>` for all `app` subcommands.         |
+| `--instance <name>`    | string                       | `listener`, `job`, `blocking`, `app health`, `app activity`, `app start`, `app stop`, `app reload`, `app debug` | Filters to (read commands) or targets (action commands) a specific app instance by name. Requires `--app` for `listener`/`job`/`blocking`; requires the positional `<key>` for all `app` subcommands.         |
 | `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `blocking`, `app health`, `app activity` | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
 | `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
 | `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `app health`                              | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
@@ -552,7 +561,7 @@ Invalid values cause a non-zero exit with an error listing accepted formats.
 
 ### `--instance` resolution
 
-`--instance` requires `--app` (or a positional `<key>` argument on `app health`, `app activity`, `app start`, `app stop`, and `app reload`). It takes the instance name, and the CLI checks it against the app's instances first: if no instance matches, it exits non-zero and lists the available names. When the CLI can't read the app list, it skips the check and the server answers for the name.
+`--instance` requires `--app` (or a positional `<key>` argument on `app health`, `app activity`, `app start`, `app stop`, `app reload`, and `app debug`). It takes the instance name, and the CLI checks it against the app's instances first: if no instance matches, it exits non-zero and lists the available names. When the CLI can't read the app list, it skips the check and the server answers for the name.
 
 The check also rejects the old name of a renamed or removed instance, even though the API keeps that instance's history readable until retention deletes it.
 

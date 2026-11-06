@@ -6,11 +6,11 @@ Each formatter turns one raw field value into a display string. The rendering la
 
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from functools import wraps
 from typing import Any
 
-from hassette_wire import LogEntry, ResourceStatus
+from hassette_wire import AppInstance, LogEntry, ResourceStatus
 from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
@@ -198,6 +198,14 @@ def fmt_names(value: Any) -> str:
 def fmt_nonzero_count(value: Any) -> str:
     """A count, or blank when it is zero, so a column of mostly-zero counts shows only the ones that matter."""
     return str(value) if value else ""
+
+
+def fmt_debug_capture(instances: Sequence[AppInstance]) -> str:
+    """Takes an app's instance list: ``on`` when any instance has debug capture on, else blank.
+
+    Blank rather than ``off``, so a forgotten capture stands out in the ``hassette app`` table.
+    """
+    return "on" if any(instance.debug_capture for instance in instances) else ""
 
 
 def fmt_flagged(value: Any) -> str:

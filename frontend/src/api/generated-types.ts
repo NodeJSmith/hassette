@@ -234,6 +234,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/apps/{app_key}/debug": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set App Debug Capture
+         * @description Turn debug capture on or off for every instance of the app, and report each instance's capture state.
+         *
+         *     ``enabled: true`` captures every configured instance; ``enabled: false`` ends capture for every instance of the
+         *     app. Answers while a start, stop or reload is running, since it takes no lifecycle lock.
+         */
+        put: operations["set_app_debug_capture_api_apps__app_key__debug_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/apps/{app_key}/instances/{instance_name}/debug": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Instance Debug Capture
+         * @description Turn debug capture on or off for one configured instance, running or not, and report its capture state.
+         *
+         *     A stopped instance gets its DEBUG levels when it next starts. A name outside the app's config is a 404, as for
+         *     ``start``: a running orphan can only be stopped.
+         */
+        put: operations["set_instance_debug_capture_api_apps__app_key__instances__instance_name__debug_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/apps/{app_key}/config": {
         parameters: {
             query?: never;
@@ -1051,6 +1097,15 @@ export interface components {
              *     until hassette restarts.
              */
             needs_restart?: components["schemas"]["NeedsRestart"] | null;
+            /**
+             * Debug Capture
+             * @description Whether debug capture is on: the instance and the framework loggers it owns log at ``DEBUG``, and every line
+             *     is stored. Set by ``PUT /api/apps/{app_key}/debug``; it ends when turned off or when hassette restarts. Held for a
+             *     stopped instance too, whose levels apply when it starts. Fresh only when read: no WebSocket event reports a
+             *     change, so a client caching app state refetches ``GET /api/apps`` to see it.
+             * @default false
+             */
+            debug_capture: boolean;
         };
         /**
          * AppListResponse
@@ -1347,6 +1402,36 @@ export interface components {
             };
         };
         /**
+         * DebugCaptureRequest
+         * @description Request body for ``PUT /api/apps/{app_key}/debug`` and its instance-scoped twin.
+         */
+        DebugCaptureRequest: {
+            /**
+             * Enabled
+             * @description Whether debug capture should be on.
+             */
+            enabled: boolean;
+        };
+        /**
+         * DebugCaptureResponse
+         * @description Response for a ``PUT .../debug``: the capture state of each instance it targeted.
+         *
+         *     An app-wide ``enabled: true`` targets every configured instance. An app-wide ``enabled: false`` targets every
+         *     configured instance plus any other name still captured. ``instance_name`` is the server-confirmed instance for an
+         *     instance-scoped request, ``None`` for an app-wide one.
+         */
+        DebugCaptureResponse: {
+            /** App Key */
+            app_key: string;
+            /** Instance Name */
+            instance_name: string | null;
+            /**
+             * Instances
+             * @description Each targeted instance, configured instances in config order first.
+             */
+            instances: components["schemas"]["InstanceDebugCapture"][];
+        };
+        /**
          * Execution
          * @description One run of a handler or scheduled job.
          *
@@ -1502,6 +1587,16 @@ export interface components {
              *     immediate-fire run, whose event hassette built from the cached state).
              */
             origin?: string | null;
+        };
+        /**
+         * InstanceDebugCapture
+         * @description One instance's debug capture state after a ``PUT .../debug``.
+         */
+        InstanceDebugCapture: {
+            /** Instance Name */
+            instance_name: string;
+            /** Debug Capture */
+            debug_capture: boolean;
         };
         /**
          * InstanceOutcome
@@ -2900,6 +2995,113 @@ export interface operations {
             };
             /** @description `action_failed`: the action failed on at least one targeted instance */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    set_app_debug_capture_api_apps__app_key__debug_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DebugCaptureRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugCaptureResponse"];
+                };
+            };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    set_instance_debug_capture_api_apps__app_key__instances__instance_name__debug_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+                instance_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DebugCaptureRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugCaptureResponse"];
+                };
+            };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the app's current config has no instance with this name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

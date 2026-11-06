@@ -79,6 +79,7 @@ class AppRegistry:
         self._blocked_apps: dict[str, BlockReason] = {}
         self._manifests: dict[str, AppManifest] = {}
         self._only_apps: frozenset[str] = frozenset()
+        self._debug_capture: set[tuple[str, str]] = set()
         self.logger = getLogger(f"{__name__}.AppRegistry")
 
     def register_app(self, app_key: str, app: "App[AppConfig]") -> None:
@@ -166,6 +167,42 @@ class AppRegistry:
             return None
         return f"needs a hassette restart (flagged at {record.info.flagged_at}: {record.info.reason})"
 
+    def is_debug_captured(self, app_key: str, instance_name: str) -> bool:
+        """Whether debug capture is on for ``(app_key, instance_name)``."""
+        return (app_key, instance_name) in self._debug_capture
+
+    def set_debug_capture(self, app_key: str, instance_names: Iterable[str], enabled: bool) -> None:
+        """Turn debug capture on or off for each of ``instance_names`` under ``app_key``.
+
+        Like the needs-restart records, a pair isn't tied to an instance entry, so it survives the unregister and
+        re-register a reload does. Turning capture off for an uncaptured name is a no-op.
+        """
+        pairs = {(app_key, name) for name in instance_names}
+        if enabled:
+            self._debug_capture |= pairs
+        else:
+            self._debug_capture -= pairs
+
+    def debug_captured_names(self, app_key: str) -> set[str]:
+        """Every instance name under ``app_key`` with debug capture on, configured or not."""
+        return {name for key, name in self._debug_capture if key == app_key}
+
+    def clear_debug_capture(self, app_key: str) -> None:
+        """Turn debug capture off for every name under ``app_key``."""
+        self.set_debug_capture(app_key, self.debug_captured_names(app_key), enabled=False)
+
+    def prune_stale_debug_capture(self, app_key: str, configured_names: Iterable[str]) -> None:
+        """Drop capture pairs of ``app_key`` whose name left the config and that no live instance holds.
+
+        Nothing else would show or end such a pair: the status read lists configured and tracked names only, and
+        the instance route answers 404 for a name outside the config. A running orphan keeps its pair, so the status
+        read matches its live levels until it is stopped.
+        """
+        configured = set(configured_names)
+        running = set(self.get_running_apps(app_key))
+        stale = {name for name in self.debug_captured_names(app_key) if name not in configured and name not in running}
+        self.set_debug_capture(app_key, stale, enabled=False)
+
     def display_names(self, app_key: str, manifest: "AppManifest | None" = None) -> list[str]:
         """Each name of ``app_key``, in display order.
 
@@ -210,6 +247,7 @@ class AppRegistry:
                 class_name=record.class_name,
                 status=ResourceStatus.FAILED,
                 in_current_config=name_in_current_config(instance_name, manifest),
+                debug_capture=self.is_debug_captured(app_key, instance_name),
             )
         return replace(
             base,
@@ -286,10 +324,11 @@ class AppRegistry:
         return app_key in self._blocked_apps
 
     def clear_all(self) -> None:
-        """Clear all apps, blocked apps, and needs-restart records (process exit and test reset only)."""
+        """Clear all apps, blocked apps, needs-restart records and debug capture (process exit and test reset only)."""
         self._instances.clear()
         self._blocked_apps.clear()
         self._needs_restart.clear()
+        self._debug_capture.clear()
 
     def set_manifests(self, manifests: dict[str, "AppManifest"]) -> None:
         """Update the app manifests configuration."""
@@ -331,6 +370,11 @@ class AppRegistry:
         """Get the manifest for an app key."""
         return self._manifests.get(app_key)
 
+    def configured_names(self, app_key: str) -> list[str]:
+        """The instance names ``app_key``'s config declares, in config order; empty for an unknown app."""
+        manifest = self._manifests.get(app_key)
+        return configured_instance_names(manifest.app_config) if manifest is not None else []
+
     def all_apps(self) -> list["App[AppConfig]"]:
         """Get all running app instances."""
         return [
@@ -358,6 +402,7 @@ class AppRegistry:
         self, app_key: str, instance_name: str, entry: InstanceEntry, manifest: "AppManifest | None" = None
     ) -> AppInstanceInfo:
         in_current_config = name_in_current_config(instance_name, manifest)
+        debug_capture = self.is_debug_captured(app_key, instance_name)
         if (app := entry.app) is not None:
             return AppInstanceInfo(
                 app_key=app_key,
@@ -366,6 +411,7 @@ class AppRegistry:
                 status=app.status,
                 owner_id=app.unique_name,
                 in_current_config=in_current_config,
+                debug_capture=debug_capture,
             )
 
         class_name = manifest.class_name if manifest else UNKNOWN_LABEL
@@ -378,6 +424,7 @@ class AppRegistry:
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
             in_current_config=in_current_config,
+            debug_capture=debug_capture,
         )
 
     def get_snapshot(self) -> AppStatusSnapshot:
@@ -453,6 +500,7 @@ class AppRegistry:
                     instance_name=name,
                     class_name=manifest.class_name,
                     status=ResourceStatus.STOPPED,
+                    debug_capture=self.is_debug_captured(app_key, name),
                 )
             instances.append(info)
 

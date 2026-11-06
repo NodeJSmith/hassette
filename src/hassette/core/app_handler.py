@@ -8,8 +8,10 @@ import asyncio
 import typing
 from typing import ClassVar
 
+import structlog
 from hassette_wire import LogLevel
 
+from hassette.app.app import DEBUG_CAPTURE_ENDS
 from hassette.bus import Bus
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_change_detector import ChangeSet
@@ -160,6 +162,60 @@ class AppHandler(Service):
         for inst in instances:
             inst._force_terminal()
         super()._force_terminal()
+
+    def set_debug_capture(self, app_key: str, instance_name: str | None, enabled: bool) -> dict[str, bool]:
+        """Turn debug capture on or off for one instance, or app-wide, and return each targeted name's state.
+
+        App-wide ``on`` captures every configured instance; app-wide ``off`` ends capture for every name under
+        ``app_key``, configured or not. Every targeted running instance has its levels re-applied at once, which
+        also repairs an instance whose flag drifted from the registry; a stopped one gets them when it starts,
+        since ``AppFactory`` passes the flag in at construction. Each instance whose state changed gets a WARNING
+        attributed to it.
+
+        Takes no lifecycle lock and must never await (spec 148 D6): app construction and registration are
+        synchronous, so on one event loop a concurrent build sees the registry either before or after this whole
+        change, never partway.
+
+        Args:
+            app_key: The app to act on; the caller has checked that it is known.
+            instance_name: One instance, or ``None`` for every instance.
+            enabled: Whether capture should be on.
+
+        Returns:
+            Each targeted instance name, in display order, mapped to whether capture is now on for it.
+        """
+        registry = self.registry
+        configured = registry.configured_names(app_key)
+        if instance_name is not None:
+            targets = [instance_name]
+        elif enabled:
+            targets = configured
+        else:
+            # App-wide off also reaches captured names that left the config, before the next start prunes them.
+            targets = [*configured, *sorted(registry.debug_captured_names(app_key).difference(configured))]
+
+        changed = {name for name in targets if registry.is_debug_captured(app_key, name) != enabled}
+        registry.set_debug_capture(app_key, targets, enabled)
+
+        for name in targets:
+            # Every live target is re-applied, not only the changed ones: the App's flag is a mirror, so a repeat
+            # request repairs one that drifted from the registry. Re-applying is idempotent.
+            if (app := registry.get(app_key, name)) is not None:
+                app.set_debug_capture(enabled)
+            if name not in changed:
+                continue
+            with structlog.contextvars.bound_contextvars(app_key=app_key, instance_name=name):
+                if enabled:
+                    self.logger.warning(
+                        "Debug capture on for %s/%s: its own and its framework loggers log at DEBUG. %s",
+                        app_key,
+                        name,
+                        DEBUG_CAPTURE_ENDS % app_key,
+                    )
+                else:
+                    self.logger.warning("Debug capture off for %s/%s: levels are back to config", app_key, name)
+
+        return {name: registry.is_debug_captured(app_key, name) for name in targets}
 
     def is_action_in_progress(self, app_key: str) -> bool:
         """Whether an action on ``app_key`` is running — delegates to lifecycle service."""

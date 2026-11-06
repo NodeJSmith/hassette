@@ -227,6 +227,7 @@ describe("AppTableRow", () => {
           status: "running",
           error_message: null,
           in_current_config: true,
+          debug_capture: false,
         },
         {
           app_key: "my_app",
@@ -235,6 +236,7 @@ describe("AppTableRow", () => {
           status: "stopped",
           error_message: null,
           in_current_config: true,
+          debug_capture: false,
         },
       ],
     });
@@ -255,6 +257,7 @@ describe("AppTableRow", () => {
           status: "stopped",
           error_message: null,
           in_current_config: true,
+          debug_capture: false,
         },
         {
           app_key: "my_app",
@@ -263,6 +266,7 @@ describe("AppTableRow", () => {
           status: "stopped",
           error_message: null,
           in_current_config: true,
+          debug_capture: false,
         },
       ],
     });
@@ -291,6 +295,7 @@ describe("AppTableRow", () => {
           status: "failed",
           error_message: "boom",
           in_current_config: true,
+          debug_capture: false,
         },
         {
           app_key: "my_app",
@@ -299,6 +304,7 @@ describe("AppTableRow", () => {
           status: "running",
           error_message: null,
           in_current_config: true,
+          debug_capture: false,
         },
       ],
     });
@@ -324,6 +330,7 @@ describe("AppTableRow", () => {
           status: "failed",
           error_message: "boom",
           in_current_config: true,
+          debug_capture: false,
         },
         {
           app_key: "my_app",
@@ -332,6 +339,7 @@ describe("AppTableRow", () => {
           status: "running",
           error_message: null,
           in_current_config: true,
+          debug_capture: false,
         },
       ],
     });
@@ -355,6 +363,7 @@ describe("AppTableRow", () => {
           status: "running",
           error_message: null,
           in_current_config: true,
+          debug_capture: false,
         },
       ],
     });
@@ -389,12 +398,14 @@ describe("AppTableRow", () => {
           instance_name: "running_orphan",
           status: "running",
           in_current_config: false,
+          debug_capture: false,
         }),
         createInstance({
           app_key: "my_app",
           instance_name: "failed_orphan",
           status: "failed",
           in_current_config: false,
+          debug_capture: false,
         }),
       ],
     });
@@ -464,6 +475,7 @@ describe("AppTableRow", () => {
             status: "running",
             error_message: null,
             in_current_config: true,
+            debug_capture: false,
           },
           {
             app_key: "my_app",
@@ -472,6 +484,7 @@ describe("AppTableRow", () => {
             status: "stopped",
             error_message: null,
             in_current_config: true,
+            debug_capture: false,
           },
         ],
       });
@@ -501,6 +514,7 @@ describe("AppTableRow", () => {
             status: "stopped",
             error_message: null,
             in_current_config: true,
+            debug_capture: false,
           },
         ],
       });
@@ -527,6 +541,7 @@ describe("AppTableRow", () => {
             status: "stopped",
             error_message: null,
             in_current_config: true,
+            debug_capture: false,
           },
         ],
       });
@@ -553,6 +568,7 @@ describe("AppTableRow", () => {
             status: "running",
             error_message: null,
             in_current_config: true,
+            debug_capture: false,
           },
         ],
       });

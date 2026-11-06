@@ -546,7 +546,7 @@ class TestRuntimeQueryServiceWiring:
         """LogPersistenceHandler stores db_service and loop at construction."""
         mock_db_service = MagicMock()
         loop = asyncio.get_running_loop()
-        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
+        handler = LogPersistenceHandler(mock_db_service, loop)
         assert handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]
         assert handler._loop is loop  # pyright: ignore[reportPrivateUsage]
 
@@ -554,7 +554,7 @@ class TestRuntimeQueryServiceWiring:
         """LogPersistenceHandler.db_write_queue_drops starts at 0 after construction."""
         mock_db_service = MagicMock()
         loop = asyncio.get_running_loop()
-        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=20)
+        handler = LogPersistenceHandler(mock_db_service, loop)
         assert handler.db_write_queue_drops == 0
 
     async def test_persistence_handler_enqueues_records_on_flush(self) -> None:
@@ -563,7 +563,7 @@ class TestRuntimeQueryServiceWiring:
         mock_db_service.enqueue = MagicMock(return_value=True)
         mock_db_service._insert_log_records = MagicMock(return_value=MagicMock())
         loop = asyncio.get_running_loop()
-        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
+        handler = LogPersistenceHandler(mock_db_service, loop)
 
         record = make_log_record(lineno=1, msg="test message")
         # Stamp required attributes
@@ -578,16 +578,3 @@ class TestRuntimeQueryServiceWiring:
         # _flush schedules via call_soon_threadsafe; yield to the loop to process it
         await asyncio.sleep(0)
         assert mock_db_service.enqueue.called
-
-    async def test_persistence_handler_filters_below_persistence_level(self) -> None:
-        """Records below persistence_level are not accumulated."""
-        mock_db_service = MagicMock()
-        loop = asyncio.get_running_loop()
-        handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
-        debug_record = make_log_record(level=logging.DEBUG, lineno=1, msg="debug msg")
-        handler.emit(debug_record)
-        handler.flush_if_pending()
-
-        # No enqueue because it was filtered before accumulation
-        assert handler.db_write_queue_drops == 0
-        assert handler._batch == []  # pyright: ignore[reportPrivateUsage]
