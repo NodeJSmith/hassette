@@ -207,7 +207,7 @@ The file watcher logs each detected change at `DEBUG`. A global `log_level = "DE
 --8<-- "pages/operating/snippets/debug_ha_comms.toml"
 ```
 
-`websocket = "DEBUG"` shows raw WebSocket message traffic. `api = "DEBUG"` shows each REST call and response. Use both together when troubleshooting connectivity issues or unexpected state values coming from Home Assistant.
+`websocket = "DEBUG"` logs connection and authentication steps, plus each command sent to Home Assistant. A command line names its type and id, not its payload, because payload values may be sensitive. Incoming messages aren't logged one by one. [`all_hass_events`](#debug-flags) logs every event Home Assistant sends instead. `api = "DEBUG"` logs each REST request with its method, URL, and request data. Responses aren't logged at any level, so check the returned value or raised error in the app instead. Use both together when troubleshooting connectivity issues or unexpected state values coming from Home Assistant.
 
 ## Full Field Reference
 
