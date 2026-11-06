@@ -414,17 +414,17 @@ def test_listener_create_does_not_build_duration_timer() -> None:
     """Listener.create() does not construct DurationTimer — BusService.add_listener() does."""
     listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen")
 
-    assert listener.duration_config is not None
-    assert listener.duration_config._timer is None
-    assert listener.duration_config.duration == 5.0
-    assert listener.duration_config.entity_id == "light.kitchen"
+    assert listener.entity_watch is not None
+    assert listener.entity_watch._timer is None
+    assert listener.entity_watch.duration == 5.0
+    assert listener.entity_watch.entity_id == "light.kitchen"
 
 
 def test_listener_create_no_duration_timer_when_no_duration() -> None:
     """Listener.create(duration=None) leaves _duration_timer as None."""
     listener = create_listener(topic="test.topic")
 
-    assert listener.duration_config is None
+    assert listener.entity_watch is None
 
 
 def test_listener_cancel_cancels_duration_timer() -> None:
@@ -434,9 +434,9 @@ def test_listener_cancel_cancels_duration_timer() -> None:
     listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen", task_bucket=task_bucket)
 
     # Simulate what BusService.add_listener() does
-    assert listener.duration_config is not None
+    assert listener.entity_watch is not None
     object.__setattr__(
-        listener.duration_config,
+        listener.entity_watch,
         "_timer",
         DurationTimer(
             task_bucket=task_bucket,
@@ -448,7 +448,7 @@ def test_listener_cancel_cancels_duration_timer() -> None:
         ),
     )
 
-    duration_timer = listener.duration_config._timer
+    duration_timer = listener.entity_watch._timer
     assert duration_timer is not None
     cancel_calls = []
     original_cancel = duration_timer.cancel

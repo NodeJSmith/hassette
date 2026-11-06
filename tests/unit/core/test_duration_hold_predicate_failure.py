@@ -13,6 +13,7 @@ from hassette_wire import ExecutionStatus
 from hassette.bus.error_context import BusErrorContext
 from hassette.bus.listeners import Listener
 from hassette.core.bus_service import BusService
+from hassette.core.execution_record import SYNTHETIC_ORIGIN
 from hassette.testing import make_state_dict
 from tests.support.helpers import create_listener
 from tests.unit.core._fixtures_bus_scheduler import make_bus_service
@@ -62,6 +63,10 @@ def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> Non
     assert record.error_message == "predicate boom"
     assert record.listener_id == listener.db_id
     assert record.session_id == 7
+    # Both paths evaluate a synthetic event built from the cached state: the row says so (spec 147 D7).
+    assert record.trigger_origin == SYNTHETIC_ORIGIN
+    assert record.trigger_old_value is None
+    assert record.trigger_new_value == "on"
 
     executor_mock(svc).invoke_error_handler.assert_awaited_once()
     handler, ctx = executor_mock(svc).invoke_error_handler.await_args[0]
@@ -76,11 +81,11 @@ def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> Non
 async def test_raising_hold_predicate_on_duration_fire_is_recorded_and_routed() -> None:
     svc = make_service_with_state()
     listener = make_registered_listener(11, duration=60.0, hold_predicate=raising_predicate, error_handler=on_error)
-    assert listener.duration_config is not None
+    assert listener.entity_watch is not None
     mock_timer = MagicMock()
-    listener.duration_config._timer = mock_timer
+    listener.entity_watch._timer = mock_timer
 
-    svc._duration_hold.start_duration_timer(listener, ENTITY_ID, listener.duration_config, AsyncMock())
+    svc._duration_hold.start_duration_timer(listener, ENTITY_ID, listener.entity_watch, AsyncMock())
     on_fire = mock_timer.start.call_args[0][0]
     await on_fire()
     await asyncio.sleep(0)

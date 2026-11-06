@@ -3902,29 +3902,16 @@
             "title": "Execution Id",
             "description": "UUID string identifying the specific execution instance. None when not populated.\n\nUUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions."
           },
-          "trigger_context_id": {
+          "trigger": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/ExecutionTrigger"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Trigger Context Id",
-            "description": "event_id from the triggering event payload. None for job executions, synthetic immediate-fire\ninvocations, and handler rows recorded because the listener's predicate raised."
-          },
-          "trigger_origin": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trigger Origin",
-            "description": "Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for\nimmediate-fire synthetic invocations). None for job executions and for handler rows recorded because\nthe listener's predicate raised."
+            "description": "The event that fired a handler execution. None for job executions. Fields the row has no value\nfor are None, so a handler row recorded before a field existed still carries the rest."
           },
           "trigger_mode": {
             "anyOf": [
@@ -3979,7 +3966,7 @@
           "error_message"
         ],
         "title": "Execution",
-        "description": "One run of a handler or scheduled job.\n\n``kind`` says which. Handler-only fields (``trigger_context_id``, ``trigger_origin``) are\n``None`` for job executions."
+        "description": "One run of a handler or scheduled job.\n\n``kind`` says which. ``trigger`` is ``None`` for job executions and set on every handler row."
       },
       "ExecutionMode": {
         "type": "string",
@@ -4003,6 +3990,97 @@
         ],
         "title": "ExecutionStatus",
         "description": "How a handler invocation or job execution ended."
+      },
+      "ExecutionTrigger": {
+        "properties": {
+          "topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic",
+            "description": "The event's own topic (e.g. ``hass.event.state_changed``), not the route the listener matched.\nNone on rows recorded before this field existed."
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id",
+            "description": "The entity the event is about. None for events without one (e.g. ``call_service``)."
+          },
+          "old_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value",
+            "description": "The tracked value before the change: the state, or the attribute an ``on_attribute_change``\nlistener tracks. None when there was no old state (an immediate fire, or a new entity) or the\ntracked attribute was absent; an explicit JSON null is the string ``\"null\"``."
+          },
+          "new_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Value",
+            "description": "The tracked value after the change. None when the entity was removed or the tracked attribute is absent."
+          },
+          "context_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Id",
+            "description": "The Home Assistant context id of the event, or a Hassette event's own id. An immediate-fire\nrun carries the context of the change that set the state it fired on."
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id",
+            "description": "The Home Assistant context's ``parent_id``. None for Hassette events and most HA events."
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin",
+            "description": "Origin of the event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for an\nimmediate-fire run, whose event hassette built from the cached state)."
+          }
+        },
+        "type": "object",
+        "title": "ExecutionTrigger",
+        "description": "The event that fired a handler execution: which event, entity and value change.\n\nOld and new values are display strings, not typed values: a string as Home Assistant reports\nit, anything else as compact JSON, cut to 255 characters with a trailing ``\u2026``. Duration and\ndebounced runs describe the event that started the hold or debounce, not the state when the\nhandler ran."
       },
       "InstanceOutcome": {
         "properties": {

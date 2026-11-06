@@ -262,7 +262,12 @@ CREATE TABLE executions (
     attempt_number        INTEGER NOT NULL DEFAULT 1,
     args_json             TEXT    NOT NULL DEFAULT '[]',
     kwargs_json           TEXT    NOT NULL DEFAULT '{}',
-    thread_leaked         INTEGER NOT NULL DEFAULT 0
+    thread_leaked         INTEGER NOT NULL DEFAULT 0,
+    trigger_topic         TEXT,
+    trigger_entity_id     TEXT,
+    trigger_old_value     TEXT,
+    trigger_new_value     TEXT,
+    trigger_parent_id     TEXT
 );
 """
 

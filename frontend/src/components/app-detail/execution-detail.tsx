@@ -107,7 +107,7 @@ export function ExecutionDetailContent({ record }: ContentProps) {
         <DetailStats cells={buildMetaCells(record)} data-testid="execution-meta-stats" />
       </div>
 
-      {(record.trigger_mode || record.trigger_context_id) && (
+      {(record.trigger_mode || record.trigger?.context_id) && (
         <div className="mb-4" data-testid="execution-trigger">
           <h3 className="mb-2 font-sans text-sm font-semibold text-foreground">trigger</h3>
           <div className="flex gap-6 font-mono text-xs">
@@ -117,16 +117,16 @@ export function ExecutionDetailContent({ record }: ContentProps) {
                 <span className="text-foreground">{record.trigger_mode}</span>
               </div>
             )}
-            {record.trigger_context_id && (
+            {record.trigger?.context_id && (
               <div>
                 <span className="mr-1 text-foreground-faint">context</span>
-                <span className="text-foreground">{truncateId(record.trigger_context_id)}</span>
+                <span className="text-foreground">{truncateId(record.trigger.context_id)}</span>
               </div>
             )}
-            {record.trigger_origin && (
+            {record.trigger?.origin && (
               <div>
                 <span className="mr-1 text-foreground-faint">origin</span>
-                <span className="text-foreground">{record.trigger_origin}</span>
+                <span className="text-foreground">{record.trigger.origin}</span>
               </div>
             )}
           </div>

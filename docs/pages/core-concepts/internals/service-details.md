@@ -66,7 +66,7 @@ Each passing listener enters a [`TaskBucket`][hassette.task_bucket.task_bucket.T
 | [`ListenerIdentity`][hassette.bus.listeners.ListenerIdentity] | Ownership and telemetry fields (owner ID, app key, instance name, listener name, handler names, source location/source, source tier) |
 | [`ListenerOptions`][hassette.bus.listeners.ListenerOptions] | Behavioral timing parameters (debounce, throttle, once, timeout, timeout disablement, priority, execution mode, backpressure) |
 | [`HandlerInvoker`][hassette.bus.listeners.HandlerInvoker] | Handler invocation, dispatch, and rate limiting |
-| [`DurationConfig`][hassette.bus.listeners.DurationConfig] | Duration-hold configuration and timer lifecycle |
+| [`EntityWatch`][hassette.bus.listeners.EntityWatch] | The entity a listener tracks, plus its duration hold and timer lifecycle |
 
 Registration is synchronous with the database. `sub.listener.db_id` is a valid integer immediately when the awaited `bus.on_*()` call returns.
 

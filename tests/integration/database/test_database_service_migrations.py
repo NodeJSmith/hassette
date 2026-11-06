@@ -100,6 +100,11 @@ EXPECTED_TABLES = {
         "args_json",
         "kwargs_json",
         "thread_leaked",
+        "trigger_topic",
+        "trigger_entity_id",
+        "trigger_old_value",
+        "trigger_new_value",
+        "trigger_parent_id",
     },
     "log_records": {
         "id",

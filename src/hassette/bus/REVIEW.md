@@ -30,7 +30,7 @@ and `guard.dropped` counters both appear in `wire/src/hassette_wire/`'s
 `ListenerSummary`, or does one path lose its telemetry?
 
 ## Duration Hold Predicate Consistency
-`DurationConfig.hold_predicate` in `src/hassette/bus/listeners.py` is built from
+`EntityWatch.hold_predicate` in `src/hassette/bus/listeners.py` is built from
 `hold_preds` by including `changed_to` predicates but excluding transition
 predicates (`StateFrom`, `StateDidChange`). Does
 `src/hassette/bus/duration_timer.py`'s cancel-event evaluation use this same

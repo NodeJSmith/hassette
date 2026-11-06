@@ -98,27 +98,36 @@ class TestListenerConfigMatches:
         b = create_listener(handler=fn, error_handler=eh)
         assert a.config_matches(b) is True
 
-    def test_different_duration_config_not_matching(self) -> None:
-        """Different duration_config scalars → 'duration_config' in diff_fields."""
-        a = create_listener(handler=fn, entity_id="light.kitchen", duration=5.0)
-        b = create_listener(handler=fn, entity_id="light.kitchen", duration=10.0)
+    @pytest.mark.parametrize(
+        ("a_kwargs", "b_kwargs"),
+        [
+            pytest.param(
+                {"entity_id": "light.kitchen", "duration": 5.0},
+                {"entity_id": "light.kitchen", "duration": 10.0},
+                id="different-duration",
+            ),
+            pytest.param(
+                {"entity_id": "light.kitchen", "attribute": "brightness"},
+                {"entity_id": "light.kitchen", "attribute": "color_temp"},
+                id="different-tracked-attribute",
+            ),
+            pytest.param({}, {"entity_id": "light.kitchen"}, id="one-entity-watch-none"),
+        ],
+    )
+    def test_differing_entity_watch_not_matching(self, a_kwargs: dict, b_kwargs: dict) -> None:
+        """Listeners whose entity watches differ (or only one has one) don't match; diff names 'entity_watch'."""
+        a = create_listener(handler=fn, **a_kwargs)
+        b = create_listener(handler=fn, **b_kwargs)
         assert a.config_matches(b) is False
-        assert "duration_config" in a.diff_fields(b)
+        assert "entity_watch" in a.diff_fields(b)
 
-    def test_both_duration_config_none_matches(self) -> None:
-        """Both duration_config=None → matches (treated as equal)."""
+    def test_both_entity_watch_none_matches(self) -> None:
+        """Both entity_watch=None → matches (treated as equal)."""
         a = create_listener(handler=fn)
         b = create_listener(handler=fn)
-        assert a.duration_config is None
-        assert b.duration_config is None
+        assert a.entity_watch is None
+        assert b.entity_watch is None
         assert a.config_matches(b) is True
-
-    def test_one_duration_config_none_not_matching(self) -> None:
-        """One duration_config=None, other non-None → not matching."""
-        a = create_listener(handler=fn)
-        b = create_listener(handler=fn, entity_id="light.kitchen")
-        assert a.config_matches(b) is False
-        assert "duration_config" in a.diff_fields(b)
 
     def test_runtime_state_excluded_listener_id(self) -> None:
         """Different listener_id values do not affect config_matches."""
@@ -164,39 +173,39 @@ class TestListenerImmediateField:
     def test_listener_create_with_immediate_true(self) -> None:
         """Listener.create(immediate=True) stores immediate=True."""
         listener = create_listener(topic="test.topic", immediate=True, entity_id="light.kitchen")
-        assert listener.duration_config is not None
-        assert listener.duration_config.immediate is True
+        assert listener.entity_watch is not None
+        assert listener.entity_watch.immediate is True
 
     def test_listener_create_default_immediate_false(self) -> None:
         """Default immediate is False."""
         listener = create_listener(topic="test.topic")
-        assert listener.duration_config is None or listener.duration_config.immediate is False
+        assert listener.entity_watch is None or listener.entity_watch.immediate is False
 
 
 class TestListenerDurationField:
     def test_listener_create_with_duration(self) -> None:
         """Listener.create(duration=5.0) stores duration=5.0."""
         listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen")
-        assert listener.duration_config is not None
-        assert listener.duration_config.duration == 5.0
+        assert listener.entity_watch is not None
+        assert listener.entity_watch.duration == 5.0
 
     def test_listener_create_default_duration_none(self) -> None:
         """Default duration is None."""
         listener = create_listener(topic="test.topic")
-        assert listener.duration_config is None or listener.duration_config.duration is None
+        assert listener.entity_watch is None or listener.entity_watch.duration is None
 
 
 class TestListenerEntityIdField:
     def test_listener_create_with_entity_id(self) -> None:
         """entity_id is stored on the Listener."""
         listener = create_listener(topic="test.topic", entity_id="light.kitchen")
-        assert listener.duration_config is not None
-        assert listener.duration_config.entity_id == "light.kitchen"
+        assert listener.entity_watch is not None
+        assert listener.entity_watch.entity_id == "light.kitchen"
 
     def test_listener_create_default_entity_id_none(self) -> None:
         """Default entity_id is None."""
         listener = create_listener(topic="test.topic")
-        assert listener.duration_config is None
+        assert listener.entity_watch is None
 
 
 class TestListenerDurationValidation:
@@ -224,8 +233,8 @@ class TestListenerDurationValidation:
         """once=True combined with duration is allowed (no ValueError)."""
         listener = create_listener(topic="test.topic", once=True, duration=5.0, entity_id="light.kitchen")
         assert listener.options.once is True
-        assert listener.duration_config is not None
-        assert listener.duration_config.duration == 5.0
+        assert listener.entity_watch is not None
+        assert listener.entity_watch.duration == 5.0
 
 
 class TestListenerErrorHandlerField:
@@ -254,9 +263,9 @@ class TestCreateCancelListener:
         """cancel_listener.identity.source_tier is 'framework'."""
         assert make_cancel_listener().identity.source_tier == "framework"
 
-    def test_no_duration_config(self) -> None:
-        """cancel_listener.duration_config is None."""
-        assert make_cancel_listener().duration_config is None
+    def test_no_entity_watch(self) -> None:
+        """cancel_listener.entity_watch is None."""
+        assert make_cancel_listener().entity_watch is None
 
     def test_no_rate_limiter(self) -> None:
         """cancel_listener has no rate limiter (debounce/throttle)."""

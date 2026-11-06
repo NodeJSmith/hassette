@@ -113,7 +113,7 @@ from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.source_capture import capture_registration_source, capture_source_location
 
 from .entity_registration import reject_glob_only_options, warn_if_unknown_entity
-from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
+from .listeners import EntityWatch, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
 from .sync import BusSyncFacade
 from .wait_for_cancellations import WaitForCancellationLog
@@ -517,7 +517,7 @@ class Bus(Resource):
                 kwargs=kwargs,
                 name=name,
                 on_error=on_error,
-                duration_config=None,
+                entity_watch=None,
                 source_location=source_location,
                 registration_source=registration_source,
                 **opts,
@@ -546,7 +546,7 @@ class Bus(Resource):
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
         if_exists: IfExistsPolicy = "error",
-        duration_config: "DurationConfig | None" = None,
+        entity_watch: "EntityWatch | None" = None,
         source_location: str = "",
         registration_source: str | None = None,
     ) -> Subscription:
@@ -555,8 +555,8 @@ class Bus(Resource):
         ``mode=None`` means "not supplied" — it resolves to the tier-aware default (``parallel`` for framework
         listeners, ``single`` for app listeners). An explicit mode always wins.
 
-        Called by on() (with duration_config=None) and by _subscribe() (which
-        builds DurationConfig from duration/entity_id when provided).
+        Called by on() (with entity_watch=None) and by _subscribe() (which
+        builds EntityWatch from entity_id and its watch settings when entity_id is provided).
 
         source_location and registration_source are captured in the public def (user
         frame live there) and threaded down here to populate ListenerIdentity — the
@@ -639,7 +639,7 @@ class Bus(Resource):
             options=options,
             invoker=invoker,
             where=where,
-            duration_config=duration_config,
+            entity_watch=entity_watch,
             logger=self.logger,
         )
 
@@ -658,7 +658,7 @@ class Bus(Resource):
         immediate: bool = False,
         duration: float | None = None,
         entity_id: str | None = None,
-        is_attribute_listener: bool = False,
+        attribute: str | None = None,
         hold_preds: list["Predicate"] | None = None,
         name: str | None = None,
         on_error: "BusErrorHandlerType | None" = None,
@@ -688,14 +688,14 @@ class Bus(Resource):
             if hold_preds is not None:
                 hold_preds = [*hold_preds, normalized_where]
 
-        # Build DurationConfig when entity_id is provided (for duration or immediate listeners)
-        duration_config: DurationConfig | None = None
+        # Every entity-scoped (state or attribute) registration tracks its entity in an EntityWatch
+        entity_watch: EntityWatch | None = None
         if entity_id:
-            duration_config = DurationConfig(
+            entity_watch = EntityWatch(
                 entity_id=entity_id,
                 duration=duration,
                 immediate=immediate,
-                is_attribute_listener=is_attribute_listener,
+                attribute=attribute,
                 hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
             )
 
@@ -704,7 +704,7 @@ class Bus(Resource):
             handler=handler,
             where=preds,
             kwargs=kwargs,
-            duration_config=duration_config,
+            entity_watch=entity_watch,
             name=name,
             on_error=on_error,
             source_location=source_location,
@@ -937,7 +937,7 @@ class Bus(Resource):
                 duration=duration,
                 entity_id=entity_id,
                 hold_preds=hold_preds if duration is not None else None,
-                is_attribute_listener=True,
+                attribute=attr,
                 name=name,
                 on_error=on_error,
                 source_location=source_location,

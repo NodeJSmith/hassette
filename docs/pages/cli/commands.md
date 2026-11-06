@@ -361,7 +361,7 @@ By default, the list holds app-authored lines plus Hassette's own lines at `ERRO
 
 ## `hassette execution`
 
-Log entries for a specific execution — a single run of a handler or job, identified by its UUID. Get the UUID from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
+One execution, a single run of a handler or job identified by its UUID: its outcome, what triggered it, and its log entries. Get the UUID from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
 
 ```bash
 hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
@@ -369,7 +369,13 @@ hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 The execution UUID appears in the Execution ID column of `hassette listener <id>` and `hassette job <id>` output. [Workflows](workflows.md) covers the full drill-down pattern.
 
-The table shows timestamp, level, author, function name, line number, and message for each log entry captured during that execution. Like `hassette log`, it leaves out Hassette's own lines below ERROR unless `--author all` is passed.
+A summary block comes first: kind, status, when it started, and how long it ran. For a handler run it also has a Trigger section with the event's topic, the entity, the change (`off → on`), the context id, parent id, and origin. Job runs have no Trigger section.
+
+The table below it shows timestamp, level, author, function name, line number, and message for each log entry captured during that execution. Like `hassette log`, it leaves out Hassette's own lines below ERROR unless `--author all` is passed.
+
+Execution records are written in batches, so a run from the last few seconds may not have one yet, and retention eventually removes old ones. When there's no record, the command still shows the logs and prints "Execution record not found" on stderr. Retry in a few seconds if the run just happened. If the record can't be read at all, a warning goes to stderr and the logs still show.
+
+With `--json`, the output is one object: `{"execution": {...}, "logs": [...]}`. `execution` is `null` when there's no record or it couldn't be read, and the command still exits 0, so check for `null` rather than the exit code. The trigger is under `execution.trigger`, which is `null` for job runs.
 
 ### Flags
 
@@ -379,7 +385,7 @@ The table shows timestamp, level, author, function name, line number, and messag
 | `--author <author>` | Filters by `app`, `framework`, or `all`. |
 | `--json`            | Outputs as JSON.                         |
 
-**API endpoint:** `GET /api/executions/{execution_id}`
+**API endpoints:** `GET /api/telemetry/execution/{execution_id}` (the record) and `GET /api/executions/{execution_id}` (the logs)
 
 ## `hassette blocking`
 

@@ -45,7 +45,7 @@ def build_tracked_invoke_fn(
         config_resolver: Callable that returns the current event_handler_timeout_seconds,
             or None if no global timeout is configured.
         is_synthetic: True when the event was synthesized by hassette (e.g., immediate=True
-            initial fire). Synthetic events suppress trigger_context_id recording.
+            initial fire). The execution record labels these with origin ``HASSETTE_SYNTHETIC``.
 
     Returns:
         An async callable that, when awaited, invokes the listener handler with

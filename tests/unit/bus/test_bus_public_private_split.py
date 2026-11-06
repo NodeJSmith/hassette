@@ -1,10 +1,10 @@
 """Tests for Bus.on() / _on_internal() split and synchronous registration.
 
 Verify criteria:
-- Bus.on() signature has no is_attribute_listener, hold_preds, entity_id, immediate, duration, priority
+- Bus.on() signature has no attribute, hold_preds, entity_id, immediate, duration, priority
 - No registration_task field on Subscription — db_id is the only identifier
 - hold_preds list is not mutated after _subscribe()
-- Bus.on(is_attribute_listener=True) raises TypeError
+- Bus.on(attribute=...) raises TypeError
 - sub.listener.db_id is a valid integer immediately after on() returns
 - hold_preds list identity (id()) is unchanged after _subscribe()
 """
@@ -34,7 +34,7 @@ def test_bus_on_signature_has_no_internal_params() -> None:
     sig = inspect.signature(Bus.on)
     param_names = set(sig.parameters.keys())
 
-    forbidden = {"is_attribute_listener", "hold_preds", "entity_id", "immediate", "duration", "priority"}
+    forbidden = {"attribute", "hold_preds", "entity_id", "immediate", "duration", "priority"}
     present = forbidden & param_names
     assert not present, f"Bus.on() must not have internal params, but found: {present}"
 
@@ -42,7 +42,7 @@ def test_bus_on_signature_has_no_internal_params() -> None:
 @pytest.mark.parametrize(
     ("forbidden_kwarg", "value"),
     [
-        ("is_attribute_listener", True),
+        ("attribute", "brightness"),
         ("hold_preds", []),
         ("entity_id", "light.test"),
         ("duration", 5.0),

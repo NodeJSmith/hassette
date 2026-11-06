@@ -3,32 +3,35 @@ import time
 import traceback
 import typing
 from collections import defaultdict
+from functools import partial
 from typing import Any, ClassVar
-from uuid import uuid4
 
 import uuid_utils
 from hassette_wire import BackpressurePolicy, ExecutionStatus, LogLevel
 
-import hassette.utils.date_utils as _date_utils
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.bus.listeners import DurationConfig, Listener, Subscription
+from hassette.bus.listeners import Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
+from hassette.core.duration_hold_adapters import (
+    HASS_STATE_CHANGED_EVENT_TYPE,
+    compute_elapsed,
+    make_synthetic_state_event,
+    strip_old_state,
+)
 from hassette.core.event_filter import EventFilter
 from hassette.core.execution_record import ExecutionRecord
+from hassette.core.execution_record_builder import summarize_trigger
 from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
 from hassette.events import AnyEvent, HassPayload
-from hassette.events.base import HassContext
-from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import Topic
 from hassette.utils.func_utils import describe_predicate
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -48,8 +51,6 @@ _DISPATCH_IDLE_DEFAULT_TIMEOUT = 2.0
 # Rate-limit window for the "dispatch saturated" warning so a sustained flood logs once
 # per window, not once per blocked dispatch. Mirrors sync_executor_service saturation warns.
 _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
-
-_HASS_EVENT_STATE_CHANGED = "state_changed"
 
 
 class BusService(Service):
@@ -119,7 +120,8 @@ class BusService(Service):
             logger=self.logger,
             make_synthetic_event=make_synthetic_state_event,
             compute_elapsed=compute_elapsed,
-            record_predicate_failure=self.record_predicate_failure_safely,
+            # The hold manager evaluates only events it built from the cached state.
+            record_predicate_failure=partial(self.record_predicate_failure_safely, is_synthetic=True),
         )
 
         self._removal_callbacks = {}
@@ -193,7 +195,7 @@ class BusService(Service):
         Returns:
             The db_id assigned to the listener by the database.
         """
-        if listener.duration_config is not None and listener.duration_config.duration is not None:
+        if listener.entity_watch is not None and listener.entity_watch.duration is not None:
 
             def make_cancel_sub() -> Subscription:
                 return self._duration_hold.create_cancel_listener(listener)
@@ -201,7 +203,7 @@ class BusService(Service):
             def on_timer_cancel() -> None:
                 self._duration_hold.decrement_timers_active()
 
-            listener.duration_config.attach_timer(
+            listener.entity_watch.attach_timer(
                 task_bucket=self.task_bucket,
                 owner_id=listener.identity.owner_id,
                 create_cancel_sub=make_cancel_sub,
@@ -217,7 +219,7 @@ class BusService(Service):
         # Sync: insert route — listener is routable after DB registration.
         self.router.add_route(listener.topic, listener)
 
-        if listener.duration_config is not None and listener.duration_config.immediate:
+        if listener.entity_watch is not None and listener.entity_watch.immediate:
             self._dispatch_pending += 1
             self._dispatch_idle_event.clear()
             immediate_task = self.task_bucket.spawn(
@@ -249,9 +251,9 @@ class BusService(Service):
             registration_source=registration_source,
             name=listener.identity.name,
             source_tier=listener.identity.source_tier,
-            immediate=listener.duration_config.immediate if listener.duration_config else False,
-            duration=listener.duration_config.duration if listener.duration_config else None,
-            entity_id=listener.duration_config.entity_id if listener.duration_config else None,
+            immediate=listener.entity_watch.immediate if listener.entity_watch else False,
+            duration=listener.entity_watch.duration if listener.entity_watch else None,
+            entity_id=listener.entity_watch.entity_id if listener.entity_watch else None,
             mode=listener.options.mode,
             backpressure=listener.options.backpressure,
         )
@@ -424,7 +426,9 @@ class BusService(Service):
                 except Exception as exc:
                     failed.add(listener.listener_id)
                     self.logger.exception("Predicate raised for %s; skipping this listener", listener)
-                    self.record_predicate_failure_safely(listener, route, event, exc, predicate_start)
+                    self.record_predicate_failure_safely(
+                        listener, route, event, exc, predicate_start, is_synthetic=False
+                    )
                     continue
                 if matched:
                     chosen[listener.listener_id] = (route, listener)
@@ -492,7 +496,7 @@ class BusService(Service):
         if not isinstance(payload, HassPayload):
             return [topic]
 
-        if payload.event_type != _HASS_EVENT_STATE_CHANGED:
+        if payload.event_type != HASS_STATE_CHANGED_EVENT_TYPE:
             return [topic]
 
         entity_id = payload.entity_id
@@ -544,7 +548,14 @@ class BusService(Service):
         return self._duration_hold.duration_timers_active
 
     def record_predicate_failure_safely(
-        self, listener: "Listener", topic: str, event: "AnyEvent", exc: Exception, start_ts: float
+        self,
+        listener: "Listener",
+        topic: str,
+        event: "AnyEvent",
+        exc: Exception,
+        start_ts: float,
+        *,
+        is_synthetic: bool,
     ) -> None:
         """Call ``_record_predicate_failure``, logging (not raising) if recording itself fails.
 
@@ -552,12 +563,19 @@ class BusService(Service):
         crash a dispatch loop or a spawned timer task.
         """
         try:
-            self._record_predicate_failure(listener, topic, event, exc, start_ts)
+            self._record_predicate_failure(listener, topic, event, exc, start_ts, is_synthetic=is_synthetic)
         except Exception:
             self.logger.exception("Failed to record predicate failure for %s", listener)
 
     def _record_predicate_failure(
-        self, listener: "Listener", topic: str, event: "AnyEvent", exc: Exception, start_ts: float
+        self,
+        listener: "Listener",
+        topic: str,
+        event: "AnyEvent",
+        exc: Exception,
+        start_ts: float,
+        *,
+        is_synthetic: bool,
     ) -> None:
         """Record a raising predicate as a failed execution and route to error handlers.
 
@@ -572,6 +590,8 @@ class BusService(Service):
             event: The event being dispatched when the predicate raised.
             exc: The exception the predicate raised.
             start_ts: Unix timestamp when predicate evaluation began.
+            is_synthetic: True when ``event`` was built from the cached state (immediate fire or the
+                duration fire-time recheck), so the row is labelled ``HASSETTE_SYNTHETIC``.
         """
         session_id = self.hassette.try_session_id()
 
@@ -590,6 +610,7 @@ class BusService(Service):
             app_key=listener.identity.app_key,
             source_tier=listener.identity.source_tier,
             execution_id=execution_id,
+            **summarize_trigger(event, listener, is_synthetic=is_synthetic),
         )
         self._executor.enqueue_record(record)
 
@@ -622,12 +643,12 @@ class BusService(Service):
         # — the handler receives the event that started the timer.
         invoke_fn = build_tracked_invoke_fn(listener, event, topic, self._executor, self._config_resolver)
 
-        if listener.duration_config is not None and listener.duration_config.duration is not None:
+        if listener.entity_watch is not None and listener.entity_watch.duration is not None:
             if listener.is_cancelled:
                 return
 
-            duration_config = listener.duration_config
-            entity_id = duration_config.entity_id
+            entity_watch = listener.entity_watch
+            entity_id = entity_watch.entity_id
             if not entity_id:
                 self.logger.error(
                     "duration_fire: listener has no entity_id — construction invariant violated. "
@@ -637,7 +658,7 @@ class BusService(Service):
                 )
                 return
 
-            self._duration_hold.start_duration_timer(listener, entity_id, duration_config, invoke_fn)
+            self._duration_hold.start_duration_timer(listener, entity_id, entity_watch, invoke_fn)
             return
 
         # Non-duration path (unchanged behavior).
@@ -747,76 +768,3 @@ class BusService(Service):
         """
         self.stream.close()
         await self.hassette.event_stream_service.close_streams()
-
-
-def make_synthetic_state_event(entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:
-    """Build a synthetic RawStateChangeEvent with old_state=None.
-
-    Injected into the bus kernel so it stays free of HA event type imports.
-    """
-    return RawStateChangeEvent(
-        topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-        payload=HassPayload(
-            event_type=_HASS_EVENT_STATE_CHANGED,
-            data=RawStateChangePayload(
-                entity_id=entity_id,
-                old_state=None,
-                new_state=current_state,
-            ),
-            origin="LOCAL",
-            time_fired=_date_utils.now(),
-            context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
-        ),
-    )
-
-
-def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:
-    """Compute how long an entity has been in its current state.
-
-    Reads the HA-specific ``last_changed`` field from the state dict. Injected
-    into the bus kernel so it stays free of HA event type imports.
-
-    For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
-    Returns a value clamped to [0.0, duration_config.duration].
-    """
-    duration = duration_config.duration
-    if duration is None:
-        return 0.0
-
-    if duration_config.is_attribute_listener:
-        return 0.0
-
-    last_changed_raw = current_state.get("last_changed")
-    if not isinstance(last_changed_raw, str):
-        return 0.0
-
-    last_changed = _date_utils.convert_datetime_str_to_tz(last_changed_raw)
-    now_dt = _date_utils.now()
-    raw_elapsed = (now_dt - last_changed).total("seconds")
-    return max(0.0, min(raw_elapsed, duration))
-
-
-def strip_old_state(event: AnyEvent) -> AnyEvent:
-    """Strip old_state from a RawStateChangeEvent for cancel-predicate evaluation.
-
-    For ``RawStateChangeEvent`` with a non-None ``old_state``, returns a copy with
-    ``old_state=None`` so that transition predicates (``StateFrom``, ``StateDidChange``)
-    do not falsely cancel a duration timer. For all other events, returns the event
-    unchanged.
-    """
-    if isinstance(event, RawStateChangeEvent) and event.payload.data.old_state is not None:
-        return RawStateChangeEvent(
-            topic=event.topic,
-            payload=HassPayload(
-                event_type=event.payload.event_type,
-                data=RawStateChangePayload(
-                    entity_id=event.payload.data.entity_id,
-                    old_state=None,
-                    new_state=event.payload.data.new_state,
-                ),
-                origin=event.payload.origin,
-                time_fired=event.payload.time_fired,
-                context=event.payload.context,
-            ),
-        )
-    return event

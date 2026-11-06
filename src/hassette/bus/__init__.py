@@ -1,7 +1,7 @@
 from .bus import Bus
 from .error_context import BusErrorContext
 from .listeners import (
-    DurationConfig,
+    EntityWatch,
     HandlerInvoker,
     Listener,
     ListenerIdentity,
@@ -16,7 +16,7 @@ __all__ = [
     "BusErrorContext",
     "BusSyncEventShortcuts",
     "BusSyncFacade",
-    "DurationConfig",
+    "EntityWatch",
     "HandlerInvoker",
     "Listener",
     "ListenerIdentity",

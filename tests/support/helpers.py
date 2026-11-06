@@ -16,7 +16,7 @@ import pytest
 import tomli_w
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
-from hassette.bus.listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
+from hassette.bus.listeners import EntityWatch, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent
@@ -497,7 +497,7 @@ def create_listener(
     immediate: bool = False,
     duration: float | None = None,
     entity_id: str | None = None,
-    is_attribute_listener: bool = False,
+    attribute: str | None = None,
     hold_predicate: "Predicate | None" = None,
     error_handler: "BusErrorHandlerType | None" = None,
     app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
@@ -561,15 +561,15 @@ def create_listener(
         clock=clock,
     )
 
-    duration_config: DurationConfig | None = None
+    entity_watch: EntityWatch | None = None
     if entity_id:
-        # DurationConfig carries entity_id even when duration/immediate are None —
+        # EntityWatch carries entity_id even when duration/immediate are None —
         # BusService uses entity_id for cancel-listener topic construction and state reads.
-        duration_config = DurationConfig(
+        entity_watch = EntityWatch(
             entity_id=entity_id,
             duration=duration,
             immediate=immediate,
-            is_attribute_listener=is_attribute_listener,
+            attribute=attribute,
             hold_predicate=hold_predicate,
         )
 
@@ -579,7 +579,7 @@ def create_listener(
         options=options,
         invoker=invoker,
         where=where,
-        duration_config=duration_config,
+        entity_watch=entity_watch,
         logger=logger or getLogger("test"),
     )
 

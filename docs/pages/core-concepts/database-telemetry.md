@@ -8,6 +8,12 @@ Hassette records four types of data automatically, with no configuration require
 
 **Handler invocations.** Every app-tier bus listener firing produces a row in the `executions` table. Each row captures the start time, wall-clock duration, and outcome (`success`, `error`, `cancelled`, or `timed_out`). Failed executions include full exception details. Framework-tier handler invocations are filtered by default — errors and slow executions are always recorded, while routine successes are sampled at a configurable rate (see `framework_record_errors`, `framework_record_slow_ms`, and `framework_record_sample_rate` below).
 
+Each handler row also records what fired it: the event's topic (such as `hass.event.state_changed`), the entity, and the old and new value. It also records the event's context id, parent context id, and origin. The values are the entity's state, or the tracked attribute for an [`on_attribute_change`](bus/methods.md) listener. They're stored for reading, not parsing: a string as Home Assistant reports it, anything else as compact JSON. Either form is cut to 255 characters with a trailing `…`.
+
+Values are stored without redaction. A listener on an entity that holds private data, such as a person's location or an `input_text`, keeps those values in the database for as long as the row lives. `retention_days` (below) sets how long that is; lower it to keep them for less time.
+
+A duration or debounced listener's row describes the event that started the hold or debounce. It doesn't describe the state when the handler ran. An `immediate=True` run has no old value and has origin `HASSETTE_SYNTHETIC`. It carries the context of the change that set the current state. A `where=` or hold predicate can raise while checking the current state, on an immediate fire or when a duration listener's hold ends. Its error row has the same old value, context, and origin. Rows written before this field was added have only the context id and origin.
+
 **Job executions.** Every app-tier scheduled job run produces a row in the same `executions` table. A `kind` column distinguishes handler rows from job rows. Jobs support one additional outcome: `skipped`, recorded when a [`where=` predicate](scheduler/index.md#conditional-execution) returns `False` at dispatch time. Skipped executions have zero duration. Framework-tier jobs follow the same filtering rules as handler invocations.
 
 **Listener registrations.** Every registered bus listener is stored by name and topic in the `listeners` table. Counts appear in the Apps page stats strip.
@@ -109,7 +115,7 @@ For container restart automation, use `/api/health/live` or rely on the non-zero
 !!! note "Choosing the right endpoint"
     Use `/api/health/live` (or the non-zero exit + restart policy) for restart automation. Use `/api/health/ready` for traffic routing. Use `/api/health` for the aggregate human view. Use `/api/telemetry/status` to monitor specifically whether the telemetry database is functional.
 
-**Execution history.** `hassette log --app <key>` shows recent log entries for an app. `hassette execution <uuid>` shows the log lines emitted during a specific invocation. Execution metadata (trigger origin, error traceback) appears in `hassette listener <id>` and `hassette job <id>` output. The UUID comes from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
+**Execution history.** `hassette log --app <key>` shows recent log entries for an app. `hassette execution <uuid>` shows a specific invocation's outcome, what triggered it, and the log lines it emitted. Error tracebacks appear in `hassette listener <id>` and `hassette job <id>` output. The UUID comes from the `Execution ID` column of `hassette listener <id>` or `hassette job <id>` output.
 With no argument, `hassette listener` and `hassette job` list every listener or job with its ID. [Command Reference](../cli/commands.md) covers each command, and [Workflows](../cli/workflows.md) walks through the full drill-down.
 
 ## Degraded Mode

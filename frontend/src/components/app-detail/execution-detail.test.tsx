@@ -146,8 +146,15 @@ describe("ExecutionDetailContent", () => {
   it("renders trigger context and origin when present", () => {
     const record = createExecution("handler", {
       execution_id: TEST_EXECUTION_ID,
-      trigger_context_id: "ctx-abc12345-long-uuid-value",
-      trigger_origin: "LOCAL",
+      trigger: {
+        topic: "hass.event.state_changed",
+        entity_id: "light.office",
+        old_value: "off",
+        new_value: "on",
+        context_id: "ctx-abc12345-long-uuid-value",
+        parent_id: null,
+        origin: "LOCAL",
+      },
       trigger_mode: "event",
     });
     const { container } = render(<ExecutionDetailContent record={record} />);
@@ -159,7 +166,7 @@ describe("ExecutionDetailContent", () => {
     const record = createExecution("handler", {
       execution_id: TEST_EXECUTION_ID,
       trigger_mode: null,
-      trigger_context_id: null,
+      trigger: null,
     });
     const { queryByTestId } = render(<ExecutionDetailContent record={record} />);
     expect(queryByTestId("execution-trigger")).toBeNull();

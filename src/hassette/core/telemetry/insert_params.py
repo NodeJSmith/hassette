@@ -19,7 +19,8 @@ def execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
     """Build the named-parameter dict for an executions INSERT.
 
     All booleans are converted to int (SQLite has no native bool type).
-    Columns match the ``executions`` table schema (001.sql original; 004.sql adds ``thread_leaked``).
+    Columns match the ``executions`` table schema (001.sql original; 004.sql adds ``thread_leaked``;
+    023.sql adds the event-summary ``trigger_*`` columns).
 
     Args:
         record: The unified execution record to convert.
@@ -44,6 +45,11 @@ def execution_insert_params(record: ExecutionRecord) -> dict[str, Any]:
         "execution_id": record.execution_id,
         "trigger_context_id": record.trigger_context_id,
         "trigger_origin": record.trigger_origin,
+        "trigger_parent_id": record.trigger_parent_id,
+        "trigger_topic": record.trigger_topic,
+        "trigger_entity_id": record.trigger_entity_id,
+        "trigger_old_value": record.trigger_old_value,
+        "trigger_new_value": record.trigger_new_value,
         "trigger_mode": record.trigger_mode,
         "retry_count": record.retry_count,
         "attempt_number": record.attempt_number,

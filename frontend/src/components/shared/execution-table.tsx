@@ -36,6 +36,7 @@ declare module "@tanstack/react-table" {
 }
 
 type ExecutionStatus = components["schemas"]["ExecutionStatus"];
+type ExecutionTrigger = components["schemas"]["ExecutionTrigger"];
 
 export type ExecutionKind = "handler" | "job";
 
@@ -71,8 +72,7 @@ export interface ExecutionRecord {
   error_message: string | null;
   error_traceback?: string | null;
   execution_id?: string | null;
-  trigger_context_id?: string | null;
-  trigger_origin?: string | null;
+  trigger?: ExecutionTrigger | null;
   trigger_mode?: string | null;
   thread_leaked: boolean;
 }

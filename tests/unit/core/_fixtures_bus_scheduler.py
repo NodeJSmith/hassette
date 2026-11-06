@@ -1,11 +1,13 @@
 """BusService/SchedulerService factories for tests/unit/core/."""
 
 import asyncio
+from functools import partial
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.router import Router
-from hassette.core.bus_service import BusService, compute_elapsed, make_synthetic_state_event
+from hassette.core.bus_service import BusService
+from hassette.core.duration_hold_adapters import compute_elapsed, make_synthetic_state_event
 from hassette.core.event_filter import EventFilter
 from hassette.core.scheduler_service import SchedulerService
 from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
@@ -48,7 +50,7 @@ def make_bus_service(
         logger=svc.logger,
         make_synthetic_event=make_synthetic_state_event,
         compute_elapsed=compute_elapsed,
-        record_predicate_failure=svc._record_predicate_failure,
+        record_predicate_failure=partial(svc.record_predicate_failure_safely, is_synthetic=True),
     )
     svc._dispatch_pending = 0
     svc._dispatch_idle_event = asyncio.Event()

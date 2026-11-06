@@ -61,8 +61,8 @@ class InvokeHandler:
     is_synthetic: bool = False
     """True when the event was synthesized by hassette (e.g., immediate=True initial fire).
 
-    Synthetic events have no corresponding entry in HA logs, so trigger_context_id
-    should not be recorded — it would be a misleading UUID.
+    The event is built from the cached state and carries that state's real context, so the
+    record keeps the context id but labels the run with origin ``HASSETTE_SYNTHETIC``.
     """
 
 

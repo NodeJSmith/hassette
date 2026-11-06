@@ -8,6 +8,7 @@ from hassette_wire import ExecutionStatus
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.core.bus_service import BusService
+from hassette.testing import create_state_change_event
 from tests.support.factories import make_hassette_event
 from tests.support.helpers import create_listener
 
@@ -59,7 +60,7 @@ class TestRecordPredicateFailure:
         exc = ValueError("boom")
 
         start_ts = time.time()
-        bs._record_predicate_failure(listener, "test.pred", event, exc, start_ts)
+        bs._record_predicate_failure(listener, "test.pred", event, exc, start_ts, is_synthetic=False)
 
         executor.enqueue_record.assert_called_once()
         record = executor.enqueue_record.call_args[0][0]
@@ -71,6 +72,20 @@ class TestRecordPredicateFailure:
         assert record.session_id == 42
         assert record.execution_id is not None
 
+    def test_records_trigger_summary_of_the_breaking_event(self) -> None:
+        bs, executor = make_bus_service()
+        listener = make_listener_with_error_handler()
+        event = create_state_change_event(entity_id="light.office", old_value="off", new_value="on")
+
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("boom"), time.time(), is_synthetic=False)
+
+        record = executor.enqueue_record.call_args[0][0]
+        assert record.trigger_entity_id == "light.office"
+        assert record.trigger_topic == "hass.event.state_changed"
+        assert (record.trigger_old_value, record.trigger_new_value) == ("off", "on")
+        assert record.trigger_context_id == event.payload.context.id
+        assert record.trigger_origin == "LOCAL"
+
     def test_session_id_fallback_on_runtime_error(self) -> None:
         bs, executor = make_bus_service()
         bs.hassette.try_session_id = MagicMock(return_value=None)
@@ -78,7 +93,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler()
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         record = executor.enqueue_record.call_args[0][0]
         assert record.session_id is None
@@ -92,7 +107,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler(error_handler=on_error)
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         cast("MagicMock", bs.task_bucket).spawn.assert_called_once()
 
@@ -105,7 +120,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler(app_resolver=lambda: app_handler)
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         cast("MagicMock", bs.task_bucket).spawn.assert_called_once()
 
@@ -114,7 +129,7 @@ class TestRecordPredicateFailure:
         listener = make_listener_with_error_handler()
         event = make_hassette_event(topic="test.pred")
 
-        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time())
+        bs._record_predicate_failure(listener, "test.pred", event, ValueError("x"), time.time(), is_synthetic=False)
 
         cast("MagicMock", bs.task_bucket).spawn.assert_not_called()
 
