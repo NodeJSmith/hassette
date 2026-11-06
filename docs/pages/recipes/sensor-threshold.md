@@ -38,7 +38,7 @@ Every `App` instance carries `self.bus` (delivers HA events to handlers), `self.
 
 `D` is an alias for [`hassette.event_handling.dependencies`](../core-concepts/bus/dependency-injection.md) — Hassette inspects handler parameter types at registration and passes the extracted values in automatically. `D.StateNew[states.SensorState]` delivers the new state as a typed object. `SensorState.value` is `str | None` — `None` when the entity is unavailable or unknown, though those events never pass the comparison gate; the typed model provides `.attributes` with fields like `unit_of_measurement` and `friendly_name`. `D.EntityId` delivers the entity ID as a plain string. The handler declares what it needs, and the framework fills it in.
 
-`name=` on `on_state_change` is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `TypeError` at registration time.
+`name=` on `on_state_change` is required. It gives the listener a stable identity for telemetry. Omitting it raises `TypeError` at registration time.
 
 `self.api.call_service("notify", ...)` sends the alert. `new_state.attributes.unit_of_measurement` and `new_state.attributes.friendly_name` come directly from the typed model, so the message reads naturally without manual attribute dict lookups.
 
@@ -50,7 +50,7 @@ Run these from your project directory while Hassette is running. Check that the 
 hassette listener --app sensor_threshold
 ```
 
-Expected output shows one listener named `threshold_monitor` with the `> 28.0` condition.
+Expected output shows one listener targeting `sensor.living_room_temperature` with handler `on_threshold_exceeded`. Add `--json` to see the condition summary in `human_description`.
 
 To force a crossing without waiting for the real sensor, set the value by hand in HA under **Developer Tools → States**. First set the state to a value at or below the threshold, such as `25`. Then set it to a value above the threshold, such as `30`. The gate fires only on that upward crossing. This changes only HA's stored state, not the device itself.
 
