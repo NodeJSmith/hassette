@@ -20,7 +20,7 @@ asyncio_mode = "auto"
 ```
 
 !!! warning "Don't skip this"
-    `asyncio_mode = "auto"` tells pytest to actually run `async def` test functions. Without it, pytest skips the test body and reports a false pass. This is the most common setup mistake when migrating from AppDaemon.
+    `asyncio_mode = "auto"` tells pytest to actually run `async def` test functions. Without it, pytest fails each unmarked `async def` test with `async def functions are not natively supported`. This is the most common setup mistake when migrating from AppDaemon.
 
 **Seed state before simulating events.** `set_state()` and `simulate_state_change()` are harness methods — the full example below shows them in context. Call `set_state()` before `simulate_state_change()` for the same entity. Calling it afterward overwrites the simulated state with the seeded value, silently corrupting subsequent reads.
 
@@ -36,7 +36,7 @@ Open the harness in an `async with` block, seed your state, fire an event, asser
 --8<-- "pages/migration/snippets/testing_hassette_example.py"
 ```
 
-Run it with `pytest -v`. A passing test prints `PASSED`; if pytest reports 0 tests or skips the body, check that `asyncio_mode = "auto"` made it into `pyproject.toml`.
+Run it with `pytest -v`. A passing test prints `PASSED`; if pytest fails with `async def functions are not natively supported`, check that `asyncio_mode = "auto"` made it into `pyproject.toml`.
 
 ## Full Reference
 
