@@ -1,7 +1,7 @@
 # API Calls
 
 !!! note "Coming from synchronous AppDaemon?"
-    Every Hassette lifecycle method and handler is `async def`, and calls to `self.api` need `await` in front — `await` pauses the handler until the network call finishes. Reads from `self.states` (the local cache) are plain synchronous calls. [Migration Concepts](concepts.md#async-vs-sync) covers the model.
+    Hassette's lifecycle methods and handlers are normally `async def`, and calls to `self.api` need `await` in front — `await` pauses the handler until the network call finishes. Reads from `self.states` (the local cache) are plain synchronous calls. [Migration Concepts](concepts.md#async-vs-sync) covers the model.
 
 ## Getting Entity State
 
@@ -60,7 +60,7 @@ AppDaemon uses a single `domain/service` string. Hassette splits them into two a
     ```
 
 !!! warning "Don't forget `await`"
-    Without `await`, the call appears to succeed but the service never runs — Python just hands back an unexecuted coroutine. If service calls have no effect, check that every call site has `await`.
+    Without `await`, the service never runs. Python hands back an unexecuted coroutine instead. Hassette logs a `HassetteForgottenAwaitWarning` naming the call site. The `forgotten_await_behavior` setting controls that warning (see [Troubleshooting](../troubleshooting.md#forgotten-await)). If service calls have no effect, check the logs for that warning and confirm every call site has `await`.
 
 Two signature differences from AppDaemon: the entity belongs in the `target` dict (`target={"entity_id": "light.kitchen"}`) rather than AppDaemon's bare `entity_id=` keyword, and Hassette handlers don't take `**kwargs` — event data arrives through typed parameters instead (see [Bus & Events](bus.md)).
 
@@ -131,7 +131,7 @@ AppDaemon provides `self.log()` and `self.error()`. Hassette uses Python's stand
     --8<-- "pages/migration/snippets/api_logging.py"
     ```
 
-`self.logger` automatically includes the app instance name, calling method, and line number in every log line. Use `%s`-style formatting rather than f-strings. The string is only constructed if the log level is active.
+`self.logger` tags every log line with the app instance name. Each persisted log entry also records the calling method and line number, and the web UI's logs show them. Use `%s`-style formatting rather than f-strings. The string is only constructed if the log level is active.
 
 ## See Also
 
