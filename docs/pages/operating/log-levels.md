@@ -149,19 +149,19 @@ Debug capture puts one app at `DEBUG` on a running Hassette, with no restart and
 --8<-- "pages/operating/snippets/debug_capture.sh"
 ```
 
-The captured lines are stored like any others, so `hassette log --app presence --author all` and the app's log view show them. An app-wide `on` captures every configured instance. `--instance` narrows it to one. An app-wide `off` ends capture for every instance of the app.
+The captured lines are stored like any others, so `hassette log --app presence --author all` and the app's log view show them. An app-wide `on` captures every configured instance; `--instance` narrows it to one. An app-wide `off` ends capture for every instance.
 
-Capture lives in memory. It lasts through reloads, and ends at `off` or a Hassette restart. `off` puts each logger back at its configured level, replacing any [runtime change](#runtime-log-level-changes) made to the app's loggers.
+Capture lives in memory. It survives reloads and ends at `off` or a Hassette restart. `off` returns each logger to its configured level, replacing any [runtime change](#runtime-log-level-changes) made to the app's loggers.
 
-Capture works on an instance that isn't running. Its levels apply when it starts. An instance added to the app's config while capture is on isn't captured until `on` runs again. A captured name removed from the config loses its capture at the app's next start.
+Capture also works on an instance that isn't running; its levels apply when it starts. An instance added to the app's config while capture is on isn't captured until `on` runs again. A captured name removed from the config loses its capture at the app's next start.
 
-Turning capture on logs a WARNING for each instance, naming the command that ends it. Each start or reload of a captured instance logs the same WARNING on its lifecycle logger. `hassette app` shows `on` in the **Debug** column for an app with any captured instance. `GET /api/apps` reports `debug_capture` on each instance.
+Turning capture on logs a WARNING for each instance, naming the command that ends it. Each start or reload of a captured instance logs the same WARNING on its lifecycle logger. `hassette app` shows `on` in the **Debug** column for an app with any captured instance, and `GET /api/apps` reports `debug_capture` on each instance.
 
-`off` doesn't delete the stored lines. They age out with `log_retention_days`, and `DEBUG` lines are the first thing the database size limit deletes.
+`off` doesn't delete stored lines. They age out with `log_retention_days`, and the database size limit deletes `DEBUG` lines first.
 
-Capture covers only loggers the app owns. Shared services, such as the command executor, keep their own levels. A logger an app module creates with `logging.getLogger(__name__)` isn't owned by the app, so capture doesn't change it. Log through `self.logger` or `self.logger.getChild(...)` instead.
+Capture covers only loggers the app owns. Shared services, such as the command executor, keep their own levels. A logger created with `logging.getLogger(__name__)` isn't owned by the app, so capture leaves it alone; `self.logger` and `self.logger.getChild(...)` are captured.
 
-The API takes the same request: `PUT /api/apps/{key}/debug`, or `PUT /api/apps/{key}/instances/{instance_name}/debug` for one instance, with the body `{"enabled": true}`. Capture answers while a start, stop or reload is still running, so it can catch a slow startup.
+The API accepts the same request: `PUT /api/apps/{key}/debug`, or `PUT /api/apps/{key}/instances/{instance_name}/debug` for one instance, with the body `{"enabled": true}`. Capture responds while a start, stop or reload is still running, so it can catch a slow startup.
 
 ## Runtime Log Level Changes
 
