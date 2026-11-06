@@ -79,7 +79,7 @@ The container's start script, not Hassette, installs from `requirements.txt`, an
 --8<-- "pages/getting-started/docker/snippets/ts-install-deps-env.yml"
 ```
 
-If the variable is set, confirm `requirements.txt` is readable inside the container. The start script scans the config directory and the apps directory, so `./config/requirements.txt` is the one place to put it:
+If the variable is set, confirm `requirements.txt` is readable inside the container. The start script installs every `requirements.txt` up to five levels deep under the config directory. It also scans the apps directory when that's mounted outside the config directory. `./config/requirements.txt` is the usual place:
 
 ```bash
 docker compose exec hassette ls /config/requirements.txt
@@ -91,7 +91,7 @@ Then check whether the install ran at startup:
 --8<-- "pages/getting-started/docker/snippets/ts-dep-install-logs.sh"
 ```
 
-If you see no install output, `HASSETTE_DOCKER_INSTALL_DEPS` was not picked up. Run `docker compose down && docker compose up -d` to reload the environment — `down` stops and removes the container (data in your mounted volumes is safe), and `up -d` recreates it from the current compose file.
+If you see `requirements install: disabled`, `HASSETTE_DOCKER_INSTALL_DEPS` was not picked up or was not set to exactly `1`. If you set it to `true`, `yes` or `on`, the log also shows a warning that the value isn't recognized. Run `docker compose down && docker compose up -d` to reload the environment — `down` stops and removes the container (data in your mounted volumes is safe), and `up -d` recreates it from the current compose file.
 
 ## Can't Access the Web UI
 
@@ -128,7 +128,7 @@ Automatic reloads re-import only the app's own file. An edit to a sibling module
 
 **Symptom:** After upgrading to a newer Hassette version, the web UI shows a login screen — or a script that used to work now gets HTTP 401 — where no credential was needed before.
 
-**Cause:** This is intentional, not a regression. Hassette now requires a credential for every `/api/*` route by default. On the first restart after upgrading, with no `HASSETTE__WEB_API__AUTH_TOKEN` configured and no existing token file, Hassette generates a token and logs it once — closing a real security gap where any peer on the network could reach mutation endpoints (start/stop/reload apps, trigger jobs) with no credential at all.
+**Cause:** This is intentional, not a regression. Hassette now requires a credential for `/api/*` routes by default. The health probes and the login endpoint stay open. On the first restart after upgrading, with no `HASSETTE__WEB_API__AUTH_TOKEN` configured and no existing token file, Hassette generates a token and logs it once — closing a real security gap where any peer on the network could reach mutation endpoints (start/stop/reload apps, trigger jobs) with no credential at all.
 
 **Fix:** Read the token directly from the token file inside the container:
 
