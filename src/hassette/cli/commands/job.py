@@ -112,7 +112,7 @@ def cmd_job(
 
     raw = client.get_with_app_routing(
         global_path="/api/scheduler/jobs",
-        per_app_path_template="/api/telemetry/app/{app_key}/jobs",
+        per_app_resource="jobs",
         model=list,
         app_key=app,
         instance=instance,

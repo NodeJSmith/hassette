@@ -17,7 +17,14 @@ from hassette_wire import (
 
 import hassette.cli.formatters as cli_formatters
 import hassette.cli.output as cli_output
-from hassette.cli.client import APP_GRID_PATH, APPS_PATH, app_route_path, make_client, parse_wire_list, query_params
+from hassette.cli.client import (
+    APP_GRID_PATH,
+    app_route_path,
+    make_client,
+    parse_wire_list,
+    query_params,
+    telemetry_app_path,
+)
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
 from hassette.const.misc import SECONDS_PER_HOUR
@@ -95,7 +102,7 @@ def cmd_app_instances(
     ``--json`` prints the whole app summary, the same object ``GET /api/apps/{key}`` returns.
     """
     client = make_client(ctx)
-    result = client.get(f"{APPS_PATH}/{key}", AppSummary)
+    result = client.get(app_route_path(key), AppSummary)
     if ctx.json_mode:
         cli_output.render_detail(result, json_mode=True)
         return
@@ -117,7 +124,7 @@ def cmd_app_health(
         since=since,
         source_tier=source_tier,
     )
-    result = client.get(f"/api/telemetry/app/{key}/health", AppHealth, params=params)
+    result = client.get(telemetry_app_path(key, "health"), AppHealth, params=params)
     cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 
@@ -139,7 +146,7 @@ def cmd_app_activity(
         since=since,
         limit=limit,
     )
-    raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
+    raw: list[Any] = client.get(telemetry_app_path(key, "activity"), list, params=params)
     entries = parse_wire_list(ActivityFeedEntry, raw)
     cli_output.render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)
 
@@ -156,7 +163,7 @@ def cmd_app_config(
     large machine-oriented blob, not something a CLI reader needs.
     """
     client = make_client(ctx)
-    result = client.get(f"/api/apps/{key}/config", AppConfigResponse)
+    result = client.get(f"{app_route_path(key)}/config", AppConfigResponse)
     # Render every field except config_schema, the large machine-oriented blob. Dumping the
     # model (rather than naming fields) keeps new AppConfigResponse fields visible automatically.
     detail = {field: value for field, value in result.model_dump(mode="json").items() if field != "config_schema"}
@@ -170,7 +177,7 @@ def cmd_app_source(
 ) -> None:
     """Show app source code (GET /api/apps/{key}/source)."""
     client = make_client(ctx)
-    result = client.get(f"/api/apps/{key}/source", AppSource)
+    result = client.get(f"{app_route_path(key)}/source", AppSource)
     cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 

@@ -32,15 +32,26 @@ APP_GRID_PATH = "/api/telemetry/app-grid"
 
 APPS_PATH = "/api/apps"
 
+TELEMETRY_APP_PATH = "/api/telemetry/app"
+
 T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 
 
 def app_route_path(app_key: str, instance: str | None = None) -> str:
-    """The app-scoped API path for ``app_key``, or the instance-scoped one when ``instance`` is given."""
+    """The app-scoped API path for ``app_key``, or the instance-scoped one when ``instance`` is given.
+
+    Each name is percent-encoded whole, ``/`` included, so no app key or instance name can change the route.
+    """
+    path = f"{APPS_PATH}/{quote(app_key, safe='')}"
     if instance is None:
-        return f"{APPS_PATH}/{app_key}"
-    return f"{APPS_PATH}/{app_key}/instances/{quote(instance, safe='')}"
+        return path
+    return f"{path}/instances/{quote(instance, safe='')}"
+
+
+def telemetry_app_path(app_key: str, resource: str) -> str:
+    """The path of ``app_key``'s telemetry ``resource``, such as ``"listeners"``, the key percent-encoded."""
+    return f"{TELEMETRY_APP_PATH}/{quote(app_key, safe='')}/{resource}"
 
 
 def query_params(**values: Any) -> dict[str, Any]:
@@ -300,7 +311,7 @@ class HassetteCLIClient:
     def get_with_app_routing(
         self,
         global_path: str,
-        per_app_path_template: str,
+        per_app_resource: str,
         model: type[T],
         app_key: str | None = None,
         instance: str | None = None,
@@ -309,13 +320,13 @@ class HassetteCLIClient:
         """Perform a GET request with ``--app`` and ``--instance`` routing.
 
         - No ``app_key``: uses ``global_path``
-        - ``app_key`` only: uses ``per_app_path_template.format(app_key=app_key)``
+        - ``app_key`` only: uses the app's telemetry ``per_app_resource`` path, the key percent-encoded
         - ``instance`` without ``app_key``: usage error, exits non-zero
         - ``instance`` + ``app_key``: checks the name, adds it as the ``instance_name`` param
 
         Args:
             global_path: API path for the global (no app filter) case.
-            per_app_path_template: API path template with ``{app_key}`` placeholder.
+            per_app_resource: The per-app telemetry resource, such as ``"listeners"``.
             model: Pydantic model class or ``list``/``dict`` for raw responses.
             app_key: Optional app key filter.
             instance: Optional instance name.
@@ -332,7 +343,7 @@ class HassetteCLIClient:
         if app_key is None:
             path = global_path
         else:
-            path = per_app_path_template.format(app_key=app_key)
+            path = telemetry_app_path(app_key, per_app_resource)
 
             if instance is not None:
                 params["instance_name"] = self.require_known_instance(app_key, instance)

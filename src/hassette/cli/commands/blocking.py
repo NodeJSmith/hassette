@@ -3,7 +3,7 @@
 from hassette_wire import BlockingFinding, BlockingFindingsResponse, UnattributedBlockingResponse, UnattributedStall
 
 import hassette.cli.output as cli_output
-from hassette.cli.client import make_client, query_params
+from hassette.cli.client import make_client, query_params, telemetry_app_path
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
 from hassette.cli.output import Column, render_table
@@ -88,7 +88,7 @@ def cmd_blocking(
 
     if app is not None:
         params = query_params(instance_name=client.known_instance_or_none(app, instance), since=since)
-        findings = client.get(f"/api/telemetry/app/{app}/blocking", BlockingFindingsResponse, params=params)
+        findings = client.get(telemetry_app_path(app, "blocking"), BlockingFindingsResponse, params=params)
         if ctx.json_mode:
             cli_output.render_detail(findings, json_mode=True)
             return

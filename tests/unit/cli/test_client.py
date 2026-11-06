@@ -12,7 +12,7 @@ import pytest
 from hassette_wire import ActionResponse, AppInstance, AppListResponse, ResourceStatus
 from pydantic import BaseModel
 
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import HassetteCLIClient, app_route_path
 from hassette.config.config import HassetteConfig
 from hassette.config.models import DEFAULT_WEB_API_PORT, WebApiConfig
 from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
@@ -140,7 +140,7 @@ def route_listeners(client: HassetteCLIClient, **kwargs: Any) -> Any:
     """
     return client.get_with_app_routing(
         global_path=BUS_LISTENERS_ENDPOINT,
-        per_app_path_template=APP_LISTENERS_ENDPOINT_TEMPLATE,
+        per_app_resource="listeners",
         model=list,
         **kwargs,
     )
@@ -563,6 +563,21 @@ class TestAppKeyRouting:
         client, captured_urls = url_capturing_client()
         route_listeners(client, app_key="my_app")
         assert any(APP_LISTENERS_ENDPOINT_TEMPLATE.format(app_key="my_app") in u for u in captured_urls)
+
+    def test_app_key_is_percent_encoded_in_the_per_app_url(self) -> None:
+        client, captured_urls = url_capturing_client()
+        route_listeners(client, app_key="my app")
+        assert any(APP_LISTENERS_ENDPOINT_TEMPLATE.format(app_key="my%20app") in u for u in captured_urls)
+
+    @pytest.mark.parametrize(
+        ("instance", "expected"),
+        [
+            pytest.param(None, "/api/apps/my%20app%2Fx", id="app"),
+            pytest.param("a b", "/api/apps/my%20app%2Fx/instances/a%20b", id="instance"),
+        ],
+    )
+    def test_app_route_path_percent_encodes_each_segment(self, instance: str | None, expected: str) -> None:
+        assert app_route_path("my app/x", instance) == expected
 
 
 # --instance flag

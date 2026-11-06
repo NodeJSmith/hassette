@@ -61,7 +61,7 @@ def cmd_listener(
 
     raw = client.get_with_app_routing(
         global_path="/api/bus/listeners",
-        per_app_path_template="/api/telemetry/app/{app_key}/listeners",
+        per_app_resource="listeners",
         model=list,
         app_key=app,
         instance=instance,
