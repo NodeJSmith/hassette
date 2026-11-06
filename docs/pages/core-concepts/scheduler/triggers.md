@@ -94,6 +94,8 @@ Without `daily=True`, a positive offset never fires with `next_rising` or `next_
 
 An entity can be unavailable, report `unknown`, or hold a non-time value. A phone with no alarm set does exactly this. The job's `schedule_status` becomes `waiting`: it stays registered and watched by the entity-change listener, but carries no `next_run` and sits off the scheduler's due-time heap. The entity's next change puts it back on a real schedule — reactivation goes through the same watcher, so no polling or timer is involved.
 
+An absolute time at or before now parks the job the same way. A restart after an alarm already went off reads the old time and waits instead of firing again. An entity reporting the current second exactly also parks. The entity's next new time puts the job back on schedule.
+
 [`hassette job`](../../cli/commands.md#hassette-job) and the web UI render a `waiting` job as "Waiting for entity time." instead of a next-run timestamp. A missing next run means the entity currently names no time, not that the job stopped.
 
 !!! warning "Entity-driven times still use the configured timezone"
@@ -124,11 +126,13 @@ Two methods control when the job fires. They are the load-bearing part of any cu
 
 `first_run_time` receives the current time at registration. `next_run_time` receives both the previous scheduled run and the current time, allowing drift-resistant or wall-clock-aligned strategies. A trigger that returns `None` from `next_run_time` fires once. A trigger that always returns a future time repeats indefinitely.
 
+Both methods may also return `WAITING`, exported from `hassette.scheduler`. The scheduler then parks the job as `waiting`: registered, with no `next_run`, off the due-time heap. Only `EntityTime` has a watcher that reactivates a parked job, so a custom trigger's parked job never fires again. A trigger that should stop returns `None` instead, and one that should keep running returns a future time.
+
 The remaining four methods cover display and deduplication.
 
 | Method | Signature | Returns | Description |
 |---|---|---|---|
-| `trigger_label` | `()` | `str` | Short label for logs and the web UI. |
+| `trigger_label` | `()` | `str` | Short label for logs and the web UI. Must not be a built-in name: `after`, `once`, `every`, `daily` or `cron`. Those labels make telemetry and UI rows look like a built-in trigger. |
 | `trigger_detail` | `()` | `str \| None` | Optional human-readable detail string. |
 | `trigger_db_type` | `()` | `str` | Canonical type string for database storage. Application triggers return `"custom"`. |
 | `trigger_id` | `()` | `str` | Stable identifier for deduplication, used by [`if_exists="skip"`](methods.md#idempotent-registration). |
