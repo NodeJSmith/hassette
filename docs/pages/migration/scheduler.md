@@ -3,7 +3,7 @@
 Hassette scheduling lives on `self.scheduler`. All methods are `async` and return a [`Job`][hassette.scheduler.classes.Job] object for removal.
 
 !!! note "Coming from synchronous AppDaemon?"
-    The mechanical rule: declare `on_initialize` as `async def` and put `await` in front of every scheduling call. Omitting `await` means the job is never scheduled — no error, just silence. [Migration Concepts](concepts.md#async-vs-sync) covers the async model.
+    The mechanical rule: declare `on_initialize` as `async def` and put `await` in front of every scheduling call. Omitting `await` means the job is never scheduled. Hassette emits a `HassetteForgottenAwaitWarning` naming the call site, but the job doesn't run. [Migration Concepts](concepts.md#async-vs-sync) covers the async model.
 
 ## Method Equivalents
 
