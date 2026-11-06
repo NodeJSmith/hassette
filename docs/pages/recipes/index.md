@@ -11,5 +11,5 @@ Copy-paste-ready automations, organized by problem. Each recipe stands alone —
 
 ## See Also
 
-- [Core Concepts](../core-concepts/index.md). The building blocks all recipes use: the `Bus` (event subscriptions), `Scheduler` (timers), `Api` (HA service calls), and `States` (entity state access).
+- [Core Concepts](../core-concepts/index.md). The building blocks all recipes use: the `Bus` (event subscriptions), `Scheduler` (timers), `Api` (HA service calls), and `StateManager` (entity state access).
 - [Getting Started](../getting-started/index.md). Installation and your first app.
