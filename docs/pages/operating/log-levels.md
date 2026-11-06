@@ -211,7 +211,7 @@ Every one of these loggers carries its own level, so a change reaches only the l
 --8<-- "pages/operating/snippets/debug_scheduler.toml"
 ```
 
-With `scheduler_service = "DEBUG"`, Hassette logs trigger evaluation, next-run calculations, and job execution timing. Other services stay at `INFO`.
+With `scheduler_service = "DEBUG"`, Hassette logs each job as it's queued and dequeued, with its next run time. It also logs the scheduler's sleep and wake cycle. Job run durations aren't logged. The [execution detail page](../web-ui/execution-detail.md) shows each run's duration instead. Other services stay at `INFO`.
 
 ### Quieting the File Watcher
 
