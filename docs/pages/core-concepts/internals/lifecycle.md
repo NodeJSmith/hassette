@@ -12,9 +12,9 @@ Every concrete `Service` subclass declares `required` in its own class body. A c
 --8<-- "pages/core-concepts/snippets/internals_service_required.py"
 ```
 
-**Required** means Hassette cannot usefully run without the service. A required service fails when its `serve()` raises after startup, or returns or is cancelled without anyone asking it to stop. The service ends `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]), and Hassette records the reason and shuts down. Hassette also emits a `CRASHED` status event for the service to mark the fatal exit, even when the service's own status is `FAILED`. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
+**Required** means Hassette cannot usefully run without the service. A required service fails when its `serve()` raises after startup, or returns or is cancelled without anyone asking it to stop. The service is `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) until the shutdown moves it to `STOPPED`. Hassette records the reason and shuts down. Hassette also emits a `CRASHED` status event for the service to mark the fatal exit, even when the service's own status is `FAILED`. The process exits with a non-zero code and logs `Hassette terminated due to a fatal error: <reason>` at CRITICAL, for example `service 'BusService' crashed: RuntimeError` or `service 'BusService' serve() ended without shutdown`.
 
-**Optional** means Hassette keeps working without the service. If its `serve()` fails, the service stays `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) — dead in place. Nothing shuts it down or restarts it. Hassette logs one ERROR. For a framework service, the message says a Hassette restart brings it back. For a service an app owns, it says reloading the app does. A `serve()` that simply returns is not a failure: an optional service that returns ends as `STOPPED`.
+**Optional** means Hassette keeps working without the service. If its `serve()` fails, the service stays `FAILED` (`CRASHED` for a [`FatalError`][hassette.exceptions.FatalError]) — dead in place. Nothing shuts it down or restarts it. Hassette logs the failure at ERROR. One of those lines says how to recover: a Hassette restart for a framework service, or reloading the app for one an app owns. A `serve()` that simply returns is not a failure: an optional service that returns ends as `STOPPED`.
 
 Only a service whose parent is [`Hassette`][hassette.core.core.Hassette] itself can be required. A service is created by its parent's `add_child()`: `Hassette` adds the framework services, and an app adds its own with `self.add_child(MyWatcher)`. `add_child()` rejects a required service under any other parent, so a service an app owns must declare `required = False`. `Service` itself defaults to `required = True`, which is why a subclass must say which one it means.
 
@@ -55,18 +55,19 @@ stateDiagram-v2
     [*] --> NOT_STARTED
     NOT_STARTED --> STARTING : initialize()
     STARTING --> RUNNING : handle_running()
+    STARTING --> FAILED : initialization failure
     RUNNING --> STOPPING : shutdown()
     RUNNING --> FAILED : unhandled exception
     STOPPING --> STOPPED : clean exit
     RUNNING --> CRASHED : FatalError raised from serve()
-    CRASHED --> [*]
-    FAILED --> [*]
+    CRASHED --> STOPPING : shutdown()
+    FAILED --> STOPPING : shutdown()
     STOPPED --> [*]
 ```
 
 The diagram's `CRASHED` state is a resource status, and only a `FatalError` escaping `serve()` sets it. When a required service fails any other way, Hassette still emits a `CRASHED` status event, meaning the failure took the process down, but the service's own status stays `FAILED`.
 
-`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution and child initialization. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` means `serve()` ended in failure. A required service in `FAILED` ends the process; an optional one stays `FAILED` until shutdown. `CRASHED` is set when a `FatalError` escapes `serve()`, and for a required service Hassette shuts down. Neither state is ever left by a restart.
+`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution and child initialization. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` means initialization, a shutdown hook, or `serve()` failed. A required service in `FAILED` ends the process; an optional one stays `FAILED` until shutdown. `CRASHED` is set when a `FatalError` escapes `serve()`, and for a required service Hassette shuts down. Neither state is ever left by a restart.
 
 ## Readiness vs Running
 
@@ -184,7 +185,8 @@ resistant initializer that doesn't finish in time makes the resulting teardown r
 
 This refusal belongs to one resource object. App instances get a separate one: Hassette won't create a
 new instance over one flagged as [needing a restart](../../operating/index.md#instances-that-need-a-restart),
-and it logs that refusal instead of raising `RestartRefusedError`.
+and it records that refusal instead of raising `RestartRefusedError`. An HTTP request reports it in its
+response, and a caller with no response, such as bootstrap or a config change, logs it.
 
 `start()` and a direct `initialize()` call both check the stored outcome before any initialization
 work starts. The check runs after the [re-entry check](#lifecycle-re-entry). `start()` checks it
