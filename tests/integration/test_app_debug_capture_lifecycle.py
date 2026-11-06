@@ -11,10 +11,15 @@ import pytest
 
 from hassette.config.classes import AppManifest
 from hassette.core.app_handler import AppHandler
+from hassette.core.app_registry import listed_apps, overlay_runtime_state
+from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult
+from hassette.schemas.app_snapshots import AppFullSnapshot, tally_app_statuses
 from hassette.testing import HassetteHarness
 from hassette.utils.app_utils import load_app_class_from_manifest
+from hassette.web.mappers import app_list_response_from
 from tests.support.app_manifests import make_test_app_manifest
 from tests.support.factories import make_change_set
+from tests.support.web_manifest_helpers import make_manifest_db_row
 
 GATED_KEY = "gated_init"
 MULTI_KEY = "multi_instance"
@@ -139,3 +144,52 @@ async def test_removed_app_capture_ends_even_when_its_stop_does_not_finish(
     assert handler.registry.debug_captured_names(MULTI_KEY) == set()
     assert survivor.debug_capture is False
     assert survivor.logger.level > logging.DEBUG
+
+
+async def test_a_stop_that_leaves_work_running_returns_the_instance_loggers_to_config(
+    handler: AppHandler, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An instance whose stop is not restart-safe leaves the registry, so ``off`` can't reach it afterwards; its
+    loggers, which outlive it, go back to their config levels at the stop, while the pair stays for its next start.
+    """
+    handler.lifecycle.set_apps_configs({MULTI_KEY: multi_manifest([{"instance_name": "alpha"}])})
+    await handler.lifecycle.start_app(MULTI_KEY)
+    handler.set_debug_capture(MULTI_KEY, None, enabled=True)
+    app = handler.registry.get(MULTI_KEY, "alpha")
+    assert app is not None
+    assert app.logger.level == logging.DEBUG
+    real_shutdown = app.shutdown
+
+    async def shutdown_left_running() -> ShutdownOutcome:
+        await real_shutdown()
+        return ShutdownOutcome(ShutdownResult.INCOMPLETE, ("app-worker",), "test: work left running")
+
+    monkeypatch.setattr(app, "shutdown", shutdown_left_running)
+
+    await handler.lifecycle.stop_instance(MULTI_KEY, "alpha")
+
+    assert handler.registry.get(MULTI_KEY, "alpha") is None
+    assert app.debug_capture is False
+    assert app.logger.level > logging.DEBUG
+    assert app.bus.logger.level > logging.DEBUG
+    assert app.lifecycle_logger.level > logging.DEBUG
+    assert handler.registry.debug_captured_names(MULTI_KEY) == {"alpha"}
+
+
+async def test_app_list_reports_capture_for_each_instance(handler: AppHandler) -> None:
+    """``GET /api/apps``'s path from a real registry, DB rows overlaid with runtime state, reports each instance's own
+    capture.
+    """
+    handler.lifecycle.set_apps_configs(
+        {MULTI_KEY: multi_manifest([{"instance_name": "alpha"}, {"instance_name": "beta"}])}
+    )
+    await handler.lifecycle.start_app(MULTI_KEY)
+    handler.set_debug_capture(MULTI_KEY, "alpha", enabled=True)
+
+    infos = listed_apps(overlay_runtime_state([make_manifest_db_row(MULTI_KEY)], handler.registry))
+    response = app_list_response_from(
+        AppFullSnapshot(manifests=tuple(infos), total=len(infos), status_counts=tally_app_statuses(infos))
+    )
+
+    (summary,) = response.apps
+    assert {i.instance_name: i.debug_capture for i in summary.instances} == {"alpha": True, "beta": False}

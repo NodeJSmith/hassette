@@ -76,3 +76,8 @@ Does a new toggle or writer go through `AppHandler.set_debug_capture` (registry 
 rather than setting the attribute directly? Does every new path that removes an app or an instance name from
 the config reach `prune_stale_debug_capture` or `clear_debug_capture`, so no pair is left that no route or
 status read can see?
+
+A capture pair is name-keyed intent, so it isn't pruned on every exit path, but an instance's logger levels must be
+reset when it leaves. Does a new path that unregisters a live instance go through `shutdown_instance`, whose `finally`
+returns a departing captured instance's loggers to config, rather than calling `unregister_app` on its own? Discarding
+a failure entry, which holds no live instance, is the exception.

@@ -281,6 +281,12 @@ class AppInstanceLifecycleMixin:
             return outcome
         finally:
             structlog.contextvars.unbind_contextvars("app_key", "instance_name")
+            # An unregistered instance is out of reach of ``off``, yet its loggers are process-global and keyed by
+            # name, so return them to config here, even when its teardown left work running. The registry's capture
+            # pair stays, so the next instance under this name starts captured. A stop cancelled before unregister
+            # leaves the instance registered, and ``off`` still reaches it.
+            if inst.debug_capture and self.registry.get(inst.app_key, inst.instance_name) is not inst:
+                inst.set_debug_capture(False)
 
     async def settle_raised_shutdown(
         self,
