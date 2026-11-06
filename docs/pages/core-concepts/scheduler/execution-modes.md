@@ -162,8 +162,9 @@ Each job with a non-`parallel` mode tracks two live counters:
 - **Dropped** — ticks discarded by `queued` when the queue was at its
   cap.
 
-These counts appear on the [Handlers page](../../web-ui/debug-handler.md#using-the-handlers-page)
-(sidebar > Handlers) when non-zero, alongside the job's mode. They are live-only diagnostics
+These counts appear in the job's detail view, inside the app's
+[Handlers tab](../../web-ui/debug-handler.md#drilling-into-handler-history),
+when non-zero, alongside the job's mode. They are live-only diagnostics
 — held in memory, reset to zero when the process restarts, never
 persisted to the database.
 
@@ -205,9 +206,10 @@ when it fires. The stall WARNING is an early signal and doesn't stop the job.
 
 ### Mode in the monitoring UI
 
-The mode is persisted for each job and displayed in the
-[monitoring UI's Jobs view](../../web-ui/index.md). The mode appears
-alongside the job's next run time, suppressed count, and dropped count.
+The mode is persisted for each job. The monitoring UI shows it in the job's
+detail view, inside the app's
+[Handlers tab](../../web-ui/debug-handler.md#drilling-into-handler-history).
+It sits alongside the job's next run time and its suppressed and dropped counts.
 
 Run `hassette job` on a running instance to see each job's mode from
 the command line. The live suppressed and dropped counts are not in the
