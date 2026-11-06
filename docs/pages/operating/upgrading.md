@@ -45,6 +45,14 @@ docker compose up -d
 
 This pulls whatever tag is configured in your `docker-compose.yml`. To pin a specific version, change the `image:` tag there.
 
+Confirm the version the container now runs:
+
+```bash
+docker compose exec hassette hassette --version
+```
+
+An old version here means the pull failed or the `image:` tag still points at it.
+
 ## Reading the Changelog
 
 The changelog lives in two places: `CHANGELOG.md` at the root of the repository, and the [GitHub Releases page](https://github.com/NodeJSmith/hassette/releases). Both contain the same content. GitHub Releases is easier to browse by version; `CHANGELOG.md` is useful if you have the repo checked out.
@@ -82,7 +90,7 @@ hassette run --config-dir ~/.config/hassette/v0
 
 `config_dir` can't go in `hassette.toml`, because Hassette needs it to find that file.
 
-Docker data volumes carry over across major versions. Mount points are version-independent.
+Docker users don't need to set `data_dir`. The image sets `HASSETTE__DATA_DIR=/data`, so the data path stays `/data` across major versions. Before a major upgrade, back up whatever is mounted at `/data`. In the compose file from [Docker Setup](../getting-started/docker/index.md), that is the `data` volume.
 
 ## `base_url` Paths
 
