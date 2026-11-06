@@ -107,3 +107,24 @@ Return `trigger=None` for all-NULL handler rows if an external consumer is found
 
 Acceptance criteria:
 - `trigger is None` means "nothing recorded" and the docstring says so.
+
+## KI-006: A new client reading an older server gets `trigger=None`
+
+Status: open
+Recorded: 2026-11-06 (3676)
+Source: other
+Reason not fixed now: behavior-change
+Affected files:
+- wire/src/hassette_wire/telemetry.py
+
+Issue:
+A server released before this change sends the flat `trigger_context_id`/`trigger_origin` fields. The new `Execution` model ignores them, so a new `hassette-client` reading such a server sees `trigger=None` and loses that context id and origin. Parsing still succeeds, and `trigger` is optional, so the client schema floor doesn't require a bump. Raised by CodeRabbit on PR #3843.
+
+Why deferred:
+Pre-V1 policy is clean breaks with no migration-only shims. Releases ship server and client in lockstep, nothing in this repo's client reads `trigger`, and the gap lasts only while a newer client talks to an older server.
+
+Recommended follow-up:
+Map the legacy fields into `trigger` with a `model_validator`, or raise the API schema floor, if a client consumer shows trigger detail from mixed-version servers.
+
+Acceptance criteria:
+- A new client reading a pre-change server either recovers the context id and origin or refuses the server via `check_server_version`.
