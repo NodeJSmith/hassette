@@ -8,13 +8,13 @@ The web UI shows what configuration Hassette is running with and what the app co
 
 ![Global configuration page](../../_static/web_ui_config.png)
 
-The Configuration page renders all `hassette.toml` values in schema-driven sections — one section per nested config group (`Web API`, `Logging`, `Lifecycle`, `Apps`, `Scheduler`, `File Watcher`, and others), plus a `General` section for top-level scalar fields. Section names and field labels come from the schema's `ui` metadata, not hardcoded strings.
+The Configuration page renders all `hassette.toml` values in schema-driven sections — one section per nested config group (`Web API`, `Logging`, `Lifecycle`, `Apps`, `Scheduler`, `File Watcher`, and others), plus a `General` section for top-level scalar fields. Section names and field labels come from the schema: a `ui` label where one is set, otherwise the humanized field name.
 
 Each field row shows its human-readable label, the exact `hassette.toml` key beside it, and the value. The field's type is implied by how the value renders, not by a separate label. Booleans appear as `true`/`false` badges. Filesystem paths sit in a monospace code box. Enums and short arrays render as chips. Secret fields show as `🔒 ••••••••`, masked server-side before transmission. An unset field shows `not set`. Where a field has a description, an info button (ⓘ) reveals it in a popover.
 
 The page is accessible from the sidebar under **Config**.
 
-Values reflect the configuration loaded at the most recent startup or reload (triggered from the [Manage Apps](manage-apps.md) page or by the file watcher). Refresh the browser after a reload to see updated values.
+Values reflect the configuration loaded at startup, or at the most recent automatic reload when the file watcher picks up a saved change. Automatic reloads need [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) set in `hassette.toml`. The **Reload** button on the [Manage Apps](manage-apps.md) page does not re-read `hassette.toml`. Without automatic reloads, an edit to `hassette.toml` needs a Hassette restart. Refresh the browser after a reload to see updated values.
 
 See [Configuration](../core-concepts/configuration/index.md) for the full settings reference.
 
@@ -22,7 +22,7 @@ See [Configuration](../core-concepts/configuration/index.md) for the full settin
 
 ![Per-app configuration tab](../../_static/web_ui_app_detail_config.png)
 
-The **Config** tab on an app detail page shows the configuration values from `hassette.toml` for that app instance. Secret fields (`SecretStr`) are masked server-side and displayed as `🔒 ••••••••` — the plaintext never reaches the browser. When a schema is available for the app's `AppConfig`, the tab uses the shared schema renderer (same groups and formatting as the global Config page); apps without a schema fall back to a flat key-value table.
+The **Config** tab on an app detail page shows the configuration values from `hassette.toml` for that app instance. Secret fields (`SecretStr`) are masked server-side and displayed as `🔒 ••••••••` — the plaintext never reaches the browser. When a schema is available for the app's `AppConfig`, the tab uses the shared schema renderer (same formatting as the global Config page, with top-level fields split into **App Settings** and **Hassette Settings** sections instead of **General**); apps without a schema fall back to a flat key-value table.
 
 The tab shows the `config` values Hassette loaded for the app: `hassette.toml` plus any `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` environment overrides. It omits [`AppConfig`](../core-concepts/apps/index.md) field defaults and values read through `env_prefix`, the prefix an `AppConfig` uses to read environment variables directly. Hassette applies those when it validates the app's config, so their absence from the tab is normal. Validation still happens at startup — missing required fields and wrong types surface as startup errors rather than silent misconfiguration.
 
