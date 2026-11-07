@@ -30,7 +30,7 @@ The section name (`vacation_mode`) is the app key the `hassette` CLI commands be
 
 Every `App` instance carries `self.bus` (delivers HA events to handlers), `self.scheduler` (runs functions on a schedule), `self.api` (calls HA services), and `self.app_config` (the validated config) — Hassette provides them at startup. Handlers are `async def`; Hassette runs the event loop.
 
-Two `on_state_change` subscriptions watch the same `input_boolean`. `changed_to` filters each subscription to one transition: `"on"` or `"off"`. Each handler does exactly one thing, so the two paths stay independent and easy to trace. `name=` on each subscription is required — it labels the listener in logs and in `hassette listener` output; omitting it raises `ListenerNameRequiredError` at registration time.
+Two `on_state_change` subscriptions watch the same `input_boolean`. `changed_to` filters each subscription to one transition: `"on"` or `"off"`. Each handler does exactly one thing, so the two paths stay independent and easy to trace. `name=` on each subscription is required. It gives the listener a stable identity across restarts. Omitting it raises `TypeError`, and an empty name raises `ListenerNameRequiredError` at registration time.
 
 When vacation mode activates, `run_every` schedules `simulate_presence` to run on a fixed interval. `run_every` returns a [`Job`][hassette.scheduler.classes.Job] — a handle for the running job. It is stored on the instance so `on_vacation_end` can remove it later. The class-level `presence_job: Job | None = None` line declares and defaults that attribute; it is a type annotation, not framework boilerplate.
 
@@ -54,7 +54,7 @@ The app logs when vacation mode enables, then each time a light toggles. The fir
 hassette listener --app vacation_mode
 ```
 
-Both `vacation_start` and `vacation_end` listeners should appear with an invocation count of 1 or higher.
+Both listeners should appear, listed by handler as `on_vacation_start` and `on_vacation_end`, with a `Total` of 1 or higher.
 
 ## Variations
 
