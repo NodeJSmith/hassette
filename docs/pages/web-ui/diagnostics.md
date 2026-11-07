@@ -35,8 +35,9 @@ Service states update live over the WebSocket connection. When the connection dr
 
 ## Boot issues
 
-The boot issues panel appears only when startup produced warnings or errors — a missing
-app directory, an app that failed to import, a config problem. Issues sort errors-first,
+The boot issues panel appears only when startup produced warnings or errors. Errors come
+from apps that failed to import or failed config validation. Warnings flag an app excluded by
+`hassette run --app`, or autostart apps still waiting on Home Assistant. Issues sort errors-first,
 each with a label and detail text. A clean startup renders no panel; the stats strip's
 zero is the confirmation.
 
@@ -54,7 +55,7 @@ The loop stalls panel appears when [blocking-call detection](../core-concepts/bl
 - **displaced**: an app execution was in flight, but a different task held the loop, so Hassette withheld the blame rather than guess.
 - **framework**: no app execution was responsible, for example a library callback or Hassette's own work.
 
-The panel shows the count of each and the longest stall, then lists the most recent stalls with their duration and a **show stack** toggle. When a stall's stack contains app code, the row names that line as a lead to investigate. The stall still isn't credited to that app, because a helper in one app's directory can be called by several apps.
+The panel shows the count of each and the longest stall, then lists the most recent stalls, each with a **show stack** toggle. A measured stall shows its duration; an intercepted call shows the blocking primitive's name instead. When a stall's stack contains app code, the row names that line as a lead to investigate. The stall still isn't credited to that app, because a helper in one app's directory can be called by several apps.
 
 ![The loop stalls panel with one stall's stack expanded](../../_static/web_ui_diagnostics_loop_stalls.png)
 
