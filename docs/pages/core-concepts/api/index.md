@@ -30,8 +30,10 @@ The two most common operations are reading state and calling a service.
 [Api][hassette.api.api.Api] raises typed exceptions for common failures.
 
 - [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] if the entity does not exist in Home Assistant.
-- [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] if authentication failed (invalid or expired token).
+- [`HttpRequestError`][hassette.exceptions.HttpRequestError] for any other error status from Home Assistant. Its `.status` holds the code, such as 401 for an invalid or expired token.
 - [`HassetteError`][hassette.exceptions.HassetteError] for any other upstream error from Home Assistant.
+
+Hassette's WebSocket connection also rejects an invalid token when it authenticates. That raises [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] during startup or reconnect, never from an `Api` call.
 
 REST requests retry connection errors, timeouts, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles every error status from Home Assistant in one place.
 
