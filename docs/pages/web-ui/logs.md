@@ -64,9 +64,9 @@ Clicking any row opens the detail drawer with the complete entry.
 
 ![Log detail drawer](../../_static/web_ui_detail_log_drawer.png)
 
-The drawer shows a severity badge, full timestamp, and a metadata grid. The grid includes app (linked to its detail page), instance, execution ID, function name, module, line number, and logger name. The execution ID has a copy button.
+The drawer opens with a severity badge and full timestamp. Below them, the full message appears in a scrollable block with a copy button. Entries with exception info show a separate code block beneath the message, with its own copy button.
 
-Below the grid, the full message appears in a scrollable block with a copy button. Entries with exception info show a separate code block beneath the message.
+A metadata grid follows. It lists app (linked to its detail page), instance, execution ID, function name, module, line number, and logger name. The execution ID has a copy button.
 
 ![Log detail drawer showing an exception traceback](../../_static/web_ui_detail_log_drawer_exception.png)
 
