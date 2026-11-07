@@ -112,7 +112,7 @@ Two health probes answer `503` with their normal `application/json` status body,
 - `GET /api/health/ready` returns its readiness body with a `503` while Hassette is starting or degraded. See [Configure Health Checks](health-endpoints.md).
 - `GET /api/telemetry/status` returns its status body with a `503` when the telemetry database is degraded.
 
-Endpoints that read history from the telemetry database (logs, executions, listeners, jobs, telemetry, app manifests) answer `telemetry_unavailable` when that database can't be read. A few of them still answer `200` when only an optional part of the response is unavailable, for example the dashboard's per-app statistics, which fall back to zeros.
+Endpoints that read history from the telemetry database (logs, executions, listeners, jobs, telemetry, app manifests) answer `telemetry_unavailable` when that database can't be read. A few of them still answer `200` when only an optional part of the response is unavailable. For example, `GET /api/telemetry/app-grid` sets each app's `stats` to `null` when the statistics query fails.
 
 A rejected CORS preflight (an `OPTIONS` request whose origin, method, or headers fall outside `cors_origins` and the allowed methods and headers) returns a `400` with a `text/plain` body. Browsers report a failed preflight to the calling script as a network error and never expose its body. Non-browser clients don't send preflights.
 
