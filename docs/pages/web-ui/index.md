@@ -188,7 +188,7 @@ The **sidebar** lists every app grouped by lifecycle status: `FAILING`, `BLOCKED
 
 ![Sidebar](../../_static/web_ui_detail_sidebar.png)
 
-The **status bar** runs across the top. It holds a time-preset selector (Since restart, 1h, 24h, 7d) that scopes all history views. A connection indicator, uptime counter, and theme toggle sit alongside it.
+The **status bar** runs across the top. It holds an uptime counter and a time-preset selector (Since restart, 1h, 24h, 7d) that scopes all history views. The connection indicator and theme toggle sit in the sidebar footer. When the sidebar is collapsed or hidden, they move into the status bar.
 
 ![Status bar](../../_static/web_ui_detail_status_bar.png)
 
