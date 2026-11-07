@@ -16,7 +16,7 @@ Four one-liners for fast answers:
 hassette status
 ```
 
-The output shows `status: ok`, `degraded`, or `starting`, plus uptime and connected app count.
+The output shows `status: ok`, `degraded`, or `starting`, plus uptime and the number of tracked app instances.
 
 **Are all apps healthy?**
 
@@ -52,7 +52,7 @@ Start at the system level. Each step narrows the scope until you have a single e
 hassette status
 ```
 
-If `status` is `ok`, the framework is healthy. If it's `degraded`, something is wrong at the service level. Move to the next step either way to see which app is affected.
+If `status` is `ok`, the framework is healthy. If it's `degraded`, the Home Assistant connection has dropped or apps haven't been released to start yet; `websocket_connected` and `bootstrap_released` tell you which. Move to the next step either way to see which app is affected.
 
 **2. Find the problem app**
 
@@ -88,7 +88,11 @@ This lists every listener registered by `garage_door` with per-listener invocati
 hassette listener 42 --since 1h
 ```
 
-Replace `42` with the listener ID from step 3. Each row shows status, duration, error info, and execution ID. Find the failed row and copy the value in its `Execution ID` column.
+Replace `42` with the listener ID from step 3. Each row shows status, duration, error info, and execution ID. The table shortens execution IDs in a terminal, so get the full ID from JSON:
+
+```bash
+hassette listener 42 --since 1h --json | jq -r '.[] | select(.status != "success") | .execution_id'
+```
 
 **5. Read the execution logs**
 
@@ -96,11 +100,11 @@ Replace `42` with the listener ID from step 3. Each row shows status, duration, 
 hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
-The summary at the top shows what triggered the run: the entity and the change (`off → on`) that fired the handler, which tells a wildcard or multi-entity listener's runs apart. Below it is every log entry emitted during that invocation. The `Function` and `Line` columns tell you exactly where in your code each message came from.
+The summary at the top shows what triggered the run: the entity and the change (`off → on`) that fired the handler, which tells a wildcard or multi-entity listener's runs apart. Below it are the log entries from that invocation: your app's lines plus framework errors. Pass `--author all` to see every line. The `Function` and `Line` columns tell you exactly where in your code each message came from.
 
 ## Monitoring a Specific App
 
-Use `--app` to scope any command to one app:
+Scope a command to one app with `--app` (`listener`, `job`, `log`, `blocking`) or with the app key argument (`app health`, `app activity`):
 
 ```bash
 # Health metrics
@@ -109,7 +113,7 @@ hassette app health motion_lights --since 6h
 # Listener stats
 hassette listener --app motion_lights
 
-# Recent invocations across all listeners
+# Recent handler and job runs
 hassette app activity motion_lights --since 1h
 
 # Scheduled jobs (functions registered with the scheduler)
@@ -158,7 +162,7 @@ hassette listener 42 --since 24h
 
 ## Scripting with `--json`
 
-Every command accepts `--json` and writes structured JSON to stdout. Pipe it to `jq` for filtering and scripting — the JSON contains every field the server returns; see [Commands](commands.md) for each command's output. The scripts below are bash; adapt the pattern to whatever runs your monitoring.
+Every command except `hassette run` accepts `--json` and writes structured JSON to stdout. Pipe it to `jq` for filtering and scripting — the JSON contains every field the server returns; see [Commands](commands.md) for each command's output. The scripts below are bash; adapt the pattern to whatever runs your monitoring.
 
 **Extract failing apps** (each row's `app` and `activity` keys are described under [`hassette app`](commands.md#hassette-app)):
 
