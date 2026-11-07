@@ -157,8 +157,9 @@ hassette app reload my-app --instance office --yes
 
 !!! warning
     `stop` and `reload` prompt for confirmation by default. In non-interactive
-    contexts (scripts, cron, CI) pass `--yes`, or the command exits 0 without
-    performing the action.
+    contexts (scripts, cron, CI) pass `--yes`. Without it, the command exits 0
+    without performing the action. With `--json`, it skips the prompt and exits 1
+    with a usage error.
 
 ### `hassette app instances <key>`
 
@@ -300,7 +301,7 @@ Each row shows the job ID, app key, handler method, trigger type, schedule statu
 
 `Total` also counts two outcomes the table leaves out: `cancelled` (the run was cancelled before it finished) and `timed_out` (the run exceeded its job timeout). When `Total` is larger than `OK + Fail + Skipped`, the difference is cancelled or timed-out runs. A `restart`-mode job cancels its running invocation every time the next tick arrives first, so a busy `restart` job builds up cancelled runs during normal operation (see [execution modes](../core-concepts/scheduler/execution-modes.md#cancelled-counts)). Outside `restart` mode, cancellations usually come from Hassette or the app shutting down mid-run. `hassette job --json` reports both counters per job, and `hassette job <id>` shows the status of each individual run.
 
-The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
+The Next Run column shows a relative time when one is scheduled. Otherwise it shows status-aware placeholder text: `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, `Schedule stopped after trigger error.`, `Legacy status unknown.`, or `Manual only.` The cell is blank only when the server reports a status this CLI version doesn't recognize.
 
 Passing a job ID shows its execution history:
 
