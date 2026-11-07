@@ -259,13 +259,11 @@ For container startup failures, dependency installation, health check failures, 
 
 ### State Conversion
 
-**`DomainNotFoundError`** No state class is registered for the requested domain. Import the relevant state module or define a custom state class with a matching `domain` annotation.
-
-**`RegistryNotReadyError`** The state registry was queried before any state classes were imported. Ensure state modules are imported before state conversion is attempted.
+**Unregistered domains** A state from a domain with no registered state class converts to `BaseState`. `self.states.<domain>` raises `AttributeError` naming the domain. Use `self.states[<YourStateClass>]` for a custom state class.
 
 **`NoDomainAnnotationError`** A state class is missing `domain: Literal["..."]`. Add the annotation.
 
-**[`InvalidDataForStateConversionError`][hassette.exceptions.InvalidDataForStateConversionError]** The data passed to state conversion is malformed or `None`. Check the upstream event or API response.
+**[`InvalidDataForStateConversionError`][hassette.exceptions.InvalidDataForStateConversionError]** Event data was passed where a state dict was expected. Pass `event.payload.data.new_state` (or `old_state`) instead of the whole event.
 
 **[`UnableToConvertStateError`][hassette.exceptions.UnableToConvertStateError]** The state dict exists but cannot be coerced to the target state class. Check that the class fields match the entity's actual attributes.
 
