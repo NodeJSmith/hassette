@@ -14,7 +14,7 @@ Below the strip, the app table shows one row per app with the following columns:
 
 | Column | What it shows |
 |--------|--------------|
-| **APP** | Status dot, app key, and class name. Apps with `autostart = false` also show a **no autostart** chip. |
+| **APP** | Status dot, display name (the app key unless `display_name` is set), and class name. Apps with `autostart = false` also show a **no autostart** chip. |
 | **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DEGRADED`, `DISABLED`, or `BLOCKED`. An amber **N blocking** badge follows it when the app [blocked the event loop](../core-concepts/blocking-io-detection.md#finding-blocking-calls) in the selected time window. Click it to see the call sites on the app's overview. The badge is unrelated to the `BLOCKED` status, which comes from `hassette run --app`. A red **needs restart** badge marks an instance whose teardown may have left work running; hover it for the reason. Only restarting Hassette clears it (see [Instances that need a restart](../operating/index.md#instances-that-need-a-restart)). On a multi-instance app the parent row reads **N need restart** when several instances are flagged, or **needs restart** for one, and each flagged instance row carries its own badge. |
 | **LAST ERROR** | Most recent error message, truncated. Click to expand the full message. Shows `—` when the app is healthy. |
 | **RUNS** | An activity sparkline showing invocation frequency over the selected time window, plus the total run count. |
@@ -35,7 +35,7 @@ The search box above the table filters rows by app key and class name as you typ
 
 ### Drill into an app
 
-Click any app row to open the App Detail view. The detail view shows health indicators, a handler list, recent activity, and error details across five tabs.
+Click an app's name to open the App Detail view. The detail view shows health indicators, a handler list, recent activity, and error details across five tabs.
 
 ![App detail overview](../../_static/web_ui_app_detail_overview.png)
 
@@ -54,7 +54,7 @@ Clicking the app's own name opens its app-wide overview instead: a card per inst
 
 ![An expanded instance row with its own action buttons](../../_static/web_ui_instance_action_buttons.png)
 
-The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), a config change to just one instance in `hassette.toml` triggers a selective reload: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
+The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. With automatic reloads on (set [`dev_mode`](../core-concepts/configuration/index.md#development-and-debugging) or [`allow_reload_in_prod`](../core-concepts/configuration/index.md#development-and-debugging) in `hassette.toml`), a config change to just one instance in `hassette.toml` triggers a selective reload: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance works the same way: Hassette creates the new instance or stops the removed one, and the other instances keep running. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
 
 ## Start, Stop, and Reload
 
@@ -94,7 +94,7 @@ What a reload picks up depends on what triggered it:
 
 ## Understand App States
 
-The **STATUS** badge on each row reflects the app's current lifecycle state — one of six values.
+The **STATUS** badge on each row reflects the app's current lifecycle state — usually one of six values.
 
 | State | Meaning |
 |-------|---------|
@@ -102,10 +102,10 @@ The **STATUS** badge on each row reflects the app's current lifecycle state — 
 | `STOPPED` | The app was stopped via the UI or REST API, or it has `autostart = false` and has not been started yet. It will not process events until started. Apps with `autostart = false` show a **no autostart** chip in the APP column. |
 | `FAILED` | The app encountered an unhandled error. Check the **LAST ERROR** column or the App Detail error banner for the traceback. |
 | `DEGRADED` | A multi-instance app has at least one running instance and at least one failed instance. The app is partially working — check which instance failed in the [Multi-instance apps](#multi-instance-apps) view above. |
-| `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** enables it for this session. Setting `enabled = true` in config makes the change permanent. |
+| `DISABLED` | The app has `enabled = false` in `hassette.toml`. **Start** runs its instances for this session, but the app's badge still reads `DISABLED`. Setting `enabled = true` in config makes the change permanent. |
 | `BLOCKED` | Hassette is restricted to a different set of apps via [`hassette run --app <key>`](../core-concepts/apps/index.md#restricting-which-apps-run), so this app is excluded. The block lasts for the life of the process. |
 
-An individual *instance* row (inside a [multi-instance app](#multi-instance-apps)) carries its own, finer-grained status — including transitional states like `STARTING` that never appear on the parent app's badge.
+An individual *instance* row (inside a [multi-instance app](#multi-instance-apps)) carries its own status. The parent badge can also briefly show a transitional state such as `STARTING` or `STOPPING` while one of its instances changes state.
 
 ![A STOPPED app row with the "no autostart" chip](../../_static/web_ui_no_autostart_chip.png)
 
