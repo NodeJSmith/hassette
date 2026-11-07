@@ -40,7 +40,7 @@ An explicit `server_url` must include a scheme (`http://` or `https://`). It mus
     token_file = "/home/me/.config/hassette/remote-token"
     ```
 
-    `cli.token_file` takes the path as written, with no `~` expansion, so give it an absolute path.
+    `cli.token_file` expands `~`. A relative path resolves against the directory of the file that sets it, or the working directory for an environment variable.
 
     A remote instance that trusts the proxy in front of it needs no token. Its `trusted_proxies` entry skips the credential check (see [Web UI](../web-ui/index.md#enabling-and-accessing)).
 
@@ -325,7 +325,7 @@ JSON mode adds a `debug` key to the error object:
 {"error": true, "status": 500, "detail": "Internal Server Error", "debug": {"url": "http://127.0.0.1:8126/api/health", "method": "GET", "body": "{\"type\":\"about:blank\",\"title\":\"Internal Server Error\",\"status\":500,\"detail\":\"Internal Server Error\",\"code\":\"internal_error\"}"}}
 ```
 
-Network errors always include the target address in the default output. `--debug` does not change their format.
+Connection-refused and timeout errors include the target address in the default output. `--debug` does not change the format of any network error.
 
 The body is the server's problem details response. [API Error Responses](../web-ui/api-errors.md) lists every `code` it can carry.
 
