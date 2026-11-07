@@ -36,6 +36,7 @@ class MotionLights(App[MotionLightsConfig]):
                 self.turn_off_light,
                 delay=self.app_config.off_delay_seconds,
                 name=OFF_JOB_NAME,
+                if_exists="replace",
             )
 
     async def turn_off_light(self) -> None:

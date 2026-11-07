@@ -23,13 +23,13 @@ The section name (`motion_lights`) is the app key the `hassette` CLI commands be
 
 ## How It Works
 
-`self.bus.on_state_change` subscribes to every state transition on the motion sensor. The `name=` parameter is required on all bus registrations — it identifies the listener in the database and in CLI output.
+`self.bus.on_state_change` subscribes to every state transition on the motion sensor. The `name=` parameter is required on every `on_*` subscription method. It is the listener's stable identity in the telemetry database across restarts.
 
 [`D.StateNew[states.BinarySensorState]`](../core-concepts/bus/dependency-injection.md) is a [dependency injection](../core-concepts/bus/dependency-injection.md) annotation — Hassette inspects the handler's parameter types at registration and passes the extracted value in automatically. `D.StateNew` delivers the new state, already converted to a [`BinarySensorState`](../core-concepts/states/index.md) object. `BinarySensorState.value` is `bool | None`: `True` when the sensor is on (motion detected), `False` when off (motion cleared), `None` when the state is unknown or unavailable — not the raw HA strings `"on"` and `"off"`. The handler covers both transitions in one place rather than two separate subscriptions.
 
 When motion turns on, any pending off job is removed before the light turns on. This resets the timer. If motion fires again while the delay is running, the timeout starts over instead of firing at the original time.
 
-When motion clears, `self.scheduler.run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. The returned [`Job`][hassette.scheduler.classes.Job] handle exposes a `.remove()` method — storing it on `self.off_job` lets the on-handler remove the pending job on re-trigger.
+When motion clears, `self.scheduler.run_in` schedules `turn_off_light` for `off_delay_seconds` seconds later. `if_exists="replace"` restarts the timer when a clear arrives while one is already pending. A brief unavailable state between two clears does exactly that. The returned [`Job`][hassette.scheduler.classes.Job] handle exposes a `.remove()` method — storing it on `self.off_job` lets the on-handler remove the pending job on re-trigger.
 
 `OFF_JOB_NAME` gives the scheduled job a stable name for log readability.
 
@@ -56,7 +56,7 @@ To confirm the handler fired, check the listener's invocation count:
 hassette listener --app motion_lights
 ```
 
-The `motion_sensor` listener's invocation count rises each time the sensor changes state.
+The `on_motion` row (target `binary_sensor.hallway_motion`) shows a `Total` count that rises each time the sensor changes state.
 
 To verify the off timer, set `off_delay_seconds = 30` in the app's config while testing. After motion clears, list the app's scheduled jobs:
 
