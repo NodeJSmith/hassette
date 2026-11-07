@@ -549,6 +549,8 @@ class ApiSyncFacade(Resource):
             entity_id: The ID of the entity to delete.
 
         Raises:
-            RuntimeError: If the deletion fails.
+            EntityNotFoundError: If the entity does not exist.
+            HttpRequestError: If Home Assistant answers with any other HTTP error status.
+            RuntimeError: If Home Assistant answers with a success status other than 204.
         """
         return self.task_bucket.run_sync(self._api.delete_entity(entity_id))

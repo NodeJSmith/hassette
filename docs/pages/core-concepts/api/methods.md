@@ -388,7 +388,7 @@ Omitting `end_time` returns changes from `start_time` to the present.
 | `start_time` | `PlainDateTime \| ZonedDateTime \| Date \| str` | — | Start of the time window. Accepts [`whenever`](https://whenever.readthedocs.io/) types or an ISO 8601 string. |
 | `end_time` | `PlainDateTime \| ZonedDateTime \| Date \| str \| None` | `None` | End of the time window. `None` means now. |
 | `significant_changes_only` | `bool` | `False` | Skips attribute-only updates; returns state-string transitions only. |
-| `minimal_response` | `bool` | `False` | Omits attributes from all but the last entry per entity. |
+| `minimal_response` | `bool` | `False` | Asks HA to send attributes only on the first entry per entity, which shrinks the payload. Hassette fills each later entry's missing fields from that first entry, so their `attributes` are copies, not the values at that point in time. |
 | `no_attributes` | `bool` | `False` | Strips attributes entirely from every entry. |
 
 `PlainDateTime` (a wall-clock time with no timezone), `ZonedDateTime`, `Date`, and `Instant` come
@@ -578,7 +578,9 @@ Returns all registered frontend panels, keyed by panel URL path.
 
 ### `delete_entity(entity_id)`
 
-Removes an entity from the Home Assistant state machine. Raises `RuntimeError` when deletion fails.
+Removes an entity from the Home Assistant state machine. Raises `EntityNotFoundError` if the entity
+does not exist, and `HttpRequestError` for other HTTP error statuses. Raises `RuntimeError` if Home
+Assistant answers with a success status other than 204.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_system.py:delete_entity"
