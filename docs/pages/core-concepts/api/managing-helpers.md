@@ -198,6 +198,10 @@ parameter is needed. The typed record is sufficient:
 --8<-- "pages/core-concepts/api/snippets/managing-helpers/testing_harness.py"
 ```
 
+The harness runs `on_initialize` before the test body starts. `seed_helper` adds to a store
+that already holds any helpers the app created. Seeding an id the app already created raises
+`ValueError`. Seed a different id, or call `harness.api_recorder.reset()` first.
+
 Seeded records are stored as deep copies. Later mutations to the record passed into
 `seed_helper` do not affect harness state.
 
