@@ -49,3 +49,32 @@ ship_checks = """
 
 **After the push.** If `.autofix-shots/` holds screenshots, attach them before opening the PR: `uv run python tools/frontend/attach_pr_screenshots.py .autofix-shots/*.png`. It pushes a commit adding the images and one removing them, then prints a `### Screenshots` block of SHA-pinned image links. Paste that block into the PR body as printed, above the closing-issue line. This applies to a draft PR too. If the tool fails, don't retry it and don't stop: open the PR anyway and say in its body that the screenshots couldn't be attached, with the tool's error. Never commit the images into the change itself ("Attaching screenshots to a PR" in `.claude/rules/demo-and-screenshots.md`).
 """
+
+# The scan job's unit pools and the profiles it rotates through, in this order (Dotfiles
+# packages/autofix/src/autofix/scan_profiles.py). A repo without [scan] can't run the scan job.
+[scan.units.docs]
+kind = "page"
+root = "docs/pages"
+exclude = ["**/snippets/**"]
+
+[scan.units.code]
+kind = "module"
+root = "src/hassette"
+
+[[scan.profile]]
+name = "docs-accuracy"
+units = "docs"
+skill = "doc-accuracy-review"
+
+[[scan.profile]]
+name = "docs-readability"
+units = "docs"
+skill = "doc-persona-review"
+
+[[scan.profile]]
+name = "clean-code"
+units = "code"
+
+[[scan.profile]]
+name = "review"
+units = "code"
