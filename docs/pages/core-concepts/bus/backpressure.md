@@ -81,9 +81,12 @@ slot; a `drop_newest` listener reached afterward then sees the semaphore
 locked and drops.
 
 The effective contract is: "drop if no free slot at the instant this listener
-is reached." Which listener drops within one event depends on dispatch order:
-matching listeners run in priority order (highest first), then in registration
-order for equal priorities.
+is reached." Which listener drops within one event depends on dispatch order.
+The bus walks routes from most to least specific. For `state_changed`, that is
+the entity topic, then the domain wildcard, then the base topic. Within each
+route, matching listeners run in priority order (highest first). Priority
+applies only within a route, so a low-priority entity listener runs before a
+high-priority base-topic listener.
 
 ### Signal type: latency vs. loss
 
