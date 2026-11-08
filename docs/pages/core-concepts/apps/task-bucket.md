@@ -86,15 +86,17 @@ The call runs on Hassette's dedicated sync-handler thread pool, not Python's def
 
 ## Shutdown
 
-Shutdown seals the bucket before it touches any tracked task. A sealed bucket rejects new work: a
-coroutine handed to `spawn()` is closed rather than left dangling, and a task created through
-Hassette's task factory (the event-loop hook that assigns every framework-created task to a
+Shutdown seals the bucket before it touches any tracked task. A sealed bucket rejects new work.
+`spawn()` closes the coroutine, so no "never awaited" warning appears, and raises
+`TaskBucketSealedError`, a `RuntimeError` subclass. Code that may spawn during shutdown should catch
+that error. Checking `is_sealed` first isn't enough, because cross-thread spawns re-check on the loop
+thread. A task created through Hassette's task factory (the event-loop hook that assigns every framework-created task to a
 bucket) is cancelled immediately, with its exception consumed so the rejection can't surface as an
 unhandled-task warning. This closes the window where a handler still running during shutdown could
 spawn work that outlives the cancellation sweep.
 
 After sealing, Hassette cancels every tracked task and waits up to `task_cancellation_timeout_seconds`
-(default: 5s, configurable in [global settings](../configuration/index.md)) for them to finish.
+(default: 5s, or 10s in dev mode; configurable in [global settings](../configuration/index.md)) for them to finish.
 Tasks that exit within that window are gone. Tasks that don't are logged and their names are
 recorded as evidence that the app's teardown did not fully complete — see
 [Teardown Safety and Restart Refusal](../internals/lifecycle.md#teardown-safety-and-restart-refusal)
@@ -118,7 +120,7 @@ Drain helpers are test-only methods that wait until the app's pending handlers a
 from listeners registered directly on a Bus outside an App aren't covered.
 
 ??? note "Advanced: collecting task exceptions in test infrastructure"
-    `install_exception_recorder(fn)` registers a callback that receives every non-cancellation exception raised by a bucket task — `asyncio.CancelledError` is excluded; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`, the test-only exception a drain raises when a task failed. Custom harnesses can do the same.
+    `install_exception_recorder(fn)` registers a callback that receives every non-cancellation exception raised by a bucket task — `asyncio.CancelledError` is excluded; `uninstall_exception_recorder(fn)` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`, the test-only exception a drain raises when a task failed. Custom harnesses can do the same.
 
 ## See Also
 
