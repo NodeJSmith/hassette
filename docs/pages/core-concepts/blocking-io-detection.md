@@ -10,7 +10,7 @@ Detection runs on two independent tiers.
 
 **Tier 2 — call-site interception.** Hassette patches the known blocking I/O primitives — `time.sleep`, `builtins.open`, `os.listdir`, `os.scandir`, `os.walk`, `glob.glob`, and blocking socket methods — to fire a warning and DB row at the exact call site. Tier 2 is on by default in [`dev_mode`](configuration/index.md#development-and-debugging) and off by default in production. To enable it in production, set `allow_deep_detection_in_prod = true` (or `deep_detection_enabled = true`) under `[hassette.blocking_io]` in `hassette.toml`. An explicit `deep_detection_enabled = false` there keeps it off in any mode.
 
-Both tiers share the same thread-id gate: calls that originate on a worker thread (via `asyncio.to_thread` or `run_in_executor`) pass through without triggering detection. Only calls on the event loop thread itself are flagged.
+Worker-thread calls (via `asyncio.to_thread` or `run_in_executor`) never trigger detection. Tier 2's wrappers pass through any call not made on the loop thread. Tier 1 measures only the loop's own responsiveness, which a worker thread can't stall. Only calls on the event loop thread itself are flagged.
 
 ## The Warning
 
@@ -53,7 +53,7 @@ Each entry shows:
 - **What it calls**: the library function it called into, such as `gcsa/_services/events_service.py get_events`, or for Tier 2, the intercepted primitive such as `time.sleep`.
 - **Every handler and job that reached it**, linked to its detail page. Two handlers that call the same blocking helper produce one entry, because there's one line to fix.
 - **How often and how badly**: the event count, the longest and average stall, and when it last happened.
-- **A show stack toggle** that expands the most recent event's stack with absolute paths, from the event loop callback that was running down to the blocking call. A stall outside any callback shows the whole stack.
+- **A show stack toggle** that expands the most recent event's stack with absolute paths. For a Tier 1 stall, it runs from the event loop callback that was running down to the blocking call. A stall outside any callback shows the whole stack. A Tier 2 entry holds only the intercepted call site.
 
 Two other labels can appear in place of a call site. "Detected inside `<package>`" means Tier 2 caught the call inside a library, so the library line isn't presented as the place to fix. The handler that called into the library is further up the stack. "Call site not captured" means no line of app code was found for those events: `capture_stack_on_block` is off, the recorded stack holds no frame from the app's directory, or the events were recorded by an older Hassette version that didn't store stacks in this form. Those events are grouped per handler instead.
 
@@ -99,13 +99,13 @@ When migrating existing code or working with a library that has no async equival
 
 ## Configuration
 
-Tier 1 and Tier 2 are tuned in `[hassette.blocking_io]`. The global behavior default lives at `blocking_io.behavior`. Per-app overrides live on each app's config class or in `hassette.toml` under `[hassette.apps.<key>]`.
+Tier 1 and Tier 2 are tuned in `[hassette.blocking_io]`. The global behavior default lives at `blocking_io.behavior`. Per-app overrides live on each app's config class, or in `hassette.toml` in the app's `config` table under `[hassette.apps.<key>]`. For example: `config = { instance_name = "legacy_app", blocking_io_behavior = "ignore" }`.
 
 See [Global Settings](configuration/index.md#blocking-io-detection) for the full field reference.
 
 ## Synchronous Handlers Are Never Flagged
 
-A handler written as a plain (non-`async`) function runs on a worker thread — Hassette adapts it to run off the loop automatically. Blocking I/O inside such a handler is fine: it stalls a worker thread, not the loop. The thread-id gate excludes every worker-thread call from both tiers, so synchronous handlers never trip detection no matter what they do.
+A handler written as a plain (non-`async`) function runs on a worker thread — Hassette adapts it to run off the loop automatically. Blocking I/O inside such a handler is fine: it stalls a worker thread, not the loop. Neither tier flags work on a worker thread, so synchronous handlers never trip detection no matter what they do.
 
 ## Next Steps
 
