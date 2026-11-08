@@ -49,7 +49,7 @@ Identity extractors resolve entity IDs and domains from events.
 | Annotation | Returns | If missing | Use case |
 |---|---|---|---|
 | `D.EventData[T]` | `T` | Handler skipped | Typed payload from `Bus.emit` broadcast events |
-| `D.EventContext` | `HassContext` | Handler skipped | Home Assistant event context (user ID, parent/origin IDs) |
+| `D.EventContext` | `HassContext` | Handler skipped | Home Assistant event context (context ID, parent ID, user ID) |
 | `D.TypedStateChangeEvent[T]` | `TypedStateChangeEvent[T]` | Always present | Full event with both old and new states typed |
 
 `D.EventData[T]` pairs with [`Bus.emit`](../apps/index.md) for cross-app communication — one app sends a typed payload, and other apps subscribe to receive it. The emitting app sends a dataclass; the receiving handler annotates its parameter with the same type:
