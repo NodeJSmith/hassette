@@ -75,6 +75,8 @@ uv run pyright
 
 ## Pull Request Process
 
+Only collaborators can open pull requests. Before you start, open an issue (or comment on an existing one), tag @NodeJSmith, and ask for access.
+
 1. **Create a branch** for your changes
    ```bash
    git checkout -b feature/your-feature-name
