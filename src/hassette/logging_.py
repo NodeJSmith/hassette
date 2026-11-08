@@ -61,7 +61,7 @@ LOGGER_NAMES = (HASSETTE_LOGGER_NAME, PY_WARNINGS_LOGGER_NAME)
 # source of truth both that validator and this module read from.
 RESERVED_EXTRA_LOGGER_NAMES = frozenset({*LOGGER_NAMES, "root"})
 
-# Top-level packages whose warning classes are Hassette's own (the workspace members ship in lockstep).
+# Top-level packages whose loggers and warning classes are Hassette's own (the workspace members ship in lockstep).
 FRAMEWORK_PACKAGE_NAMES = frozenset({"hassette", "hassette_wire", "hassette_client"})
 
 _LOG_IDENTITY_ATTR = "_hassette_log_identity"
@@ -220,10 +220,8 @@ def get_logger_identity(logger: logging.Logger) -> LogIdentity | None:
 
 
 def namespace_author(logger_name: str) -> LogAuthor:
-    """Author for a logger nothing identified: framework inside the ``hassette`` tree, app outside it."""
-    if logger_name == HASSETTE_LOGGER_NAME or logger_name.startswith(f"{HASSETTE_LOGGER_NAME}."):
-        return "framework"
-    return "app"
+    """Author for a logger nothing identified: framework under a ``FRAMEWORK_PACKAGE_NAMES`` package, app otherwise."""
+    return "framework" if logger_name.partition(".")[0] in FRAMEWORK_PACKAGE_NAMES else "app"
 
 
 def warning_author(category: type[Warning] | None, filename: str | None) -> LogAuthor:

@@ -108,8 +108,11 @@ class TestOwnerlessLoggers:
         [
             ("hassette", "framework"),
             ("hassette.identity_test.unowned", "framework"),
+            ("hassette_wire.identity_test.lenient", "framework"),
+            ("hassette_client.identity_test.transport", "framework"),
             ("identity_test_user_module", "app"),
             ("hassettex.identity_test", "app"),
+            ("hassette_extra.identity_test", "app"),
         ],
     )
     def test_namespace_rule_when_nothing_is_identified(self, name: str, author: str) -> None:
