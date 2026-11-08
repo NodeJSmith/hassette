@@ -1,14 +1,13 @@
 import inspect
-import typing
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from logging import getLogger
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from hassette.exceptions import HassetteNotInitializedError
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette import Hassette, HassetteConfig, TaskBucket
 
 LOGGER = getLogger(__name__)
@@ -62,17 +61,13 @@ def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
         extra_msg = f"Set at {HASSETTE_SET_LOCATION.get()}" if HASSETTE_SET_LOCATION.get() else ""
         raise RuntimeError(f"Hassette instance is already set. {extra_msg}".rstrip())
 
-    try:
-        # Capture where this was first set
-        frame = inspect.currentframe()
-        caller = frame.f_back if frame is not None else None
-        if caller is not None:
-            info = inspect.getframeinfo(caller)
-            where = f"{info.filename}:{info.lineno} in {info.function}"
-        else:
-            where = "<unknown location>"
-    except Exception as exc:
-        LOGGER.warning("Failed to capture set location for Hassette instance: %s", exc)
+    # Capture where this was first set
+    frame = inspect.currentframe()
+    caller = frame.f_back if frame is not None else None
+    if caller is not None:
+        info = inspect.getframeinfo(caller)
+        where = f"{info.filename}:{info.lineno} in {info.function}"
+    else:
         where = "<unknown location>"
 
     HASSETTE_SET_LOCATION.set(where)
@@ -89,8 +84,7 @@ def set_global_hassette_config(config: "HassetteConfig") -> None:
 def get_hassette() -> "Hassette":
     """Get the current Hassette instance from context."""
     try:
-        inst = HASSETTE_INSTANCE.get()
-        return inst
+        return HASSETTE_INSTANCE.get()
     except LookupError as exc:
         raise HassetteNotInitializedError("No Hassette instance found in context.") from exc
 
@@ -98,8 +92,7 @@ def get_hassette() -> "Hassette":
 def get_hassette_config() -> "HassetteConfig":
     """Get the current Hassette configuration from context."""
     try:
-        config = HASSETTE_CONFIG.get()
-        return config
+        return HASSETTE_CONFIG.get()
     except LookupError:
         LOGGER.debug("HassetteConfig not found in context, attempting to get from Hassette instance.")
         return get_hassette().config
@@ -118,18 +111,12 @@ def use(var: ContextVar[T], value: T) -> Generator[None, Any, Any]:
 @contextmanager
 def use_hassette_config(config: "HassetteConfig") -> Generator[None, Any, Any]:
     """Temporarily set the global HassetteConfig within a block."""
-    token = HASSETTE_CONFIG.set(config)
-    try:
+    with use(HASSETTE_CONFIG, config):
         yield
-    finally:
-        HASSETTE_CONFIG.reset(token)
 
 
 @contextmanager
 def use_task_bucket(bucket: "TaskBucket") -> Generator[None, Any, Any]:
     """Temporarily set the current TaskBucket within a block."""
-    token = CURRENT_BUCKET.set(bucket)
-    try:
+    with use(CURRENT_BUCKET, bucket):
         yield
-    finally:
-        CURRENT_BUCKET.reset(token)
