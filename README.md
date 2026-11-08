@@ -150,6 +150,8 @@ Hassette is written by AI coding agents, mostly Claude Code. I make every design
 
 Bug reports, feature ideas, docs fixes and code are all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
+Only collaborators can open pull requests, which keeps out drive-by spam PRs. If you'd like to contribute code, open an issue (or comment on an existing one), tag @NodeJSmith, and ask for access.
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=nodejsmith/hassette&type=date&legend=top-left)](https://www.star-history.com/#NodeJSmith/hassette&type=date&legend=top-left)
