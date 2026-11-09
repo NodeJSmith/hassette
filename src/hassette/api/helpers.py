@@ -26,7 +26,7 @@ Examples:
 
 import builtins
 import typing
-from typing import Any, Literal, overload
+from typing import Any, Literal, TypeVar, overload
 
 from hassette_wire import LogLevel
 from pydantic import BaseModel
@@ -78,6 +78,8 @@ HelperDomain = Literal[
 ]
 """Literal union of all helper domain strings supported by `HelperClient`."""
 
+_DispatchT = TypeVar("_DispatchT")
+
 # Maps Create*Params type -> (domain_string, Record type). No id_key here — create() targets
 # a brand-new helper, so there's no existing entity id to look up (unlike update()/delete()).
 CREATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel]]] = {
@@ -112,6 +114,33 @@ DOMAIN_DISPATCH: dict[str, type[BaseModel]] = {
 # already carries the "{domain}_id" pattern for update()'s per-domain dispatch — avoids a third
 # hand-maintained copy of the same domain-to-id-key mapping.
 ID_KEYS: dict[str, str] = {domain: id_key for domain, _record_type, id_key in UPDATE_DISPATCH.values()}
+
+
+def dispatch_on_params_type(table: dict[type, _DispatchT], params: object) -> _DispatchT:
+    """Look up ``type(params)`` in a params-type dispatch table, exact type only.
+
+    Raises:
+        TypeError: If ``type(params)`` is not a key of ``table`` (subclasses are not matched).
+    """
+    try:
+        return table[type(params)]
+    except KeyError:
+        raise TypeError(
+            f"Unsupported helper params type {type(params).__name__}; "
+            "pass one of the Create*Params / Update*Params models"
+        ) from None
+
+
+def dispatch_on_domain(table: dict[str, _DispatchT], domain: str) -> _DispatchT:
+    """Look up a helper domain string in a domain dispatch table.
+
+    Raises:
+        ValueError: If ``domain`` is not a key of ``table``.
+    """
+    try:
+        return table[domain]
+    except KeyError:
+        raise ValueError(f"Unknown helper domain {domain!r}; expected one of {sorted(table)}") from None
 
 
 class HelperClient(Resource):
@@ -167,8 +196,11 @@ class HelperClient(Resource):
 
         Returns:
             List of domain-specific Record instances representing stored configs.
+
+        Raises:
+            ValueError: If ``domain`` is not a supported helper domain.
         """
-        record_type = DOMAIN_DISPATCH[domain]
+        record_type = dispatch_on_domain(DOMAIN_DISPATCH, domain)
         val = await _ws_helper_call(self._api, domain, "list")
         items = _expect_list(val, f"{domain}/list")
         self.logger.debug("Listed %d %s helpers", len(items), domain)
@@ -200,8 +232,12 @@ class HelperClient(Resource):
 
         Returns:
             The stored record returned by Home Assistant.
+
+        Raises:
+            TypeError: If ``params`` is not exactly one of the ``Create*Params`` models (subclasses
+                are not supported).
         """
-        domain, record_type = CREATE_DISPATCH[type(params)]
+        domain, record_type = dispatch_on_params_type(CREATE_DISPATCH, params)
         fields = params.model_dump(exclude_unset=True)
         write = self._api.begin_write("helper_create", domain, data=fields or None)
         val = await _ws_helper_call(self._api, domain, "create", retry_on_timeout=False, record=write, **fields)
@@ -239,8 +275,12 @@ class HelperClient(Resource):
 
         Returns:
             The updated stored record.
+
+        Raises:
+            TypeError: If ``params`` is not exactly one of the ``Update*Params`` models (subclasses
+                are not supported).
         """
-        domain, record_type, id_key = UPDATE_DISPATCH[type(params)]
+        domain, record_type, id_key = dispatch_on_params_type(UPDATE_DISPATCH, params)
         fields = params.model_dump(exclude_unset=True)
         write = self._api.begin_write("helper_update", domain, target={"helper_id": [helper_id]}, data=fields or None)
         val = await _ws_helper_call(
@@ -276,8 +316,11 @@ class HelperClient(Resource):
                 ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
                 The two often look alike but are not guaranteed to match (renaming the entity
                 changes only the ``entity_id``); look the id up with ``list(domain)``.
+
+        Raises:
+            ValueError: If ``domain`` is not a supported helper domain.
         """
-        id_key = ID_KEYS[domain]
+        id_key = dispatch_on_domain(ID_KEYS, domain)
         write = self._api.begin_write("helper_delete", domain, target={"helper_id": [helper_id]})
         await _ws_helper_call(self._api, domain, "delete", retry_on_timeout=False, record=write, **{id_key: helper_id})
         self.logger.info("Deleted %s helper %r", domain, helper_id)

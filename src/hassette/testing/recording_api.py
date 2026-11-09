@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from slugify import slugify as _py_slugify
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.api.helpers import dispatch_on_domain, dispatch_on_params_type
 from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
 from hassette.event_handling.accessors import get_path
@@ -477,32 +478,30 @@ class RecordingHelperClient:
 
     async def list(self, domain: str) -> list[Any]:
         """Return all seeded helpers for domain. Delegates to _list_helper."""
-        record_type = DOMAIN_TO_RECORD_TYPE[domain]
+        record_type = dispatch_on_domain(DOMAIN_TO_RECORD_TYPE, domain)
         return self._list_helper(record_type)
 
     async def create(self, params: Any) -> Any:
         """Record the call and add a record to helper_definitions. Delegates to _create_helper.
 
-        Dispatches on ``type(params)`` via ``CREATE_PARAMS_TO_RECORD_TYPE``, mirroring
-        ``HelperClient.create``'s dispatch on ``CREATE_DISPATCH``.
+        Dispatches on ``type(params)`` via ``CREATE_PARAMS_TO_RECORD_TYPE``, mirroring ``HelperClient.create``.
         """
-        record_type = CREATE_PARAMS_TO_RECORD_TYPE[type(params)]
+        record_type = dispatch_on_params_type(CREATE_PARAMS_TO_RECORD_TYPE, params)
         domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         return self._create_helper(record_type, f"create_{domain}", params)
 
     async def update(self, helper_id: str, params: Any) -> Any:
         """Record the call and mutate the seeded record. Delegates to _update_helper.
 
-        Dispatches on ``type(params)`` via ``UPDATE_PARAMS_TO_RECORD_TYPE``, mirroring
-        ``HelperClient.update``'s dispatch on ``UPDATE_DISPATCH``.
+        Dispatches on ``type(params)`` via ``UPDATE_PARAMS_TO_RECORD_TYPE``, mirroring ``HelperClient.update``.
         """
-        record_type = UPDATE_PARAMS_TO_RECORD_TYPE[type(params)]
+        record_type = dispatch_on_params_type(UPDATE_PARAMS_TO_RECORD_TYPE, params)
         domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         return self._update_helper(record_type, f"update_{domain}", helper_id, params)
 
     async def delete(self, domain: str, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
-        record_type = DOMAIN_TO_RECORD_TYPE[domain]
+        record_type = dispatch_on_domain(DOMAIN_TO_RECORD_TYPE, domain)
         self._delete_helper(record_type, f"delete_{domain}", helper_id)
 
     async def increment(self, entity_id: str) -> None:

@@ -316,3 +316,24 @@ async def test_seed_helper_isolates_caller_mutations():
         assert len(listed) == 1
         assert listed[0].name == "Mode"
         assert listed[0].options == ["a", "b"]
+
+
+class _SubclassedCreateParams(CreateInputBooleanParams):
+    """Subclass of a Create*Params model: dispatch is exact-type, so this is unsupported."""
+
+
+@pytest.mark.parametrize(
+    ("call", "exc_type", "match"),
+    [
+        (lambda h: h.create(_SubclassedCreateParams(name="x")), TypeError, "Unsupported helper params type"),
+        (lambda h: h.update("x", CreateInputBooleanParams(name="x")), TypeError, "Unsupported helper params type"),
+        (lambda h: h.list("light"), ValueError, "Unknown helper domain 'light'"),
+        (lambda h: h.delete("light", "x"), ValueError, "Unknown helper domain 'light'"),
+    ],
+    ids=["create", "update", "list", "delete"],
+)
+async def test_helper_crud_rejects_unsupported_input_like_real_client(call, exc_type, match):
+    """RecordingApi raises the same descriptive errors as HelperClient for unsupported input."""
+    api = make_recording_api()
+    with pytest.raises(exc_type, match=match):
+        await call(api.helpers)
