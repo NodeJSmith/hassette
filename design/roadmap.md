@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-11-05
+Last reviewed: 2026-11-09
 
 ## How the pieces fit
 
@@ -57,6 +57,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
+| **HA drift canary** | *HA Drift Canary* (brief: `design/research/2026-11-09-ha-wire-drift-detection/`) | Small. Catches upstream HA wire changes on HA `dev` weeks before a release reaches users (#3949 shipped broken run events). Tests and CI only, so it doesn't collide with the Testing API redesign |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
