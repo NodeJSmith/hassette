@@ -107,6 +107,12 @@ class ScriptStartedPayload:
     name: str
     entity_id: str
 
+    item_id: str | None = None
+    """The script's config ID (its key in YAML). Sent by Home Assistant 2026.11 and later."""
+
+    run_id: str | None = None
+    """Identifier of this script run, matching its trace. Sent by Home Assistant 2026.11 and later."""
+
 
 @dataclass(slots=True, frozen=True)
 class EntityRegistryUpdatedPayload:

@@ -12,6 +12,7 @@ from hassette.events import (
     AutomationTriggeredEvent,
     ComponentLoadedEvent,
     HassEventEnvelopeDict,
+    ScriptStartedEvent,
     create_event_from_hass,
 )
 from hassette.testing._factories import create_hass_event
@@ -46,20 +47,23 @@ def test_typed_payload_ignores_unknown_key(event_type: str) -> None:
     assert not hasattr(event.payload.data, "added_in_future_ha")
 
 
-def test_automation_triggered_parses_ha_2026_11_shape() -> None:
-    """HA 2026.11 sends item_id and run_id; both land on the typed payload."""
+@pytest.mark.parametrize(
+    ("event_type", "event_class", "entity_id"),
+    [
+        ("automation_triggered", AutomationTriggeredEvent, "automation.morning"),
+        ("script_started", ScriptStartedEvent, "script.bedtime"),
+    ],
+)
+def test_run_events_parse_ha_2026_11_shape(
+    event_type: str, event_class: type[AutomationTriggeredEvent | ScriptStartedEvent], entity_id: str
+) -> None:
+    """HA 2026.11 sends item_id and run_id on automation and script runs; both land on the typed payload."""
     event = create_hass_event(
-        "automation_triggered",
-        {
-            "name": "Morning",
-            "entity_id": "automation.morning",
-            "source": "state of binary_sensor.motion",
-            "item_id": "1700000000000",
-            "run_id": "01JC5Z6K8Y2Q3R4S5T6V7W8X9Y",
-        },
+        event_type,
+        {"name": "Morning", "entity_id": entity_id, "item_id": "1700000000000", "run_id": "01JC5Z6K8Y2Q3R4S5T6V7W8X9Y"},
     )
 
-    assert isinstance(event, AutomationTriggeredEvent)
+    assert isinstance(event, event_class)
     assert event.payload.data.item_id == "1700000000000"
     assert event.payload.data.run_id == "01JC5Z6K8Y2Q3R4S5T6V7W8X9Y"
 
