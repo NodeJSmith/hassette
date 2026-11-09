@@ -1,14 +1,12 @@
 import typing
-from logging import getLogger
 
 from hassette.app.app_config import AppConfig
 from hassette.exceptions import InvalidInheritanceError
 
 if typing.TYPE_CHECKING:
-    from hassette.app import App  # breaks a circular import; hassette.app imports this module
-    from hassette.types import AppConfigT
-
-LOGGER = getLogger(__name__)
+    # breaks a circular import: hassette.app.app -> hassette.config -> hassette.config.config
+    # -> hassette.utils.app_utils -> hassette.app.utils
+    from hassette.app import App
 
 
 def get_app_config_class(cls: type["App"]) -> type[AppConfig]:
@@ -24,35 +22,27 @@ def get_app_config_class(cls: type["App"]) -> type[AppConfig]:
         The subclass of AppConfig for this app.
 
     Note:
-        This is my best attempt (so far) at making App generic so that it can be strongly typed\
-        with a user defined Config class, without having to also set a class variable manually, which\
-        would allow for mistakes. If a future user/developer has a better idea, please let me know!
+        The config class is read from `__orig_bases__`, so `App[MyConfig]` needs no separate class variable that
+        could disagree with it.
     """
-    # house-lint: ignore-next[HSL002] - break circular import, hassette.app imports this module
+    # house-lint: ignore-next[HSL002] - cycle: app.app -> config -> config.config -> utils.app_utils -> app.utils
     from hassette.app import App  # noqa: PLC0415
 
-    args = ()
     for base in getattr(cls, "__orig_bases__", ()):
-        # get the origin to confirm it's an App subclass
         origin = typing.get_origin(base)
         if not origin or not issubclass(origin, App):
             continue
 
-        # if we have a generic type, get the first argument, as long as it's not a TypeVar
-        args = getattr(base, "__args__", ())
-        if args and not isinstance(args[0], typing.TypeVar):
-            break
+        for arg in getattr(base, "__args__", ()):
+            if isinstance(arg, type) and issubclass(arg, AppConfig):
+                return arg
 
-    # if we haven't found a user_config_class, we'll just return the default
-    pydantic_model_args = [arg for arg in args if isinstance(arg, type) and issubclass(arg, AppConfig)]
-    if not pydantic_model_args:
-        return AppConfig
-
-    return pydantic_model_args[0]
+    # no AppConfig subclass found; fall back to the default
+    return AppConfig
 
 
 def validate_app(cls: type["App"]) -> type[AppConfig]:
-    """Validate the AppConfig class of an App subclass.
+    """Check the App subclass's `__init__` inheritance order and return its AppConfig class.
 
     Args:
         cls: The subclass of App to validate.
@@ -63,16 +53,12 @@ def validate_app(cls: type["App"]) -> type[AppConfig]:
     Raises:
         InvalidInheritanceError: If the inheritance order is incorrect.
     """
-    LOGGER.debug("Initializing subclass %s", cls.__name__)
-
     validate_init_method(cls)
 
-    app_config_cls = get_app_config_class(cls)
-
-    return app_config_cls
+    return get_app_config_class(cls)
 
 
-def validate_init_method(cls: type["App[AppConfigT]"]) -> None:
+def validate_init_method(cls: type["App"]) -> None:
     """Validate the __init__ method of an App subclass.
 
     This function checks the method resolution order (MRO) of the class to ensure that
@@ -80,44 +66,34 @@ def validate_init_method(cls: type["App[AppConfigT]"]) -> None:
     an InvalidInheritanceError.
 
     Args:
-        cls (type[App[AppConfigT]]): The subclass of App to validate.
+        cls: The subclass of App to validate.
 
     Raises:
         InvalidInheritanceError: If the inheritance order is incorrect, meaning that a subclass
         of App overrides the __init__ method before App itself.
 
     Note:
-        This was added because if you not define your own __init__ method and you inherit from another class\
-        before App, (e.g. Pydantic's BaseModel), it will be the __init__ method that gets called, which\
-        `AppHandler` does not expect and will not be able to handle. Unsure if this will see much usage, but it\
-        is a good safeguard to have.
+        A class listed before App (e.g. Pydantic's `BaseModel`) that defines `__init__` would shadow
+        `App.__init__`, which `AppHandler` can't handle.
     """
-    # house-lint: ignore-next[HSL002] - break circular import, hassette.app imports this module
+    # house-lint: ignore-next[HSL002] - cycle: app.app -> config -> config.config -> utils.app_utils -> app.utils
     from hassette.app import App  # noqa: PLC0415
 
     if cls.__module__.startswith("hassette."):
-        # skipping internal classes
         return
-
-    LOGGER.debug("Validating __init__ method for %s", cls.__name__)
 
     mro = cls.mro()
-    # get the first index in the MRO where App is found, excepting the first class
-    hass_index = [i for i, base in enumerate(mro) if issubclass(base, App) and i != 0][0]
-    LOGGER.debug("Found App at index %d in MRO for %s", hass_index, cls.__name__)
+    app_index = next(i for i, base in enumerate(mro) if i != 0 and issubclass(base, App))
 
-    # if the first class in the MRO declares an __init__ method, we can skip the rest
-    # assumption: the first class in the MRO is App, so we can check it directly
+    # the subclass defines its own __init__, so nothing earlier in the MRO can shadow App's
     if "__init__" in mro[0].__dict__:
-        LOGGER.debug("Found __init__ in base class %s", mro[0].__name__)
         return
 
-    for base in mro[1:hass_index]:
+    for base in mro[1:app_index]:
         if "__init__" not in base.__dict__:
             continue
 
         if issubclass(base, App):
-            LOGGER.debug("Found first __init__ in subclass of App: %s", base.__name__)
             return
 
         raise InvalidInheritanceError(
