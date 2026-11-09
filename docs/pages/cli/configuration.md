@@ -76,9 +76,17 @@ A forward-auth gateway in front of Hassette authenticates browser traffic with i
 
 The fix is a second route: one that matches `/api/*` on the same subdomain, skips the gateway's login middleware, and forwards straight to Hassette. Hassette's own bearer token — resolved the same way as any other `cli.*` credential — authenticates those requests once they arrive, so the gateway's login and Hassette's token check never both apply to the same request.
 
+In Caddy, the bypass is a `handle` block placed ahead of the forward-auth catch-all, matching `/api/*` requests that carry a bearer token. Requests without one, including the web UI's own API calls, still go through the gateway. `authelia:9091` and its `uri` stand in for whichever gateway already guards the browser route:
+
+```caddyfile title="Caddyfile"
+--8<-- "pages/web-ui/snippets/reverse-proxy-caddy-cli-bypass.txt"
+```
+
+With the bypass in place, `hassette --server-url https://hassette.example.com status` returns the status panel instead of `Error 302`.
+
 This works for subdomain routing, where `cli.server_url` points at a dedicated hostname (`https://hassette.example.com`) that proxies entirely to Hassette. Path-prefix routing — one hostname serving Hassette under a subpath like `/hassette` — is supported by `server_url` (the path prefix survives through to every request, see [Discovery Order](#discovery-order)), but no worked example ships here: it has not been verified end-to-end against a path-stripping proxy.
 
-Add `trusted_proxies` (see [Web UI](../web-ui/index.md#enabling-and-accessing)) when the gateway's own login should stand in for Hassette's — the same trust relationship the web UI section documents, extended to the `/api/*` route. It composes with a bearer token rather than replacing it: peer trust admits requests that send no `Authorization` header, and any request carrying that header is still validated against Hassette's token.
+Add `trusted_proxies` (see [Web UI](../web-ui/index.md#enabling-and-accessing)) when the gateway's own login should stand in for Hassette's — the same trust relationship the web UI section documents, extended to the `/api/*` route. It composes with a bearer token rather than replacing it: peer trust admits requests that send no `Authorization` header, and any request carrying that header is still validated against Hassette's token. Keep the bypass limited to requests that carry a bearer token, as the example above does: once Caddy is trusted, an `/api/*` request that skips the gateway with no `Authorization` header would be admitted as Caddy, unauthenticated.
 
 ## Output Modes
 
@@ -213,7 +221,7 @@ Another process — usually a second Hassette instance — holds the web API por
 Usage error: Instance 'office' not found for app 'my-app'. Available instances: 'default', 'kitchen'
 ```
 
-The instance name is required and unique for every configured instance, and must match an `app.instances[].instance_name` value from `hassette app --json` exactly — the default `hassette app` table shows a per-app instance count, not the names themselves. A number isn't a name: `--instance 0` fails the same way, listing the available instances.
+The instance name is required and unique for every configured instance, and must match an existing instance name exactly. [`hassette app instances <key>`](commands.md#hassette-app-instances-key) lists each instance by name. A number isn't a name: `--instance 0` fails the same way, listing the available instances.
 
 **Authentication failure (401):**
 

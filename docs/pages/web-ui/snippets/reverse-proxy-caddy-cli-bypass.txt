@@ -1,0 +1,17 @@
+hassette.example.com {
+    @cli {
+        path /api/*
+        header Authorization "Bearer *"
+    }
+
+    handle @cli {
+        reverse_proxy hassette:8126
+    }
+
+    handle {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+        }
+        reverse_proxy hassette:8126
+    }
+}
