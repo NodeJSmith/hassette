@@ -641,7 +641,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         await self.db.commit()
         self.logger.debug("Heartbeat updated for session %d", session_id)
 
-    async def _insert_log_records(self, records: list[dict]) -> None:
+    async def insert_log_records(self, records: list[dict]) -> None:
         """Batch-insert log records into the log_records table.
 
         Must only be called via enqueue() — never await directly.

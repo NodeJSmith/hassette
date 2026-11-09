@@ -14,9 +14,10 @@ from pathlib import PurePath
 from typing import IO, TYPE_CHECKING, Any, Literal, TextIO
 
 import structlog
+import structlog.contextvars
 import structlog.processors
 import structlog.stdlib
-from hassette_wire import LogAuthor
+from hassette_wire import LogAuthor, LogLevel
 
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
@@ -72,6 +73,15 @@ WARNING_CATEGORY_ATTR = "warning_category"
 WARNING_FILENAME_ATTR = "warning_filename"
 
 LogFormat = Literal["auto", "console", "compact", "json"]
+
+# Third-party loggers enable_basic_logging() quiets, because their output isn't useful at Hassette's log levels.
+NOISY_LOGGER_LEVELS: dict[str, int] = {
+    "requests": logging.WARNING,
+    "urllib3": logging.WARNING,
+    "aiohttp.access": logging.WARNING,
+    "httpx2": logging.WARNING,
+    "asyncio": logging.ERROR,
+}
 
 
 @dataclass
@@ -413,6 +423,8 @@ class HassetteQueueListener(logging.handlers.QueueListener):
         # preventing sentinel delivery and hanging thread.join() in stop().
         self.queue.put(self._sentinel)  # pyright: ignore[reportAttributeAccessIssue]
 
+    # Stdlib QueueListener._monitor plus the flush_if_pending call on queue.Empty. Re-diff it against
+    # logging.handlers.QueueListener._monitor when the supported Python range changes.
     def _monitor(self) -> None:
         log_queue = self.queue
         has_task_done = hasattr(log_queue, "task_done")
@@ -486,25 +498,23 @@ class LogPersistenceHandler(logging.Handler):
     def _flush(self) -> None:
         batch = self._batch
         self._batch = []
-        db_service = self._db_service
-        loop = self._loop
-        dropped_lock = self._dropped_lock
-        batch_len = len(batch)
 
         def _do_enqueue() -> None:
             try:
-                if not db_service.enqueue(db_service._insert_log_records(batch)):
-                    with dropped_lock:
-                        self._dropped += batch_len
+                if not self._db_service.enqueue(self._db_service.insert_log_records(batch)):
+                    self.record_drop(len(batch))
             except RuntimeError:
-                with dropped_lock:
-                    self._dropped += batch_len
+                self.record_drop(len(batch))
 
         try:
-            loop.call_soon_threadsafe(_do_enqueue)
+            self._loop.call_soon_threadsafe(_do_enqueue)
         except RuntimeError:
-            with dropped_lock:
-                self._dropped += batch_len
+            self.record_drop(len(batch))
+
+    def record_drop(self, count: int) -> None:
+        """Add ``count`` records to the cumulative drop count."""
+        with self._dropped_lock:
+            self._dropped += count
 
     def record_to_dict(self, record: logging.LogRecord) -> dict[str, Any]:
         """Convert a record into a ``log_records`` row, including its identity and correlation attributes.
@@ -554,32 +564,11 @@ class _ExtraLoggerSnapshot:
     filters: list[Any]
 
 
-# Deliberately module-level, not instance state — see TestNoModuleGlobals for the general
-# "no module globals in this file" convention this departs from. That convention targets state
-# an owning Resource can hold instead (LoggingService's Phase 2 handlers are instance attributes
-# for exactly that reason). This state is different in kind: it exists to detect drift *between*
-# separate enable_basic_logging() calls — i.e. separate Hassette() instances constructed one
-# after another in the same process, most commonly across test-suite construction. Each such
-# instance gets its own LoggingService, so no single instance could own "what the previous
-# instance configured" — only state that outlives any one instance and spans the whole process
-# can answer that, which is what module-level state means here. logging.getLogger()'s own
-# registry is process-global for the same reason; this is bookkeeping for the same registry,
-# not an independent design choice. block_io_guard.py's _originals/_installed is the existing
-# precedent for this pattern (module state tracking mutations to a shared process-global
-# resource so they can be undone) — the difference is block_io_guard also tracks an _owner_id
-# to detect a *conflicting* second installation, which doesn't apply here: a second Hassette()
-# reconfiguring or dropping a name is the intended, correct behavior for this setting, not a
-# conflict to flag.
-#
-# Not safe for concurrent enable_basic_logging() calls — the diff-and-restore sequence below is
-# read-modify-write with no lock. Not currently a real scenario: every call site
-# (Hassette.__init__, __main__.py) is synchronous, single-threaded, constructor-time code.
-# Keyed by logger name. An entry exists only between a name's adoption and its next restore —
-# _restore_extra_logger() pops it once replayed, so a later re-adoption of the same name
-# snapshots whatever is actually on the logger at that moment, not the original one. Without
-# this, a name adopted, dropped, reconfigured by its own owning code, then re-adopted and
-# dropped again would restore to the stale first-ever baseline and silently discard that
-# legitimate intervening reconfiguration.
+# Module-level, not instance state: it tracks drift between separate enable_basic_logging() calls
+# made by successive Hassette() instances in one process, which no single instance could own.
+# Not safe for concurrent enable_basic_logging() calls; the diff-and-restore sequence is unlocked.
+# Keyed by logger name. An entry lives only from a name's adoption until its restore, which is why
+# _restore_extra_logger() pops it: a later re-adoption snapshots the logger as it is at that moment.
 _extra_logger_snapshots: dict[str, _ExtraLoggerSnapshot] = {}
 # The extra logger names currently attached to Hassette's pipeline, as of the most recent
 # enable_basic_logging() call. Diffed against the next call's list to detect names that were
@@ -643,7 +632,7 @@ def _reset_logger(name: str, level: int | str) -> logging.Logger:
 
 
 def enable_basic_logging(
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    log_level: LogLevel,
     *,
     log_format: LogFormat = "auto",
     stream: IO[str] | None = None,
@@ -708,10 +697,8 @@ def enable_basic_logging(
     if use_json:
         # JSONRenderer can't serialize an exc_info tuple; the console renderers format it themselves.
         output_processors: list = [structlog.processors.format_exc_info, structlog.processors.JSONRenderer()]
-    elif log_format == "compact":
-        output_processors = [console_identity, console_renderer(compact=True)]
     else:
-        output_processors = [console_identity, console_renderer(compact=False)]
+        output_processors = [console_identity, console_renderer(compact=log_format == "compact")]
 
     formatter = structlog.stdlib.ProcessorFormatter(
         # Runs on the log queue's listener thread in Phase 2, so the time comes from the record, not the clock.
@@ -774,11 +761,8 @@ def enable_basic_logging(
     # extra_loggers loop below so that explicitly opting one of these names into extra_loggers
     # (e.g. extra_loggers=["requests"] with log_level="DEBUG") always wins — otherwise this
     # block would immediately overwrite the level the user just asked for.
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
-    logging.getLogger("httpx2").setLevel(logging.WARNING)
-    logging.getLogger("asyncio").setLevel(logging.ERROR)
+    for noisy_name, noisy_level in NOISY_LOGGER_LEVELS.items():
+        logging.getLogger(noisy_name).setLevel(noisy_level)
 
     # Attach any app-author-configured extra logger names (LoggingConfig.extra_loggers) to
     # the same handler, formatter, and level as the hassette logger — lets a logger outside

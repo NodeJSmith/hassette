@@ -64,7 +64,7 @@ def make_db_service() -> MagicMock:
     """Return a minimal DatabaseService mock."""
     db_service = MagicMock()
     db_service.enqueue = Mock(return_value=True)
-    db_service._insert_log_records = Mock(return_value=AsyncMock())
+    db_service.insert_log_records = Mock(return_value=AsyncMock())
     return db_service
 
 

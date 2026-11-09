@@ -47,7 +47,7 @@ class TestRetentionCleanup:
         old_ts = now - (5 * SECONDS_PER_DAY)  # 5 days ago (older than log_retention_days=3)
         recent_ts = now - (1 * SECONDS_PER_DAY)  # 1 day ago (within log_retention_days=3)
 
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
+        await db_service_writer.insert_log_records(
             [
                 make_log_record_row(1, old_ts, "old"),
                 make_log_record_row(2, recent_ts, "recent"),
@@ -94,7 +94,7 @@ class TestRetentionCleanup:
         now = time.time()
         old_ts = now - (5 * SECONDS_PER_DAY)  # older than log_retention_days=3
         recent_ts = now - (1 * SECONDS_PER_DAY)
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
+        await db_service_writer.insert_log_records(
             [
                 make_log_record_row(1, old_ts, "old debug", level="DEBUG"),
                 make_log_record_row(2, old_ts, "old info"),
@@ -123,7 +123,7 @@ class TestRetentionCleanup:
             make_log_record_row(i + 1, now - (age * SECONDS_PER_DAY), f"age {age} days")
             for i, age in enumerate(ages_days)
         ]
-        await db_service_writer._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+        await db_service_writer.insert_log_records(records)
 
         # log_retention_days=3: records at 0.5, 1.5, 2.5 days old are kept;
         # records at 3.5 and 4.5 days old are deleted
@@ -141,7 +141,7 @@ class TestRetentionCleanup:
         # log_retention_days=3, db_retention_days=7
         # A record 5 days old is within db_retention_days but outside log_retention_days
         now = time.time()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
+        await db_service_writer.insert_log_records(
             [make_log_record_row(1, now - (5 * SECONDS_PER_DAY), "5 days old")],
         )
 
@@ -561,7 +561,7 @@ class TestRuntimeQueryServiceWiring:
         """Records are enqueued to db_service when flushed."""
         mock_db_service = MagicMock()
         mock_db_service.enqueue = MagicMock(return_value=True)
-        mock_db_service._insert_log_records = MagicMock(return_value=MagicMock())
+        mock_db_service.insert_log_records = MagicMock(return_value=MagicMock())
         loop = asyncio.get_running_loop()
         handler = LogPersistenceHandler(mock_db_service, loop)
 

@@ -41,7 +41,7 @@ def _make_dropping_db_service(
     _enqueue_raising_runtime_error to simulate a shut-down service instead.
     """
     db_service = MagicMock()
-    db_service._insert_log_records = MagicMock(return_value=MagicMock())
+    db_service.insert_log_records = MagicMock(return_value=MagicMock())
     db_service.enqueue = MagicMock(side_effect=enqueue_side_effect)
     return db_service
 
@@ -91,7 +91,7 @@ class TestLogPersistenceHandlerBatching:
         """Batch accumulates at one record below BATCH_SIZE without flushing."""
         db_service = MagicMock()
         db_service.enqueue = MagicMock(return_value=True)
-        db_service._insert_log_records = MagicMock(return_value=MagicMock())
+        db_service.insert_log_records = MagicMock(return_value=MagicMock())
         with _persistence_handler(db_service) as (handler, _loop):
             _emit_records(handler, LogPersistenceHandler.BATCH_SIZE - 1)
 

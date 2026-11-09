@@ -351,7 +351,7 @@ def persistence_handler() -> PersistenceFixture:
 
     - spec=[] on mocks prevents auto-attribute creation (avoids MagicMock deadlock).
     - call_soon_threadsafe executes immediately — makes flush deterministic.
-    - enqueued_batches captures every batch passed to _insert_log_records.
+    - enqueued_batches captures every batch passed to insert_log_records.
     """
     enqueued_batches: list[list[dict]] = []
 
@@ -362,7 +362,7 @@ def persistence_handler() -> PersistenceFixture:
         enqueued_batches.append(records)
         return AsyncMock()()
 
-    mock_db_service._insert_log_records = MagicMock(side_effect=capture_insert)
+    mock_db_service.insert_log_records = MagicMock(side_effect=capture_insert)
 
     mock_loop = MagicMock(spec=[])
     mock_loop.call_soon_threadsafe = MagicMock(side_effect=lambda fn: fn())

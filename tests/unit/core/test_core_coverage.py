@@ -119,7 +119,7 @@ class TestGetLogDropCounters:
         """get_db_write_queue_drops() forwards real persistence-handler DB queue drops."""
         logging_service = require_wired(wired_hassette._logging_service)
         db_service = Mock()
-        db_service._insert_log_records = Mock(return_value=object())
+        db_service.insert_log_records = Mock(return_value=object())
         db_service.enqueue = Mock(return_value=False)
         handler = LogPersistenceHandler(db_service, asyncio.get_running_loop())
         record = make_log_record(name="hassette", msg="message")
