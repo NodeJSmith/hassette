@@ -21,6 +21,14 @@ def test_framework_fields_are_read_by_name_under_an_alias_generator() -> None:
     assert config.off_delay == 5
 
 
+def test_every_framework_field_is_read_by_name_under_an_alias_generator() -> None:
+    """FRAMEWORK_FIELDS covers every AppConfig field, so a later-added one like framework_log_level is read by name."""
+    config = CamelCaseConfig.model_validate({"instance_name": "upstairs", "framework_log_level": "DEBUG"})
+
+    assert config.framework_log_level == "DEBUG"
+    assert "framework_log_level" not in (config.model_extra or {})
+
+
 def test_by_name_value_wins_over_its_alias() -> None:
     """Manifest validation checks the by-name instance_name, so an aliased spelling can't override it."""
     config = CamelCaseConfig.model_validate({"instance_name": "upstairs", "instanceName": "Not Valid"})
