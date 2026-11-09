@@ -1,6 +1,8 @@
 import typing
-from dataclasses import dataclass, field
-from typing import Any, Generic, Literal, TypeAlias
+from collections.abc import Mapping
+from dataclasses import dataclass, field, fields
+from logging import getLogger
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import AnyEvent, Event, HassContext, HassPayload
@@ -10,7 +12,19 @@ from hassette.utils.date_utils import convert_datetime_str_to_tz
 from .raw import HassEventEnvelopeDict, HassStateDict
 
 if typing.TYPE_CHECKING:
+    from _typeshed import DataclassInstance
+
     from hassette.const.misc import FalseySentinel
+
+LOGGER = getLogger(__name__)
+
+DataclassT = TypeVar("DataclassT", bound="DataclassInstance")
+
+reported_unknown_keys: set[tuple[str, str]] = set()
+"""(class name, key) pairs already logged by `construct_ignoring_unknown_keys`.
+
+Process-global on purpose: a new Home Assistant key is reported once per process, not once per event.
+"""
 
 
 @dataclass(slots=True, frozen=True)
@@ -78,6 +92,12 @@ class AutomationTriggeredPayload:
     entity_id: str
     source: str | None = None  # this one isn't on the docs page but is included apparently
     # https://www.home-assistant.io/docs/configuration/events/#automation_triggered
+
+    item_id: str | None = None
+    """The automation's config ID (its `id:` in YAML). Sent by Home Assistant 2026.11 and later."""
+
+    run_id: str | None = None
+    """Identifier of this automation run, matching its trace. Sent by Home Assistant 2026.11 and later."""
 
 
 @dataclass(slots=True, frozen=True)
@@ -207,6 +227,30 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
 
 
+def construct_ignoring_unknown_keys(cls: type[DataclassT], data: Mapping[str, Any]) -> DataclassT:
+    """Construct dataclass `cls` from `data`, ignoring keys `cls` doesn't declare.
+
+    Home Assistant adds keys to event data and contexts between releases. Dropping the ones a payload doesn't
+    know keeps a new key from failing every event of that type. Each dropped key name is logged once at debug
+    level; values are never logged, since they can carry user data.
+    """
+    known = {f.name for f in fields(cls)}
+    unknown = [key for key in data if key not in known]
+    if not unknown:
+        return cls(**data)  # common case: skip copying the dict on every event
+
+    for key in unknown:
+        if (cls.__name__, key) not in reported_unknown_keys:
+            reported_unknown_keys.add((cls.__name__, key))
+            LOGGER.debug(
+                "Ignoring unknown key %r in %s from Home Assistant",
+                key,
+                cls.__name__,
+                extra={"payload": cls.__name__, "key": key},
+            )
+    return cls(**{k: v for k, v in data.items() if k in known})
+
+
 def create_event_from_hass(data: HassEventEnvelopeDict) -> AnyEvent:
     """Create an Event from a dictionary."""
     event = data.get("event", {})
@@ -218,7 +262,7 @@ def create_event_from_hass(data: HassEventEnvelopeDict) -> AnyEvent:
     event_payload = {
         "event_type": event_type,
         "origin": event["origin"],
-        "context": HassContext(**event["context"]),
+        "context": construct_ignoring_unknown_keys(HassContext, event["context"]),
         "time_fired": convert_datetime_str_to_tz(event["time_fired"]),
     }
 
@@ -226,53 +270,73 @@ def create_event_from_hass(data: HassEventEnvelopeDict) -> AnyEvent:
         case "state_changed":
             return RawStateChangeEvent(
                 topic=Topic.HASS_EVENT_STATE_CHANGED,
-                payload=HassPayload(**event_payload, data=RawStateChangePayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(RawStateChangePayload, event_data)
+                ),
             )
 
         case "call_service":
             return CallServiceEvent(
                 topic=Topic.HASS_EVENT_CALL_SERVICE,
-                payload=HassPayload(**event_payload, data=CallServicePayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(CallServicePayload, event_data)
+                ),
             )
         case "component_loaded":
             return ComponentLoadedEvent(
                 topic=Topic.HASS_EVENT_COMPONENT_LOADED,
-                payload=HassPayload(**event_payload, data=ComponentLoadedPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(ComponentLoadedPayload, event_data)
+                ),
             )
         case "service_registered":
             return ServiceRegisteredEvent(
                 topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
-                payload=HassPayload(**event_payload, data=ServiceRegisteredPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(ServiceRegisteredPayload, event_data)
+                ),
             )
         case "service_removed":
             return ServiceRemovedEvent(
                 topic=Topic.HASS_EVENT_SERVICE_REMOVED,
-                payload=HassPayload(**event_payload, data=ServiceRemovedPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(ServiceRemovedPayload, event_data)
+                ),
             )
         case "logbook_entry":
             return LogbookEntryEvent(
                 topic=Topic.HASS_EVENT_LOGBOOK_ENTRY,
-                payload=HassPayload(**event_payload, data=LogbookEntryPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(LogbookEntryPayload, event_data)
+                ),
             )
         case "user_added":
             return UserAddedEvent(
                 topic=Topic.HASS_EVENT_USER_ADDED,
-                payload=HassPayload(**event_payload, data=UserAddedPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(UserAddedPayload, event_data)
+                ),
             )
         case "user_removed":
             return UserRemovedEvent(
                 topic=Topic.HASS_EVENT_USER_REMOVED,
-                payload=HassPayload(**event_payload, data=UserRemovedPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(UserRemovedPayload, event_data)
+                ),
             )
         case "automation_triggered":
             return AutomationTriggeredEvent(
                 topic=Topic.HASS_EVENT_AUTOMATION_TRIGGERED,
-                payload=HassPayload(**event_payload, data=AutomationTriggeredPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(AutomationTriggeredPayload, event_data)
+                ),
             )
         case "script_started":
             return ScriptStartedEvent(
                 topic=Topic.HASS_EVENT_SCRIPT_STARTED,
-                payload=HassPayload(**event_payload, data=ScriptStartedPayload(**event_data)),
+                payload=HassPayload(
+                    **event_payload, data=construct_ignoring_unknown_keys(ScriptStartedPayload, event_data)
+                ),
             )
         case _:
             pass
