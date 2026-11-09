@@ -88,7 +88,7 @@ class ApiEntityDataMixin:
         Returns:
             The state of the entity as raw data.
         """
-        url = f"states/{entity_id}"
+        url = state_path(entity_id)
         response = await self.get_rest_request(url)
         return await response.json()
 
@@ -102,7 +102,7 @@ class ApiEntityDataMixin:
             True if the entity exists, False otherwise.
         """
         try:
-            url = f"states/{entity_id}"
+            url = state_path(entity_id)
             response = await self.rest_request("GET", url, suppress_error_message=True)
             await response.json()
             return True
@@ -184,9 +184,8 @@ class ApiEntityDataMixin:
             strong typing, this method is designed to return the raw state value,
             as it is likely overkill to convert it to a state object for simple state value retrieval.
         """
-        entity = await self.get_state_raw(entity_id)
-        state = entity.get("state")
-        return state
+        raw_state = await self.get_state_raw(entity_id)
+        return raw_state.get("state")
 
     async def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
         """Get a specific attribute of an entity.
@@ -241,9 +240,7 @@ class ApiEntityDataMixin:
         if len(entries) != 1:
             raise RuntimeError(f"Expected a single list of history entries from HA, got {len(entries)}")
 
-        converted = [HistoryEntry.model_validate(entry) for entry in entries[0]]
-
-        return converted
+        return [HistoryEntry.model_validate(entry) for entry in entries[0]]
 
     async def get_histories(
         self,
@@ -355,7 +352,7 @@ class ApiEntityDataMixin:
         # One suppressed GET: a missing entity (or one removed mid-call) means no current attributes,
         # and the POST below creates it.
         try:
-            response = await self.rest_request("GET", f"states/{entity_id}", suppress_error_message=True)
+            response = await self.rest_request("GET", state_path(entity_id), suppress_error_message=True)
             curr_attributes = (await response.json()).get("attributes") or {}
         except EntityNotFoundError:
             curr_attributes = {}
@@ -366,14 +363,12 @@ class ApiEntityDataMixin:
             raise
 
         # Merge current attributes with new attributes.
-        # This client-side merge is load-bearing: HA's POST /api/states/{id} REPLACES the attribute
-        # set rather than merging it (verified against a live instance 2026-06-21 — a partial POST
-        # dropped the un-named attributes). Without this read-then-merge, every partial attribute
-        # write would wipe the attributes it doesn't mention. See tests/system/test_api.py
-        # ::test_set_state_preserves_unnamed_attributes.
+        # This client-side merge is load-bearing: HA's POST /api/states/{id} replaces the attribute
+        # set rather than merging it, so a partial write would wipe the attributes it doesn't name.
+        # See tests/system/test_api.py::test_set_state_preserves_unnamed_attributes.
         new_attributes = curr_attributes | attributes
 
-        url = f"states/{entity_id}"
+        url = state_path(entity_id)
         data = {"state": state, "attributes": new_attributes}
 
         try:
@@ -472,7 +467,7 @@ class ApiEntityDataMixin:
             OutcomeUnknownError: If the request timed out (``ResponseTimeoutError``) or its connection
                 dropped (``ResponseLostError``) after it was sent; not retried, since it may have applied.
         """
-        url = f"states/{entity_id}"
+        url = state_path(entity_id)
         record = self.begin_write("delete_entity", None, target={"entity_id": [entity_id]})
 
         try:
@@ -487,3 +482,8 @@ class ApiEntityDataMixin:
 
         if response.status != HTTPStatus.NO_CONTENT:
             raise RuntimeError(f"Failed to delete entity {entity_id}: {response.status} - {response.reason}")
+
+
+def state_path(entity_id: str) -> str:
+    """Return the REST path for a single entity's state, relative to the API root."""
+    return f"states/{entity_id}"
