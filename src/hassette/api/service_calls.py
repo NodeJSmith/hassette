@@ -103,11 +103,9 @@ class ApiServiceCallsMixin:
         event_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Async body for fire_event."""
-        event_data = event_data or {}
-
-        data = {"type": "fire_event", "event_type": event_type, "event_data": event_data}
-        if not event_data:
-            data.pop("event_data")
+        data: dict[str, Any] = {"type": "fire_event", "event_type": event_type}
+        if event_data:
+            data["event_data"] = event_data
 
         return await self.ws_send_and_wait(retry_on_timeout=False, **data)  # sent once; re-send would refire it
 
@@ -125,15 +123,12 @@ class ApiServiceCallsMixin:
         domain: str,
         service: str,
         target: Mapping[str, str | list[str]] | None = None,
-        return_response: typing.Literal[False] | None = None,
+        return_response: Literal[False] | None = None,
         *,
         wait_for_ack: bool = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, None]": ...
 
-    # dup-ignore-end
-
-    # dup-ignore-start: @overload signatures necessarily mirror the implementation param list
     @overload
     def call_service(
         self,
@@ -178,7 +173,8 @@ class ApiServiceCallsMixin:
                 Home Assistant's result envelope instead of sending fire-and-forget, surfacing HA-side failures as
                 ``FailedMessageError`` without asking for response data — so it works for services that return no
                 response, which ``return_response`` cannot.
-            **data: Additional data to send with the service call.
+            **data: Additional data to send with the service call. Keys whose value is ``None`` are omitted, so
+                optional fields can be passed through unconditionally.
 
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
@@ -218,18 +214,18 @@ class ApiServiceCallsMixin:
             "return_response": return_response,
         }
 
-        payload = {k: v for k, v in payload.items() if v is not None}
-        data = {k: v for k, v in data.items() if v is not None}
+        filtered_payload = {k: v for k, v in payload.items() if v is not None}
+        service_data = {k: v for k, v in data.items() if v is not None}
 
-        if data:
-            self.logger.debug("Adding extra data to service call: %s", data)
-            payload["service_data"] = data
+        if service_data:
+            self.logger.debug("Adding extra data to service call: %s", service_data)
+            filtered_payload["service_data"] = service_data
 
         # Neither waiting path re-sends on timeout — a lost response doesn't mean HA skipped
         # the call, so a retry could apply it twice (counter.increment would count twice), and
         # a response-returning service can still act (conversation.process, scripts).
         if return_response:
-            resp = await self.ws_send_and_wait(retry_on_timeout=False, **payload)
+            resp = await self.ws_send_and_wait(retry_on_timeout=False, **filtered_payload)
             return ServiceResponse(**resp)
 
         if wait_for_ack:
@@ -238,10 +234,10 @@ class ApiServiceCallsMixin:
             # counter.increment) reject return_response=True outright, so this is the only way
             # to surface their HA-side errors. ws_send_and_wait raises FailedMessageError on a
             # failed envelope, so no envelope parsing is needed here.
-            await self.ws_send_and_wait(retry_on_timeout=False, **payload)
+            await self.ws_send_and_wait(retry_on_timeout=False, **filtered_payload)
             return None
 
-        await self.ws_send_json(**payload)
+        await self.ws_send_json(**filtered_payload)
         return None
 
     def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":
@@ -258,10 +254,7 @@ class ApiServiceCallsMixin:
             **data: Additional service data forwarded to the service call.
 
         """
-        entity_id = str(entity_id)
-        if domain is None:
-            domain = entity_id.split(".", 1)[0]
-        return self.call_service(domain=domain, service="turn_on", target={"entity_id": entity_id}, **data)
+        return self._entity_service("turn_on", entity_id, domain, data)
 
     def turn_off(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":
         """Turn off a specific entity in Home Assistant.
@@ -277,10 +270,7 @@ class ApiServiceCallsMixin:
             **data: Additional service data forwarded to the service call.
 
         """
-        entity_id = str(entity_id)
-        if domain is None:
-            domain = entity_id.split(".", 1)[0]
-        return self.call_service(domain=domain, service="turn_off", target={"entity_id": entity_id}, **data)
+        return self._entity_service("turn_off", entity_id, domain, data)
 
     def toggle(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":
         """Toggle a specific entity in Home Assistant.
@@ -296,10 +286,19 @@ class ApiServiceCallsMixin:
             **data: Additional service data forwarded to the service call.
 
         """
+        return self._entity_service("toggle", entity_id, domain, data)
+
+    def _entity_service(
+        self, service: str, entity_id: str | StrEnum, domain: str | None, data: dict[str, Any]
+    ) -> "Coroutine[Any, Any, None]":
+        """Call ``<domain>.<service>`` targeting ``entity_id``, deriving the domain from it when None.
+
+        Returns the guarded ``call_service`` coroutine unawaited, so forgotten-await reporting still applies.
+        """
         entity_id = str(entity_id)
         if domain is None:
             domain = entity_id.split(".", 1)[0]
-        return self.call_service(domain=domain, service="toggle", target={"entity_id": entity_id}, **data)
+        return self.call_service(domain=domain, service=service, target={"entity_id": entity_id}, **data)
 
     def notify(
         self,
