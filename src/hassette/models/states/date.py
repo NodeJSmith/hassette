@@ -1,9 +1,18 @@
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field
 from whenever import Date
 
 from .base import AttributesBase, StringBaseState
+
+
+class DateService(StrEnum):
+    SET_VALUE = "set_value"
+
+
+class DateServiceArgument(StrEnum):
+    DATE = "date"
 
 
 class DateAttributes(AttributesBase):

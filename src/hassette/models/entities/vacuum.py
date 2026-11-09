@@ -17,30 +17,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(VacuumEntitySyncFacade)
 
-    def turn_on(self) -> Coroutine[Any, Any, None]:
-        """Turns on a vacuum cleaner."""
-        return self.api.call_service(
-            domain=self.domain,
-            service="turn_on",
-            target={"entity_id": self.entity_id},
-        )
-
-    def turn_off(self) -> Coroutine[Any, Any, None]:
-        """Turns off a vacuum cleaner."""
-        return self.api.call_service(
-            domain=self.domain,
-            service="turn_off",
-            target={"entity_id": self.entity_id},
-        )
-
-    def toggle(self) -> Coroutine[Any, Any, None]:
-        """Toggles a vacuum cleaner on/off."""
-        return self.api.call_service(
-            domain=self.domain,
-            service="toggle",
-            target={"entity_id": self.entity_id},
-        )
-
     def stop(self) -> Coroutine[Any, Any, None]:
         """Stops a vacuum cleaner's current task."""
         return self.api.call_service(
@@ -54,14 +30,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
         return self.api.call_service(
             domain=self.domain,
             service="locate",
-            target={"entity_id": self.entity_id},
-        )
-
-    def start_pause(self) -> Coroutine[Any, Any, None]:
-        """Starts, pauses, or resumes a vacuum cleaner's cleaning task."""
-        return self.api.call_service(
-            domain=self.domain,
-            service="start_pause",
             target={"entity_id": self.entity_id},
         )
 
@@ -156,30 +124,6 @@ class VacuumEntity(BaseEntity[VacuumState, str]):
 class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
     """Synchronous facade for VacuumEntity service methods."""
 
-    def turn_on(self) -> None:
-        """Turns on a vacuum cleaner."""
-        self.entity.api.sync.call_service(
-            domain=self.entity.domain,
-            service="turn_on",
-            target={"entity_id": self.entity.entity_id},
-        )
-
-    def turn_off(self) -> None:
-        """Turns off a vacuum cleaner."""
-        self.entity.api.sync.call_service(
-            domain=self.entity.domain,
-            service="turn_off",
-            target={"entity_id": self.entity.entity_id},
-        )
-
-    def toggle(self) -> None:
-        """Toggles a vacuum cleaner on/off."""
-        self.entity.api.sync.call_service(
-            domain=self.entity.domain,
-            service="toggle",
-            target={"entity_id": self.entity.entity_id},
-        )
-
     def stop(self) -> None:
         """Stops a vacuum cleaner's current task."""
         self.entity.api.sync.call_service(
@@ -193,14 +137,6 @@ class VacuumEntitySyncFacade(BaseEntitySyncFacade[VacuumState, str]):
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="locate",
-            target={"entity_id": self.entity.entity_id},
-        )
-
-    def start_pause(self) -> None:
-        """Starts, pauses, or resumes a vacuum cleaner's cleaning task."""
-        self.entity.api.sync.call_service(
-            domain=self.entity.domain,
-            service="start_pause",
             target={"entity_id": self.entity.entity_id},
         )
 

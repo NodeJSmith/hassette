@@ -80,6 +80,14 @@ class NumberDeviceClass(StrEnum):
     WIND_SPEED = "wind_speed"
 
 
+class NumberService(StrEnum):
+    SET_VALUE = "set_value"
+
+
+class NumberServiceArgument(StrEnum):
+    VALUE = "value"
+
+
 class NumberAttributes(AttributesBase):
     device_class: NumberDeviceClass | None = Field(default=None)
     mode: NumberMode | None = Field(default=None)

@@ -3,6 +3,8 @@ from .alarm_control_panel import (
     AlarmControlPanelAttributes,
     AlarmControlPanelEntityFeature,
     AlarmControlPanelEntityStateAttribute,
+    AlarmControlPanelService,
+    AlarmControlPanelServiceArgument,
     AlarmControlPanelState,
     AlarmControlPanelStateValue,
     CodeFormat,
@@ -21,12 +23,14 @@ from .base import (
     TimeBaseState,
 )
 from .binary_sensor import BinarySensorAttributes, BinarySensorDeviceClass, BinarySensorState
-from .button import ButtonAttributes, ButtonDeviceClass, ButtonState
+from .button import ButtonAttributes, ButtonDeviceClass, ButtonService, ButtonState
 from .calendar import CalendarAttributes, CalendarState
 from .camera import (
     CameraAttributes,
     CameraEntityFeature,
     CameraEntityStateAttribute,
+    CameraService,
+    CameraServiceArgument,
     CameraState,
     CameraStateValue,
     StreamType,
@@ -37,6 +41,8 @@ from .climate import (
     ClimateEntityCapabilityAttribute,
     ClimateEntityFeature,
     ClimateEntityStateAttribute,
+    ClimateService,
+    ClimateServiceArgument,
     ClimateState,
     HVACAction,
     HVACMode,
@@ -48,11 +54,14 @@ from .cover import (
     CoverEntityCapabilityAttribute,
     CoverEntityFeature,
     CoverEntityStateAttribute,
+    CoverService,
+    CoverServiceArgument,
+    CoverSpeed,
     CoverState,
     CoverStateValue,
 )
-from .date import DateAttributes, DateState
-from .datetime import DateTimeAttributes, DateTimeState
+from .date import DateAttributes, DateService, DateServiceArgument, DateState
+from .datetime import DateTimeAttributes, DateTimeService, DateTimeServiceArgument, DateTimeState
 from .device_tracker import DeviceTrackerAttributes, DeviceTrackerState
 from .event import (
     ButtonEventType,
@@ -63,7 +72,15 @@ from .event import (
     EventEntityStateAttribute,
     EventState,
 )
-from .fan import FanAttributes, FanEntityCapabilityAttribute, FanEntityFeature, FanEntityStateAttribute, FanState
+from .fan import (
+    FanAttributes,
+    FanEntityCapabilityAttribute,
+    FanEntityFeature,
+    FanEntityStateAttribute,
+    FanService,
+    FanServiceArgument,
+    FanState,
+)
 from .geo_location import GeoLocationAttributes, GeoLocationEntityStateAttribute, GeoLocationState
 from .group import GroupAttributes, GroupState
 from .humidifier import (
@@ -73,9 +90,11 @@ from .humidifier import (
     HumidifierEntityCapabilityAttribute,
     HumidifierEntityFeature,
     HumidifierEntityStateAttribute,
+    HumidifierService,
+    HumidifierServiceArgument,
     HumidifierState,
 )
-from .image import ImageAttributes, ImageEntityStateAttribute, ImageState
+from .image import ImageAttributes, ImageEntityStateAttribute, ImageService, ImageServiceArgument, ImageState
 from .image_processing import ImageProcessingAttributes, ImageProcessingState
 from .infrared import InfraredAttributes, InfraredState
 from .input import (
@@ -91,16 +110,26 @@ from .input import (
     InputTextAttributes,
     InputTextState,
 )
-from .lawn_mower import LawnMowerActivity, LawnMowerAttributes, LawnMowerEntityFeature, LawnMowerState
+from .lawn_mower import LawnMowerActivity, LawnMowerAttributes, LawnMowerEntityFeature, LawnMowerService, LawnMowerState
 from .light import (
     ColorMode,
     LightAttributes,
     LightEntityCapabilityAttribute,
     LightEntityFeature,
     LightEntityStateAttribute,
+    LightService,
+    LightServiceArgument,
     LightState,
 )
-from .lock import LockAttributes, LockEntityFeature, LockEntityStateAttribute, LockState, LockStateValue
+from .lock import (
+    LockAttributes,
+    LockEntityFeature,
+    LockEntityStateAttribute,
+    LockService,
+    LockServiceArgument,
+    LockState,
+    LockStateValue,
+)
 from .media_player import (
     MediaClass,
     MediaPlayerAttributes,
@@ -109,19 +138,36 @@ from .media_player import (
     MediaPlayerEntityCapabilityAttribute,
     MediaPlayerEntityFeature,
     MediaPlayerEntityStateAttribute,
+    MediaPlayerService,
+    MediaPlayerServiceArgument,
     MediaPlayerState,
     MediaPlayerStateValue,
     MediaType,
     RepeatMode,
 )
-from .number import NumberAttributes, NumberDeviceClass, NumberEntityCapabilityAttribute, NumberMode, NumberState
+from .number import (
+    NumberAttributes,
+    NumberDeviceClass,
+    NumberEntityCapabilityAttribute,
+    NumberMode,
+    NumberService,
+    NumberServiceArgument,
+    NumberState,
+)
 from .person import PersonAttributes, PersonState
 from .radio_frequency import RadioFrequencyAttributes, RadioFrequencyState
-from .remote import RemoteAttributes, RemoteEntityFeature, RemoteEntityStateAttribute, RemoteState
+from .remote import (
+    RemoteAttributes,
+    RemoteEntityFeature,
+    RemoteEntityStateAttribute,
+    RemoteService,
+    RemoteServiceArgument,
+    RemoteState,
+)
 from .scene import SceneState
 from .schedule import ScheduleAttributes, ScheduleState
 from .script import ScriptAttributes, ScriptState
-from .select import SelectAttributes, SelectEntityCapabilityAttribute, SelectState
+from .select import SelectAttributes, SelectEntityCapabilityAttribute, SelectService, SelectServiceArgument, SelectState
 from .sensor import (
     SensorAttributes,
     SensorDeviceClass,
@@ -132,21 +178,38 @@ from .sensor import (
 )
 from .sensor_shapes import DateSensorState, EnumSensorState, NumericSensorState, SensorShape, TimestampSensorState
 from .simple import AiTaskState, ConversationState, NotifyState, SttState, TtsState
-from .siren import SirenAttributes, SirenEntityCapabilityAttribute, SirenEntityFeature, SirenState
+from .siren import (
+    SirenAttributes,
+    SirenEntityCapabilityAttribute,
+    SirenEntityFeature,
+    SirenService,
+    SirenServiceArgument,
+    SirenState,
+)
 from .sun import SunAttributes, SunState
-from .switch import SwitchAttributes, SwitchDeviceClass, SwitchState
+from .switch import SwitchAttributes, SwitchDeviceClass, SwitchService, SwitchState
 from .tag import TagAttributes, TagState
-from .text import TextAttributes, TextEntityCapabilityAttribute, TextMode, TextState
-from .time import TimeAttributes, TimeState
+from .text import TextAttributes, TextEntityCapabilityAttribute, TextMode, TextService, TextServiceArgument, TextState
+from .time import TimeAttributes, TimeService, TimeServiceArgument, TimeState
 from .timer import TimerAttributes, TimerState
-from .todo import TodoAttributes, TodoItemStatus, TodoListEntityFeature, TodoServices, TodoState
-from .update import UpdateAttributes, UpdateDeviceClass, UpdateEntityFeature, UpdateEntityStateAttribute, UpdateState
+from .todo import TodoAttributes, TodoItemStatus, TodoListEntityFeature, TodoServiceArgument, TodoServices, TodoState
+from .update import (
+    UpdateAttributes,
+    UpdateDeviceClass,
+    UpdateEntityFeature,
+    UpdateEntityStateAttribute,
+    UpdateService,
+    UpdateServiceArgument,
+    UpdateState,
+)
 from .vacuum import (
     VacuumActivity,
     VacuumAttributes,
     VacuumEntityCapabilityAttribute,
     VacuumEntityFeature,
     VacuumEntityStateAttribute,
+    VacuumService,
+    VacuumServiceArgument,
     VacuumState,
 )
 from .valve import ValveAttributes, ValveState
@@ -156,9 +219,18 @@ from .water_heater import (
     WaterHeaterEntityCapabilityAttribute,
     WaterHeaterEntityFeature,
     WaterHeaterEntityStateAttribute,
+    WaterHeaterService,
+    WaterHeaterServiceArgument,
     WaterHeaterState,
 )
-from .weather import WeatherAttributes, WeatherEntityFeature, WeatherEntityStateAttribute, WeatherState
+from .weather import (
+    WeatherAttributes,
+    WeatherEntityFeature,
+    WeatherEntityStateAttribute,
+    WeatherService,
+    WeatherServiceArgument,
+    WeatherState,
+)
 from .zone import ZoneAttributes, ZoneState
 
 __all__ = [
@@ -168,6 +240,8 @@ __all__ = [
     "AlarmControlPanelAttributes",
     "AlarmControlPanelEntityFeature",
     "AlarmControlPanelEntityStateAttribute",
+    "AlarmControlPanelService",
+    "AlarmControlPanelServiceArgument",
     "AlarmControlPanelState",
     "AlarmControlPanelStateValue",
     "AlertAttributes",
@@ -184,18 +258,23 @@ __all__ = [
     "ButtonAttributes",
     "ButtonDeviceClass",
     "ButtonEventType",
+    "ButtonService",
     "ButtonState",
     "CalendarAttributes",
     "CalendarState",
     "CameraAttributes",
     "CameraEntityFeature",
     "CameraEntityStateAttribute",
+    "CameraService",
+    "CameraServiceArgument",
     "CameraState",
     "CameraStateValue",
     "ClimateAttributes",
     "ClimateEntityCapabilityAttribute",
     "ClimateEntityFeature",
     "ClimateEntityStateAttribute",
+    "ClimateService",
+    "ClimateServiceArgument",
     "ClimateState",
     "CodeFormat",
     "ColorMode",
@@ -208,13 +287,20 @@ __all__ = [
     "CoverEntityCapabilityAttribute",
     "CoverEntityFeature",
     "CoverEntityStateAttribute",
+    "CoverService",
+    "CoverServiceArgument",
+    "CoverSpeed",
     "CoverState",
     "CoverStateValue",
     "DateAttributes",
     "DateSensorState",
+    "DateService",
+    "DateServiceArgument",
     "DateState",
     "DateTimeAttributes",
     "DateTimeBaseState",
+    "DateTimeService",
+    "DateTimeServiceArgument",
     "DateTimeState",
     "DeviceTrackerAttributes",
     "DeviceTrackerState",
@@ -229,6 +315,8 @@ __all__ = [
     "FanEntityCapabilityAttribute",
     "FanEntityFeature",
     "FanEntityStateAttribute",
+    "FanService",
+    "FanServiceArgument",
     "FanState",
     "GeoLocationAttributes",
     "GeoLocationEntityStateAttribute",
@@ -243,11 +331,15 @@ __all__ = [
     "HumidifierEntityCapabilityAttribute",
     "HumidifierEntityFeature",
     "HumidifierEntityStateAttribute",
+    "HumidifierService",
+    "HumidifierServiceArgument",
     "HumidifierState",
     "ImageAttributes",
     "ImageEntityStateAttribute",
     "ImageProcessingAttributes",
     "ImageProcessingState",
+    "ImageService",
+    "ImageServiceArgument",
     "ImageState",
     "InfraredAttributes",
     "InfraredState",
@@ -265,15 +357,20 @@ __all__ = [
     "LawnMowerActivity",
     "LawnMowerAttributes",
     "LawnMowerEntityFeature",
+    "LawnMowerService",
     "LawnMowerState",
     "LightAttributes",
     "LightEntityCapabilityAttribute",
     "LightEntityFeature",
     "LightEntityStateAttribute",
+    "LightService",
+    "LightServiceArgument",
     "LightState",
     "LockAttributes",
     "LockEntityFeature",
     "LockEntityStateAttribute",
+    "LockService",
+    "LockServiceArgument",
     "LockState",
     "LockStateValue",
     "MediaClass",
@@ -283,6 +380,8 @@ __all__ = [
     "MediaPlayerEntityCapabilityAttribute",
     "MediaPlayerEntityFeature",
     "MediaPlayerEntityStateAttribute",
+    "MediaPlayerService",
+    "MediaPlayerServiceArgument",
     "MediaPlayerState",
     "MediaPlayerStateValue",
     "MediaType",
@@ -291,6 +390,8 @@ __all__ = [
     "NumberDeviceClass",
     "NumberEntityCapabilityAttribute",
     "NumberMode",
+    "NumberService",
+    "NumberServiceArgument",
     "NumberState",
     "NumericBaseState",
     "NumericSensorState",
@@ -301,6 +402,8 @@ __all__ = [
     "RemoteAttributes",
     "RemoteEntityFeature",
     "RemoteEntityStateAttribute",
+    "RemoteService",
+    "RemoteServiceArgument",
     "RemoteState",
     "RepeatMode",
     "SceneState",
@@ -310,6 +413,8 @@ __all__ = [
     "ScriptState",
     "SelectAttributes",
     "SelectEntityCapabilityAttribute",
+    "SelectService",
+    "SelectServiceArgument",
     "SelectState",
     "SensorAttributes",
     "SensorDeviceClass",
@@ -321,6 +426,8 @@ __all__ = [
     "SirenAttributes",
     "SirenEntityCapabilityAttribute",
     "SirenEntityFeature",
+    "SirenService",
+    "SirenServiceArgument",
     "SirenState",
     "StateKey",
     "StreamType",
@@ -330,15 +437,20 @@ __all__ = [
     "SunState",
     "SwitchAttributes",
     "SwitchDeviceClass",
+    "SwitchService",
     "SwitchState",
     "TagAttributes",
     "TagState",
     "TextAttributes",
     "TextEntityCapabilityAttribute",
     "TextMode",
+    "TextService",
+    "TextServiceArgument",
     "TextState",
     "TimeAttributes",
     "TimeBaseState",
+    "TimeService",
+    "TimeServiceArgument",
     "TimeState",
     "TimerAttributes",
     "TimerState",
@@ -346,6 +458,7 @@ __all__ = [
     "TodoAttributes",
     "TodoItemStatus",
     "TodoListEntityFeature",
+    "TodoServiceArgument",
     "TodoServices",
     "TodoState",
     "TtsState",
@@ -353,12 +466,16 @@ __all__ = [
     "UpdateDeviceClass",
     "UpdateEntityFeature",
     "UpdateEntityStateAttribute",
+    "UpdateService",
+    "UpdateServiceArgument",
     "UpdateState",
     "VacuumActivity",
     "VacuumAttributes",
     "VacuumEntityCapabilityAttribute",
     "VacuumEntityFeature",
     "VacuumEntityStateAttribute",
+    "VacuumService",
+    "VacuumServiceArgument",
     "VacuumState",
     "ValveAttributes",
     "ValveState",
@@ -368,10 +485,14 @@ __all__ = [
     "WaterHeaterEntityCapabilityAttribute",
     "WaterHeaterEntityFeature",
     "WaterHeaterEntityStateAttribute",
+    "WaterHeaterService",
+    "WaterHeaterServiceArgument",
     "WaterHeaterState",
     "WeatherAttributes",
     "WeatherEntityFeature",
     "WeatherEntityStateAttribute",
+    "WeatherService",
+    "WeatherServiceArgument",
     "WeatherState",
     "ZoneAttributes",
     "ZoneState",

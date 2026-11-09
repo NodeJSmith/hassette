@@ -55,7 +55,6 @@ DOMAIN_ALLOWLIST: dict[str, str] = {
     "assist_satellite": "needs a voice satellite device",
     "image": "the demo integration has no image platform",
     "infrared": "needs an infrared transmitter integration",
-    "lawn_mower": "the demo integration has no lawn_mower platform",
     "radio_frequency": "needs a radio-frequency transmitter integration",
     "tag": "tags are created through the tag WebSocket collection, not YAML config",
     "tts": "the demo tts platform is a legacy provider, which creates no tts entity",

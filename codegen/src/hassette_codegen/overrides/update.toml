@@ -1,0 +1,5 @@
+# HA reads restart_required internally (to flag a pending Home Assistant restart) but never puts it in the
+# update entity's state attributes, so it would always be None on the wire.
+[[property_overrides]]
+name = "restart_required"
+remove = true

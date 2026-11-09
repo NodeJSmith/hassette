@@ -2,9 +2,11 @@
 
 ## Upstream File Layout
 Each extractor reads a fixed list of HA component files: `ENTITY_MODULE_FILES` in
-`codegen/src/hassette_codegen/ha_source.py`, `REGISTRATION_MODULE_FILES` in
-`codegen/src/hassette_codegen/extractors/services.py`, and the inline lists in
-`codegen/src/hassette_codegen/extractors/features.py`. If upstream moved the thing
+`codegen/src/hassette_codegen/ha_source.py` (also used by the sensor
+`_numeric_state_expected` lookup in `extractors/constants.py`),
+`REGISTRATION_MODULE_FILES` in `codegen/src/hassette_codegen/extractors/services.py`,
+and `ENUM_MODULE_FILES` in `codegen/src/hassette_codegen/extractors/features.py`.
+A path hardcoded anywhere else is the drift this question exists to catch. If upstream moved the thing
 an extractor looks for into a file it doesn't scan, would the run fail, warn, or
 quietly generate less?
 

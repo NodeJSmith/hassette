@@ -20,23 +20,6 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         """Return the typed synchronous facade for this entity."""
         return self._get_or_create_sync(WeatherEntitySyncFacade)
 
-    def get_forecast(
-        self,
-        *,
-        type: WeatherType,
-    ) -> Coroutine[Any, Any, None]:
-        """Retrieves the forecast from a weather service.
-
-        Args:
-            type: The scope of the weather forecast.
-        """
-        return self.api.call_service(
-            domain=self.domain,
-            service="get_forecast",
-            target={"entity_id": self.entity_id},
-            type=type,
-        )
-
     def get_forecasts(
         self,
         *,
@@ -58,23 +41,6 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
 
 class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
     """Synchronous facade for WeatherEntity service methods."""
-
-    def get_forecast(
-        self,
-        *,
-        type: WeatherType,
-    ) -> None:
-        """Retrieves the forecast from a weather service.
-
-        Args:
-            type: The scope of the weather forecast.
-        """
-        self.entity.api.sync.call_service(
-            domain=self.entity.domain,
-            service="get_forecast",
-            target={"entity_id": self.entity.entity_id},
-            type=type,
-        )
 
     def get_forecasts(
         self,

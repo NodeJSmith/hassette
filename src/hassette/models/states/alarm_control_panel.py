@@ -30,6 +30,20 @@ class CodeFormat(StrEnum):
     NUMBER = "number"
 
 
+class AlarmControlPanelService(StrEnum):
+    ARM_AWAY = "alarm_arm_away"
+    ARM_CUSTOM_BYPASS = "alarm_arm_custom_bypass"
+    ARM_HOME = "alarm_arm_home"
+    ARM_NIGHT = "alarm_arm_night"
+    ARM_VACATION = "alarm_arm_vacation"
+    DISARM = "alarm_disarm"
+    TRIGGER = "alarm_trigger"
+
+
+class AlarmControlPanelServiceArgument(StrEnum):
+    CODE = "code"
+
+
 class AlarmControlPanelEntityFeature(IntFlag):
     ARM_HOME = 1
     ARM_AWAY = 2

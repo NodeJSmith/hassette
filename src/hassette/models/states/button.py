@@ -12,6 +12,10 @@ class ButtonDeviceClass(StrEnum):
     UPDATE = "update"
 
 
+class ButtonService(StrEnum):
+    PRESS = "press"
+
+
 class ButtonAttributes(AttributesBase):
     device_class: ButtonDeviceClass | None = Field(default=None)
 

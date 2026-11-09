@@ -18,6 +18,26 @@ class FanEntityStateAttribute(StrEnum):
     PRESET_MODE = "preset_mode"
 
 
+class FanService(StrEnum):
+    DECREASE_SPEED = "decrease_speed"
+    INCREASE_SPEED = "increase_speed"
+    OSCILLATE = "oscillate"
+    SET_DIRECTION = "set_direction"
+    SET_PERCENTAGE = "set_percentage"
+    SET_PRESET_MODE = "set_preset_mode"
+    TOGGLE = "toggle"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
+class FanServiceArgument(StrEnum):
+    DIRECTION = "direction"
+    OSCILLATING = "oscillating"
+    PERCENTAGE = "percentage"
+    PERCENTAGE_STEP = "percentage_step"
+    PRESET_MODE = "preset_mode"
+
+
 class FanEntityFeature(IntFlag):
     SET_SPEED = 1
     OSCILLATE = 2

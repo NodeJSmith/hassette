@@ -186,6 +186,64 @@ class TestSupportsResponseExtraction:
         svc = next(s for s in services if s.name == "get_items")
         assert svc.supports_response == "ONLY"
 
+    def test_enum_member_resolved_by_value(self, tmp_path: Path) -> None:
+        """A member whose name doesn't follow the service name (``ScheduleService.GET``) resolves by value."""
+        comp = _write_component(
+            tmp_path,
+            """\
+            get_schedule:
+              fields: {}
+            """,
+            """\
+            from homeassistant.core import SupportsResponse
+
+            class ScheduleService:
+                GET = "get_schedule"
+                RELOAD = "reload"
+
+            def async_setup_services(hass):
+                component.async_register_entity_service(
+                    ScheduleService.GET,
+                    {},
+                    _async_get_schedule_service,
+                    supports_response=SupportsResponse.ONLY,
+                )
+            """,
+        )
+        services = extract_services(comp)
+        svc = next(s for s in services if s.name == "get_schedule")
+        assert svc.supports_response == "ONLY"
+
+    def test_ambiguous_enum_member_is_not_resolved(self, tmp_path: Path) -> None:
+        """A member name two classes define with different values can't pick a service, so it matches none."""
+        comp = _write_component(
+            tmp_path,
+            """\
+            open_cover:
+              fields: {}
+            """,
+            """\
+            from homeassistant.components.cover import SupportsResponse
+
+            class CoverState:
+                OPEN = "open"
+
+            class CoverService:
+                OPEN = "open_cover"
+
+            async def async_setup(hass):
+                platform.async_register_entity_service(
+                    CoverService.OPEN,
+                    {},
+                    "async_open_cover",
+                    supports_response=SupportsResponse.ONLY,
+                )
+            """,
+        )
+        services = extract_services(comp)
+        svc = next(s for s in services if s.name == "open_cover")
+        assert svc.supports_response == "NONE"
+
     def test_registration_in_services_py(self, tmp_path: Path) -> None:
         comp = _write_component(
             tmp_path,

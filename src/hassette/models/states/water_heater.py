@@ -21,6 +21,21 @@ class WaterHeaterEntityStateAttribute(StrEnum):
     TARGET_TEMP_LOW = "target_temp_low"
     OPERATION_MODE = "operation_mode"
     AWAY_MODE = "away_mode"
+    TEMPERATURE_UNIT = "temperature_unit"
+
+
+class WaterHeaterService(StrEnum):
+    SET_AWAY_MODE = "set_away_mode"
+    SET_OPERATION_MODE = "set_operation_mode"
+    SET_TEMPERATURE = "set_temperature"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
+class WaterHeaterServiceArgument(StrEnum):
+    AWAY_MODE = "away_mode"
+    OPERATION_MODE = "operation_mode"
+    TEMPERATURE = "temperature"
 
 
 class WaterHeaterEntityFeature(IntFlag):
@@ -32,12 +47,10 @@ class WaterHeaterEntityFeature(IntFlag):
 
 class WaterHeaterAttributes(AttributesBase):
     current_operation: str | None = Field(default=None)
-    current_temperature: float | None = Field(default=None)
     is_away_mode_on: bool | None = Field(default=None)
     max_temp: float | None = Field(default=None)
     min_temp: float | None = Field(default=None)
-    operation_list: list[str] | None = Field(default=None)
-    precision: float | None = Field(default=None)
+    current_temperature: float | None = Field(default=None)
     target_temperature_high: float | None = Field(
         default=None, validation_alias=AliasChoices("target_temp_high", "target_temperature_high")
     )
@@ -48,6 +61,8 @@ class WaterHeaterAttributes(AttributesBase):
         default=None, validation_alias=AliasChoices("temperature", "target_temperature")
     )
     temperature_unit: str | None = Field(default=None)
+    operation_list: list[str] | None = Field(default=None)
+    precision: float | None = Field(default=None)
     target_temperature_step: float | None = Field(
         default=None, validation_alias=AliasChoices("target_temp_step", "target_temperature_step")
     )

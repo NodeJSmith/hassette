@@ -21,6 +21,16 @@ class LockStateValue(StrEnum):
     UNLOCKED = "unlocked"
 
 
+class LockService(StrEnum):
+    LOCK = "lock"
+    OPEN = "open"
+    UNLOCK = "unlock"
+
+
+class LockServiceArgument(StrEnum):
+    CODE = "code"
+
+
 class LockEntityFeature(IntFlag):
     OPEN = 1
 

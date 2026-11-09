@@ -15,6 +15,13 @@ class LawnMowerActivity(StrEnum):
     IDLE = "idle"
 
 
+class LawnMowerService(StrEnum):
+    DOCK = "dock"
+    PAUSE = "pause"
+    START_MOWING = "start_mowing"
+    STOP = "stop"
+
+
 class LawnMowerEntityFeature(IntFlag):
     START_MOWING = 1
     PAUSE = 2

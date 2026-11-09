@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hassette_codegen.extractors._common import iter_classdef_literal_members, parse_module_or_none
+from hassette_codegen.ha_source import ENTITY_MODULE_FILES
 
 _NUMERIC_STATE_EXPECTED_FUNC_NAME = "_numeric_state_expected"
 """Name of HA's numeric-branch predicate, matched by ``extract_numeric_state_expected_source``
@@ -129,26 +130,24 @@ def extract_numeric_state_expected_source(ha_core_path: Path) -> str | None:
     (not the same-named compat method on the entity class) — ``tree.body`` holds only top-level
     statements, so the nested method never shadows it.
 
-    Returns ``None`` if the file is missing, unparseable, or no longer defines the function at
-    module level — all of which are themselves drift signals the caller must treat as a freshness
-    failure, not skip silently.
+    Looks in each of the sensor component's ``ENTITY_MODULE_FILES`` (HA 2026.11 moved it to ``entity.py``).
+
+    Returns ``None`` when no such file defines the function at module level, including when the files are
+    missing or unparseable. The caller treats that as a freshness failure (itself a drift signal), never
+    as a skip.
     """
-    init_py = ha_core_path / "homeassistant" / "components" / "sensor" / "__init__.py"
-    if not init_py.exists():
-        return None
+    sensor_dir = ha_core_path / "homeassistant" / "components" / "sensor"
+    for filename in ENTITY_MODULE_FILES:
+        module = sensor_dir / filename
+        try:
+            source = module.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(module))
+        except (OSError, SyntaxError):
+            continue
 
-    tree = parse_module_or_none(init_py)
-    if tree is None:
-        return None
-
-    try:
-        source = init_py.read_text(encoding="utf-8")
-    except OSError:
-        return None
-
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == _NUMERIC_STATE_EXPECTED_FUNC_NAME:
-            return ast.get_source_segment(source, node)
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name == _NUMERIC_STATE_EXPECTED_FUNC_NAME:
+                return ast.get_source_segment(source, node)
     return None
 
 

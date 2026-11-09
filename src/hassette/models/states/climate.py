@@ -55,6 +55,32 @@ class ClimateEntityStateAttribute(StrEnum):
     PRESET_MODE = "preset_mode"
     SWING_MODE = "swing_mode"
     SWING_HORIZONTAL_MODE = "swing_horizontal_mode"
+    TEMPERATURE_UNIT = "temperature_unit"
+
+
+class ClimateService(StrEnum):
+    SET_FAN_MODE = "set_fan_mode"
+    SET_HUMIDITY = "set_humidity"
+    SET_HVAC_MODE = "set_hvac_mode"
+    SET_PRESET_MODE = "set_preset_mode"
+    SET_SWING_HORIZONTAL_MODE = "set_swing_horizontal_mode"
+    SET_SWING_MODE = "set_swing_mode"
+    SET_TEMPERATURE = "set_temperature"
+    TOGGLE = "toggle"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
+class ClimateServiceArgument(StrEnum):
+    FAN_MODE = "fan_mode"
+    HUMIDITY = "humidity"
+    HVAC_MODE = "hvac_mode"
+    PRESET_MODE = "preset_mode"
+    SWING_HORIZONTAL_MODE = "swing_horizontal_mode"
+    SWING_MODE = "swing_mode"
+    TARGET_TEMP_HIGH = "target_temp_high"
+    TARGET_TEMP_LOW = "target_temp_low"
+    TEMPERATURE = "temperature"
 
 
 class ClimateEntityFeature(IntFlag):
@@ -71,7 +97,6 @@ class ClimateEntityFeature(IntFlag):
 
 class ClimateAttributes(AttributesBase):
     current_humidity: float | None = Field(default=None)
-    current_temperature: float | None = Field(default=None)
     fan_mode: str | None = Field(default=None)
     fan_modes: list[str] | None = Field(default=None)
     hvac_action: HVACAction | None = Field(default=None)
@@ -81,6 +106,17 @@ class ClimateAttributes(AttributesBase):
     max_temp: float | None = Field(default=None)
     min_humidity: float | None = Field(default=None)
     min_temp: float | None = Field(default=None)
+    current_temperature: float | None = Field(default=None)
+    target_temperature: float | None = Field(
+        default=None, validation_alias=AliasChoices("temperature", "target_temperature")
+    )
+    target_temperature_high: float | None = Field(
+        default=None, validation_alias=AliasChoices("target_temp_high", "target_temperature_high")
+    )
+    target_temperature_low: float | None = Field(
+        default=None, validation_alias=AliasChoices("target_temp_low", "target_temperature_low")
+    )
+    temperature_unit: str | None = Field(default=None)
     precision: float | None = Field(default=None)
     preset_mode: str | None = Field(default=None)
     preset_modes: list[str] | None = Field(default=None)
@@ -90,17 +126,7 @@ class ClimateAttributes(AttributesBase):
     swing_horizontal_modes: list[str] | None = Field(default=None)
     humidity: float | None = Field(default=None)
     target_humidity_step: int | None = Field(default=None)
-    target_temperature_high: float | None = Field(
-        default=None, validation_alias=AliasChoices("target_temp_high", "target_temperature_high")
-    )
-    target_temperature_low: float | None = Field(
-        default=None, validation_alias=AliasChoices("target_temp_low", "target_temperature_low")
-    )
     target_temp_step: float | None = Field(default=None)
-    target_temperature: float | None = Field(
-        default=None, validation_alias=AliasChoices("temperature", "target_temperature")
-    )
-    temperature_unit: str | None = Field(default=None)
 
     @property
     def supports_target_temperature(self) -> bool:

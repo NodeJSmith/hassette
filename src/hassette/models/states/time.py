@@ -1,9 +1,18 @@
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field
 from whenever import Time
 
 from .base import AttributesBase, StringBaseState
+
+
+class TimeService(StrEnum):
+    SET_VALUE = "set_value"
+
+
+class TimeServiceArgument(StrEnum):
+    TIME = "time"
 
 
 class TimeAttributes(AttributesBase):

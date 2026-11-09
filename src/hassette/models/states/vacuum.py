@@ -23,6 +23,25 @@ class VacuumEntityStateAttribute(StrEnum):
     FAN_SPEED = "fan_speed"
 
 
+class VacuumService(StrEnum):
+    CLEAN_AREA = "clean_area"
+    CLEAN_SPOT = "clean_spot"
+    LOCATE = "locate"
+    PAUSE = "pause"
+    RETURN_TO_BASE = "return_to_base"
+    SEND_COMMAND = "send_command"
+    SET_FAN_SPEED = "set_fan_speed"
+    START = "start"
+    STOP = "stop"
+
+
+class VacuumServiceArgument(StrEnum):
+    CLEANING_AREA_ID = "cleaning_area_id"
+    COMMAND = "command"
+    FAN_SPEED = "fan_speed"
+    PARAMS = "params"
+
+
 class VacuumEntityFeature(IntFlag):
     TURN_ON = 1
     TURN_OFF = 2

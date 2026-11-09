@@ -23,6 +23,17 @@ class UpdateDeviceClass(StrEnum):
     FIRMWARE = "firmware"
 
 
+class UpdateService(StrEnum):
+    CLEAR_SKIPPED = "clear_skipped"
+    INSTALL = "install"
+    SKIP = "skip"
+
+
+class UpdateServiceArgument(StrEnum):
+    BACKUP = "backup"
+    VERSION = "version"
+
+
 class UpdateEntityFeature(IntFlag):
     INSTALL = 1
     SPECIFIC_VERSION = 2

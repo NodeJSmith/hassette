@@ -11,6 +11,27 @@ class RemoteEntityStateAttribute(StrEnum):
     CURRENT_ACTIVITY = "current_activity"
 
 
+class RemoteService(StrEnum):
+    DELETE_COMMAND = "delete_command"
+    LEARN_COMMAND = "learn_command"
+    SEND_COMMAND = "send_command"
+    TOGGLE = "toggle"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
+class RemoteServiceArgument(StrEnum):
+    ACTIVITY = "activity"
+    ALTERNATIVE = "alternative"
+    COMMAND = "command"
+    COMMAND_TYPE = "command_type"
+    DELAY_SECS = "delay_secs"
+    DEVICE = "device"
+    HOLD_SECS = "hold_secs"
+    NUM_REPEATS = "num_repeats"
+    TIMEOUT = "timeout"
+
+
 class RemoteEntityFeature(IntFlag):
     LEARN_COMMAND = 1
     DELETE_COMMAND = 2
