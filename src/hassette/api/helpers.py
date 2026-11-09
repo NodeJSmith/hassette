@@ -1,4 +1,3 @@
-# dup-ignore-file: counter shortcuts (increment/decrement/reset) share call_service shape by design
 """Helper CRUD client for Home Assistant input_* / counter / timer entities.
 
 `HelperClient` exposes 4 generic CRUD methods (`list`, `create`, `update`, `delete`) and 3 counter
@@ -104,16 +103,9 @@ UPDATE_DISPATCH: dict[type[BaseModel], tuple[str, type[BaseModel], str]] = {
     UpdateTimerParams: ("timer", TimerRecord, "timer_id"),
 }
 
-# Maps domain string -> Record type (for list())
+# Maps domain string -> Record type (for list()). Derived from UPDATE_DISPATCH, like ID_KEYS below.
 DOMAIN_DISPATCH: dict[str, type[BaseModel]] = {
-    "input_boolean": InputBooleanRecord,
-    "input_number": InputNumberRecord,
-    "input_text": InputTextRecord,
-    "input_select": InputSelectRecord,
-    "input_datetime": InputDatetimeRecord,
-    "input_button": InputButtonRecord,
-    "counter": CounterRecord,
-    "timer": TimerRecord,
+    domain: record_type for domain, record_type, _id_key in UPDATE_DISPATCH.values()
 }
 
 # Maps domain string -> WS id key name (for delete()). Derived from UPDATE_DISPATCH, which
@@ -135,8 +127,8 @@ class HelperClient(Resource):
     _api: "Api"
 
     def __init__(self, hassette: "Hassette", *, api: "Api", parent: Resource | None = None) -> None:
+        self._api = api  # set first: Resource.__init__ reads config_log_level, which delegates to it
         super().__init__(hassette, parent=parent)
-        self._api = api
 
     async def on_initialize(self) -> None:
         """Mark the helper client ready; it delegates every call to its parent ``Api`` and needs no setup."""
@@ -144,8 +136,8 @@ class HelperClient(Resource):
 
     @property
     def config_log_level(self) -> LogLevel:
-        """Return the log level from the config for this resource."""
-        return self.hassette.config.logging.api
+        """Return the parent ``Api``'s log level; helper calls are API traffic."""
+        return self._api.config_log_level
 
     # builtins.list: the method name "list" shadows the builtin in the class body,
     # so bare list[...] in annotations resolves to the method on Python < 3.14.
@@ -182,8 +174,6 @@ class HelperClient(Resource):
         self.logger.debug("Listed %d %s helpers", len(items), domain)
         return [record_type.model_validate(item) for item in items]
 
-    # create dispatches on type(params)
-
     @overload
     async def create(self, params: CreateInputBooleanParams) -> InputBooleanRecord: ...
     @overload
@@ -218,8 +208,6 @@ class HelperClient(Resource):
         record = record_type.model_validate(_expect_dict(val, f"{domain}/create"))
         self.logger.info("Created %s helper %r", domain, record.id)  # pyright: ignore[reportAttributeAccessIssue]
         return record
-
-    # update dispatches on type(params)
 
     @overload
     async def update(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord: ...
@@ -265,8 +253,6 @@ class HelperClient(Resource):
         self.logger.info("Updated %s helper %r", domain, helper_id)
         return record
 
-    # delete dispatches on a Literal domain string
-
     @overload
     async def delete(self, domain: Literal["input_boolean"], helper_id: str) -> None: ...
     @overload
@@ -298,33 +284,13 @@ class HelperClient(Resource):
         await _ws_helper_call(self._api, domain, "delete", retry_on_timeout=False, **{id_key: helper_id})
         self.logger.info("Deleted %s helper %r", domain, helper_id)
 
-    # counter shortcuts
-    # Counter service-call shortcuts (operate on live entity state, not stored
-    # config). Use update() to change the stored initial/minimum/maximum.
-    #
-    # timer.start / timer.pause / timer.cancel are deliberately excluded: timer
-    # service actions are one-off calls that benefit from the full call_service()
-    # signature. Counter actions get wrappers because the pattern "increment on
-    # every event" is common enough to warrant a two-word call site.
-    #
-    # All three pass wait_for_ack=True so an HA-side failure raises instead of being dropped
-    # fire-and-forget. return_response=True cannot serve that purpose here: HA declares the
-    # counter actions as returning no response and rejects any payload requesting one. The ack
-    # wait also sends each call exactly once, so a lost envelope cannot double-count a counter.
-
     async def increment(self, entity_id: str) -> None:
         """Increment a counter entity's current value (live state, not stored config).
 
         Args:
             entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
         """
-        await self._api.call_service(
-            "counter",
-            "increment",
-            target={"entity_id": entity_id},
-            wait_for_ack=True,
-        )
-        self.logger.debug("Incremented counter %r", entity_id)
+        await self._counter_action("increment", entity_id)
 
     async def decrement(self, entity_id: str) -> None:
         """Decrement a counter entity's current value (live state, not stored config).
@@ -332,13 +298,7 @@ class HelperClient(Resource):
         Args:
             entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
         """
-        await self._api.call_service(
-            "counter",
-            "decrement",
-            target={"entity_id": entity_id},
-            wait_for_ack=True,
-        )
-        self.logger.debug("Decremented counter %r", entity_id)
+        await self._counter_action("decrement", entity_id)
 
     async def reset(self, entity_id: str) -> None:
         """Reset a counter entity's value to its configured initial (live state, not stored config).
@@ -346,10 +306,10 @@ class HelperClient(Resource):
         Args:
             entity_id: The entity ID of the counter (e.g. ``"counter.motion_count"``).
         """
-        await self._api.call_service(
-            "counter",
-            "reset",
-            target={"entity_id": entity_id},
-            wait_for_ack=True,
-        )
-        self.logger.debug("Reset counter %r", entity_id)
+        await self._counter_action("reset", entity_id)
+
+    # Counters get shortcuts because "increment on every event" is a common call. They use wait_for_ack=True
+    # because HA rejects return_response for counter actions, and the ack wait sends each call exactly once.
+    async def _counter_action(self, action: str, entity_id: str) -> None:
+        await self._api.call_service("counter", action, target={"entity_id": entity_id}, wait_for_ack=True)
+        self.logger.debug("Counter %s %r", action, entity_id)
