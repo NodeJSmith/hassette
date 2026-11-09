@@ -13,7 +13,7 @@ from hassette_codegen.extractors.services import extract_services
 from hassette_codegen.generators.constants import generate_sensor_constants
 from hassette_codegen.generators.entities import generate_entity_wrapper
 from hassette_codegen.generators.states import generate_state_model
-from hassette_codegen.ha_source import discover_domains
+from hassette_codegen.ha_source import discover_domains, find_entity_module
 from hassette_codegen.overrides import get_override, load_overrides
 
 from .conftest import HA_CORE as _HA_CORE
@@ -26,13 +26,14 @@ _COMPONENTS = _HA_CORE / "homeassistant" / "components"
 def _extract_full_domain(domain_name: str) -> ExtractedDomain:
     """Extract everything for a domain — helper for integration tests."""
     component_dir = _COMPONENTS / domain_name
-    init_py = component_dir / "__init__.py"
+    entity_module = find_entity_module(component_dir)
+    assert entity_module is not None, f"no entity module found for {domain_name}"
     overrides = load_overrides()
 
     return ExtractedDomain(
         name=domain_name,
-        base_class=determine_base_class(init_py),
-        properties=extract_properties(init_py),
+        base_class=determine_base_class(entity_module),
+        properties=extract_properties(entity_module),
         features=extract_features(component_dir),
         services=extract_services(component_dir),
         override=get_override(overrides, domain_name),
@@ -119,12 +120,12 @@ class TestAllDomainsCompile:
         failures: list[str] = []
 
         for domain_info in domains:
+            assert domain_info.entity_module is not None  # discover_domains skips domains without one
             try:
-                init_py = domain_info.path / "__init__.py"
                 extracted = ExtractedDomain(
                     name=domain_info.name,
-                    base_class=determine_base_class(init_py),
-                    properties=extract_properties(init_py),
+                    base_class=determine_base_class(domain_info.entity_module),
+                    properties=extract_properties(domain_info.entity_module),
                     features=extract_features(domain_info.path),
                     services=extract_services(domain_info.path) if domain_info.has_services_yaml else [],
                     override=get_override(overrides, domain_info.name),
@@ -144,11 +145,11 @@ class TestPerformance:
         overrides = load_overrides()
 
         for domain_info in domains:
-            init_py = domain_info.path / "__init__.py"
+            assert domain_info.entity_module is not None  # discover_domains skips domains without one
             extracted = ExtractedDomain(
                 name=domain_info.name,
-                base_class=determine_base_class(init_py),
-                properties=extract_properties(init_py),
+                base_class=determine_base_class(domain_info.entity_module),
+                properties=extract_properties(domain_info.entity_module),
                 features=extract_features(domain_info.path),
                 services=extract_services(domain_info.path) if domain_info.has_services_yaml else [],
                 override=get_override(overrides, domain_info.name),

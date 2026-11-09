@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field, field_validator
@@ -6,6 +7,14 @@ from whenever import ZonedDateTime
 from hassette.utils.date_utils import convert_datetime_str_to_tz
 
 from .base import AttributesBase, StringBaseState
+
+
+class DateTimeService(StrEnum):
+    SET_VALUE = "set_value"
+
+
+class DateTimeServiceArgument(StrEnum):
+    DATETIME = "datetime"
 
 
 class DateTimeAttributes(AttributesBase):

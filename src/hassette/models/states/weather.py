@@ -26,6 +26,14 @@ class WeatherEntityStateAttribute(StrEnum):
     PRECIPITATION_UNIT = "precipitation_unit"
 
 
+class WeatherService(StrEnum):
+    GET_FORECASTS = "get_forecasts"
+
+
+class WeatherServiceArgument(StrEnum):
+    TYPE = "type"
+
+
 class WeatherEntityFeature(IntFlag):
     FORECAST_DAILY = 1
     FORECAST_HOURLY = 2

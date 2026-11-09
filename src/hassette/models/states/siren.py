@@ -10,6 +10,18 @@ class SirenEntityCapabilityAttribute(StrEnum):
     AVAILABLE_TONES = "available_tones"
 
 
+class SirenService(StrEnum):
+    TOGGLE = "toggle"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
+class SirenServiceArgument(StrEnum):
+    DURATION = "duration"
+    TONE = "tone"
+    VOLUME_LEVEL = "volume_level"
+
+
 class SirenEntityFeature(IntFlag):
     TURN_ON = 1
     TURN_OFF = 2

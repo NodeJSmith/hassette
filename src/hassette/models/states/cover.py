@@ -16,6 +16,12 @@ class CoverEntityStateAttribute(StrEnum):
     CURRENT_TILT_POSITION = "current_tilt_position"
 
 
+class CoverSpeed(StrEnum):
+    FAST = "fast"
+    MEDIUM = "medium"
+    SLOW = "slow"
+
+
 class CoverStateValue(StrEnum):
     CLOSED = "closed"
     CLOSING = "closing"
@@ -34,6 +40,25 @@ class CoverDeviceClass(StrEnum):
     SHADE = "shade"
     SHUTTER = "shutter"
     WINDOW = "window"
+
+
+class CoverService(StrEnum):
+    CLOSE = "close_cover"
+    CLOSE_TILT = "close_cover_tilt"
+    OPEN = "open_cover"
+    OPEN_TILT = "open_cover_tilt"
+    SET_POSITION = "set_cover_position"
+    SET_TILT_POSITION = "set_cover_tilt_position"
+    STOP = "stop_cover"
+    STOP_TILT = "stop_cover_tilt"
+    TOGGLE = "toggle"
+    TOGGLE_TILT = "toggle_cover_tilt"
+
+
+class CoverServiceArgument(StrEnum):
+    POSITION = "position"
+    SPEED = "speed"
+    TILT_POSITION = "tilt_position"
 
 
 class CoverEntityFeature(IntFlag):

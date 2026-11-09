@@ -9,11 +9,19 @@ from hassette_codegen.extractors.base_class import determine_base_class
 from hassette_codegen.extractors.constants import _extract_enum_ref_set, extract_numeric_state_expected_source
 from hassette_codegen.extractors.features import extract_features
 from hassette_codegen.extractors.properties import extract_properties
+from hassette_codegen.ha_source import find_entity_module
 
 from .conftest import HA_CORE as _HA_CORE
 from .conftest import HAS_HA_CORE as _HAS_HA_CORE
 
 _COMPONENTS = _HA_CORE / "homeassistant" / "components"
+
+
+def _entity_module(domain: str) -> Path:
+    """The file defining ``domain``'s entity class, which HA moved from ``__init__.py`` to ``entity.py`` for some."""
+    module = find_entity_module(_COMPONENTS / domain)
+    assert module is not None, f"no entity module found for {domain}"
+    return module
 
 
 @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
@@ -51,46 +59,63 @@ class TestFeatureExtraction:
 @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
 class TestPropertyExtraction:
     def test_fan_properties(self) -> None:
-        props = extract_properties(_COMPONENTS / "fan" / "__init__.py")
+        props = extract_properties(_entity_module("fan"))
         names = {p.name for p in props}
         assert "current_direction" in names
         assert "oscillating" in names
         assert "percentage" in names
 
     def test_fan_excludes_supported_features(self) -> None:
-        props = extract_properties(_COMPONENTS / "fan" / "__init__.py")
+        props = extract_properties(_entity_module("fan"))
         names = {p.name for p in props}
         assert "supported_features" not in names
 
     def test_field_without_default_gets_none_widened(self) -> None:
-        props = extract_properties(_COMPONENTS / "fan" / "__init__.py")
+        props = extract_properties(_entity_module("fan"))
         for prop in props:
             if not prop.has_default:
                 assert "None" in prop.python_type, f"{prop.name} should be widened to include None"
 
     def test_field_with_default_preserves_type(self) -> None:
-        props = extract_properties(_COMPONENTS / "fan" / "__init__.py")
+        props = extract_properties(_entity_module("fan"))
         percentage = next((p for p in props if p.name == "percentage"), None)
         assert percentage is not None
         assert percentage.has_default is True
 
 
+class TestDeprecatedAttrAliases:
+    def test_deprecated_attr_alias_is_skipped(self, tmp_path: Path) -> None:
+        """HA 2026.11 keeps a renamed `_attr_*` as a `Final` alias; only the real attribute is a field."""
+        module = tmp_path / "entity.py"
+        module.write_text(
+            "class ClimateEntity(Entity):\n"
+            "    _attr_native_current_temperature: float | None = None\n"
+            "    _attr_current_temperature: Final = DeprecatedEntityAttr[float | None](\n"
+            '        "_attr_native_current_temperature", "2027.11"\n'
+            "    )\n"
+        )
+
+        props = extract_properties(module)
+
+        assert [(p.name, p.python_type) for p in props] == [("native_current_temperature", "float | None")]
+
+
 @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
 class TestBaseClassDetermination:
     def test_light_is_bool(self) -> None:
-        result = determine_base_class(_COMPONENTS / "light" / "__init__.py")
+        result = determine_base_class(_entity_module("light"))
         assert result == "BoolBaseState"
 
     def test_fan_is_bool(self) -> None:
-        result = determine_base_class(_COMPONENTS / "fan" / "__init__.py")
+        result = determine_base_class(_entity_module("fan"))
         assert result == "BoolBaseState"
 
     def test_number_is_numeric(self) -> None:
-        result = determine_base_class(_COMPONENTS / "number" / "__init__.py")
+        result = determine_base_class(_entity_module("number"))
         assert result == "NumericBaseState"
 
     def test_climate_is_string(self) -> None:
-        result = determine_base_class(_COMPONENTS / "climate" / "__init__.py")
+        result = determine_base_class(_entity_module("climate"))
         assert result == "StringBaseState"
 
 

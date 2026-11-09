@@ -32,6 +32,19 @@ class HumidifierDeviceClass(StrEnum):
     DEHUMIDIFIER = "dehumidifier"
 
 
+class HumidifierService(StrEnum):
+    SET_HUMIDITY = "set_humidity"
+    SET_MODE = "set_mode"
+    TOGGLE = "toggle"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
+class HumidifierServiceArgument(StrEnum):
+    HUMIDITY = "humidity"
+    MODE = "mode"
+
+
 class HumidifierEntityFeature(IntFlag):
     MODES = 1
 

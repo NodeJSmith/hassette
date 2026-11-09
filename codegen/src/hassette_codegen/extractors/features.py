@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hassette_codegen.extractors._common import iter_classdef_literal_members, parse_module_or_none
+from hassette_codegen.ha_source import ENTITY_MODULE_FILES
+
+ENUM_MODULE_FILES = ("const.py", *ENTITY_MODULE_FILES)
+"""Component files scanned for enums; HA 2026.11 started moving entity code into ``entity.py``."""
 
 
 @dataclass
@@ -16,11 +20,11 @@ class ExtractedEnum:
 
 
 def extract_features(component_dir: Path) -> list[ExtractedEnum]:
-    """Extract IntFlag enums (EntityFeature classes) from both const.py and __init__.py."""
+    """Extract IntFlag enums (EntityFeature classes) from the ``ENUM_MODULE_FILES``."""
     results: list[ExtractedEnum] = []
     seen_names: set[str] = set()
 
-    for filename in ("const.py", "__init__.py"):
+    for filename in ENUM_MODULE_FILES:
         filepath = component_dir / filename
         if not filepath.exists():
             continue
@@ -48,11 +52,11 @@ def extract_features(component_dir: Path) -> list[ExtractedEnum]:
 
 
 def extract_strenum(component_dir: Path) -> list[ExtractedEnum]:
-    """Extract StrEnum classes from both const.py and __init__.py."""
+    """Extract StrEnum classes from the ``ENUM_MODULE_FILES``."""
     results: list[ExtractedEnum] = []
     seen_names: set[str] = set()
 
-    for filename in ("const.py", "__init__.py"):
+    for filename in ENUM_MODULE_FILES:
         filepath = component_dir / filename
         if not filepath.exists():
             continue

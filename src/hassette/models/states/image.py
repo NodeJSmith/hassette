@@ -13,6 +13,14 @@ class ImageEntityStateAttribute(StrEnum):
     ACCESS_TOKEN = "access_token"
 
 
+class ImageService(StrEnum):
+    SNAPSHOT = "snapshot"
+
+
+class ImageServiceArgument(StrEnum):
+    FILENAME = "filename"
+
+
 class ImageAttributes(AttributesBase):
     content_type: str | None = Field(default=None)
     image_last_updated: ZonedDateTime | None = Field(default=None)

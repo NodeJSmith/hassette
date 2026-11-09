@@ -23,6 +23,17 @@ class UpdateDeviceClass(StrEnum):
     FIRMWARE = "firmware"
 
 
+class UpdateService(StrEnum):
+    CLEAR_SKIPPED = "clear_skipped"
+    INSTALL = "install"
+    SKIP = "skip"
+
+
+class UpdateServiceArgument(StrEnum):
+    BACKUP = "backup"
+    VERSION = "version"
+
+
 class UpdateEntityFeature(IntFlag):
     INSTALL = 1
     SPECIFIC_VERSION = 2
@@ -40,6 +51,7 @@ class UpdateAttributes(AttributesBase):
     latest_version: str | None = Field(default=None)
     release_summary: str | None = Field(default=None)
     release_url: str | None = Field(default=None)
+    restart_required: bool | None = Field(default=None)
     title: str | None = Field(default=None)
     update_percentage: int | float | None = Field(default=None)
 

@@ -301,7 +301,13 @@ def _extract_service_registrations(module: Path) -> dict[str, _ServiceRegistrati
 
 
 def _extract_string_constants(module: Path) -> dict[str, str]:
-    """Map each module-level ``NAME = "value"`` / ``NAME: T = "value"`` string constant to its value."""
+    """Map each module-level string constant, and each string member of a module-level class, to its value.
+
+    Class members cover registrations that name an enum member (``ScheduleService.GET``), which the
+    registration extractor keys by the bare member name ("GET"). A module-level constant wins over a member
+    of the same name, and a member name two classes define with different values is left out, since the
+    bare name can't say which class it meant.
+    """
     if not module.exists():
         return {}
 
@@ -309,8 +315,20 @@ def _extract_string_constants(module: Path) -> dict[str, str]:
     if tree is None:
         return {}
 
-    result: dict[str, str] = {}
+    member_values: dict[str, set[str]] = {}
     for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            for name, value in collect_string_assignments(node.body).items():
+                member_values.setdefault(name, set()).add(value)
+    members = {name: next(iter(values)) for name, values in member_values.items() if len(values) == 1}
+
+    return members | collect_string_assignments(tree.body)
+
+
+def collect_string_assignments(body: list[ast.stmt]) -> dict[str, str]:
+    """Map each ``NAME = "value"`` / ``NAME: T = "value"`` statement in ``body`` to its value."""
+    result: dict[str, str] = {}
+    for node in body:
         if isinstance(node, ast.Assign):
             names = [t.id for t in node.targets if isinstance(t, ast.Name)]
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):

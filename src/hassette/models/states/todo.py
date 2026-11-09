@@ -19,6 +19,15 @@ class TodoItemStatus(StrEnum):
     COMPLETED = "completed"
 
 
+class TodoServiceArgument(StrEnum):
+    DESCRIPTION = "description"
+    DUE_DATE = "due_date"
+    DUE_DATETIME = "due_datetime"
+    ITEM = "item"
+    RENAME = "rename"
+    STATUS = "status"
+
+
 class TodoListEntityFeature(IntFlag):
     CREATE_TODO_ITEM = 1
     DELETE_TODO_ITEM = 2

@@ -38,6 +38,31 @@ class ColorMode(StrEnum):
     WHITE = "white"
 
 
+class LightService(StrEnum):
+    TOGGLE = "toggle"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
+class LightServiceArgument(StrEnum):
+    BRIGHTNESS = "brightness"
+    BRIGHTNESS_PCT = "brightness_pct"
+    BRIGHTNESS_STEP = "brightness_step"
+    BRIGHTNESS_STEP_PCT = "brightness_step_pct"
+    COLOR_NAME = "color_name"
+    COLOR_TEMP_KELVIN = "color_temp_kelvin"
+    EFFECT = "effect"
+    FLASH = "flash"
+    HS_COLOR = "hs_color"
+    PROFILE = "profile"
+    RGB_COLOR = "rgb_color"
+    RGBW_COLOR = "rgbw_color"
+    RGBWW_COLOR = "rgbww_color"
+    TRANSITION = "transition"
+    WHITE = "white"
+    XY_COLOR = "xy_color"
+
+
 class LightEntityFeature(IntFlag):
     EFFECT = 4
     FLASH = 8

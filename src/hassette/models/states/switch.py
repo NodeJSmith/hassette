@@ -11,6 +11,12 @@ class SwitchDeviceClass(StrEnum):
     SWITCH = "switch"
 
 
+class SwitchService(StrEnum):
+    TOGGLE = "toggle"
+    TURN_OFF = "turn_off"
+    TURN_ON = "turn_on"
+
+
 class SwitchAttributes(AttributesBase):
     device_class: SwitchDeviceClass | None = Field(default=None)
 

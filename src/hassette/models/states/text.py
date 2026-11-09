@@ -18,6 +18,14 @@ class TextMode(StrEnum):
     TEXT = "text"
 
 
+class TextService(StrEnum):
+    SET_VALUE = "set_value"
+
+
+class TextServiceArgument(StrEnum):
+    VALUE = "value"
+
+
 class TextAttributes(AttributesBase):
     mode: TextMode | None = Field(default=None)
     native_value: str | None = Field(default=None)
