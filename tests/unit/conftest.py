@@ -30,7 +30,7 @@ from hassette.api.api import Api
 from hassette.config import HassetteConfig
 from hassette.core.sync_executor import SyncExecutor
 from hassette.core.sync_executor_service import SyncExecutorService
-from hassette.exceptions import HassetteForgottenAwaitWarning
+from hassette.exceptions import EntityNotFoundError, HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
     HassetteQueueHandler,
@@ -137,7 +137,7 @@ def make_api() -> Api:
     - ws_send_and_wait → returns {} (enough for call_service/fire_event)
     - ws_send_json     → returns None
     - post_rest_request → returns a mock response (for set_state)
-    - entity_exists    → returns False (simplifies set_state test)
+    - rest_request     → raises EntityNotFoundError (set_state sees no existing entity)
     """
     hassette_mock = MagicMock()
     hassette_mock.config.logging.api = "INFO"
@@ -156,7 +156,7 @@ def make_api() -> Api:
     mock_resp = AsyncMock()
     mock_resp.json = AsyncMock(return_value={"state": "on", "entity_id": "light.test"})
     api.post_rest_request = AsyncMock(return_value=mock_resp)
-    api.entity_exists = AsyncMock(return_value=False)
+    api.rest_request = AsyncMock(side_effect=EntityNotFoundError("not found"))
 
     return api
 
