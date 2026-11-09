@@ -230,7 +230,8 @@ class ApiSyncFacade(Resource):
                 Home Assistant's result envelope instead of sending fire-and-forget, surfacing HA-side failures as
                 ``FailedMessageError`` without asking for response data — so it works for services that return no
                 response, which ``return_response`` cannot.
-            **data: Additional data to send with the service call.
+            **data: Additional data to send with the service call. Keys whose value is ``None`` are omitted, so
+                optional fields can be passed through unconditionally.
 
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
