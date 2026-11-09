@@ -328,10 +328,14 @@ class ApiEntityDataMixin:
         entity_id = str(entity_id)
 
         attributes = attributes or {}
-        curr_attributes = {}
 
-        if await self.entity_exists(entity_id):
-            curr_attributes = (await self.get_state_raw(entity_id)).get("attributes", {}) or {}
+        # One suppressed GET: a missing entity (or one removed mid-call) means no current attributes,
+        # and the POST below creates it.
+        try:
+            response = await self.rest_request("GET", f"states/{entity_id}", suppress_error_message=True)
+            curr_attributes = (await response.json()).get("attributes") or {}
+        except EntityNotFoundError:
+            curr_attributes = {}
 
         # Merge current attributes with new attributes.
         # This client-side merge is load-bearing: HA's POST /api/states/{id} REPLACES the attribute
