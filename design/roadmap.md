@@ -59,6 +59,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 |---|---|---|
 | **HA drift canary** | *HA Drift Canary* (brief: `design/research/2026-11-09-ha-wire-drift-detection/`) | Small. Catches upstream HA wire changes on HA `dev` weeks before a release reaches users (#3949 shipped broken run events). Tests and CI only, so it doesn't collide with the Testing API redesign |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
+| **Module boundaries** | *Module Boundaries* (parent #633) | Enforce the layer map with no exceptions, split `core/` into subpackages, clear the 800-line backlog so HSL102 can block. Mostly mechanical, so it fits between bigger PRs. After the testing redesign, which reshapes `recording_api.py` (#2731) |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
 | **HACS app entities** | pool: #1449, #2439, #2611 (`epic:hacs`) | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439), per-element list parsing so one bad app doesn't blank the integration (#2611) |
@@ -86,6 +87,8 @@ testing redesign + all breaking changes ──> v1.0 tag
 #2992, #1446, #2991 job timing, #2555 apps cleanup ──> #2993 apps from DB ──> #2996 snapshot mode
 #1446 projector ──> #2890 mixed-instance scenario ──> #2996 snapshot mode
 #2989 seed anchor ──> #2996 snapshot mode
+#3231 layer map ──> #3965 core subpackages
+testing redesign (#2731), #2333, #2730, #3966 ──> #3967 HSL102 blocking
 ```
 
 Remove a chain once every step on it has closed.
