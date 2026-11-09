@@ -441,7 +441,7 @@ def make_log_record_dict(
     execution_id: str | None = None,
     author: LogAuthor = "app",
 ) -> dict[str, Any]:
-    """Build the 13-key record dict shape ``_insert_log_records()`` expects.
+    """Build the 13-key record dict shape ``insert_log_records()`` expects.
 
     Every field is an explicit keyword with a neutral default so callers spell out only
     what they assert on.

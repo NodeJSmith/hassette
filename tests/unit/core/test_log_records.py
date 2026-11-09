@@ -200,7 +200,7 @@ class TestRestartPersistence:
             svc = DatabaseService.__new__(DatabaseService)
             svc.hassette = mock_hassette
             svc._db = db1  # pyright: ignore[reportPrivateUsage]
-            await svc._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+            await svc.insert_log_records(records)
             await db1.commit()
 
         async with aiosqlite.connect(db_path) as db2:
@@ -234,7 +234,7 @@ def _make_rollback_test_record(now: float) -> dict:
 
 class TestInsertLogRecords:
     async def test_insert_writes_records(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
-        """_insert_log_records() inserts records that are queryable."""
+        """insert_log_records() inserts records that are queryable."""
         now = time.time()
         records = [
             make_log_record_dict(
@@ -261,7 +261,7 @@ class TestInsertLogRecords:
                 execution_id="exec-001",
             ),
         ]
-        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+        await db_service.insert_log_records(records)
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
@@ -269,8 +269,8 @@ class TestInsertLogRecords:
         assert row[0] == 2
 
     async def test_insert_empty_list_is_noop(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
-        """_insert_log_records() with empty list does not raise."""
-        await db_service._insert_log_records([])  # pyright: ignore[reportPrivateUsage]
+        """insert_log_records() with empty list does not raise."""
+        await db_service.insert_log_records([])
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
@@ -278,7 +278,7 @@ class TestInsertLogRecords:
         assert row[0] == 0
 
     async def test_insert_stores_all_fields(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
-        """_insert_log_records() stores all specified fields correctly."""
+        """insert_log_records() stores all specified fields correctly."""
         now = time.time()
         exc_text = "Traceback: something went wrong"
         records = [
@@ -296,7 +296,7 @@ class TestInsertLogRecords:
                 execution_id="exec-xyz",
             )
         ]
-        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+        await db_service.insert_log_records(records)
 
         cursor = await db.execute("SELECT * FROM log_records WHERE execution_id = ?", ("exec-xyz",))
         row = await cursor.fetchone()
@@ -328,7 +328,7 @@ class TestInsertLogRecords:
                 author="framework",
             )
         ]
-        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+        await db_service.insert_log_records(records)
 
         cursor = await db.execute("SELECT app_key, execution_id, author FROM log_records")
         row = await cursor.fetchone()
@@ -349,7 +349,7 @@ class TestInsertLogRecords:
             patch.object(db, "rollback", wraps=db.rollback) as mock_rollback,
             pytest.raises(sqlite3.OperationalError),
         ):
-            await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+            await db_service.insert_log_records(records)
 
         mock_rollback.assert_called_once()
 
@@ -375,7 +375,7 @@ class TestInsertLogRecords:
             patch.object(db, "rollback", AsyncMock(side_effect=sqlite3.OperationalError("rollback also failed"))),
             pytest.raises(sqlite3.OperationalError, match=DB_LOCKED_MSG),
         ):
-            await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+            await db_service.insert_log_records(records)
 
         mock_logger.exception.assert_called_once()
 
@@ -435,7 +435,7 @@ async def seed_log_records(db_service: DatabaseService) -> None:
             author="framework",
         ),
     ]
-    await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+    await db_service.insert_log_records(records)
 
 
 class TestGetLogRecords:
@@ -471,7 +471,7 @@ class TestGetLogRecords:
             log(3, now, "same-timestamp-higher-seq"),
             log(4, now + 10, "newest"),
         ]
-        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+        await db_service.insert_log_records(records)
 
         results = await service.get_log_records(limit=100, author="all")
 
@@ -562,7 +562,7 @@ class TestGetLogRecordsByExecution:
                 execution_id="exec-other",
             )
         )
-        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+        await db_service.insert_log_records(records)
 
     async def test_returns_records_for_execution(
         self, db_service: DatabaseService, service: TelemetryQueryService
@@ -623,7 +623,7 @@ class TestGetLogRecordsByExecution:
                 seq=3, level="ERROR", execution_id="exec-mixed", author="framework", message="framework error"
             ),
         ]
-        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+        await db_service.insert_log_records(records)
 
     async def test_default_hides_framework_lines_below_error(
         self, db_service: DatabaseService, service: TelemetryQueryService

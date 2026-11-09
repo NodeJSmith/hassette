@@ -43,7 +43,7 @@ class TestSizeFailsafePriority:
         """Seed log_records and executions."""
         now = time.time()
         logs = [make_log_record_row(i, now - (i * 10), f"log {i}") for i in range(1, log_count + 1)]
-        await db_service_writer._insert_log_records(logs)  # pyright: ignore[reportPrivateUsage]
+        await db_service_writer.insert_log_records(logs)
 
         for i in range(exec_count):
             await db.execute(
@@ -201,7 +201,7 @@ class TestSizeFailsafePriority:
         await insert_blocking_event(db, now - 10)
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
         await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
+        await db_service_writer.insert_log_records(
             [make_log_record_row(1, now - 10, "log"), make_log_record_row(2, now - 10, "debug", level="DEBUG")]
         )
 

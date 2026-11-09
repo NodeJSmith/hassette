@@ -47,9 +47,7 @@ class TestSizeFailsafeIterationCap:
         await insert_blocking_event(db, now - 10)
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
         await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(1, now - 10, "log")]
-        )
+        await db_service_writer.insert_log_records([make_log_record_row(1, now - 10, "log")])
 
         await run_size_failsafe(retention_service, mock_hassette_for_db, caplog, level=logging.WARNING)
 
@@ -89,9 +87,7 @@ class TestSizeFailsafeIterationCap:
         for i in range(20):
             await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
         await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(1, now - 1, "log")]
-        )
+        await db_service_writer.insert_log_records([make_log_record_row(1, now - 1, "log")])
 
         # Always over the limit, so the framework tier hits the iteration cap instead of naturally
         # draining and breaking out early.
@@ -203,9 +199,7 @@ class TestSizeFailsafeIterationCap:
         for i in range(5):
             await insert_tiered_execution(db, now - i, SOURCE_TIER_APP)
         await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(i, now - i, "log") for i in range(5)]
-        )
+        await db_service_writer.insert_log_records([make_log_record_row(i, now - i, "log") for i in range(5)])
 
         await run_size_failsafe(retention_service, mock_hassette_for_db, caplog)
 

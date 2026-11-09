@@ -61,9 +61,7 @@ class TestSizeFailsafeFailureIsolation:
         # A lower-priority tier the run can still reach after the framework tier's probe fails.
         await insert_blocking_event(db, now - 1)
         await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(1, now - 1, "log")]
-        )
+        await db_service_writer.insert_log_records([make_log_record_row(1, now - 1, "log")])
 
         # Fail only the stale-row probe's SELECT, not the batched DELETE's inner subselect.
         monkeypatch.setattr(db, "execute", make_failing_execute(db, "SELECT 1 FROM executions"))
@@ -113,9 +111,7 @@ class TestSizeFailsafeFailureIsolation:
         # genuine exhaustion.
         await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
         await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(1, now - 1, "log")]
-        )
+        await db_service_writer.insert_log_records([make_log_record_row(1, now - 1, "log")])
 
         await run_size_failsafe(retention_service, mock_hassette_for_db)
         assert retention_service._consecutive_exhaustion_triggers == 1  # pyright: ignore[reportPrivateUsage]
@@ -137,9 +133,7 @@ class TestSizeFailsafeFailureIsolation:
         await db.commit()
         await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
         await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(2, now - 1, "log")]
-        )
+        await db_service_writer.insert_log_records([make_log_record_row(2, now - 1, "log")])
 
         await run_size_failsafe(retention_service, mock_hassette_for_db)
         assert retention_service._consecutive_exhaustion_triggers == 1  # pyright: ignore[reportPrivateUsage]
