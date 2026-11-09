@@ -21,15 +21,6 @@ the marker and gets pydantic-settings' own meaning (``None`` reads no ``.env`` f
 default is already ``None``, which is why ``None`` can't be the marker.
 """
 
-FRAMEWORK_FIELDS = (
-    "instance_name",
-    "log_level",
-    "framework_log_level",
-    "forgotten_await_behavior",
-    "blocking_io_behavior",
-)
-"""`AppConfig`'s own fields, which config loading and the docs always spell by field name."""
-
 
 class AppConfig(BaseSettings):
     """Base configuration class for applications in the Hassette framework.
@@ -121,6 +112,10 @@ class AppConfig(BaseSettings):
                 # the by-name value wins: it's the one manifest validation checked
                 renamed[alias] = renamed.pop(name)
         return renamed
+
+
+FRAMEWORK_FIELDS = tuple(AppConfig.model_fields)
+"""`AppConfig`'s own fields, which config loading and the docs always spell by field name."""
 
 
 def hassette_env_files() -> tuple[Path, ...]:
