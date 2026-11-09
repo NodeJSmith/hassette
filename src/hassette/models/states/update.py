@@ -51,7 +51,6 @@ class UpdateAttributes(AttributesBase):
     latest_version: str | None = Field(default=None)
     release_summary: str | None = Field(default=None)
     release_url: str | None = Field(default=None)
-    restart_required: bool | None = Field(default=None)
     title: str | None = Field(default=None)
     update_percentage: int | float | None = Field(default=None)
 
