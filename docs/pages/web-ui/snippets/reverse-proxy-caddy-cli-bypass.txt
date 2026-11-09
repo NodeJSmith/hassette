@@ -1,5 +1,10 @@
 hassette.example.com {
-    handle /api/* {
+    @cli {
+        path /api/*
+        header Authorization "Bearer *"
+    }
+
+    handle @cli {
         reverse_proxy hassette:8126
     }
 
