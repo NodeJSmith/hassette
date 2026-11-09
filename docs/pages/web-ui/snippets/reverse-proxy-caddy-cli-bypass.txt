@@ -1,0 +1,12 @@
+hassette.example.com {
+    handle /api/* {
+        reverse_proxy hassette:8126
+    }
+
+    handle {
+        forward_auth authelia:9091 {
+            uri /api/authz/forward-auth
+        }
+        reverse_proxy hassette:8126
+    }
+}
