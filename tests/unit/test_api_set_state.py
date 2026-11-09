@@ -7,7 +7,7 @@ removed mid-call) means there are no current attributes, and the POST creates th
 from unittest.mock import AsyncMock
 
 from hassette.exceptions import EntityNotFoundError
-from tests.unit.conftest import as_async_mock, awaited_kwargs, make_api
+from tests.unit.conftest import as_async_mock, make_api
 
 
 async def test_set_state_missing_entity_posts_only_caller_attributes() -> None:
@@ -17,9 +17,10 @@ async def test_set_state_missing_entity_posts_only_caller_attributes() -> None:
 
     await api.set_state("sensor.test", "on", {"a": 1})
 
-    rest = as_async_mock(api.rest_request)
-    rest.assert_awaited_once_with("GET", "states/sensor.test", suppress_error_message=True)
-    assert awaited_kwargs(api.post_rest_request)["data"] == {"state": "on", "attributes": {"a": 1}}
+    as_async_mock(api.rest_request).assert_awaited_once_with("GET", "states/sensor.test", suppress_error_message=True)
+    as_async_mock(api.post_rest_request).assert_awaited_once_with(
+        "states/sensor.test", data={"state": "on", "attributes": {"a": 1}}
+    )
 
 
 async def test_set_state_existing_entity_merges_with_one_get() -> None:
@@ -31,5 +32,7 @@ async def test_set_state_existing_entity_merges_with_one_get() -> None:
 
     await api.set_state("sensor.test", "on", {"a": 9})
 
-    as_async_mock(api.rest_request).assert_awaited_once()
-    assert awaited_kwargs(api.post_rest_request)["data"] == {"state": "on", "attributes": {"a": 9, "b": 2}}
+    as_async_mock(api.rest_request).assert_awaited_once_with("GET", "states/sensor.test", suppress_error_message=True)
+    as_async_mock(api.post_rest_request).assert_awaited_once_with(
+        "states/sensor.test", data={"state": "on", "attributes": {"a": 9, "b": 2}}
+    )
