@@ -27,7 +27,7 @@ The section name (`daily_notification`) is the app key — the same key the `has
 
 Every `App` instance carries `self.scheduler` (runs functions on a schedule), `self.api` (calls HA services), and `self.app_config` (the validated config) — Hassette provides them at startup. Lifecycle hooks and handlers are `async def`; Hassette runs the event loop, so the pattern works without prior async experience.
 
-`DailyNotificationConfig` defines three fields: the wall-clock time as an `"HH:MM"` string (24-hour local time), the notify service name, and the message body. All three carry defaults and can be overridden per instance in [`hassette.toml`](../core-concepts/configuration/index.md). Find your notify service name in HA under **Developer Tools → Services**, filter for `notify` — it looks like `mobile_app_your_device_name`. The `model_config = SettingsConfigDict(...)` line is standard boilerplate from `pydantic-settings` (installed with Hassette — nothing extra to install); its `env_prefix` lets an environment variable like `DAILY_NOTIFICATION_MESSAGE=...` supply a field the `hassette.toml` config block leaves unset. A value set in `hassette.toml` takes precedence over the environment variable.
+`DailyNotificationConfig` defines three fields: the wall-clock time as an `"HH:MM"` string (24-hour local time), the notify service name, and the message body. All three carry defaults and can be overridden per instance in [`hassette.toml`](../core-concepts/configuration/index.md). Find your notify service name in HA under **Developer Tools → Actions**, filter for `notify` — it looks like `mobile_app_your_device_name`. The `model_config = SettingsConfigDict(...)` line is standard boilerplate from `pydantic-settings` (installed with Hassette — nothing extra to install); its `env_prefix` lets an environment variable like `DAILY_NOTIFICATION_MESSAGE=...` supply a field the `hassette.toml` config block leaves unset. A value set in `hassette.toml` takes precedence over the environment variable.
 
 `on_initialize` calls `self.scheduler.run_daily(self.send_notification, at=...)` with the configured time string. `run_daily` registers a [`Daily`][hassette.scheduler.triggers.Daily] trigger that recalculates the next fire time after each trigger, so clock-forward and clock-back DST transitions do not cause double-fires or skips. The notification fires at 08:00 local time year-round.
 
@@ -41,7 +41,7 @@ Run these from your project directory while Hassette is running. Confirm the job
 hassette job --app daily_notification
 ```
 
-The output is a table with one row per job. Expect a row with App `daily_notification`, Handler `send_notification`, Trigger `cron`, and Status `Scheduled`. Next Run shows a relative time such as `in 5h`.
+The output is a table with one row per job. Expect a row with App `daily_notification`, Handler `send_notification`, Trigger `cron`, and Status `Scheduled`. A `run_daily` job shows trigger type `cron` because the `Daily` trigger is stored as the cron expression it runs on. Next Run shows a relative time such as `in 5h`.
 
 !!! tip "Test delivery without waiting a day"
     The default fire time may be hours away. For a first test, set `notify_time` in the
