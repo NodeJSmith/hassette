@@ -130,11 +130,13 @@ class CommandNotSentError(HassetteError):
     """The command never reached Home Assistant, so it did not apply (one edge case below).
 
     Raised when the WebSocket isn't connected or the socket write failed, and when a REST request
-    couldn't connect (refused, DNS, TLS, connect timeout) or the REST session is closed. Catch
+    couldn't connect (refused, DNS, TLS) or the REST session is closed. A REST connect that times out
+    raises :class:`ResponseTimeoutError` instead. Catch
     ``(CommandNotSentError, OutcomeUnknownError)`` for "Home Assistant is unreachable or didn't answer".
 
     One edge case: a connection lost while the socket waits for its send buffer to drain is reported
-    as not sent, although the frame may already have gone out.
+    as not sent, although the frame may already have gone out. That wait happens only when
+    Home Assistant has stopped reading the socket and the buffer is full, so it is rare.
     """
 
 
@@ -193,6 +195,9 @@ class OutcomeUnknownError(HassetteError):
 
 class ResponseTimeoutError(OutcomeUnknownError):
     """No response arrived within the response timeout, so the command may or may not have applied.
+
+    On REST it also covers a connect, DNS lookup or wait for a pooled connection that never finished,
+    although nothing was sent then.
 
     ``original_data`` is the outgoing WebSocket payload (``None`` for REST). The message names the
     command ``type`` and id (or the REST method and URL) and the deadline, never payload values.

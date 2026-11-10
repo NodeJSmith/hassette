@@ -36,12 +36,6 @@ from hassette.utils.url_utils import resolve_rest_path
 
 _SSL_SHUTDOWN_DELAY = 0.25
 
-REST_CONNECT_TIMEOUT_SECONDS = 10
-"""Bound on a REST request's socket connect, so a host that silently drops packets fails as not sent.
-
-Applied only to ``rest_request``'s default timeout; a caller-supplied ``timeout=`` is used as given.
-"""
-
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.websocket_service import WebsocketService
@@ -134,11 +128,11 @@ class ApiResource(Resource):
     ) -> aiohttp.ClientResponse:
         """Make a REST request to the Home Assistant API.
 
-        Transport failures are mapped onto delivery states: a failed connect or a closed session raises
-        ``CommandNotSentError``, a timeout after the request went out raises ``ResponseTimeoutError``,
-        and a connection dropped before the response headers arrived raises ``ResponseLostError``. A
-        404 raises ``EntityNotFoundError`` and any other error status ``HttpRequestError``. A failure
-        while the caller reads the response body is not mapped.
+        Transport failures are mapped onto delivery states: a refused, DNS or TLS connect failure or a
+        closed session raises ``CommandNotSentError``, a timeout (including one while connecting) raises
+        ``ResponseTimeoutError``, and a connection dropped before the response headers arrived raises
+        ``ResponseLostError``. A 404 raises ``EntityNotFoundError`` and any other error status
+        ``HttpRequestError``. A failure while the caller reads the response body is not mapped.
 
         A GET is retried on any of these except a 4xx other than 408/429 (and the ``NOT_RETRYABLE``
         types, such as a caller's ``TypeError``). Any other method is retried only on
@@ -189,9 +183,7 @@ class ApiResource(Resource):
             else:
                 total = self.hassette.config.rest_request_timeout_seconds
                 deadline = f"{total}s (rest_request_timeout_seconds)"
-                request_kwargs["timeout"] = aiohttp.ClientTimeout(
-                    total=total, sock_connect=REST_CONNECT_TIMEOUT_SECONDS
-                )
+                request_kwargs["timeout"] = aiohttp.ClientTimeout(total=total)
 
             try:
                 response = await self._session.request(
@@ -265,12 +257,12 @@ class ApiResource(Resource):
 def delivery_state_error(exc: BaseException, *, method: str, url: str, deadline: str) -> Exception | None:
     """Map a REST transport failure onto its delivery-state class, or None to let it propagate raw.
 
-    Subclasses come before their parents: ``ClientConnectorError`` is a ``ClientConnectionError``,
-    and ``ConnectionTimeoutError`` is a ``ServerTimeoutError``, which is both a
-    ``ClientConnectionError`` and a ``TimeoutError``. Any other ``ClientError`` (an invalid URL,
-    a redirect or payload error) is a caller bug or a response Home Assistant already sent.
+    ``ClientConnectorError`` (refused, DNS, TLS) is a ``ClientConnectionError``, so it comes first.
+    A connect that times out is reported as a response timeout, not as not sent: telling the two
+    apart would rest on how aiohttp labels its internal connect timer. Any other ``ClientError`` (an
+    invalid URL, a redirect or payload error) is a caller bug or a response Home Assistant already sent.
     """
-    if isinstance(exc, aiohttp.ClientConnectorError | aiohttp.ConnectionTimeoutError):
+    if isinstance(exc, aiohttp.ClientConnectorError):
         return CommandNotSentError(f"{method} {url}: not sent, could not connect to Home Assistant")
     if isinstance(exc, TimeoutError):
         return ResponseTimeoutError(

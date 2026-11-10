@@ -53,7 +53,7 @@ def connector_error(cls: type[ClientConnectorError] = ClientConnectorError) -> C
     [
         pytest.param(connector_error(), CommandNotSentError, id="connector"),
         pytest.param(connector_error(ClientConnectorDNSError), CommandNotSentError, id="dns"),
-        pytest.param(ConnectionTimeoutError("connect"), CommandNotSentError, id="connect_timeout"),
+        pytest.param(ConnectionTimeoutError("connect"), ResponseTimeoutError, id="connect_timeout"),
         pytest.param(SocketTimeoutError("read"), ResponseTimeoutError, id="read_timeout"),
         pytest.param(ServerTimeoutError("read"), ResponseTimeoutError, id="server_timeout"),
         pytest.param(TimeoutError(), ResponseTimeoutError, id="total_timeout"),
