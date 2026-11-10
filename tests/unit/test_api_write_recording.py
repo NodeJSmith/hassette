@@ -136,6 +136,11 @@ class TestWhatEachWriteRecords:
             '{"who":"mail"}',
         )
 
+    async def test_fire_event_keeps_secrets_masked(self, rec: Recorded) -> None:
+        await rec.api.fire_event("keypad", {"pin": SecretStr("1234"), "codes": [SecretStr("5678")]})
+
+        assert rec.row.data == '{"pin":"**********","codes":["**********"]}'
+
     async def test_helper_writes(self, rec: Recorded) -> None:
         helpers = HelperClient.__new__(HelperClient)  # bypass Resource wiring; only _api and logger are read
         helpers._api = rec.api
@@ -368,6 +373,15 @@ class TestRestOwnership:
         assert (rec.row.kind, rec.row.operation, rec.row.target) == ("set_state", None, {"entity_id": ["sensor.x"]})
         assert rec.row.data == '{"state":"on","attributes":{"unit":"W"}}'
         assert [(o["outcome"], o["context_id"]) for o in rec.outcomes] == [("success", "ctx-5")]
+
+    async def test_set_state_keeps_secrets_masked(self, rec: Recorded) -> None:
+        response = AsyncMock()
+        response.json = AsyncMock(return_value={"state": "armed", "context": {"id": "ctx-6"}})
+        rec.api.post_rest_request = AsyncMock(return_value=response)
+
+        await rec.api.set_state("sensor.alarm", SecretStr("1234"), {"code": SecretStr("5678")})
+
+        assert rec.row.data == '{"state":"**********","attributes":{"code":"**********"}}'
 
     @pytest.mark.parametrize(
         ("exc", "expected"),
