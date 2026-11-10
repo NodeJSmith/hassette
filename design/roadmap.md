@@ -57,12 +57,12 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
+| **HACS app entities** | pool: parent #3993, #1449, #2439 (`epic:hacs`) | Apps declare HA buttons, switches and sensors in code instead of trigger-only `input_button`/`input_boolean` helpers (#3993). Needs a sketch first: the July design predates the v0.1 transport, and #1449 also claims `self.entities`. WS wire-compat check (#2439) lands before the push channel. Unblocks webhooks and `@template` |
 | **HA drift canary** | *HA Drift Canary* (brief: `design/research/2026-11-09-ha-wire-drift-detection/`) | Small. Catches upstream HA wire changes on HA `dev` weeks before a release reaches users (#3949 shipped broken run events). Tests and CI only, so it doesn't collide with the Testing API redesign |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Module boundaries** | *Module Boundaries* (parent #633) | Enforce the layer map with no exceptions, split `core/` into subpackages, clear the 800-line backlog so HSL102 can block. Mostly mechanical, so it fits between bigger PRs. After the testing redesign, which reshapes `recording_api.py` (#2731) |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
-| **HACS app entities** | pool: #1449, #2439, #2611 (`epic:hacs`) | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439), per-element list parsing so one bad app doesn't blank the integration (#2611) |
 
 ## Later
 
@@ -80,7 +80,7 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 These are the only forced orderings. Anything not on a chain can go in any order.
 
 ```
-HACS app entities ──> HACS webhooks & templates
+#2439 WS wire-compat ──> #3993 app-declared entities ──> HACS webhooks & templates
 testing redesign + all breaking changes ──> v1.0 tag
 #2695 required DB ──> #2992 WebContext ──> #2994 status from DB
 #2695, #2990 write path, #2938 service_status scope ──> #1446 projector ──> #2806 issues registry ──> #2994 status from DB ──> #2995 WS invalidations ──> #2996 snapshot mode
