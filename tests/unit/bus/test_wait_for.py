@@ -196,7 +196,7 @@ async def test_wait_for_listener_is_once_and_removed_after_firing(bus: "Bus") ->
         await _await_registration(ready)
 
         listener = registered[0]
-        assert listener.invoker.once is True
+        assert listener.invoker.options.once is True
 
         key = listener_key(bus, name="once_check")
         assert key in bus._registered_listeners
