@@ -185,22 +185,11 @@ class HandlerInvoker:
     guard: ExecutionModeGuard
     """Per-listener overlap state machine. Owns the running-task reference and live counters."""
 
-    mode: ExecutionMode
-    """Resolved overlap mode. Copied from options so dispatch can branch without reading the guard's
-    private state."""
+    options: ListenerOptions
+    """The listener's behavioral options. Dispatch reads ``once``, ``mode`` and the timeout fields from here."""
 
     handler_short_name: str
     """Short handler name, captured for the stall WARNING and debug logs."""
-
-    timeout: float | None
-    """Intentional copy of ListenerOptions.timeout. Read through ``effective_timeout``."""
-
-    timeout_disabled: bool
-    """Intentional copy of ListenerOptions.timeout_disabled. Read through ``effective_timeout``."""
-
-    once: bool = False
-    """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
-    dispatch() needs this but cannot back-reference options without a circular dependency."""
 
     backpressure_dropped: int = 0
     """Count of events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure.
@@ -232,7 +221,7 @@ class HandlerInvoker:
     ) -> "HandlerInvoker":
         """Construct a HandlerInvoker from a handler and options.
 
-        Builds the async wrapper, injector, and rate limiter. Copies options.once, timeout and timeout_disabled.
+        Builds the async wrapper, injector, and rate limiter, and keeps a reference to ``options``.
 
         Args:
             task_bucket: TaskBucket for async adapter and rate limiter.
@@ -270,20 +259,13 @@ class HandlerInvoker:
             rate_limiter=rate_limiter,
             task_bucket=task_bucket,
             guard=ExecutionModeGuard(options.mode),
-            mode=options.mode,
+            options=options,
             handler_short_name=callable_short_name(handler),
-            timeout=options.timeout,
-            timeout_disabled=options.timeout_disabled,
-            once=options.once,
         )
 
     def mark_fired(self) -> None:
         """Mark this once-invoker as having fired. Called by dispatch() and Listener.cancel()."""
         self.fired = True
-
-    def set_app_error_handler_resolver(self, resolver: "Callable[[], BusErrorHandlerType | None]") -> None:
-        """Set the closure that resolves the app-level error handler at dispatch time."""
-        self.app_error_handler_resolver = resolver
 
     async def dispatch(
         self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
@@ -309,9 +291,9 @@ class HandlerInvoker:
         enforces. BusService owns it, so a listener's stall threshold follows that timeout however the
         listener was built.
         """
-        if self.once and self.fired:
+        if self.options.once and self.fired:
             return
-        if self.once:
+        if self.options.once:
             self.mark_fired()
 
         if self.rate_limiter:
@@ -323,7 +305,7 @@ class HandlerInvoker:
         self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
     ) -> None:
         """Apply the overlap mode guard to a single started invocation."""
-        if self.mode is ExecutionMode.PARALLEL:
+        if self.options.mode is ExecutionMode.PARALLEL:
             try:
                 await run_parallel(
                     spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
@@ -351,14 +333,14 @@ class HandlerInvoker:
 
         The enforced timeout and the stall threshold both read this, so they can't disagree.
         """
-        return resolve_effective_timeout(self.timeout, self.timeout_disabled, config_resolver)
+        return resolve_effective_timeout(self.options.timeout, self.options.timeout_disabled, config_resolver)
 
     def warn_stalled(self, threshold: float, effective_timeout: float | None) -> None:
         """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
         LOGGER.warning(
             "Handler '%s' has held its %s execution-mode guard for over %s and is still running",
             self.handler_short_name,
-            self.mode.value,
+            self.options.mode.value,
             describe_stall_threshold(threshold, effective_timeout),
         )
 

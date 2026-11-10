@@ -7,7 +7,7 @@ factory the integration tests rely on.
 """
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -30,6 +30,7 @@ def make_invoker(
     kwargs: Mapping[str, Any] | None = None,
     task_bucket: TaskBucket | None = None,
     error_handler: BusErrorHandlerType | None = None,
+    app_error_handler_resolver: Callable[[], BusErrorHandlerType | None] | None = None,
 ) -> HandlerInvoker:
     """Build a ``HandlerInvoker`` via ``HandlerInvoker.create()``, filling in sane defaults."""
     task_bucket = task_bucket if task_bucket is not None else make_task_bucket()
@@ -41,6 +42,7 @@ def make_invoker(
         kwargs=kwargs,
         options=options,
         error_handler=error_handler,
+        app_error_handler_resolver=app_error_handler_resolver,
     )
 
 
@@ -54,14 +56,15 @@ class TestHandlerInvokerCreate:
         assert invoker.error_handler is None
         assert invoker.app_error_handler_resolver is None
         assert invoker.rate_limiter is None
-        assert invoker.once is False
+        assert invoker.options.once is False
         assert invoker.fired is False
 
-    def test_create_copies_once_from_options(self) -> None:
-        """HandlerInvoker.create() copies once=True from ListenerOptions."""
-        invoker = make_invoker(options=ListenerOptions(once=True))
+    def test_create_keeps_options_reference(self) -> None:
+        """HandlerInvoker.create() stores the ListenerOptions it was given."""
+        options = ListenerOptions(once=True)
+        invoker = make_invoker(options=options)
 
-        assert invoker.once is True
+        assert invoker.options is options
 
     def test_create_with_debounce_builds_rate_limiter(self) -> None:
         """HandlerInvoker.create() with debounce builds a RateLimiter."""
@@ -114,11 +117,10 @@ class TestHandlerInvokerMarkFired:
         assert invoker.fired is True
 
 
-class TestHandlerInvokerSetAppErrorHandlerResolver:
-    def test_set_resolver(self) -> None:
-        invoker = make_invoker()
+class TestHandlerInvokerAppErrorHandlerResolver:
+    def test_create_with_resolver(self) -> None:
         resolver = MagicMock(return_value=None)
-        invoker.set_app_error_handler_resolver(resolver)
+        invoker = make_invoker(app_error_handler_resolver=resolver)
         assert invoker.app_error_handler_resolver is resolver
 
 

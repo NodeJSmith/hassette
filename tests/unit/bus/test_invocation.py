@@ -183,12 +183,11 @@ class TestIsSyntheticFlag:
 class TestErrorHandlerResolution:
     async def test_error_handler_from_resolver_propagates(self) -> None:
         """When listener's app_error_handler_resolver returns a handler, it is set on InvokeHandler."""
-        listener = create_listener(topic="test.topic")
 
         async def app_handler(ctx: BusErrorContext) -> None:
             pass
 
-        listener.invoker.set_app_error_handler_resolver(lambda: app_handler)
+        listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: app_handler)
 
         cmd = await invoke_and_get_cmd(listener=listener)
 
@@ -205,9 +204,7 @@ class TestErrorHandlerResolution:
 
     async def test_no_error_handler_when_resolver_returns_none(self) -> None:
         """When resolver returns None, app_level_error_handler is None."""
-        listener = create_listener(topic="test.topic")
-
-        listener.invoker.set_app_error_handler_resolver(lambda: None)
+        listener = create_listener(topic="test.topic", app_error_handler_resolver=lambda: None)
 
         cmd = await invoke_and_get_cmd(listener=listener)
 
