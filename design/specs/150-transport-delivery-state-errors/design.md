@@ -1,7 +1,7 @@
 # Design: Split transport exceptions by delivery state
 
 **Date:** 2026-11-09
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3957
 **Prior art:** design/research/2026-11-09-transport-delivery-state-errors/prior-art.md
@@ -203,7 +203,7 @@ Two sub-choices settled after the table, at the sketch-time challenge and comb:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - REST mapping lives in a module-level `delivery_state_error(exc, method, url, deadline)` in `api_resource.py`, called from `rest_request`'s single `except (aiohttp.ClientError, TimeoutError)`: one place for D6's ordered rule, unit-testable without a server.
