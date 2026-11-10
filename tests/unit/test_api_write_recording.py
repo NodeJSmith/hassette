@@ -6,7 +6,6 @@ maps to, not the SQL.
 """
 
 import asyncio
-from collections.abc import Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -84,11 +83,6 @@ class Recorded:
     def outcomes(self) -> list[dict[str, Any]]:
         return [c.kwargs for c in self.repository.update_api_write_outcome.call_args_list]
 
-    def on_resolve(self) -> Callable[..., None]:
-        """The resolve callback the transport was handed for the last awaited write."""
-        assert self.ws.send_and_wait.await_args is not None
-        return self.ws.send_and_wait.await_args.kwargs["on_resolve"]
-
 
 @pytest.fixture
 def rec() -> Recorded:
@@ -160,7 +154,7 @@ class TestWhatEachWriteRecords:
         ]
 
     async def test_data_is_cut_at_the_limit(self, rec: Recorded) -> None:
-        await rec.api.fire_event("big", {"text": "x" * 5000})
+        await rec.api.fire_event("big", {"text": "x" * (API_WRITE_DATA_MAX_CHARS * 2)})
 
         assert rec.row.data is not None
         assert len(rec.row.data) == API_WRITE_DATA_MAX_CHARS
@@ -290,28 +284,30 @@ class TestWebSocketOwnership:
         rec.ws.send_fire_and_forget.assert_not_awaited()
 
 
-class TestRejectedCallWarning:
-    def handle(self, rec: Recorded, *, fire_and_forget: bool) -> Any:
-        token = CURRENT_EXECUTION_ID.set("exec-7")
-        try:
-            return rec.recorder.begin(
-                api_logger=rec.api.logger,
-                app_key=APP_KEY,
-                instance_name=INSTANCE,
-                kind="call_service",
-                operation="light.turn_on",
-                target={"entity_id": ["light.secret_room"]},
-                data=None,
-                fire_and_forget=fire_and_forget,
-            )
-        finally:
-            CURRENT_EXECUTION_ID.reset(token)
+def begin_light_write(rec: Recorded, *, fire_and_forget: bool) -> Any:
+    """Begin a ``light.turn_on`` write under execution ``exec-7``, straight on the recorder."""
+    token = CURRENT_EXECUTION_ID.set("exec-7")
+    try:
+        return rec.recorder.begin(
+            api_logger=rec.api.logger,
+            app_key=APP_KEY,
+            instance_name=INSTANCE,
+            kind="call_service",
+            operation="light.turn_on",
+            target={"entity_id": ["light.secret_room"]},
+            data=None,
+            fire_and_forget=fire_and_forget,
+        )
+    finally:
+        CURRENT_EXECUTION_ID.reset(token)
 
+
+class TestRejectedCallWarning:
     async def test_fire_and_forget_rejection_warns_under_its_execution(self, rec: Recorded) -> None:
         seen: list[str | None] = []
         rec.api.logger = MagicMock()
         rec.api.logger.warning.side_effect = lambda *_a, **_k: seen.append(CURRENT_EXECUTION_ID.get())
-        handle = self.handle(rec, fire_and_forget=True)
+        handle = begin_light_write(rec, fire_and_forget=True)
 
         handle.resolve("rejected", error_code="not_found", error_message="no such service")
 
@@ -326,7 +322,7 @@ class TestRejectedCallWarning:
 
     async def test_awaited_rejection_does_not_warn(self, rec: Recorded) -> None:
         rec.api.logger = MagicMock()
-        handle = self.handle(rec, fire_and_forget=False)
+        handle = begin_light_write(rec, fire_and_forget=False)
 
         handle.resolve("rejected", error_code="not_found", error_message="x")
 
@@ -352,7 +348,7 @@ class TestResolveOnce:
 
     async def test_rejected_warning_logs_once_when_resolved_twice(self, rec: Recorded) -> None:
         rec.api.logger = MagicMock()
-        handle = TestRejectedCallWarning().handle(rec, fire_and_forget=True)
+        handle = begin_light_write(rec, fire_and_forget=True)
 
         handle.resolve("rejected", error_code="not_found", error_message="x")
         handle.resolve("rejected", error_code="not_found", error_message="x")

@@ -126,7 +126,7 @@ class ApiWriteHandle:
             CURRENT_EXECUTION_ID.reset(token)
 
     def resolve_rest_failure(self, exc: BaseException) -> None:
-        """Resolve a REST write from the exception its request raised (D4's REST mapping)."""
+        """Resolve a REST write from the exception its request raised."""
         if isinstance(exc, CommandNotSentError):
             self.resolve("not_sent")
         elif isinstance(exc, EntityNotFoundError):

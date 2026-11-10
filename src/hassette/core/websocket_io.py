@@ -126,12 +126,11 @@ class WebsocketMessageIOMixin:
             msg_id, fut, str(payload.get("type")), on_resolve=on_resolve, keep_when_abandoned=keep_when_abandoned
         )
         try:
+            # A cancellation here (a BaseException, so not caught below) may come after the frame went out,
+            # so it counts as a caller that stopped waiting: release() keeps the entry only if
+            # keep_when_abandoned is set.
             try:
                 await self.send_json(**payload)
-            except asyncio.CancelledError:
-                # The frame may or may not have gone out, so this is a caller that stopped waiting:
-                # release() below keeps the entry only if keep_when_abandoned is set.
-                raise
             except Exception:
                 self._pending.discard(msg_id)
                 raise
@@ -160,8 +159,6 @@ class WebsocketMessageIOMixin:
         self._pending.register_fire_and_forget(msg_id, str(data.get("type")), on_resolve)
         try:
             await self.send_json(**data)
-        except asyncio.CancelledError:
-            raise
         except Exception:
             self._pending.discard(msg_id)
             raise

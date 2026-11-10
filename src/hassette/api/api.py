@@ -358,7 +358,7 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
             if not self._api_service.ws_conn.is_connected:
                 raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
             return await self._api_service.ws_conn.send_and_wait(
-                retry_on_timeout=retry_on_timeout, on_resolve=record.resolve if record else None, **data
+                retry_on_timeout=retry_on_timeout, on_resolve=record.resolve if record is not None else None, **data
             )
         except (CommandRejectedError, OutcomeUnknownError):
             # Sent: the pending-reply entry owns the record and already resolved it, or will.

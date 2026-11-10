@@ -103,7 +103,7 @@ class TestAwaitedWrite:
         ws.respond_if_necessary(success_reply(last_sent_msg_id(ws)))
 
         assert on_resolve.outcomes == ["success"]
-        pending_log(ws).info.assert_called_once()  # today's late-reply line, not the rejected-call WARNING
+        pending_log(ws).info.assert_called_once()  # the late-reply INFO line, not the rejected-call WARNING
         assert ws._pending.background_count == 0
 
     async def test_cancelled_write_resolves_when_the_connection_ends(self, ws: WebsocketService) -> None:

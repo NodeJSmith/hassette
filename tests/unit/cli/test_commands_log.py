@@ -329,7 +329,7 @@ class TestCmdExecution:
         assert summary["kind"] == "job"
 
     def test_empty_execution_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
-        """Execution shows no-results message when records list is empty."""
+        """Execution shows no-results message when the logs list is empty."""
         client = _detail_client(cli_client_factory, "exec-4", make_execution_detail_response(logs=[]))
         assert "No results" in runner.stderr(client, cmd_execution, uuid="exec-4")
 
