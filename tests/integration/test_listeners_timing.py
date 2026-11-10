@@ -133,13 +133,15 @@ class TestDebounceLogic:
         """
         events: list[str] = []
         first_started = asyncio.Event()
+        release_first = asyncio.Event()
 
-        def make_slow_handler(label: str) -> Callable[[], Awaitable[None]]:
+        def make_handler(label: str, hold: asyncio.Event | None = None) -> Callable[[], Awaitable[None]]:
             async def handler() -> None:
                 events.append(f"start-{label}")
                 first_started.set()
                 try:
-                    await asyncio.sleep(0.3)
+                    if hold is not None:
+                        await hold.wait()
                 except asyncio.CancelledError:
                     events.append(f"cancelled-{label}")
                     raise
@@ -149,11 +151,15 @@ class TestDebounceLogic:
 
         limiter = RateLimiter(bucket, debounce=0.05)
 
-        await limiter.call(make_slow_handler("a"))
+        # Hold "a" mid-run until "b" has been submitted and has started, so "b"'s debounce
+        # reset is guaranteed to happen while "a" is still in flight.
+        await limiter.call(make_handler("a", hold=release_first))
         await asyncio.wait_for(first_started.wait(), timeout=2)
-        await limiter.call(make_slow_handler("b"))
-
+        await limiter.call(make_handler("b"))
         await wait_for(lambda: "end-b" in events, desc="second handler finished")
+        release_first.set()
+
+        await wait_for(lambda: "end-a" in events or "cancelled-a" in events, desc="first handler settled")
         assert "cancelled-a" not in events, f"running handler was cancelled: {events}"
         assert sorted(events) == ["end-a", "end-b", "start-a", "start-b"]
 
