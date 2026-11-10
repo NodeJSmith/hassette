@@ -2,7 +2,7 @@ import typing
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from logging import getLogger
-from typing import Any, Generic, Literal, TypeAlias, TypeVar
+from typing import Any, Generic, TypeAlias, TypeVar
 
 from hassette.const import MISSING_VALUE
 from hassette.events.base import AnyEvent, Event, HassContext, HassPayload
@@ -112,16 +112,6 @@ class ScriptStartedPayload:
 
     run_id: str | None = None
     """Identifier of this script run, matching its trace. Sent by Home Assistant 2026.11 and later."""
-
-
-@dataclass(slots=True, frozen=True)
-class EntityRegistryUpdatedPayload:
-    """Payload for an entity_registry_updated event in Home Assistant."""
-
-    action: Literal["create", "update", "remove"]
-    entity_id: str
-    changes: dict[str, Any] | None = None  # Required with action == "update"
-    old_entity_id: str | None = None  # Present when action="update" and entity_id changed
 
 
 @dataclass(slots=True, frozen=True)
