@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.exceptions import FailedMessageError
+from hassette.exceptions import CommandRejectedError
 from hassette.models.services import ServiceResponse
 from tests.unit.conftest import as_async_mock, awaited_kwargs, make_api
 
@@ -71,10 +71,10 @@ async def test_call_service_wait_for_ack_does_not_retry_on_timeout() -> None:
 async def test_call_service_wait_for_ack_surfaces_ha_errors() -> None:
     """A failed result envelope reaches the caller instead of being silently dropped."""
     api = make_api()
-    error = FailedMessageError("no such entity", code="service_validation_error")
+    error = CommandRejectedError("no such entity", code="service_validation_error")
     api.ws_send_and_wait = AsyncMock(side_effect=error)
 
-    with pytest.raises(FailedMessageError) as exc_info:
+    with pytest.raises(CommandRejectedError) as exc_info:
         await api.call_service("counter", "increment", target={"entity_id": "counter.nope"}, wait_for_ack=True)
 
     assert exc_info.value is error

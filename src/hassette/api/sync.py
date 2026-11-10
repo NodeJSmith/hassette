@@ -64,9 +64,18 @@ class ApiSyncFacade(Resource):
                 Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
                 effect Home Assistant may already have applied. A timeout then raises
                 ``ResponseTimeoutError``. See :meth:`WebsocketService.send_and_wait`.
+                After retries the raised class describes the last attempt only, so a
+                ``CommandNotSentError`` after an earlier timeout doesn't prove the command never
+                reached Home Assistant.
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
                 policy and is consumed here, so it is the one name this method cannot
                 forward as a payload field.
+
+        Raises:
+            CommandNotSentError: If the connection isn't established or the write failed.
+            CommandRejectedError: If Home Assistant answered with an error.
+            OutcomeUnknownError: If no response arrived (``ResponseTimeoutError``) or the
+                connection dropped while waiting (``ResponseLostError``).
         """
         return self.task_bucket.run_sync(self._api.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **data))
 
@@ -74,6 +83,9 @@ class ApiSyncFacade(Resource):
         """Send a WebSocket message without waiting for a response.
 
         Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
+        Raises:
+            CommandNotSentError: If the connection isn't established or the write failed.
         """
         return self.task_bucket.run_sync(self._api.ws_send_json(**data))
 
@@ -228,7 +240,7 @@ class ApiSyncFacade(Resource):
                 need it alongside ``wait_for_ack`` rather than ``wait_for_ack`` on its own.
             wait_for_ack: Whether to wait for Home Assistant to acknowledge the call. Defaults to False. Waits on
                 Home Assistant's result envelope instead of sending fire-and-forget, surfacing HA-side failures as
-                ``FailedMessageError`` without asking for response data — so it works for services that return no
+                ``CommandRejectedError`` without asking for response data — so it works for services that return no
                 response, which ``return_response`` cannot.
             **data: Additional data to send with the service call. Keys whose value is ``None`` are omitted, so
                 optional fields can be passed through unconditionally.
@@ -553,5 +565,8 @@ class ApiSyncFacade(Resource):
             EntityNotFoundError: If the entity does not exist.
             HttpRequestError: If Home Assistant answers with any other HTTP error status.
             RuntimeError: If Home Assistant answers with a success status other than 204.
+            CommandNotSentError: If the request never reached Home Assistant (retried first).
+            OutcomeUnknownError: If the request timed out (``ResponseTimeoutError``) or its connection
+                dropped (``ResponseLostError``) after it was sent; not retried, since it may have applied.
         """
         return self.task_bucket.run_sync(self._api.delete_entity(entity_id))

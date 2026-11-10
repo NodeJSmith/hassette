@@ -14,7 +14,6 @@ from typing import Any, cast
 
 import aiohttp
 from aiohttp import WSMsgType
-from aiohttp.client_exceptions import ClientConnectionResetError
 from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_attempt, wait_exponential_jitter
 
 from hassette.core.ha_core_config import CORE_CONFIG_UPDATED_EVENT_TYPE
@@ -26,12 +25,11 @@ from hassette.events import RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
     WS_NOT_CONNECTED_MESSAGE,
-    ConnectionClosedError,
-    FailedMessageError,
+    CommandNotSentError,
     OutcomeUnknownError,
     ResponseLostError,
     ResponseTimeoutError,
-    RetryableConnectionClosedError,
+    WebsocketClosedError,
 )
 from hassette.types.enums import ConnectionState
 
@@ -89,7 +87,7 @@ class WebsocketMessageIOMixin:
         try:
             while True:
                 await self.raw_recv()
-        except RetryableConnectionClosedError as exc:
+        except WebsocketClosedError as exc:
             if not self.shutdown_event.is_set():
                 raise
             self.logger.debug("Socket closed during shutdown, ending receive loop quietly: %s", exc)
@@ -152,7 +150,7 @@ class WebsocketMessageIOMixin:
         last_abandoned_id: int | None = None
 
         @retry(
-            retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
+            retry=retry_if_exception(is_retryable_ws_failure),
             stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
             wait=wait_exponential_jitter(),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
@@ -174,8 +172,9 @@ class WebsocketMessageIOMixin:
                 return msg_id
             except TimeoutError:
                 last_abandoned_id = msg_id
-                raise FailedMessageError(
-                    f"subscribe_events response timed out after {RESPONSE_TIMEOUT_SECONDS}s"
+                raise ResponseTimeoutError(
+                    f"subscribe_events response timed out after {RESPONSE_TIMEOUT_SECONDS}s",
+                    original_data={**payload, "id": msg_id},
                 ) from None
 
         return await subscribe_with_retry()
@@ -183,8 +182,11 @@ class WebsocketMessageIOMixin:
     async def send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> dict[str, Any]:
         """Send a message and wait for a response.
 
-        Retries on transient failures (timeouts) with exponential backoff,
-        matching the retry behavior of the REST API layer.
+        Retries only a response timeout (when ``retry_on_timeout`` allows), with exponential backoff.
+        A not-sent, rejected, or lost command is raised at once. After retries the raised class
+        describes the last attempt only: a ``CommandNotSentError`` after an earlier timeout doesn't
+        prove the command never reached Home Assistant, which is one more reason writes pass
+        ``retry_on_timeout=False``.
 
         Shares ``send_json``'s gate: it requires an authenticated socket, not external readiness.
         Callers that must wait for CONNECTED check ``is_connected`` first.
@@ -208,15 +210,15 @@ class WebsocketMessageIOMixin:
                 The command may or may not have applied.
             ResponseLostError: If the connection dropped while waiting. Never retried; the
                 command may or may not have applied.
-            FailedMessageError: If Home Assistant rejected the command, or sending it failed
-                after all retries.
+            CommandNotSentError: If the send gate is closed or the socket write failed. Never retried.
+            CommandRejectedError: If Home Assistant answered with an error. Never retried.
         """
         caller_id = data.pop("id", None)
         command_type = str(data.get("type"))
         late_reply_command = None if retry_on_timeout else command_type
 
         @retry(
-            retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
+            retry=retry_if_exception(is_retryable_ws_failure),
             stop=stop_after_attempt(MAX_RETRY_ATTEMPTS if retry_on_timeout else SINGLE_ATTEMPT),
             wait=wait_exponential_jitter(),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
@@ -239,7 +241,7 @@ class WebsocketMessageIOMixin:
                     "the command may or may not have applied",
                     original_data=dict(data),
                 ) from None
-            except RetryableConnectionClosedError as exc:
+            except WebsocketClosedError as exc:
                 raise ResponseLostError(
                     f"{command_label(data)}: connection lost while waiting for a response; "
                     "the command may or may not have applied",
@@ -267,11 +269,12 @@ class WebsocketMessageIOMixin:
             **data: The JSON payload. An ``id`` is assigned if not provided.
 
         Raises:
-            ConnectionClosedError: If the send gate is closed.
-            FailedMessageError: If writing to the socket failed.
+            CommandNotSentError: If the send gate is closed, or the socket write failed with a
+                connection error. Any other exception from the write (such as a ``TypeError`` for a
+                payload that can't be serialized) propagates unwrapped.
         """
         if not self._send_ready_event.is_set():
-            raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
+            raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
 
         # The send gate is only opened after authentication assigns the socket.
         if self._ws is None:
@@ -285,24 +288,27 @@ class WebsocketMessageIOMixin:
 
         try:
             await self._ws.send_json(data)
-        except ClientConnectionResetError:
-            self.logger.error("WebSocket connection reset by peer while sending message %s", label)
-            raise
-        except Exception as exc:
+        except ConnectionError as exc:
+            # Covers aiohttp's ClientConnectionResetError (closing transport, before the write) and the
+            # plain ConnectionError a lost connection sets on the drain wait (after it). The second
+            # may have sent the frame; CommandNotSentError's docstring states that edge case.
+            self.logger.error("WebSocket connection lost while sending message %s", label)
+            raise CommandNotSentError(f"{label}: not sent, the WebSocket connection was lost") from exc
+        except Exception:
             self.logger.exception("Exception when sending message %s", label)
-            raise FailedMessageError(f"Failed to send message {label}", original_data=dict(data)) from exc
+            raise
 
     async def raw_recv(self) -> None:
         """Receive a raw WebSocket frame.
 
         Raises:
-            ConnectionClosedError: If the connection is closed.
+            WebsocketClosedError: If the connection is closed.
         """
         if not self._ws:
             raise RuntimeError(WS_NOT_CONNECTED_MESSAGE)
 
         if self._ws.closed:
-            raise RetryableConnectionClosedError("WebSocket connection is closed")
+            raise WebsocketClosedError("WebSocket connection is closed")
 
         msg = await self._ws.receive()
         msg_type, raw = msg.type, msg.data
@@ -318,14 +324,12 @@ class WebsocketMessageIOMixin:
 
         if (message := CLOSE_MSG_TYPE_MESSAGES.get(msg_type)) is not None:
             close_code = getattr(self._ws, "close_code", None)
-            raise RetryableConnectionClosedError(f"{message} ({msg_type!r})", close_code=close_code)
+            raise WebsocketClosedError(f"{message} ({msg_type!r})", close_code=close_code)
 
         if msg_type == WSMsgType.ERROR:
             exc = msg.data if isinstance(msg.data, BaseException) else None
             close_code = getattr(self._ws, "close_code", None)
-            raise RetryableConnectionClosedError(
-                f"WebSocket error frame received: {msg.data!r}", close_code=close_code
-            ) from exc
+            raise WebsocketClosedError(f"WebSocket error frame received: {msg.data!r}", close_code=close_code) from exc
 
         self.logger.warning("Received unexpected message type: %r", msg_type)
 
@@ -367,3 +371,12 @@ class WebsocketMessageIOMixin:
 
         if (data.get("event") or {}).get("event_type") == CORE_CONFIG_UPDATED_EVENT_TYPE:
             self.task_bucket.spawn(self.refresh_ha_core_config(), name="ws:refresh_core_config")
+
+
+def is_retryable_ws_failure(exc: BaseException) -> bool:
+    """Return whether a failed WebSocket attempt may be sent again: only a response timeout.
+
+    Retry follows delivery state. A not-sent command means the connection just dropped (reconnect
+    is the recovery), a rejected one would be refused again, and a lost one may already have applied.
+    """
+    return isinstance(exc, ResponseTimeoutError)

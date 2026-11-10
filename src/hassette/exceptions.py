@@ -11,21 +11,21 @@ if TYPE_CHECKING:
 __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and wrap by hand
     "AppBlockedError", "AppBootstrapNotReleasedError", "AppPrecheckFailedError", "AppRemovedError",
     "AuthTokenWriteError",
-    "BaseUrlRequiredError", "CannotOverrideFinalError", "ConfigError", "ConnectionClosedError",
+    "BaseUrlRequiredError", "CannotOverrideFinalError", "CommandNotSentError", "CommandRejectedError", "ConfigError",
     "ConvertedTypeDoesNotMatchError", "DependencyError", "DependencyInjectionError", "DependencyResolutionError",
     "DomainNotFoundError", "DomainRequiredError",
-    "DuplicateListenerError", "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError", "FailedMessageError",
+    "DuplicateListenerError", "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError",
     "FatalError", "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning",
     "HassetteNotInitializedError", "HttpRequestError",
     "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError",
     "InvalidEntityIdError", "InvalidInheritanceError", "JobRemovedError",
     "LifecycleReentryError", "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError",
     "RegistryNotReadyError", "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError",
-    "ResponseTimeoutError", "RestartRefusedError", "RetryableConnectionClosedError", "SchedulerNameRequiredError",
+    "ResponseTimeoutError", "RestartRefusedError", "SchedulerNameRequiredError",
     "SchemaVersionError", "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "ServeEndedError",
     "StateRegistryError", "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
     "UnableToConvertAnnotatedStateError", "UnableToConvertStateError", "UnableToConvertValueError",
-    "UndefinedUserConfigError", "WriteQueueUnavailableError",
+    "UndefinedUserConfigError", "WebsocketClosedError", "WriteQueueUnavailableError",
 ]  # fmt: skip
 
 MAX_ISSUES_IN_SUMMARY = 5
@@ -105,10 +105,6 @@ class SchemeRequiredInBaseUrlError(FatalError):
     suggestion = "Prefix `base_url` with 'http://' or 'https://'."
 
 
-class ConnectionClosedError(HassetteError):
-    """Custom exception to indicate that the WebSocket connection was closed unexpectedly."""
-
-
 class TelemetryUnavailableError(HassetteError):
     """The telemetry store could not satisfy a read (down, slow, or closed)."""
 
@@ -122,34 +118,41 @@ class SchemaVersionError(HassetteError):
     """
 
 
-class RetryableConnectionClosedError(ConnectionClosedError):
-    """Custom exception to indicate that the WebSocket connection was closed but can be retried."""
+class WebsocketClosedError(HassetteError):
+    """Internal signal that the WebSocket closed. ``Api`` calls raise :class:`ResponseLostError` instead."""
 
     def __init__(self, msg: str, *, close_code: int | None = None) -> None:
         super().__init__(msg)
         self.close_code = close_code
 
 
-class FailedMessageError(HassetteError):
-    """Custom exception to indicate that a message sent to the WebSocket failed.
+class CommandNotSentError(HassetteError):
+    """The command never reached Home Assistant, so it did not apply (one edge case below).
 
-    Exposes HA's structured error surface as instance attributes so callers can
-    react programmatically::
+    Raised when the WebSocket isn't connected or the socket write failed, and when a REST request
+    couldn't connect (refused, DNS, TLS, connect timeout) or the REST session is closed. Catch
+    ``(CommandNotSentError, OutcomeUnknownError)`` for "Home Assistant is unreachable or didn't answer".
+
+    One edge case: a connection lost while the socket waits for its send buffer to drain is reported
+    as not sent, although the frame may already have gone out.
+    """
+
+
+class CommandRejectedError(HassetteError):
+    """Home Assistant answered a WebSocket command with an error, so the command did not apply.
+
+    Exposes HA's structured error surface as instance attributes so callers can react programmatically::
 
         try:
             await api.helpers.update("vacation_mode", UpdateInputBooleanParams(initial=False))
-        except FailedMessageError as exc:
+        except CommandRejectedError as exc:
             if exc.code == "not_found":
                 # Helper was deleted between list and update — recreate it
                 ...
 
-    ``code`` is populated when the error originates from an HA error envelope
-    (see ``FailedMessageError.from_error_response``). It is ``None`` for
-    locally-synthesized failures such as transport timeouts.
-
-    ``original_data`` is the HA error envelope for an HA-side failure. On a
-    :class:`ResponseTimeoutError` it is instead the outgoing request payload,
-    since no envelope arrived.
+    ``code`` is HA's error code (``None`` if the reply carried none). ``original_data`` is the HA
+    error envelope. A REST status error is :class:`HttpRequestError` or :class:`EntityNotFoundError`
+    instead.
     """
 
     def __init__(self, msg: str, *, code: str | None = None, original_data: dict | None = None) -> None:
@@ -163,7 +166,7 @@ class FailedMessageError(HassetteError):
         error: str | None = None,
         code: str | None = None,
         original_data: dict | None = None,
-    ) -> "FailedMessageError":
+    ) -> "CommandRejectedError":
         """Build the error from an HA error response, folding the error text and payload into the message.
 
         Returns:
@@ -176,8 +179,9 @@ class FailedMessageError(HassetteError):
 class OutcomeUnknownError(HassetteError):
     """A command was sent, but no response arrived, so it may or may not have applied.
 
-    Catch this to handle both ways it happens: :class:`ResponseTimeoutError` (no response
-    within the timeout) and :class:`ResponseLostError` (the connection dropped while waiting).
+    Catch this to handle both ways it happens, on either transport: :class:`ResponseTimeoutError`
+    (no response within the timeout) and :class:`ResponseLostError` (the connection dropped while
+    waiting).
 
     Don't blindly re-send a write after this error: if it already applied, a re-send applies it
     twice. Check state instead. After a helper ``create``/``update``/``delete``, call
@@ -187,22 +191,27 @@ class OutcomeUnknownError(HassetteError):
     """
 
 
-class ResponseTimeoutError(OutcomeUnknownError, FailedMessageError):
+class ResponseTimeoutError(OutcomeUnknownError):
     """No response arrived within the response timeout, so the command may or may not have applied.
 
-    ``code`` is ``None`` (locally synthesized). ``original_data`` is the outgoing request payload,
-    not an HA response envelope. The message names only the command ``type``, message id, and
-    timeout, never payload values.
+    ``original_data`` is the outgoing WebSocket payload (``None`` for REST). The message names the
+    command ``type`` and id (or the REST method and URL) and the deadline, never payload values.
     """
 
+    def __init__(self, msg: str, *, original_data: dict | None = None) -> None:
+        super().__init__(msg)
+        self.original_data = original_data
 
-class ResponseLostError(OutcomeUnknownError, RetryableConnectionClosedError):
+
+class ResponseLostError(OutcomeUnknownError):
     """The connection dropped while waiting for a response, so the command may or may not have applied.
 
-    Still a :class:`RetryableConnectionClosedError` (``close_code`` included), but "retryable"
-    refers to the connection, not the command — see :class:`OutcomeUnknownError` before
-    re-sending a write.
+    ``close_code`` is the WebSocket close code when known (``None`` for REST).
     """
+
+    def __init__(self, msg: str, *, close_code: int | None = None) -> None:
+        super().__init__(msg)
+        self.close_code = close_code
 
 
 class InvalidAuthError(HassetteError):

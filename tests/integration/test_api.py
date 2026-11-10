@@ -7,7 +7,7 @@ import pytest
 from hassette import STATE_REGISTRY
 from hassette.api import Api
 from hassette.core import api_resource as api_resource_module
-from hassette.exceptions import EntityNotFoundError, HassetteError, HttpRequestError
+from hassette.exceptions import EntityNotFoundError, HassetteError, HttpRequestError, ResponseTimeoutError
 from hassette.models.entities.light import LightEntity
 from hassette.testing._server import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
@@ -130,7 +130,7 @@ async def test_rest_request_per_call_timeout_overrides_config(hassette_with_mock
 async def test_rest_request_propagates_timeout_error(
     hassette_with_mock_api: tuple[Api, SimpleTestServer], monkeypatch: pytest.MonkeyPatch
 ):
-    """A request that times out at the aiohttp boundary surfaces as a ClientError, not a silent hang."""
+    """A request that times out at the aiohttp boundary surfaces as ResponseTimeoutError, not a silent hang."""
     api_client, _ = hassette_with_mock_api
 
     session = api_client._api_service._session
@@ -140,9 +140,11 @@ async def test_rest_request_propagates_timeout_error(
 
     with (
         patch.object(session, "request", side_effect=aiohttp.ServerTimeoutError("boom")),
-        pytest.raises(aiohttp.ServerTimeoutError),
+        pytest.raises(ResponseTimeoutError) as exc_info,
     ):
         await api_client.rest_request("GET", "/api/thing")
+
+    assert isinstance(exc_info.value.__cause__, aiohttp.ServerTimeoutError)
 
 
 async def test_rest_request_wraps_non_404_status_in_http_request_error(

@@ -12,7 +12,7 @@ import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import InvalidAuthError, RetryableConnectionClosedError
+from hassette.exceptions import InvalidAuthError, WebsocketClosedError
 from hassette.testing import wait_for
 from hassette.testing.config import TEST_WS_URL
 from hassette.types.enums import ConnectionState
@@ -216,7 +216,7 @@ class TestServeTransitions:
             attempts += 1
             websocket_service.set_connection_state(ConnectionState.CONNECTED)
             if attempts == 1:
-                raise RetryableConnectionClosedError("peer gone")
+                raise WebsocketClosedError("peer gone")
 
         websocket_service.run_connection = fake_run_connection  # pyright: ignore[reportAttributeAccessIssue]
 

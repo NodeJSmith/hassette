@@ -21,11 +21,12 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
 from hassette.exceptions import (
-    ConnectionClosedError,
+    CommandNotSentError,
     EntityNotFoundError,
     HttpRequestError,
     InvalidAuthError,
-    ResourceNotReadyError,
+    ResponseLostError,
+    ResponseTimeoutError,
 )
 from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
@@ -34,6 +35,12 @@ from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson
 from hassette.utils.url_utils import resolve_rest_path
 
 _SSL_SHUTDOWN_DELAY = 0.25
+
+REST_CONNECT_TIMEOUT_SECONDS = 10
+"""Bound on a REST request's socket connect, so a host that silently drops packets fails as not sent.
+
+Applied only to ``rest_request``'s default timeout; a caller-supplied ``timeout=`` is used as given.
+"""
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -44,12 +51,11 @@ NOT_RETRYABLE = (
     EntityNotFoundError,
     InvalidAuthError,
     RuntimeError,
-    ConnectionClosedError,
     TypeError,
     AttributeError,
     CancelledError,
 )
-"""Failures ``rest_request`` never retries. Anything else, such as a connection error or timeout, is retried."""
+"""Failures a GET never retries; anything else, such as a timeout, is retried. Other methods retry only not-sent."""
 
 RETRYABLE_CLIENT_ERROR_STATUSES = frozenset({HTTPStatus.REQUEST_TIMEOUT, HTTPStatus.TOO_MANY_REQUESTS})
 """The 4xx statuses that describe a passing condition; every other 4xx repeats if the request is re-sent."""
@@ -126,11 +132,30 @@ class ApiResource(Resource):
         suppress_error_message: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:
-        """Make a REST request to the Home Assistant API."""
+        """Make a REST request to the Home Assistant API.
+
+        Transport failures are mapped onto delivery states: a failed connect or a closed session raises
+        ``CommandNotSentError``, a timeout after the request went out raises ``ResponseTimeoutError``,
+        and a connection dropped before the response headers arrived raises ``ResponseLostError``. A
+        404 raises ``EntityNotFoundError`` and any other error status ``HttpRequestError``. A failure
+        while the caller reads the response body is not mapped.
+
+        A GET is retried on any of these except a 4xx other than 408/429 (and the ``NOT_RETRYABLE``
+        types, such as a caller's ``TypeError``). Any other method is retried
+        only on ``CommandNotSentError``, so a write is never re-sent after it may have applied, and
+        the class raised after retries describes the whole call.
+
+        Raises:
+            CommandNotSentError: If the request never reached Home Assistant.
+            ResponseTimeoutError: If no response arrived in time; the request may or may not have applied.
+            ResponseLostError: If the connection dropped while waiting; the request may or may not have applied.
+            EntityNotFoundError: If Home Assistant answered 404.
+            HttpRequestError: If Home Assistant answered with any other error status.
+        """
 
         # inner function to allow retry decorator to use `self`
         @retry(
-            retry=retry_if_exception(is_retryable_rest_failure),
+            retry=retry_if_exception(lambda exc: is_retryable_rest_failure(exc, method)),
             wait=wait_exponential_jitter(),
             stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
@@ -145,7 +170,7 @@ class ApiResource(Resource):
             **kwargs,
         ) -> aiohttp.ClientResponse:
             if self._session is None or self._session.closed:
-                raise ResourceNotReadyError("Client session is not connected")
+                raise CommandNotSentError(f"{method} {url}: not sent, the REST client session is not connected")
 
             params = clean_kwargs(**(params or {}))
             str_data = orjson_dump(data or {})
@@ -159,9 +184,13 @@ class ApiResource(Resource):
             if params:
                 request_kwargs["params"] = params
 
-            if "timeout" not in kwargs:
+            if "timeout" in kwargs:
+                deadline = "the caller's timeout"
+            else:
+                total = self.hassette.config.rest_request_timeout_seconds
+                deadline = f"{total}s (rest_request_timeout_seconds)"
                 request_kwargs["timeout"] = aiohttp.ClientTimeout(
-                    total=self.hassette.config.rest_request_timeout_seconds
+                    total=total, sock_connect=REST_CONNECT_TIMEOUT_SECONDS
                 )
 
             try:
@@ -186,13 +215,15 @@ class ApiResource(Resource):
                     raise EntityNotFoundError(f"Entity not found: {url}") from None
                 raise HttpRequestError(exc.status, exc.message, method=method, url=url) from exc
 
-            except aiohttp.ClientError as exc:
+            except (aiohttp.ClientError, TimeoutError) as exc:
                 if not suppress_error_message:
                     self.logger.error(
                         "Error occurred while making %s request to %s: %s", method, url, exc, stacklevel=2
                     )
-
-                raise
+                mapped = delivery_state_error(exc, method=method, url=url, deadline=deadline)
+                if mapped is None:
+                    raise
+                raise mapped from exc
 
         return await inner_request(
             method, url, params=params, data=data, suppress_error_message=suppress_error_message, **kwargs
@@ -231,8 +262,35 @@ class ApiResource(Resource):
         return normalized
 
 
-def is_retryable_rest_failure(exc: BaseException) -> bool:
-    """Return whether a failed REST attempt could succeed if sent again."""
+def delivery_state_error(exc: BaseException, *, method: str, url: str, deadline: str) -> Exception | None:
+    """Map a REST transport failure onto its delivery-state class, or None to let it propagate raw.
+
+    Subclasses come before their parents: ``ClientConnectorError`` is a ``ClientConnectionError``,
+    and ``ConnectionTimeoutError`` is a ``ServerTimeoutError``, which is both a
+    ``ClientConnectionError`` and a ``TimeoutError``. Any other ``ClientError`` (an invalid URL,
+    a redirect or payload error) is a caller bug or a response Home Assistant already sent.
+    """
+    if isinstance(exc, aiohttp.ClientConnectorError | aiohttp.ConnectionTimeoutError):
+        return CommandNotSentError(f"{method} {url}: not sent, could not connect to Home Assistant")
+    if isinstance(exc, TimeoutError):
+        return ResponseTimeoutError(
+            f"{method} {url}: no response within {deadline}; the request may or may not have applied"
+        )
+    if isinstance(exc, aiohttp.ClientConnectionError):
+        return ResponseLostError(
+            f"{method} {url}: connection lost while waiting for a response; the request may or may not have applied"
+        )
+    return None
+
+
+def is_retryable_rest_failure(exc: BaseException, method: str) -> bool:
+    """Return whether a failed REST attempt may be sent again.
+
+    Any method other than GET retries only a request that never reached Home Assistant, so a write is
+    never re-sent after it may have applied or after Home Assistant answered it.
+    """
+    if method.upper() != "GET":
+        return isinstance(exc, CommandNotSentError)
     if isinstance(exc, HttpRequestError):
         is_client_error = HTTPStatus.BAD_REQUEST <= exc.status < HTTPStatus.INTERNAL_SERVER_ERROR
         return not is_client_error or exc.status in RETRYABLE_CLIENT_ERROR_STATUSES

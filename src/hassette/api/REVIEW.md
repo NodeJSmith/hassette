@@ -13,8 +13,10 @@ layer.
 effect (`Api` in `src/hassette/api/api.py`, `service_calls.py`, and
 `entity_data.py`; helper writes via `_ws_helper_call` in
 `src/hassette/api/helpers.py`) pass `False`, or does it inherit the re-sending
-default and risk applying the command twice? Does any `except FailedMessageError`
-added on these paths rewrap `ResponseTimeoutError` and erase its type?
+default and risk applying the command twice? Does any `except` added on these
+paths catch one delivery state (`CommandNotSentError`, `CommandRejectedError`,
+`OutcomeUnknownError`) and re-raise it as another, erasing what the caller needs
+to know about whether the command applied?
 
 ## Mode Interaction
 When two API options can be combined (e.g., `return_response` + `wait_for_ack`

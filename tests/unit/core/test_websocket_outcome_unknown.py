@@ -20,11 +20,11 @@ import hassette.core.websocket_io as websocket_io_module
 from hassette.core import websocket_responses as websocket_responses_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import (
-    FailedMessageError,
+    CommandRejectedError,
     OutcomeUnknownError,
     ResponseLostError,
     ResponseTimeoutError,
-    RetryableConnectionClosedError,
+    WebsocketClosedError,
 )
 from hassette.testing._ws_mocks import build_fake_ws
 
@@ -51,7 +51,7 @@ def _drop_connection(websocket_service: WebsocketService, *, close_code: int | N
 
     async def drop(**data):
         websocket_service._pending.entries[data["id"]].future.set_exception(
-            RetryableConnectionClosedError("WebSocket disconnected", close_code=close_code)
+            WebsocketClosedError("WebSocket disconnected", close_code=close_code)
         )
 
     websocket_service.send_json = AsyncMock(side_effect=drop)
@@ -82,9 +82,7 @@ class TestResponseTimeout:
         assert cast("AsyncMock", websocket_service.send_json).await_count == 1
         exc = exc_info.value
         assert isinstance(exc, OutcomeUnknownError)
-        assert isinstance(exc, FailedMessageError)
-        assert not isinstance(exc, TimeoutError)
-        assert exc.code is None
+        assert not isinstance(exc, CommandRejectedError | TimeoutError)
 
     async def test_retried_read_raises_response_timeout_on_last_attempt(
         self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
@@ -153,8 +151,7 @@ class TestResponseLost:
         assert cast("AsyncMock", websocket_service.send_json).await_count == 1
         exc = exc_info.value
         assert isinstance(exc, OutcomeUnknownError)
-        assert isinstance(exc, RetryableConnectionClosedError)
-        assert not isinstance(exc, FailedMessageError)
+        assert not isinstance(exc, WebsocketClosedError | CommandRejectedError)
         assert exc.close_code == 1006
         assert "get_states" in str(exc)
 

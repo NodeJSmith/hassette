@@ -32,7 +32,7 @@ from hassette.core.websocket_reconnect import (
     fast_backoff_delay,
     parse_retry_after,
 )
-from hassette.exceptions import InvalidAuthError, RetryableConnectionClosedError
+from hassette.exceptions import InvalidAuthError, WebsocketClosedError
 
 MESSAGE_TOO_BIG = 1009
 
@@ -55,8 +55,8 @@ def certificate_error() -> aiohttp.ClientConnectorCertificateError:
     return aiohttp.ClientConnectorCertificateError(connection_key(), ssl.SSLCertVerificationError("self-signed"))
 
 
-def oversize_close() -> RetryableConnectionClosedError:
-    return RetryableConnectionClosedError("message too big", close_code=MESSAGE_TOO_BIG)
+def oversize_close() -> WebsocketClosedError:
+    return WebsocketClosedError("message too big", close_code=MESSAGE_TOO_BIG)
 
 
 def refused() -> ConnectionRefusedError:

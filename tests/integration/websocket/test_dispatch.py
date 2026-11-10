@@ -17,7 +17,7 @@ from hassette.api.api import Api
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
 from hassette.events.metadata import get_websocket_generation
-from hassette.exceptions import ConnectionClosedError, FailedMessageError
+from hassette.exceptions import CommandNotSentError, CommandRejectedError, ResponseTimeoutError
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types.enums import ConnectionState
 
@@ -73,7 +73,7 @@ async def test_send_json_allows_setup_send_before_external_readiness(
 
 async def test_send_json_requires_connection(websocket_service: WebsocketService) -> None:
     """Raise when attempting to send without an established connection (DISCONNECTED state)."""
-    with pytest.raises(ConnectionClosedError):
+    with pytest.raises(CommandNotSentError):
         await websocket_service.send_json(type="ping")
 
 
@@ -97,7 +97,7 @@ async def test_api_ws_send_json_checks_external_readiness() -> None:
     ws_conn.send_json = AsyncMock()
     api._api_service = cast("ApiResource", SimpleNamespace(ws_conn=ws_conn))
 
-    with pytest.raises(ConnectionClosedError):
+    with pytest.raises(CommandNotSentError):
         await api.ws_send_json(type="ping")
 
     ws_conn.send_json.assert_not_awaited()
@@ -111,33 +111,42 @@ async def test_api_ws_send_and_wait_checks_external_readiness() -> None:
     ws_conn.send_and_wait = AsyncMock()
     api._api_service = cast("ApiResource", SimpleNamespace(ws_conn=ws_conn))
 
-    with pytest.raises(ConnectionClosedError):
+    with pytest.raises(CommandNotSentError):
         await api.ws_send_and_wait(type="ping")
 
     ws_conn.send_and_wait.assert_not_awaited()
 
 
-async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
-    """Surface ClientConnectionResetError when the websocket resets."""
+@pytest.mark.parametrize(
+    "error",
+    [ClientConnectionResetError("closing transport"), ConnectionError("Connection lost")],
+    ids=["reset_before_write", "lost_during_drain"],
+)
+async def test_send_json_maps_connection_errors_to_not_sent(
+    websocket_service: WebsocketService, error: ConnectionError
+) -> None:
+    """A connection error from the socket write is CommandNotSentError, chained to aiohttp's error."""
     fake_ws = build_fake_ws()
-    cast("AsyncMock", fake_ws.send_json).side_effect = ClientConnectionResetError("boom")
+    cast("AsyncMock", fake_ws.send_json).side_effect = error
 
     websocket_service._ws = fake_ws
     mark_websocket_service_connected(websocket_service, reason="test connected")
 
-    with pytest.raises(ClientConnectionResetError):
+    with pytest.raises(CommandNotSentError) as exc_info:
         await websocket_service.send_json(type="ping")
 
+    assert exc_info.value.__cause__ is error
 
-async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketService) -> None:
-    """Wrap unexpected errors in FailedMessageError."""
+
+async def test_send_json_propagates_other_exceptions_unwrapped(websocket_service: WebsocketService) -> None:
+    """A caller bug such as an unserializable payload surfaces as itself, not as a transport failure."""
     fake_ws = build_fake_ws()
-    cast("AsyncMock", fake_ws.send_json).side_effect = RuntimeError("unexpected")
+    cast("AsyncMock", fake_ws.send_json).side_effect = TypeError("Object of type set is not JSON serializable")
 
     websocket_service._ws = fake_ws
     mark_websocket_service_connected(websocket_service, reason="test connected")
 
-    with pytest.raises(FailedMessageError):
+    with pytest.raises(TypeError, match="not JSON serializable"):
         await websocket_service.send_json(type="ping")
 
 
@@ -158,13 +167,13 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
 
 
 async def test_send_and_wait_times_out(websocket_service: WebsocketService, monkeypatch) -> None:
-    """Raise FailedMessageError after exhausting retries on timeout."""
+    """Raise ResponseTimeoutError after exhausting retries on timeout."""
     monkeypatch.setattr(websocket_io_module, "MAX_RETRY_ATTEMPTS", 2)
     monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
 
     websocket_service.send_json = AsyncMock(return_value=None)
 
-    with pytest.raises(FailedMessageError):
+    with pytest.raises(ResponseTimeoutError):
         await websocket_service.send_and_wait(type="no_response")
 
     assert websocket_service._pending.entries == {}, "Expected future mapping to be cleared after timeout"
@@ -200,11 +209,11 @@ async def test_send_and_wait_no_retry_on_ha_error(websocket_service: WebsocketSe
     async def send_side_effect(**data: Any) -> None:
         msg_id = data["id"]
         fut = websocket_service._pending.entries[msg_id].future
-        fut.set_exception(FailedMessageError("not found", code="not_found"))
+        fut.set_exception(CommandRejectedError("not found", code="not_found"))
 
     websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
 
-    with pytest.raises(FailedMessageError, match="not found"):
+    with pytest.raises(CommandRejectedError, match="not found"):
         await websocket_service.send_and_wait(type="get_entity_source")
 
     assert websocket_service.send_json.call_count == 1
@@ -222,12 +231,12 @@ async def test_respond_if_necessary_sets_result(websocket_service: WebsocketServ
 
 
 async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketService) -> None:
-    """Attach FailedMessageError when result payloads report failure.
+    """Attach CommandRejectedError when result payloads report failure.
 
     Verifies the end-to-end path respond_if_necessary → from_error_response →
-    FailedMessageError.code / .original_data is wired correctly: HA's error
+    CommandRejectedError.code / .original_data is wired correctly: HA's error
     envelope `code` field must flow through to the exception's `code` attribute
-    so callers can do `except FailedMessageError as e: if e.code == "...": ...`.
+    so callers can do `except CommandRejectedError as e: if e.code == "...": ...`.
     """
     pending_future = websocket_service.hassette.loop.create_future()
     websocket_service._pending.register(9, pending_future)
@@ -242,7 +251,7 @@ async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketS
 
     assert pending_future.done()
     exception = pending_future.exception()
-    assert isinstance(exception, FailedMessageError)
+    assert isinstance(exception, CommandRejectedError)
     assert exception.code == "invalid_format"
     assert exception.original_data == original_message
 

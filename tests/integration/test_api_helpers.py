@@ -16,11 +16,11 @@ import pytest
 
 from hassette.api.api import Api, _expect_dict, _expect_list, _ws_helper_call
 from hassette.exceptions import (
-    FailedMessageError,
+    CommandNotSentError,
+    CommandRejectedError,
     OutcomeUnknownError,
     ResponseLostError,
     ResponseTimeoutError,
-    RetryableConnectionClosedError,
 )
 from hassette.models.helpers import (
     CounterRecord,
@@ -112,17 +112,17 @@ async def test_ws_helper_call_propagates_success():
 
 
 async def test_ws_helper_call_chains_error_with_context():
-    """_ws_helper_call re-raises FailedMessageError with domain/op context and preserves code/original_data.
+    """_ws_helper_call re-raises CommandRejectedError with domain/op context and preserves code/original_data.
 
     Error message includes the *field names* of the outbound payload but NOT the values —
     values may contain sensitive data (e.g., password-mode input_text helpers) that would
     otherwise leak into application logs. Full payload stays on e.original_data.
     """
-    original = FailedMessageError("orig", code="invalid_format", original_data={"a": 1})
+    original = CommandRejectedError("orig", code="invalid_format", original_data={"a": 1})
     mock_api = MagicMock(spec=Api)
     mock_api.ws_send_and_wait = AsyncMock(side_effect=original)
 
-    with pytest.raises(FailedMessageError) as exc_info:
+    with pytest.raises(CommandRejectedError) as exc_info:
         await _ws_helper_call(mock_api, "d", "op", key="secret-value", other_field="also-secret")
     e = exc_info.value
     msg = str(e)
@@ -139,7 +139,7 @@ async def test_ws_helper_call_chains_error_with_context():
 
 
 async def test_ws_helper_call_passes_response_timeout_through_unwrapped():
-    """A response timeout keeps its outcome-unknown type instead of being rebuilt as plain FailedMessageError."""
+    """A response timeout keeps its outcome-unknown type instead of being rebuilt as plain CommandRejectedError."""
     original = ResponseTimeoutError("'d/op' (id 7): no response within 10s", original_data={"type": "d/op", "id": 7})
     mock_api = MagicMock(spec=Api)
     mock_api.ws_send_and_wait = AsyncMock(side_effect=original)
@@ -150,17 +150,23 @@ async def test_ws_helper_call_passes_response_timeout_through_unwrapped():
     assert exc_info.value is original
 
 
-async def test_ws_helper_call_passes_response_lost_through():
-    """A disconnect stays catchable as RetryableConnectionClosedError and as OutcomeUnknownError."""
-    original = ResponseLostError("'d/op' (id 7): connection lost while waiting for a response")
+@pytest.mark.parametrize(
+    "original",
+    [
+        ResponseLostError("'d/op' (id 7): connection lost while waiting for a response"),
+        CommandNotSentError("'d/op' (id 7): not sent, the WebSocket connection was lost"),
+    ],
+    ids=["lost", "not_sent"],
+)
+async def test_ws_helper_call_passes_transport_failures_through_unwrapped(original: Exception):
+    """Only a rejection is rewrapped; a lost or unsent command keeps its delivery-state class."""
     mock_api = MagicMock(spec=Api)
     mock_api.ws_send_and_wait = AsyncMock(side_effect=original)
 
-    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+    with pytest.raises(type(original)) as exc_info:
         await _ws_helper_call(mock_api, "d", "op")
 
     assert exc_info.value is original
-    assert isinstance(exc_info.value, OutcomeUnknownError)
 
 
 async def test_helper_create_does_not_retry_on_timeout(api: Api):
@@ -198,10 +204,10 @@ async def test_helper_create_timeout_raises_response_timeout(api: Api):
         await api.helpers.create(CreateInputBooleanParams(name="Vacation Mode"))
 
 
-async def test_helper_delete_disconnect_is_still_retryable_connection_closed(api: Api):
+async def test_helper_delete_disconnect_raises_outcome_unknown(api: Api):
     api.ws_send_and_wait = AsyncMock(side_effect=ResponseLostError("'input_boolean/delete' (id 3): connection lost"))
 
-    with pytest.raises(RetryableConnectionClosedError):
+    with pytest.raises(OutcomeUnknownError):
         await api.helpers.delete("input_boolean", "vacation_mode")
 
 
@@ -604,12 +610,12 @@ async def test_increment_counter_calls_service(api: Api):
     )
 
 
-async def test_increment_counter_propagates_failed_message_error(api: Api):
-    """increment_counter surfaces FailedMessageError from call_service."""
-    error = FailedMessageError("transport fail", code="timeout")
+async def test_increment_counter_propagates_rejection(api: Api):
+    """increment_counter surfaces CommandRejectedError from call_service."""
+    error = CommandRejectedError("rejected", code="service_validation_error")
     api.call_service = AsyncMock(side_effect=error)
 
-    with pytest.raises(FailedMessageError) as exc_info:
+    with pytest.raises(CommandRejectedError) as exc_info:
         await api.helpers.increment("counter.motion_count")
     assert exc_info.value is error
 
@@ -628,12 +634,12 @@ async def test_decrement_counter_calls_service(api: Api):
     )
 
 
-async def test_decrement_counter_propagates_failed_message_error(api: Api):
-    """decrement_counter surfaces FailedMessageError from call_service."""
-    error = FailedMessageError("transport fail", code="timeout")
+async def test_decrement_counter_propagates_rejection(api: Api):
+    """decrement_counter surfaces CommandRejectedError from call_service."""
+    error = CommandRejectedError("rejected", code="service_validation_error")
     api.call_service = AsyncMock(side_effect=error)
 
-    with pytest.raises(FailedMessageError):
+    with pytest.raises(CommandRejectedError):
         await api.helpers.decrement("counter.motion_count")
 
 
@@ -651,10 +657,10 @@ async def test_reset_counter_calls_service(api: Api):
     )
 
 
-async def test_reset_counter_propagates_failed_message_error(api: Api):
-    """reset_counter surfaces FailedMessageError from call_service."""
-    error = FailedMessageError("transport fail", code="timeout")
+async def test_reset_counter_propagates_rejection(api: Api):
+    """reset_counter surfaces CommandRejectedError from call_service."""
+    error = CommandRejectedError("rejected", code="service_validation_error")
     api.call_service = AsyncMock(side_effect=error)
 
-    with pytest.raises(FailedMessageError):
+    with pytest.raises(CommandRejectedError):
         await api.helpers.reset("counter.motion_count")

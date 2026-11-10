@@ -53,8 +53,11 @@ XREF_MAP = {
     "InvalidEntityIdError": "hassette.exceptions.InvalidEntityIdError",
     "UnableToConvertStateError": "hassette.exceptions.UnableToConvertStateError",
     "UnableToConvertValueError": "hassette.exceptions.UnableToConvertValueError",
-    "FailedMessageError": "hassette.exceptions.FailedMessageError",
-    "RetryableConnectionClosedError": "hassette.exceptions.RetryableConnectionClosedError",
+    "CommandNotSentError": "hassette.exceptions.CommandNotSentError",
+    "CommandRejectedError": "hassette.exceptions.CommandRejectedError",
+    "OutcomeUnknownError": "hassette.exceptions.OutcomeUnknownError",
+    "ResponseTimeoutError": "hassette.exceptions.ResponseTimeoutError",
+    "ResponseLostError": "hassette.exceptions.ResponseLostError",
     # Internals (for internals/operating docs)
     "WebsocketService": "hassette.core.websocket_service.WebsocketService",
     "BusService": "hassette.core.bus_service.BusService",

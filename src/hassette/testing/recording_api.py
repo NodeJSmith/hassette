@@ -23,7 +23,7 @@ from whenever import Date, PlainDateTime, ZonedDateTime
 from hassette.api.service_calls import normalize_notifier
 from hassette.const.misc import FalseySentinel
 from hassette.event_handling.accessors import get_path
-from hassette.exceptions import EntityNotFoundError, FailedMessageError
+from hassette.exceptions import CommandRejectedError, EntityNotFoundError
 from hassette.models.entities.base import BaseEntity
 from hassette.models.helpers import (
     CounterRecord,
@@ -427,7 +427,7 @@ class RecordingHelperClient:
             A copy of the updated record.
 
         Raises:
-            FailedMessageError: With code='not_found' if helper_id is not seeded.
+            CommandRejectedError: With code='not_found' if helper_id is not seeded.
         """
         domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self._parent._record_call(
@@ -438,7 +438,7 @@ class RecordingHelperClient:
             )
         )
         if helper_id not in self.helper_definitions[domain]:
-            raise FailedMessageError(
+            raise CommandRejectedError(
                 f"{domain} helper {helper_id!r} not found. Seed it via harness.seed_helper() first.",
                 code="not_found",
             )
@@ -458,7 +458,7 @@ class RecordingHelperClient:
             helper_id: The helper id to delete.
 
         Raises:
-            FailedMessageError: With code='not_found' if helper_id is not seeded.
+            CommandRejectedError: With code='not_found' if helper_id is not seeded.
         """
         domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self._parent._record_call(
@@ -469,7 +469,7 @@ class RecordingHelperClient:
             )
         )
         if helper_id not in self.helper_definitions[domain]:
-            raise FailedMessageError(
+            raise CommandRejectedError(
                 f"{domain} helper {helper_id!r} not found.",
                 code="not_found",
             )

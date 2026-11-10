@@ -11,7 +11,7 @@ Note:
     ``min <= initial <= max``. Hassette does not mirror this invariant on
     ``Create*Params`` / ``Update*Params`` — partial updates make the check
     context-dependent (it must merge with existing stored state). Errors
-    surface from HA via :class:`hassette.exceptions.FailedMessageError`.
+    surface from HA via :class:`hassette.exceptions.CommandRejectedError`.
 """
 
 from typing import Literal
