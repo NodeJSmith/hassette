@@ -354,6 +354,8 @@ outcome is unknown, patch the recorder method with an `AsyncMock` that raises
 [`ResponseLostError`][hassette.exceptions.ResponseLostError]). Both are
 subclasses of [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError];
 see [Errors and unknown outcomes](../core-concepts/api/methods.md#errors-and-unknown-outcomes).
+The same patch with [`CommandNotSentError`][hassette.exceptions.CommandNotSentError]
+simulates a call made while Home Assistant is unreachable.
 
 ```python
 --8<-- "pages/testing/snippets/testing_outcome_unknown.py"

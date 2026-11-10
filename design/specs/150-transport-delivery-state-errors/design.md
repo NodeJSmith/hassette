@@ -202,7 +202,7 @@ Two sub-choices settled after the table, at the sketch-time challenge and comb:
 ## Build
 
 - [x] Implementation and tests committed
-- [ ] Docs
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**

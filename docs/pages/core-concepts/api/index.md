@@ -27,15 +27,17 @@ The two most common operations are reading state and calling a service.
 
 ## Error Handling
 
-[Api][hassette.api.api.Api] raises typed exceptions for common failures.
+[Api][hassette.api.api.Api] raises typed exceptions that say whether the command reached Home Assistant.
 
-- [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] if the entity does not exist in Home Assistant.
-- [`HttpRequestError`][hassette.exceptions.HttpRequestError] for any other error status from Home Assistant. Its `.status` holds the code, such as 401 for an invalid or expired token.
-- [`HassetteError`][hassette.exceptions.HassetteError] for any other upstream error from Home Assistant.
+- [`CommandNotSentError`][hassette.exceptions.CommandNotSentError] if the command never reached Home Assistant, because the WebSocket was disconnected or a REST request could not connect. The command did not apply.
+- [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError] if the command was sent but no answer arrived ([`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError], [`ResponseLostError`][hassette.exceptions.ResponseLostError]). The command may or may not have applied.
+- [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] if Home Assistant answered a WebSocket command with an error. Its `.code` holds HA's error code.
+- [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] if a REST request answered 404, such as for an entity that does not exist.
+- [`HttpRequestError`][hassette.exceptions.HttpRequestError] for any other REST error status. Its `.status` holds the code, such as 401 for an invalid or expired token.
 
 Hassette's WebSocket connection also rejects an invalid token when it authenticates. That raises [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] during startup or reconnect, never from an `Api` call.
 
-REST requests retry connection errors, timeouts, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles every error status from Home Assistant in one place.
+REST reads (`get_state`, `get_history`) retry failed connects, timeouts, dropped connections, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Every other REST call (`set_state`, `delete_entity`, and `render_template`, which is sent as a POST) retries only a failed connect. Anything later may already have applied, so the request is sent once. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles every failure in one place.
 
 ??? note "Synchronous usage (AppSync only)"
     `self.api.sync` exposes an [`ApiSyncFacade`][hassette.api.sync.ApiSyncFacade] that mirrors all API methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.
