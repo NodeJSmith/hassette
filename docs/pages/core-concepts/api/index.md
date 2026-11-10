@@ -37,7 +37,7 @@ The two most common operations are reading state and calling a service.
 
 Hassette's WebSocket connection also rejects an invalid token when it authenticates. That raises [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] during startup or reconnect, never from an `Api` call.
 
-REST reads (`get_state`, `get_history`) retry failed connects, timeouts, dropped connections, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Every other REST call (`set_state`, `delete_entity`, and `render_template`, which is sent as a POST) retries only a failed connect. Anything later may already have applied, so the request is sent once. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles every failure in one place.
+REST reads (`get_state`, `get_history`) retry failed connects, timeouts, dropped connections, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Every other REST call (`set_state`, `delete_entity`, and `render_template`, which is sent as a POST) retries only a failed connect. Anything later may already have applied, so Hassette doesn't retry it. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles every failure in one place.
 
 ??? note "Synchronous usage (AppSync only)"
     `self.api.sync` exposes an [`ApiSyncFacade`][hassette.api.sync.ApiSyncFacade] that mirrors all API methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.

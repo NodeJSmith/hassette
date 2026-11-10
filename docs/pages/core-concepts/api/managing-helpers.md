@@ -91,7 +91,7 @@ whether the change landed:
     re-sent delete that already landed raises `CommandRejectedError(code="not_found")`.
 
 A call made while the WebSocket is disconnected raises
-[`CommandNotSentError`][hassette.exceptions.CommandNotSentError] instead. That change never left
+[`CommandNotSentError`][hassette.exceptions.CommandNotSentError] instead. That call never left
 Hassette, so it is safe to send again once the connection is back.
 
 ## CRUD Operations

@@ -593,8 +593,8 @@ device or integration-backed entity from the HA entity registry. The HA UI handl
 
 ## Errors and unknown outcomes
 
-Every `Api` failure says whether the command reached Home Assistant. Three classes cover the three
-answers, on both transports:
+A connection or timeout failure from `Api` says whether the command reached Home Assistant. Three
+classes cover the three answers, on both transports:
 
 | Class | Delivery state | Applied? |
 |---|---|---|
@@ -602,9 +602,11 @@ answers, on both transports:
 | [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] | HA answered with an error | No |
 | [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError] | Sent, no answer | Maybe |
 
-`(CommandNotSentError, OutcomeUnknownError)` is the catch for "Home Assistant is unreachable or
-didn't answer". A REST error status is `EntityNotFoundError` or `HttpRequestError` instead of
-`CommandRejectedError`, covered below.
+`(CommandNotSentError, OutcomeUnknownError)` catches connection and timeout failures on both
+transports. It doesn't catch every outage: a Home Assistant restart can also surface as
+`HttpRequestError` (a 503 on a read, covered below), and a response cut off while Hassette reads its
+body raises the raw `aiohttp.ClientError` or `TimeoutError`. A REST error status is
+`EntityNotFoundError` or `HttpRequestError` instead of `CommandRejectedError`.
 
 The typed writes never re-send: `call_service` when it waits, `fire_event`, and helper
 `create`/`update`/`delete`. A command that was sent but never answered raises a subclass of

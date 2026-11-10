@@ -189,7 +189,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     Passed to aiohttp as a :class:`aiohttp.ClientTimeout`. Override per call by passing a ``timeout=`` kwarg to
     :meth:`~hassette.core.api_resource.ApiResource.rest_request`. The default timeout also bounds the socket
     connect at 10 s (``REST_CONNECT_TIMEOUT_SECONDS``), so a host that never accepts the connection fails as
-    not sent. A total of 10 s or less fires first, so a hung connect then reads as a response timeout."""
+    not sent. A total of 10 s or less fires first, so a hung connect then reads as a response timeout. A hung DNS
+    lookup or a wait for a free pooled connection also reads as a response timeout, though nothing was sent."""
 
     token: SecretStr | None = Field(
         default=None,

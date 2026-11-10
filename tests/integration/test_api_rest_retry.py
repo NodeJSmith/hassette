@@ -240,3 +240,32 @@ async def test_default_timeout_bounds_the_connect(stub_and_resource: tuple[StubH
     timeout = attempts.call_args.kwargs["timeout"]
     assert timeout.sock_connect == api_resource_module.REST_CONNECT_TIMEOUT_SECONDS
     assert timeout.total == resource.hassette.config.rest_request_timeout_seconds
+
+
+async def test_hung_connect_is_not_sent(
+    stub_and_resource: tuple[StubHomeAssistant, ApiResource], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A connect that never completes must surface as not-sent through aiohttp's own ``sock_connect`` timer.
+
+    The not-sent class depends on aiohttp wrapping the connect timeout in ``ConnectionTimeoutError``; an aiohttp
+    release that stops doing so would turn every blackholed-host failure into an outcome-unknown timeout.
+    """
+    stub, resource = stub_and_resource
+    stub.respond = respond_with(200)
+    monkeypatch.setattr(api_resource_module, "REST_CONNECT_TIMEOUT_SECONDS", 0.05)
+    connect_attempts = 0
+
+    async def hang_connect(*_args: object, **_kwargs: object) -> socket.socket:
+        nonlocal connect_attempts
+        connect_attempts += 1
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr("aiohttp.connector.aiohappyeyeballs.start_connection", hang_connect)
+
+    with pytest.raises(CommandNotSentError) as exc_info:
+        await resource.rest_request("POST", "states/light.kitchen", data={"state": "on"})
+
+    assert isinstance(exc_info.value.__cause__, aiohttp.ConnectionTimeoutError)
+    assert connect_attempts == MAX_RETRY_ATTEMPTS
+    assert stub.request_count == 0

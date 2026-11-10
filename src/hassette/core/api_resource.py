@@ -142,8 +142,9 @@ class ApiResource(Resource):
 
         A GET is retried on any of these except a 4xx other than 408/429 (and the ``NOT_RETRYABLE``
         types, such as a caller's ``TypeError``). Any other method is retried
-        only on ``CommandNotSentError``, so a write is never re-sent after it may have applied, and
-        the class raised after retries describes the whole call.
+        only on ``CommandNotSentError``, so Hassette never re-sends a write after it may have applied,
+        and the class raised after retries describes the whole call. (aiohttp itself may re-send a
+        DELETE or PUT once when a reused keep-alive connection turns out to be closed.)
 
         Raises:
             CommandNotSentError: If the request never reached Home Assistant.
@@ -286,8 +287,9 @@ def delivery_state_error(exc: BaseException, *, method: str, url: str, deadline:
 def is_retryable_rest_failure(exc: BaseException, method: str) -> bool:
     """Return whether a failed REST attempt may be sent again.
 
-    Any method other than GET retries only a request that never reached Home Assistant, so a write is
-    never re-sent after it may have applied or after Home Assistant answered it.
+    Any method other than GET retries only a request that never reached Home Assistant, so Hassette never
+    re-sends a write after it may have applied or after Home Assistant answered it. aiohttp's own retry of
+    an idempotent method (DELETE, PUT) on a stale keep-alive connection sits below this and isn't covered.
     """
     if method.upper() != "GET":
         return isinstance(exc, CommandNotSentError)
