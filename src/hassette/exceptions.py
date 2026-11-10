@@ -137,7 +137,7 @@ class CommandNotSentError(HassetteError):
 
 
 class CommandRejectedError(HassetteError):
-    """Home Assistant answered a WebSocket command with an error, so the command did not apply.
+    """Home Assistant answered a WebSocket command with an error; a service or script may have partly run first.
 
     Exposes HA's structured error surface as instance attributes so callers can react programmatically::
 

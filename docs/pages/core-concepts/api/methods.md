@@ -601,7 +601,7 @@ transports. `CommandRejectedError` is WebSocket-only; REST reports an error stat
 | Class | Delivery state | Applied? |
 |---|---|---|
 | [`CommandNotSentError`][hassette.exceptions.CommandNotSentError] | Never reached HA | No; safe to send again |
-| [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] | HA answered with an error | No |
+| [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] | HA answered with an error | Usually not; a service may have partly run |
 | [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError] | Sent, no answer | Maybe |
 
 A REST connect that hangs until the timeout raises `ResponseTimeoutError`, although nothing was
