@@ -25,6 +25,8 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
 
     state: StateT
     _sync: "BaseEntitySyncFacade[StateT, StateValueT] | None" = PrivateAttr(default=None, init=False)
+    _api: "Api | None" = PrivateAttr(default=None, init=False)
+    """The ``Api`` that fetched this entity (set by ``Api.get_entity``), so its actions are that app's writes."""
 
     async def refresh(self) -> StateT:
         self.state = cast("StateT", await self.hassette.api.get_state(self.entity_id))
@@ -58,7 +60,13 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
 
     @property
     def api(self) -> "Api":
-        """Get the Hassette API instance for this entity. Resolved at call time (see the ``hassette`` property)."""
+        """The ``Api`` this entity's actions go through.
+
+        The app's own ``Api`` when the app fetched the entity with ``get_entity``, so the actions are recorded
+        as that app's writes. Otherwise the framework's, resolved at call time (see the ``hassette`` property).
+        """
+        if self._api is not None:
+            return self._api
         return self.hassette.api
 
     def _get_or_create_sync(self, facade_cls: type[_FacadeT]) -> _FacadeT:

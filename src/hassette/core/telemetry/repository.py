@@ -550,7 +550,10 @@ class TelemetryRepository:
         error_message: str | None,
         resolved_ts: float | None,
     ) -> None:
-        """Set a write row's outcome. A DB write failure is logged and the row left as it was."""
+        """Set a pending write row's outcome; a row that already has one keeps it (first outcome wins).
+
+        A DB write failure is logged and the row left as it was.
+        """
         db = self._db_service.db
         try:
             await db.execute(
@@ -558,7 +561,7 @@ class TelemetryRepository:
                 UPDATE api_writes
                 SET outcome = :outcome, context_id = :context_id, error_code = :error_code,
                     error_message = :error_message, resolved_ts = :resolved_ts
-                WHERE write_id = :write_id
+                WHERE write_id = :write_id AND outcome = 'pending'
                 """,
                 {
                     "write_id": write_id,

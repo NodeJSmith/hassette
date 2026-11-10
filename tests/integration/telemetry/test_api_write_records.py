@@ -104,6 +104,25 @@ class TestRowLifecycle:
         row = await fetch_write(db_svc, handle.write_id)
         assert (row["outcome"], row["error_code"], row["error_message"]) == ("rejected", "not_found", "no such service")
 
+    async def test_a_settled_row_keeps_its_first_outcome(self, recorder: ApiWriteRecorder, db: DbFixture) -> None:
+        """The database enforces first-outcome-wins too, not only the one-shot handle."""
+        db_svc, _ = db
+        handle = begin(recorder)
+        handle.resolve("success", context_id="ctx-1")
+        await drain_db_writes(db_svc)
+
+        await recorder.repository.update_api_write_outcome(
+            handle.write_id,
+            outcome="connection_lost",
+            context_id=None,
+            error_code=None,
+            error_message=None,
+            resolved_ts=None,
+        )
+
+        row = await fetch_write(db_svc, handle.write_id)
+        assert (row["outcome"], row["context_id"]) == ("success", "ctx-1")
+
     async def test_unresolved_keeps_resolved_ts_null(self, recorder: ApiWriteRecorder, db: DbFixture) -> None:
         db_svc, _ = db
         handle = begin(recorder)

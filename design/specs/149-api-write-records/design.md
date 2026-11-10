@@ -1,7 +1,7 @@
 # Design: Record API writes and how each one ended
 
 **Date:** 2026-11-09
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #3677
 **Parent:** design/specs/142-diagnostic-evidence/design.md
@@ -260,7 +260,7 @@ Every named write maps the same way over both transports. WebSocket: the caller 
 
 - Parent D6's `caused_by` (its meaning and qualifying field description), D7 (background reply tracking, no deadline, no timed-out outcome, the rejected-call WARNING) and D8 (named writes only, app-owned `Api` only, `render_template` and raw methods excluded) hold, except where a decision here names the parent decision it refines or supersedes in its heading or Ratified sentence; D8 supersedes parent D7's "no row until it resolves", and D9 supersedes parent D7's "an evicted call leaves no row, only a count". The outcome values and their meanings live in D3. Evidence: parent ledger D6, D7, D8.
 - Home Assistant's `call_service` and `fire_event` replies carry `{"context": {...}}` on success and error frames carry none; `set_state`'s REST response is the state object, whose `context.id` is the returned context id. Evidence: parent Assumed; prior-art brief, "HA Source Verification" (b) and (c).
-- A call's execution id is captured when it's sent, from `CURRENT_EXECUTION_ID`, and reaches sync handlers' calls too: `SyncExecutor.submit` runs the handler in a copy of the caller's context (`src/hassette/core/sync_executor.py`), and `TaskBucket.run_sync` schedules the coroutine with `run_coroutine_threadsafe`, which copies the calling thread's context. A test pins both paths. Evidence: `src/hassette/context.py`, `src/hassette/task_bucket/task_bucket.py`.
+- A call's execution id is captured when it's sent, from `CURRENT_EXECUTION_ID`, and reaches sync handlers' calls too: `SyncExecutor.submit` runs the handler in a copy of the caller's context (`src/hassette/core/sync_executor.py`), and `TaskBucket.run_sync` schedules the coroutine with `run_coroutine_threadsafe`, which copies the calling thread's context. Two tests pin the paths: the submit hop by `test_execution_id_visible_in_worker` (`tests/unit/task_bucket/test_run_in_thread_context_propagation.py`), the `run_sync` hop by `test_execution_id_reaches_a_write_scheduled_through_run_sync_from_a_worker` (`tests/unit/test_api_write_recording.py`). Evidence: `src/hassette/context.py`, `src/hassette/task_bucket/task_bucket.py`.
 - Rows enqueue through `DatabaseService.enqueue`, which drops on a full queue; a drop increments a new `PipelineCounter` member, and a `RuntimeError` from a queue that isn't live drops the row as `CommandExecutor.record_blocking_event` does. Evidence: `src/hassette/core/command_executor.py` `record_blocking_event`.
 - Retention follows parent D12: `api_writes` ages out on `database.retention_days`, and the failsafe deletes it after blocking events and before app executions. Evidence: parent D12; `src/hassette/core/retention_targets.py`.
 - New telemetry tables carry `session_id` referencing `sessions`, and session deletion guards on them. Evidence: `src/hassette/migrations_sql/005.sql`; `src/hassette/core/database_retention.py`.
@@ -273,7 +273,7 @@ Every named write maps the same way over both transports. WebSocket: the caller 
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - The detail response is `ExecutionDetailResponse`, not `ExecutionDetail`: `hassette_wire`'s naming rule ends aggregate views served by one endpoint in `Response`.
@@ -290,3 +290,6 @@ Every named write maps the same way over both transports. WebSocket: the caller 
 - A write's record keeps its first outcome (`ApiWriteHandle.resolve` is one-shot): a connection that drops while a frame is still being sent resolves the row `connection_lost` from `fail_all`, and the send's own `CommandNotSentError` then doesn't overwrite it with `not_sent`.
 - `begin_write` and `record_writes_for` are listed in the sync-facade generator's `INTERNAL_METHODS`, so they stay off `Api.sync`; the raw transport methods' `record=` argument is carried onto the facades like `retry_on_timeout`.
 - The rejected-call WARNING includes Home Assistant's error message, the same text an awaited caller's `CommandRejectedError` carries.
+- Entity actions are recorded: `Api.get_entity` stamps the entity with the `Api` that fetched it, and `BaseEntity.api` returns that `Api` (falling back to `hassette.api`), so an app's `entity.unlock()` is that app's write. `RecordingApi.get_entity` doesn't stamp, so the test harness is unchanged (ship-time challenge finding 1).
+- The outcome UPDATE only touches a `pending` row (`AND outcome = 'pending'`), so the table enforces first-outcome-wins as well as the handle; `api_writes.kind` has a CHECK listing `ApiWriteKind`, kept in step by `test_wire_check_parity` (ship-time challenge findings 8 and 9).
+- `ExecutionTrigger.caused_by` is documented as a context match: an immediate-fire run reports the write that set the state it fired on (ship-time challenge finding 4).

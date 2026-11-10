@@ -1744,8 +1744,11 @@ export interface components {
              */
             origin?: string | null;
             /**
-             * @description The recorded API write whose context fired this run, when ``context_id`` matches one. Only a direct match
-             *     counts: a write that sets off a Home Assistant automation is not reported on the automation's downstream runs.
+             * @description The recorded API write whose context this run's event carries, when ``context_id`` matches one.
+             *
+             *     For an immediate-fire run that's the write that set the state the run fired on, not what fired it. Only a direct
+             *     match counts: a write that sets off a Home Assistant automation is not reported on the automation's downstream
+             *     runs.
              */
             caused_by?: components["schemas"]["CausingWrite"] | null;
         };

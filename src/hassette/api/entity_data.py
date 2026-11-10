@@ -22,7 +22,7 @@ if typing.TYPE_CHECKING:
     import aiohttp
     from hassette_wire import ApiWriteKind
 
-    from hassette import Hassette
+    from hassette import Api, Hassette
     from hassette.core.api_resource import ApiResource
     from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.events import HassStateDict
@@ -122,7 +122,10 @@ class ApiEntityDataMixin:
 
         raw = await self.get_state_raw(entity_id)
 
-        return model.model_validate({"state": raw})
+        entity = model.model_validate({"state": raw})
+        # The entity's actions go through this Api, so an app's entity writes are recorded as that app's.
+        entity._api = typing.cast("Api", self)  # pyright: ignore[reportPrivateUsage]
+        return entity
 
     async def get_entity_or_none(self, entity_id: str, model: type["EntityT"]) -> "EntityT | None":
         """Get an entity object for a specific entity, or None if it does not exist.

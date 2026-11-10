@@ -8,9 +8,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import uuid_utils
 
+from tests.support.web_telemetry_helpers import make_api_write, make_execution
+
 from .conftest import get_json, make_log_record
 
 if TYPE_CHECKING:
+    from hassette_wire import ApiWrite, Execution
     from httpx2 import AsyncClient
 
 EXECUTION_PATH = "/api/executions/{execution_id}"
@@ -23,9 +26,12 @@ async def get_execution_detail(
     *,
     records: list[dict] | None = None,
     truncated: bool = False,
+    writes: "list[ApiWrite] | None" = None,
+    writes_truncated: bool = False,
+    execution: "Execution | None" = None,
     query: str = "",
 ) -> dict:
-    """Wire the per-execution log query, then GET the execution detail endpoint.
+    """Wire the per-execution queries, then GET the execution detail endpoint.
 
     The `(records, truncated)` tuple is exactly what `get_log_records_by_execution()` returns,
     so the arrange step here mirrors the real service contract rather than inventing a shape.
@@ -33,6 +39,11 @@ async def get_execution_detail(
     mock_hassette.telemetry_query_service.get_log_records_by_execution = AsyncMock(
         return_value=(records or [], truncated)
     )
+    mock_hassette.telemetry_query_service.get_api_writes_by_execution = AsyncMock(
+        return_value=(writes or [], writes_truncated)
+    )
+    mock_hassette.telemetry_query_service.get_execution_by_id = AsyncMock(return_value=execution)
+    mock_hassette.config.logging.log_retention_days = 3  # read whenever there are no log records
     return await get_json(client, EXECUTION_PATH.format(execution_id=execution_id) + query)
 
 
@@ -134,6 +145,50 @@ class TestGetExecutionDetail:
 
         _, kwargs = mock_hassette.telemetry_query_service.get_log_records_by_execution.call_args
         assert kwargs["limit"] == 100
+        _, write_kwargs = mock_hassette.telemetry_query_service.get_api_writes_by_execution.call_args
+        assert write_kwargs["limit"] == 100
+
+    async def test_api_writes_are_returned(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """The writes the service returns appear in ``api_writes``, untruncated by default."""
+        execution_id = str(uuid_utils.uuid7())
+        writes = [
+            make_api_write("w1", execution_id=execution_id),
+            make_api_write("w2", operation="light.turn_off", execution_id=execution_id),
+        ]
+
+        data = await get_execution_detail(client, mock_hassette, execution_id, writes=writes)
+
+        assert [(w["write_id"], w["operation"]) for w in data["api_writes"]] == [
+            ("w1", "light.turn_on"),
+            ("w2", "light.turn_off"),
+        ]
+        assert data["api_writes_truncated"] is False
+
+    async def test_api_writes_truncated_flag_is_passed_through(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        data = await get_execution_detail(
+            client, mock_hassette, str(uuid_utils.uuid7()), writes=[make_api_write()], writes_truncated=True
+        )
+
+        assert data["api_writes_truncated"] is True
+
+    async def test_execution_is_null_until_the_record_lands(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        data = await get_execution_detail(client, mock_hassette, str(uuid_utils.uuid7()))
+
+        assert data["execution"] is None
+
+    async def test_execution_is_returned_when_recorded(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        execution_id = str(uuid_utils.uuid7())
+
+        data = await get_execution_detail(
+            client, mock_hassette, execution_id, execution=make_execution(execution_id=execution_id)
+        )
+
+        assert data["execution"]["execution_id"] == execution_id
+        mock_hassette.telemetry_query_service.get_execution_by_id.assert_awaited_once_with(execution_id)
 
     @pytest.mark.parametrize(("query", "expected"), [("", None), ("?author=all", "all"), ("?author=app", "app")])
     async def test_author_parameter_is_forwarded(

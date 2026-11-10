@@ -4589,7 +4589,7 @@
                 "type": "null"
               }
             ],
-            "description": "The recorded API write whose context fired this run, when ``context_id`` matches one. Only a direct match\ncounts: a write that sets off a Home Assistant automation is not reported on the automation's downstream runs."
+            "description": "The recorded API write whose context this run's event carries, when ``context_id`` matches one.\n\nFor an immediate-fire run that's the write that set the state the run fired on, not what fired it. Only a direct\nmatch counts: a write that sets off a Home Assistant automation is not reported on the automation's downstream\nruns."
           }
         },
         "type": "object",

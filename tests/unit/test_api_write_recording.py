@@ -27,8 +27,11 @@ from hassette.exceptions import (
     ResponseLostError,
     ResponseTimeoutError,
 )
+from hassette.models.entities import LightEntity
 from hassette.models.helpers import CreateInputBooleanParams, UpdateInputBooleanParams
-from tests.support.factories import make_app
+from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.testing import make_light_state_dict
+from tests.support.factories import make_app, make_sync_executor
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.conftest import make_api
 
@@ -172,6 +175,24 @@ class TestWhatEachWriteRecords:
 
         assert rec.row.execution_id == "exec-1"
 
+    async def test_execution_id_reaches_a_write_scheduled_through_run_sync_from_a_worker(self, rec: Recorded) -> None:
+        """The sync facade's hop: worker thread -> ``TaskBucket.run_sync`` -> write on the loop."""
+        executor = make_sync_executor()
+        bucket = TaskBucket(make_mock_hassette(), sync_executor=executor)
+        bucket.hassette.config.lifecycle.run_sync_timeout_seconds = 5
+
+        def sync_handler() -> None:
+            bucket.run_sync(rec.api.fire_event("doorbell"))
+
+        token = CURRENT_EXECUTION_ID.set("exec-sync")
+        try:
+            await bucket.run_in_thread(sync_handler)
+        finally:
+            CURRENT_EXECUTION_ID.reset(token)
+            executor.shutdown_pool(timeout=5)
+
+        assert rec.row.execution_id == "exec-sync"
+
     async def test_unowned_api_records_nothing(self, rec: Recorded) -> None:
         rec.api._write_owner = None
 
@@ -180,6 +201,18 @@ class TestWhatEachWriteRecords:
         rec.repository.insert_api_write.assert_not_called()
         assert rec.ws.send_and_wait.await_args is not None
         assert rec.ws.send_and_wait.await_args.kwargs["on_resolve"] is None
+
+    async def test_entity_fetched_by_the_app_records_its_actions(self, rec: Recorded) -> None:
+        """An entity's actions go through the Api that fetched it, so they're the app's recorded writes."""
+        rec.api.get_state_raw = AsyncMock(return_value=make_light_state_dict("light.porch"))
+        light = await rec.api.get_entity("light.porch", LightEntity)
+
+        await light.turn_on()
+
+        assert light.api is rec.api
+        assert (rec.row.app_key, rec.row.kind, rec.row.operation) == (APP_KEY, "call_service", "light.turn_on")
+        assert rec.row.target == {"entity_id": ["light.porch"]}
+        rec.ws.send_fire_and_forget.assert_awaited_once()
 
     async def test_insert_is_enqueued_before_the_send(self, rec: Recorded) -> None:
         """FIFO order on the write queue then puts the insert ahead of any update the reply causes."""

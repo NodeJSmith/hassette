@@ -230,7 +230,8 @@ app's `Api` logger, under the run that made the call, and lands on the call's
 [API write record](../database-telemetry.md#what-is-collected).
 
 Every write method on an app's `self.api` is recorded: `call_service` (and the helpers built on it),
-`fire_event`, `set_state`, `delete_entity`, and helper `create`/`update`/`delete`. A recorded
+`fire_event`, `set_state`, `delete_entity`, and helper `create`/`update`/`delete`. So are the
+action methods of an entity the app fetched with `get_entity`, such as `turn_on` or `unlock`. A recorded
 `success` means Home Assistant's handler returned, not that the device changed state.
 `hassette execution <id>` lists a run's writes. The internal transport methods (`ws_send_json`,
 `ws_send_and_wait`, `rest_request` and its GET/POST/DELETE variants) aren't recorded.

@@ -126,8 +126,11 @@ class ExecutionTrigger(BaseModel):
     """Origin of the event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for an
     immediate-fire run, whose event hassette built from the cached state)."""
     caused_by: CausingWrite | None = None
-    """The recorded API write whose context fired this run, when ``context_id`` matches one. Only a direct match
-    counts: a write that sets off a Home Assistant automation is not reported on the automation's downstream runs."""
+    """The recorded API write whose context this run's event carries, when ``context_id`` matches one.
+
+    For an immediate-fire run that's the write that set the state the run fired on, not what fired it. Only a direct
+    match counts: a write that sets off a Home Assistant automation is not reported on the automation's downstream
+    runs."""
 
 
 class Execution(BaseModel):

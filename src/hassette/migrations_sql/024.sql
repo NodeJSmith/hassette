@@ -11,7 +11,9 @@ CREATE TABLE api_writes (
     app_key        TEXT NOT NULL,
     instance_name  TEXT NOT NULL,
     execution_id   TEXT,
-    kind           TEXT NOT NULL,
+    kind           TEXT NOT NULL
+        CHECK (kind IN ('call_service', 'fire_event', 'set_state', 'delete_entity',
+                        'helper_create', 'helper_update', 'helper_delete')),
     operation      TEXT,
     target         TEXT,
     data           TEXT,
