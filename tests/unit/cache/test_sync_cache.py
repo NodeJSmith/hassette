@@ -37,6 +37,16 @@ def sync_cache(async_cache: AsyncCache) -> SyncCache:
     return async_cache.sync
 
 
+class RejectsOldState:
+    """Pickles fine, but its ``__setstate__`` raises -- like a class whose newer version rejects old state."""
+
+    def __init__(self) -> None:
+        self.version = 1
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        raise RuntimeError("incompatible cached state")
+
+
 def test_set_and_get_round_trip(sync_cache: SyncCache) -> None:
     """A value stored via set() is returned unchanged by get()."""
     sync_cache.set("greeting", {"text": "hello"})
@@ -60,6 +70,15 @@ def test_get_returns_stored_none_without_deleting_entry(sync_cache: SyncCache) -
     assert sync_cache.get("flag", default="fallback") is None
     # A second get() confirms the first call did not delete the row as if it were corrupt.
     assert sync_cache.get("flag", default="fallback") is None
+
+
+def test_get_treats_setstate_failure_as_miss_and_deletes_row(sync_cache: SyncCache) -> None:
+    """An unpickle failure of any exception type is a cache miss, and the unreadable row is removed."""
+    sync_cache.set("obj", RejectsOldState())
+
+    assert sync_cache.get("obj", default="fallback") == "fallback"
+    with contextlib.closing(sqlite3.connect(sync_cache.db_path)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM cache_entries WHERE key = 'obj'").fetchone() == (0,)
 
 
 def test_set_ttl_zero_deletes_existing_and_does_not_store(sync_cache: SyncCache) -> None:

@@ -28,6 +28,16 @@ async def cache(tmp_path: Path) -> AsyncIterator[AsyncCache]:
         await instance.close()
 
 
+class RejectsOldState:
+    """Pickles fine, but its ``__setstate__`` raises -- like a class whose newer version rejects old state."""
+
+    def __init__(self) -> None:
+        self.version = 1
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        raise RuntimeError("incompatible cached state")
+
+
 async def test_async_cache_satisfies_cache_protocol(cache: AsyncCache) -> None:
     """An initialized AsyncCache is a CacheProtocol-conforming instance."""
     assert isinstance(cache, CacheProtocol)
@@ -73,6 +83,15 @@ async def test_get_returns_stored_none_without_deleting_entry(cache: AsyncCache)
     assert await cache.get("flag", default="fallback") is None
     # A second get() confirms the first call did not delete the row as if it were corrupt.
     assert await cache.get("flag", default="fallback") is None
+
+
+async def test_get_treats_setstate_failure_as_miss_and_deletes_row(cache: AsyncCache) -> None:
+    """An unpickle failure of any exception type is a cache miss, and the unreadable row is removed."""
+    await cache.set("obj", RejectsOldState())
+
+    assert await cache.get("obj", default="fallback") == "fallback"
+    with contextlib.closing(sqlite3.connect(cache.db_path)) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM cache_entries WHERE key = 'obj'").fetchone() == (0,)
 
 
 async def test_set_with_no_ttl_uses_instance_default(tmp_path: Path) -> None:
