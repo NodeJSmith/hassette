@@ -52,7 +52,9 @@ class Recorded:
         hassette.try_session_id.return_value = 7
         hassette.database_service.enqueue = MagicMock(return_value=True)
         self.recorder = ApiWriteRecorder(hassette)
-        self.recorder.repository = MagicMock()
+        self.repository = MagicMock()
+        """The recorder's repository, kept as a mock-typed reference for assertions."""
+        self.recorder.repository = self.repository
         hassette.api_write_recorder = self.recorder
         self.api.record_writes_for(APP_KEY, INSTANCE)
         # Use the real transport methods, over a mocked connection.
@@ -68,7 +70,7 @@ class Recorded:
 
     @property
     def rows(self) -> list[ApiWriteRow]:
-        return [c.args[0] for c in self.recorder.repository.insert_api_write.call_args_list]
+        return [c.args[0] for c in self.repository.insert_api_write.call_args_list]
 
     @property
     def row(self) -> ApiWriteRow:
@@ -77,7 +79,7 @@ class Recorded:
 
     @property
     def outcomes(self) -> list[dict[str, Any]]:
-        return [c.kwargs for c in self.recorder.repository.update_api_write_outcome.call_args_list]
+        return [c.kwargs for c in self.repository.update_api_write_outcome.call_args_list]
 
     def on_resolve(self) -> Callable[..., None]:
         """The resolve callback the transport was handed for the last awaited write."""
@@ -175,14 +177,14 @@ class TestWhatEachWriteRecords:
 
         await rec.api.fire_event("doorbell")
 
-        rec.recorder.repository.insert_api_write.assert_not_called()
+        rec.repository.insert_api_write.assert_not_called()
         assert rec.ws.send_and_wait.await_args is not None
         assert rec.ws.send_and_wait.await_args.kwargs["on_resolve"] is None
 
     async def test_insert_is_enqueued_before_the_send(self, rec: Recorded) -> None:
         """FIFO order on the write queue then puts the insert ahead of any update the reply causes."""
         order: list[str] = []
-        rec.recorder.repository.insert_api_write.side_effect = lambda _row: order.append("insert")
+        rec.repository.insert_api_write.side_effect = lambda _row: order.append("insert")
         rec.ws.send_and_wait.side_effect = lambda **_: order.append("send")
 
         await rec.api.fire_event("doorbell")
@@ -296,6 +298,34 @@ class TestRejectedCallWarning:
         handle.resolve("rejected", error_code="not_found", error_message="x")
 
         rec.api.logger.warning.assert_not_called()
+
+
+class TestResolveOnce:
+    async def test_send_failing_after_the_connection_dropped_keeps_connection_lost(self, rec: Recorded) -> None:
+        """The connection drops while the frame is still being sent: fail_all resolves the row first, then
+        the send raises CommandNotSentError, and that second resolution must not overwrite the first.
+        """
+
+        async def drop_mid_send(on_resolve: Any, **_data: Any) -> None:
+            on_resolve("connection_lost")  # fail_all reaching the registered entry
+            raise CommandNotSentError("WebSocket closed while sending")
+
+        rec.ws.send_fire_and_forget.side_effect = drop_mid_send
+
+        with pytest.raises(CommandNotSentError):
+            await rec.api.call_service("light", "turn_on", target={"entity_id": "light.porch"})
+
+        assert [o["outcome"] for o in rec.outcomes] == ["connection_lost"]
+
+    async def test_rejected_warning_logs_once_when_resolved_twice(self, rec: Recorded) -> None:
+        rec.api.logger = MagicMock()
+        handle = TestRejectedCallWarning().handle(rec, fire_and_forget=True)
+
+        handle.resolve("rejected", error_code="not_found", error_message="x")
+        handle.resolve("rejected", error_code="not_found", error_message="x")
+
+        rec.api.logger.warning.assert_called_once()
+        assert [o["outcome"] for o in rec.outcomes] == ["rejected"]
 
 
 class TestRestOwnership:

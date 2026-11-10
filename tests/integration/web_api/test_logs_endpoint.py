@@ -164,7 +164,7 @@ class TestCustomLevelRecords:
         execution = await get_json(client, f"/api/executions/{uuid_utils.uuid7()}")
 
         assert recent[0]["level"] == expected
-        assert execution["records"][0]["level"] == expected
+        assert execution["logs"][0]["level"] == expected
 
     async def test_captured_record(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         record = make_stdlib_log_record(level=25)

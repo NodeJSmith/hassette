@@ -47,6 +47,8 @@ the completeness guard (over a wider inherited surface).  A new lifecycle
 INTERNAL_METHODS = frozenset(
     {
         "get_job_db_ids",
+        "begin_write",
+        "record_writes_for",
     }
 )
 """Public sync methods that are framework-internal plumbing, not user-facing."""

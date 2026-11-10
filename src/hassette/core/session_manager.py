@@ -102,7 +102,7 @@ class SessionManager(Resource):
         await self._database_service.submit(self._do_finalize_session(drop_counters))
 
     async def _do_mark_orphaned_sessions(self) -> None:
-        """Execute the orphan-session and pending-write UPDATEs; called by the write-queue worker.
+        """Run the orphan-session and pending-write UPDATE statements; called by the write-queue worker.
 
         Matches any session left with stopped_at IS NULL from a previous process run —
         not just status='running'. A session already marked 'failure' that never got its

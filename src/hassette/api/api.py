@@ -252,7 +252,8 @@ def resolve_unsent(record: "ApiWriteHandle | None") -> None:
 
     Any exception that isn't a rejection or an unknown outcome comes from before or during the send (a
     closed connection, or a payload that can't be serialized), and the transport has already dropped the
-    write's pending-reply entry, so this caller is the record's only owner.
+    write's pending-reply entry. If the connection dropped mid-send, ``fail_all`` resolved the record first
+    and this ``not_sent`` is ignored: a record keeps its first outcome.
     """
     if record is not None:
         record.resolve("not_sent")

@@ -11,3 +11,13 @@
 # change ships, so this file empties itself after each release.
 #
 # This file intentionally starts empty (comment lines only).
+
+# #3677: GET /api/executions/{id} now returns ExecutionDetailResponse (the execution, its API writes and its logs)
+# in place of LogsByExecutionResponse; the client method is renamed get_execution_detail.
+GET /api/executions/{execution_id} (adversarial--execution-detail.json)
+GET /api/executions/{execution_id} (degraded--execution-detail.json)
+GET /api/executions/{execution_id} (empty--execution-detail.json)
+GET /api/executions/{execution_id} (error--execution-detail.json)
+GET /api/executions/{execution_id} (healthy--execution-detail.json)
+GET /api/executions/{execution_id} (lifecycle--execution-detail.json)
+GET /api/executions/{execution_id} (mixed-instance--execution-detail.json)

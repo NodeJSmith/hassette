@@ -15,7 +15,7 @@ never raised into the app.
 import logging
 import time
 import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import uuid_utils
@@ -38,6 +38,7 @@ API_WRITE_DATA_MAX_CHARS = 2048
 """Code points of a write's ``data`` display string kept before it is cut with a trailing ``…``."""
 
 HTTP_NOT_FOUND = "404"
+"""``error_code`` for a REST write whose entity doesn't exist; stored as text like every other code."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,11 +57,13 @@ class ApiWriteRow:
     sent_ts: float
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class ApiWriteHandle:
-    """One recorded write's identity, and the means to resolve its row.
+    """One recorded write's identity, and the means to resolve its row exactly once.
 
-    Holds ids only, never the write's target or data, so a pending-reply entry carrying ``resolve`` stays small.
+    Holds no target or data, so a pending-reply entry carrying ``resolve`` stays small. The first ``resolve``
+    wins and later ones are ignored: a connection that drops while a frame is still being sent resolves the
+    row as ``connection_lost`` from ``fail_all``, and the send's own failure must not then overwrite it.
     """
 
     write_id: str
@@ -72,6 +75,8 @@ class ApiWriteHandle:
     logger: logging.Logger
     """The app's ``Api`` logger, so the rejected-call WARNING lands in that app's logs."""
     recorder: "ApiWriteRecorder"
+    resolved: bool = field(default=False, init=False)
+    """Set by the first ``resolve``. All callers run on the event loop, so a plain flag is enough."""
 
     def resolve(
         self,
@@ -81,7 +86,13 @@ class ApiWriteHandle:
         error_code: str | None = None,
         error_message: str | None = None,
     ) -> None:
-        """Enqueue the row's outcome; for a rejected fire-and-forget call, also log the rejected-call WARNING."""
+        """Enqueue the row's outcome; for a rejected fire-and-forget call, also log the rejected-call WARNING.
+
+        A no-op once the row has been resolved.
+        """
+        if self.resolved:
+            return
+        self.resolved = True
         resolved_ts = None if outcome == "unresolved" else time.time()
         self.recorder.enqueue(
             self.recorder.repository.update_api_write_outcome(

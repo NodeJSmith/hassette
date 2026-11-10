@@ -20,10 +20,10 @@ router = APIRouter(prefix="/executions", tags=["executions"])
 
 LOGGER = getLogger(__name__)
 
-EXECUTION_LOGS_DEFAULT_LIMIT = 500
+EXECUTION_DETAIL_DEFAULT_LIMIT = 500
 """Default number of log records, and separately of API writes, `/executions/{execution_id}` returns without `limit`."""
 
-EXECUTION_LOGS_LIMIT_CAP = 5000
+EXECUTION_DETAIL_LIMIT_CAP = 5000
 """Upper bound a client may request via `/executions/{execution_id}`'s `limit` query parameter (each list)."""
 
 
@@ -64,7 +64,7 @@ async def get_execution_detail(
     execution_id: str,
     hassette: HassetteDep,
     telemetry: TelemetryDep,
-    limit: Annotated[int, Query(ge=1, le=EXECUTION_LOGS_LIMIT_CAP)] = EXECUTION_LOGS_DEFAULT_LIMIT,
+    limit: Annotated[int, Query(ge=1, le=EXECUTION_DETAIL_LIMIT_CAP)] = EXECUTION_DETAIL_DEFAULT_LIMIT,
     author: AuthorQuery = None,
 ) -> ExecutionDetailResponse:
     """Return one execution's record, the API writes it made, and its log records.

@@ -5,6 +5,7 @@ These have been copied from HA to ensure we use the same logic.
 
 import functools
 import re
+from typing import Any
 
 MAX_EXPECTED_ENTITY_IDS = 16384
 _OBJECT_ID = r"(?!_)[\da-z_]+(?<!_)"
@@ -67,3 +68,13 @@ def make_entity_id(entity_id: str, domain: str) -> str:
     if not valid_entity_id(output_entity_id):
         raise ValueError(f"Generated entity ID '{output_entity_id}' is not valid.")
     return output_entity_id
+
+
+def context_id_of(state_or_result: Any) -> str | None:
+    """The ``context.id`` Home Assistant puts on a state object or a service/event result, else None.
+
+    Shared by the WebSocket reply and the REST ``set_state`` response, which both carry it this way.
+    """
+    context = state_or_result.get("context") if isinstance(state_or_result, dict) else None
+    context_id = context.get("id") if isinstance(context, dict) else None
+    return context_id if isinstance(context_id, str) else None

@@ -108,7 +108,7 @@ async def test_ws_helper_call_propagates_success():
 
     result = await _ws_helper_call(mock_api, "d", "op")
     assert result == {"id": "x"}
-    mock_api.ws_send_and_wait.assert_awaited_once_with(type="d/op", retry_on_timeout=True)
+    mock_api.ws_send_and_wait.assert_awaited_once_with(type="d/op", retry_on_timeout=True, record=None)
 
 
 async def test_ws_helper_call_chains_error_with_context():
@@ -217,7 +217,7 @@ async def test_list_input_booleans(api: Api):
 
     result = await api.helpers.list("input_boolean")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_boolean/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_boolean/list", retry_on_timeout=True, record=None)
     assert isinstance(result, list)
     assert len(result) == 1
     assert isinstance(result[0], InputBooleanRecord)
@@ -274,7 +274,7 @@ async def test_list_input_numbers(api: Api):
 
     result = await api.helpers.list("input_number")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_number/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_number/list", retry_on_timeout=True, record=None)
     assert isinstance(result[0], InputNumberRecord)
     assert result[0].id == "brightness"
 
@@ -320,7 +320,7 @@ async def test_list_input_texts(api: Api):
 
     result = await api.helpers.list("input_text")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_text/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_text/list", retry_on_timeout=True, record=None)
     assert isinstance(result[0], InputTextRecord)
     assert result[0].id == "wifi_password"
 
@@ -365,7 +365,7 @@ async def test_list_input_selects(api: Api):
 
     result = await api.helpers.list("input_select")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_select/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_select/list", retry_on_timeout=True, record=None)
     assert isinstance(result[0], InputSelectRecord)
     assert result[0].id == "theme"
     assert result[0].options == ["light", "dark"]
@@ -412,7 +412,7 @@ async def test_list_input_datetimes(api: Api):
 
     result = await api.helpers.list("input_datetime")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_datetime/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_datetime/list", retry_on_timeout=True, record=None)
     assert isinstance(result[0], InputDatetimeRecord)
     assert result[0].id == "alarm_time"
 
@@ -458,7 +458,7 @@ async def test_list_input_buttons(api: Api):
 
     result = await api.helpers.list("input_button")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_button/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_button/list", retry_on_timeout=True, record=None)
     assert isinstance(result[0], InputButtonRecord)
     assert result[0].id == "restart_btn"
 
@@ -504,7 +504,7 @@ async def test_list_counters(api: Api):
 
     result = await api.helpers.list("counter")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="counter/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="counter/list", retry_on_timeout=True, record=None)
     assert isinstance(result[0], CounterRecord)
     assert result[0].id == "motion_count"
 
@@ -553,7 +553,7 @@ async def test_list_timers(api: Api):
 
     result = await api.helpers.list("timer")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="timer/list", retry_on_timeout=True)
+    api.ws_send_and_wait.assert_awaited_once_with(type="timer/list", retry_on_timeout=True, record=None)
     assert isinstance(result[0], TimerRecord)
     assert result[0].id == "cooldown"
 

@@ -12,6 +12,7 @@ import pytest
 
 import hassette.core.websocket_io as websocket_io_module
 from hassette.core.websocket_service import WebsocketService
+from tests.support.websocket_mocks import awaited_future
 
 
 def _make_subscribe_side_effect(
@@ -26,7 +27,7 @@ def _make_subscribe_side_effect(
         if data.get("type") == "subscribe_events" and call_count >= succeed_on_call:
             monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 5)
             msg_id = data["id"]
-            fut = ws._pending.entries[msg_id].future
+            fut = awaited_future(ws, msg_id)
             fut.set_result(None)
 
     return side_effect

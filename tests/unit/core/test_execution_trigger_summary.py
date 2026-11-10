@@ -199,11 +199,15 @@ class TestSyntheticEvents:
 
 class TestTriggerColumnsStayInStep:
     def test_select_insert_and_record_carry_the_same_trigger_columns(self) -> None:
-        """Every trigger_* record field (bar trigger_mode) is inserted and nested back under Execution.trigger."""
+        """Every trigger_* record field (bar trigger_mode) is inserted and nested back under Execution.trigger.
+
+        ``caused_by`` is the one ``ExecutionTrigger`` field with no trigger column: it is joined from
+        ``api_writes`` at read time, not stored on the execution.
+        """
         record_fields = {f.name for f in dataclasses.fields(ExecutionRecord) if f.name.startswith("trigger_")}
         record_fields.discard("trigger_mode")
         inserted = {key for key in execution_insert_params(make_execution_record()) if key.startswith("trigger_")}
         inserted.discard("trigger_mode")
 
         assert set(TRIGGER_COLUMNS) == record_fields == inserted == set(TriggerRecordFields.__annotations__)
-        assert set(TRIGGER_COLUMNS.values()) == set(ExecutionTrigger.model_fields)
+        assert set(TRIGGER_COLUMNS.values()) == set(ExecutionTrigger.model_fields) - {"caused_by"}

@@ -27,6 +27,7 @@ from hassette.exceptions import (
     WebsocketClosedError,
 )
 from hassette.testing._ws_mocks import build_fake_ws
+from tests.support.websocket_mocks import awaited_future
 
 from .conftest import cleanup_disconnected, last_sent_msg_id, run_cleanup
 
@@ -50,7 +51,7 @@ def _drop_connection(websocket_service: WebsocketService, *, close_code: int | N
     """Make every send fail its response future as cleanup() does on a disconnect."""
 
     async def drop(**data):
-        websocket_service._pending.entries[data["id"]].future.set_exception(
+        awaited_future(websocket_service, data["id"]).set_exception(
             WebsocketClosedError("WebSocket disconnected", close_code=close_code)
         )
 

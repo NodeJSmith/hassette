@@ -179,7 +179,9 @@ async def test_generate_reports_every_live_app_status(
     apps = json.loads(by_name["apps"].body)["apps"]
     assert {app["status"] for app in apps} == set(AppStatus)
     assert {instance["status"] for app in apps for instance in app["instances"]} == set(ResourceStatus)
-    assert len(json.loads(by_name["execution-logs"].body)["records"]) == 2
+    detail = json.loads(by_name["execution-detail"].body)
+    assert len(detail["logs"]) == 2
+    assert [write["outcome"] for write in detail["api_writes"]] == ["rejected"]
     assert json.loads(by_name["execution-failed"].body)["error_traceback"]
     degraded_rows = json.loads(by_name["app-grid-degraded"].body)["apps"]
     assert degraded_rows

@@ -22,6 +22,7 @@ from hassette_wire import ApiWriteOutcome
 
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.exceptions import CommandRejectedError, WebsocketClosedError
+from hassette.utils.hass_utils import context_id_of
 
 if typing.TYPE_CHECKING:
     import asyncio
@@ -59,10 +60,13 @@ class PendingReply:
     """Resolves the write's record; None for an unrecorded request."""
     keep_when_abandoned: bool = False
     """Whether the entry stays to await its reply once its caller stops waiting: set for non-retried writes."""
-    fire_and_forget: bool = False
-    """Fixed at registration: the call was sent without anyone ever waiting on it."""
     awaited: bool = True
     """Whether a caller still waits on ``future``. False makes this a background entry."""
+
+    @property
+    def fire_and_forget(self) -> bool:
+        """Whether the call was sent without anyone ever waiting on it (no response future)."""
+        return self.future is None
 
 
 class PendingResponses:
@@ -99,7 +103,7 @@ class PendingResponses:
 
     def register_fire_and_forget(self, msg_id: int, command_type: str, on_resolve: ResolveCallback) -> None:
         """Track a fire-and-forget write as a background entry, so its reply resolves its record."""
-        self.entries[msg_id] = PendingReply(command_type, on_resolve=on_resolve, fire_and_forget=True, awaited=False)
+        self.entries[msg_id] = PendingReply(command_type, on_resolve=on_resolve, awaited=False)
         self.add_background()
 
     def discard(self, msg_id: int) -> None:
@@ -109,10 +113,10 @@ class PendingResponses:
             self.background_count -= 1
 
     def release(self, msg_id: int) -> None:
-        """Record that ``msg_id``'s caller stopped waiting (it got its reply, timed out, or was cancelled).
+        """Record that ``msg_id``'s caller stopped waiting: it timed out or was cancelled.
 
         A non-retried write stays as a background entry to await its reply; anything else leaves the table.
-        A no-op when the reply already removed the entry.
+        A no-op when the reply already removed the entry (the caller got its answer).
         """
         entry = self.entries.get(msg_id)
         if entry is None or not entry.awaited:
@@ -181,7 +185,7 @@ class PendingResponses:
         if entry.on_resolve is None:
             return
         if success:
-            self.run_callback(entry, "success", context_id=reply_context_id(message))
+            self.run_callback(entry, "success", context_id=context_id_of(message.get("result")))
         else:
             self.run_callback(
                 entry,
@@ -204,12 +208,20 @@ class PendingResponses:
             )
         return CommandRejectedError.from_error_response(err, code=code, original_data=message)
 
-    def run_callback(self, entry: PendingReply, outcome: ApiWriteOutcome, **details: str | None) -> None:
+    def run_callback(
+        self,
+        entry: PendingReply,
+        outcome: ApiWriteOutcome,
+        *,
+        context_id: str | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
         """Run ``entry``'s resolve callback, logging a failure so it never stops the caller's own work."""
         if entry.on_resolve is None:
             return
         try:
-            entry.on_resolve(outcome, **details)
+            entry.on_resolve(outcome, context_id=context_id, error_code=error_code, error_message=error_message)
         except Exception:
             self.logger.exception("Failed to record the %r outcome of a %r write", outcome, entry.command_type)
 
@@ -257,14 +269,6 @@ class PendingResponses:
                 with suppress(Exception):
                     entry.future.set_exception(WebsocketClosedError("WebSocket disconnected", close_code=close_code))
             self.run_callback(entry, "connection_lost")
-
-
-def reply_context_id(message: dict) -> str | None:
-    """The context id a success reply carries (``call_service`` and ``fire_event`` return one), else None."""
-    result = message.get("result")
-    context = result.get("context") if isinstance(result, dict) else None
-    context_id = context.get("id") if isinstance(context, dict) else None
-    return context_id if isinstance(context_id, str) else None
 
 
 def command_label(data: dict[str, Any]) -> str:

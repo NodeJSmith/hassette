@@ -129,7 +129,8 @@ class WebsocketMessageIOMixin:
             try:
                 await self.send_json(**payload)
             except asyncio.CancelledError:
-                # The frame may or may not have gone out; the entry stays to await a reply or the connection's end.
+                # The frame may or may not have gone out, so this is a caller that stopped waiting:
+                # release() below keeps the entry only if keep_when_abandoned is set.
                 raise
             except Exception:
                 self._pending.discard(msg_id)

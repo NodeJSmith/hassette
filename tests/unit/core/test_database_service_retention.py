@@ -50,14 +50,14 @@ def test_retention_tables_is_list_of_retention_targets() -> None:
 
 def test_retention_tables_contains_expected_tables() -> None:
     table_names = {t.table for t in _RETENTION_TABLES}
-    assert table_names == {"log_records", "executions", "blocking_events"}
+    assert table_names == {"log_records", "executions", "blocking_events", "api_writes"}
 
 
-def test_retention_tables_has_five_entries() -> None:
+def test_retention_tables_has_six_entries() -> None:
     """Executions and log_records each appear twice (per source tier, and DEBUG plus all levels),
-    plus blocking_events.
+    plus blocking_events and api_writes.
     """
-    assert len(_RETENTION_TABLES) == 5
+    assert len(_RETENTION_TABLES) == 6
 
 
 def test_retention_tables_priority_ordering() -> None:
@@ -66,6 +66,7 @@ def test_retention_tables_priority_ordering() -> None:
         by_label["debug log records"].priority
         < by_label["framework executions"].priority
         < by_label["blocking events"].priority
+        < by_label["api writes"].priority
         < by_label["app executions"].priority
         < by_label["log records"].priority
     )
@@ -83,6 +84,7 @@ def test_failsafe_tables_excludes_exempt_targets() -> None:
         "debug log records",
         "framework executions",
         "blocking events",
+        "api writes",
         "app executions",
     ]
 

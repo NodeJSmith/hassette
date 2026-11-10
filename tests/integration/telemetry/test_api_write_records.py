@@ -80,7 +80,11 @@ class TestRowLifecycle:
         assert pending["outcome"] == "pending"
         assert pending["resolved_ts"] is None
         assert (pending["app_key"], pending["instance_name"], pending["session_id"]) == (APP_KEY, INSTANCE, session_id)
-        assert (pending["execution_id"], pending["kind"], pending["operation"]) == ("exec-1", "call_service", "light.turn_on")
+        assert (pending["execution_id"], pending["kind"], pending["operation"]) == (
+            "exec-1",
+            "call_service",
+            "light.turn_on",
+        )
         assert pending["target"] == '{"entity_id":["light.porch"]}'
         assert pending["data"] == '{"brightness":200}'
 
@@ -139,14 +143,16 @@ class TestCausedBy:
         await drain_db_writes(db_svc)
 
         before = await query_service.get_execution_by_id("run-1")
-        assert before is not None and before.trigger is not None
+        assert before is not None
+        assert before.trigger is not None
         assert before.trigger.caused_by is None  # the listener ran before the reply's context id landed
 
         handle.resolve("success", context_id="ctx-1")
         await drain_db_writes(db_svc)
 
         after = await query_service.get_execution_by_id("run-1")
-        assert after is not None and after.trigger is not None
+        assert after is not None
+        assert after.trigger is not None
         caused_by = after.trigger.caused_by
         assert caused_by is not None
         assert (caused_by.app_key, caused_by.instance_name, caused_by.execution_id) == (APP_KEY, INSTANCE, "exec-1")

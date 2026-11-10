@@ -281,7 +281,7 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
         FixtureRequest("app-source", "GET", "/api/apps/{app_key}/source", my_app),
         FixtureRequest("logs-recent", "GET", "/api/logs/recent", query=ALL_AUTHORS),
         FixtureRequest("log-level", "PUT", "/api/logs/level", body={"logger": "hassette", "level": "DEBUG"}),
-        FixtureRequest("execution-logs", "GET", "/api/executions/{execution_id}", logged_execution, ALL_AUTHORS),
+        FixtureRequest("execution-detail", "GET", "/api/executions/{execution_id}", logged_execution, ALL_AUTHORS),
         FixtureRequest("bus-listeners", "GET", "/api/bus/listeners", query=ALL_TIERS),
         FixtureRequest("config", "GET", "/api/config"),
         FixtureRequest("telemetry-status", "GET", "/api/telemetry/status"),

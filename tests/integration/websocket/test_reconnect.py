@@ -28,7 +28,7 @@ async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: Web
 
     # Seed a pending future
     fut = websocket_service.hassette.loop.create_future()
-    websocket_service._pending.register(99, fut)
+    websocket_service._pending.register(99, fut, "get_states")
 
     await websocket_service.partial_cleanup()
 
@@ -138,7 +138,7 @@ async def test_recv_task_cancelled_from_outside_is_a_lost_connection(websocket_s
     websocket_service._recv_task = recv_task
     recv_task.add_done_callback(websocket_service._handle_recv_task_done)
     fut = websocket_service.hassette.loop.create_future()
-    websocket_service._pending.register(7, fut)
+    websocket_service._pending.register(7, fut, "get_states")
 
     recv_task.cancel()
     await asyncio.gather(recv_task, return_exceptions=True)

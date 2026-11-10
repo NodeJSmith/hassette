@@ -108,6 +108,20 @@ CREATE INDEX idx_be_ts      ON blocking_events(detected_ts);
 CREATE INDEX idx_be_app_ts  ON blocking_events(app_key, detected_ts);
 CREATE INDEX idx_be_session ON blocking_events(session_id);
 
+CREATE TABLE api_writes (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    write_id      TEXT NOT NULL UNIQUE,
+    session_id    INTEGER REFERENCES sessions(id),
+    app_key       TEXT NOT NULL,
+    instance_name TEXT NOT NULL,
+    execution_id  TEXT,
+    kind          TEXT NOT NULL,
+    outcome       TEXT NOT NULL,
+    sent_ts       REAL NOT NULL,
+    resolved_ts   REAL
+);
+CREATE INDEX idx_aw_ts ON api_writes(sent_ts);
+
 CREATE TABLE app_manifests (
     id           INTEGER PRIMARY KEY,
     app_key      TEXT NOT NULL UNIQUE,

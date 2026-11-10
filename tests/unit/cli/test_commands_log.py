@@ -39,12 +39,6 @@ TRACEBACK_MESSAGE = "Job error in demo_stimulator.tick: something went wrong\n" 
 runner = CommandRunner("hassette.cli.commands.log.make_client")
 
 
-def _detail_client(
-    factory: CLIClientFactory, execution_id: str, detail: ExecutionDetailResponse
-) -> HassetteCLIClient:
-    """A client whose only route is the execution detail read, answering ``detail``."""
-    return factory.build_with_routes([("GET", f"/api/executions/{execution_id}", 200, detail.model_dump(mode="json"))])
-
 OFFICE_TRIGGER = ExecutionTrigger(
     topic="hass.event.state_changed",
     entity_id="light.office",
@@ -55,6 +49,11 @@ OFFICE_TRIGGER = ExecutionTrigger(
 )
 
 # cmd_log — recent log entries
+
+
+def _detail_client(factory: CLIClientFactory, execution_id: str, detail: ExecutionDetailResponse) -> HassetteCLIClient:
+    """A client whose only route is the execution detail read, answering ``detail``."""
+    return factory.build_with_routes([("GET", f"/api/executions/{execution_id}", 200, detail.model_dump(mode="json"))])
 
 
 class TestCmdLog:

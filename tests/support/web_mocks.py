@@ -73,6 +73,7 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.get_app_manifest = AsyncMock(return_value=None)
     ts.get_log_records = AsyncMock(return_value=[])
     ts.get_log_records_by_execution = AsyncMock(return_value=([], False))
+    ts.get_api_writes_by_execution = AsyncMock(return_value=([], False))
     ts.check_execution_predates_retention_cutoff = AsyncMock(return_value=False)
     hassette.telemetry_query_service = ts
 

@@ -39,6 +39,7 @@ from hassette_wire import LogLevel
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
+    from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.events.hass.raw import HassStateDict
     from hassette.models.entities import EntityT
     from hassette.models.states.base import BaseState

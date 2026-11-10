@@ -28,6 +28,7 @@ from hassette.models.states.base import BaseState, Context
 from hassette.testing.api_call import ApiCall
 
 if typing.TYPE_CHECKING:
+    from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.events import HassStateDict
     from hassette.testing.recording_api import RecordingApi, RecordingHelperClient
 RECORDED_API_METHODS = frozenset(
@@ -111,10 +112,12 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         raise NotImplementedError(STUB_MSG_GENERIC.format(name=name))
 
-    def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
+    def ws_send_and_wait(
+        self, *, retry_on_timeout: bool = True, record: "ApiWriteHandle | None" = None, **data: Any
+    ) -> Any:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="ws_send_and_wait"))
 
-    def ws_send_json(self, **data: Any) -> None:
+    def ws_send_json(self, *, record: "ApiWriteHandle | None" = None, **data: Any) -> None:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="ws_send_json"))
 
     def rest_request(

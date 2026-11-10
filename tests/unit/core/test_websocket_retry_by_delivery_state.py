@@ -19,6 +19,7 @@ from hassette.exceptions import (
     ResponseTimeoutError,
     WebsocketClosedError,
 )
+from tests.support.websocket_mocks import awaited_future
 
 ATTEMPTS = 3
 
@@ -35,11 +36,11 @@ async def not_sent(_ws: WebsocketService, _data: dict[str, Any]) -> None:
 
 async def rejected(ws: WebsocketService, data: dict[str, Any]) -> None:
     """An HA error reply without a code: the case the old ``code is None`` rule used to retry."""
-    ws._pending.entries[data["id"]].future.set_exception(CommandRejectedError("refused", code=None))
+    awaited_future(ws, data["id"]).set_exception(CommandRejectedError("refused", code=None))
 
 
 async def lost(ws: WebsocketService, data: dict[str, Any]) -> None:
-    ws._pending.entries[data["id"]].future.set_exception(WebsocketClosedError("WebSocket disconnected"))
+    awaited_future(ws, data["id"]).set_exception(WebsocketClosedError("WebSocket disconnected"))
 
 
 # (failure, class send_and_wait raises, class subscribe_events raises, sends). A lost subscription stays

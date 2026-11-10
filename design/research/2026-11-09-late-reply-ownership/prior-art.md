@@ -155,4 +155,3 @@ See the Sources Found section above for each URL and whether it was opened.
 - **Opened**: via highlights only
 - **Key takeaway**: "Any span that is created MUST also be ended. This is the responsibility of the user"; after end it is non-recording. In practice, when the caller is cancelled or killed the span often never ends (Elixir forum report), or ends with "context canceled" even if the response was in flight (Go report). Spans are caller-owned, and late data after end is dropped.
 - **Relevance**: the standard answer for client spans is caller-owned and ended at caller cancel; a late reply cannot amend the span. Documented pitfall: an unended span on cancel (equivalent to a `pending` row stuck forever).
-

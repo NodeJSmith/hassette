@@ -396,8 +396,8 @@ def seed_failed_execution(ctx: SeedContext, conn: sqlite3.Connection, base: Base
     """Seed one failed execution of ``base``'s listener, newest in the database, with everything linked to it.
 
     It has a UUIDv7 id (``/api/executions/{id}`` only accepts UUIDs, which no seed scenario uses), an error
-    with a traceback, trigger fields, two log records (one with ``exc_info``), and the blocking events in
-    :data:`BLOCKING_STACKS`.
+    with a traceback, trigger fields, two log records (one with ``exc_info``), one rejected API write, and the
+    blocking events in :data:`BLOCKING_STACKS`.
     """
     started = first_value(conn, "SELECT MAX(execution_start_ts) FROM executions") + 60.0
     seq = first_value(conn, "SELECT COALESCE(MAX(seq), 0) + 1 FROM log_records")
@@ -447,6 +447,24 @@ def seed_failed_execution(ctx: SeedContext, conn: sqlite3.Connection, base: Base
         exc_info=FAILED_RUN_TRACEBACK,
         execution_id=execution_id,
         **log_fields,
+    )
+    ctx.add_api_write(
+        {
+            "write_id": uuid7_at(started + 0.05),
+            "session_id": base.session_id,
+            **linked,
+            "execution_id": execution_id,
+            "kind": "call_service",
+            "operation": "light.turn_on",
+            "target": '{"entity_id":["light.client_compat"]}',
+            "data": '{"brightness":200}',
+            "outcome": "rejected",
+            "error_code": "service_validation_error",
+            "error_message": "Entity light.client_compat is unavailable",
+            "context_id": "01JCLIENTCOMPATWRITE000000",
+            "sent_ts": started + 0.05,
+            "resolved_ts": started + 0.06,
+        }
     )
     for tier, primitive, frames in BLOCKING_STACKS:
         ctx.add_blocking_event(

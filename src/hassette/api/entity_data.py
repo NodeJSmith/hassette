@@ -14,6 +14,7 @@ from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.utils.await_guard import guard_await
+from hassette.utils.hass_utils import context_id_of
 from hassette.utils.request_utils import format_time_param
 from hassette.utils.source_capture import capture_source_location
 
@@ -378,7 +379,7 @@ class ApiEntityDataMixin:
                 record.resolve_rest_failure(exc)
             raise
         if record is not None:
-            record.resolve("success", context_id=rest_context_id(body))
+            record.resolve("success", context_id=context_id_of(body))
         return body
 
     async def get_camera_image(
@@ -481,10 +482,3 @@ class ApiEntityDataMixin:
 
         if response.status != HTTPStatus.NO_CONTENT:
             raise RuntimeError(f"Failed to delete entity {entity_id}: {response.status} - {response.reason}")
-
-
-def rest_context_id(body: Any) -> str | None:
-    """The context id in a REST state response (``set_state`` returns the state object), else None."""
-    context = body.get("context") if isinstance(body, dict) else None
-    context_id = context.get("id") if isinstance(context, dict) else None
-    return context_id if isinstance(context_id, str) else None

@@ -5,6 +5,7 @@ from typing import Literal
 from hassette_wire import (
     ActivityFeedEntry,
     ApiWrite,
+    ApiWriteKind,
     ApiWriteOutcome,
     BackpressurePolicy,
     Execution,
@@ -225,7 +226,7 @@ def make_log_entry(
 def make_api_write(
     write_id: str = "write-1",
     *,
-    kind: Literal["call_service", "fire_event", "set_state", "delete_entity"] = "call_service",
+    kind: ApiWriteKind = "call_service",
     operation: str | None = "light.turn_on",
     target: dict[str, list[str]] | None = None,
     data: str | None = None,

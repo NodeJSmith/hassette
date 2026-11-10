@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 EXECUTION_PATH = "/api/executions/{execution_id}"
 
 
-async def get_execution_logs(
+async def get_execution_detail(
     client: "AsyncClient",
     mock_hassette: MagicMock,
     execution_id: str,
@@ -25,7 +25,7 @@ async def get_execution_logs(
     truncated: bool = False,
     query: str = "",
 ) -> dict:
-    """Wire the per-execution log query, then GET the execution-logs endpoint.
+    """Wire the per-execution log query, then GET the execution detail endpoint.
 
     The `(records, truncated)` tuple is exactly what `get_log_records_by_execution()` returns,
     so the arrange step here mirrors the real service contract rather than inventing a shape.
@@ -51,28 +51,28 @@ def make_uuidv7_str(timestamp_s: float) -> str:
     return str(uuid.UUID(int=uuid_int))
 
 
-class TestGetExecutionLogs:
+class TestGetExecutionDetail:
     async def test_happy_path_returns_200_with_records(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Happy path: returns 200 with log records for a valid UUIDv7 execution."""
         execution_id = str(uuid_utils.uuid7())
         records = [make_log_record(1, "INFO", "started", execution_id=execution_id)]
 
-        data = await get_execution_logs(client, mock_hassette, execution_id, records=records)
+        data = await get_execution_detail(client, mock_hassette, execution_id, records=records)
 
-        assert data["truncated"] is False
+        assert data["logs_truncated"] is False
         assert data["retention_expired"] is False
-        assert len(data["records"]) == 1
-        assert data["records"][0]["execution_id"] == execution_id
+        assert len(data["logs"]) == 1
+        assert data["logs"][0]["execution_id"] == execution_id
 
     async def test_truncation_when_limit_exceeded(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Returns truncated=True when the service signals truncation."""
         execution_id = str(uuid_utils.uuid7())
         records = [make_log_record(i, execution_id=execution_id) for i in range(500)]
 
-        data = await get_execution_logs(client, mock_hassette, execution_id, records=records, truncated=True)
+        data = await get_execution_detail(client, mock_hassette, execution_id, records=records, truncated=True)
 
-        assert data["truncated"] is True
-        assert len(data["records"]) == 500
+        assert data["logs_truncated"] is True
+        assert len(data["logs"]) == 500
 
     async def test_uuidv7_old_timestamp_sets_retention_expired(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -82,10 +82,10 @@ class TestGetExecutionLogs:
         old_ts = time.time() - (4 * 86400)  # 4 days ago — beyond 3-day retention
         mock_hassette.telemetry_query_service.check_execution_predates_retention_cutoff = AsyncMock(return_value=False)
 
-        data = await get_execution_logs(client, mock_hassette, make_uuidv7_str(old_ts))
+        data = await get_execution_detail(client, mock_hassette, make_uuidv7_str(old_ts))
 
         assert data["retention_expired"] is True
-        assert data["records"] == []
+        assert data["logs"] == []
         # UUIDv7 path must NOT call the DB retention check
         mock_hassette.telemetry_query_service.check_execution_predates_retention_cutoff.assert_not_called()
 
@@ -95,10 +95,10 @@ class TestGetExecutionLogs:
         """UUIDv7 with recent timestamp and empty records → retention_expired=False."""
         mock_hassette.config.logging.log_retention_days = 3
 
-        data = await get_execution_logs(client, mock_hassette, str(uuid_utils.uuid7()))  # current timestamp
+        data = await get_execution_detail(client, mock_hassette, str(uuid_utils.uuid7()))  # current timestamp
 
         assert data["retention_expired"] is False
-        assert data["records"] == []
+        assert data["logs"] == []
 
     async def test_uuidv4_fallback_uses_db_retention_check(
         self, client: "AsyncClient", mock_hassette: MagicMock
@@ -107,7 +107,7 @@ class TestGetExecutionLogs:
         mock_hassette.config.logging.log_retention_days = 3
         mock_hassette.telemetry_query_service.check_execution_predates_retention_cutoff = AsyncMock(return_value=True)
 
-        data = await get_execution_logs(client, mock_hassette, str(uuid.uuid4()))
+        data = await get_execution_detail(client, mock_hassette, str(uuid.uuid4()))
 
         assert data["retention_expired"] is True
         mock_hassette.telemetry_query_service.check_execution_predates_retention_cutoff.assert_called_once()
@@ -117,7 +117,7 @@ class TestGetExecutionLogs:
         mock_hassette.config.logging.log_retention_days = 3
         mock_hassette.telemetry_query_service.check_execution_predates_retention_cutoff = AsyncMock(return_value=False)
 
-        data = await get_execution_logs(client, mock_hassette, str(uuid.uuid4()))
+        data = await get_execution_detail(client, mock_hassette, str(uuid.uuid4()))
 
         assert data["retention_expired"] is False
 
@@ -130,7 +130,7 @@ class TestGetExecutionLogs:
         """The limit query parameter is forwarded to the service call."""
         mock_hassette.config.logging.log_retention_days = 3
 
-        await get_execution_logs(client, mock_hassette, str(uuid_utils.uuid7()), query="?limit=100")
+        await get_execution_detail(client, mock_hassette, str(uuid_utils.uuid7()), query="?limit=100")
 
         _, kwargs = mock_hassette.telemetry_query_service.get_log_records_by_execution.call_args
         assert kwargs["limit"] == 100
@@ -142,7 +142,7 @@ class TestGetExecutionLogs:
         """``author`` is forwarded as given; omitting it forwards ``None``, which applies the default view."""
         mock_hassette.config.logging.log_retention_days = 3
 
-        await get_execution_logs(client, mock_hassette, str(uuid_utils.uuid7()), query=query)
+        await get_execution_detail(client, mock_hassette, str(uuid_utils.uuid7()), query=query)
 
         _, kwargs = mock_hassette.telemetry_query_service.get_log_records_by_execution.call_args
         assert kwargs["author"] == expected

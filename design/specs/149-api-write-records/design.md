@@ -271,7 +271,7 @@ Every named write maps the same way over both transports. WebSocket: the caller 
 
 ## Build
 
-- [ ] Implementation and tests committed
+- [x] Implementation and tests committed
 - [ ] Docs
 - [ ] Ship-time challenge
 
@@ -287,3 +287,6 @@ Every named write maps the same way over both transports. WebSocket: the caller 
 - `api_writes` also gets an index on `session_id` (as `blocking_events` has) for the session-deletion guard, and the removed-app manifest prune also waits for an app's `api_writes` rows to age out.
 - The eviction WARNING's pacing interval is `lifecycle.command_executor_capacity_warn_rate_limit_seconds`, passed to `PendingResponses` at construction; the startup sweep logs its count at INFO.
 - `make_mock_hassette` now carries a real `PipelineCounters`, so synchronous counting code never leaves an unawaited `AsyncMock` call.
+- A write's record keeps its first outcome (`ApiWriteHandle.resolve` is one-shot): a connection that drops while a frame is still being sent resolves the row `connection_lost` from `fail_all`, and the send's own `CommandNotSentError` then doesn't overwrite it with `not_sent`.
+- `begin_write` and `record_writes_for` are listed in the sync-facade generator's `INTERNAL_METHODS`, so they stay off `Api.sync`; the raw transport methods' `record=` argument is carried onto the facades like `retry_on_timeout`.
+- The rejected-call WARNING includes Home Assistant's error message, the same text an awaited caller's `CommandRejectedError` carries.
