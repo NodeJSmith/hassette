@@ -29,7 +29,7 @@ The two most common operations are reading state and calling a service.
 
 [Api][hassette.api.api.Api] raises typed exceptions that say whether the command reached Home Assistant.
 
-- [`CommandNotSentError`][hassette.exceptions.CommandNotSentError] if the command never reached Home Assistant, because the WebSocket was disconnected or a REST request could not connect. The command did not apply.
+- [`CommandNotSentError`][hassette.exceptions.CommandNotSentError] if the command never reached Home Assistant, because the WebSocket was disconnected or a REST request couldn't connect (refused, DNS or TLS failure). A REST connect that hangs until the timeout raises `ResponseTimeoutError` instead. The command did not apply.
 - [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError] if the command was sent but no answer arrived ([`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError], [`ResponseLostError`][hassette.exceptions.ResponseLostError]). The command may or may not have applied.
 - [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] if Home Assistant answered a WebSocket command with an error. Its `.code` holds HA's error code.
 - [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] if a REST request answered 404, such as for an entity that does not exist.
@@ -37,7 +37,7 @@ The two most common operations are reading state and calling a service.
 
 Hassette's WebSocket connection also rejects an invalid token when it authenticates. That raises [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] during startup or reconnect, never from an `Api` call.
 
-REST reads (`get_state`, `get_history`) retry failed connects, timeouts, dropped connections, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Every other REST call (`set_state`, `delete_entity`, and `render_template`, which is sent as a POST) retries only a failed connect. Anything later may already have applied, so Hassette doesn't retry it. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles every failure in one place.
+REST reads (`get_state`, `get_history`) retry failed connects, timeouts, dropped connections, 5xx responses, 408, and 429, with backoff between attempts. Any other 4xx response raises on the first attempt, because re-sending the request gets the same answer. Every other REST request (`set_state`'s write, `delete_entity`, and `render_template`, which is sent as a POST) retries only a failed connect. Anything later may already have applied, so Hassette doesn't retry it. `set_state` first reads the entity to merge its attributes, and that read retries like any other. Catching [`HassetteError`][hassette.exceptions.HassetteError] handles the transport and status failures above. A response cut off while Hassette reads its body escapes it; [Errors and unknown outcomes](methods.md#errors-and-unknown-outcomes) covers that case.
 
 ??? note "Synchronous usage (AppSync only)"
     `self.api.sync` exposes an [`ApiSyncFacade`][hassette.api.sync.ApiSyncFacade] that mirrors all API methods as blocking calls. It exists for [`AppSync`][hassette.app.app.AppSync] lifecycle hooks, which run outside the async event loop. The [Apps](../apps/index.md) page covers the `AppSync` pattern.

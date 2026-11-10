@@ -594,13 +594,18 @@ device or integration-backed entity from the HA entity registry. The HA UI handl
 ## Errors and unknown outcomes
 
 A connection or timeout failure from `Api` says whether the command reached Home Assistant. Three
-classes cover the three answers, on both transports:
+classes cover the three answers. `CommandNotSentError` and `OutcomeUnknownError` apply to both
+transports. `CommandRejectedError` is WebSocket-only; REST reports an error status as
+`EntityNotFoundError` or `HttpRequestError` (below).
 
 | Class | Delivery state | Applied? |
 |---|---|---|
 | [`CommandNotSentError`][hassette.exceptions.CommandNotSentError] | Never reached HA | No; safe to send again |
 | [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] | HA answered with an error | No |
 | [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError] | Sent, no answer | Maybe |
+
+A REST connect that hangs until the timeout raises `ResponseTimeoutError`, although nothing was
+sent. One timeout covers the whole request, connect included, so Hassette reports the outcome as unknown.
 
 `(CommandNotSentError, OutcomeUnknownError)` catches connection and timeout failures on both
 transports. It doesn't catch every outage: a Home Assistant restart can also surface as
@@ -620,15 +625,15 @@ Helpers](managing-helpers.md#common-pitfalls) shows how to check with `helpers.l
 
 REST-backed methods raise HTTP errors from Home Assistant as `HassetteError` subclasses. A 404
 raises [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] and is never retried. Any
-other error status raises [`HttpRequestError`][hassette.exceptions.HttpRequestError]. On a read, a
-5xx, 408, or 429 raises it once Hassette's retries run out. A 503 during a Home Assistant restart
+other error status raises [`HttpRequestError`][hassette.exceptions.HttpRequestError]. On a GET
+(every REST read except `render_template`), a 5xx, 408, or 429 raises it once Hassette's retries run out. A 503 during a Home Assistant restart
 takes this path. Any other 4xx raises it on the first attempt. `HttpRequestError`'s `status`
 attribute holds the HTTP status code, and `message` holds the reason phrase. Calling code can branch on `status` to retry a 5xx, 408, or
 429 and give up on any other 4xx.
 
-A REST write (`set_state`, `delete_entity`) raises any error status on the first attempt: Home
-Assistant already processed the request, so a re-send could apply it twice. Writes retry only
-`CommandNotSentError`.
+Any other REST request (`set_state`, `delete_entity`, and `render_template`, sent as a POST) raises
+any error status on the first attempt: Home Assistant already processed the request, so a re-send
+could apply it twice. These requests retry only `CommandNotSentError`.
 
 ---
 
