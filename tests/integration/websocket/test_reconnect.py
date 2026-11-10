@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import hassette.resources.lifecycle as lifecycle_module
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import RetryableConnectionClosedError
+from hassette.exceptions import WebsocketClosedError
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
@@ -37,7 +37,7 @@ async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: Web
     assert websocket_service._subscription_ids == set()
     assert websocket_service._pending.entries == {}
     assert fut.done()
-    assert isinstance(fut.exception(), RetryableConnectionClosedError)
+    assert isinstance(fut.exception(), WebsocketClosedError)
 
 
 async def test_partial_cleanup_preserves_session(websocket_service: WebsocketService) -> None:
@@ -146,7 +146,7 @@ async def test_recv_task_cancelled_from_outside_is_a_lost_connection(websocket_s
 
     assert websocket_service.connection_state == ConnectionState.DISCONNECTED
     assert fut.done()
-    assert isinstance(fut.exception(), RetryableConnectionClosedError)
+    assert isinstance(fut.exception(), WebsocketClosedError)
 
 
 async def test_cleanups_own_recv_task_cancel_does_not_take_the_lost_connection_path(

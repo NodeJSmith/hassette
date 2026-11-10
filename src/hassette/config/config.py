@@ -187,7 +187,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     rest_request_timeout_seconds: float = Field(default=30.0, gt=0, allow_inf_nan=False)
     """Default total timeout in seconds for outbound REST requests to Home Assistant, applied per retry attempt.
     Passed to aiohttp as a :class:`aiohttp.ClientTimeout`. Override per call by passing a ``timeout=`` kwarg to
-    :meth:`~hassette.core.api_resource.ApiResource.rest_request`."""
+    :meth:`~hassette.core.api_resource.ApiResource.rest_request`. A request that runs out of time raises
+    ``ResponseTimeoutError``, including one whose connect, DNS lookup or wait for a pooled connection never
+    finished."""
 
     token: SecretStr | None = Field(
         default=None,

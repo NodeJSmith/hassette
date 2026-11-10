@@ -41,7 +41,7 @@ unique to its owning app, and only one app should provision it.
 **`helper_id` is the storage id, not the `entity_id`.** `helpers.update` and
 `helpers.delete` take the record's `id` field (`"vacation_mode"`), not the entity id used
 in states and automations (`"input_boolean.vacation_mode"`). Passing the `entity_id` raises
-`FailedMessageError(code="not_found")`. The two often look alike, but nothing keeps them in
+`CommandRejectedError(code="not_found")`. The two often look alike, but nothing keeps them in
 sync: renaming the entity under Settings → Entities changes only the `entity_id`, and name
 collisions can give the stored `id` and the `entity_id` different suffixes. Stripping the
 domain from an `entity_id` is not a reliable way to get the stored `id`;
@@ -88,12 +88,11 @@ whether the change landed:
 !!! warning "The change may already have applied"
     Don't re-send a create, update, or delete after an `OutcomeUnknownError` without checking
     first. A re-sent create that already landed makes a duplicate helper with a `_2` id, and a
-    re-sent delete that already landed raises `FailedMessageError(code="not_found")`.
+    re-sent delete that already landed raises `CommandRejectedError(code="not_found")`.
 
-Code that already catches [`FailedMessageError`][hassette.exceptions.FailedMessageError] or
-[`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError] keeps
-working: `ResponseTimeoutError` is a `FailedMessageError` with `code=None`, and
-`ResponseLostError` is a `RetryableConnectionClosedError`.
+A call made while the WebSocket is disconnected raises
+[`CommandNotSentError`][hassette.exceptions.CommandNotSentError] instead. That call never left
+Hassette, so it is safe to send again once the connection is back.
 
 ## CRUD Operations
 
@@ -129,7 +128,7 @@ is useful, as `helpers.list("input_boolean")` is the only retrieval path if the 
 `helpers.update(helper_id, params)` accepts a `helper_id` string (the stored `id` field, not the
 display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a partial params
 object. Only fields present in the params object are sent to HA; absent fields retain their
-stored values. A `helper_id` that does not exist raises `FailedMessageError(code="not_found")`.
+stored values. A `helper_id` that does not exist raises `CommandRejectedError(code="not_found")`.
 
 ### Delete
 
@@ -138,7 +137,7 @@ stored values. A `helper_id` that does not exist raises `FailedMessageError(code
 ```
 
 `helpers.delete(domain, helper_id)` returns `None`. Like `update`, it takes the stored `id`, not
-the `entity_id`. It raises `FailedMessageError(code="not_found")` if the id is absent from storage.
+the `entity_id`. It raises `CommandRejectedError(code="not_found")` if the id is absent from storage.
 
 ### All Supported Domains
 

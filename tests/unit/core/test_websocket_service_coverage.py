@@ -21,7 +21,7 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 import hassette.core.websocket_io as websocket_io_module
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import FailedMessageError, RetryableConnectionClosedError
+from hassette.exceptions import CommandNotSentError, CommandRejectedError, ResponseTimeoutError, WebsocketClosedError
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
@@ -128,7 +128,7 @@ class TestSendAndWaitRetryOnTimeout:
         monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
         websocket_service.send_json = AsyncMock()
 
-        with pytest.raises(FailedMessageError):
+        with pytest.raises(ResponseTimeoutError):
             await websocket_service.send_and_wait(
                 type="call_service", domain="counter", service="increment", retry_on_timeout=False
             )
@@ -142,7 +142,7 @@ class TestSendAndWaitRetryOnTimeout:
         monkeypatch.setattr(websocket_io_module, "RESPONSE_TIMEOUT_SECONDS", 0)
         websocket_service.send_json = AsyncMock()
 
-        with patch("hassette.core.websocket_io.MAX_RETRY_ATTEMPTS", 2), pytest.raises(FailedMessageError):
+        with patch("hassette.core.websocket_io.MAX_RETRY_ATTEMPTS", 2), pytest.raises(ResponseTimeoutError):
             await websocket_service.send_and_wait(type="get_states")
 
         assert websocket_service.send_json.await_count == 2
@@ -178,13 +178,13 @@ class TestCleanup:
     async def test_cleanup_sets_exception_on_pending_futures_and_clears_them(
         self, websocket_service: WebsocketService
     ) -> None:
-        """cleanup() resolves every pending response future with RetryableConnectionClosedError."""
+        """cleanup() resolves every pending response future with WebsocketClosedError."""
         fut = websocket_service.hassette.loop.create_future()
         websocket_service._pending.register(7, fut)
         await cleanup_disconnected(websocket_service)
 
         assert fut.done()
-        assert isinstance(fut.exception(), RetryableConnectionClosedError)
+        assert isinstance(fut.exception(), WebsocketClosedError)
         assert websocket_service._pending.entries == {}
 
     async def test_cleanup_attempts_unsubscribe_for_each_subscription_and_clears_ids(
@@ -249,7 +249,7 @@ class TestCleanup:
         """cleanup()'s best-effort unsubscribe loop must run while the send-ready gate is open.
 
         Regression test: `_send_ready_event.clear()` used to run before the unsubscribe loop, so
-        every `send_json()` call inside it raised `ConnectionClosedError` immediately — silently
+        every `send_json()` call inside it raised `CommandNotSentError` immediately — silently
         swallowed by `with suppress(Exception)` — and the "best-effort unsubscribe" loop never
         actually sent anything to the websocket. Unlike
         `test_cleanup_attempts_unsubscribe_for_each_subscription_and_clears_ids` above (which mocks
@@ -303,7 +303,7 @@ class TestRecvTaskDeathDuringObserverNotification:
 
         async def failing_recv_loop() -> None:
             await fail_trigger.wait()
-            raise RetryableConnectionClosedError("peer gone")
+            raise WebsocketClosedError("peer gone")
 
         websocket_service.recv_loop = failing_recv_loop  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
@@ -320,7 +320,7 @@ class TestRecvTaskDeathDuringObserverNotification:
 
         # Kill the recv task while the observer is still parked.
         fail_trigger.set()
-        with pytest.raises(RetryableConnectionClosedError):
+        with pytest.raises(WebsocketClosedError):
             await asyncio.wait_for(recv_task, timeout=1)
         await asyncio.sleep(0)  # let the recv task's done-callback actually run
 
@@ -535,7 +535,7 @@ class TestRespondIfNecessaryGuards:
         )
 
         exc = fut.exception()
-        assert isinstance(exc, FailedMessageError)
+        assert isinstance(exc, CommandRejectedError)
         assert exc.code is None
 
 
@@ -561,25 +561,33 @@ class TestSendJsonFailureRedaction:
         websocket_service._send_ready_event.set()
         return websocket_service
 
-    async def test_failed_message_error_omits_payload_values(self, failing_socket: WebsocketService) -> None:
-        with pytest.raises(FailedMessageError) as exc_info:
+    async def test_send_failure_propagates_without_payload_values(self, failing_socket: WebsocketService) -> None:
+        """A non-connection write failure propagates as itself, so no hassette message can leak the payload."""
+        with pytest.raises(RuntimeError) as exc_info:
             await failing_socket.send_json(
                 type="input_text/create", id=42, name="vault", mode="password", initial=SECRET_VALUE
             )
 
-        exc = exc_info.value
-        assert str(exc) == "Failed to send message 'input_text/create' (id 42)"
-        assert SECRET_VALUE not in str(exc)
-        assert exc.code is None
-        assert exc.original_data is not None
-        assert exc.original_data["initial"] == SECRET_VALUE
+        assert str(exc_info.value) == "boom"
+
+    async def test_not_sent_error_omits_payload_values(self, failing_socket: WebsocketService) -> None:
+        assert failing_socket._ws is not None
+        failing_socket._ws.send_json = AsyncMock(side_effect=ConnectionError("Connection lost"))
+
+        with pytest.raises(CommandNotSentError) as exc_info:
+            await failing_socket.send_json(
+                type="input_text/create", id=42, name="vault", mode="password", initial=SECRET_VALUE
+            )
+
+        assert str(exc_info.value) == "'input_text/create' (id 42): not sent, the WebSocket connection was lost"
+        assert SECRET_VALUE not in str(exc_info.value)
 
     async def test_send_logs_omit_payload_values(
         self, failing_socket: WebsocketService, caplog: pytest.LogCaptureFixture
     ) -> None:
         caplog.set_level(logging.DEBUG, logger=failing_socket.logger.name)
 
-        with pytest.raises(FailedMessageError):
+        with pytest.raises(RuntimeError):
             await failing_socket.send_json(type="input_text/create", id=42, mode="password", initial=SECRET_VALUE)
 
         ws_records = [r for r in caplog.records if r.name == failing_socket.logger.name]

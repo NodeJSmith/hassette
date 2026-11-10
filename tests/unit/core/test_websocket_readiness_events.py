@@ -19,7 +19,7 @@ from hassette.core.websocket_reconnect import (
     OutageLog,
 )
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import RetryableConnectionClosedError
+from hassette.exceptions import WebsocketClosedError
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import run_connect_sequence
 from hassette.types import Topic
@@ -62,7 +62,7 @@ class TestWebsocketReadinessEvents:
             attempts += 1
             if attempts == 1:
                 await run_connect_sequence(initialized_service, stub_connect_sequence(initialized_service))
-                raise RetryableConnectionClosedError("peer gone")
+                raise WebsocketClosedError("peer gone")
 
         initialized_service.run_connection = fake_run_connection  # pyright: ignore[reportAttributeAccessIssue]
 

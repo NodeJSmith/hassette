@@ -37,7 +37,7 @@ While stopped, the Diagnostics page shows the WebSocket service with the reason 
 A freshly restarted HA accepts connections before its integrations finish loading. Hassette does not report itself connected until HA's own startup state, which moves from `STARTING` to `RUNNING`, reaches `RUNNING`. Until then:
 
 - Events from HA are not delivered to apps, so the burst of `unavailable` states during HA's boot never reaches handlers. The one exception is `homeassistant_started`. Hassette holds it and delivers it once the connection reports connected.
-- Api calls that go over the WebSocket raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError], the same as during an outage.
+- Api calls that go over the WebSocket raise [`CommandNotSentError`][hassette.exceptions.CommandNotSentError], the same as during an outage.
 - When Hassette itself is starting up, apps don't initialize yet. They start against a fully loaded HA.
 
 HA reaches `RUNNING` within seconds of accepting connections. The Diagnostics page shows the wait as the WebSocket service's reason, "Home Assistant core state is STARTING, waiting for RUNNING". The service itself stays ready.
@@ -73,14 +73,16 @@ The bus, scheduler, and state manager stay active during a disconnect. Subscript
 What each call does while HA is unreachable:
 
 - **`self.states` reads** keep working. [`StateProxy`][hassette.core.state_proxy.StateProxy], Hassette's local cache of HA states, serves the last-known (stale) values. It raises [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] only if it has never synchronized.
-- **[Api][hassette.api.api.Api] calls that go over the WebSocket**, such as `call_service`, raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError].
-- **Api calls that go over REST**, such as `self.api.get_state()`, retry and then raise [`aiohttp.ClientError`](https://docs.aiohttp.org/en/stable/client_reference.html#aiohttp.ClientError). An unreachable HA raises its subclass `ClientConnectorError`. An HA that accepts the connection but stops responding raises `TimeoutError` once `rest_request_timeout_seconds` expires, which is not an `aiohttp.ClientError`.
+- **[Api][hassette.api.api.Api] calls that go over the WebSocket**, such as `call_service`, raise [`CommandNotSentError`][hassette.exceptions.CommandNotSentError].
+- **Api calls that go over REST**, such as `self.api.get_state()`, raise `CommandNotSentError` when the connection fails outright (refused, DNS or TLS failure), after retrying. An HA that never answers raises [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] once `rest_request_timeout_seconds` runs out, whether the connection never opened or HA stopped responding. That timeout is a top-level `[hassette]` setting, 30 seconds by default, and applies to each attempt. A connection that drops mid-request raises [`ResponseLostError`][hassette.exceptions.ResponseLostError]. Both are [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]s. A GET (`get_state`, `get_history`) retries them, so it can take a few minutes to raise. Hassette doesn't retry any other request (`set_state`, `delete_entity`, `render_template`), since a write may already have applied.
 
 Events during the gap are not replayed. At reconnect, the state cache is replaced with HA's current states, and no state-change events fire for what changed while disconnected. Edge-triggered logic, such as a handler waiting for `light.kitchen` to turn off, misses a transition that happened during the outage. Apps that must reconcile do it in a `hassette.event.websocket_connected` handler by reading current states.
 
-Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable. This handler skips one refresh when HA is unreachable over either transport:
+Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable. This handler skips one refresh when HA is unreachable over either transport. `CommandNotSentError` and `OutcomeUnknownError` from `hassette.exceptions` cover connection and timeout failures on both. Two outage paths fall outside them: an HA restart can also surface as [`HttpRequestError`][hassette.exceptions.HttpRequestError] (a 503 on a read, once retries run out), and a response cut off while Hassette reads its body raises the raw `aiohttp.ClientError` or `TimeoutError`. [Errors and unknown outcomes](../core-concepts/api/methods.md#errors-and-unknown-outcomes) covers both:
 
 ```python
+--8<-- "pages/operating/snippets/catch_ha_unreachable.py:imports"
+
 --8<-- "pages/operating/snippets/catch_ha_unreachable.py:catch"
 ```
 

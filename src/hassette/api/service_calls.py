@@ -172,7 +172,7 @@ class ApiServiceCallsMixin:
                 need it alongside ``wait_for_ack`` rather than ``wait_for_ack`` on its own.
             wait_for_ack: Whether to wait for Home Assistant to acknowledge the call. Defaults to False. Waits on
                 Home Assistant's result envelope instead of sending fire-and-forget, surfacing HA-side failures as
-                ``FailedMessageError`` without asking for response data — so it works for services that return no
+                ``CommandRejectedError`` without asking for response data — so it works for services that return no
                 response, which ``return_response`` cannot.
             **data: Additional data to send with the service call. Keys whose value is ``None`` are omitted, so
                 optional fields can be passed through unconditionally.
@@ -234,7 +234,7 @@ class ApiServiceCallsMixin:
             # Waits on the same result envelope as the return_response path, without asking HA
             # for response data. Services declared as returning no response (e.g.
             # counter.increment) reject return_response=True outright, so this is the only way
-            # to surface their HA-side errors. ws_send_and_wait raises FailedMessageError on a
+            # to surface their HA-side errors. ws_send_and_wait raises CommandRejectedError on a
             # failed envelope, so no envelope parsing is needed here.
             await self.ws_send_and_wait(retry_on_timeout=False, **filtered_payload)
             return None

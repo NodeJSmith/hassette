@@ -157,9 +157,8 @@ from hassette.api.entity_data import ApiEntityDataMixin
 from hassette.api.service_calls import ApiServiceCallsMixin
 from hassette.exceptions import (
     WS_NOT_CONNECTED_MESSAGE,
-    ConnectionClosedError,
-    FailedMessageError,
-    OutcomeUnknownError,
+    CommandNotSentError,
+    CommandRejectedError,
     UnableToConvertStateError,
 )
 from hassette.resources.base import Resource
@@ -192,26 +191,25 @@ async def _ws_helper_call(  # pyright: ignore[reportUnusedFunction]
 ) -> Any:
     """Call ws_send_and_wait with domain/operation context on failure.
 
-    Preserves ``code`` and ``original_data`` from the original FailedMessageError
-    so callers can inspect them via ``except FailedMessageError as e: e.code``.
+    Preserves ``code`` and ``original_data`` from the original CommandRejectedError
+    so callers can inspect them via ``except CommandRejectedError as e: e.code``.
     Chains through ``raise ... from e`` so the original traceback is retained.
 
     ``retry_on_timeout`` forwards to ``ws_send_and_wait``: writes pass False so a lost
     response can't apply them twice; ``list`` keeps the default. A disconnect raises
     ``ResponseLostError`` and a timeout raises ``ResponseTimeoutError``, both unwrapped
-    with payload-free messages — catch ``OutcomeUnknownError`` for either.
+    with payload-free messages — catch ``OutcomeUnknownError`` for either. Only a rejection
+    is rewrapped.
     """
     try:
         return await api.ws_send_and_wait(type=f"{domain}/{operation}", retry_on_timeout=retry_on_timeout, **data)
-    except OutcomeUnknownError:
-        raise  # also a FailedMessageError; caught first so the rewrap below keeps its type
-    except FailedMessageError as exc:
+    except CommandRejectedError as exc:
         # Include only field names in the error message — values may contain
         # sensitive data (e.g., `input_text.initial` on a password-mode helper)
         # that would leak into application logs. Full payload is preserved on
         # `original_data` for debugging contexts that need it.
         field_names = sorted(data.keys())
-        raise FailedMessageError(
+        raise CommandRejectedError(
             f"{domain}/{operation} failed (fields: {field_names}): {exc}",
             code=exc.code,
             original_data=exc.original_data,
@@ -280,21 +278,33 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
                 Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
                 effect Home Assistant may already have applied. A timeout then raises
                 ``ResponseTimeoutError``. See :meth:`WebsocketService.send_and_wait`.
+                After retries the raised class describes the last attempt only, so a
+                ``CommandNotSentError`` after an earlier timeout doesn't prove the command never
+                reached Home Assistant.
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
                 policy and is consumed here, so it is the one name this method cannot
                 forward as a payload field.
+
+        Raises:
+            CommandNotSentError: If the connection isn't established or the write failed.
+            CommandRejectedError: If Home Assistant answered with an error.
+            OutcomeUnknownError: If no response arrived (``ResponseTimeoutError``) or the
+                connection dropped while waiting (``ResponseLostError``).
         """
         if not self._api_service.ws_conn.is_connected:
-            raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
+            raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
         return await self._api_service.ws_conn.send_and_wait(retry_on_timeout=retry_on_timeout, **data)
 
     async def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response.
 
         Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
+
+        Raises:
+            CommandNotSentError: If the connection isn't established or the write failed.
         """
         if not self._api_service.ws_conn.is_connected:
-            raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
+            raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
         await self._api_service.ws_conn.send_json(**data)
 
     async def rest_request(

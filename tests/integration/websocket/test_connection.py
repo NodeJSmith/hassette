@@ -17,7 +17,7 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 from hassette.core.websocket_reconnect import CONNECTED_REASON, WS_MAX_MSG_SIZE
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
+from hassette.exceptions import CommandRejectedError, InvalidAuthError, WebsocketClosedError
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, run_connect_sequence
 from hassette.types import Topic
@@ -109,16 +109,16 @@ async def test_raw_recv_raises_when_socket_closed(websocket_service: WebsocketSe
     """Raise when the websocket reports it has already closed."""
     websocket_service._ws = build_fake_ws(is_closed=True)
 
-    with pytest.raises(RetryableConnectionClosedError):
+    with pytest.raises(WebsocketClosedError):
         await websocket_service.raw_recv()
 
 
 async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketService) -> None:
-    """Raise RetryableConnectionClosedError when an ERROR frame is received."""
+    """Raise WebsocketClosedError when an ERROR frame is received."""
     socket_error = RuntimeError("socket error")
     ws_receiving(websocket_service, WSMsgType.ERROR, socket_error)
 
-    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+    with pytest.raises(WebsocketClosedError) as exc_info:
         await websocket_service.raw_recv()
 
     assert exc_info.value.__cause__ is socket_error
@@ -216,7 +216,7 @@ async def test_recv_task_dying_during_the_status_report_announces_nothing(
 
     websocket_service._emit_readiness_event = kill_recv_task  # pyright: ignore[reportAttributeAccessIssue]
 
-    with pytest.raises(RetryableConnectionClosedError):
+    with pytest.raises(WebsocketClosedError):
         await websocket_service.mark_connected(recv_task)
 
     assert observed == []
@@ -253,12 +253,12 @@ async def test_mark_connected_refuses_a_connection_whose_recv_task_already_died(
     websocket_service._connection_state = ConnectionState.CONNECTING
 
     async def dropped() -> None:
-        raise RetryableConnectionClosedError("peer gone", close_code=1001)
+        raise WebsocketClosedError("peer gone", close_code=1001)
 
     recv_task = asyncio.create_task(dropped())
     await asyncio.gather(recv_task, return_exceptions=True)
 
-    with pytest.raises(RetryableConnectionClosedError, match="peer gone"):
+    with pytest.raises(WebsocketClosedError, match="peer gone"):
         await websocket_service.mark_connected(recv_task)
 
     assert websocket_service.has_ever_connected is False
@@ -274,9 +274,9 @@ async def test_subscription_failure_before_external_readiness_leaves_history_fal
 
     spawned_coros = stub_connect_sequence(websocket_service)
     websocket_service._connection_state = ConnectionState.CONNECTING
-    websocket_service.subscribe_events = AsyncMock(side_effect=FailedMessageError("subscribe failed"))
+    websocket_service.subscribe_events = AsyncMock(side_effect=CommandRejectedError("subscribe failed"))
 
-    with pytest.raises(FailedMessageError, match="subscribe failed"):
+    with pytest.raises(CommandRejectedError, match="subscribe failed"):
         await websocket_service.start_recv_and_subscribe()
 
     assert websocket_service.has_ever_connected is False
@@ -306,10 +306,10 @@ async def test_on_initialize_marks_ready_unconditionally(websocket_service: Webs
 
 
 async def test_raw_recv_passes_close_code(websocket_service: WebsocketService) -> None:
-    """raw_recv passes close_code from _ws.close_code when raising RetryableConnectionClosedError."""
+    """raw_recv passes close_code from _ws.close_code when raising WebsocketClosedError."""
     ws_receiving(websocket_service, WSMsgType.CLOSE, close_code=1001)
 
-    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+    with pytest.raises(WebsocketClosedError) as exc_info:
         await websocket_service.raw_recv()
 
     assert exc_info.value.close_code == 1001, f"Expected close_code=1001, got {exc_info.value.close_code}"
@@ -332,7 +332,7 @@ async def test_recv_loop_close_outside_shutdown_raises_naming_the_peer_only_for_
     """
     ws_receiving(websocket_service, msg_type)
 
-    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+    with pytest.raises(WebsocketClosedError) as exc_info:
         await websocket_service.recv_loop()
 
     assert str(exc_info.value).startswith(expected)

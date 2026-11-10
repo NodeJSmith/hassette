@@ -432,6 +432,9 @@ class ApiEntityDataMixin:
             EntityNotFoundError: If the entity does not exist.
             HttpRequestError: If Home Assistant answers with any other HTTP error status.
             RuntimeError: If Home Assistant answers with a success status other than 204.
+            CommandNotSentError: If the request never reached Home Assistant (retried first).
+            OutcomeUnknownError: If the request timed out (``ResponseTimeoutError``) or its connection
+                dropped (``ResponseLostError``) after it was sent; not retried, since it may have applied.
         """
         url = f"states/{entity_id}"
 

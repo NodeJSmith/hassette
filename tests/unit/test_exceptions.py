@@ -3,14 +3,9 @@
 The round-trip tests pin that every exception survives pickle and ``copy.deepcopy`` with its message and
 attributes intact, however its constructor is shaped.
 
-The ``FailedMessageError`` tests pin the structured-error-surface contract that the helper CRUD
-work packages rely on. In particular they guard against the most likely
-implementation mistake (``from_error_response`` dropping its ``code`` and
-``original_data`` kwargs before delegating to ``cls(msg)``) and verify that
-positional-only construction remains backward compatible so every existing
-``FailedMessageError("msg")`` call site continues to work.
-
-See ``design/specs/031-helper-crud-api/design.md`` for the full spec.
+The ``CommandRejectedError`` tests pin the structured error surface (``code``, ``original_data``) that
+helper CRUD callers branch on, including that ``from_error_response`` forwards both. The delivery-state
+tests pin that each transport class names exactly one state (design/specs/150-transport-delivery-state-errors).
 """
 
 import copy
@@ -31,14 +26,14 @@ from hassette.exceptions import (
     AppRemovedError,
     AuthTokenWriteError,
     CannotOverrideFinalError,
-    ConnectionClosedError,
+    CommandNotSentError,
+    CommandRejectedError,
     ConvertedTypeDoesNotMatchError,
     DomainNotFoundError,
     DomainRequiredError,
     DuplicateListenerError,
     EntityNotInViewError,
     EntityShapeError,
-    FailedMessageError,
     HassetteError,
     HttpRequestError,
     InvalidAuthError,
@@ -54,11 +49,11 @@ from hassette.exceptions import (
     ResponseLostError,
     ResponseTimeoutError,
     RestartRefusedError,
-    RetryableConnectionClosedError,
     SchedulerNameRequiredError,
     SensorShapeMismatchError,
     UnableToConvertAnnotatedStateError,
     UnableToConvertStateError,
+    WebsocketClosedError,
 )
 from hassette.models.states.sensor_shapes import EnumSensorState, NumericSensorState
 from hassette.resources.shutdown_outcome import ShutdownOutcome, ShutdownResult
@@ -84,7 +79,8 @@ ROUND_TRIP_SAMPLES: list[HassetteError] = [
     DomainRequiredError(NumericSensorState),
     DuplicateListenerError("kitchen", "hass.event.state_changed", "a.handler", "b.handler"),
     EntityNotInViewError("sensor.mode", "enum", NumericSensorState),
-    FailedMessageError("boom", code="not_found", original_data={"type": "x"}),
+    CommandNotSentError("not sent"),
+    CommandRejectedError("boom", code="not_found", original_data={"type": "x"}),
     HttpRequestError(500, "Server Error", method="GET", url="/states"),
     InvalidDataForStateConversionError({"bad": "data"}),
     InvalidEntityIdError("not an id"),
@@ -102,7 +98,7 @@ ROUND_TRIP_SAMPLES: list[HassetteError] = [
     ResponseLostError("connection lost", close_code=1006),
     ResponseTimeoutError("timed out", original_data={"type": "fire_event"}),
     RestartRefusedError("my.App", ShutdownOutcome(ShutdownResult.INCOMPLETE, ("task-1",), "my.App: body raised")),
-    RetryableConnectionClosedError("dropped", close_code=1006),
+    WebsocketClosedError("dropped", close_code=1006),
     SchedulerNameRequiredError("a.handler", "every 5s"),
     SensorShapeMismatchError("sensor.mode", "enum", NumericSensorState),
     UnableToConvertAnnotatedStateError("sensor.mode", "enum", NumericSensorState),
@@ -144,23 +140,18 @@ class ConcreteAbcError(AbstractBaseError):
         super().__init__(f"{entity_id}: {reason}")
 
 
-def test_failed_message_error_backward_compat_positional_only() -> None:
-    """Positional-only construction continues to work.
-
-    All existing call sites in ``src/`` pass a single positional ``msg`` and
-    nothing else. This test pins that behavior: no kwargs must be required,
-    and the two new attributes must default to ``None``.
-    """
-    e = FailedMessageError("boom")
+def test_command_rejected_error_message_only() -> None:
+    """A message alone is enough; ``code`` and ``original_data`` default to ``None``."""
+    e = CommandRejectedError("boom")
 
     assert str(e) == "boom"
     assert e.code is None
     assert e.original_data is None
 
 
-def test_failed_message_error_stores_kwargs() -> None:
+def test_command_rejected_error_stores_kwargs() -> None:
     """``code`` and ``original_data`` are stored as instance attributes."""
-    e = FailedMessageError(
+    e = CommandRejectedError(
         "boom",
         code="invalid_format",
         original_data={"source": "test"},
@@ -171,17 +162,9 @@ def test_failed_message_error_stores_kwargs() -> None:
     assert e.original_data == {"source": "test"}
 
 
-def test_failed_message_error_from_error_response_forwards_all_fields() -> None:
-    """``from_error_response`` forwards every field AND fixes the typo.
-
-    If the classmethod body still reads ``return cls(msg)`` instead of
-    ``return cls(msg, code=code, original_data=original_data)``, the
-    ``e.code`` / ``e.original_data`` assertions below will fail.
-
-    The ``"for failed"`` assertion guards the typo fix — the old message
-    template read ``"WebSocket message for failed with response ..."``.
-    """
-    e = FailedMessageError.from_error_response(
+def test_command_rejected_error_from_error_response_forwards_all_fields() -> None:
+    """``from_error_response`` carries ``code`` and ``original_data`` and folds the error text into the message."""
+    e = CommandRejectedError.from_error_response(
         error="already exists",
         code="invalid_format",
         original_data={"type": "input_boolean/create"},
@@ -190,43 +173,38 @@ def test_failed_message_error_from_error_response_forwards_all_fields() -> None:
     assert e.code == "invalid_format"
     assert e.original_data == {"type": "input_boolean/create"}
     assert "WebSocket message failed" in str(e)
-    assert "for failed" not in str(e)
     assert "already exists" in str(e)
 
 
-def test_failed_message_error_from_error_response_defaults_code_to_none() -> None:
-    """The new ``code`` parameter is optional and defaults to ``None``.
-
-    This keeps the classmethod backward compatible with any caller that was
-    only passing ``error`` and/or ``original_data``.
-    """
-    e = FailedMessageError.from_error_response(error="x")
+def test_command_rejected_error_from_error_response_defaults_code_to_none() -> None:
+    """An HA error reply without a code yields ``code=None``."""
+    e = CommandRejectedError.from_error_response(error="x")
 
     assert e.code is None
     assert e.original_data is None
     assert "x" in str(e)
 
 
-def test_failed_message_error_chain_preserves_original() -> None:
+def test_command_rejected_error_chain_preserves_original() -> None:
     """Chaining via ``raise ... from e`` preserves ``code`` on both frames.
 
     This is a regression test for the ``_ws_helper_call`` wrapper. The wrapper
-    catches ``FailedMessageError`` and re-raises a new one with a contextualized
+    catches ``CommandRejectedError`` and re-raises a new one with a contextualized
     message, forwarding ``code`` and ``original_data`` from the caught exception.
     Both the wrapped exception and ``__cause__`` must surface the same ``code``.
     """
 
     def _chain_and_reraise() -> None:
         try:
-            raise FailedMessageError("first", code="a", original_data={"k": 1})
-        except FailedMessageError as exc:
-            raise FailedMessageError(
+            raise CommandRejectedError("first", code="a", original_data={"k": 1})
+        except CommandRejectedError as exc:
+            raise CommandRejectedError(
                 "wrapped",
                 code=exc.code,
                 original_data=exc.original_data,
             ) from exc
 
-    with pytest.raises(FailedMessageError) as exc_info:
+    with pytest.raises(CommandRejectedError) as exc_info:
         _chain_and_reraise()
 
     wrapped = exc_info.value
@@ -235,58 +213,65 @@ def test_failed_message_error_chain_preserves_original() -> None:
     assert str(wrapped) == "wrapped"
 
     cause = wrapped.__cause__
-    assert isinstance(cause, FailedMessageError)
+    assert isinstance(cause, CommandRejectedError)
     assert cause.code == "a"
     assert cause.original_data == {"k": 1}
 
 
-def test_retryable_connection_closed_error_default_close_code() -> None:
+def test_websocket_closed_error_default_close_code() -> None:
     """close_code defaults to None when not provided."""
-    e = RetryableConnectionClosedError("connection dropped")
+    e = WebsocketClosedError("connection dropped")
 
     assert str(e) == "connection dropped"
     assert e.close_code is None
 
 
-def test_retryable_connection_closed_error_with_close_code() -> None:
+def test_websocket_closed_error_with_close_code() -> None:
     """close_code is stored when provided as keyword argument."""
-    e = RetryableConnectionClosedError("connection dropped", close_code=1006)
+    e = WebsocketClosedError("connection dropped", close_code=1006)
 
     assert str(e) == "connection dropped"
     assert e.close_code == 1006
 
 
-def test_retryable_connection_closed_error_inheritance() -> None:
-    """RetryableConnectionClosedError is still a subclass of ConnectionClosedError."""
-    e = RetryableConnectionClosedError("connection dropped")
+def test_websocket_closed_error_is_internal_only() -> None:
+    """The internal close signal is a direct HassetteError child, never one of the delivery states."""
+    e = WebsocketClosedError("connection dropped")
 
-    assert isinstance(e, ConnectionClosedError)
+    assert not isinstance(e, CommandNotSentError | CommandRejectedError | OutcomeUnknownError)
 
 
-def test_response_timeout_error_is_outcome_unknown_failed_message() -> None:
-    """Takes FailedMessageError's constructor; existing ``except FailedMessageError`` still catches it."""
+@pytest.mark.parametrize(
+    "exc",
+    [
+        CommandNotSentError("not sent"),
+        CommandRejectedError("rejected", code="not_found"),
+        ResponseTimeoutError("timed out"),
+        ResponseLostError("lost"),
+    ],
+    ids=["not_sent", "rejected", "timeout", "lost"],
+)
+def test_delivery_state_classes_are_disjoint(exc: HassetteError) -> None:
+    """Each class names exactly one delivery state: no class is also another state's class."""
+    states = (CommandNotSentError, CommandRejectedError, OutcomeUnknownError)
+
+    assert sum(isinstance(exc, state) for state in states) == 1
+    assert not isinstance(exc, WebsocketClosedError)
+
+
+def test_response_timeout_error_keeps_original_data_without_code() -> None:
+    """Carries the outgoing payload; the rejected class's ``code`` doesn't come along."""
     exc = ResponseTimeoutError("timed out", original_data={"type": "fire_event", "id": 3})
 
-    assert isinstance(exc, OutcomeUnknownError)
-    assert isinstance(exc, FailedMessageError)
     assert not isinstance(exc, TimeoutError)
-    assert exc.code is None
+    assert not hasattr(exc, "code")
     assert exc.original_data == {"type": "fire_event", "id": 3}
 
 
-def test_response_lost_error_is_outcome_unknown_connection_closed() -> None:
-    """Takes RetryableConnectionClosedError's constructor and is not a FailedMessageError."""
-    exc = ResponseLostError("connection lost", close_code=1006)
-
-    assert isinstance(exc, OutcomeUnknownError)
-    assert isinstance(exc, RetryableConnectionClosedError)
-    assert not isinstance(exc, FailedMessageError)
-    assert exc.close_code == 1006
-
-
-def test_outcome_unknown_error_is_a_bodyless_marker() -> None:
-    """No ``__init__`` of its own, so the two concrete parents' constructors never meet."""
-    assert "__init__" not in vars(OutcomeUnknownError)
+def test_response_lost_error_keeps_close_code() -> None:
+    """Carries the close code, defaulting to None (REST)."""
+    assert ResponseLostError("connection lost", close_code=1006).close_code == 1006
+    assert ResponseLostError("connection lost").close_code is None
 
 
 def test_entity_not_in_view_error_defines_own_init() -> None:

@@ -62,7 +62,7 @@ Daily notification scheduled at 08:00 via notify.mobile_app_phone
 Daily notification sent.
 ```
 
-`call_service` sends the call without waiting for Home Assistant's reply. "Daily notification sent." appears even if Home Assistant rejects the call. If no notification arrives, check the Home Assistant logs (**Settings → System → Logs**). To have Hassette raise `FailedMessageError` on a rejected call, pass `wait_for_ack=True` to `call_service`.
+`call_service` sends the call without waiting for Home Assistant's reply. "Daily notification sent." appears even if Home Assistant rejects the call. If no notification arrives, check the Home Assistant logs (**Settings → System → Logs**). To have Hassette raise [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] on a rejected call, pass `wait_for_ack=True` to `call_service`.
 
 ## Variations
 

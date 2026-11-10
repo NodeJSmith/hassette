@@ -15,7 +15,7 @@
 **During reconnection**, your app code keeps running. The bus, scheduler, and state manager stay active, and bus handlers resume receiving events after the reconnect with no re-registration.
 
 - `self.states` reads return the last-known cached value. The data may be stale, but reads do not fail once the cache has synchronized, and it refreshes after the reconnect.
-- `self.api.call_service()` raises `ConnectionClosedError`, since it needs the WebSocket.
+- `self.api.call_service()` raises `CommandNotSentError`, since it needs the WebSocket.
 - `self.api.get_state()` is a live REST call, not a cache read, so it fails while HA is unreachable.
 
 To react to connection loss, subscribe to [`on_websocket_disconnected` / `on_websocket_connected`](core-concepts/bus/methods.md) on the bus. See [What apps see during reconnection](operating/index.md#what-apps-see-during-reconnection).
@@ -243,13 +243,15 @@ For container startup failures, dependency installation, health check failures, 
 
 **`IPV6NotSupportedError`** `base_url` contains an IPv6 address, which Hassette does not support. Use a hostname or IPv4 address instead.
 
-**[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** A state read happened before `StateProxy` finished its first synchronization, or a REST call happened before the client session was up. Both clear on their own once startup completes, so retry shortly after. Calls made while the WebSocket is disconnected raise `ConnectionClosedError` instead.
+**[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** A `self.states` read happened before [`StateProxy`][hassette.core.state_proxy.StateProxy] finished its first synchronization. It clears on its own once startup completes, so retry shortly after.
 
-**`ConnectionClosedError`** The WebSocket closed unexpectedly. Hassette handles this internally and reconnects. You only see this if you catch it explicitly.
+Api calls raise one of three classes, named for whether the command reached Home Assistant:
 
-**[`FailedMessageError`][hassette.exceptions.FailedMessageError]** A message sent over the WebSocket returned an error response from Home Assistant. Check `e.code` for the structured error type from HA. `e.code` is `None` for locally-synthesized failures like transport timeouts.
+**[`CommandNotSentError`][hassette.exceptions.CommandNotSentError]** The command never reached HA, so it did not apply and is safe to send again. The WebSocket was disconnected, the socket write failed, or a REST request couldn't connect (refused, DNS or TLS failure). A REST call made before the client session is up raises it too. A REST connect that hangs until the timeout raises `ResponseTimeoutError` instead (see [Errors and unknown outcomes](core-concepts/api/methods.md#errors-and-unknown-outcomes)).
 
-**[`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]** A command was sent, but no response arrived, so it may or may not have applied. It is raised as [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] (no response in time; also a `FailedMessageError` with `code=None`) or [`ResponseLostError`][hassette.exceptions.ResponseLostError] (the connection dropped while waiting; also a `RetryableConnectionClosedError`). Don't re-send a write blindly. Check state first: read the target entity's state after `call_service` or `fire_event`, or call `helpers.list(domain)` after a helper change. See [Errors and unknown outcomes](core-concepts/api/methods.md#errors-and-unknown-outcomes).
+**[`CommandRejectedError`][hassette.exceptions.CommandRejectedError]** HA answered a WebSocket command with an error. A rejected entity or helper command did not apply, but a service or script may have partly run before it failed, so check state before re-sending a `call_service`. Check `e.code` for HA's structured error type, such as `not_found`. A REST status error raises [`HttpRequestError`][hassette.exceptions.HttpRequestError] (or `EntityNotFoundError` for a 404) instead.
+
+**[`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]** A command was sent, but no response arrived, so it may or may not have applied. It is raised as [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] (no response in time) or [`ResponseLostError`][hassette.exceptions.ResponseLostError] (the connection dropped while waiting), on either transport. Don't re-send a write blindly. Check state first: read the target entity's state after `call_service` or `fire_event`, or call `helpers.list(domain)` after a helper change. A REST response cut off while Hassette reads its body isn't covered by this class. See [Errors and unknown outcomes](core-concepts/api/methods.md#errors-and-unknown-outcomes).
 
 ### Registration
 

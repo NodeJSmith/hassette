@@ -12,7 +12,7 @@ from contextlib import suppress
 from dataclasses import dataclass, replace
 from typing import Any
 
-from hassette.exceptions import FailedMessageError, RetryableConnectionClosedError
+from hassette.exceptions import CommandRejectedError, WebsocketClosedError
 
 if typing.TYPE_CHECKING:
     import asyncio
@@ -101,7 +101,7 @@ class PendingResponses:
                     "e.code will be None — caller code-guards will fall through.",
                     error_envelope,
                 )
-            fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
+            fut.set_exception(CommandRejectedError.from_error_response(err, code=code, original_data=message))
 
     def log_late_reply(self, msg_id: int, command_type: str, message: dict) -> None:
         """Log a late reply to a timed-out non-retried write.
@@ -128,7 +128,7 @@ class PendingResponses:
             )
 
     def fail_all(self, close_code: int | None = None) -> None:
-        """Fail every awaited future with RetryableConnectionClosedError and clear the table.
+        """Fail every awaited future with WebsocketClosedError and clear the table.
 
         ``close_code`` is the dropped socket's close code, carried onto each failure so the caller's
         ``ResponseLostError`` reports why the connection closed.
@@ -141,9 +141,7 @@ class PendingResponses:
             # unretrieved exception behind.
             if entry.timed_out_command is None and not entry.future.done():
                 with suppress(Exception):
-                    entry.future.set_exception(
-                        RetryableConnectionClosedError("WebSocket disconnected", close_code=close_code)
-                    )
+                    entry.future.set_exception(WebsocketClosedError("WebSocket disconnected", close_code=close_code))
         self.entries.clear()
 
 

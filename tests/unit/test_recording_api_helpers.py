@@ -4,8 +4,8 @@ Covers:
 - seed_helper round-trip (seed → list)
 - seed_helper rejects unknown record type
 - create → list round-trip (slug transformation, collision auto-suffix)
-- update raises FailedMessageError on missing id, mutates on hit
-- delete raises FailedMessageError on missing id, removes on hit
+- update raises CommandRejectedError on missing id, mutates on hit
+- delete raises CommandRejectedError on missing id, removes on hit
 - reset clears helper_definitions
 - create records an ApiCall
 - counter action methods record an ApiCall
@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.exceptions import FailedMessageError
+from hassette.exceptions import CommandRejectedError
 from hassette.models.helpers import (
     CounterRecord,
     CreateCounterParams,
@@ -32,8 +32,7 @@ from hassette.models.helpers import (
     UpdateInputBooleanParams,
 )
 from hassette.testing import AppTestHarness
-from hassette.testing.app_harness import RECORD_TYPE_TO_DOMAIN
-from hassette.testing.recording_api import slugify_helper_name
+from hassette.testing.recording_api import RECORD_TYPE_TO_DOMAIN, slugify_helper_name
 from tests.support.factories import make_recording_api
 
 
@@ -117,7 +116,7 @@ async def test_create_input_boolean_auto_suffixes_collision():
 async def test_update_input_boolean_raises_on_missing_id():
     api = make_recording_api()
 
-    with pytest.raises(FailedMessageError) as exc_info:
+    with pytest.raises(CommandRejectedError) as exc_info:
         await api.helpers.update("nonexistent", UpdateInputBooleanParams(initial=True))
 
     assert exc_info.value.code == "not_found"
@@ -140,7 +139,7 @@ async def test_update_input_boolean_mutates_seed():
 async def test_delete_input_boolean_raises_on_missing_id():
     api = make_recording_api()
 
-    with pytest.raises(FailedMessageError) as exc_info:
+    with pytest.raises(CommandRejectedError) as exc_info:
         await api.helpers.delete("input_boolean", "nonexistent")
 
     assert exc_info.value.code == "not_found"

@@ -1,18 +1,18 @@
-import aiohttp
-
 from hassette import App, AppConfig
-from hassette.exceptions import ConnectionClosedError
+
+# --8<-- [start:imports]
+from hassette.exceptions import CommandNotSentError, OutcomeUnknownError
+
+# --8<-- [end:imports]
 
 
 class OutageTolerantApp(App[AppConfig]):
     async def refresh(self) -> None:
         # --8<-- [start:catch]
         try:
-            # REST: raises aiohttp.ClientError, or TimeoutError if HA stops responding
-            light = await self.api.get_state("light.kitchen")
-            # WebSocket: raises ConnectionClosedError
-            await self.api.turn_on("light.porch")
-        except (aiohttp.ClientError, TimeoutError, ConnectionClosedError):
+            light = await self.api.get_state("light.kitchen")  # REST
+            await self.api.turn_on("light.porch")  # WebSocket
+        except (CommandNotSentError, OutcomeUnknownError):
             self.logger.warning("HA unreachable, skipping refresh")
             return
         # --8<-- [end:catch]

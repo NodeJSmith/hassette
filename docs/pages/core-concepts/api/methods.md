@@ -33,7 +33,7 @@ This is the cheapest state call when the value string is all the code needs.
 ### `get_state(entity_id)`
 
 Looks up the entity in the state registry and returns the domain-specific
-[`BaseState`][hassette.models.states.base.BaseState] subclass: `LightState` for lights,
+[`BaseState`][hassette.models.states.base.BaseState] subclass: [`LightState`][hassette.models.states.light.LightState] for lights,
 `SensorState` for sensors, and so on. Each subclass defines its own `.value` type
 (`bool`, `float`, `str`, etc.), along with `.attributes`, `.last_changed`,
 `.last_updated`, and `.context`.
@@ -227,7 +227,7 @@ The generic service call method. Service data passes as keyword arguments. They 
 failure — an unknown service, invalid service data — is never reported back.
 
 `wait_for_ack=True` waits for Home Assistant's confirmation instead, and raises
-[`FailedMessageError`][hassette.exceptions.FailedMessageError] when the call fails. The wait
+[`CommandRejectedError`][hassette.exceptions.CommandRejectedError] when the call fails. The wait
 costs a round trip, so it suits calls where a silent failure would matter rather than every call.
 Unlike `return_response=True`, it works with any service that returns no response, because it
 asks for none. The exception is the small set of services Home Assistant declares as
@@ -238,7 +238,7 @@ For most entity services (`light.turn_on`, `switch.toggle`), a nonexistent entit
 or `entity_id` is not a failure, so `wait_for_ack` does not raise for it. Home Assistant logs a
 warning and the call succeeds. Services that resolve the entity id themselves can still reject it:
 `homeassistant.reload_config_entry` fails when no config entry matches, and `wait_for_ack` raises
-`FailedMessageError`. `self.states.get(...)` returns `None` for an unknown entity id, so a check
+`CommandRejectedError`. `self.states.get(...)` returns `None` for an unknown entity id, so a check
 before the call catches the typo either way.
 
 Whenever `call_service` waits, through either flag, it sends the call exactly once. If the
@@ -608,6 +608,26 @@ device or integration-backed entity from the HA entity registry. The HA UI handl
 
 ## Errors and unknown outcomes
 
+A connection or timeout failure from `Api` says whether the command reached Home Assistant. Three
+classes cover the three answers. `CommandNotSentError` and `OutcomeUnknownError` apply to both
+transports. `CommandRejectedError` is WebSocket-only; REST reports an error status as
+`EntityNotFoundError` or `HttpRequestError` (below).
+
+| Class | Delivery state | Applied? |
+|---|---|---|
+| [`CommandNotSentError`][hassette.exceptions.CommandNotSentError] | Never reached HA | No; safe to send again |
+| [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] | HA answered with an error | Usually not; a service may have partly run |
+| [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError] | Sent, no answer | Maybe |
+
+A REST connect that hangs until the timeout raises `ResponseTimeoutError`, although nothing was
+sent. One timeout covers the whole request, connect included, so Hassette reports the outcome as unknown.
+
+`(CommandNotSentError, OutcomeUnknownError)` catches connection and timeout failures on both
+transports. It doesn't catch every outage: a Home Assistant restart can also surface as
+`HttpRequestError` (a 503 on a read, covered below), and a response cut off while Hassette reads its
+body raises the raw `aiohttp.ClientError` or `TimeoutError`. A REST error status is
+`EntityNotFoundError` or `HttpRequestError` instead of `CommandRejectedError`.
+
 The typed writes never re-send: `call_service` when it waits, `fire_event`, and helper
 `create`/`update`/`delete`. A command that was sent but never answered raises a subclass of
 [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]: `ResponseTimeoutError` when no
@@ -620,11 +640,15 @@ Helpers](managing-helpers.md#common-pitfalls) shows how to check with `helpers.l
 
 REST-backed methods raise HTTP errors from Home Assistant as `HassetteError` subclasses. A 404
 raises [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] and is never retried. Any
-other error status raises [`HttpRequestError`][hassette.exceptions.HttpRequestError]. A 5xx, 408,
-or 429 raises it once Hassette's retries run out. A 503 during a Home Assistant restart takes this
-path. Any other 4xx raises it on the first attempt. Its `status` attribute holds the HTTP status
-code, and `message` holds the reason phrase. Calling code can branch on `status` to retry a 5xx, 408, or
+other error status raises [`HttpRequestError`][hassette.exceptions.HttpRequestError]. On a GET
+(every REST read except `render_template`), a 5xx, 408, or 429 raises it once Hassette's retries run out. A 503 during a Home Assistant restart
+takes this path. Any other 4xx raises it on the first attempt. `HttpRequestError`'s `status`
+attribute holds the HTTP status code, and `message` holds the reason phrase. Calling code can branch on `status` to retry a 5xx, 408, or
 429 and give up on any other 4xx.
+
+Any other REST request (`set_state`, `delete_entity`, and `render_template`, sent as a POST) raises
+any error status on the first attempt: Home Assistant already processed the request, so a re-send
+could apply it twice. These requests retry only `CommandNotSentError`.
 
 ---
 

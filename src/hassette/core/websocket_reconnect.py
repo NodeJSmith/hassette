@@ -26,7 +26,7 @@ import aiohttp
 from hassette.exceptions import (
     HassetteError,
     InvalidAuthError,
-    RetryableConnectionClosedError,
+    WebsocketClosedError,
 )
 
 FAST_BACKOFF_INITIAL_SECONDS = 1.0
@@ -470,10 +470,10 @@ async def race_recv_task(awaitable: Awaitable[_T], recv_task: asyncio.Task) -> _
 def raise_recv_task_end(recv_task: asyncio.Task) -> NoReturn:
     """Raise whatever ended a finished recv task, as the failure that ended its connection."""
     if recv_task.cancelled():
-        raise RetryableConnectionClosedError("WebSocket receive loop was cancelled")
+        raise WebsocketClosedError("WebSocket receive loop was cancelled")
     if (exc := recv_task.exception()) is not None:
         raise exc
-    raise RetryableConnectionClosedError("WebSocket receive loop ended")
+    raise WebsocketClosedError("WebSocket receive loop ended")
 
 
 async def event_set_within(event: asyncio.Event, timeout: float) -> bool:

@@ -10,7 +10,7 @@ Note:
     HA's server-side schema enforces ``min <= max`` and validates that
     ``initial`` fits the length bounds. Hassette does not mirror this
     invariant on ``Create*Params`` / ``Update*Params``; errors surface from
-    HA via :class:`hassette.exceptions.FailedMessageError`.
+    HA via :class:`hassette.exceptions.CommandRejectedError`.
 """
 
 from typing import Literal
