@@ -54,6 +54,12 @@ def make_registered_listener(db_id: int, **kwargs: Any) -> Listener:
     return listener
 
 
+async def run_immediate_fire(svc: BusService, listener: Listener) -> None:
+    """Call ``immediate_fire_task`` with the listener's own ``entity_watch``, as ``BusService.add_listener`` does."""
+    assert listener.entity_watch is not None
+    await svc._duration_hold.immediate_fire_task(listener, listener.entity_watch)
+
+
 def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> None:
     executor_mock(svc).enqueue_record.assert_called_once()
     record = executor_mock(svc).enqueue_record.call_args[0][0]
@@ -97,7 +103,7 @@ async def test_raising_predicate_on_immediate_fire_is_recorded_and_routed() -> N
     svc = make_service_with_state()
     listener = make_registered_listener(12, immediate=True, where=raising_predicate, error_handler=on_error)
 
-    await svc._duration_hold.immediate_fire_task(listener)
+    await run_immediate_fire(svc, listener)
     await asyncio.sleep(0)
 
     assert_error_recorded_and_routed(svc, listener)
@@ -109,7 +115,7 @@ async def test_raising_predicate_on_immediate_fire_routes_to_app_level_handler()
         13, immediate=True, where=raising_predicate, app_error_handler_resolver=lambda: on_error
     )
 
-    await svc._duration_hold.immediate_fire_task(listener)
+    await run_immediate_fire(svc, listener)
     await asyncio.sleep(0)
 
     assert_error_recorded_and_routed(svc, listener)
@@ -125,7 +131,7 @@ async def test_synthetic_event_build_failure_is_log_only() -> None:
     svc._duration_hold.make_synthetic_event = broken_factory  # pyright: ignore[reportAttributeAccessIssue]
     listener = create_listener(topic=TOPIC, entity_id=ENTITY_ID, immediate=True, error_handler=on_error)
 
-    await svc._duration_hold.immediate_fire_task(listener)
+    await run_immediate_fire(svc, listener)
     await asyncio.sleep(0)
 
     executor_mock(svc).enqueue_record.assert_not_called()
@@ -142,7 +148,7 @@ async def test_post_predicate_failure_on_immediate_fire_is_log_only() -> None:
     svc._duration_hold.compute_elapsed = broken_elapsed  # pyright: ignore[reportAttributeAccessIssue]
     listener = create_listener(topic=TOPIC, entity_id=ENTITY_ID, immediate=True, duration=60.0, error_handler=on_error)
 
-    await svc._duration_hold.immediate_fire_task(listener)
+    await run_immediate_fire(svc, listener)
     await asyncio.sleep(0)
 
     executor_mock(svc).enqueue_record.assert_not_called()

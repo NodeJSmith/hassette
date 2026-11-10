@@ -89,7 +89,6 @@ class DurationTimer:
         self._task: asyncio.Task[None] | None = None
         self._cancel_sub: Subscription | None = None
         self._cancelled = False
-        self._started = False
         self.completed = asyncio.Event()
 
     @property
@@ -161,7 +160,6 @@ class DurationTimer:
                 return
             # Clear the task reference before firing — is_active returns False from here.
             self._task = None
-            self._started = False
             # Cancel the cancellation subscription — entity is now in confirmed state.
             if self._cancel_sub is not None:
                 self._cancel_sub.cancel()
@@ -175,7 +173,6 @@ class DurationTimer:
             finally:
                 cycle_completed.set()
 
-        self._started = True
         self._task = self.task_bucket.spawn(delayed_fire(), name="bus:duration_timer")
 
     def cancel(self) -> None:
@@ -197,7 +194,6 @@ class DurationTimer:
 
         task = self._task
         had_pending_task = task is not None and not task.done()
-        was_active = self._started and had_pending_task
 
         if task is not None and not task.done():
             task.cancel()
@@ -207,9 +203,8 @@ class DurationTimer:
             self._cancel_sub.cancel()
             self._cancel_sub = None
 
-        if was_active and self._on_cancel is not None:
+        if had_pending_task and self._on_cancel is not None:
             self._on_cancel()
-        self._started = False
 
         # Only mark this cycle complete here when we actually interrupted a
         # pending task. delayed_fire() clears self._task before awaiting
