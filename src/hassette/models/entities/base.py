@@ -29,7 +29,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     """The ``Api`` that fetched this entity (set by ``Api.get_entity``), so its actions are that app's writes."""
 
     async def refresh(self) -> StateT:
-        self.state = cast("StateT", await self.hassette.api.get_state(self.entity_id))
+        self.state = cast("StateT", await self.api.get_state(self.entity_id))
         return self.state
 
     @property
