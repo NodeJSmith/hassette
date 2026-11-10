@@ -73,6 +73,7 @@ class ApiServiceCallsMixin:
             """Type-checking stub for :meth:`Api.ws_send_json`, which sends a message without awaiting a reply."""
             ...
 
+        # dup-ignore-start: begin_write signature restated in the mixins' host stubs
         def begin_write(
             self,
             kind: "ApiWriteKind",
@@ -82,6 +83,7 @@ class ApiServiceCallsMixin:
             data: Any = None,
             fire_and_forget: bool = False,
         ) -> "ApiWriteHandle | None":
+            # dup-ignore-end
             """Type-checking stub for :meth:`Api.begin_write`, which enqueues a pending write record."""
             ...
 

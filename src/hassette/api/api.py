@@ -298,6 +298,7 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         """Record this Api's named writes as the given app instance's (``api_writes``). Called by ``App``."""
         self._write_owner = (app_key, instance_name)
 
+    # dup-ignore-start: begin_write signature restated in the mixins' host stubs
     def begin_write(
         self,
         kind: "ApiWriteKind",
@@ -307,6 +308,7 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         data: Any = None,
         fire_and_forget: bool = False,
     ) -> "ApiWriteHandle | None":
+        # dup-ignore-end
         """Enqueue a ``pending`` record for a named write about to be sent; None when this Api records nothing.
 
         Call once per write, before the request is registered or sent, from the write's async body.

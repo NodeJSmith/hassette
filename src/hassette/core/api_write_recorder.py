@@ -78,6 +78,7 @@ class ApiWriteHandle:
     resolved: bool = field(default=False, init=False)
     """Set by the first ``resolve``. All callers run on the event loop, so a plain flag is enough."""
 
+    # dup-ignore-start: ResolveCallback protocol signature restated by its implementation and its caller
     def resolve(
         self,
         outcome: ApiWriteOutcome,
@@ -86,6 +87,7 @@ class ApiWriteHandle:
         error_code: str | None = None,
         error_message: str | None = None,
     ) -> None:
+        # dup-ignore-end
         """Enqueue the row's outcome; for a rejected fire-and-forget call, also log the rejected-call WARNING.
 
         A no-op once the row has been resolved.

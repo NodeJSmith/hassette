@@ -39,6 +39,7 @@ An entry whose caller is still waiting never counts toward the cap and is never 
 class ResolveCallback(Protocol):
     """Resolves the API write record an entry was registered for. Called once, on the receive task."""
 
+    # dup-ignore-start: ResolveCallback protocol signature restated by its implementation and its caller
     def __call__(
         self,
         outcome: ApiWriteOutcome,
@@ -47,6 +48,8 @@ class ResolveCallback(Protocol):
         error_code: str | None = None,
         error_message: str | None = None,
     ) -> None: ...
+
+    # dup-ignore-end
 
 
 @dataclass(slots=True)
@@ -208,6 +211,7 @@ class PendingResponses:
             )
         return CommandRejectedError.from_error_response(err, code=code, original_data=message)
 
+    # dup-ignore-start: ResolveCallback protocol signature restated by its implementation and its caller
     def run_callback(
         self,
         entry: PendingReply,
@@ -217,6 +221,7 @@ class PendingResponses:
         error_code: str | None = None,
         error_message: str | None = None,
     ) -> None:
+        # dup-ignore-end
         """Run ``entry``'s resolve callback, logging a failure so it never stops the caller's own work."""
         if entry.on_resolve is None:
             return

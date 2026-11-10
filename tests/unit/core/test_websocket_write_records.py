@@ -62,10 +62,15 @@ async def send_recorded(ws: WebsocketService, on_resolve: Calls, **data: Any) ->
     return task
 
 
+async def send_doorbell(ws: WebsocketService) -> "tuple[Calls, asyncio.Task[Any]]":
+    """Start a recorded awaited ``fire_event`` and return its resolve callback and task."""
+    on_resolve = Calls()
+    return on_resolve, await send_recorded(ws, on_resolve, type="fire_event", event_type="doorbell")
+
+
 class TestAwaitedWrite:
     async def test_reply_resolves_record_and_caller(self, ws: WebsocketService) -> None:
-        on_resolve = Calls()
-        task = await send_recorded(ws, on_resolve, type="fire_event", event_type="doorbell")
+        on_resolve, task = await send_doorbell(ws)
 
         ws.respond_if_necessary(success_reply(last_sent_msg_id(ws)))
 
@@ -74,8 +79,7 @@ class TestAwaitedWrite:
         assert ws._pending.entries == {}
 
     async def test_rejection_resolves_record_and_raises(self, ws: WebsocketService) -> None:
-        on_resolve = Calls()
-        task = await send_recorded(ws, on_resolve, type="fire_event", event_type="doorbell")
+        on_resolve, task = await send_doorbell(ws)
 
         ws.respond_if_necessary(error_reply(last_sent_msg_id(ws)))
 
@@ -103,8 +107,7 @@ class TestAwaitedWrite:
         assert ws._pending.background_count == 0
 
     async def test_cancelled_write_resolves_when_the_connection_ends(self, ws: WebsocketService) -> None:
-        on_resolve = Calls()
-        task = await send_recorded(ws, on_resolve, type="fire_event", event_type="doorbell")
+        on_resolve, task = await send_doorbell(ws)
 
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -115,8 +118,7 @@ class TestAwaitedWrite:
         assert on_resolve.outcomes == ["connection_lost"]
 
     async def test_disconnect_while_waiting_resolves_connection_lost(self, ws: WebsocketService) -> None:
-        on_resolve = Calls()
-        task = await send_recorded(ws, on_resolve, type="fire_event", event_type="doorbell")
+        on_resolve, task = await send_doorbell(ws)
 
         ws._pending.fail_all()
 
