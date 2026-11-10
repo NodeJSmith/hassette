@@ -4,7 +4,7 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ExecutionTrigger
+from hassette_wire import ExecutionStatus, ExecutionTrigger
 from pydantic import BaseModel, ValidationError
 from rich.console import Console
 
@@ -315,6 +315,28 @@ class TestCmdExecution:
         )
 
         assert "[Live] Show → [/x]" in runner.stdout(client, cmd_execution, uuid="exec-9")
+
+    def test_bracketed_error_renders_literally(self, cli_client_factory: CLIClientFactory) -> None:
+        """An exception message like "[/dev/ttyUSB0]" is shown as-is, without escape backslashes."""
+        logs = make_logs_by_execution_response(records=[make_log_entry()])
+        execution = make_execution(
+            execution_id="exec-10",
+            status=ExecutionStatus.ERROR,
+            error_type="OSError",
+            error_message="open [/dev/ttyUSB0] failed",
+        )
+        client = cli_client_factory.build_with_routes(
+            [
+                ("GET", "/api/executions/exec-10", 200, logs.model_dump()),
+                ("GET", "/api/telemetry/execution/exec-10", 200, execution.model_dump(mode="json")),
+            ]
+        )
+
+        assert "OSError: open [/dev/ttyUSB0] failed" in runner.stdout(client, cmd_execution, uuid="exec-10")
+
+    def test_error_without_message_shows_type_only(self) -> None:
+        summary = execution_summary(make_execution(status=ExecutionStatus.ERROR, error_type="TimeoutError"))
+        assert summary["error"] == "TimeoutError"
 
     def test_empty_string_value_is_distinct_from_missing(self) -> None:
         trigger = ExecutionTrigger(old_value="", new_value="hello")
