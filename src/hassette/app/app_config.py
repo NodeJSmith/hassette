@@ -85,14 +85,14 @@ class AppConfig(BaseSettings):
     """Per-app control for forgotten-await detection behavior.
 
     When ``None`` (default), the global ``HassetteConfig.forgotten_await_behavior`` is used,
-    which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress warnings for this app,
+    which itself defaults to ``"warn"``. Set to ``"ignore"`` to suppress warnings for this app,
     or ``"error"`` to treat forgotten awaits as errors (escalated by ``filterwarnings("error")``)."""
 
     blocking_io_behavior: BlockingIOBehavior | None = None
     """Per-app control for blocking-call detection behavior.
 
     When ``None`` (default), the global ``HassetteConfig.blocking_io.behavior`` is used,
-    which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress detection for this app,
+    which itself defaults to ``"warn"``. Set to ``"ignore"`` to suppress detection for this app,
     or ``"error"`` to escalate via ``filterwarnings("error")``."""
 
     @model_validator(mode="before")

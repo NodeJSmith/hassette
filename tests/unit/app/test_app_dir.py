@@ -45,6 +45,16 @@ class TestAppDir:
 
         assert not hasattr(app, "handle_failed")
 
+    def test_public_api_allowlist_names_exist(self) -> None:
+        """Every allowlisted name is a real attribute, so a renamed or removed member can't stay advertised.
+
+        Checked on an instance: annotated attributes such as `api` and `logger` exist only after construction.
+        """
+        app = make_app()
+
+        missing = sorted(name for name in _APP_PUBLIC_API if not hasattr(app, name))
+        assert missing == []
+
 
 class TestAppSyncDir:
     def test_dir_matches_public_api_allowlist_plus_sync_hooks(self) -> None:
@@ -56,3 +66,8 @@ class TestAppSyncDir:
     def test_appsync_allowlist_has_exactly_28_names(self) -> None:
         """Regression guard: 22 base names + 6 sync hooks = 28."""
         assert len(_APP_PUBLIC_API | _APPSYNC_HOOKS) == 28
+
+    def test_sync_hook_names_exist(self) -> None:
+        """Every AppSync hook in the allowlist is a real attribute of AppSync."""
+        missing = sorted(name for name in _APPSYNC_HOOKS if not hasattr(AppSync, name))
+        assert missing == []

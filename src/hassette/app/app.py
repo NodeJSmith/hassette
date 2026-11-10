@@ -1,11 +1,9 @@
-import typing
 from logging import Logger, getLogger
-from typing import ClassVar, Generic, TypeVar, cast, final
+from typing import TYPE_CHECKING, ClassVar, Generic, cast, final
 
 from hassette_wire import LogAuthor, LogLevel, SourceTier
 from whenever import ZonedDateTime
 
-import hassette.utils.date_utils as date_utils
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.cache import AsyncCache, CacheProtocol
@@ -17,20 +15,17 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.types import AppConfigT
 from hassette.types.enums import ResourceRole
+from hassette.utils import date_utils
 
 from .app_config import AppConfig
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from hassette import Hassette
-
-LOGGER = getLogger(__name__)
 
 APP_LOGGER_PREFIX = "hassette.apps"
 
 DEBUG_CAPTURE_ENDS = "It ends at `hassette app debug %s off` or a hassette restart."
 """How debug capture ends, worded for the WARNINGs that announce it; ``%s`` is the app key."""
-
-AppT = TypeVar("AppT", bound="App")
 
 _APP_PUBLIC_API: frozenset[str] = frozenset(
     {
@@ -60,7 +55,7 @@ _APP_PUBLIC_API: frozenset[str] = frozenset(
 )
 """App-author API allowlist — see design/specs/010-lifecycle-extraction/design.md.
 
-`App.__dir__` returns only these names, hiding the ~34 framework-internal names
+`App.__dir__` returns only these names, hiding the framework-internal names
 (lifecycle state transitions, child-resource wiring, readiness signaling) that
 Resource and LifecycleMixin otherwise expose.
 """
@@ -94,6 +89,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
     source_tier: ClassVar[SourceTier] = "app"
+    """Tier this resource's log lines are attributed to."""
 
     app_manifest: AppManifest | None
     """Manifest describing this app instance, set at construction from its config section.
@@ -124,22 +120,22 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     _lifecycle_logger: Logger
     """Backs ``lifecycle_logger``; built by ``_setup_logger()`` during construction."""
 
-    api: "Api"
+    api: Api
     """API instance for interacting with Home Assistant."""
 
-    scheduler: "Scheduler"
+    scheduler: Scheduler
     """Scheduler instance for scheduled tasks owned by this app."""
 
-    bus: "Bus"
+    bus: Bus
     """Event bus instance for event handlers owned by this app."""
 
-    states: "StateManager"
+    states: StateManager
     """States manager instance for accessing Home Assistant states."""
 
     app_config: AppConfigT
     """Configuration for this app instance."""
 
-    cache: "CacheProtocol"
+    cache: CacheProtocol
     """Cache instance for storing arbitrary data, scoped to this app instance."""
 
     def __init__(
@@ -179,9 +175,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
             self.cache = cache
         else:
             db_path = hassette.config.data_dir / self.cache_key / "cache" / "cache.db"
-            default_ttl = (
-                self.default_cache_ttl if self.default_cache_ttl is not None else hassette.config.default_cache_ttl
-            )
+            default_ttl = self.default_cache_ttl
+            if default_ttl is None:
+                default_ttl = hassette.config.default_cache_ttl
             self.cache = AsyncCache(db_path, default_ttl)
 
     def __dir__(self) -> list[str]:
@@ -343,21 +339,6 @@ class AppSync(App[AppConfigT]):
         return sorted(_APP_PUBLIC_API | _APPSYNC_HOOKS)
 
     @final
-    async def before_shutdown(self) -> None:
-        """Optional: stop accepting new work, signal loops to wind down, etc."""
-        await self.task_bucket.run_in_thread(self.before_shutdown_sync)
-
-    @final
-    async def on_shutdown(self) -> None:
-        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
-        await self.task_bucket.run_in_thread(self.on_shutdown_sync)
-
-    @final
-    async def after_shutdown(self) -> None:
-        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
-        await self.task_bucket.run_in_thread(self.after_shutdown_sync)
-
-    @final
     async def before_initialize(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
         await self.task_bucket.run_in_thread(self.before_initialize_sync)
@@ -372,29 +353,38 @@ class AppSync(App[AppConfigT]):
         """Optional: finalize initialization, signal readiness, etc."""
         await self.task_bucket.run_in_thread(self.after_initialize_sync)
 
+    @final
+    async def before_shutdown(self) -> None:
+        """Optional: stop accepting new work, signal loops to wind down, etc."""
+        await self.task_bucket.run_in_thread(self.before_shutdown_sync)
+
+    @final
+    async def on_shutdown(self) -> None:
+        """Primary hook: release your own stuff (sockets, queues, temp files…)."""
+        await self.task_bucket.run_in_thread(self.on_shutdown_sync)
+
+    @final
+    async def after_shutdown(self) -> None:
+        """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
+        await self.task_bucket.run_in_thread(self.after_shutdown_sync)
+
     def before_shutdown_sync(self) -> None:
         """Optional: stop accepting new work, signal loops to wind down, etc."""
-        pass
 
     def on_shutdown_sync(self) -> None:
         """Primary hook: release your own stuff (sockets, queues, temp files…)."""
-        pass
 
     def after_shutdown_sync(self) -> None:
         """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
-        pass
 
     def before_initialize_sync(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
-        pass
 
     def on_initialize_sync(self) -> None:
         """Primary hook: perform your own initialization (sockets, queues, temp files…)."""
-        pass
 
     def after_initialize_sync(self) -> None:
         """Optional: finalize initialization, signal readiness, etc."""
-        pass
 
     @final
     def initialize_sync(self) -> None:
