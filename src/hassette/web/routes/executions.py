@@ -1,4 +1,4 @@
-"""Execution log endpoint."""
+"""Execution detail endpoint: one execution's record, API writes and logs."""
 
 import time
 from logging import getLogger
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import uuid_utils
 from fastapi import APIRouter, Query
-from hassette_wire import LogEntry, LogsByExecutionResponse, ProblemCode
+from hassette_wire import ExecutionDetailResponse, LogEntry, ProblemCode
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
@@ -20,11 +20,11 @@ router = APIRouter(prefix="/executions", tags=["executions"])
 
 LOGGER = getLogger(__name__)
 
-EXECUTION_LOGS_DEFAULT_LIMIT = 500
-"""Default number of log records `/executions/{execution_id}` returns when the client omits `limit`."""
+EXECUTION_DETAIL_DEFAULT_LIMIT = 500
+"""Default number of log records, and separately of API writes, `/executions/{execution_id}` returns without `limit`."""
 
-EXECUTION_LOGS_LIMIT_CAP = 5000
-"""Upper bound a client may request via `/executions/{execution_id}`'s `limit` query parameter."""
+EXECUTION_DETAIL_LIMIT_CAP = 5000
+"""Upper bound a client may request via `/executions/{execution_id}`'s `limit` query parameter (each list)."""
 
 
 def extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
@@ -57,24 +57,25 @@ async def check_retention_expired_uuid4(telemetry: "TelemetryQueryService", exec
 
 @router.get(
     "/{execution_id}",
-    response_model=LogsByExecutionResponse,
+    response_model=ExecutionDetailResponse,
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
 )
-async def get_execution_logs(
+async def get_execution_detail(
     execution_id: str,
     hassette: HassetteDep,
     telemetry: TelemetryDep,
-    limit: Annotated[int, Query(ge=1, le=EXECUTION_LOGS_LIMIT_CAP)] = EXECUTION_LOGS_DEFAULT_LIMIT,
+    limit: Annotated[int, Query(ge=1, le=EXECUTION_DETAIL_LIMIT_CAP)] = EXECUTION_DETAIL_DEFAULT_LIMIT,
     author: AuthorQuery = None,
-) -> LogsByExecutionResponse:
-    """Return a single execution's log records, with retention-expired detection.
+) -> ExecutionDetailResponse:
+    """Return one execution's record, the API writes it made, and its log records.
 
-    For UUIDv7 execution IDs, the embedded timestamp is extracted directly without a
-    database lookup. For historical UUIDv4 IDs, the database is queried to determine
-    whether retention has expired.
+    ``limit`` caps the writes and the logs separately. The record is written in batches, so it can
+    lag the logs by a few seconds: ``execution`` is null until it lands (or once retention removed it).
 
-    Returns 422 if the execution_id is not a valid UUID. Returns an empty record list
-    with ``retention_expired=True`` if the execution is older than the log retention window.
+    For UUIDv7 execution IDs, the embedded timestamp decides ``retention_expired`` without a
+    database lookup. For historical UUIDv4 IDs, the database is queried.
+
+    Returns 422 if the execution_id is not a valid UUID.
     """
     try:
         uuid_utils.UUID(execution_id)
@@ -83,7 +84,9 @@ async def get_execution_logs(
             ProblemCode.VALIDATION_FAILED, f"Invalid execution_id: {execution_id!r} is not a valid UUID"
         ) from exc
 
-    records, truncated = await telemetry.get_log_records_by_execution(execution_id, limit=limit, author=author)
+    execution = await telemetry.get_execution_by_id(execution_id)
+    api_writes, api_writes_truncated = await telemetry.get_api_writes_by_execution(execution_id, limit=limit)
+    records, logs_truncated = await telemetry.get_log_records_by_execution(execution_id, limit=limit, author=author)
 
     retention_expired = False
     if not records:
@@ -94,5 +97,11 @@ async def get_execution_logs(
         else:
             retention_expired = await check_retention_expired_uuid4(telemetry, execution_id, cutoff)
 
-    log_entries = [LogEntry.model_validate(r) for r in records]
-    return LogsByExecutionResponse(records=log_entries, truncated=truncated, retention_expired=retention_expired)
+    return ExecutionDetailResponse(
+        execution=execution,
+        api_writes=api_writes,
+        api_writes_truncated=api_writes_truncated,
+        logs=[LogEntry.model_validate(r) for r in records],
+        logs_truncated=logs_truncated,
+        retention_expired=retention_expired,
+    )

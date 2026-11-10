@@ -39,6 +39,8 @@ class PipelineCounter(Enum):
     WS_BROADCAST_CLIENT_QUEUE_FULL = ("ws_broadcast", "client_queue_full", CounterKind.LOSS)
     BLOCKING_EVENT_WRITE_OVERFLOW = ("blocking_event_write", "overflow", CounterKind.LOSS)
     DB_WRITE_QUEUE_YIELDED_TO_SUBMIT = ("db_write_queue", "yielded_to_submit", CounterKind.LOSS)
+    API_WRITE_RECORD_DROPPED = ("api_write_record", "dropped", CounterKind.LOSS)
+    API_WRITE_TRACKING_EVICTED = ("api_write_tracking", "evicted", CounterKind.LOSS)
 
     def __init__(self, stage: str, reason: str, kind: CounterKind) -> None:
         self.stage = stage

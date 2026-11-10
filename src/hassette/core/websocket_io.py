@@ -20,7 +20,7 @@ from hassette.core.ha_core_config import CORE_CONFIG_UPDATED_EVENT_TYPE
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
 from hassette.core.websocket_inbound import log_dispatch_failure, parse_text_frame
 from hassette.core.websocket_reconnect import CLOSE_MSG_TYPE_MESSAGES, HA_STARTED_EVENT_TYPE
-from hassette.core.websocket_responses import PendingResponses, command_label
+from hassette.core.websocket_responses import PendingResponses, ResolveCallback, command_label
 from hassette.events import RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
@@ -97,19 +97,23 @@ class WebsocketMessageIOMixin:
         payload: dict[str, Any],
         msg_id: int,
         *,
-        late_reply_command: str | None = None,
+        keep_when_abandoned: bool = False,
+        on_resolve: ResolveCallback | None = None,
     ) -> Any:
         """Register a response future for msg_id, send payload, and await the reply.
 
         Registers the future before sending so a fast reply arriving before ``send_json``
-        returns is never dropped. On exit the entry leaves the pending-responses table, except
-        that a timeout with ``late_reply_command`` set keeps it there, marked timed out.
+        returns is never dropped. A send that fails (anything but cancellation) removes the
+        entry unresolved, since no reply can come. When the caller stops waiting (a timeout or a
+        cancellation) the entry leaves the table, unless ``keep_when_abandoned`` keeps it as a
+        background entry until its reply or the connection's end.
 
         Args:
             payload: The JSON payload to send. Must already include ``"id": msg_id``.
             msg_id: The message id used to correlate the response future.
-            late_reply_command: Command type to log a late reply under if this times out. Only
-                for a non-retried write; None drops the entry on timeout like any other exit.
+            keep_when_abandoned: Keep the entry once the caller stops waiting. Only for a
+                non-retried write, whose late reply is logged and resolves ``on_resolve``.
+            on_resolve: Resolves the write's API write record from the reply or ``fail_all``.
 
         Returns:
             The response payload once ``respond_if_necessary`` resolves the future.
@@ -118,21 +122,46 @@ class WebsocketMessageIOMixin:
             TimeoutError: If no response arrives within ``RESPONSE_TIMEOUT_SECONDS``.
         """
         fut = self.hassette.loop.create_future()
-        self._pending.register(msg_id, fut)
+        self._pending.register(
+            msg_id, fut, str(payload.get("type")), on_resolve=on_resolve, keep_when_abandoned=keep_when_abandoned
+        )
         try:
-            await self.send_json(**payload)
+            # A cancellation here (a BaseException, so not caught below) may come after the frame went out,
+            # so it counts as a caller that stopped waiting: release() keeps the entry only if
+            # keep_when_abandoned is set.
+            try:
+                await self.send_json(**payload)
+            except Exception:
+                self._pending.discard(msg_id)
+                raise
             # asyncio.wait, unlike wait_for, never cancels fut. A reply landing after the deadline
             # but before this task resumes still resolves it and is returned below, and the
-            # check-and-mark that follows has no await in it for a reply to slip into.
+            # check-and-release in the finally has no await in it for a reply to slip into.
             await asyncio.wait({fut}, timeout=RESPONSE_TIMEOUT_SECONDS)
             if fut.done():
                 return fut.result()
-            if late_reply_command is not None:
-                self._pending.mark_timed_out(msg_id, late_reply_command)
             raise TimeoutError
         finally:
-            # A no-op for an entry just marked timed out: that one stays to await its late reply.
+            # A no-op once the reply removed the entry.
+            self._pending.release(msg_id)
+
+    async def send_fire_and_forget(self, on_resolve: ResolveCallback, **data: Any) -> None:
+        """Send a write without waiting, tracking its reply in the background to resolve ``on_resolve``.
+
+        The entry is registered before sending, so a reply arriving while ``send_json`` is still
+        awaiting is never dropped. A send that fails (anything but cancellation) removes it unresolved.
+
+        Raises:
+            CommandNotSentError: As ``send_json``.
+        """
+        msg_id = self.get_next_message_id()
+        data["id"] = msg_id
+        self._pending.register_fire_and_forget(msg_id, str(data.get("type")), on_resolve)
+        try:
+            await self.send_json(**data)
+        except Exception:
             self._pending.discard(msg_id)
+            raise
 
     async def subscribe_events(self, event_type: str | None = None) -> int:
         """Subscribe to HA events; returns the subscription ID HA confirmed.
@@ -179,7 +208,9 @@ class WebsocketMessageIOMixin:
 
         return await subscribe_with_retry()
 
-    async def send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> dict[str, Any]:
+    async def send_and_wait(
+        self, *, retry_on_timeout: bool = True, on_resolve: ResolveCallback | None = None, **data: Any
+    ) -> dict[str, Any]:
         """Send a message and wait for a response.
 
         Retries only a response timeout (when ``retry_on_timeout`` allows), with exponential backoff.
@@ -199,8 +230,10 @@ class WebsocketMessageIOMixin:
                 Callers sending a non-idempotent command must pass False and accept a
                 ``ResponseTimeoutError`` on the first timeout. (``subscribe_events`` solves the same
                 problem with its own retry loop, which unsubscribes the abandoned attempt.)
-            **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
-                policy and is consumed here, so it cannot double as a payload field name.
+            on_resolve: Resolves the write's API write record from its reply or the connection's end.
+                Only with ``retry_on_timeout=False``, so the record covers exactly one sent command.
+            **data: The data to send as a JSON payload. ``retry_on_timeout`` and ``on_resolve`` are
+                client-side and consumed here, so they cannot double as payload field names.
 
         Returns:
             The response data from the WebSocket.
@@ -213,9 +246,9 @@ class WebsocketMessageIOMixin:
             CommandNotSentError: If the send gate is closed or the socket write failed. Never retried.
             CommandRejectedError: If Home Assistant answered with an error. Never retried.
         """
+        if on_resolve is not None and retry_on_timeout:
+            raise ValueError("on_resolve needs retry_on_timeout=False: a recorded write is sent exactly once")
         caller_id = data.pop("id", None)
-        command_type = str(data.get("type"))
-        late_reply_command = None if retry_on_timeout else command_type
 
         @retry(
             retry=retry_if_exception(is_retryable_ws_failure),
@@ -234,7 +267,9 @@ class WebsocketMessageIOMixin:
             data["id"] = attempt_id
 
             try:
-                return await self.send_and_await_response(data, attempt_id, late_reply_command=late_reply_command)
+                return await self.send_and_await_response(
+                    data, attempt_id, keep_when_abandoned=not retry_on_timeout, on_resolve=on_resolve
+                )
             except TimeoutError:
                 raise ResponseTimeoutError(
                     f"{command_label(data)}: no response within {RESPONSE_TIMEOUT_SECONDS}s; "
@@ -255,7 +290,7 @@ class WebsocketMessageIOMixin:
             raise
 
     def respond_if_necessary(self, message: dict) -> None:
-        """Resolve a pending response future (or log a late reply to a timed-out write) for ``message``."""
+        """Settle the pending entry ``message`` answers (see ``PendingResponses.respond_if_necessary``)."""
         self._pending.respond_if_necessary(message)
 
     async def send_json(self, **data: Any) -> None:

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
+from hassette.core.pipeline_counters import PipelineCounters
 from hassette.logging_ import LogIdentity
 from hassette.testing.config import TEST_WS_URL, make_test_config
 
@@ -78,6 +79,7 @@ def make_mock_hassette(
         - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
         - ``.database_service``: :class:`~unittest.mock.Mock` (the restart path enqueues a retire step on it)
+        - ``.pipeline_counters``: a real :class:`~hassette.core.pipeline_counters.PipelineCounters`
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
         - ``._sync_executor_service`` / ``.sync_executor_service``: ``None`` (not wired;
@@ -160,6 +162,9 @@ def make_mock_hassette(
     hassette.session_id = None
     hassette.try_session_id = Mock(return_value=None)
     hassette.database_service = Mock()
+
+    # Telemetry drop counters — real, so counting code (synchronous) never leaves an unawaited AsyncMock call.
+    hassette.pipeline_counters = PipelineCounters()
 
     # Async utilities
     hassette.wait_for_ready = AsyncMock(return_value=True)

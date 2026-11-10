@@ -32,7 +32,7 @@ second file needs them.
 
 - `test_api_app_config.py` — `get_app_config(...)`, `get_global_config(...)`, `manifest_entry(...)`, `config_toml_section(...)`
 - `test_api_app_source.py` — `get_app_source(client, mock_hassette, *, app_dir, full_path)`
-- `test_execution_endpoint.py` — `get_execution_logs(...)`
+- `test_execution_endpoint.py` — `get_execution_detail(...)`
 - `test_logs_endpoint.py` — `LOGS_RECENT_PATH`, `LOGS_LEVEL_PATH`
 - `test_problem_details.py` — `ProblemCase`, `assert_problem(...)`, `declared_codes(...)`, and the `ROUTE_CASES` table (one case per error-coverage row and code)
 - `test_dashboard_api.py` — `get_health_with_status(client, mock_hassette, **status_fields)`

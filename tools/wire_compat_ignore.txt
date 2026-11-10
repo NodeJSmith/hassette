@@ -309,3 +309,12 @@ GET /api/telemetry/job/{job_id}/executions removed the required property `outcom
 GET /api/telemetry/job/{job_id}/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
 GET /api/telemetry/listener/{listener_id}/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `422` status
 GET /api/telemetry/listener/{listener_id}/executions removed the required property `outcomes/anyOf[subschema #1]/items/instance_index` from the response with the `503` status
+
+# #3677: GET /api/executions/{id} returns ExecutionDetailResponse (execution, API writes, logs) in place of LogsByExecutionResponse.
+GET /api/executions/{execution_id} removed the required property `api_writes` from the response with the `200` status
+GET /api/executions/{execution_id} removed the required property `api_writes_truncated` from the response with the `200` status
+GET /api/executions/{execution_id} removed the required property `execution` from the response with the `200` status
+GET /api/executions/{execution_id} removed the required property `logs` from the response with the `200` status
+GET /api/executions/{execution_id} removed the required property `logs_truncated` from the response with the `200` status
+GET /api/executions/{execution_id} removed the required property `records` from the response with the `200` status
+GET /api/executions/{execution_id} removed the required property `truncated` from the response with the `200` status

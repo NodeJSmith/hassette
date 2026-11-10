@@ -77,9 +77,16 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         failsafe_label="blocking events",
     ),
     RetentionTarget(
+        table="api_writes",
+        timestamp_col="sent_ts",
+        priority=3,
+        retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="api writes",
+    ),
+    RetentionTarget(
         table="executions",
         timestamp_col="execution_start_ts",
-        priority=3,
+        priority=4,
         retention_days_getter=lambda cfg: cfg.database.retention_days,
         failsafe_label="app executions",
         source_tier="app",
@@ -87,7 +94,7 @@ _RETENTION_TABLES: list[RetentionTarget] = [
     RetentionTarget(
         table="log_records",
         timestamp_col="timestamp",
-        priority=4,
+        priority=5,
         retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
         failsafe_label="log records",
         failsafe_exempt=True,

@@ -283,7 +283,7 @@ flowchart TD
 
 ### Schema
 
-The database has seven tables:
+The database has eight tables:
 
 | Table | Purpose |
 |---|---|
@@ -293,6 +293,7 @@ The database has seven tables:
 | `executions` | Handler/job execution outcomes, including predicate failures and skipped scheduler predicates; unified with `kind` discriminator |
 | `log_records` | Captured log lines with `execution_id` linkage |
 | `blocking_events` | Detected blocking-event records from watchdog and monkeypatch tiers |
+| `api_writes` | One row per named `Api` write an app sent to Home Assistant, with how it ended |
 | `app_manifests` | Persisted app manifest metadata for dashboard and seed-database workflows |
 
 `executions` stores one row per handler or job execution outcome. Most rows correspond to actual handler/job invocations, but the table also records pre-invocation outcomes such as predicate failures and scheduler predicates that return `False` (`status='skipped'`). The `kind` column holds `'handler'` or `'job'`. `listener_id` and `job_id` are nullable foreign keys into `listeners` and `scheduled_jobs` respectively. A `CHECK` constraint enforces that exactly one is non-null per row: `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`.

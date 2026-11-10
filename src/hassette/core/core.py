@@ -38,6 +38,7 @@ from hassette.utils.service_utils import (
 from hassette.utils.version_utils import get_version
 
 from .api_resource import ApiResource
+from .api_write_recorder import ApiWriteRecorder
 from .app_bootstrap_coordinator import AppBootstrapCoordinator
 from .app_handler import AppHandler
 from .block_io_guard import install as install_block_io_guard
@@ -135,6 +136,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self._sync_executor_service: SyncExecutorService | None = None
         self._event_stream_service: EventStreamService | None = None
         self._database_service: DatabaseService | None = None
+        self._api_write_recorder: ApiWriteRecorder | None = None
         self._logging_service: LoggingService | None = None
         self._command_executor: CommandExecutor | None = None
         self._bus_service: BusService | None = None
@@ -195,6 +197,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
         self._database_service = self.add_child(DatabaseService)
+        self._api_write_recorder = ApiWriteRecorder(self)
         self._logging_service = self.add_child(LoggingService, stream_handler=self._basic_stream_handler)
         self._command_executor = self.add_child(CommandExecutor)
         self._bus_service = self.add_child(

@@ -159,6 +159,7 @@ from hassette.exceptions import (
     WS_NOT_CONNECTED_MESSAGE,
     CommandNotSentError,
     CommandRejectedError,
+    OutcomeUnknownError,
     UnableToConvertStateError,
 )
 from hassette.resources.base import Resource
@@ -187,7 +188,13 @@ def _expect_dict(val: Any, context: str) -> dict:
 # credit a leading-underscore name's use in another module, so it flags this as unused without
 # the suppression below.
 async def _ws_helper_call(  # pyright: ignore[reportUnusedFunction]
-    api: "Api", domain: str, operation: str, *, retry_on_timeout: bool = True, **data: Any
+    api: "Api",
+    domain: str,
+    operation: str,
+    *,
+    retry_on_timeout: bool = True,
+    record: "ApiWriteHandle | None" = None,
+    **data: Any,
 ) -> Any:
     """Call ws_send_and_wait with domain/operation context on failure.
 
@@ -199,10 +206,12 @@ async def _ws_helper_call(  # pyright: ignore[reportUnusedFunction]
     response can't apply them twice; ``list`` keeps the default. A disconnect raises
     ``ResponseLostError`` and a timeout raises ``ResponseTimeoutError``, both unwrapped
     with payload-free messages — catch ``OutcomeUnknownError`` for either. Only a rejection
-    is rewrapped.
+    is rewrapped. ``record`` forwards to ``ws_send_and_wait``.
     """
     try:
-        return await api.ws_send_and_wait(type=f"{domain}/{operation}", retry_on_timeout=retry_on_timeout, **data)
+        return await api.ws_send_and_wait(
+            type=f"{domain}/{operation}", retry_on_timeout=retry_on_timeout, record=record, **data
+        )
     except CommandRejectedError as exc:
         # Include only field names in the error message — values may contain
         # sensitive data (e.g., `input_text.initial` on a password-mode helper)
@@ -229,10 +238,25 @@ from hassette.api.helpers import HelperClient  # noqa: E402
 from .sync import ApiSyncFacade  # noqa: E402
 
 if typing.TYPE_CHECKING:
+    from hassette_wire import ApiWriteKind
+
     from hassette import Hassette
     from hassette.core.api_resource import ApiResource
+    from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.events import HassStateDict
     from hassette.models.states import BaseState
+
+
+def resolve_unsent(record: "ApiWriteHandle | None") -> None:
+    """Record a WebSocket write the transport never sent: refused before sending, or the send itself failed.
+
+    Any exception that isn't a rejection or an unknown outcome comes from before or during the send (a
+    closed connection, or a payload that can't be serialized), and the transport has already dropped the
+    write's pending-reply entry. If the connection dropped mid-send, ``fail_all`` resolved the record first
+    and this ``not_sent`` is ignored: a record keeps its first outcome.
+    """
+    if record is not None:
+        record.resolve("not_sent")
 
 
 class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
@@ -258,6 +282,8 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         # self._api.helpers to wire its own nested HelperClientSyncFacade.
         self.helpers = self.add_child(HelperClient, api=self)
         self.sync = self.add_child(ApiSyncFacade, api=self)
+        self._write_owner: tuple[str, str] | None = None
+        """``(app_key, instance_name)`` of the app whose writes this Api records; None records nothing."""
 
     async def on_initialize(self) -> None:
         """Mark the API ready; transport is delegated to ``hassette.api_service``, so there is nothing to set up."""
@@ -268,7 +294,43 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 
-    async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
+    def record_writes_for(self, app_key: str, instance_name: str) -> None:
+        """Record this Api's named writes as the given app instance's (``api_writes``). Called by ``App``."""
+        self._write_owner = (app_key, instance_name)
+
+    # dup-ignore-start: begin_write signature restated in the mixins' host stubs
+    def begin_write(
+        self,
+        kind: "ApiWriteKind",
+        operation: str | None,
+        *,
+        target: dict[str, list[str]] | None = None,
+        data: Any = None,
+        fire_and_forget: bool = False,
+    ) -> "ApiWriteHandle | None":
+        # dup-ignore-end
+        """Enqueue a ``pending`` record for a named write about to be sent; None when this Api records nothing.
+
+        Call once per write, before the request is registered or sent, from the write's async body.
+        ``data`` comes from the caller's own payload, so ``SecretStr`` values stay masked in the record.
+        """
+        if self._write_owner is None:
+            return None
+        app_key, instance_name = self._write_owner
+        return self.hassette.api_write_recorder.begin(
+            api_logger=self.logger,
+            app_key=app_key,
+            instance_name=instance_name,
+            kind=kind,
+            operation=operation,
+            target=target,
+            data=data,
+            fire_and_forget=fire_and_forget,
+        )
+
+    async def ws_send_and_wait(
+        self, *, retry_on_timeout: bool = True, record: "ApiWriteHandle | None" = None, **data: Any
+    ) -> Any:
         """Send a WebSocket message and wait for a response.
 
         Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
@@ -281,9 +343,10 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
                 After retries the raised class describes the last attempt only, so a
                 ``CommandNotSentError`` after an earlier timeout doesn't prove the command never
                 reached Home Assistant.
-            **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
-                policy and is consumed here, so it is the one name this method cannot
-                forward as a payload field.
+            record: The write's record (``begin_write``), resolved by its reply or the connection's
+                end. Requires ``retry_on_timeout=False``. The caller side records only ``not_sent``.
+            **data: The data to send as a JSON payload. ``retry_on_timeout`` and ``record`` are
+                consumed here, so they are the names this method cannot forward as payload fields.
 
         Raises:
             CommandNotSentError: If the connection isn't established or the write failed.
@@ -291,21 +354,42 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
             OutcomeUnknownError: If no response arrived (``ResponseTimeoutError``) or the
                 connection dropped while waiting (``ResponseLostError``).
         """
-        if not self._api_service.ws_conn.is_connected:
-            raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
-        return await self._api_service.ws_conn.send_and_wait(retry_on_timeout=retry_on_timeout, **data)
+        try:
+            if not self._api_service.ws_conn.is_connected:
+                raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
+            return await self._api_service.ws_conn.send_and_wait(
+                retry_on_timeout=retry_on_timeout, on_resolve=record.resolve if record is not None else None, **data
+            )
+        except (CommandRejectedError, OutcomeUnknownError):
+            # Sent: the pending-reply entry owns the record and already resolved it, or will.
+            raise
+        except Exception:
+            resolve_unsent(record)
+            raise
 
-    async def ws_send_json(self, **data: Any) -> None:
+    async def ws_send_json(self, *, record: "ApiWriteHandle | None" = None, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response.
 
         Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
 
+        Args:
+            record: The write's record (``begin_write``). The reply is then tracked in the background
+                and resolves it; without one, nothing waits for the reply.
+            **data: The JSON payload. ``record`` is consumed here, so it cannot be a payload field.
+
         Raises:
             CommandNotSentError: If the connection isn't established or the write failed.
         """
-        if not self._api_service.ws_conn.is_connected:
-            raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
-        await self._api_service.ws_conn.send_json(**data)
+        try:
+            if not self._api_service.ws_conn.is_connected:
+                raise CommandNotSentError(WS_NOT_CONNECTED_MESSAGE)
+            if record is None:
+                await self._api_service.ws_conn.send_json(**data)
+            else:
+                await self._api_service.ws_conn.send_fire_and_forget(record.resolve, **data)
+        except Exception:
+            resolve_unsent(record)
+            raise
 
     async def rest_request(
         self,

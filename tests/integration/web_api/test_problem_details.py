@@ -112,7 +112,7 @@ TELEMETRY_DATA_ROUTES = {
     "bus-listeners": TelemetryRoute("get_listener_summary", "/api/bus/listeners", "/api/bus/listeners"),
     "logs-recent": TelemetryRoute("get_log_records", "/api/logs/recent", "/api/logs/recent"),
     "scheduler-jobs": TelemetryRoute("get_job_summary", "/api/scheduler/jobs", "/api/scheduler/jobs"),
-    "execution-logs": TelemetryRoute(
+    "execution-detail": TelemetryRoute(
         "get_log_records_by_execution",
         f"/api/executions/{EXECUTION_UUID}",
         "/api/executions/{execution_id}",

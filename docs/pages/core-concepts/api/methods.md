@@ -223,8 +223,18 @@ The generic service call method. Service data passes as keyword arguments. They 
 --8<-- "pages/core-concepts/api/snippets/api_call_service.py"
 ```
 
-`call_service` is fire-and-forget by default. The payload goes out and a Home Assistant-side
-failure — an unknown service, invalid service data — is never reported back.
+`call_service` is fire-and-forget by default. The payload goes out and the call returns at once, so
+a Home Assistant-side failure — an unknown service, invalid service data — never raises. When the call
+comes from an app, Hassette still tracks the reply in the background: a rejection logs a WARNING on the
+app's `Api` logger, under the run that made the call, and lands on the call's
+[API write record](../database-telemetry.md#what-is-collected).
+
+Every write method on an app's `self.api` is recorded: `call_service` (and the helpers built on it),
+`fire_event`, `set_state`, `delete_entity`, and helper `create`/`update`/`delete`. So are the
+action methods of an entity the app fetched with `get_entity`, such as `turn_on` or `unlock`. A recorded
+`success` means Home Assistant's handler returned, not that the device changed state.
+`hassette execution <id>` lists a run's writes. The internal transport methods (`ws_send_json`,
+`ws_send_and_wait`, `rest_request` and its GET/POST/DELETE variants) aren't recorded.
 
 `wait_for_ack=True` waits for Home Assistant's confirmation instead, and raises
 [`CommandRejectedError`][hassette.exceptions.CommandRejectedError] when the call fails. The wait

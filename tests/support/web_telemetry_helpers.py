@@ -4,15 +4,18 @@ from typing import Literal
 
 from hassette_wire import (
     ActivityFeedEntry,
+    ApiWrite,
+    ApiWriteKind,
+    ApiWriteOutcome,
     BackpressurePolicy,
     Execution,
+    ExecutionDetailResponse,
     ExecutionMode,
     ExecutionStatus,
     ExecutionTrigger,
     ListenerSummary,
     LogAuthor,
     LogEntry,
-    LogsByExecutionResponse,
     SourceTier,
 )
 
@@ -220,16 +223,57 @@ def make_log_entry(
     )
 
 
-def make_logs_by_execution_response(
-    records: list[LogEntry] | None = None,
-    truncated: bool = False,
+def make_api_write(
+    write_id: str = "write-1",
+    *,
+    kind: ApiWriteKind = "call_service",
+    operation: str | None = "light.turn_on",
+    target: dict[str, list[str]] | None = None,
+    data: str | None = None,
+    outcome: ApiWriteOutcome = "success",
+    error_code: str | None = None,
+    error_message: str | None = None,
+    context_id: str | None = None,
+    sent_ts: float = TEST_EPOCH_B,
+    resolved_ts: float | None = TEST_EPOCH_B,
+    execution_id: str | None = None,
+    app_key: str = DEFAULT_TEST_APP_KEY,
+    instance_name: str = DEFAULT_TEST_INSTANCE_NAME,
+) -> ApiWrite:
+    """Build an ApiWrite with sensible defaults (a successful ``light.turn_on`` on ``light.kitchen``)."""
+    return ApiWrite(
+        write_id=write_id,
+        app_key=app_key,
+        instance_name=instance_name,
+        execution_id=execution_id,
+        kind=kind,
+        operation=operation,
+        target=target if target is not None else {"entity_id": ["light.kitchen"]},
+        data=data,
+        outcome=outcome,
+        error_code=error_code,
+        error_message=error_message,
+        context_id=context_id,
+        sent_ts=sent_ts,
+        resolved_ts=resolved_ts,
+    )
+
+
+def make_execution_detail_response(
+    *,
+    execution: Execution | None = None,
+    api_writes: list[ApiWrite] | None = None,
+    api_writes_truncated: bool = False,
+    logs: list[LogEntry] | None = None,
+    logs_truncated: bool = False,
     retention_expired: bool = False,
-) -> LogsByExecutionResponse:
-    """Build a LogsByExecutionResponse with sensible defaults."""
-    if records is None:
-        records = [make_log_entry()]
-    return LogsByExecutionResponse(
-        records=records,
-        truncated=truncated,
+) -> ExecutionDetailResponse:
+    """Build an ExecutionDetailResponse; ``logs`` defaults to one entry, ``api_writes`` to none."""
+    return ExecutionDetailResponse(
+        execution=execution,
+        api_writes=api_writes or [],
+        api_writes_truncated=api_writes_truncated,
+        logs=logs if logs is not None else [make_log_entry()],
+        logs_truncated=logs_truncated,
         retention_expired=retention_expired,
     )

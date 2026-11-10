@@ -162,6 +162,9 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         self.debug_capture = debug_capture
         super().__init__(hassette, parent=parent)
         self.api = cast("Api", self.add_child(api_factory or Api))
+        if isinstance(self.api, Api):
+            # Only an app's own Api records its writes; a test double such as RecordingApi records nothing.
+            self.api.record_writes_for(app_key, self.instance_name)
         self.scheduler = self.add_child(Scheduler)
         self.bus = self.add_child(Bus, priority=0)
         self.states = self.add_child(StateManager)

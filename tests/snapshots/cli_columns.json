@@ -502,6 +502,50 @@
     ]
   },
   "log": {
+    "API_WRITE_COLUMNS": [
+      {
+        "field": "sent_ts",
+        "formatter": "fmt_relative_time",
+        "header": "Sent",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "kind",
+        "formatter": null,
+        "header": "Kind",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "operation",
+        "formatter": null,
+        "header": "Operation",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "target",
+        "formatter": "fmt_write_target",
+        "header": "Target",
+        "max_width": null,
+        "overflow": "fold"
+      },
+      {
+        "field": "outcome",
+        "formatter": null,
+        "header": "Outcome",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "error_code",
+        "formatter": null,
+        "header": "Error",
+        "max_width": null,
+        "overflow": "ellipsis"
+      }
+    ],
     "EXECUTION_LOG_COLUMNS": [
       {
         "field": "timestamp",

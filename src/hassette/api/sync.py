@@ -23,6 +23,7 @@ from hassette.resources.lifecycle import mark_ready
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
+    from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.events.hass.raw import HassStateDict
     from hassette.models.entities import EntityT
     from hassette.models.states.base import BaseState
@@ -54,7 +55,9 @@ class ApiSyncFacade(Resource):
         """Return the configured API log level, shared with the async ``Api``."""
         return self.hassette.config.logging.api
 
-    def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
+    def ws_send_and_wait(
+        self, *, retry_on_timeout: bool = True, record: "ApiWriteHandle | None" = None, **data: Any
+    ) -> Any:
         """Send a WebSocket message and wait for a response.
 
         Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
@@ -67,9 +70,10 @@ class ApiSyncFacade(Resource):
                 After retries the raised class describes the last attempt only, so a
                 ``CommandNotSentError`` after an earlier timeout doesn't prove the command never
                 reached Home Assistant.
-            **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
-                policy and is consumed here, so it is the one name this method cannot
-                forward as a payload field.
+            record: The write's record (``begin_write``), resolved by its reply or the connection's
+                end. Requires ``retry_on_timeout=False``. The caller side records only ``not_sent``.
+            **data: The data to send as a JSON payload. ``retry_on_timeout`` and ``record`` are
+                consumed here, so they are the names this method cannot forward as payload fields.
 
         Raises:
             CommandNotSentError: If the connection isn't established or the write failed.
@@ -77,17 +81,24 @@ class ApiSyncFacade(Resource):
             OutcomeUnknownError: If no response arrived (``ResponseTimeoutError``) or the
                 connection dropped while waiting (``ResponseLostError``).
         """
-        return self.task_bucket.run_sync(self._api.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **data))
+        return self.task_bucket.run_sync(
+            self._api.ws_send_and_wait(retry_on_timeout=retry_on_timeout, record=record, **data)
+        )
 
-    def ws_send_json(self, **data: Any) -> None:
+    def ws_send_json(self, *, record: "ApiWriteHandle | None" = None, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response.
 
         Internal transport method, unsupported for app code. Use a named ``Api`` method instead.
 
+        Args:
+            record: The write's record (``begin_write``). The reply is then tracked in the background
+                and resolves it; without one, nothing waits for the reply.
+            **data: The JSON payload. ``record`` is consumed here, so it cannot be a payload field.
+
         Raises:
             CommandNotSentError: If the connection isn't established or the write failed.
         """
-        return self.task_bucket.run_sync(self._api.ws_send_json(**data))
+        return self.task_bucket.run_sync(self._api.ws_send_json(record=record, **data))
 
     def rest_request(
         self,

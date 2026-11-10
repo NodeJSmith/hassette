@@ -48,9 +48,9 @@ def test_success_requests_skip_requests_missing_their_seed_id() -> None:
     assert "health" in without_ids
 
 
-def test_execution_logs_falls_back_to_an_unknown_uuid() -> None:
-    [without] = [r for r in success_requests(NO_IDS) if r.name == "execution-logs"]
-    [with_logs] = [r for r in success_requests(ALL_IDS) if r.name == "execution-logs"]
+def test_execution_detail_falls_back_to_an_unknown_uuid() -> None:
+    [without_request] = [r for r in success_requests(NO_IDS) if r.name == "execution-detail"]
+    [with_ids_request] = [r for r in success_requests(ALL_IDS) if r.name == "execution-detail"]
 
-    assert without.params["execution_id"] == UNKNOWN_EXECUTION_UUID
-    assert with_logs.params["execution_id"] == ALL_IDS.logged_execution_id
+    assert without_request.params["execution_id"] == UNKNOWN_EXECUTION_UUID
+    assert with_ids_request.params["execution_id"] == ALL_IDS.logged_execution_id

@@ -406,17 +406,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Execution Logs
-         * @description Return a single execution's log records, with retention-expired detection.
+         * Get Execution Detail
+         * @description Return one execution's record, the API writes it made, and its log records.
          *
-         *     For UUIDv7 execution IDs, the embedded timestamp is extracted directly without a
-         *     database lookup. For historical UUIDv4 IDs, the database is queried to determine
-         *     whether retention has expired.
+         *     ``limit`` caps the writes and the logs separately. The record is written in batches, so it can
+         *     lag the logs by a few seconds: ``execution`` is null until it lands (or once retention removed it).
          *
-         *     Returns 422 if the execution_id is not a valid UUID. Returns an empty record list
-         *     with ``retention_expired=True`` if the execution is older than the log retention window.
+         *     For UUIDv7 execution IDs, the embedded timestamp decides ``retention_expired`` without a
+         *     database lookup. For historical UUIDv4 IDs, the database is queried.
+         *
+         *     Returns 422 if the execution_id is not a valid UUID.
          */
-        get: operations["get_execution_logs_api_executions__execution_id__get"];
+        get: operations["get_execution_detail_api_executions__execution_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -919,6 +920,85 @@ export interface components {
             kind: "handler" | "job";
         };
         /**
+         * ApiWrite
+         * @description One write an app's ``Api`` sent to Home Assistant, and how it ended.
+         */
+        ApiWrite: {
+            /**
+             * Write Id
+             * @description Unique id of the write, assigned when it was sent.
+             */
+            write_id: string;
+            /** App Key */
+            app_key: string;
+            /** Instance Name */
+            instance_name: string;
+            /**
+             * Execution Id
+             * @description The handler or job execution that made the write. None for a write made outside one.
+             */
+            execution_id?: string | null;
+            /**
+             * Kind
+             * @description Which ``Api`` write it was. ``turn_on``/``turn_off``/``toggle``, ``notify`` and the counter helpers record
+             *     as ``call_service``.
+             * @enum {string}
+             */
+            kind: "call_service" | "fire_event" | "set_state" | "delete_entity" | "helper_create" | "helper_update" | "helper_delete";
+            /**
+             * Operation
+             * @description ``domain.service`` for a service call, the event type, or the helper domain. None for ``set_state`` and
+             *     ``delete_entity``.
+             */
+            operation?: string | null;
+            /**
+             * Target
+             * @description What the write acted on, as lists of ids: Home Assistant's target keys for a service call (wherever the
+             *     caller passed them), ``entity_id`` for ``set_state``/``delete_entity``, ``helper_id`` for a helper update or
+             *     delete. None otherwise.
+             */
+            target?: {
+                [key: string]: string[];
+            } | null;
+            /**
+             * Data
+             * @description Everything else the caller passed, as a display string (a string as-is, anything else as compact JSON),
+             *     cut to 2,048 characters with a trailing ``…``. Stored unredacted, except values wrapped in ``SecretStr``.
+             */
+            data?: string | null;
+            /**
+             * Outcome
+             * @description How the write ended; see ``ApiWriteOutcome``.
+             * @enum {string}
+             */
+            outcome: "pending" | "success" | "rejected" | "connection_lost" | "unresolved" | "not_sent";
+            /**
+             * Error Code
+             * @description Home Assistant's error code for a rejected WebSocket write, or the HTTP status for a rejected REST write.
+             */
+            error_code?: string | null;
+            /**
+             * Error Message
+             * @description Home Assistant's error message for a rejected write.
+             */
+            error_message?: string | null;
+            /**
+             * Context Id
+             * @description The Home Assistant context id the write ran under, when Home Assistant returned one.
+             */
+            context_id?: string | null;
+            /**
+             * Sent Ts
+             * @description When the write was sent (or attempted, for ``not_sent``).
+             */
+            sent_ts: number;
+            /**
+             * Resolved Ts
+             * @description When the outcome was observed. None while ``pending``, and for ``unresolved``.
+             */
+            resolved_ts?: number | null;
+        };
+        /**
          * AppActivity
          * @description How an app is doing over the grid's time window (``AppGridResponse.since``).
          *
@@ -1377,6 +1457,42 @@ export interface components {
             detail: string;
         };
         /**
+         * CausingWrite
+         * @description The recorded API write whose Home Assistant context fired a handler execution.
+         *
+         *     Matched on Home Assistant's context id, best-effort: only a write that got a context id back from Home
+         *     Assistant matches, and the match disappears once the write's record ages out of retention.
+         */
+        CausingWrite: {
+            /**
+             * App Key
+             * @description The app that made the write.
+             */
+            app_key: string;
+            /**
+             * Instance Name
+             * @description The app instance that made the write.
+             */
+            instance_name: string;
+            /**
+             * Execution Id
+             * @description The execution that made the write. None for a write made outside a handler or job (e.g. in ``on_initialize``).
+             */
+            execution_id?: string | null;
+            /**
+             * Kind
+             * @description Which ``Api`` write it was.
+             * @enum {string}
+             */
+            kind: "call_service" | "fire_event" | "set_state" | "delete_entity" | "helper_create" | "helper_update" | "helper_delete";
+            /**
+             * Operation
+             * @description ``domain.service`` for a service call, the event type, or the helper domain. None for ``set_state`` and
+             *     ``delete_entity``.
+             */
+            operation?: string | null;
+        };
+        /**
          * ConfigSchemaResponse
          * @description Complete Hassette configuration as a JSON schema plus current values.
          *
@@ -1526,6 +1642,46 @@ export interface components {
             thread_leaked: boolean;
         };
         /**
+         * ExecutionDetailResponse
+         * @description One handler or job execution: its record, the API writes it made, and its log records.
+         *
+         *     Served by ``GET /api/executions/{execution_id}``. ``api_writes`` and ``logs`` are each capped by the request's
+         *     ``limit``.
+         */
+        ExecutionDetailResponse: {
+            /**
+             * @description The execution record. None while it isn't recorded yet (records are written in batches, so it can lag the
+             *     logs by a few seconds) or after retention removed it.
+             */
+            execution: components["schemas"]["Execution"] | null;
+            /**
+             * Api Writes
+             * @description The writes the execution sent to Home Assistant, oldest first.
+             */
+            api_writes: components["schemas"]["ApiWrite"][];
+            /**
+             * Api Writes Truncated
+             * @description ``True`` when the execution made more writes than the request's limit; the rest are omitted.
+             */
+            api_writes_truncated: boolean;
+            /**
+             * Logs
+             * @description The log records the execution emitted, oldest first.
+             */
+            logs: components["schemas"]["LogEntry"][];
+            /**
+             * Logs Truncated
+             * @description ``True`` when the execution emitted more records than the request's limit; the rest are omitted.
+             */
+            logs_truncated: boolean;
+            /**
+             * Retention Expired
+             * @description ``True`` when ``logs`` is empty and the execution is older than the server's log retention window:
+             *     its records may have been deleted, or it may never have logged.
+             */
+            retention_expired: boolean;
+        };
+        /**
          * ExecutionMode
          * @description Overlap behavior for a listener when a trigger fires while a prior invocation still runs.
          * @enum {string}
@@ -1587,6 +1743,14 @@ export interface components {
              *     immediate-fire run, whose event hassette built from the cached state).
              */
             origin?: string | null;
+            /**
+             * @description The recorded API write whose context this run's event carries, when ``context_id`` matches one.
+             *
+             *     For an immediate-fire run that's the write that set the state the run fired on, not what fired it. Only a direct
+             *     match counts: a write that sets off a Home Assistant automation is not reported on the automation's downstream
+             *     runs.
+             */
+            caused_by?: components["schemas"]["CausingWrite"] | null;
         };
         /**
          * InstanceDebugCapture
@@ -2090,25 +2254,6 @@ export interface components {
              * @enum {string}
              */
             effective_level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
-        };
-        /**
-         * LogsByExecutionResponse
-         * @description The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``.
-         */
-        LogsByExecutionResponse: {
-            /** Records */
-            records: components["schemas"]["LogEntry"][];
-            /**
-             * Truncated
-             * @description ``True`` when the execution emitted more records than the request's limit; the rest are omitted.
-             */
-            truncated: boolean;
-            /**
-             * Retention Expired
-             * @description ``True`` when ``records`` is empty and the execution is older than the server's log retention window:
-             *     its records may have been deleted, or it may never have logged.
-             */
-            retention_expired: boolean;
         };
         /**
          * NeedsRestart
@@ -3351,7 +3496,7 @@ export interface operations {
             };
         };
     };
-    get_execution_logs_api_executions__execution_id__get: {
+    get_execution_detail_api_executions__execution_id__get: {
         parameters: {
             query?: {
                 limit?: number;
@@ -3372,7 +3517,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LogsByExecutionResponse"];
+                    "application/json": components["schemas"]["ExecutionDetailResponse"];
                 };
             };
             /** @description Validation Error */

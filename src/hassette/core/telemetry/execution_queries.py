@@ -1,8 +1,9 @@
 """Execution-level telemetry query methods against the unified executions table."""
 
+import json
 from typing import TYPE_CHECKING, Any
 
-from hassette_wire import ActivityFeedEntry, Execution, ExecutionTrigger, QuerySourceTier
+from hassette_wire import ActivityFeedEntry, ApiWrite, CausingWrite, Execution, ExecutionTrigger, QuerySourceTier
 
 from hassette.core.telemetry.helpers import (
     SQL_FAILED_STATUSES,
@@ -39,11 +40,29 @@ TRIGGER_COLUMNS: dict[str, str] = {
     "trigger_origin": "origin",
 }
 
+# The write whose context fired a handler run: at most one (the earliest sent), so a repeated context id never
+# duplicates execution rows. Uses idx_aw_context. Job rows have no trigger_context_id and read NULL.
+_CAUSED_BY_SUBQUERY = """(
+    SELECT json_object(
+        'app_key', w.app_key, 'instance_name', w.instance_name, 'execution_id', w.execution_id,
+        'kind', w.kind, 'operation', w.operation
+    )
+    FROM api_writes w
+    WHERE w.context_id = e.trigger_context_id
+    ORDER BY w.sent_ts
+    LIMIT 1
+) AS caused_by"""
+
 _EXECUTION_SELECT_COLUMNS = (
     "e.kind, e.listener_id, e.job_id, e.execution_start_ts, e.duration_ms, "
     "e.status, e.source_tier, e.error_type, e.error_message, e.error_traceback, "
     "e.execution_id, e.trigger_mode, e.retry_count, e.attempt_number, e.args_json, e.kwargs_json, "
-    "e.thread_leaked, " + ", ".join(f"e.{column}" for column in TRIGGER_COLUMNS)
+    "e.thread_leaked, " + ", ".join(f"e.{column}" for column in TRIGGER_COLUMNS) + ", " + _CAUSED_BY_SUBQUERY
+)
+
+_API_WRITE_COLUMNS = (
+    "write_id, app_key, instance_name, execution_id, kind, operation, target, data, outcome, "
+    "error_code, error_message, context_id, sent_ts, resolved_ts"
 )
 
 
@@ -114,6 +133,20 @@ class ExecutionQueriesMixin:
         if row is None:
             return None
         return execution_from_row(row_to_dict(row))
+
+    async def get_api_writes_by_execution(self, execution_id: str, *, limit: int) -> tuple[list[ApiWrite], bool]:
+        """Return one execution's API writes, oldest first, and whether more than ``limit`` exist."""
+        query = f"""
+            SELECT {_API_WRITE_COLUMNS}
+            FROM api_writes
+            WHERE execution_id = :execution_id
+            ORDER BY sent_ts, id
+            LIMIT :limit
+        """
+        async with self.execute(query, {"execution_id": execution_id, "limit": limit + 1}) as cursor:
+            rows = list(await cursor.fetchall())
+        writes = [api_write_from_row(row_to_dict(row)) for row in rows[:limit]]
+        return writes, len(rows) > limit
 
     async def get_app_recent_activity(
         self,
@@ -326,10 +359,20 @@ def execution_from_row(row: dict[str, Any]) -> Execution:
     """Build the wire ``Execution`` from an executions row, nesting the ``trigger_*`` columns.
 
     ``trigger`` is None for job rows; every handler row gets an object, with any column the row has
-    no value for left None.
+    no value for left None, and ``caused_by`` from the row's ``caused_by`` JSON object.
     """
-    base = {key: value for key, value in row.items() if key not in TRIGGER_COLUMNS}
+    base = {key: value for key, value in row.items() if key not in TRIGGER_COLUMNS and key != "caused_by"}
     trigger = None
     if row["kind"] == "handler":
-        trigger = ExecutionTrigger(**{field: row[column] for column, field in TRIGGER_COLUMNS.items()})
+        caused_by = row.get("caused_by")
+        trigger = ExecutionTrigger(
+            **{field: row[column] for column, field in TRIGGER_COLUMNS.items()},
+            caused_by=CausingWrite.model_validate_json(caused_by) if caused_by is not None else None,
+        )
     return Execution.model_validate({**base, "trigger": trigger})
+
+
+def api_write_from_row(row: dict[str, Any]) -> ApiWrite:
+    """Build the wire ``ApiWrite`` from an ``api_writes`` row, decoding the JSON ``target``."""
+    target = row["target"]
+    return ApiWrite.model_validate({**row, "target": json.loads(target) if target is not None else None})

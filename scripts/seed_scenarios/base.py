@@ -6,6 +6,7 @@ package docstring in ``__init__.py`` for the duplicate-detector rationale behind
 ``dup-ignore-file`` markers those modules carry.
 """
 
+import json
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
@@ -89,6 +90,25 @@ _BLOCKING_EVENT_COLUMNS = (
     "frames",
 )
 
+# api_writes table columns (see migrations_sql/024.sql), excluding the autoincrement id.
+_API_WRITE_COLUMNS = (
+    "write_id",
+    "session_id",
+    "app_key",
+    "instance_name",
+    "execution_id",
+    "kind",
+    "operation",
+    "target",
+    "data",
+    "outcome",
+    "error_code",
+    "error_message",
+    "context_id",
+    "sent_ts",
+    "resolved_ts",
+)
+
 
 class SeedIntegrityError(Exception):
     """Raised when a post-seed integrity check (FK check or consistency assertion) fails."""
@@ -132,6 +152,7 @@ def _build_insert_sql(table: str, columns: Iterable[str], *, returning: bool = F
 _SESSION_INSERT_SQL = _build_insert_sql("sessions", _SESSION_COLUMNS, returning=True)
 _LOG_INSERT_SQL = _build_insert_sql("log_records", LOG_RECORD_COLUMNS)
 _BLOCKING_EVENT_INSERT_SQL = _build_insert_sql("blocking_events", _BLOCKING_EVENT_COLUMNS)
+_API_WRITE_INSERT_SQL = _build_insert_sql("api_writes", _API_WRITE_COLUMNS)
 
 
 def insert_row(cursor: sqlite3.Cursor, sql: str, params: dict[str, Any]) -> int:
@@ -365,6 +386,10 @@ class SeedContext:
             "frames": frames,
         }
         insert_row(self.cursor, _BLOCKING_EVENT_INSERT_SQL, params)
+
+    def add_api_write(self, params: dict[str, Any]) -> None:
+        """Insert an api_writes row; ``params`` carries every column in ``_API_WRITE_COLUMNS``."""
+        insert_row(self.cursor, _API_WRITE_INSERT_SQL, params)
 
 
 @contextmanager
@@ -643,3 +668,44 @@ def seed_app_blocking_event(
         source_tier="app",
         stall_duration_ms=stall_duration_ms,
     )
+
+
+def seed_app_api_writes(
+    ctx: SeedContext,
+    *,
+    scenario: str,
+    app_key: str,
+    class_name: str,
+    session_id: int,
+    base_offset: float,
+    entity_id: str,
+    count: int,
+    n_rejected: int = 0,
+) -> None:
+    """Seed ``count`` ``light.turn_on`` writes, one per handler execution ``0..count-1`` of the app.
+
+    The first ``n_rejected`` are rejected by Home Assistant; the rest succeed with a context id. Each write is
+    sent a second into its execution, matching ``seed_executions``' 60-second spacing.
+    """
+    for index in range(count):
+        rejected = index < n_rejected
+        sent = ts(base_offset + index * 60.0 + 1.0)
+        ctx.add_api_write(
+            {
+                "write_id": f"{scenario}_{app_key}_write_{index:04d}",
+                "session_id": session_id,
+                "app_key": app_key,
+                "instance_name": make_instance_name(class_name, 0),
+                "execution_id": make_execution_id(scenario, app_key, index),
+                "kind": "call_service",
+                "operation": "light.turn_on",
+                "target": json.dumps({"entity_id": [entity_id]}, separators=(",", ":")),
+                "data": '{"brightness":200}',
+                "outcome": "rejected" if rejected else "success",
+                "error_code": "service_validation_error" if rejected else None,
+                "error_message": "Brightness out of range" if rejected else None,
+                "context_id": None if rejected else f"{scenario}_{app_key}_ctx_{index:04d}",
+                "sent_ts": sent,
+                "resolved_ts": sent + 0.05,
+            }
+        )

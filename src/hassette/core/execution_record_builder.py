@@ -176,9 +176,17 @@ def tracked_value(state: "HassStateDict | None", attribute: str | None) -> str |
 
 def format_trigger_value(value: Any) -> str:
     """Strings as-is, anything else as compact JSON; cut to ``TRIGGER_VALUE_MAX_CHARS`` with a trailing ``…``."""
+    return format_display_value(value, TRIGGER_VALUE_MAX_CHARS)
+
+
+def format_display_value(value: Any, max_chars: int) -> str:
+    """Strings as-is, anything else as compact JSON; cut to ``max_chars`` code points with a trailing ``…``.
+
+    ``default=str`` renders values JSON can't encode by their ``str()``, so a ``SecretStr`` stores masked.
+    """
     text = (
         value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
     )
-    if len(text) <= TRIGGER_VALUE_MAX_CHARS:
+    if len(text) <= max_chars:
         return text
-    return text[: TRIGGER_VALUE_MAX_CHARS - len(TRUNCATION_MARK)] + TRUNCATION_MARK
+    return text[: max_chars - len(TRUNCATION_MARK)] + TRUNCATION_MARK

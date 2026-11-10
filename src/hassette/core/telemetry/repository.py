@@ -4,6 +4,7 @@ import time
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+import orjson
 from hassette_wire import ScheduleStatus, ScheduleStatusReason
 
 from hassette.config.classes import AppManifest
@@ -32,6 +33,9 @@ from hassette.utils.stack_frames import encode_frames
 LOGGER = getLogger(__name__)
 
 if TYPE_CHECKING:
+    from hassette_wire import ApiWriteOutcome
+
+    from hassette.core.api_write_recorder import ApiWriteRow
     from hassette.core.database_service import DatabaseService
 
 
@@ -492,6 +496,88 @@ class TelemetryRepository:
                 event.tier,
                 event.app_key,
                 event.primitive,
+                exc_info=True,
+            )
+
+    async def insert_api_write(self, row: "ApiWriteRow") -> None:
+        """Insert a ``pending`` ``api_writes`` row for a write being sent.
+
+        A DB write failure is logged with the write's identity and the row dropped; its later outcome
+        update then matches nothing.
+        """
+        db = self._db_service.db
+        try:
+            await db.execute(
+                """
+                INSERT INTO api_writes (
+                    write_id, session_id, app_key, instance_name, execution_id,
+                    kind, operation, target, data, outcome, sent_ts
+                ) VALUES (
+                    :write_id, :session_id, :app_key, :instance_name, :execution_id,
+                    :kind, :operation, :target, :data, 'pending', :sent_ts
+                )
+                """,
+                {
+                    "write_id": row.write_id,
+                    "session_id": row.session_id,
+                    "app_key": row.app_key,
+                    "instance_name": row.instance_name,
+                    "execution_id": row.execution_id,
+                    "kind": row.kind,
+                    "operation": row.operation,
+                    "target": None if row.target is None else orjson.dumps(row.target).decode(),
+                    "data": row.data,
+                    "sent_ts": row.sent_ts,
+                },
+            )
+            await db.commit()
+        except STORAGE_ERRORS:
+            LOGGER.warning(
+                "Dropped api_writes row (DB write failed) — app=%s kind=%s write=%s",
+                row.app_key,
+                row.kind,
+                row.write_id,
+                exc_info=True,
+            )
+
+    async def update_api_write_outcome(
+        self,
+        write_id: str,
+        *,
+        outcome: "ApiWriteOutcome",
+        context_id: str | None,
+        error_code: str | None,
+        error_message: str | None,
+        resolved_ts: float | None,
+    ) -> None:
+        """Set a pending write row's outcome; a row that already has one keeps it (first outcome wins).
+
+        A DB write failure is logged and the row left as it was.
+        """
+        db = self._db_service.db
+        try:
+            await db.execute(
+                """
+                UPDATE api_writes
+                SET outcome = :outcome, context_id = :context_id, error_code = :error_code,
+                    error_message = :error_message, resolved_ts = :resolved_ts
+                WHERE write_id = :write_id AND outcome = 'pending'
+                """,
+                {
+                    "write_id": write_id,
+                    "outcome": outcome,
+                    "context_id": context_id,
+                    "error_code": error_code,
+                    "error_message": error_message,
+                    "resolved_ts": resolved_ts,
+                },
+            )
+            await db.commit()
+        except STORAGE_ERRORS:
+            LOGGER.warning(
+                "Dropped api_writes outcome update (DB write failed) — write=%s outcome=%s",
+                write_id,
+                outcome,
                 exc_info=True,
             )
 

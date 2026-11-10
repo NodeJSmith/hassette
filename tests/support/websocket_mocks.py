@@ -1,12 +1,14 @@
 """WebsocketService test-double helpers."""
 
 from collections.abc import Coroutine
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.testing._ws_mocks import make_task_bucket_spawn_stub
 
 if TYPE_CHECKING:
+    import asyncio
+
     from hassette.core.websocket_service import WebsocketService
 
 
@@ -23,3 +25,13 @@ def stub_connect_sequence(websocket_service: "WebsocketService") -> list[Corouti
     websocket_service.task_bucket.spawn = spawn_stub
     websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
     return spawned_coros
+
+
+def awaited_future(websocket_service: "WebsocketService", msg_id: int) -> "asyncio.Future[Any]":
+    """The response future a caller awaits for ``msg_id``, for a test standing in for Home Assistant's reply.
+
+    Fails the test if the entry is a fire-and-forget write, which has no future.
+    """
+    fut = websocket_service._pending.entries[msg_id].future  # pyright: ignore[reportPrivateUsage]
+    assert fut is not None, f"message {msg_id} has no awaited future"
+    return fut

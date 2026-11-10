@@ -18,6 +18,16 @@ paths catch one delivery state (`CommandNotSentError`, `CommandRejectedError`,
 `OutcomeUnknownError`) and re-raise it as another, erasing what the caller needs
 to know about whether the command applied?
 
+## Write Records
+Every named write calls `begin_write()` (`src/hassette/api/api.py`) once before it
+sends, and its record reaches exactly one outcome. Does a new or changed write
+in `api.py`, `service_calls.py`, `entity_data.py`, `helpers.py`, or an entity
+action call it? For a WebSocket write, is the handle passed as `record=` so the
+pending-reply entry resolves it; for a REST write, does every exit (the
+`except BaseException` path included) resolve it through `resolve_rest_failure()`
+or `resolve()`? A write that skips the call is missing from the execution's
+API writes with nothing to show it was dropped.
+
 ## Mode Interaction
 When two API options can be combined (e.g., `return_response` + `wait_for_ack`
 in `src/hassette/api/service_calls.py`), is each combination explicitly handled? An

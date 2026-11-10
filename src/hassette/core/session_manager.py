@@ -62,7 +62,7 @@ class SessionManager(Resource):
         return self._session_id
 
     async def mark_orphaned_sessions(self) -> None:
-        """Mark any sessions left with stopped_at NULL as orphaned."""
+        """Mark sessions left with stopped_at NULL as orphaned, and earlier runs' pending API writes as unresolved."""
         await self._database_service.submit(self._do_mark_orphaned_sessions())
 
     async def create_session(self) -> None:
@@ -102,7 +102,7 @@ class SessionManager(Resource):
         await self._database_service.submit(self._do_finalize_session(drop_counters))
 
     async def _do_mark_orphaned_sessions(self) -> None:
-        """Execute the orphan-session UPDATE; called by the write-queue worker.
+        """Run the orphan-session and pending-write UPDATE statements; called by the write-queue worker.
 
         Matches any session left with stopped_at IS NULL from a previous process run —
         not just status='running'. A session already marked 'failure' that never got its
@@ -125,6 +125,11 @@ class SessionManager(Resource):
         )
         if cursor.rowcount and cursor.rowcount > 0:
             self.logger.warning("Marked %d orphaned session(s) as ended", cursor.rowcount)
+        # Runs before this process creates its session, so every pending write belongs to an earlier
+        # process: nothing will resolve it now, whether that process ended cleanly or crashed.
+        cursor = await db.execute("UPDATE api_writes SET outcome = 'unresolved' WHERE outcome = 'pending'")
+        if cursor.rowcount and cursor.rowcount > 0:
+            self.logger.info("Marked %d API write(s) left pending by an earlier run as unresolved", cursor.rowcount)
         await db.commit()
 
     async def _do_create_session(self) -> int:
