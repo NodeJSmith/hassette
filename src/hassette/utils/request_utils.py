@@ -3,12 +3,28 @@ from datetime import datetime
 from typing import Any
 
 import orjson
+from pydantic import SecretStr
 from whenever import Date, Instant, PlainDateTime, ZonedDateTime
 
 
 def orjson_dump(data: Any) -> str:
     """Serialize data to a JSON string with orjson, stringifying values it cannot encode natively."""
     return orjson.dumps(data, default=str).decode("utf-8")
+
+
+def unwrap_secrets(value: Any) -> Any:
+    """Return *value* with every ``SecretStr`` replaced by its plaintext, recursing into mappings, lists and tuples.
+
+    Used when building a message for Home Assistant, which needs the real value. Containers are copied, never
+    mutated, so the caller's payload (and anything logged or recorded from it) keeps the masked ``SecretStr``.
+    """
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    if isinstance(value, Mapping):
+        return {k: unwrap_secrets(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [unwrap_secrets(v) for v in value]
+    return value
 
 
 def format_time_param(value: PlainDateTime | ZonedDateTime | Date | str) -> str:
