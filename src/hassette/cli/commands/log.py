@@ -109,11 +109,7 @@ def cmd_execution(
 
 
 def execution_summary(execution: Execution) -> dict[str, Any]:
-    """The human-mode summary block: outcome and timing, plus a Trigger section for handler runs.
-
-    Values that come from Home Assistant or an exception are escaped, since the panel renders Rich
-    markup and a state like ``[Live] Show`` would otherwise be swallowed or crash the render.
-    """
+    """The human-mode summary block: outcome and timing, plus a Trigger section for handler runs."""
     summary: dict[str, Any] = {
         "kind": execution.kind,
         "status": execution.status,
@@ -124,7 +120,7 @@ def execution_summary(execution: Execution) -> dict[str, Any]:
         summary["trigger_mode"] = execution.trigger_mode
     if execution.error_type is not None:
         message = execution.error_message
-        summary["error"] = escape(f"{execution.error_type}: {message}" if message else execution.error_type)
+        summary["error"] = f"{execution.error_type}: {message}" if message else execution.error_type
     trigger = execution.trigger
     if trigger is not None:
         has_change = trigger.old_value is not None or trigger.new_value is not None
@@ -138,7 +134,7 @@ def execution_summary(execution: Execution) -> dict[str, Any]:
             "parent_id": trigger.parent_id,
             "origin": trigger.origin,
         }
-        summary["trigger"] = {key: escape(value) if value is not None else None for key, value in fields.items()}
+        summary["trigger"] = fields
     return summary
 
 

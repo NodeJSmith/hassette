@@ -236,6 +236,12 @@ class TestRenderDetailCliFormat:
 
 
 class TestRenderDetailDict:
+    def test_markup_like_text_renders_literally(self) -> None:
+        data = {"pattern": "[/x]", "[bold]key": "[bold]v", "nested": {"[/k]": "[/v]"}}
+        stdout, _stderr = capture_human(render_detail_dict, data, "T", json_mode=False)
+        for literal in ("[/x]", "[bold]key", "[bold]v", "[/k]", "[/v]"):
+            assert literal in stdout
+
     def test_empty_group_section_omitted(self) -> None:
         """An empty dict group renders no orphaned section header."""
         data = {"name": "x", "websocket": {}, "database": {"retention_days": 7}}

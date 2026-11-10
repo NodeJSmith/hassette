@@ -334,6 +334,12 @@ class TestRenderTableHumanMode:
         assert "alpha" in stdout
         assert "42" in stdout
 
+    @pytest.mark.parametrize("name", ["open [/dev/ttyUSB0] failed", "[bold]x"])
+    def test_markup_like_text_renders_literally(self, name: str) -> None:
+        items = [SimpleItem(name=name, count=1)]
+        stdout, _stderr = capture_human(render_table, items, [Column("name", "Name")], json_mode=False)
+        assert name in stdout
+
     def test_table_contains_headers(self) -> None:
         items = [SimpleItem(name="x", count=1)]
         columns = [Column("name", "Name"), Column("count", "Items")]

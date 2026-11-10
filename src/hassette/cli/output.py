@@ -187,17 +187,15 @@ def _cell_text(value: Any, col: Column, fallback_meta: CliFormat | None = None) 
     return str(value)
 
 
-def _table_cell(item: Any, col: Column, fallback_meta: CliFormat | None) -> str | Text:
-    """Build one table cell for ``item``, wrapped in a styled :class:`Text` when ``col.style`` picks a style.
+def _table_cell(item: Any, col: Column, fallback_meta: CliFormat | None) -> Text:
+    """Build one table cell for ``item`` as a :class:`Text`, styled when ``col.style`` picks a style.
 
-    A styled cell is a ``Text`` so its content is never parsed as Rich markup.
+    Every cell is a ``Text`` so server- or app-supplied content is never parsed as Rich markup.
     """
     value = _extract_field(item, col.field)
     text = col.row_formatter(item) if col.row_formatter is not None else _cell_text(value, col, fallback_meta)
     style = col.style(value) if col.style is not None else None
-    if style is None:
-        return text
-    return Text(text, style=style)
+    return Text(text, style=style or "")
 
 
 def render_table(
@@ -333,9 +331,9 @@ def _render_detail_panel(
             if not value:
                 continue
             table.add_row("", "")
-            table.add_row(f"[bold cyan]{_humanize_key(key)}[/bold cyan]{marker}", "")
+            table.add_row(Text.assemble((_humanize_key(key), "bold cyan"), marker), "")
             for sub_key, sub_value in value.items():
-                table.add_row(f"  {sub_key}", _format_detail_value(sub_value))
+                table.add_row(Text(f"  {sub_key}"), Text(_format_detail_value(sub_value)))
         else:
             if has_sections and not general_header_emitted:
                 table.add_row("[bold cyan]General[/bold cyan]", "")
@@ -345,7 +343,7 @@ def _render_detail_panel(
                 formatted = _apply_cli_format(value, meta, none_default=_format_detail_value(None))
             else:
                 formatted = _format_detail_value(value)
-            table.add_row(f"  {key}" if has_sections else key, f"{formatted}{marker}")
+            table.add_row(Text(f"  {key}" if has_sections else key), Text(f"{formatted}{marker}"))
 
     panel = Panel(table, title=title, expand=False)
     stdout_console.print(panel)
