@@ -5,11 +5,15 @@ output rendering: Rich tables for collections, key-value panels for single
 objects, and JSON serialization for structured output. Value formatters
 (durations, relative times) live in :mod:`hassette.cli.formatters`.
 
+The module-level ``stdout_console`` and ``stderr_console`` are the shared consoles every
+render function and diagnostic writes to.
+
 **stdout cleanliness contract**: In JSON mode, stdout contains exactly one
 valid JSON document. All diagnostics, warnings, and "no results" messages go
 to the stderr console. The stdout console is used only by render functions.
 """
 
+import functools
 import json
 import os
 import re
@@ -45,6 +49,7 @@ PIPE_FALLBACK_WIDTH = 1000
 
 JSON_INDENT = 2
 DEFAULT_MARKER = " (default)"
+SECTION_HEADER_STYLE = "bold cyan"
 CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z])(?=[A-Z])")
 CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {
     "duration_ms": fmt_duration_ms,
@@ -97,6 +102,7 @@ def writes_to_tty(console: Console) -> bool:
         return False
 
 
+# The module's shared consoles; defined here because make_stdout_console must exist first.
 stdout_console = make_stdout_console()
 stderr_console = Console(file=sys.stderr, stderr=True, highlight=False)
 
@@ -172,16 +178,14 @@ def _cell_text(value: Any, col: Column, fallback_meta: CliFormat | None = None) 
     from the model field's annotation metadata — is used instead. An explicit
     ``Column.formatter`` always takes precedence over model metadata.
     """
-    if col.formatter is not None:
+    formatter = col.formatter
+    if formatter is None and fallback_meta is not None:
+        formatter = functools.partial(_apply_cli_format, meta=fallback_meta, none_default="")
+    if formatter is not None:
         try:
-            return col.formatter(value)
+            return formatter(value)
         except (TypeError, ValueError):
-            return str(value) if value is not None else ""
-    if fallback_meta is not None:
-        try:
-            return _apply_cli_format(value, fallback_meta, none_default="")
-        except (TypeError, ValueError):
-            return str(value) if value is not None else ""
+            pass
     if value is None:
         return ""
     return str(value)
@@ -331,12 +335,12 @@ def _render_detail_panel(
             if not value:
                 continue
             table.add_row("", "")
-            table.add_row(Text.assemble((_humanize_key(key), "bold cyan"), marker), "")
+            table.add_row(Text.assemble((_humanize_key(key), SECTION_HEADER_STYLE), marker), "")
             for sub_key, sub_value in value.items():
                 table.add_row(Text(f"  {sub_key}"), Text(_format_detail_value(sub_value)))
         else:
             if has_sections and not general_header_emitted:
-                table.add_row("[bold cyan]General[/bold cyan]", "")
+                table.add_row(f"[{SECTION_HEADER_STYLE}]General[/{SECTION_HEADER_STYLE}]", "")
                 general_header_emitted = True
             meta = meta_map.get(key)
             if meta is not None:
@@ -400,11 +404,12 @@ def _format_list_inline(items: list[Any]) -> str:
     if not items:
         return EMPTY_VALUE
     if all(isinstance(v, (str, int, float, bool)) for v in items):
-        return ", ".join(_scalar_str(v) for v in items)
+        return ", ".join(_format_scalar(v) for v in items)
     return f"{len(items)} items"
 
 
-def _scalar_str(value: Any) -> str:
+def _format_scalar(value: Any) -> str:
+    """Format one scalar list item for inline display, rendering bools as lowercase text."""
     if isinstance(value, bool):
         return _format_bool(value)
     return str(value)
