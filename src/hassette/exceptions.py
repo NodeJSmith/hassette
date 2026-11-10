@@ -10,22 +10,20 @@ if TYPE_CHECKING:
 
 __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and wrap by hand
     "AppBlockedError", "AppBootstrapNotReleasedError", "AppPrecheckFailedError", "AppRemovedError",
-    "AuthTokenWriteError",
-    "BaseUrlRequiredError", "CannotOverrideFinalError", "CommandNotSentError", "CommandRejectedError", "ConfigError",
-    "ConvertedTypeDoesNotMatchError", "DependencyError", "DependencyInjectionError", "DependencyResolutionError",
-    "DomainNotFoundError", "DomainRequiredError",
-    "DuplicateListenerError", "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError",
-    "FatalError", "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning",
-    "HassetteNotInitializedError", "HttpRequestError",
-    "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError",
-    "InvalidEntityIdError", "InvalidInheritanceError", "JobRemovedError",
-    "LifecycleReentryError", "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError",
-    "RegistryNotReadyError", "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError",
-    "ResponseTimeoutError", "RestartRefusedError", "SchedulerNameRequiredError",
-    "SchemaVersionError", "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "ServeEndedError",
-    "StateRegistryError", "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
-    "UnableToConvertAnnotatedStateError", "UnableToConvertStateError", "UnableToConvertValueError",
-    "UndefinedUserConfigError", "WebsocketClosedError", "WriteQueueUnavailableError",
+    "AuthTokenWriteError", "BaseUrlRequiredError", "CannotOverrideFinalError", "CommandNotSentError",
+    "CommandRejectedError", "ConfigError", "ConvertedTypeDoesNotMatchError", "DependencyError",
+    "DependencyInjectionError", "DependencyResolutionError", "DomainNotFoundError", "DomainRequiredError",
+    "DuplicateListenerError", "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError", "FatalError",
+    "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning", "HassetteNotInitializedError",
+    "HttpRequestError", "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError",
+    "InvalidEntityIdError", "InvalidInheritanceError", "JobRemovedError", "LifecycleReentryError",
+    "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError", "RegistryNotReadyError",
+    "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError", "ResponseTimeoutError",
+    "RestartRefusedError", "SchedulerNameRequiredError", "SchemaVersionError", "SchemeRequiredInBaseUrlError",
+    "SensorShapeMismatchError", "ServeEndedError", "StateRegistryError", "TaskBucketSealedError",
+    "TelemetryUnavailableError", "TrustedProxyConfigError", "UnableToConvertAnnotatedStateError",
+    "UnableToConvertStateError", "UnableToConvertValueError", "UndefinedUserConfigError", "WebsocketClosedError",
+    "WriteQueueUnavailableError",
 ]  # fmt: skip
 
 MAX_ISSUES_IN_SUMMARY = 5
@@ -129,14 +127,12 @@ class WebsocketClosedError(HassetteError):
 class CommandNotSentError(HassetteError):
     """The command never reached Home Assistant, so it did not apply (one edge case below).
 
-    Raised when the WebSocket isn't connected or the socket write failed, and when a REST request
-    couldn't connect (refused, DNS, TLS) or the REST session is closed. A REST connect that times out
-    raises :class:`ResponseTimeoutError` instead. Catch
-    ``(CommandNotSentError, OutcomeUnknownError)`` for "Home Assistant is unreachable or didn't answer".
+    Raised when the WebSocket isn't connected or the socket write failed, and when a REST request couldn't connect
+    (refused, DNS, TLS) or the REST session is closed; a REST connect that times out raises
+    :class:`ResponseTimeoutError`. Catch ``(CommandNotSentError, OutcomeUnknownError)`` for "unreachable or no answer".
 
-    One edge case: a connection lost while the socket waits for its send buffer to drain is reported
-    as not sent, although the frame may already have gone out. That wait happens only when
-    Home Assistant has stopped reading the socket and the buffer is full, so it is rare.
+    Edge case: a connection lost while the socket waits for its send buffer to drain is reported as not sent, although
+    the frame may have gone out. That wait needs Home Assistant to have stopped reading a full socket, so it is rare.
     """
 
 
@@ -152,9 +148,8 @@ class CommandRejectedError(HassetteError):
                 # Helper was deleted between list and update — recreate it
                 ...
 
-    ``code`` is HA's error code (``None`` if the reply carried none). ``original_data`` is the HA
-    error envelope. A REST status error is :class:`HttpRequestError` or :class:`EntityNotFoundError`
-    instead.
+    ``code`` is HA's error code (``None`` if the reply carried none). ``original_data`` is the HA error envelope. A
+    REST status error is :class:`HttpRequestError` or :class:`EntityNotFoundError` instead.
     """
 
     def __init__(self, msg: str, *, code: str | None = None, original_data: dict | None = None) -> None:
@@ -181,26 +176,22 @@ class CommandRejectedError(HassetteError):
 class OutcomeUnknownError(HassetteError):
     """A command was sent, but no response arrived, so it may or may not have applied.
 
-    Catch this to handle both ways it happens, on either transport: :class:`ResponseTimeoutError`
-    (no response within the timeout) and :class:`ResponseLostError` (the connection dropped while
-    waiting).
+    Catch this to handle both ways it happens, on either transport: :class:`ResponseTimeoutError` (no response within
+    the timeout) and :class:`ResponseLostError` (the connection dropped while waiting).
 
-    Don't blindly re-send a write after this error: if it already applied, a re-send applies it
-    twice. Check state instead. After a helper ``create``/``update``/``delete``, call
-    ``api.helpers.list(domain)`` to see whether it landed (the "Managing helpers" docs page shows
-    the pattern). After ``fire_event`` or ``call_service``, check the side effect yourself, for
-    example by reading the target entity's state.
+    Don't blindly re-send a write after this error: if it already applied, a re-send applies it twice. Check state
+    instead. After a helper ``create``/``update``/``delete``, call ``api.helpers.list(domain)`` to see whether it
+    landed (the "Managing helpers" docs page shows the pattern). After ``fire_event`` or ``call_service``, check the
+    side effect yourself, for example by reading the target entity's state.
     """
 
 
 class ResponseTimeoutError(OutcomeUnknownError):
     """No response arrived within the response timeout, so the command may or may not have applied.
 
-    On REST it also covers a connect, DNS lookup or wait for a pooled connection that never finished,
-    although nothing was sent then.
-
-    ``original_data`` is the outgoing WebSocket payload (``None`` for REST). The message names the
-    command ``type`` and id (or the REST method and URL) and the deadline, never payload values.
+    On REST it also covers a connect, DNS lookup or pooled-connection wait that never finished, though nothing was sent.
+    ``original_data`` is the outgoing WebSocket payload (``None`` for REST). The message names the command ``type``
+    and id (or the REST method and URL) and the deadline, never payload values.
     """
 
     def __init__(self, msg: str, *, original_data: dict | None = None) -> None:
@@ -233,10 +224,10 @@ class InvalidAuthError(HassetteError):
 class AuthTokenWriteError(HassetteError):
     """Raised when a freshly generated web API auth token could not be persisted to disk.
 
-    Deliberately a plain :class:`HassetteError`, not :class:`FatalError` — an auth failure
-    must not crash ``WebApiService``. Startup fails loudly here rather than silently falling back
-    to an ephemeral in-memory token: every process restart would otherwise mint a fresh token and
-    invalidate whatever credential the operator was just given.
+    Deliberately a plain :class:`HassetteError`, not :class:`FatalError` — an auth failure must not crash
+    ``WebApiService``. Startup fails loudly here rather than silently falling back to an ephemeral in-memory token:
+    every process restart would otherwise mint a fresh token and invalidate whatever credential the operator was just
+    given.
 
     Attributes:
         path: The token file path that could not be written.
@@ -252,14 +243,12 @@ class AuthTokenWriteError(HassetteError):
 class TrustedProxyConfigError(HassetteError):
     """Raised when a ``trusted_proxies`` entry is invalid config.
 
-    Covers two failure modes, both fail-loud at startup rather than silently skipping the bad
-    entry: an entry that is neither a valid IP/CIDR literal nor a name any DNS lookup could resolve
-    (empty, a mistyped literal like ``10.0.0.300`` or one containing ``/`` or ``:``, an empty or
-    over-long label), and a literal that
-    matches the entire IPv4/IPv6 address space (``0.0.0.0/0``, ``::/0`` — an auth *bypass*, not an
-    additive check). A hostname that doesn't resolve right now is not a config error
-    and never raises this; it trusts no peer until the periodic refresh resolves it. Deliberately a
-    plain :class:`HassetteError`, not :class:`FatalError` — the caller
+    Covers two failure modes, both fail-loud at startup rather than silently skipping the bad entry: an entry that is
+    neither a valid IP/CIDR literal nor a name any DNS lookup could resolve (empty, a mistyped literal like
+    ``10.0.0.300`` or one containing ``/`` or ``:``, an empty or over-long label), and a literal that matches the entire
+    IPv4/IPv6 address space (``0.0.0.0/0``, ``::/0`` — an auth *bypass*, not an additive check). A hostname that doesn't
+    resolve right now is not a config error and never raises this; it trusts no peer until the periodic refresh resolves
+    it. Deliberately a plain :class:`HassetteError`, not :class:`FatalError` — the caller
     (``WebApiService.on_initialize()``) decides how to surface it at startup.
     """
 
@@ -304,26 +293,23 @@ class ResourceNotReadyError(HassetteError):
 class TaskBucketSealedError(RuntimeError, HassetteError):
     """Raised when a sealed ``TaskBucket`` rejects new work.
 
-    Subclasses ``RuntimeError`` so callers that only care that spawning failed keep working.
-    The distinct type exists so a call site willing to accept *this* specific rejection can
-    catch it without also swallowing unrelated ``spawn()`` failures — the reason the sync
-    removal paths catch it rather than pre-checking ``TaskBucket.is_sealed``.
+    Subclasses ``RuntimeError`` so callers that only care that spawning failed keep working. The distinct type exists so
+    a call site willing to accept *this* specific rejection can catch it without also swallowing unrelated ``spawn()``
+    failures — the reason the sync removal paths catch it rather than pre-checking ``TaskBucket.is_sealed``.
 
-    A pre-check cannot be correct for a cross-thread caller: ``spawn()`` hands the work to
-    the loop thread via ``call_soon_threadsafe`` and re-checks the seal there, so a caller
-    on a worker thread can read ``is_sealed`` as ``False`` and still be rejected when the
-    loop thread seals the bucket before the queued callback runs. Catching at the spawn
-    boundary makes the admission decision atomic with the spawn itself.
+    A pre-check cannot be correct for a cross-thread caller: ``spawn()`` hands the work to the loop thread via
+    ``call_soon_threadsafe`` and re-checks the seal there, so a caller on a worker thread can read ``is_sealed`` as
+    ``False`` and still be rejected when the loop thread seals the bucket before the queued callback runs. Catching at
+    the spawn boundary makes the admission decision atomic with the spawn itself.
     """
 
 
 class WriteQueueUnavailableError(RuntimeError, HassetteError):
     """Raised by ``DatabaseService.submit()``/``enqueue()`` when the write queue is gone.
 
-    Subclasses ``RuntimeError`` so existing callers that only care "submission failed" keep
-    working. The distinct type exists so ``update_heartbeat()`` can count exactly this
-    rejection as a heartbeat failure without also swallowing an unrelated ``RuntimeError``
-    raised from inside the submitted coroutine (e.g. ``Hassette.session_id`` racing a session
+    Subclasses ``RuntimeError`` so existing callers that only care "submission failed" keep working. The distinct type
+    exists so ``update_heartbeat()`` can count exactly this rejection as a heartbeat failure without also swallowing an
+    unrelated ``RuntimeError`` raised from inside the submitted coroutine (e.g. ``Hassette.session_id`` racing a session
     teardown) under the same except clause.
     """
 
