@@ -79,19 +79,11 @@ def deserialize(blob: bytes, key: str) -> object:
     """
     try:
         return pickle.loads(blob)  # noqa: S301 -- trusted local cache storage, not external input
-    except (
-        pickle.PickleError,
-        AttributeError,
-        ModuleNotFoundError,
-        EOFError,
-        ValueError,
-        TypeError,
-        IndexError,
-        KeyError,
-        ImportError,
-        UnicodeDecodeError,
-    ):
-        logger.warning("Failed to deserialize cached value for key %r; treating as cache miss", key)
+    except Exception:
+        # Broad on purpose: a cached class's own __setstate__/__reduce__ can raise any
+        # exception type, and a corrupt stream can fail in many ways. BaseException
+        # subclasses (KeyboardInterrupt, CancelledError) still propagate.
+        logger.warning("Failed to deserialize cached value for key %r; treating as cache miss", key, exc_info=True)
         return DESERIALIZE_FAILED
 
 
