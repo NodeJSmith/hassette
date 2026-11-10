@@ -149,6 +149,7 @@ def make_api() -> Api:
     api.logger = logging.getLogger("hassette.test")
 
     api.parent = make_mock_parent()
+    api._write_owner = None
 
     api.ws_send_and_wait = AsyncMock(return_value={})
     api.ws_send_json = AsyncMock(return_value=None)

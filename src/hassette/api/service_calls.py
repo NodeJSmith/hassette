@@ -6,12 +6,16 @@ from enum import StrEnum
 from logging import Logger
 from typing import Any, Literal, overload
 
+from hassette.api.write_targets import service_call_data, service_call_target
 from hassette.models.services import ServiceResponse
 from hassette.utils.await_guard import guard_await
 from hassette.utils.request_utils import unwrap_secrets
 from hassette.utils.source_capture import capture_source_location
 
 if typing.TYPE_CHECKING:
+    from hassette_wire import ApiWriteKind
+
+    from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.resources.base import Resource
 
 NOTIFY_DOMAIN = "notify"
@@ -59,12 +63,26 @@ class ApiServiceCallsMixin:
 
     if typing.TYPE_CHECKING:
 
-        async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
+        async def ws_send_and_wait(
+            self, *, retry_on_timeout: bool = True, record: "ApiWriteHandle | None" = None, **data: Any
+        ) -> Any:
             """Type-checking stub for :meth:`Api.ws_send_and_wait`, which sends a command and returns its result."""
             ...
 
-        async def ws_send_json(self, **data: Any) -> None:
+        async def ws_send_json(self, *, record: "ApiWriteHandle | None" = None, **data: Any) -> None:
             """Type-checking stub for :meth:`Api.ws_send_json`, which sends a message without awaiting a reply."""
+            ...
+
+        def begin_write(
+            self,
+            kind: "ApiWriteKind",
+            operation: str | None,
+            *,
+            target: dict[str, list[str]] | None = None,
+            data: Any = None,
+            fire_and_forget: bool = False,
+        ) -> "ApiWriteHandle | None":
+            """Type-checking stub for :meth:`Api.begin_write`, which enqueues a pending write record."""
             ...
 
         async def get_services(self) -> dict[str, Any]:
@@ -108,7 +126,9 @@ class ApiServiceCallsMixin:
         if event_data:
             data["event_data"] = unwrap_secrets(event_data)
 
-        return await self.ws_send_and_wait(retry_on_timeout=False, **data)  # sent once; re-send would refire it
+        record = self.begin_write("fire_event", event_type, data=event_data or None)
+        # Sent once; a re-send would refire it.
+        return await self.ws_send_and_wait(retry_on_timeout=False, record=record, **data)
 
     # Overload order is load-bearing — Pyright matches top-to-bottom, first hit wins.
     # The None-returning (return_response not True) overload MUST come first so a call
@@ -223,11 +243,20 @@ class ApiServiceCallsMixin:
             # Logged before unwrapping, so a SecretStr prints masked; HA gets the plaintext.
             filtered_payload["service_data"] = unwrap_secrets(service_data)
 
+        # Recorded from the caller's own target and data, so a SecretStr stays masked in the record.
+        record = self.begin_write(
+            "call_service",
+            f"{domain}.{service}",
+            target=service_call_target(target, service_data),
+            data=service_call_data(service_data),
+            fire_and_forget=not (return_response or wait_for_ack),
+        )
+
         # Neither waiting path re-sends on timeout — a lost response doesn't mean HA skipped
         # the call, so a retry could apply it twice (counter.increment would count twice), and
         # a response-returning service can still act (conversation.process, scripts).
         if return_response:
-            resp = await self.ws_send_and_wait(retry_on_timeout=False, **filtered_payload)
+            resp = await self.ws_send_and_wait(retry_on_timeout=False, record=record, **filtered_payload)
             return ServiceResponse(**resp)
 
         if wait_for_ack:
@@ -236,10 +265,11 @@ class ApiServiceCallsMixin:
             # counter.increment) reject return_response=True outright, so this is the only way
             # to surface their HA-side errors. ws_send_and_wait raises CommandRejectedError on a
             # failed envelope, so no envelope parsing is needed here.
-            await self.ws_send_and_wait(retry_on_timeout=False, **filtered_payload)
+            await self.ws_send_and_wait(retry_on_timeout=False, record=record, **filtered_payload)
             return None
 
-        await self.ws_send_json(**filtered_payload)
+        # A recorded call's reply is tracked in the background, so a rejection still reaches its record.
+        await self.ws_send_json(record=record, **filtered_payload)
         return None
 
     def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> "Coroutine[Any, Any, None]":

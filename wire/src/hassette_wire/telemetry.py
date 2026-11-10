@@ -15,6 +15,8 @@ from hassette_wire.enums import (
 )
 from hassette_wire.literals import (
     OpenAcceptedStatus,
+    OpenApiWriteKind,
+    OpenApiWriteOutcome,
     OpenErrorRateClass,
     OpenExecutionKind,
     OpenHealthStatus,
@@ -31,6 +33,66 @@ fails when the two drift."""
 def requested_activity_parts(*, windowed: bool) -> list[str]:
     """``AppActivity`` parts the server computes: every part when ``windowed``, else the unwindowed ones."""
     return [name for name in AppActivity.model_fields if windowed or name not in WINDOWED_ACTIVITY_PARTS]
+
+
+class CausingWrite(BaseModel):
+    """The recorded API write whose Home Assistant context fired a handler execution.
+
+    Matched on Home Assistant's context id, best-effort: only a write that got a context id back from Home
+    Assistant matches, and the match disappears once the write's record ages out of retention.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    app_key: str
+    """The app that made the write."""
+    instance_name: str
+    """The app instance that made the write."""
+    execution_id: str | None = None
+    """The execution that made the write. None for a write made outside a handler or job (e.g. in ``on_initialize``)."""
+    kind: OpenApiWriteKind
+    """Which ``Api`` write it was."""
+    operation: str | None = None
+    """``domain.service`` for a service call, the event type, or the helper domain. None for ``set_state`` and
+    ``delete_entity``."""
+
+
+class ApiWrite(BaseModel):
+    """One write an app's ``Api`` sent to Home Assistant, and how it ended."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    write_id: str
+    """Unique id of the write, assigned when it was sent."""
+    app_key: str
+    instance_name: str
+    execution_id: str | None = None
+    """The handler or job execution that made the write. None for a write made outside one."""
+    kind: OpenApiWriteKind
+    """Which ``Api`` write it was. ``turn_on``/``turn_off``/``toggle``, ``notify`` and the counter helpers record
+    as ``call_service``."""
+    operation: str | None = None
+    """``domain.service`` for a service call, the event type, or the helper domain. None for ``set_state`` and
+    ``delete_entity``."""
+    target: dict[str, list[str]] | None = None
+    """What the write acted on, as lists of ids: Home Assistant's target keys for a service call (wherever the
+    caller passed them), ``entity_id`` for ``set_state``/``delete_entity``, ``helper_id`` for a helper update or
+    delete. None otherwise."""
+    data: str | None = None
+    """Everything else the caller passed, as a display string (a string as-is, anything else as compact JSON),
+    cut to 2,048 characters with a trailing ``…``. Stored unredacted, except values wrapped in ``SecretStr``."""
+    outcome: OpenApiWriteOutcome
+    """How the write ended; see ``ApiWriteOutcome``."""
+    error_code: str | None = None
+    """Home Assistant's error code for a rejected WebSocket write, or the HTTP status for a rejected REST write."""
+    error_message: str | None = None
+    """Home Assistant's error message for a rejected write."""
+    context_id: str | None = None
+    """The Home Assistant context id the write ran under, when Home Assistant returned one."""
+    sent_ts: float
+    """When the write was sent (or attempted, for ``not_sent``)."""
+    resolved_ts: float | None = None
+    """When the outcome was observed. None while ``pending``, and for ``unresolved``."""
 
 
 class ExecutionTrigger(BaseModel):
@@ -63,6 +125,9 @@ class ExecutionTrigger(BaseModel):
     origin: str | None = None
     """Origin of the event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for an
     immediate-fire run, whose event hassette built from the cached state)."""
+    caused_by: CausingWrite | None = None
+    """The recorded API write whose context fired this run, when ``context_id`` matches one. Only a direct match
+    counts: a write that sets off a Home Assistant automation is not reported on the automation's downstream runs."""
 
 
 class Execution(BaseModel):

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.literals import LogAuthor, LogLevel, OpenExecutionKind
+from hassette_wire.telemetry import ApiWrite, Execution
 
 
 class LogEntry(BaseModel):
@@ -31,16 +32,28 @@ class LogEntry(BaseModel):
     job_id: int | None = None
 
 
-class LogsByExecutionResponse(BaseModel):
-    """The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``."""
+class ExecutionDetailResponse(BaseModel):
+    """One handler or job execution: its record, the API writes it made, and its log records.
+
+    Served by ``GET /api/executions/{execution_id}``. ``api_writes`` and ``logs`` are each capped by the request's
+    ``limit``.
+    """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
-    records: list[LogEntry]
-    truncated: bool
+    execution: Execution | None
+    """The execution record. None while it isn't recorded yet (records are written in batches, so it can lag the
+    logs by a few seconds) or after retention removed it."""
+    api_writes: list[ApiWrite]
+    """The writes the execution sent to Home Assistant, oldest first."""
+    api_writes_truncated: bool
+    """``True`` when the execution made more writes than the request's limit; the rest are omitted."""
+    logs: list[LogEntry]
+    """The log records the execution emitted, oldest first."""
+    logs_truncated: bool
     """``True`` when the execution emitted more records than the request's limit; the rest are omitted."""
     retention_expired: bool
-    """``True`` when ``records`` is empty and the execution is older than the server's log retention window:
+    """``True`` when ``logs`` is empty and the execution is older than the server's log retention window:
     its records may have been deleted, or it may never have logged."""
 
 

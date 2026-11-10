@@ -5,6 +5,7 @@ from seed_scenarios.base import (
     REASON_FRAMEWORK,
     WATCHDOG_TIER,
     SeedContext,
+    seed_app_api_writes,
     seed_listener,
     seed_log_records,
     seed_simple_app,
@@ -17,7 +18,7 @@ def scenario_healthy(ctx: SeedContext) -> None:
     an occasional handled error, comfortably above the 95% "good" success-rate threshold.
 
     A single minimal blocking event is included (see the comment below) so this scenario
-    still populates all 6 telemetry tables without undermining the "healthy install" narrative.
+    still populates all 7 telemetry tables without undermining the "healthy install" narrative.
     """
     # Two apps have no description, so the UI shows both the described and undescribed shape.
     apps = [
@@ -31,7 +32,7 @@ def scenario_healthy(ctx: SeedContext) -> None:
     for i, (app_key, class_name, n_errors, description) in enumerate(apps):
         base = i * APP_TIME_SPACING_SECONDS
         ctx.add_app_manifest(app_key=app_key, class_name=class_name, description=description)
-        seed_simple_app(
+        session_id, _, _ = seed_simple_app(
             ctx,
             scenario="healthy",
             app_key=app_key,
@@ -39,6 +40,18 @@ def scenario_healthy(ctx: SeedContext) -> None:
             base_offset=base,
             exec_count=20,
             n_errors=n_errors,
+        )
+        # A few writes per app, linked to its first handler runs; one app has a rejected call.
+        seed_app_api_writes(
+            ctx,
+            scenario="healthy",
+            app_key=app_key,
+            class_name=class_name,
+            session_id=session_id,
+            base_offset=base,
+            entity_id=f"light.{app_key}",
+            count=3,
+            n_rejected=1 if app_key == "garage_door" else 0,
         )
         # Second listener per app, for the "2-3 listeners" spread called for in the design doc.
         seed_listener(

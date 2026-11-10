@@ -276,3 +276,14 @@ Every named write maps the same way over both transports. WebSocket: the caller 
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- The detail response is `ExecutionDetailResponse`, not `ExecutionDetail`: `hassette_wire`'s naming rule ends aggregate views served by one endpoint in `Response`.
+- The no-one-waiting mark applies to every non-retried write's entry, recorded or not: a framework write's entry now also stays on cancellation (not only timeout), so its late reply is logged like a timed-out one. One rule replaces `mark_timed_out` and discard-on-cancel.
+- An exception from the WebSocket send step other than a rejection, unknown outcome or cancellation (e.g. an unserializable payload) records `not_sent`: the transport drops the entry, since the frame never went out.
+- Only `entity_id` values are comma-split, stripped and lowercased (HA's `comp_entity_ids`); `device_id`/`area_id`/`floor_id`/`label_id` only become lists (HA's `ensure_list`).
+- `delete_entity` records `success` for any answer that isn't an HTTP error status, including a non-204 that then raises `RuntimeError`: Home Assistant handled the request.
+- Target/data derivation lives in `src/hassette/api/write_targets.py`, not the recorder module: `hassette.api` importing `hassette.core.api_write_recorder` closes an import cycle through `hassette.config`.
+- Recording is switched on by `App` calling `Api.record_writes_for(app_key, instance_name)` when its `api` is a real `Api`; a test double (`RecordingApi`) records nothing.
+- The rejected-call WARNING is emitted by the record handle's `resolve` (it carries the fire-and-forget flag), so `PendingResponses` only logs late replies.
+- `api_writes` also gets an index on `session_id` (as `blocking_events` has) for the session-deletion guard, and the removed-app manifest prune also waits for an app's `api_writes` rows to age out.
+- The eviction WARNING's pacing interval is `lifecycle.command_executor_capacity_warn_rate_limit_seconds`, passed to `PendingResponses` at construction; the startup sweep logs its count at INFO.
+- `make_mock_hassette` now carries a real `PipelineCounters`, so synchronous counting code never leaves an unawaited `AsyncMock` call.

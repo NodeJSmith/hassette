@@ -325,7 +325,7 @@ class DatabaseRetentionMixin:
         3. Delete ``app_manifests`` rows of apps not in ``live_app_keys`` that nothing references
            anymore (``build_prune_removed_app_manifests_query``).
         4. Delete ``sessions`` rows that stopped before the cutoff, are not the current session, and
-           are no longer referenced by any ``executions`` or ``blocking_events`` row. Sessions
+           are no longer referenced by any ``executions``, ``blocking_events`` or ``api_writes`` row. Sessions
            still referenced wait until those rows age out under their own tier's window. A
            session with ``stopped_at IS NULL`` (the live one, or a previous run's orphan not yet
            backfilled by ``mark_orphaned_sessions``) is never deleted. The size failsafe does not
@@ -382,6 +382,7 @@ class DatabaseRetentionMixin:
               AND id IS NOT ?
               AND NOT EXISTS (SELECT 1 FROM executions WHERE session_id = sessions.id)
               AND NOT EXISTS (SELECT 1 FROM blocking_events WHERE session_id = sessions.id)
+              AND NOT EXISTS (SELECT 1 FROM api_writes WHERE session_id = sessions.id)
             """,
             (cutoff, current_session_id),
         )

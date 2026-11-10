@@ -82,6 +82,8 @@ from hassette_wire.health import (
 )
 from hassette_wire.lenient import LENIENT_CONTEXT, UnknownValue
 from hassette_wire.literals import (
+    ApiWriteKind,
+    ApiWriteOutcome,
     AppAction,
     ErrorRateClass,
     ExecutionKind,
@@ -95,17 +97,19 @@ from hassette_wire.literals import (
     SourceTier,
     SystemHealthStatus,
 )
-from hassette_wire.logs import LogEntry, LogLevelRequest, LogLevelResponse, LogsByExecutionResponse
+from hassette_wire.logs import ExecutionDetailResponse, LogEntry, LogLevelRequest, LogLevelResponse
 from hassette_wire.problems import ProblemCode, ProblemDetail
 from hassette_wire.telemetry import (
     WINDOWED_ACTIVITY_PARTS,
     ActivityBucket,
     ActivityFeedEntry,
+    ApiWrite,
     AppActivity,
     AppActivityStats,
     AppGridEntry,
     AppGridResponse,
     AppHealth,
+    CausingWrite,
     Execution,
     ExecutionTrigger,
     JobSummary,
@@ -141,6 +145,9 @@ __all__ = [
     "ActionResponse",
     "ActivityBucket",
     "ActivityFeedEntry",
+    "ApiWrite",
+    "ApiWriteKind",
+    "ApiWriteOutcome",
     "AppAction",
     "AppActivity",
     "AppActivityStats",
@@ -165,6 +172,7 @@ __all__ = [
     "BlockingInstanceRef",
     "BlockingTier",
     "BootIssue",
+    "CausingWrite",
     "CliFormat",
     "CliFormatStyle",
     "ConfigSchemaResponse",
@@ -178,6 +186,7 @@ __all__ = [
     "Execution",
     "ExecutionCompletedData",
     "ExecutionCompletedWsMessage",
+    "ExecutionDetailResponse",
     "ExecutionKind",
     "ExecutionMode",
     "ExecutionStatus",
@@ -199,7 +208,6 @@ __all__ = [
     "LogLevel",
     "LogLevelRequest",
     "LogLevelResponse",
-    "LogsByExecutionResponse",
     "NeedsRestart",
     "ProblemCode",
     "ProblemDetail",

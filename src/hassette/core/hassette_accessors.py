@@ -12,6 +12,7 @@ if typing.TYPE_CHECKING:
     from hassette.state_manager import StateManager
 
     from .api_resource import ApiResource
+    from .api_write_recorder import ApiWriteRecorder
     from .app_bootstrap_coordinator import AppBootstrapCoordinator
     from .app_handler import AppHandler
     from .bus_service import BusService
@@ -57,6 +58,7 @@ class HassetteAccessorsMixin:
     _command_executor: "CommandExecutor | None"
     _logging_service: "LoggingService | None"
     _database_service: "DatabaseService | None"
+    _api_write_recorder: "ApiWriteRecorder | None"
     _runtime_query_service: "RuntimeQueryService | None"
     _telemetry_query_service: "TelemetryQueryService | None"
     _app_handler: "AppHandler | None"
@@ -210,6 +212,13 @@ class HassetteAccessorsMixin:
         if self._database_service is None:
             raise service_not_wired_error("DatabaseService")
         return self._database_service
+
+    @property
+    def api_write_recorder(self) -> "ApiWriteRecorder":
+        """ApiWriteRecorder instance that records app-owned ``Api`` writes."""
+        if self._api_write_recorder is None:
+            raise service_not_wired_error("ApiWriteRecorder")
+        return self._api_write_recorder
 
     @property
     def logging_service(self) -> "LoggingService":

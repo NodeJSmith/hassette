@@ -18,6 +18,7 @@ from hassette_wire import (
     DebugCaptureRequest,
     DebugCaptureResponse,
     Execution,
+    ExecutionDetailResponse,
     ExecutionKind,
     JobSummary,
     JobTriggerResponse,
@@ -27,7 +28,6 @@ from hassette_wire import (
     LogLevel,
     LogLevelRequest,
     LogLevelResponse,
-    LogsByExecutionResponse,
     QueryAuthor,
     QuerySourceTier,
     ReadinessResponse,
@@ -252,23 +252,26 @@ class HassetteClient:
         body = LogLevelRequest(logger=logger, level=level)
         return await self._transport.request("PUT", "/api/logs/level", LogLevelResponse, body=body)
 
-    async def get_execution_logs(
+    async def get_execution_detail(
         self, execution_id: str, *, limit: int | None = None, author: QueryAuthor | None = None
-    ) -> LogsByExecutionResponse:
-        """Get the log records one handler or job execution emitted.
+    ) -> ExecutionDetailResponse:
+        """Get one handler or job execution: its record, the API writes it made, and its log records.
+
+        ``execution`` is ``None`` while the record isn't written yet (records are written in batches, so it can
+        lag the logs by a few seconds) or after retention removed it.
 
         Args:
             execution_id: The handler or job execution.
-            limit: The most records to return.
+            limit: The most API writes, and separately the most log records, to return.
             author: ``"app"`` or ``"framework"`` lines only, or ``"all"``. ``None`` returns the server's default
-                view: app-authored lines plus framework lines at ERROR and above.
+                view: app-authored lines plus framework lines at ERROR and above. Doesn't filter API writes.
 
         Raises:
-            TelemetryUnavailableError: The log store couldn't be read.
+            TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = f"/api/executions/{path_segment(execution_id)}"
         params = {"limit": limit, "author": author}
-        return await self._transport.request("GET", path, LogsByExecutionResponse, params=params)
+        return await self._transport.request("GET", path, ExecutionDetailResponse, params=params)
 
     async def get_listeners(
         self,

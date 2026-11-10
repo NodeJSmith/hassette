@@ -1,9 +1,8 @@
-"""Log-related CLI commands: recent log entries and logs by execution."""
+"""Log-related CLI commands: recent log entries, and one execution's detail (record, API writes, logs)."""
 
 from typing import Any
 
-from hassette_wire import Execution, LogEntry, LogsByExecutionResponse
-from rich.markup import escape
+from hassette_wire import CausingWrite, Execution, ExecutionDetailResponse, LogEntry
 
 import hassette.cli.output as cli_output
 from hassette.cli.client import make_client, parse_wire_list, query_params
@@ -11,6 +10,8 @@ from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import EMPTY_VALUE, fmt_duration_ms, fmt_log_author, fmt_log_message, fmt_relative_time
 from hassette.cli.output import Column, render_detail_dict, render_table
 from hassette.cli.types import AppKeyArg, AuthorArg, LevelArg, LimitArg, LogInstanceArg, SinceArg
+
+API_WRITES_TRUNCATED_MESSAGE = "{shown} API writes shown; more were omitted. Raise --limit to see them."
 
 EXECUTION_NOT_FOUND_MESSAGE = (
     "Execution record not found: not recorded yet (rows are written in batches) or removed by "
@@ -36,6 +37,27 @@ EXECUTION_LOG_COLUMNS: list[Column] = [
     Column("func_name", "Function"),
     Column("lineno", "Line"),
     Column("message", "Message", wrap=True, overflow="fold", row_formatter=fmt_log_message),
+]
+
+
+def fmt_write_target(target: dict[str, list[str]] | None) -> str:
+    """A write's target ids: bare entity ids, other keys prefixed with their name; ``—`` when there is none."""
+    if not target:
+        return EMPTY_VALUE
+    parts: list[str] = []
+    for key, ids in target.items():
+        joined = ", ".join(ids)
+        parts.append(joined if key == "entity_id" else f"{key}: {joined}")
+    return "; ".join(parts)
+
+
+API_WRITE_COLUMNS: list[Column] = [
+    Column("sent_ts", "Sent", formatter=fmt_relative_time),
+    Column("kind", "Kind"),
+    Column("operation", "Operation"),
+    Column("target", "Target", wrap=True, overflow="fold", formatter=fmt_write_target),
+    Column("outcome", "Outcome"),
+    Column("error_code", "Error"),
 ]
 
 
@@ -74,38 +96,35 @@ def cmd_execution(
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     # dup-ignore-end
-    """Show an execution's summary, its trigger, and its logs.
+    """Show an execution's summary, its trigger, the API writes it made, and its logs.
 
-    Reads GET /api/telemetry/execution/{execution_id} for the record and GET
-    /api/executions/{execution_id} for the logs. A missing or unreadable record doesn't stop the
-    logs from showing: ``--json`` holds ``"execution": null`` and the command still exits 0.
+    Reads GET /api/executions/{execution_id}. ``--limit`` caps the writes and the logs separately, and
+    ``--author`` filters the logs only. ``--json`` prints the response as served; its ``execution`` is null
+    while the record isn't written yet.
     """
     client = make_client(ctx)
 
-    response = client.get(
+    detail = client.get(
         f"/api/executions/{uuid}",
-        LogsByExecutionResponse,
+        ExecutionDetailResponse,
         params=query_params(limit=limit, author=author),
     )
-    execution, failure = client.try_get_nullable(f"/api/telemetry/execution/{uuid}", Execution)
-    if failure is not None:
-        cli_output.stderr_console.print(
-            f"[yellow]Warning:[/yellow] could not read the execution record: {escape(failure)}", highlight=False
-        )
 
     if ctx.json_mode:
-        document = {
-            "execution": execution.model_dump(mode="json") if execution is not None else None,
-            "logs": [entry.model_dump(mode="json") for entry in response.records],
-        }
-        render_detail_dict(document, "Execution", json_mode=True)
+        render_detail_dict(detail.model_dump(mode="json"), "Execution", json_mode=True)
         return
 
-    if execution is not None:
-        render_detail_dict(execution_summary(execution), "Execution", json_mode=False)
-    elif failure is None:  # a failed lookup already warned above
+    if detail.execution is not None:
+        render_detail_dict(execution_summary(detail.execution), "Execution", json_mode=False)
+    else:
         cli_output.stderr_console.print(EXECUTION_NOT_FOUND_MESSAGE, highlight=False)
-    render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=False)
+    if detail.api_writes:
+        render_table(detail.api_writes, API_WRITE_COLUMNS, json_mode=False)
+    if detail.api_writes_truncated:
+        cli_output.stderr_console.print(
+            API_WRITES_TRUNCATED_MESSAGE.format(shown=len(detail.api_writes)), highlight=False
+        )
+    render_table(detail.logs, EXECUTION_LOG_COLUMNS, json_mode=False)
 
 
 def execution_summary(execution: Execution) -> dict[str, Any]:
@@ -133,6 +152,7 @@ def execution_summary(execution: Execution) -> dict[str, Any]:
             "context_id": trigger.context_id,
             "parent_id": trigger.parent_id,
             "origin": trigger.origin,
+            "caused_by": fmt_caused_by(trigger.caused_by) if trigger.caused_by is not None else None,
         }
         summary["trigger"] = fields
     return summary
@@ -143,3 +163,13 @@ def display_value(value: str | None) -> str:
     if value is None:
         return EMPTY_VALUE
     return '""' if value == "" else value
+
+
+def fmt_caused_by(caused_by: CausingWrite) -> str:
+    """Which app's write fired the run: ``app/instance kind operation (execution id)``."""
+    text = f"{caused_by.app_key}/{caused_by.instance_name} {caused_by.kind}"
+    if caused_by.operation is not None:
+        text += f" {caused_by.operation}"
+    if caused_by.execution_id is not None:
+        text += f" (execution {caused_by.execution_id})"
+    return text

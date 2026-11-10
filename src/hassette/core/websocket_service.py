@@ -146,7 +146,11 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         self._stack = AsyncExitStack()
         self._session = None
         self._ws = None
-        self._pending = PendingResponses(self.logger)
+        self._pending = PendingResponses(
+            self.logger,
+            self.hassette.pipeline_counters,
+            self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds,
+        )
         self._seq = count(1)
         self._recv_task = None
         self._subscription_ids = set()

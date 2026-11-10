@@ -93,7 +93,7 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
         )
     ],
     "set_log_level": [lambda c: c.set_log_level("hassette", "DEBUG")],
-    "get_execution_logs": [lambda c: c.get_execution_logs("exec-1", limit=1, author="all")],
+    "get_execution_detail": [lambda c: c.get_execution_detail("exec-1", limit=1, author="all")],
     "get_listeners": [
         lambda c: c.get_listeners(app_key="my_app", instance_name="instance_0", since=1.0, source_tier="all"),
     ],

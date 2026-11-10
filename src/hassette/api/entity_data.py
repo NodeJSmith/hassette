@@ -19,9 +19,11 @@ from hassette.utils.source_capture import capture_source_location
 
 if typing.TYPE_CHECKING:
     import aiohttp
+    from hassette_wire import ApiWriteKind
 
     from hassette import Hassette
     from hassette.core.api_resource import ApiResource
+    from hassette.core.api_write_recorder import ApiWriteHandle
     from hassette.events import HassStateDict
     from hassette.models.entities import EntityT
     from hassette.models.states import BaseState
@@ -60,6 +62,18 @@ class ApiEntityDataMixin:
             self, url: str, data: dict[str, Any] | None = None, **kwargs: Any
         ) -> aiohttp.ClientResponse:
             """Type-checking stub for :meth:`Api.post_rest_request`, which sends a POST request."""
+            ...
+
+        def begin_write(
+            self,
+            kind: "ApiWriteKind",
+            operation: str | None,
+            *,
+            target: dict[str, list[str]] | None = None,
+            data: Any = None,
+            fire_and_forget: bool = False,
+        ) -> "ApiWriteHandle | None":
+            """Type-checking stub for :meth:`Api.begin_write`, which enqueues a pending write record."""
             ...
 
     async def get_state_raw(self, entity_id: str) -> "HassStateDict":
@@ -328,6 +342,9 @@ class ApiEntityDataMixin:
         entity_id = str(entity_id)
 
         attributes = attributes or {}
+        record = self.begin_write(
+            "set_state", None, target={"entity_id": [entity_id]}, data={"state": state, "attributes": attributes}
+        )
 
         # One suppressed GET: a missing entity (or one removed mid-call) means no current attributes,
         # and the POST below creates it.
@@ -336,6 +353,11 @@ class ApiEntityDataMixin:
             curr_attributes = (await response.json()).get("attributes") or {}
         except EntityNotFoundError:
             curr_attributes = {}
+        except BaseException:
+            # The POST never ran, so Home Assistant never saw the write.
+            if record is not None:
+                record.resolve("not_sent")
+            raise
 
         # Merge current attributes with new attributes.
         # This client-side merge is load-bearing: HA's POST /api/states/{id} REPLACES the attribute
@@ -348,8 +370,16 @@ class ApiEntityDataMixin:
         url = f"states/{entity_id}"
         data = {"state": state, "attributes": new_attributes}
 
-        response = await self.post_rest_request(url, data=data)
-        return await response.json()
+        try:
+            response = await self.post_rest_request(url, data=data)
+            body = await response.json()
+        except BaseException as exc:
+            if record is not None:
+                record.resolve_rest_failure(exc)
+            raise
+        if record is not None:
+            record.resolve("success", context_id=rest_context_id(body))
+        return body
 
     async def get_camera_image(
         self,
@@ -437,8 +467,24 @@ class ApiEntityDataMixin:
                 dropped (``ResponseLostError``) after it was sent; not retried, since it may have applied.
         """
         url = f"states/{entity_id}"
+        record = self.begin_write("delete_entity", None, target={"entity_id": [entity_id]})
 
-        response = await self.rest_request("DELETE", url)
+        try:
+            response = await self.rest_request("DELETE", url)
+        except BaseException as exc:
+            if record is not None:
+                record.resolve_rest_failure(exc)
+            raise
+        # Any answer that isn't an HTTP error status means Home Assistant handled the request.
+        if record is not None:
+            record.resolve("success")
 
         if response.status != HTTPStatus.NO_CONTENT:
             raise RuntimeError(f"Failed to delete entity {entity_id}: {response.status} - {response.reason}")
+
+
+def rest_context_id(body: Any) -> str | None:
+    """The context id in a REST state response (``set_state`` returns the state object), else None."""
+    context = body.get("context") if isinstance(body, dict) else None
+    context_id = context.get("id") if isinstance(context, dict) else None
+    return context_id if isinstance(context_id, str) else None

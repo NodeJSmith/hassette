@@ -1417,9 +1417,9 @@
         "tags": [
           "executions"
         ],
-        "summary": "Get Execution Logs",
-        "description": "Return a single execution's log records, with retention-expired detection.\n\nFor UUIDv7 execution IDs, the embedded timestamp is extracted directly without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried to determine\nwhether retention has expired.\n\nReturns 422 if the execution_id is not a valid UUID. Returns an empty record list\nwith ``retention_expired=True`` if the execution is older than the log retention window.",
-        "operationId": "get_execution_logs_api_executions__execution_id__get",
+        "summary": "Get Execution Detail",
+        "description": "Return one execution's record, the API writes it made, and its log records.\n\n``limit`` caps the writes and the logs separately. The record is written in batches, so it can\nlag the logs by a few seconds: ``execution`` is null until it lands (or once retention removed it).\n\nFor UUIDv7 execution IDs, the embedded timestamp decides ``retention_expired`` without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried.\n\nReturns 422 if the execution_id is not a valid UUID.",
+        "operationId": "get_execution_detail_api_executions__execution_id__get",
         "parameters": [
           {
             "name": "execution_id",
@@ -1472,7 +1472,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LogsByExecutionResponse"
+                  "$ref": "#/components/schemas/ExecutionDetailResponse"
                 }
               }
             }
@@ -3053,6 +3053,168 @@
         "title": "ActivityFeedEntry",
         "description": "A single activity entry for the cross-app recent activity feed."
       },
+      "ApiWrite": {
+        "properties": {
+          "write_id": {
+            "type": "string",
+            "title": "Write Id",
+            "description": "Unique id of the write, assigned when it was sent."
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "instance_name": {
+            "type": "string",
+            "title": "Instance Name"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id",
+            "description": "The handler or job execution that made the write. None for a write made outside one."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "call_service",
+              "fire_event",
+              "set_state",
+              "delete_entity",
+              "helper_create",
+              "helper_update",
+              "helper_delete"
+            ],
+            "title": "Kind",
+            "description": "Which ``Api`` write it was. ``turn_on``/``turn_off``/``toggle``, ``notify`` and the counter helpers record\nas ``call_service``."
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation",
+            "description": "``domain.service`` for a service call, the event type, or the helper domain. None for ``set_state`` and\n``delete_entity``."
+          },
+          "target": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target",
+            "description": "What the write acted on, as lists of ids: Home Assistant's target keys for a service call (wherever the\ncaller passed them), ``entity_id`` for ``set_state``/``delete_entity``, ``helper_id`` for a helper update or\ndelete. None otherwise."
+          },
+          "data": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data",
+            "description": "Everything else the caller passed, as a display string (a string as-is, anything else as compact JSON),\ncut to 2,048 characters with a trailing ``\u2026``. Stored unredacted, except values wrapped in ``SecretStr``."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "success",
+              "rejected",
+              "connection_lost",
+              "unresolved",
+              "not_sent"
+            ],
+            "title": "Outcome",
+            "description": "How the write ended; see ``ApiWriteOutcome``."
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code",
+            "description": "Home Assistant's error code for a rejected WebSocket write, or the HTTP status for a rejected REST write."
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message",
+            "description": "Home Assistant's error message for a rejected write."
+          },
+          "context_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Id",
+            "description": "The Home Assistant context id the write ran under, when Home Assistant returned one."
+          },
+          "sent_ts": {
+            "type": "number",
+            "title": "Sent Ts",
+            "description": "When the write was sent (or attempted, for ``not_sent``)."
+          },
+          "resolved_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Ts",
+            "description": "When the outcome was observed. None while ``pending``, and for ``unresolved``."
+          }
+        },
+        "type": "object",
+        "required": [
+          "write_id",
+          "app_key",
+          "instance_name",
+          "kind",
+          "outcome",
+          "sent_ts"
+        ],
+        "title": "ApiWrite",
+        "description": "One write an app's ``Api`` sent to Home Assistant, and how it ended."
+      },
       "AppActivity": {
         "properties": {
           "stats": {
@@ -3950,6 +4112,66 @@
         "title": "BootIssue",
         "description": "A problem found while the server started, listed in ``SystemStatusResponse.boot_issues``."
       },
+      "CausingWrite": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key",
+            "description": "The app that made the write."
+          },
+          "instance_name": {
+            "type": "string",
+            "title": "Instance Name",
+            "description": "The app instance that made the write."
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id",
+            "description": "The execution that made the write. None for a write made outside a handler or job (e.g. in ``on_initialize``)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "call_service",
+              "fire_event",
+              "set_state",
+              "delete_entity",
+              "helper_create",
+              "helper_update",
+              "helper_delete"
+            ],
+            "title": "Kind",
+            "description": "Which ``Api`` write it was."
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation",
+            "description": "``domain.service`` for a service call, the event type, or the helper domain. None for ``set_state`` and\n``delete_entity``."
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "instance_name",
+          "kind"
+        ],
+        "title": "CausingWrite",
+        "description": "The recorded API write whose Home Assistant context fired a handler execution.\n\nMatched on Home Assistant's context id, best-effort: only a write that got a context id back from Home\nAssistant matches, and the match disappears once the write's record ages out of retention."
+      },
       "ConfigSchemaResponse": {
         "properties": {
           "config_schema": {
@@ -4192,6 +4414,63 @@
         "title": "Execution",
         "description": "One run of a handler or scheduled job.\n\n``kind`` says which. ``trigger`` is ``None`` for job executions and set on every handler row."
       },
+      "ExecutionDetailResponse": {
+        "properties": {
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Execution"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The execution record. None while it isn't recorded yet (records are written in batches, so it can lag the\nlogs by a few seconds) or after retention removed it."
+          },
+          "api_writes": {
+            "items": {
+              "$ref": "#/components/schemas/ApiWrite"
+            },
+            "type": "array",
+            "title": "Api Writes",
+            "description": "The writes the execution sent to Home Assistant, oldest first."
+          },
+          "api_writes_truncated": {
+            "type": "boolean",
+            "title": "Api Writes Truncated",
+            "description": "``True`` when the execution made more writes than the request's limit; the rest are omitted."
+          },
+          "logs": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "type": "array",
+            "title": "Logs",
+            "description": "The log records the execution emitted, oldest first."
+          },
+          "logs_truncated": {
+            "type": "boolean",
+            "title": "Logs Truncated",
+            "description": "``True`` when the execution emitted more records than the request's limit; the rest are omitted."
+          },
+          "retention_expired": {
+            "type": "boolean",
+            "title": "Retention Expired",
+            "description": "``True`` when ``logs`` is empty and the execution is older than the server's log retention window:\nits records may have been deleted, or it may never have logged."
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution",
+          "api_writes",
+          "api_writes_truncated",
+          "logs",
+          "logs_truncated",
+          "retention_expired"
+        ],
+        "title": "ExecutionDetailResponse",
+        "description": "One handler or job execution: its record, the API writes it made, and its log records.\n\nServed by ``GET /api/executions/{execution_id}``. ``api_writes`` and ``logs`` are each capped by the request's\n``limit``."
+      },
       "ExecutionMode": {
         "type": "string",
         "enum": [
@@ -4300,6 +4579,17 @@
             ],
             "title": "Origin",
             "description": "Origin of the event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for an\nimmediate-fire run, whose event hassette built from the cached state)."
+          },
+          "caused_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CausingWrite"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recorded API write whose context fired this run, when ``context_id`` matches one. Only a direct match\ncounts: a write that sets off a Home Assistant automation is not reported on the automation's downstream runs."
           }
         },
         "type": "object",
@@ -5330,35 +5620,6 @@
         ],
         "title": "LogLevelResponse",
         "description": "Response for PUT /api/logs/level."
-      },
-      "LogsByExecutionResponse": {
-        "properties": {
-          "records": {
-            "items": {
-              "$ref": "#/components/schemas/LogEntry"
-            },
-            "type": "array",
-            "title": "Records"
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated",
-            "description": "``True`` when the execution emitted more records than the request's limit; the rest are omitted."
-          },
-          "retention_expired": {
-            "type": "boolean",
-            "title": "Retention Expired",
-            "description": "``True`` when ``records`` is empty and the execution is older than the server's log retention window:\nits records may have been deleted, or it may never have logged."
-          }
-        },
-        "type": "object",
-        "required": [
-          "records",
-          "truncated",
-          "retention_expired"
-        ],
-        "title": "LogsByExecutionResponse",
-        "description": "The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``."
       },
       "NeedsRestart": {
         "properties": {

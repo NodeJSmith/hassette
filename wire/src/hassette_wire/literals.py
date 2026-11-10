@@ -87,3 +87,20 @@ LivenessStatus = Literal["live"]
 """The ``status`` of a liveness probe answer."""
 
 OpenLivenessStatus = Annotated[LivenessStatus | UnknownValue, LenientValue("LivenessStatus")]
+
+ApiWriteKind = Literal[
+    "call_service", "fire_event", "set_state", "delete_entity", "helper_create", "helper_update", "helper_delete"
+]
+"""Which named ``Api`` write produced a recorded API write. ``turn_on``/``turn_off``/``toggle``, ``notify`` and the
+counter helpers record as ``call_service``."""
+
+OpenApiWriteKind = Annotated[ApiWriteKind | UnknownValue, LenientValue("ApiWriteKind")]
+
+ApiWriteOutcome = Literal["pending", "success", "rejected", "connection_lost", "unresolved", "not_sent"]
+"""How a recorded API write ended. ``pending``: not resolved yet. ``success``: Home Assistant's handler returned,
+not that the device changed. ``rejected``: Home Assistant answered with an error. ``connection_lost``: sent, then the
+connection ended or the request was abandoned before a reply; outcome unknown. ``unresolved``: sent, but how it ended
+wasn't recorded (evicted from tracking, or still pending at the next start); outcome unknown. ``not_sent``: never
+reached Home Assistant."""
+
+OpenApiWriteOutcome = Annotated[ApiWriteOutcome | UnknownValue, LenientValue("ApiWriteOutcome")]

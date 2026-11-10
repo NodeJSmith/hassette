@@ -202,9 +202,9 @@ class HelperClient(Resource):
             The stored record returned by Home Assistant.
         """
         domain, record_type = CREATE_DISPATCH[type(params)]
-        val = await _ws_helper_call(
-            self._api, domain, "create", retry_on_timeout=False, **params.model_dump(exclude_unset=True)
-        )
+        fields = params.model_dump(exclude_unset=True)
+        record = self._api.begin_write("helper_create", domain, data=fields or None)
+        val = await _ws_helper_call(self._api, domain, "create", retry_on_timeout=False, record=record, **fields)
         record = record_type.model_validate(_expect_dict(val, f"{domain}/create"))
         self.logger.info("Created %s helper %r", domain, record.id)  # pyright: ignore[reportAttributeAccessIssue]
         return record
@@ -241,13 +241,10 @@ class HelperClient(Resource):
             The updated stored record.
         """
         domain, record_type, id_key = UPDATE_DISPATCH[type(params)]
+        fields = params.model_dump(exclude_unset=True)
+        record = self._api.begin_write("helper_update", domain, target={"helper_id": [helper_id]}, data=fields or None)
         val = await _ws_helper_call(
-            self._api,
-            domain,
-            "update",
-            retry_on_timeout=False,
-            **{id_key: helper_id},
-            **params.model_dump(exclude_unset=True),
+            self._api, domain, "update", retry_on_timeout=False, record=record, **{id_key: helper_id}, **fields
         )
         record = record_type.model_validate(_expect_dict(val, f"{domain}/update"))
         self.logger.info("Updated %s helper %r", domain, helper_id)
@@ -281,7 +278,8 @@ class HelperClient(Resource):
                 changes only the ``entity_id``); look the id up with ``list(domain)``.
         """
         id_key = ID_KEYS[domain]
-        await _ws_helper_call(self._api, domain, "delete", retry_on_timeout=False, **{id_key: helper_id})
+        record = self._api.begin_write("helper_delete", domain, target={"helper_id": [helper_id]})
+        await _ws_helper_call(self._api, domain, "delete", retry_on_timeout=False, record=record, **{id_key: helper_id})
         self.logger.info("Deleted %s helper %r", domain, helper_id)
 
     async def increment(self, entity_id: str) -> None:

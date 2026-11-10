@@ -41,7 +41,15 @@ from whenever import Instant
 
 from hassette.core.migration_runner import run_migrations
 
-_SUMMARY_TABLES = ("sessions", "listeners", "scheduled_jobs", "executions", "log_records", "blocking_events")
+_SUMMARY_TABLES = (
+    "sessions",
+    "listeners",
+    "scheduled_jobs",
+    "executions",
+    "log_records",
+    "blocking_events",
+    "api_writes",
+)
 
 _DANGLING_EXECUTION_ID_QUERY = """
     SELECT t.execution_id
@@ -126,6 +134,7 @@ def generate_scenario(
             _assert_foreign_keys_clean(conn)
             _assert_no_dangling_execution_ids(conn, "log_records")
             _assert_no_dangling_execution_ids(conn, "blocking_events")
+            _assert_no_dangling_execution_ids(conn, "api_writes")
 
             summary = _collect_summary(conn)
         finally:
@@ -149,6 +158,7 @@ def _print_summary(scenario: str, output_path: Path, summary: dict[str, int]) ->
     print(f"  executions:      {summary['executions']}")
     print(f"  log_records:     {summary['log_records']}")
     print(f"  blocking_events: {summary['blocking_events']}")
+    print(f"  api_writes:      {summary['api_writes']}")
 
 
 def parse_anchor(value: str) -> Instant:
