@@ -288,7 +288,7 @@ the app config passes straight through, with no `get_secret_value()` call:
 ```
 
 Hassette unwraps the value only in the message it sends, so Home Assistant receives the plaintext.
-The `call_service` debug log line still prints the masked value. The entity shorthands `turn_on`,
+Hassette's debug log lines still print the masked value. The entity shorthands `turn_on`,
 `turn_off`, `toggle`, and `notify` go through `call_service` and accept `SecretStr` too. Helper CRUD
 parameters reject `SecretStr`, so a secret `initial` value needs `get_secret_value()` before the call.
 

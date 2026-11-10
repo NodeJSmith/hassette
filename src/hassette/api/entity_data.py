@@ -14,7 +14,7 @@ from hassette.exceptions import EntityNotFoundError
 from hassette.models.entities import BaseEntity
 from hassette.models.history import HistoryEntry
 from hassette.utils.await_guard import guard_await
-from hassette.utils.request_utils import format_time_param, unwrap_secrets
+from hassette.utils.request_utils import format_time_param
 from hassette.utils.source_capture import capture_source_location
 
 if typing.TYPE_CHECKING:
@@ -346,7 +346,7 @@ class ApiEntityDataMixin:
         new_attributes = curr_attributes | attributes
 
         url = f"states/{entity_id}"
-        data = unwrap_secrets({"state": state, "attributes": new_attributes})
+        data = {"state": state, "attributes": new_attributes}
 
         response = await self.post_rest_request(url, data=data)
         return await response.json()

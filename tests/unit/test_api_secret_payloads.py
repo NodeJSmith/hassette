@@ -8,10 +8,14 @@ import logging
 
 import orjson
 import pytest
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 from pydantic import SecretStr
 
+from hassette.core.api_resource import ApiResource
 from hassette.utils.request_utils import unwrap_secrets
 from tests.support.factories import make_recording_api
+from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.conftest import awaited_kwargs, make_api
 
 CODE = "1234"
@@ -65,13 +69,34 @@ async def test_fire_event_sends_plaintext() -> None:
     assert awaited_kwargs(api.ws_send_and_wait)["event_data"] == {"token": CODE}
 
 
-async def test_set_state_sends_plaintext() -> None:
-    """SecretStr in state or attributes reaches HA as plaintext."""
-    api = make_api()
+async def test_rest_request_sends_plaintext_and_logs_masked(caplog: pytest.LogCaptureFixture) -> None:
+    """The REST transport sends SecretStr plaintext to HA; its DEBUG request line stays masked."""
+    bodies: list[bytes] = []
 
-    await api.set_state("sensor.test", SecretStr("on"), {"code": SecretStr(CODE)})
+    async def handle(request: web.Request) -> web.Response:
+        bodies.append(await request.read())
+        return web.json_response({})
 
-    assert awaited_kwargs(api.post_rest_request)["data"] == {"state": "on", "attributes": {"code": CODE}}
+    app = web.Application()
+    app.router.add_route("*", "/{tail:.*}", handle)
+
+    async with TestServer(app) as server:
+        resource = ApiResource(make_mock_hassette(), rest_url=str(server.make_url("/api/")), headers_factory=dict)
+        await resource.on_initialize()
+        resource.logger.setLevel(logging.DEBUG)
+        try:
+            with caplog.at_level(logging.DEBUG, logger=resource.logger.name):
+                await resource.rest_request(
+                    "POST",
+                    "states/sensor.test",
+                    data={"state": SecretStr("on"), "attributes": {"code": SecretStr(CODE)}},
+                )
+        finally:
+            await resource.on_shutdown()
+
+    assert [orjson.loads(b) for b in bodies] == [{"state": "on", "attributes": {"code": CODE}}]
+    assert "Making POST request" in caplog.text
+    assert CODE not in caplog.text
 
 
 async def test_recording_api_records_secret_payloads() -> None:
