@@ -3,7 +3,7 @@ from collections.abc import Callable
 from fnmatch import fnmatch
 from typing import TYPE_CHECKING
 
-from hassette.utils.glob_utils import GLOB_CHARS
+from hassette.utils.glob_utils import is_glob
 
 if TYPE_CHECKING:
     from hassette.bus.listeners import Listener
@@ -33,7 +33,7 @@ class Router:
             topic: The topic to add the listener to.
             listener: The listener to add.
         """
-        if any(ch in topic for ch in GLOB_CHARS):
+        if is_glob(topic):
             self.globs[topic].append(listener)
         else:
             self.exact[topic].append(listener)
@@ -47,7 +47,7 @@ class Router:
             topic: The topic to remove the listener from.
             predicate: A function that returns True for listeners to be removed.
         """
-        bucket = self.globs if any(ch in topic for ch in GLOB_CHARS) else self.exact
+        bucket = self.globs if is_glob(topic) else self.exact
         listeners = bucket.get(topic)
         if not listeners:
             return
@@ -112,7 +112,6 @@ class Router:
             if fnmatch(topic, k):
                 out.extend(listeners)
 
-        # de-dup preserving order
         seen: set[int] = set()
         unique: list[Listener] = []
         for listener in out:
@@ -120,7 +119,6 @@ class Router:
                 seen.add(listener.listener_id)
                 unique.append(listener)
 
-        # Sort by priority (highest first)
         unique.sort(key=lambda x: x.options.priority, reverse=True)
         return unique
 
@@ -150,7 +148,7 @@ class Router:
 
         handled_topics = {listener.topic for listener in owner_listeners}
         for topic in handled_topics:
-            bucket = self.globs if any(ch in topic for ch in GLOB_CHARS) else self.exact
+            bucket = self.globs if is_glob(topic) else self.exact
             listeners = bucket.get(topic)
             if not listeners:
                 continue
