@@ -141,10 +141,9 @@ class ApiResource(Resource):
         while the caller reads the response body is not mapped.
 
         A GET is retried on any of these except a 4xx other than 408/429 (and the ``NOT_RETRYABLE``
-        types, such as a caller's ``TypeError``). Any other method is retried
-        only on ``CommandNotSentError``, so Hassette never re-sends a write after it may have applied,
-        and the class raised after retries describes the whole call. (aiohttp itself may re-send a
-        DELETE or PUT once when a reused keep-alive connection turns out to be closed.)
+        types, such as a caller's ``TypeError``). Any other method is retried only on
+        ``CommandNotSentError`` (see ``is_retryable_rest_failure``), so the class raised after retries
+        describes the whole call.
 
         Raises:
             CommandNotSentError: If the request never reached Home Assistant.

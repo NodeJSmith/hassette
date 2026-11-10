@@ -32,8 +32,7 @@ from hassette.models.helpers import (
     UpdateInputBooleanParams,
 )
 from hassette.testing import AppTestHarness
-from hassette.testing.app_harness import RECORD_TYPE_TO_DOMAIN
-from hassette.testing.recording_api import slugify_helper_name
+from hassette.testing.recording_api import RECORD_TYPE_TO_DOMAIN, slugify_helper_name
 from tests.support.factories import make_recording_api
 
 
