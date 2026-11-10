@@ -125,6 +125,38 @@ class TestDebounceLogic:
 
         await wait_for(lambda: calls == ["second"], desc="debounce fired")
 
+    async def test_debounce_does_not_cancel_running_handler(self, bucket: TaskBucket):
+        """A new event after the quiet period must not cancel the handler already running.
+
+        Debounce only resets a pending timer; once the handler has started, the next call
+        schedules a fresh debounce instead of cancelling the in-flight invocation.
+        """
+        events: list[str] = []
+        first_started = asyncio.Event()
+
+        def make_slow_handler(label: str) -> Callable[[], Awaitable[None]]:
+            async def handler() -> None:
+                events.append(f"start-{label}")
+                first_started.set()
+                try:
+                    await asyncio.sleep(0.3)
+                except asyncio.CancelledError:
+                    events.append(f"cancelled-{label}")
+                    raise
+                events.append(f"end-{label}")
+
+            return handler
+
+        limiter = RateLimiter(bucket, debounce=0.05)
+
+        await limiter.call(make_slow_handler("a"))
+        await asyncio.wait_for(first_started.wait(), timeout=2)
+        await limiter.call(make_slow_handler("b"))
+
+        await wait_for(lambda: "end-b" in events, desc="second handler finished")
+        assert "cancelled-a" not in events, f"running handler was cancelled: {events}"
+        assert sorted(events) == ["end-a", "end-b", "start-a", "start-b"]
+
 
 class TestRateLimiterCancel:
     """Test RateLimiter.cancel() for cleanup on listener removal."""

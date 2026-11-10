@@ -127,6 +127,10 @@ class RateLimiter:
             # Guard: if cancel() was called while we were sleeping, don't fire the handler.
             if self._cancelled:
                 return
+            # Quiet period over: from here this is a running invocation, not a pending timer.
+            # Dropping the reference keeps the next debounce reset (and cancel()) from
+            # cancelling the handler mid-run; the execution mode and task bucket own it now.
+            self._debounce_task = None
             # Handler runs outside the CancelledError catch — if the handler is cancelled
             # (e.g., during shutdown), it propagates so telemetry can record it as 'cancelled'.
             await handler()
