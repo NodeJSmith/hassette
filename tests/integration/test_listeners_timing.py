@@ -125,6 +125,44 @@ class TestDebounceLogic:
 
         await wait_for(lambda: calls == ["second"], desc="debounce fired")
 
+    async def test_debounce_does_not_cancel_running_handler(self, bucket: TaskBucket):
+        """A new event after the quiet period must not cancel the handler already running.
+
+        Debounce only resets a pending timer; once the handler has started, the next call
+        schedules a fresh debounce instead of cancelling the in-flight invocation.
+        """
+        events: list[str] = []
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+
+        def make_handler(label: str, hold: asyncio.Event | None = None) -> Callable[[], Awaitable[None]]:
+            async def handler() -> None:
+                events.append(f"start-{label}")
+                first_started.set()
+                try:
+                    if hold is not None:
+                        await hold.wait()
+                except asyncio.CancelledError:
+                    events.append(f"cancelled-{label}")
+                    raise
+                events.append(f"end-{label}")
+
+            return handler
+
+        limiter = RateLimiter(bucket, debounce=0.05)
+
+        # Hold "a" mid-run until "b" has been submitted and has started, so "b"'s debounce
+        # reset is guaranteed to happen while "a" is still in flight.
+        await limiter.call(make_handler("a", hold=release_first))
+        await asyncio.wait_for(first_started.wait(), timeout=2)
+        await limiter.call(make_handler("b"))
+        await wait_for(lambda: "end-b" in events, desc="second handler finished")
+        release_first.set()
+
+        await wait_for(lambda: "end-a" in events or "cancelled-a" in events, desc="first handler settled")
+        assert "cancelled-a" not in events, f"running handler was cancelled: {events}"
+        assert sorted(events) == ["end-a", "end-b", "start-a", "start-b"]
+
 
 class TestRateLimiterCancel:
     """Test RateLimiter.cancel() for cleanup on listener removal."""
