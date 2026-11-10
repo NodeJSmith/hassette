@@ -8,6 +8,7 @@ from typing import Any, Literal, overload
 
 from hassette.models.services import ServiceResponse
 from hassette.utils.await_guard import guard_await
+from hassette.utils.request_utils import unwrap_secrets
 from hassette.utils.source_capture import capture_source_location
 
 if typing.TYPE_CHECKING:
@@ -105,7 +106,7 @@ class ApiServiceCallsMixin:
         """Async body for fire_event."""
         data: dict[str, Any] = {"type": "fire_event", "event_type": event_type}
         if event_data:
-            data["event_data"] = event_data
+            data["event_data"] = unwrap_secrets(event_data)
 
         return await self.ws_send_and_wait(retry_on_timeout=False, **data)  # sent once; re-send would refire it
 
@@ -210,7 +211,7 @@ class ApiServiceCallsMixin:
             "type": "call_service",
             "domain": domain,
             "service": service,
-            "target": dict(target) if target is not None else None,
+            "target": unwrap_secrets(target) if target is not None else None,
             "return_response": return_response,
         }
 
@@ -219,7 +220,8 @@ class ApiServiceCallsMixin:
 
         if service_data:
             self.logger.debug("Adding extra data to service call: %s", service_data)
-            filtered_payload["service_data"] = service_data
+            # Logged before unwrapping, so a SecretStr prints masked; HA gets the plaintext.
+            filtered_payload["service_data"] = unwrap_secrets(service_data)
 
         # Neither waiting path re-sends on timeout — a lost response doesn't mean HA skipped
         # the call, so a retry could apply it twice (counter.increment would count twice), and

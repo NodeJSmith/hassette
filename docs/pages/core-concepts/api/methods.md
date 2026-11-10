@@ -277,6 +277,21 @@ event as a list (`"entity_id": ["light.porch"]`), while the same ID passed as a 
 stays a string (`"entity_id": "light.porch"`). A listener that reads `entity_id` from service
 data should accept both shapes.
 
+#### Passing secrets
+
+`call_service`, `fire_event`, and `set_state` accept [`SecretStr`](../apps/index.md#secret-fields)
+values anywhere in their payload, including nested dicts and lists. A lock code typed `SecretStr` in
+the app config passes straight through, with no `get_secret_value()` call:
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_call_service_secret.py"
+```
+
+Hassette unwraps the value only in the message it sends, so Home Assistant receives the plaintext.
+Hassette's debug log lines still print the masked value. The entity shorthands `turn_on`,
+`turn_off`, `toggle`, and `notify` go through `call_service` and accept `SecretStr` too. Helper CRUD
+parameters reject `SecretStr`, so a secret `initial` value needs `get_secret_value()` before the call.
+
 ### `turn_on(entity_id, domain, **data)`
 
 Shorthand for `call_service(domain, "turn_on", ...)`. Extra keyword arguments pass

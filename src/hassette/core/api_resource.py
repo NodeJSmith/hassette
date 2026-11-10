@@ -30,7 +30,7 @@ from hassette.exceptions import (
 from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump
+from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump, unwrap_secrets
 from hassette.utils.url_utils import resolve_rest_path
 
 _SSL_SHUTDOWN_DELAY = 0.25
@@ -148,7 +148,8 @@ class ApiResource(Resource):
                 raise ResourceNotReadyError("Client session is not connected")
 
             params = clean_kwargs(**(params or {}))
-            str_data = orjson_dump(data or {})
+            # HA gets SecretStr plaintext; the DEBUG line below serializes the original payload, which masks it.
+            str_data = orjson_dump(unwrap_secrets(data or {}))
 
             request_kwargs = {}
 
@@ -172,7 +173,10 @@ class ApiResource(Resource):
                     **request_kwargs,
                     **kwargs,
                 )
-                self.logger.debug("Making %s request to %s with data %s", method, response.real_url, str_data)
+                if self.logger.isEnabledFor(logging.DEBUG):
+                    self.logger.debug(
+                        "Making %s request to %s with data %s", method, response.real_url, orjson_dump(data or {})
+                    )
                 response.raise_for_status()
 
                 return response
