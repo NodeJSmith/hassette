@@ -22,7 +22,7 @@ class ParameterInjector:
     to extract and convert parameters from events, returning a dictionary of injected parameters.
     """
 
-    def __init__(self, handler_name: str, signature: inspect.Signature):
+    def __init__(self, handler_name: str, signature: inspect.Signature) -> None:
         """Initialize the parameter injector.
 
         Args:
@@ -85,12 +85,6 @@ class ParameterInjector:
             except DependencyError:
                 raise
             except Exception as exc:
-                LOGGER.error(
-                    "Handler '%s' - unexpected error extracting parameter '%s': %s",
-                    self.handler_name,
-                    param.name,
-                    exc,
-                )
                 raise DependencyResolutionError(
                     f"Handler '{self.handler_name}' - failed to extract parameter '{param.name}': {exc}"
                 ) from exc

@@ -51,7 +51,6 @@ class RateLimiter:
             handler_name: Name of the owning handler, used in log messages for diagnostics.
             clock: Zero-arg callable returning the current monotonic time, used for throttle
                 timestamps. Defaults to ``time.monotonic``. Injectable for deterministic tests.
-
         """
         self.task_bucket = task_bucket
         self.debounce = debounce
@@ -59,8 +58,7 @@ class RateLimiter:
         self.handler_name = handler_name
         self._clock = clock or time.monotonic
 
-        # Rate limiting state
-        self._debounce_task: asyncio.Task | None = None
+        self._debounce_task: asyncio.Task[None] | None = None
         self._throttle_last_time: float | None = None
         self._cancelled = False
 
@@ -92,13 +90,13 @@ class RateLimiter:
         if self._cancelled:
             return
         if self.debounce is not None:
-            await self.debounced_call(handler)
+            await self.debounced_call(handler, self.debounce)
         elif self.throttle is not None:
-            await self.throttled_call(handler)
+            await self.throttled_call(handler, self.throttle)
         else:
             await handler()
 
-    async def debounced_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
+    async def debounced_call(self, handler: "Callable[[], Awaitable[None]]", debounce: float) -> None:
         """Debounced version of the handler call.
 
         Expects a fresh ``handler`` callable on each call.  BusService creates a new
@@ -111,15 +109,10 @@ class RateLimiter:
         # is critical: the old task holds the old handler closure (with the old event),
         # and the new task will hold the new handler closure (with the latest event).
         if self._debounce_task and not self._debounce_task.done():
-            LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, self.debounce)
+            LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, debounce)
             self._debounce_task.cancel()
 
-        # Local capture for the closure + type narrowing (call() already guards for None)
-        debounce = self.debounce
-        if debounce is None:
-            raise ValueError("debounce must be set before calling debounced_call")
-
-        async def delayed_call():
+        async def delayed_call() -> None:
             try:
                 await asyncio.sleep(debounce)
             except asyncio.CancelledError:  # noqa: ASYNC103 — debounce reset: a new event superseded this one
@@ -139,18 +132,16 @@ class RateLimiter:
         task.add_done_callback(self.clear_debounce_ref)
         self._debounce_task = task
 
-    async def throttled_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
+    async def throttled_call(self, handler: "Callable[[], Awaitable[None]]", throttle: float) -> None:
         """Throttled version of the handler call.
 
         At most one attempt per window. No lock needed — the check-and-set between
         ``self._clock()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
         single-threaded event loop (no await point between them).
         """
-        if self.throttle is None:
-            raise ValueError("throttle must be set before calling throttled_call")
         now = self._clock()
-        if self._throttle_last_time is not None and now - self._throttle_last_time < self.throttle:
-            LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, self.throttle)
+        if self._throttle_last_time is not None and now - self._throttle_last_time < throttle:
+            LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, throttle)
             return
         self._throttle_last_time = now
         await handler()
