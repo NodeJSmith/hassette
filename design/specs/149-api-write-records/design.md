@@ -272,7 +272,7 @@ Every named write maps the same way over both transports. WebSocket: the caller 
 ## Build
 
 - [x] Implementation and tests committed
-- [ ] Docs
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**

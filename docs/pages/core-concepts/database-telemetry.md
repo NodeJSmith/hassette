@@ -26,14 +26,14 @@ Each row records the app and instance, the run that made it (none for a write fr
 | `success` | Home Assistant's handler returned. It doesn't mean the device changed state. |
 | `rejected` | Home Assistant answered with an error. `error_code` holds its code, or the HTTP status for `set_state` and `delete_entity`. |
 | `connection_lost` | Sent, then the connection ended (or the request was abandoned) before an answer. The call may or may not have applied. |
-| `unresolved` | Sent, but how it ended wasn't recorded: Hassette restarted while it was pending, or it was one of more than 10,000 calls waiting on an answer at once. The call may or may not have applied. |
+| `unresolved` | Sent, but how it ended wasn't recorded. This happens when Hassette restarts while the call is pending, or when more than 10,000 calls are waiting on an answer that no handler is still waiting for (fire-and-forget calls, or ones whose handler timed out) and this is the oldest. The call may or may not have applied. |
+| `not_sent` | Never reached Home Assistant, for example because the connection was down. |
 
 Recording is best-effort. If the database write queue is full when an outcome arrives, the outcome is dropped and counted, and the row stays `pending` until the next restart marks it `unresolved`.
-| `not_sent` | Never reached Home Assistant, for example because the connection was down. |
 
 A handler that times out or is cancelled doesn't stop Home Assistant from finishing the call, so its row keeps waiting for the answer. Writes made through the framework's own `Api` or through `RecordingApi` in tests aren't recorded, and neither are the internal transport methods.
 
-When a handler run's trigger context matches a recorded write's context, the run's `trigger.caused_by` names the app, instance, run, kind and operation of that write. Only a direct match counts: a write that sets off a Home Assistant automation isn't reported on the automation's downstream runs. The match goes once the write's row ages out.
+When a handler run's trigger context matches a recorded write's context, the run's `trigger.caused_by` names the app, instance, run, kind and operation of that write. Only a direct match counts: a write that sets off a Home Assistant automation isn't reported on the automation's downstream runs. Once the write's row ages out, the match is gone.
 
 Like trigger values, write data is stored without redaction. Alarm and lock `code` values, password-mode helper values and tokens land in the database as passed. A value wrapped in `SecretStr` is stored masked, while Home Assistant still gets the real value. `hassette execution --json` output can therefore hold credentials, so check it before sharing it.
 
