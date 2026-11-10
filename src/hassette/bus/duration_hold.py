@@ -83,7 +83,7 @@ class DurationHoldManager:
         return self._duration_timers_active
 
     def decrement_timers_active(self) -> None:
-        """Decrement the active timer counter on cancellation."""
+        """Decrement the active timer counter when a timer cycle ends (fired or cancelled)."""
         if self._duration_timers_active > 0:
             self._duration_timers_active -= 1
 
@@ -110,7 +110,7 @@ class DurationHoldManager:
             self.record_predicate_failure(listener, listener.topic, event, exc, predicate_start)
             return False
 
-    async def immediate_fire_task(self, listener: Listener) -> None:
+    async def immediate_fire_task(self, listener: Listener, entity_watch: EntityWatch) -> None:
         """Fire a handler immediately with the current entity state.
 
         Implements ``immediate=True``: fires once with a synthetic event built
@@ -125,16 +125,7 @@ class DurationHoldManager:
         they are not predicate failures and a synthetic-event build failure leaves no
         event to hand an error handler.
         """
-        entity_watch = listener.entity_watch
-        entity_id = entity_watch.entity_id if entity_watch else None
-        if not entity_id:
-            self.logger.error(
-                "immediate_fire: listener has no entity_id (invariant violated). owner=%s topic=%s",
-                listener.identity.owner_id,
-                listener.topic,
-            )
-            return
-
+        entity_id = entity_watch.entity_id
         current_state = self.state_reader(entity_id)
         if current_state is None:
             return
@@ -153,14 +144,10 @@ class DurationHoldManager:
                 is_synthetic=True,
             )
 
-            if entity_watch is not None and entity_watch.duration is not None:
+            if entity_watch.duration is not None:
                 elapsed = self.compute_elapsed(current_state, entity_watch)
                 if elapsed >= entity_watch.duration:
-                    try:
-                        await listener.invoker.dispatch(invoke_fn, self.config_resolver)
-                    finally:
-                        if listener.options.once:
-                            self.remove_listener(listener)
+                    await self.dispatch_and_release_once(listener, invoke_fn)
                 else:
                     remaining = entity_watch.duration - elapsed
                     self.logger.debug(
@@ -169,20 +156,16 @@ class DurationHoldManager:
                         elapsed,
                         remaining,
                     )
-                    self.start_remaining_duration_timer(
+                    self.start_duration_timer(
                         listener,
                         entity_id,
                         entity_watch,
                         invoke_fn,
-                        remaining,
+                        override_duration=remaining,
                     )
                 return
 
-            try:
-                await listener.invoker.dispatch(invoke_fn, self.config_resolver)
-            finally:
-                if listener.options.once:
-                    self.remove_listener(listener)
+            await self.dispatch_and_release_once(listener, invoke_fn)
         except Exception as exc:
             self.logger.warning(
                 "immediate_fire: unexpected error for entity %s, immediate fire will not occur. owner=%s topic=%s",
@@ -192,16 +175,13 @@ class DurationHoldManager:
                 exc_info=exc,
             )
 
-    def start_remaining_duration_timer(
-        self,
-        listener: Listener,
-        entity_id: str,
-        entity_watch: EntityWatch,
-        invoke_fn: "Callable[[], Awaitable[None]]",
-        remaining: float,
-    ) -> None:
-        """Start a timer for the ``remaining`` hold seconds; rechecks predicates at fire time."""
-        self._start_duration_timer(listener, entity_id, entity_watch, invoke_fn, override_duration=remaining)
+    async def dispatch_and_release_once(self, listener: Listener, invoke_fn: "Callable[[], Awaitable[None]]") -> None:
+        """Dispatch ``invoke_fn`` and remove a ``once`` listener afterwards, even if dispatch raises."""
+        try:
+            await listener.invoker.dispatch(invoke_fn, self.config_resolver)
+        finally:
+            if listener.options.once:
+                self.remove_listener(listener)
 
     def start_duration_timer(
         self,
@@ -209,18 +189,14 @@ class DurationHoldManager:
         entity_id: str,
         entity_watch: EntityWatch,
         invoke_fn: "Callable[[], Awaitable[None]]",
-    ) -> None:
-        """Start the full-duration hold timer; rechecks predicates at fire time."""
-        self._start_duration_timer(listener, entity_id, entity_watch, invoke_fn)
-
-    def _start_duration_timer(
-        self,
-        listener: Listener,
-        entity_id: str,
-        entity_watch: EntityWatch,
-        invoke_fn: "Callable[[], Awaitable[None]]",
         override_duration: float | None = None,
     ) -> None:
+        """Start the hold timer; rechecks predicates at fire time.
+
+        ``override_duration`` sleeps for that many seconds instead of the full hold duration
+        (the immediate-fire path passes the remaining hold time).
+        """
+
         async def on_duration_fire() -> None:
             try:
                 current_state = self.state_reader(entity_id)
@@ -244,10 +220,7 @@ class DurationHoldManager:
                     self.remove_listener(listener)
 
         self._duration_timers_active += 1
-        if override_duration is not None:
-            entity_watch.timer.start(on_duration_fire, override_duration=override_duration)
-        else:
-            entity_watch.timer.start(on_duration_fire)
+        entity_watch.timer.start(on_duration_fire, override_duration=override_duration)
 
     def create_cancel_listener(self, main_listener: Listener) -> Subscription:
         """Create and register a cancellation listener for a duration timer.

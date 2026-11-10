@@ -223,7 +223,7 @@ class BusService(Service):
             self._dispatch_pending += 1
             self._dispatch_idle_event.clear()
             immediate_task = self.task_bucket.spawn(
-                self._duration_hold.immediate_fire_task(listener),
+                self._duration_hold.immediate_fire_task(listener, listener.entity_watch),
                 name="bus:immediate_fire",
             )
             immediate_task.add_done_callback(self.on_dispatch_done)

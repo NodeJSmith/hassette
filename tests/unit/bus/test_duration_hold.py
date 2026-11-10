@@ -125,13 +125,21 @@ def arm_duration_timer(
 def arm_remaining_duration_timer(
     *, state: dict[str, Any] | None = None, duration: float = 60.0, remaining: float = 30.0
 ) -> tuple[DurationHoldManager, MagicMock, AsyncMock]:
-    """Same as ``arm_duration_timer`` but drives ``start_remaining_duration_timer`` with `remaining`."""
+    """Same as ``arm_duration_timer`` but passes ``override_duration=remaining`` to ``start_duration_timer``."""
     manager = make_manager(state=state)
     listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
     invoke_fn = AsyncMock()
     assert listener.entity_watch is not None
-    manager.start_remaining_duration_timer(listener, "light.kitchen", listener.entity_watch, invoke_fn, remaining)
+    manager.start_duration_timer(
+        listener, "light.kitchen", listener.entity_watch, invoke_fn, override_duration=remaining
+    )
     return manager, mock_timer, invoke_fn
+
+
+async def run_immediate_fire(manager: DurationHoldManager, listener: Listener) -> None:
+    """Call ``immediate_fire_task`` with the listener's own ``entity_watch``, as ``BusService`` does."""
+    assert listener.entity_watch is not None
+    await manager.immediate_fire_task(listener, listener.entity_watch)
 
 
 async def fire_mock_timer(mock_timer: MagicMock) -> None:
@@ -202,7 +210,7 @@ class TestImmediateFireTask:
             immediate=True,
         )
 
-        await manager.immediate_fire_task(listener)
+        await run_immediate_fire(manager, listener)
 
         executor.execute.assert_not_called()
 
@@ -217,24 +225,9 @@ class TestImmediateFireTask:
             immediate=True,
         )
 
-        await manager.immediate_fire_task(listener)
+        await run_immediate_fire(manager, listener)
 
         executor.execute.assert_called_once()
-
-    async def test_logs_error_and_returns_when_no_entity_id(self) -> None:
-        """immediate_fire_task logs error and returns early when listener has no entity_id."""
-        executor = make_mock_executor()
-        manager = make_manager(state=make_state_dict("light.kitchen", "on"), executor=executor)
-        # Listener without entity_id (no entity_watch)
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-        )
-        # Manually clear entity_watch to simulate invariant violation
-        object.__setattr__(listener, "entity_watch", None)
-
-        await manager.immediate_fire_task(listener)
-
-        executor.execute.assert_not_called()
 
     async def test_removes_listener_on_once_after_non_duration_fire(self) -> None:
         """immediate_fire_task calls remove_listener when once=True after non-duration dispatch."""
@@ -249,7 +242,7 @@ class TestImmediateFireTask:
             once=True,
         )
 
-        await manager.immediate_fire_task(listener)
+        await run_immediate_fire(manager, listener)
 
         remove_listener.assert_called_once_with(listener)
 
@@ -269,7 +262,7 @@ class TestImmediateFireTask:
             where=never_match,
         )
 
-        await manager.immediate_fire_task(listener)
+        await run_immediate_fire(manager, listener)
 
         executor.execute.assert_not_called()
 
@@ -299,7 +292,7 @@ class TestStartDurationTimer:
         mock_timer.start.assert_called_once()
 
     def test_start_remaining_increments_duration_timers_active(self) -> None:
-        """start_remaining_duration_timer increments duration_timers_active."""
+        """start_duration_timer with override_duration increments duration_timers_active."""
         manager, mock_timer, _invoke_fn = arm_remaining_duration_timer()
 
         assert manager.duration_timers_active == 1
@@ -326,7 +319,7 @@ class TestStartDurationTimer:
         invoke_fn.assert_not_called()
 
     async def test_remaining_fire_decrements_timers_active(self) -> None:
-        """on_duration_fire in start_remaining_duration_timer decrements counter."""
+        """on_duration_fire decrements counter on an override_duration timer."""
         state = make_state_dict("light.kitchen", "on")
         manager, mock_timer, _invoke_fn = arm_remaining_duration_timer(state=state)
         assert manager.duration_timers_active == 1
