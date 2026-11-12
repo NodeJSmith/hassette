@@ -84,7 +84,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 dev = [
     "bcrypt>=4.0",
     "hassette-codegen",
-    "house-lint>=0.2.0",
+    "house-lint>=0.6.0",
     "libcst>=1.5.0",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
@@ -236,9 +236,10 @@ output = "coverage.xml"
 # HSL101 leaked spec-artifact tokens (AC#/FR#/NFR#/WP#/T##) in comments, docstrings, filenames
 # HSL102 files over max_lines (tracked separately in CI, see above)
 # HSL103 except-handler bindings that aren't named 'exc' or '*_exc'
+# HSL901 stale suppression pragmas (unused, for a disabled rule, or overlapping another)
 [tool.house-lint]
 include = ["src", "tests", "scripts", "tools", "codegen", "wire", "client", "docs", "examples"]
-select = ["HSL001", "HSL002", "HSL003", "HSL004", "HSL101", "HSL102", "HSL103"]
+select = ["HSL001", "HSL002", "HSL003", "HSL004", "HSL101", "HSL102", "HSL103", "HSL901"]
 
 [tool.house-lint.rules.HSL102]
 max_lines = 800
