@@ -165,9 +165,6 @@ async def telemetry_repo(telemetry_db: aiosqlite.Connection) -> TelemetryReposit
 @pytest.fixture
 async def telemetry_session_id(telemetry_db: aiosqlite.Connection) -> int:
     """Insert a session row and return its ID (needed for FK constraints)."""
-    # dup-ignore-start: ``insert_new_session`` below deliberately repeats this SQL to insert a
-    # SECOND session row, distinct from the one this fixture provides, so the once=True/previous-
-    # session reconciliation tests can run reconciliation against a newer session.
     now = time.time()
     cursor = await telemetry_db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -175,7 +172,6 @@ async def telemetry_session_id(telemetry_db: aiosqlite.Connection) -> int:
     )
     await telemetry_db.commit()
     assert cursor.lastrowid is not None
-    # dup-ignore-end
     return cursor.lastrowid
 
 
@@ -215,21 +211,3 @@ async def insert_committed_execution(db: aiosqlite.Connection, session_id: int, 
     """Insert an execution row (1ms duration, current timestamp) and commit it."""
     await insert_execution_row(db, session_id=session_id, execution_start_ts=time.time(), duration_ms=1.0, **kwargs)
     await db.commit()
-
-
-async def insert_new_session(db: aiosqlite.Connection) -> int:
-    """Insert a second 'running' session row and return its id.
-
-    Simulates reconciliation running against a session distinct from the fixture-provided
-    ``telemetry_session_id`` — used by tests that verify once=True cleanup against a newer
-    session.
-    """
-    now = time.time()
-    cursor = await db.execute(
-        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-        (now, now),
-    )
-    await db.commit()
-    new_session_id = cursor.lastrowid
-    assert new_session_id is not None
-    return new_session_id

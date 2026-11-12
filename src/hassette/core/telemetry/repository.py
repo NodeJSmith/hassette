@@ -21,12 +21,9 @@ from hassette.core.telemetry.insert_params import (
     manifest_insert_params,
 )
 from hassette.core.telemetry.reconcile_sql import (
-    LISTENER_MISS_HISTORY_SQL,
     build_clear_stale_job_timing_query,
-    build_delete_query,
+    build_delete_stale_jobs_query,
     build_retire_query,
-    instance_name_clause,
-    not_in_clause,
 )
 from hassette.schemas.log_models import BlockingEvent
 from hassette.types.types import is_framework_key
@@ -371,28 +368,26 @@ class TelemetryRepository:
         live_listener_ids: list[int],
         live_job_ids: list[int],
         *,
-        session_id: int | None = None,
         instance_name: str | None = None,
     ) -> None:
         """Reconcile listener and job registrations for an app after initialization.
 
-        For non-once listeners and jobs not in the live ID sets:
-        - Rows without execution history in ``executions`` are deleted outright.
-        - Rows with history have ``retired_at`` set to the current time.
+        Every listener not in the live ID set gets ``retired_at`` set to the current time, ``once=True``
+        or not. Listener rows are never deleted here: the near-miss recorder may still hold misses for a
+        listener that hasn't flushed yet, so the database alone can't say whether it has history.
+        Retention deletes a retired listener once its executions and misses age out, and
+        ``SessionManager.cleanup_stale_once_listeners`` deletes a ``once=True`` listener that already ran.
 
-        For once=True listeners not in the live ID set and not in the current session,
-        deletes them (guarded by NOT EXISTS for current-session executions).
+        Jobs not in the live ID set are deleted when they have no execution history, and retired when
+        they do.
 
         Args:
             app_key: The app key to reconcile.
             live_listener_ids: IDs of currently active listener rows.
             live_job_ids: IDs of currently active scheduled_job rows.
-            session_id: Current session ID, used to guard once=True row deletion.
-                When None, once=True row cleanup is skipped and deferred to the next successful restart.
-            instance_name: When provided, scopes all five SQL paths (both listener queries,
-                the once=True cleanup block, and both scheduled_jobs queries) to this instance
-                so restarting one instance does not delete or retire sibling instances' rows.
-                When None (default), reconciliation is app_key-scoped only — unchanged behavior.
+            instance_name: When provided, scopes every query to this instance so restarting one
+                instance does not retire or delete sibling instances' rows. When None (default),
+                reconciliation is app_key-scoped only.
         """
         if is_framework_key(app_key):
             LOGGER.warning(
@@ -410,90 +405,17 @@ class TelemetryRepository:
             # rollback() in the except clause is a no-op.
             await db.execute("BEGIN")
 
-            sql, params = build_delete_query(
-                "listeners",
-                app_key,
-                live_listener_ids,
-                "listener_id",
-                extra_where=" AND once = 0",
-                instance_name=instance_name,
+            # Listeners are only ever retired here, never deleted: see the docstring.
+            sql, params = build_retire_query(
+                "listeners", app_key, live_listener_ids, now, only_with_history=False, instance_name=instance_name
             )
+            await db.execute(sql, params)
+
+            sql, params = build_delete_stale_jobs_query(app_key, live_job_ids, instance_name=instance_name)
             await db.execute(sql, params)
 
             sql, params = build_retire_query(
-                "listeners",
-                app_key,
-                live_listener_ids,
-                "listener_id",
-                now,
-                extra_where=" AND once = 0",
-                instance_name=instance_name,
-            )
-            await db.execute(sql, params)
-
-            if session_id is not None:
-                params_once: dict = {"app_key": app_key, "source_tier": "app", "session_id": session_id}
-                live_ids_clause, live_ids_params = not_in_clause(live_listener_ids)
-                params_once.update(live_ids_params)
-                instance_clause, instance_params = instance_name_clause(instance_name)
-                params_once.update(instance_params)
-                await db.execute(
-                    f"""
-                    DELETE FROM listeners
-                    WHERE app_key = :app_key AND once = 1
-                      AND source_tier = :source_tier{instance_clause}
-                      {live_ids_clause}
-                      AND NOT EXISTS (
-                          SELECT 1 FROM executions
-                          WHERE listener_id = listeners.id AND session_id = :session_id
-                      )
-                      AND NOT {LISTENER_MISS_HISTORY_SQL}
-                    """,
-                    params_once,
-                )
-                # A once=True listener with misses isn't deleted above, so retire it (once nothing in this
-                # session ran it) instead of leaving it an unretired row no reconciliation touches again.
-                await db.execute(
-                    f"""
-                    UPDATE listeners SET retired_at = :now
-                    WHERE app_key = :app_key AND once = 1
-                      AND source_tier = :source_tier{instance_clause}
-                      {live_ids_clause}
-                      AND retired_at IS NULL
-                      AND NOT EXISTS (
-                          SELECT 1 FROM executions
-                          WHERE listener_id = listeners.id AND session_id = :session_id
-                      )
-                      AND {LISTENER_MISS_HISTORY_SQL}
-                    """,
-                    {**params_once, "now": now},
-                )
-            else:
-                # session_id is unavailable (DB write queue backpressure at startup).
-                # Skip once=True deletion entirely — any row that fired before reconciliation
-                # but whose execution hasn't flushed yet would be orphaned without the
-                # session-scoped NOT EXISTS guard. Defer cleanup to the next successful restart.
-                LOGGER.debug(
-                    "session_id unavailable for app '%s' — skipping once=True cleanup; deferred to next restart",
-                    app_key,
-                )
-
-            sql, params = build_delete_query(
-                "scheduled_jobs",
-                app_key,
-                live_job_ids,
-                "job_id",
-                instance_name=instance_name,
-            )
-            await db.execute(sql, params)
-
-            sql, params = build_retire_query(
-                "scheduled_jobs",
-                app_key,
-                live_job_ids,
-                "job_id",
-                now,
-                instance_name=instance_name,
+                "scheduled_jobs", app_key, live_job_ids, now, only_with_history=True, instance_name=instance_name
             )
             await db.execute(sql, params)
 

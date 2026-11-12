@@ -357,8 +357,8 @@ class DatabaseRetentionMixin:
                   WHERE listener_id = listeners.id
                     AND execution_start_ts >= ?
               )
-              -- Age-gated, unlike LISTENER_MISS_HISTORY_SQL: a retired listener whose misses have all aged
-              -- past the cutoff may be deleted (its misses cascade), so misses can't pin it forever.
+              -- Misses are history too: a listener that never ran keeps its row while its misses are
+              -- inside the window. Once they age past the cutoff it may be deleted (its misses cascade).
               AND NOT EXISTS (
                   SELECT 1 FROM listener_misses
                   WHERE listener_id = listeners.id
