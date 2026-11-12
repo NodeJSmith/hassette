@@ -214,9 +214,9 @@ def fmt_flagged(value: Any) -> str:
 
 
 def fmt_hour(hour_ts: float) -> str:
-    """The start of a rollup hour in local time, e.g. ``2026-11-12 14:00``."""
+    """The start of a rollup hour in local time, e.g. ``2026-11-12 14:00`` (``14:30`` in a half-hour-offset zone)."""
     local = Instant.from_timestamp(hour_ts).to_tz(SYSTEM_TZ)
-    return f"{local.year:04d}-{local.month:02d}-{local.day:02d} {local.hour:02d}:00"
+    return f"{local.year:04d}-{local.month:02d}-{local.day:02d} {local.hour:02d}:{local.minute:02d}"
 
 
 def display_value(value: str | None) -> str:
