@@ -35,3 +35,11 @@ and `guard.dropped` counters both appear in `wire/src/hassette_wire/`'s
 predicates (`StateFrom`, `StateDidChange`). Does
 `src/hassette/bus/duration_timer.py`'s cancel-event evaluation use this same
 predicate set, or does it re-evaluate with a different subset?
+
+## Near-Miss Drop-Site Coverage
+Every place an event reaches an app listener and its handler doesn't run reports a
+near-miss through the listener's `invoker.report_drop` (filter, rate limiter, mode
+guard, once guard, backpressure, duration hold), with `is_synthetic` passed for
+cached-state events. Does a new drop path, or a new filter a registration method
+builds, report through the same reporter, and is it classified correctly as scope
+(not recorded) or as a caller's filter (recorded) in `Listener.create`'s `scope=`?
