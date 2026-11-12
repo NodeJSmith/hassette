@@ -3,7 +3,7 @@ from copy import deepcopy
 from logging import getLogger
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from types import UnionType
-from typing import Any, Union, get_args, get_origin
+from typing import TYPE_CHECKING, Any, Union, get_args, get_origin
 from warnings import warn
 
 from mergedeep import merge
@@ -137,10 +137,12 @@ class ExcludeExtrasMixin:
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
+    if TYPE_CHECKING:
+        model_extra: dict[str, Any] | None
+
     def get_extra_keys(self) -> set[str]:
         """Return the names of the fields collected in ``model_extra``, or an empty set if there are none."""
-        extras = getattr(self, "model_extra", None)
-        return set(extras) if extras else set()
+        return set(self.model_extra) if self.model_extra else set()
 
     @staticmethod
     def merge_exclude(exclude: Any | None, extra_keys: set[str]) -> Any:
@@ -157,19 +159,25 @@ class ExcludeExtrasMixin:
             return {**exclude, **dict.fromkeys(extra_keys, True)}
         return set(exclude) | extra_keys
 
+    def exclude_with_extras(self, exclude: Any | None, include: Any | None) -> Any:
+        """Return *exclude* with the extra keys merged in.
+
+        Returns *exclude* unchanged when the caller passes ``include`` (their selection is respected) or when the
+        model has no extra keys.
+        """
+        extra_keys = self.get_extra_keys()
+        if not extra_keys or include is not None:
+            return exclude
+        return self.merge_exclude(exclude, extra_keys)
+
     def model_dump(self, *, exclude: Any | None = None, **kwargs: Any) -> dict[str, Any]:
         """Serialize declared fields only; extra fields are excluded for privacy."""
-        extra_keys = self.get_extra_keys()
-        # Skip auto-exclude when caller explicitly specifies `include` — respect their selection
-        if extra_keys and kwargs.get("include") is None:
-            exclude = self.merge_exclude(exclude, extra_keys)
+        exclude = self.exclude_with_extras(exclude, kwargs.get("include"))
         return super().model_dump(exclude=exclude, **kwargs)  # pyright: ignore[reportAttributeAccessIssue]
 
     def model_dump_json(self, *, exclude: Any | None = None, **kwargs: Any) -> str:
         """Serialize declared fields only; extra fields are excluded for privacy."""
-        extra_keys = self.get_extra_keys()
-        if extra_keys and kwargs.get("include") is None:
-            exclude = self.merge_exclude(exclude, extra_keys)
+        exclude = self.exclude_with_extras(exclude, kwargs.get("include"))
         return super().model_dump_json(exclude=exclude, **kwargs)  # pyright: ignore[reportAttributeAccessIssue]
 
 
