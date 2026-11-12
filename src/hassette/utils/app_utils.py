@@ -15,7 +15,6 @@ from pydantic.alias_generators import to_snake
 
 from hassette.app.utils import validate_app
 from hassette.config.classes import INSTANCE_NAME_MAX_LENGTH
-from hassette.config.defaults import APP_SCAN_EXCLUDE_DIRS
 from hassette.exceptions import (
     AppPrecheckFailedError,
     CannotOverrideFinalError,
@@ -41,6 +40,10 @@ EXCLUDED_PATH_PARTS = ("site-packages", "importlib", "hassette")
 # Characters kept free under the instance-name length cap for a suggested key's ``_N`` suffix.
 SUGGESTED_KEY_SUFFIX_ROOM = 8
 APP_BASE_NAMES = frozenset({"App", "AppSync"})
+APP_SCAN_EXCLUDE_DIRS = frozenset(
+    {".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".git", "node_modules", "site-packages"}
+)
+"""Directory names the unconfigured-app scan never descends into, matched against absolute path parts."""
 
 
 @dataclass

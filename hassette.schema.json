@@ -811,34 +811,18 @@
           "title": "Error Handler Timeout Seconds"
         },
         "run_sync_timeout_seconds": {
-          "anyOf": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "integer"
-            },
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            }
-          ],
-          "default": 6,
+          "default": 6.0,
           "description": "Default timeout for synchronous function calls.",
-          "title": "Run Sync Timeout Seconds"
+          "exclusiveMinimum": 0,
+          "title": "Run Sync Timeout Seconds",
+          "type": "number"
         },
         "task_cancellation_timeout_seconds": {
-          "anyOf": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "integer"
-            },
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            }
-          ],
-          "default": 5,
+          "default": 5.0,
           "description": "Length of time to wait for tasks to cancel before forcing.",
-          "title": "Task Cancellation Timeout Seconds"
+          "exclusiveMinimum": 0,
+          "title": "Task Cancellation Timeout Seconds",
+          "type": "number"
         }
       },
       "title": "LifecycleConfig",
@@ -1131,19 +1115,11 @@
       "description": "Scheduler threshold and job-timeout settings.",
       "properties": {
         "behind_schedule_threshold_seconds": {
-          "anyOf": [
-            {
-              "exclusiveMinimum": 0,
-              "type": "integer"
-            },
-            {
-              "exclusiveMinimum": 0,
-              "type": "number"
-            }
-          ],
-          "default": 5,
+          "default": 5.0,
           "description": "Threshold in seconds before a 'behind schedule' warning is logged for a job.",
-          "title": "Behind Schedule Threshold Seconds"
+          "exclusiveMinimum": 0,
+          "title": "Behind Schedule Threshold Seconds",
+          "type": "number"
         },
         "job_timeout_seconds": {
           "anyOf": [
