@@ -17,7 +17,11 @@ from hassette_wire import ExecutionMode
 from hassette import TaskBucket
 from hassette.bus.listeners import HandlerInvoker, ListenerOptions
 from hassette.types import BusErrorHandlerType, HandlerType
+from tests.support.factories import make_hassette_event
 from tests.support.helpers import make_task_bucket
+
+TEST_EVENT = make_hassette_event()
+"""The event every dispatch in this module runs for."""
 
 
 async def simple_handler() -> None:
@@ -132,7 +136,7 @@ class TestHandlerInvokerDispatch:
     async def test_dispatch_calls_invoke_fn(self) -> None:
         invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.PARALLEL))
         invoke_fn = AsyncMock()
-        await invoker.dispatch(invoke_fn, lambda: None)
+        await invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
         invoke_fn.assert_awaited_once()
 
     async def test_dispatch_once_guard_prevents_double_fire(self) -> None:
@@ -141,20 +145,20 @@ class TestHandlerInvokerDispatch:
         invoke_fn = AsyncMock()
 
         # First dispatch — should fire and mark fired
-        await invoker.dispatch(invoke_fn, lambda: None)
+        await invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
         invoke_fn.assert_awaited_once()
 
         # Second dispatch — should be skipped
         invoke_fn.reset_mock()
-        await invoker.dispatch(invoke_fn, lambda: None)
+        await invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
         invoke_fn.assert_not_awaited()
 
     async def test_dispatch_once_false_allows_multiple(self) -> None:
         """once=False allows multiple dispatches."""
         invoker = make_invoker(options=ListenerOptions(once=False, mode=ExecutionMode.PARALLEL))
         invoke_fn = AsyncMock()
-        await invoker.dispatch(invoke_fn, lambda: None)
-        await invoker.dispatch(invoke_fn, lambda: None)
+        await invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
+        await invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
         assert invoke_fn.await_count == 2
 
     async def test_dispatch_skipped_when_already_fired(self) -> None:
@@ -162,7 +166,7 @@ class TestHandlerInvokerDispatch:
         invoker = make_invoker(options=ListenerOptions(once=True))
         invoker.mark_fired()
         invoke_fn = AsyncMock()
-        await invoker.dispatch(invoke_fn, lambda: None)
+        await invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
         invoke_fn.assert_not_awaited()
 
 
@@ -222,7 +226,7 @@ class TestHandlerInvokerWarnStalled:
         async def slow_invoke() -> None:
             await asyncio.sleep(0.2)
 
-        await invoker.dispatch(slow_invoke, lambda: None)
+        await invoker.dispatch(TEST_EVENT, slow_invoke, lambda: None)
 
         assert warn_calls == [0.01], "warn_stalled should fire once, with the patched threshold"
 
@@ -241,7 +245,7 @@ class TestHandlerInvokerWarnStalled:
         async def fast_invoke() -> None:
             return
 
-        await invoker.dispatch(fast_invoke, lambda: None)
+        await invoker.dispatch(TEST_EVENT, fast_invoke, lambda: None)
 
         assert warn_calls == []
 

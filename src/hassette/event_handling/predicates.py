@@ -266,6 +266,19 @@ class AllOf(_PredicateCombinator):
         return joined
 
 
+def flatten_all_of(predicate: "Predicate | None") -> tuple["Predicate", ...]:
+    """Return the conjuncts of ``predicate``: the children of a top-level ``AllOf``, nested ``AllOf``s flattened.
+
+    Any other predicate (including ``AnyOf`` and ``Not``) is a single conjunct, and ``None`` has none. Evaluating
+    the conjuncts in order and stopping at the first false one is the same test as calling ``predicate``.
+    """
+    if predicate is None:
+        return ()
+    if isinstance(predicate, AllOf):
+        return tuple(child for nested in predicate.predicates for child in flatten_all_of(nested))
+    return (predicate,)
+
+
 @dataclass(frozen=True)
 class AnyOf(_PredicateCombinator):
     """Predicate that evaluates to True if any of the contained predicates evaluate to True."""

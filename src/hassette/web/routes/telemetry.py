@@ -33,6 +33,7 @@ from hassette_wire import (
     JobSummary,
     LastError,
     LastErrorResult,
+    ListenerMiss,
     ListenerSummary,
     ProblemCode,
     TelemetryStatusResponse,
@@ -276,6 +277,21 @@ async def listener_executions(
 ) -> list[Execution]:
     """Execution history for a specific listener (handler invocations)."""
     return await telemetry.get_executions(listener_id=listener_id, limit=limit, since=since)
+
+
+@router.get(
+    "/listener/{listener_id}/misses",
+    response_model=list[ListenerMiss],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
+async def listener_misses(
+    listener_id: int,
+    telemetry: TelemetryDep,
+    limit: LimitQuery = DEFAULT_QUERY_LIMIT,
+    since: SinceQuery = None,
+) -> list[ListenerMiss]:
+    """Hourly rollups of the events that reached an app listener and didn't run its handler, latest first."""
+    return await telemetry.get_listener_misses(listener_id, limit=limit, since=since)
 
 
 @router.get(

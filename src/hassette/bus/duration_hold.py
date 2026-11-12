@@ -87,28 +87,28 @@ class DurationHoldManager:
         if self._duration_timers_active > 0:
             self._duration_timers_active -= 1
 
-    def hold_matches(self, listener: Listener, event: "AnyEvent") -> bool:
+    def hold_matches(self, listener: Listener, event: "AnyEvent") -> bool | None:
         """Check hold predicates (state-value only) against an event.
 
         Falls back to ``listener.matches()`` when no hold predicate is set.
         A raising predicate is recorded via ``record_predicate_failure`` (error
         ``ExecutionRecord`` + error-handler routing, same as the main dispatch path)
-        and treated as a non-match so the spawned timer task doesn't crash.
+        and returns None, a non-match that isn't a near-miss, so the spawned timer task doesn't crash.
         """
         hold_pred = listener.entity_watch.hold_predicate if listener.entity_watch else None
         return self.evaluate_predicate(listener, event, hold_pred if hold_pred is not None else listener.matches)
 
     def evaluate_predicate(
         self, listener: Listener, event: "AnyEvent", predicate: "Callable[[AnyEvent], bool]"
-    ) -> bool:
-        """Run ``predicate`` against ``event``; a raise is recorded and treated as a non-match."""
+    ) -> bool | None:
+        """Run ``predicate`` against ``event``; a raise is recorded and returns None, a non-match."""
         predicate_start = time.time()
         try:
             return predicate(event)
         except Exception as exc:
             self.logger.exception("Predicate raised for %s; treating as non-match", listener)
             self.record_predicate_failure(listener, listener.topic, event, exc, predicate_start)
-            return False
+            return None
 
     async def immediate_fire_task(self, listener: Listener, entity_watch: EntityWatch) -> None:
         """Fire a handler immediately with the current entity state.
@@ -147,7 +147,7 @@ class DurationHoldManager:
             if entity_watch.duration is not None:
                 elapsed = self.compute_elapsed(current_state, entity_watch)
                 if elapsed >= entity_watch.duration:
-                    await self.dispatch_and_release_once(listener, invoke_fn)
+                    await self.dispatch_and_release_once(listener, synthetic_event, invoke_fn)
                 else:
                     remaining = entity_watch.duration - elapsed
                     self.logger.debug(
@@ -160,12 +160,14 @@ class DurationHoldManager:
                         listener,
                         entity_id,
                         entity_watch,
+                        synthetic_event,
                         invoke_fn,
                         override_duration=remaining,
+                        is_synthetic=True,
                     )
                 return
 
-            await self.dispatch_and_release_once(listener, invoke_fn)
+            await self.dispatch_and_release_once(listener, synthetic_event, invoke_fn)
         except Exception as exc:
             self.logger.warning(
                 "immediate_fire: unexpected error for entity %s, immediate fire will not occur. owner=%s topic=%s",
@@ -175,10 +177,12 @@ class DurationHoldManager:
                 exc_info=exc,
             )
 
-    async def dispatch_and_release_once(self, listener: Listener, invoke_fn: "Callable[[], Awaitable[None]]") -> None:
-        """Dispatch ``invoke_fn`` and remove a ``once`` listener afterwards, even if dispatch raises."""
+    async def dispatch_and_release_once(
+        self, listener: Listener, event: "AnyEvent", invoke_fn: "Callable[[], Awaitable[None]]"
+    ) -> None:
+        """Dispatch ``invoke_fn`` for ``event`` and remove a ``once`` listener afterwards, even if dispatch raises."""
         try:
-            await listener.invoker.dispatch(invoke_fn, self.config_resolver)
+            await listener.invoker.dispatch(event, invoke_fn, self.config_resolver)
         finally:
             if listener.options.once:
                 self.remove_listener(listener)
@@ -188,16 +192,24 @@ class DurationHoldManager:
         listener: Listener,
         entity_id: str,
         entity_watch: EntityWatch,
+        event: "AnyEvent",
         invoke_fn: "Callable[[], Awaitable[None]]",
         override_duration: float | None = None,
+        *,
+        is_synthetic: bool = False,
     ) -> None:
-        """Start the hold timer; rechecks predicates at fire time.
+        """Start the hold timer for ``event``; rechecks predicates at fire time.
 
         ``override_duration`` sleeps for that many seconds instead of the full hold duration
-        (the immediate-fire path passes the remaining hold time).
+        (the immediate-fire path passes the remaining hold time). ``is_synthetic`` says ``event`` was built from
+        the cached state (the immediate-fire path).
+
+        A failed recheck is a ``hold_recheck_failed`` near-miss. It records the event built from the state at fire
+        time, or ``event`` itself when the entity is missing from the cache and there is no state to build one from.
         """
 
         async def on_duration_fire() -> None:
+            report = listener.invoker.report_drop
             try:
                 current_state = self.state_reader(entity_id)
                 if current_state is None:
@@ -205,15 +217,20 @@ class DurationHoldManager:
                         "duration_fire: entity %s not found in StateProxy, dropping fire",
                         entity_id,
                     )
+                    if report is not None:
+                        report("hold_recheck_failed", event, is_synthetic=is_synthetic)
                     return
                 recheck_event = self.make_synthetic_event(entity_id, current_state)
-                if not self.hold_matches(listener, recheck_event):
+                matched = self.hold_matches(listener, recheck_event)
+                if not matched:
                     self.logger.debug(
                         "duration_fire: entity %s predicate no longer matches, dropping fire",
                         entity_id,
                     )
+                    if matched is False and report is not None:
+                        report("hold_recheck_failed", recheck_event, is_synthetic=True)
                     return
-                await listener.invoker.dispatch(invoke_fn, self.config_resolver)
+                await listener.invoker.dispatch(event, invoke_fn, self.config_resolver)
             finally:
                 self.decrement_timers_active()
                 if listener.options.once:

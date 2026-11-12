@@ -57,6 +57,7 @@ class DurationTimer:
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: "Callable[[], None] | None" = None,
         normalize_cancel_event: "Callable[[AnyEvent], AnyEvent] | None" = None,
+        on_hold_cancelled: "Callable[[AnyEvent], None] | None" = None,
     ) -> None:
         """Initialize the DurationTimer.
 
@@ -76,6 +77,9 @@ class DurationTimer:
             normalize_cancel_event: Strips HA-specific transition state (e.g. old_state)
                 from an event before cancel predicate evaluation. When None, the event
                 is passed through unchanged.
+            on_hold_cancelled: Optional callback invoked with the event that cancelled an active hold, as
+                ``evaluate_cancel_event`` received it (before ``normalize_cancel_event``). Used by BusService to
+                record a ``hold_cancelled`` near-miss.
         """
         self.task_bucket = task_bucket
         self.duration = duration
@@ -85,6 +89,7 @@ class DurationTimer:
         self._create_cancel_sub = create_cancel_sub
         self._on_cancel = on_cancel
         self._normalize_cancel_event = normalize_cancel_event
+        self._on_hold_cancelled = on_hold_cancelled
 
         self._task: asyncio.Task[None] | None = None
         self._cancel_sub: Subscription | None = None
@@ -246,5 +251,8 @@ class DurationTimer:
                 "DurationTimer: predicates no longer match for entity=%s, cancelling timer",
                 self.entity_id,
             )
+            was_active = self.is_active
             self.cancel()
+            if was_active and self._on_hold_cancelled is not None:
+                self._on_hold_cancelled(event)
         # else: entity is still in target state — timer continues

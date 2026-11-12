@@ -9,6 +9,8 @@ if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
+    from hassette.bus.listeners import DropReporter
+    from hassette.events.base import AnyEvent
 
 LOGGER = getLogger(__name__)
 
@@ -30,7 +32,7 @@ class RateLimiter:
     Example:
         ```python
         limiter = RateLimiter(task_bucket=bucket, debounce=1.0, handler_name="my_handler")
-        await limiter.call(invoke_fn)  # invoke_fn is a zero-arg async closure
+        await limiter.call(invoke_fn, event)  # invoke_fn is a zero-arg async closure
         ```
     """
 
@@ -59,6 +61,10 @@ class RateLimiter:
         self._clock = clock or time.monotonic
 
         self._debounce_task: asyncio.Task[None] | None = None
+        self._debounce_event: AnyEvent | None = None
+        """The event the pending debounce task is holding, reported as superseded if a later event replaces it."""
+        self._debounce_report: DropReporter | None = None
+        """The reporter passed with ``_debounce_event``."""
         self._throttle_last_time: float | None = None
         self._cancelled = False
 
@@ -66,6 +72,7 @@ class RateLimiter:
         """Done callback: clear _debounce_task if it's still the current task."""
         if self._debounce_task is task:
             self._debounce_task = None
+            self._debounce_event = self._debounce_report = None
 
     def cancel(self) -> None:
         """Cancel any pending debounce task.
@@ -79,24 +86,39 @@ class RateLimiter:
         if self._debounce_task and not self._debounce_task.done():
             self._debounce_task.cancel()
             self._debounce_task = None
+        self._debounce_event = self._debounce_report = None
 
-    async def call(self, handler: "Callable[[], Awaitable[None]]") -> None:
+    async def call(
+        self,
+        handler: "Callable[[], Awaitable[None]]",
+        event: "AnyEvent",
+        report: "DropReporter | None" = None,
+    ) -> None:
         """Call handler with rate limiting applied.
 
         Args:
             handler: Zero-arg async callable.  ``Listener.dispatch()`` always passes a
                 closure that captures the event and error handling internally.
+            event: The event ``handler`` runs for.
+            report: Called with an event this limiter drops: ``throttled`` for one inside the throttle window,
+                ``debounce_superseded`` for a pending event a later one replaces. None records nothing.
         """
         if self._cancelled:
             return
         if self.debounce is not None:
-            await self.debounced_call(handler, self.debounce)
+            await self.debounced_call(handler, self.debounce, event, report)
         elif self.throttle is not None:
-            await self.throttled_call(handler, self.throttle)
+            await self.throttled_call(handler, self.throttle, event, report)
         else:
             await handler()
 
-    async def debounced_call(self, handler: "Callable[[], Awaitable[None]]", debounce: float) -> None:
+    async def debounced_call(
+        self,
+        handler: "Callable[[], Awaitable[None]]",
+        debounce: float,
+        event: "AnyEvent | None" = None,
+        report: "DropReporter | None" = None,
+    ) -> None:
         """Debounced version of the handler call.
 
         Expects a fresh ``handler`` callable on each call.  BusService creates a new
@@ -111,6 +133,8 @@ class RateLimiter:
         if self._debounce_task and not self._debounce_task.done():
             LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, debounce)
             self._debounce_task.cancel()
+            if self._debounce_report is not None and self._debounce_event is not None:
+                self._debounce_report("debounce_superseded", self._debounce_event)
 
         async def delayed_call() -> None:
             try:
@@ -124,6 +148,7 @@ class RateLimiter:
             # Dropping the reference keeps the next debounce reset (and cancel()) from
             # cancelling the handler mid-run; the execution mode and task bucket own it now.
             self._debounce_task = None
+            self._debounce_event = self._debounce_report = None
             # Handler runs outside the CancelledError catch — if the handler is cancelled
             # (e.g., during shutdown), it propagates so telemetry can record it as 'cancelled'.
             await handler()
@@ -131,8 +156,16 @@ class RateLimiter:
         task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
         task.add_done_callback(self.clear_debounce_ref)
         self._debounce_task = task
+        self._debounce_event = event
+        self._debounce_report = report
 
-    async def throttled_call(self, handler: "Callable[[], Awaitable[None]]", throttle: float) -> None:
+    async def throttled_call(
+        self,
+        handler: "Callable[[], Awaitable[None]]",
+        throttle: float,
+        event: "AnyEvent | None" = None,
+        report: "DropReporter | None" = None,
+    ) -> None:
         """Throttled version of the handler call.
 
         At most one attempt per window. No lock needed — the check-and-set between
@@ -142,6 +175,8 @@ class RateLimiter:
         now = self._clock()
         if self._throttle_last_time is not None and now - self._throttle_last_time < throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, throttle)
+            if report is not None and event is not None:
+                report("throttled", event)
             return
         self._throttle_last_time = now
         await handler()

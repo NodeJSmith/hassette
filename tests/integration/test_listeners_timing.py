@@ -6,7 +6,11 @@ from collections.abc import Awaitable, Callable
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.task_bucket import TaskBucket
 from hassette.testing import wait_for
+from tests.support.factories import make_hassette_event
 from tests.support.helpers import make_controlled_clock, settle
+
+TEST_EVENT = make_hassette_event()
+"""The event every dispatch in this module runs for."""
 
 
 def make_recording_handler_factory() -> tuple[list[str], Callable[[str], Callable[[], Awaitable[None]]]]:
@@ -35,9 +39,9 @@ class TestDebounceLogic:
 
         limiter = RateLimiter(bucket, debounce=0.1)
 
-        await limiter.call(make_handler("first"))
-        await limiter.call(make_handler("second"))
-        await limiter.call(make_handler("third"))
+        await limiter.call(make_handler("first"), TEST_EVENT)
+        await limiter.call(make_handler("second"), TEST_EVENT)
+        await limiter.call(make_handler("third"), TEST_EVENT)
 
         await asyncio.sleep(0)
         assert calls == [], "No calls should be made immediately due to debounce"
@@ -53,9 +57,9 @@ class TestDebounceLogic:
 
         limiter = RateLimiter(bucket, debounce=0.1)
 
-        await limiter.call(handler)
-        await limiter.call(handler)
-        await limiter.call(handler)
+        await limiter.call(handler, TEST_EVENT)
+        await limiter.call(handler, TEST_EVENT)
+        await limiter.call(handler, TEST_EVENT)
 
         await wait_for(lambda: calls == ["called"], desc="debounce fired")
 
@@ -65,18 +69,18 @@ class TestDebounceLogic:
 
         limiter = RateLimiter(bucket, debounce=0.2)
 
-        await limiter.call(make_handler("first"))
+        await limiter.call(make_handler("first"), TEST_EVENT)
         # timing: mid-debounce assertion — must be within the 0.2s window
         await asyncio.sleep(0.1)
         assert limiter._debounce_task is not None, "Debounce task should be created"
         assert not limiter._debounce_task.done(), "Debounce task should still be pending"
 
-        await limiter.call(make_handler("second"))
+        await limiter.call(make_handler("second"), TEST_EVENT)
         # timing: mid-debounce assertion — must be within the 0.2s window
         await asyncio.sleep(0.1)
         assert not limiter._debounce_task.done(), "Debounce task should still be pending"
 
-        await limiter.call(make_handler("third"))
+        await limiter.call(make_handler("third"), TEST_EVENT)
 
         await wait_for(lambda: calls == ["third"], desc="debounce fired")
         # done_callback is scheduled via call_soon, so it may not have run yet
@@ -93,7 +97,7 @@ class TestDebounceLogic:
             raise asyncio.CancelledError()
 
         limiter = RateLimiter(bucket, debounce=0.01)
-        await limiter.call(handler_that_gets_cancelled)
+        await limiter.call(handler_that_gets_cancelled, TEST_EVENT)
 
         # Capture task reference before done_callback clears it
         task = limiter._debounce_task
@@ -112,12 +116,12 @@ class TestDebounceLogic:
         limiter = RateLimiter(bucket, debounce=0.1)
 
         # First call starts debounce
-        await limiter.call(make_handler("first"))
+        await limiter.call(make_handler("first"), TEST_EVENT)
         first_task = limiter._debounce_task
         assert first_task is not None
 
         # Second call cancels first (debounce reset)
-        await limiter.call(make_handler("second"))
+        await limiter.call(make_handler("second"), TEST_EVENT)
         await asyncio.sleep(0)  # Let cancellation propagate
 
         # First task should be cancelled silently (no crash)
@@ -153,9 +157,9 @@ class TestDebounceLogic:
 
         # Hold "a" mid-run until "b" has been submitted and has started, so "b"'s debounce
         # reset is guaranteed to happen while "a" is still in flight.
-        await limiter.call(make_handler("a", hold=release_first))
+        await limiter.call(make_handler("a", hold=release_first), TEST_EVENT)
         await asyncio.wait_for(first_started.wait(), timeout=2)
-        await limiter.call(make_handler("b"))
+        await limiter.call(make_handler("b"), TEST_EVENT)
         await wait_for(lambda: "end-b" in events, desc="second handler finished")
         release_first.set()
 
@@ -175,7 +179,7 @@ class TestRateLimiterCancel:
             calls.append("fired")
 
         limiter = RateLimiter(bucket, debounce=0.5)
-        await limiter.call(handler)
+        await limiter.call(handler, TEST_EVENT)
         assert limiter._debounce_task is not None
 
         limiter.cancel()
@@ -197,7 +201,7 @@ class TestRateLimiterCancel:
             calls.append("fired")
 
         limiter = RateLimiter(bucket, debounce=0.01)
-        await limiter.call(handler)
+        await limiter.call(handler, TEST_EVENT)
         await wait_for(lambda: calls == ["fired"], desc="debounce fired")
 
         limiter.cancel()  # Should not raise; task already done
@@ -213,17 +217,17 @@ class TestThrottleLogic:
         clock = make_controlled_clock()
         limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
 
-        await limiter.call(make_handler("first"))
+        await limiter.call(make_handler("first"), TEST_EVENT)
         assert calls == ["first"], "First call should be executed immediately"
 
-        await limiter.call(make_handler("second"))
-        await limiter.call(make_handler("third"))
+        await limiter.call(make_handler("second"), TEST_EVENT)
+        await limiter.call(make_handler("third"), TEST_EVENT)
         assert calls == ["first"], "Subsequent calls should be ignored"
 
         # advance the controlled clock past the throttle window before the next call
         clock.advance_to(1.2)
 
-        await limiter.call(make_handler("fourth"))
+        await limiter.call(make_handler("fourth"), TEST_EVENT)
         assert calls == ["first", "fourth"], "Fourth call should execute after throttle period"
 
     async def test_throttle_allows_first_call_with_zero_origin_clock(self, bucket: TaskBucket):
@@ -239,7 +243,7 @@ class TestThrottleLogic:
         clock = make_controlled_clock(start=0.0)
         limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
 
-        await limiter.call(make_handler("first"))
+        await limiter.call(make_handler("first"), TEST_EVENT)
         assert calls == ["first"], "First call must execute even when the clock starts at 0.0"
 
     async def test_throttle_with_no_args(self, bucket: TaskBucket):
@@ -253,18 +257,18 @@ class TestThrottleLogic:
         clock = make_controlled_clock()
         limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
 
-        await limiter.call(handler)
+        await limiter.call(handler, TEST_EVENT)
         assert calls == ["called"]
 
         label = "called while throttled"
-        await limiter.call(handler)
-        await limiter.call(handler)
+        await limiter.call(handler, TEST_EVENT)
+        await limiter.call(handler, TEST_EVENT)
         assert calls == ["called"]
 
         label = "called after throttle"
         # advance the controlled clock past the throttle window before the next call
         clock.advance_to(1.2)
-        await limiter.call(handler)
+        await limiter.call(handler, TEST_EVENT)
         assert calls == ["called", "called after throttle"]
 
     async def test_throttle_tracks_time_correctly(self, bucket: TaskBucket):
@@ -275,15 +279,15 @@ class TestThrottleLogic:
 
         limiter = RateLimiter(bucket, throttle=0.05, clock=clock)
 
-        await limiter.call(make_handler("1"))
+        await limiter.call(make_handler("1"), TEST_EVENT)
         assert calls == ["1"]
 
         clock.advance_to(1000.03)
-        await limiter.call(make_handler("2"))
+        await limiter.call(make_handler("2"), TEST_EVENT)
         assert calls == ["1"]
 
         clock.advance_to(1000.06)
-        await limiter.call(make_handler("3"))
+        await limiter.call(make_handler("3"), TEST_EVENT)
         assert calls == ["1", "3"]
 
     async def test_throttle_does_not_block_during_handler(self, bucket: TaskBucket):
@@ -297,10 +301,10 @@ class TestThrottleLogic:
 
         limiter = RateLimiter(bucket, throttle=5.0)
 
-        task1 = asyncio.create_task(limiter.call(slow_handler))
+        task1 = asyncio.create_task(limiter.call(slow_handler, TEST_EVENT))
         await handler_started.wait()
 
-        task2 = asyncio.create_task(limiter.call(slow_handler))
+        task2 = asyncio.create_task(limiter.call(slow_handler, TEST_EVENT))
         done, _ = await asyncio.wait({task2}, timeout=0.05)
         assert task2 in done, "Throttled call within window must return immediately, not block"
 

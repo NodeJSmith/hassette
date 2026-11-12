@@ -22,7 +22,7 @@ from hassette.bus.router import Router
 from hassette.core.duration_hold_adapters import compute_elapsed, make_synthetic_state_event
 from hassette.events.hass.raw import HassStateDict
 from hassette.testing import make_state_dict
-from tests.support.factories import make_mock_executor
+from tests.support.factories import make_mock_event, make_mock_executor
 from tests.support.helpers import create_listener, make_task_bucket
 
 
@@ -118,7 +118,7 @@ def arm_duration_timer(
     listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
     invoke_fn = AsyncMock()
     assert listener.entity_watch is not None
-    manager.start_duration_timer(listener, "light.kitchen", listener.entity_watch, invoke_fn)
+    manager.start_duration_timer(listener, "light.kitchen", listener.entity_watch, make_mock_event(), invoke_fn)
     return manager, mock_timer, invoke_fn
 
 
@@ -131,7 +131,7 @@ def arm_remaining_duration_timer(
     invoke_fn = AsyncMock()
     assert listener.entity_watch is not None
     manager.start_duration_timer(
-        listener, "light.kitchen", listener.entity_watch, invoke_fn, override_duration=remaining
+        listener, "light.kitchen", listener.entity_watch, make_mock_event(), invoke_fn, override_duration=remaining
     )
     return manager, mock_timer, invoke_fn
 
@@ -379,17 +379,17 @@ class TestHoldMatches:
 
         assert result is True
 
-    def test_raising_hold_predicate_returns_false(self) -> None:
-        """hold_matches catches a raising hold_predicate and returns False."""
+    def test_raising_hold_predicate_returns_none(self) -> None:
+        """hold_matches catches a raising hold_predicate and returns None, a non-match that isn't a near-miss."""
 
         def bad_pred(_ev: object) -> bool:
             raise ValueError("hold boom")
 
         result, _event = hold_matches_with_predicate(bad_pred)
-        assert result is False
+        assert result is None
 
-    def test_raising_listener_predicate_in_hold_matches_returns_false(self) -> None:
-        """hold_matches catches a raising listener.matches() fallback and returns False."""
+    def test_raising_listener_predicate_in_hold_matches_returns_none(self) -> None:
+        """hold_matches catches a raising listener.matches() fallback and returns None."""
         manager = make_manager()
 
         def bad_pred(_ev: object) -> bool:
@@ -412,7 +412,7 @@ class TestHoldMatches:
 
         event = MagicMock()
         result = manager.hold_matches(listener, event)
-        assert result is False
+        assert result is None
         # dup-ignore-end
 
     def test_falls_back_when_no_entity_watch(self) -> None:
@@ -547,3 +547,44 @@ class TestComputeElapsed:
         result = compute_elapsed_for(state)
         # Should be approximately 5 seconds (within 1s tolerance for test timing)
         assert 4.0 <= result <= 10.0
+
+
+class TestRecheckNearMisses:
+    """A failed fire-time recheck is a ``hold_recheck_failed`` near-miss (spec 151 D5, D7)."""
+
+    def arm(self, state: dict[str, Any] | None, hold_predicate: Any) -> tuple[MagicMock, Any, MagicMock]:
+        """Arm a light.kitchen hold whose recheck runs ``hold_predicate``; return (mock_timer, start event, report)."""
+        manager = make_manager(state=state)
+        listener, mock_timer, _bucket = make_listener_with_mock_timer()
+        assert listener.entity_watch is not None
+        listener.entity_watch.hold_predicate = hold_predicate
+        report = MagicMock()
+        listener.invoker.report_drop = report
+        start_event = make_mock_event()
+        manager.start_duration_timer(listener, "light.kitchen", listener.entity_watch, start_event, AsyncMock())
+        return mock_timer, start_event, report
+
+    async def test_state_no_longer_matching_reports_the_synthetic_fire_time_event(self) -> None:
+        mock_timer, _start_event, report = self.arm(make_state_dict("light.kitchen", "off"), lambda _ev: False)
+        await fire_mock_timer(mock_timer)
+
+        report.assert_called_once()
+        (reason, event), kwargs = report.call_args
+        assert reason == "hold_recheck_failed"
+        assert event.payload.data.new_state["state"] == "off"
+        assert kwargs == {"is_synthetic": True}
+
+    async def test_entity_missing_from_cache_reports_the_start_event(self) -> None:
+        mock_timer, start_event, report = self.arm(None, lambda _ev: True)
+        await fire_mock_timer(mock_timer)
+
+        report.assert_called_once_with("hold_recheck_failed", start_event, is_synthetic=False)
+
+    async def test_raising_recheck_is_not_a_near_miss(self) -> None:
+        def boom(_ev: object) -> bool:
+            raise ValueError("recheck boom")
+
+        mock_timer, _start_event, report = self.arm(make_state_dict("light.kitchen", "on"), boom)
+        await fire_mock_timer(mock_timer)
+
+        report.assert_not_called()

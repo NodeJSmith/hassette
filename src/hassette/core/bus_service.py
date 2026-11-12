@@ -12,7 +12,7 @@ from hassette_wire import BackpressurePolicy, ExecutionStatus, LogLevel
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.bus.listeners import Listener, Subscription
+from hassette.bus.listeners import MATCHED, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.duration_hold_adapters import (
@@ -24,6 +24,7 @@ from hassette.core.duration_hold_adapters import (
 from hassette.core.event_filter import EventFilter
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.execution_record_builder import summarize_trigger
+from hassette.core.listener_miss_recorder import ListenerMissRecorder
 from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
@@ -126,6 +127,9 @@ class BusService(Service):
 
         self._removal_callbacks = {}
 
+        self._miss_recorder = ListenerMissRecorder(hassette)
+        """Near-miss rollups for app listeners; each one's reporter is bound in ``add_listener``."""
+
     @property
     def config_log_level(self) -> LogLevel:
         """Return the configured log level for the bus service (``logging.bus_service``)."""
@@ -203,18 +207,26 @@ class BusService(Service):
             def on_timer_cancel() -> None:
                 self._duration_hold.decrement_timers_active()
 
+            def on_hold_cancelled(event: AnyEvent) -> None:
+                # Read at cancel time: the reporter is bound after the timer is attached, and unbound on removal.
+                report = listener.invoker.report_drop
+                if report is not None:
+                    report("hold_cancelled", event)
+
             listener.entity_watch.attach_timer(
                 task_bucket=self.task_bucket,
                 owner_id=listener.identity.owner_id,
                 create_cancel_sub=make_cancel_sub,
                 on_cancel=on_timer_cancel,
                 normalize_cancel_event=strip_old_state,
+                on_hold_cancelled=on_hold_cancelled,
             )
 
         # Await DB registration inline — db_id is set before route insertion.
         reg = self.build_registration(listener)
         db_id = await self._executor.register_listener(reg)
         listener.mark_registered(db_id)
+        listener.invoker.report_drop = self._miss_recorder.reporter_for(listener)
 
         # Sync: insert route — listener is routable after DB registration.
         self.router.add_route(listener.topic, listener)
@@ -234,8 +246,9 @@ class BusService(Service):
         """Build a ``ListenerRegistration`` struct from listener identity and options."""
         registration_source: str | None = listener.identity.registration_source or None
         human_description: str | None = None
-        if listener.predicate is not None:
-            human_description = summarize_top_level(listener.predicate)
+        predicate = listener.full_predicate
+        if predicate is not None:
+            human_description = summarize_top_level(predicate)
         return ListenerRegistration(
             app_key=listener.identity.app_key,
             instance_name=listener.identity.instance_name,
@@ -245,7 +258,7 @@ class BusService(Service):
             throttle=listener.options.throttle,
             once=listener.options.once,
             priority=listener.options.priority,
-            predicate_description=describe_predicate(listener.predicate) if listener.predicate else None,
+            predicate_description=describe_predicate(predicate) if predicate else None,
             human_description=human_description,
             source_location=listener.identity.source_location,
             registration_source=registration_source,
@@ -405,33 +418,40 @@ class BusService(Service):
         """Resolve the listeners that match ``event`` across ``routes``.
 
         Routes first, then dedupes by "first match wins" because routes are ordered by
-        specificity (most specific -> least). A predicate that raises is recorded as a
-        failed execution via ``_record_predicate_failure`` and excluded from further routes
-        for this dispatch, but the listener itself is not removed from the router.
+        specificity (most specific -> least). A listener that rejects the event, or whose
+        predicate raises, is excluded from further routes for this dispatch, so no predicate is
+        evaluated twice for one event. A raise is recorded as a failed execution via
+        ``_record_predicate_failure``, but the listener itself is not removed from the router.
+        A rejection by one of the listener's filters (not its scope) is reported as a ``filter``
+        near-miss naming that filter.
 
         Returns:
             A dict mapping ``listener_id`` to the ``(matched_route, listener)`` it matched on.
         """
         chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
-        failed: set[int] = set()  # listener_ids whose predicates raised (dedup across routes)
+        rejected: set[int] = set()  # listener_ids that rejected the event or raised (dedup across routes)
 
         for route in routes:
             listeners = self.router.get_topic_listeners(route)
             for listener in listeners:
-                if listener.listener_id in chosen or listener.listener_id in failed:
+                if listener.listener_id in chosen or listener.listener_id in rejected:
                     continue
                 predicate_start = time.time()
                 try:
-                    matched = listener.matches(event)
+                    result = listener.evaluate(event)
                 except Exception as exc:
-                    failed.add(listener.listener_id)
+                    rejected.add(listener.listener_id)
                     self.logger.exception("Predicate raised for %s; skipping this listener", listener)
                     self.record_predicate_failure_safely(
                         listener, route, event, exc, predicate_start, is_synthetic=False
                     )
                     continue
-                if matched:
+                if result == MATCHED:
                     chosen[listener.listener_id] = (route, listener)
+                    continue
+                rejected.add(listener.listener_id)
+                if result >= 0 and (report := listener.invoker.report_drop) is not None:
+                    report("filter", event, filter_index=result)
 
         return chosen
 
@@ -467,6 +487,8 @@ class BusService(Service):
                     "backpressure drop_newest: skipping event for %s",
                     listener.identity.name or listener.identity.handler_short_name,
                 )
+                if (report := listener.invoker.report_drop) is not None:
+                    report("backpressure", event)
                 return  # no acquire, no spawn, no pending/idle bookkeeping
         await self._dispatch_semaphore.acquire()
 
@@ -658,12 +680,12 @@ class BusService(Service):
                 )
                 return
 
-            self._duration_hold.start_duration_timer(listener, entity_id, entity_watch, invoke_fn)
+            self._duration_hold.start_duration_timer(listener, entity_id, entity_watch, event, invoke_fn)
             return
 
         # Non-duration path (unchanged behavior).
         try:
-            await listener.invoker.dispatch(invoke_fn, self._config_resolver)
+            await listener.invoker.dispatch(event, invoke_fn, self._config_resolver)
         finally:
             if listener.options.once:
                 self.remove_listener(listener)
@@ -671,6 +693,22 @@ class BusService(Service):
     async def before_initialize(self) -> None:
         """Wait for Hassette's ready event before the bus service initializes."""
         await self.hassette.ready_event.wait()
+
+    async def on_initialize(self) -> None:
+        """Start the periodic near-miss flush."""
+        self.task_bucket.spawn(self._miss_recorder.run_flush_loop(), name="bus:listener_miss_flush")
+
+    async def on_shutdown(self) -> None:
+        """Write the near-misses accrued since the last flush.
+
+        Waits for in-flight dispatches first so their drops are counted. ``DatabaseService`` shuts down after this
+        service (a dependency shuts down after its dependents), so the write queue is still live here.
+        """
+        try:
+            await self.await_dispatch_idle()
+        except TimeoutError:
+            self.logger.debug("Dispatches still pending at shutdown; flushing the near-misses recorded so far")
+        await self._miss_recorder.flush()
 
     @property
     def is_dispatch_idle(self) -> bool:

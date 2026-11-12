@@ -104,3 +104,24 @@ wasn't recorded (evicted from tracking, or still pending at the next start); out
 reached Home Assistant."""
 
 OpenApiWriteOutcome = Annotated[ApiWriteOutcome | UnknownValue, LenientValue("ApiWriteOutcome")]
+
+ListenerMissReason = Literal[
+    "filter",
+    "throttled",
+    "debounce_superseded",
+    "once_spent",
+    "busy",
+    "queue_full",
+    "backpressure",
+    "hold_cancelled",
+    "hold_recheck_failed",
+]
+"""Why an event that reached an app listener didn't run its handler. ``filter``: a ``where``, ``changed_from``,
+``changed_to`` or caller-passed ``changed=`` filter rejected it. ``throttled``: inside the throttle window.
+``debounce_superseded``: a later event restarted the debounce. ``once_spent``: a ``once=True`` listener had already
+fired. ``busy``: a ``single`` listener was still running. ``queue_full``: a ``queued`` listener's queue was full.
+``backpressure``: dispatch was saturated and the listener uses ``drop_newest``. ``hold_cancelled``: the entity left
+the target state during a ``duration`` hold. ``hold_recheck_failed``: at the end of the hold the cached state no
+longer matched, or the entity was missing from the cache."""
+
+OpenListenerMissReason = Annotated[ListenerMissReason | UnknownValue, LenientValue("ListenerMissReason")]

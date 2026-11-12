@@ -1,9 +1,12 @@
-"""Registration-level telemetry query methods: listener and job summaries, slow handlers."""
+"""Registration-level telemetry query methods: listener and job summaries, listener near-misses, slow handlers."""
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from hassette_wire import JobSummary, QuerySourceTier
+from hassette_wire import JobSummary, ListenerMiss, QuerySourceTier
+
+from hassette.core.listener_miss_recorder import NO_FILTER
+from hassette.core.telemetry.execution_queries import TRIGGER_COLUMNS, caused_by_subquery, trigger_from_row
 
 from hassette.core.telemetry.helpers import (
     SQL_FAILED_STATUSES,
@@ -27,6 +30,13 @@ if TYPE_CHECKING:
     from contextlib import AbstractAsyncContextManager
 
     import aiosqlite
+
+_LISTENER_MISS_SELECT_COLUMNS = (
+    "m.hour_ts, m.reason, m.filter, m.count, m.first_ts, m.last_ts, "
+    + ", ".join(f"m.{column}" for column in TRIGGER_COLUMNS)
+    + ", "
+    + caused_by_subquery("m")
+)
 
 
 @dataclass(frozen=True)
@@ -181,6 +191,29 @@ class RegistrationQueriesMixin:
             rows = await cursor.fetchall()
         return [ListenerSummaryRow.model_validate(row_to_dict(row)) for row in rows]
 
+    async def get_listener_misses(
+        self, listener_id: int, *, limit: int = DEFAULT_QUERY_LIMIT, since: float | None = None
+    ) -> list[ListenerMiss]:
+        """Return a listener's near-miss rollups, most recent last drop first.
+
+        Args:
+            listener_id: The listener row id.
+            limit: Maximum number of rows to return.
+            since: When provided, restrict to rows whose last drop is at or after it (Unix epoch float).
+        """
+        since_sql, since_params = since_clause(since, "m.last_ts")
+        query = f"""
+            SELECT {_LISTENER_MISS_SELECT_COLUMNS}
+            FROM listener_misses m
+            WHERE m.listener_id = :listener_id {since_sql}
+            ORDER BY m.last_ts DESC
+            LIMIT :limit
+        """
+        params = {"listener_id": listener_id, "limit": limit, **since_params}
+        async with self.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+        return [listener_miss_from_row(row_to_dict(row)) for row in rows]
+
     async def get_job_summary(
         self,
         app_key: str | None = None,
@@ -301,3 +334,17 @@ def build_registration_summary_query(
             GROUP BY {alias}.id
         """
     return query, params
+
+
+def listener_miss_from_row(row: dict[str, Any]) -> ListenerMiss:
+    """Build the wire ``ListenerMiss`` from a ``listener_misses`` row, nesting its last event as ``trigger``."""
+    return ListenerMiss(
+        hour_ts=row["hour_ts"],
+        reason=row["reason"],
+        filter=None if row["filter"] == NO_FILTER else row["filter"],
+        count=row["count"],
+        first_ts=row["first_ts"],
+        last_ts=row["last_ts"],
+        trigger=trigger_from_row(row),
+    )
+

@@ -32,10 +32,45 @@ from hassette.utils.stack_frames import encode_frames
 
 LOGGER = getLogger(__name__)
 
+
+_LISTENER_MISS_LAST_COLUMNS = (
+    "last_ts",
+    "trigger_topic",
+    "trigger_entity_id",
+    "trigger_old_value",
+    "trigger_new_value",
+    "trigger_context_id",
+    "trigger_parent_id",
+    "trigger_origin",
+)
+"""``listener_misses`` columns that describe the last dropped event, replaced together by a newer rollup."""
+
+_LISTENER_MISS_COLUMNS = ("listener_id", "hour_ts", "reason", "filter", "count", "first_ts", *_LISTENER_MISS_LAST_COLUMNS)
+
+_LISTENER_MISS_LAST_SET = ", ".join(
+    f"{column} = CASE WHEN excluded.last_ts >= last_ts THEN excluded.{column} ELSE {column} END"
+    for column in _LISTENER_MISS_LAST_COLUMNS
+)
+
+# INSERT ... SELECT so a row whose listener was deleted since it was recorded inserts nothing. The SELECT's
+# WHERE also keeps SQLite from parsing ON CONFLICT as a join constraint. Every SET expression reads the stored
+# row's old values, so replacing last_ts doesn't change the CASE tests that follow it.
+_LISTENER_MISS_UPSERT_SQL = f"""
+    INSERT INTO listener_misses ({", ".join(_LISTENER_MISS_COLUMNS)})
+    SELECT {", ".join(f":{column}" for column in _LISTENER_MISS_COLUMNS)}
+    WHERE EXISTS (SELECT 1 FROM listeners WHERE id = :listener_id)
+    ON CONFLICT(listener_id, hour_ts, reason, filter) DO UPDATE SET
+        count = count + excluded.count,
+        first_ts = MIN(first_ts, excluded.first_ts),
+        {_LISTENER_MISS_LAST_SET}
+"""
+
+
 if TYPE_CHECKING:
     from hassette_wire import ApiWriteOutcome
 
     from hassette.core.api_write_recorder import ApiWriteRow
+    from hassette.core.listener_miss_recorder import ListenerMissRow
     from hassette.core.database_service import DatabaseService
 
 
@@ -581,6 +616,25 @@ class TelemetryRepository:
                 exc_info=True,
             )
 
+    async def upsert_listener_misses(self, rows: "list[ListenerMissRow]") -> None:
+        """Add a batch of near-miss rollups to ``listener_misses``, merging into rows already stored for their key.
+
+        On a key already stored (listener, hour, reason, filter), ``count`` adds, ``first_ts`` keeps the earlier
+        time, and the last-event columns change only when this rollup's last event is at least as recent, so a
+        restart or app reload within the hour adds to its row. A row whose listener has since been deleted is
+        skipped rather than failing the batch on the foreign key. Any failure rolls the batch back and re-raises.
+        """
+        if not rows:
+            return
+        db = self._db_service.db
+        try:
+            await db.execute("BEGIN")
+            await db.executemany(_LISTENER_MISS_UPSERT_SQL, [_listener_miss_params(row) for row in rows])
+            await db.commit()
+        except Exception:  # any failure rolls back, then re-raises to the caller
+            await db.rollback()
+            raise
+
     async def persist_execution_batch(self, records: list[ExecutionRecord]) -> None:
         """Write a batch of unified execution records to the executions table.
 
@@ -635,3 +689,8 @@ class TelemetryRepository:
             raise
 
         return dropped
+
+
+def _listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:
+    return {column: getattr(row, column) for column in _LISTENER_MISS_COLUMNS}
+

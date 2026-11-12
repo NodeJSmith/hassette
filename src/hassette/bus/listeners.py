@@ -1,6 +1,6 @@
 import itertools
 import typing
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import Logger, getLogger
 from typing import Any, cast
@@ -10,10 +10,11 @@ from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
 from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
-from hassette.event_handling.predicates import normalize_where
+from hassette.event_handling.predicates import AllOf, flatten_all_of, normalize_where
 from hassette.exceptions import TaskBucketSealedError
 from hassette.execution_mode import (
     ExecutionModeGuard,
+    Outcome,
     describe_stall_threshold,
     release_and_drain,
     resolve_effective_timeout,
@@ -27,6 +28,8 @@ from hassette.utils.type_utils import get_typed_signature
 if typing.TYPE_CHECKING:
     import asyncio
 
+    from hassette_wire import ListenerMissReason
+
     from hassette import TaskBucket
     from hassette.events.base import AnyEvent
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
@@ -39,6 +42,32 @@ LOGGER = getLogger(__name__)
 # which is assigned later at registration. itertools.count.__next__ is atomic at the C
 # level, so no lock is needed even though listeners are only ever created on the event loop.
 _listener_id_seq = itertools.count(1)
+
+
+MATCHED = -1
+"""``Listener.evaluate`` result: the event passed the listener's scope and every filter."""
+
+OUT_OF_SCOPE = -2
+"""``Listener.evaluate`` result: the event failed the listener's scope (another entity, the default change filter)."""
+
+_VERDICTS = {MATCHED: "matched", OUT_OF_SCOPE: "is out of scope"}
+"""``Listener.evaluate`` results with a fixed debug-log wording; any other result is a filter index."""
+
+
+class DropReporter(typing.Protocol):
+    """Records one event that reached an app listener and didn't run its handler (a near-miss).
+
+    ``BusService`` binds one per app listener at registration, so a drop site allocates nothing.
+    """
+
+    def __call__(
+        self,
+        reason: "ListenerMissReason",
+        event: "AnyEvent",
+        *,
+        filter_index: int | None = None,
+        is_synthetic: bool = False,
+    ) -> None: ...
 
 
 def next_id() -> int:
@@ -199,6 +228,10 @@ class HandlerInvoker:
     fired: bool = field(default=False, init=False)
     """Guard for once=True: set before the first invocation to prevent double-fire."""
 
+    report_drop: DropReporter | None = field(default=None, init=False)
+    """Near-miss reporter, bound by BusService at registration for app listeners, and unbound by
+    Listener.cancel() so a removed listener records nothing more. None records nothing."""
+
     pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False)
     """Unresolved per-invocation completion futures for non-parallel modes.
 
@@ -268,7 +301,10 @@ class HandlerInvoker:
         self.fired = True
 
     async def dispatch(
-        self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
+        self,
+        event: "AnyEvent",
+        invoke_fn: Callable[[], Awaitable[None]],
+        config_resolver: Callable[[], float | None],
     ) -> None:
         """Apply the once-guard, rate limiter, and overlap mode around the given invoke function.
 
@@ -290,21 +326,30 @@ class HandlerInvoker:
         ``config_resolver`` returns the global handler timeout, the same one ``invoke_fn``
         enforces. BusService owns it, so a listener's stall threshold follows that timeout however the
         listener was built.
+
+        ``event`` is the event ``invoke_fn`` runs for. Every step that drops it reports it to ``report_drop``.
         """
-        if self.options.once and self.fired:
-            return
         if self.options.once:
+            if self.fired:
+                if self.report_drop is not None:
+                    self.report_drop("once_spent", event)
+                return
             self.mark_fired()
 
         if self.rate_limiter:
-            await self.rate_limiter.call(lambda: self.run_with_mode(invoke_fn, config_resolver))
+            await self.rate_limiter.call(
+                lambda: self.run_with_mode(event, invoke_fn, config_resolver), event, self.report_drop
+            )
         else:
-            await self.run_with_mode(invoke_fn, config_resolver)
+            await self.run_with_mode(event, invoke_fn, config_resolver)
 
     async def run_with_mode(
-        self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
+        self,
+        event: "AnyEvent",
+        invoke_fn: Callable[[], Awaitable[None]],
+        config_resolver: Callable[[], float | None],
     ) -> None:
-        """Apply the overlap mode guard to a single started invocation."""
+        """Apply the overlap mode guard to a single started invocation, reporting a ``busy``/``queue_full`` drop."""
         if self.options.mode is ExecutionMode.PARALLEL:
             try:
                 await run_parallel(
@@ -318,7 +363,7 @@ class HandlerInvoker:
                 )
             return
 
-        await run_through_guard(
+        outcome = await run_through_guard(
             guard=self.guard,
             spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
             pending_done=self.pending_done,
@@ -327,6 +372,12 @@ class HandlerInvoker:
             spawn_name="bus:mode_invocation",
             resolve_timeout=lambda: self.effective_timeout(config_resolver),
         )
+        if self.report_drop is None:
+            return
+        if outcome is Outcome.SUPPRESSED:
+            self.report_drop("busy", event)
+        elif outcome is Outcome.DROPPED:
+            self.report_drop("queue_full", event)
 
     def effective_timeout(self, config_resolver: Callable[[], float | None]) -> float | None:
         """Return the timeout enforced for one invocation, or ``None`` if it has none.
@@ -421,6 +472,7 @@ class EntityWatch:
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: Callable[[], None] | None = None,
         normalize_cancel_event: "Callable[[AnyEvent], AnyEvent] | None" = None,
+        on_hold_cancelled: "Callable[[AnyEvent], None] | None" = None,
     ) -> None:
         """Construct a DurationTimer and store it.
 
@@ -441,6 +493,7 @@ class EntityWatch:
             create_cancel_sub=create_cancel_sub,
             on_cancel=on_cancel,
             normalize_cancel_event=normalize_cancel_event,
+            on_hold_cancelled=on_hold_cancelled,
         )
 
 
@@ -449,7 +502,12 @@ class Listener:
     """A listener for events with a specific topic and handler.
 
     Composes four focused sub-structs (identity, invoker, options, entity_watch)
-    plus routing fields (topic, predicate) and minimal runtime state.
+    plus routing fields (topic, scope, predicate) and minimal runtime state.
+
+    Two predicates select events. ``scope`` holds the filters a registration method built to say which events the
+    listener is about (its entity, domain or service, and the default change filter); ``predicate`` holds the filters
+    the caller wrote (``where``, ``changed_from``, ``changed_to``, a passed ``changed=``). An event rejected by
+    ``predicate`` is a near-miss; one rejected by ``scope`` isn't.
     """
 
     logger: Logger
@@ -458,8 +516,11 @@ class Listener:
     topic: str
     """Topic the listener is subscribed to."""
 
+    scope: "AllOf | None"
+    """Registration-built selection filters, evaluated first. None when the registration method built none."""
+
     predicate: "Predicate | None"
-    """Predicate to filter events before invoking the handler."""
+    """The caller's filters. Its top-level conjuncts are ``filters``."""
 
     identity: ListenerIdentity
     """Ownership and telemetry identity fields."""
@@ -481,6 +542,22 @@ class Listener:
 
     db_id: int | None = field(default=None, init=False)
     """Database row ID for this listener. Set by the executor after persistence; None until then."""
+
+    filters: "tuple[Predicate, ...]" = field(default=(), init=False)
+    """``predicate``'s top-level conjuncts (nested ``AllOf``s flattened), the units a near-miss names. Derived."""
+
+    def __post_init__(self) -> None:
+        self.filters = flatten_all_of(self.predicate)
+
+    @property
+    def full_predicate(self) -> "Predicate | None":
+        """``scope`` and ``predicate`` as one predicate, for the listener's registered description."""
+        if self.scope is None:
+            return self.predicate
+        if self.predicate is None:
+            return self.scope
+        caller = self.predicate.predicates if isinstance(self.predicate, AllOf) else (self.predicate,)
+        return AllOf((*self.scope.predicates, *caller))
 
     @property
     def is_cancelled(self) -> bool:
@@ -520,6 +597,8 @@ class Listener:
         """
         self._cancelled = True
         self.invoker.mark_fired()
+        # A removed listener records no more near-misses, from in-flight dispatches or its timer.
+        self.invoker.report_drop = None
         self.invoker.cancel()
         if self.entity_watch is not None:
             self.entity_watch.cancel_timer()
@@ -541,7 +620,7 @@ class Listener:
     def config_matches(self, other: "Listener") -> bool:
         """Check whether two listeners represent the same logical configuration.
 
-        Compares handler callable, filter predicate, timing options (once, debounce,
+        Compares handler callable, scope and filter predicates, timing options (once, debounce,
         throttle, timeout, timeout_disabled, priority), the execution mode, handler kwargs,
         per-registration error handler (by identity), and entity-watch scalars.
 
@@ -561,18 +640,31 @@ class Listener:
         """
         return [name for name, comparator in _CONFIG_MATCH_FIELDS if not comparator(self, other)]
 
-    def matches(self, ev: "AnyEvent") -> bool:
-        """Check if the event matches the listener's predicate.
+    def evaluate(self, ev: "AnyEvent") -> int:
+        """Test the event against ``scope``, then each of ``filters`` in order, stopping at the first that fails.
 
-        Raises if the predicate raises — the caller (BusService.dispatch) handles
+        Each predicate runs at most once, so the result names the rejecting filter without evaluating anything twice.
+
+        Returns:
+            ``MATCHED``, ``OUT_OF_SCOPE``, or the index in ``filters`` of the filter that rejected the event.
+
+        Raises if a predicate raises — the caller (BusService.dispatch) handles
         isolation, telemetry recording, and error-handler routing.
         """
-        if self.predicate is None:
-            return True
-        matched = self.predicate(ev)
-        verdict = "matched" if matched else "did not match"
-        self.logger.debug("Listener %s %s predicate for event: %s", self, verdict, ev)
-        return matched
+        result = MATCHED
+        if self.scope is not None and not self.scope(ev):
+            result = OUT_OF_SCOPE
+        else:
+            for index, filter_ in enumerate(self.filters):
+                if not filter_(ev):
+                    result = index
+                    break
+        self.logger.debug("Listener %s %s for event: %s", self, _VERDICTS.get(result, "rejected by a filter"), ev)
+        return result
+
+    def matches(self, ev: "AnyEvent") -> bool:
+        """Whether the event passes ``scope`` and every filter. Raises if a predicate raises (see ``evaluate``)."""
+        return self.evaluate(ev) == MATCHED
 
     def __repr__(self) -> str:
         return f"Listener<{self.identity.owner_id} - {self.identity.handler_short_name}>"
@@ -587,8 +679,11 @@ class Listener:
         where: WhereClause = None,
         entity_watch: EntityWatch | None = None,
         logger: Logger = LOGGER,
+        scope: "Sequence[Predicate]" = (),
     ) -> "Listener":
         """Create a Listener from pre-built sub-structs.
+
+        ``scope`` takes the selection filters the registration method built; ``where`` the caller's filters.
 
         Cross-concern validation (duration + debounce incompatibility) runs
         here since it spans two sub-structs.
@@ -603,6 +698,7 @@ class Listener:
         return cls(
             logger=logger,
             topic=topic,
+            scope=AllOf(tuple(scope)) if scope else None,
             predicate=pred,
             identity=identity,
             invoker=invoker,
@@ -650,6 +746,7 @@ class Listener:
         return cls(
             logger=LOGGER,
             topic=topic,
+            scope=None,
             predicate=predicate,
             identity=identity,
             invoker=invoker,
@@ -702,6 +799,7 @@ def _entity_watches_match(a: EntityWatch | None, b: EntityWatch | None) -> bool:
 # drift out of sync on which fields they check.
 _CONFIG_MATCH_FIELDS: tuple[tuple[str, Callable[["Listener", "Listener"], bool]], ...] = (
     ("handler", lambda a, b: a.invoker.orig_handler == b.invoker.orig_handler),
+    ("scope", lambda a, b: a.scope == b.scope),
     ("predicate", lambda a, b: a.predicate == b.predicate),
     ("once", lambda a, b: a.options.once == b.options.once),
     ("debounce", lambda a, b: a.options.debounce == b.options.debounce),
