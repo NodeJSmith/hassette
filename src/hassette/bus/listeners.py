@@ -10,7 +10,8 @@ from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
 from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
-from hassette.event_handling.predicates import AllOf, flatten_all_of, normalize_where
+from hassette.event_handling.predicates import AllOf, normalize_where
+from hassette.event_handling.predicates.combinators import flatten_all_of
 from hassette.exceptions import TaskBucketSealedError
 from hassette.execution_mode import (
     ExecutionModeGuard,

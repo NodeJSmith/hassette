@@ -26,10 +26,12 @@ from hassette.event_handling.predicates import (
     ServiceMatches,
     StateComparison,
     ValueIs,
-    _strip_outer_parens,
-    _summarize_condition,
-    _summarize_predicate,
     compare_value,
+)
+from hassette.event_handling.predicates.combinators import (
+    _strip_outer_parens,
+    _summarize_predicate,
+    summarize_condition,
 )
 from hassette.testing import create_state_change_event
 from tests.support.helpers import create_attr_change_event
@@ -254,7 +256,7 @@ def test_strip_outer_parens_preserves_nested_nonwrapping() -> None:
     assert _strip_outer_parens("(a and b) or c") == "(a and b) or c"
 
 
-# _summarize_predicate / _summarize_condition fallbacks
+# _summarize_predicate / summarize_condition fallbacks
 def test_summarize_predicate_uses_summarize_method_when_available() -> None:
     """_summarize_predicate delegates to .summarize() when the predicate defines it."""
 
@@ -279,21 +281,21 @@ def test_summarize_predicate_falls_back_to_repr_for_non_callable() -> None:
 
 
 def test_summarize_condition_uses_summarize_method_when_available() -> None:
-    """_summarize_condition delegates to .summarize() when the condition defines it."""
+    """summarize_condition delegates to .summarize() when the condition defines it."""
     condition = Comparison(">", 50)
 
-    assert _summarize_condition(condition) == "> 50"
+    assert summarize_condition(condition) == "> 50"
 
 
 def test_summarize_condition_falls_back_to_callable_name() -> None:
-    """_summarize_condition falls back to callable_name() for plain callables."""
-    assert _summarize_condition(gt_fifty) == "gt_fifty"
+    """summarize_condition falls back to callable_name() for plain callables."""
+    assert summarize_condition(gt_fifty) == "gt_fifty"
 
 
 def test_summarize_condition_falls_back_to_str_for_literal() -> None:
-    """_summarize_condition falls back to str() for a non-callable literal condition."""
-    assert _summarize_condition("on") == "on"
-    assert _summarize_condition(ANY_VALUE) == str(ANY_VALUE)
+    """summarize_condition falls back to str() for a non-callable literal condition."""
+    assert summarize_condition("on") == "on"
+    assert summarize_condition(ANY_VALUE) == str(ANY_VALUE)
 
 
 # ValueIs with ANY_VALUE (distinct from NOT_PROVIDED)
