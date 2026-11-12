@@ -2066,7 +2066,7 @@ export interface components {
              * @description Why the events didn't run the handler.
              * @enum {string}
              */
-            reason: "filter" | "throttled" | "debounce_superseded" | "once_spent" | "busy" | "queue_full" | "backpressure" | "hold_cancelled" | "hold_recheck_failed";
+            reason: "filter" | "throttled" | "debounce_superseded" | "once_spent" | "busy" | "queue_full" | "backpressure" | "hold_cancelled" | "hold_recheck_failed" | "hold_entity_missing";
             /**
              * Filter
              * @description Summary of the filter that rejected the events, for ``reason='filter'``. None for every other reason.
@@ -2089,7 +2089,8 @@ export interface components {
             last_ts: number;
             /**
              * @description The last dropped event. For ``hold_cancelled`` it's the event that ended the hold; for
-             *     ``hold_recheck_failed`` it's the state at the end of the hold, built from the cache.
+             *     ``hold_recheck_failed`` it's the state at the end of the hold, built from the cache; for
+             *     ``hold_entity_missing`` it's the event that started the hold.
              */
             trigger: components["schemas"]["ExecutionTrigger"];
         };

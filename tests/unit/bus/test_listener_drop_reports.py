@@ -2,7 +2,7 @@
 
 Scope vs filter (D1, D2), the filter walk (parent D5), and one reason code per cause (D5): ``filter``,
 ``throttled``, ``debounce_superseded``, ``once_spent``, ``busy``, ``queue_full``, ``backpressure``,
-``hold_cancelled``. ``hold_recheck_failed`` is pinned in ``test_duration_hold.py``.
+``hold_cancelled``. ``hold_recheck_failed`` and ``hold_entity_missing`` are pinned in ``test_duration_hold.py``.
 """
 
 import asyncio

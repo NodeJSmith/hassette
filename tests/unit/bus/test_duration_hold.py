@@ -604,7 +604,7 @@ class TestComputeElapsed:
 
 
 class TestRecheckNearMisses:
-    """A failed fire-time recheck is a ``hold_recheck_failed`` near-miss (spec 151 D5, D7)."""
+    """A failed fire-time recheck is a ``hold_recheck_failed`` or ``hold_entity_missing`` near-miss (spec 151)."""
 
     def arm(self, state: dict[str, Any] | None, hold_predicate: Any) -> tuple[MagicMock, Any, MagicMock]:
         """Arm a light.kitchen hold whose recheck runs ``hold_predicate``; return (mock_timer, start event, report)."""
@@ -632,7 +632,7 @@ class TestRecheckNearMisses:
         mock_timer, start_event, report = self.arm(None, lambda _ev: True)
         await fire_mock_timer(mock_timer)
 
-        report.assert_called_once_with("hold_recheck_failed", start_event, is_synthetic=False)
+        report.assert_called_once_with("hold_entity_missing", start_event, is_synthetic=False)
 
     async def test_raising_recheck_is_not_a_near_miss(self) -> None:
         def boom(_ev: object) -> bool:

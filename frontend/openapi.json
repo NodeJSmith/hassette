@@ -5187,7 +5187,8 @@
               "queue_full",
               "backpressure",
               "hold_cancelled",
-              "hold_recheck_failed"
+              "hold_recheck_failed",
+              "hold_entity_missing"
             ],
             "title": "Reason",
             "description": "Why the events didn't run the handler."
@@ -5221,7 +5222,7 @@
           },
           "trigger": {
             "$ref": "#/components/schemas/ExecutionTrigger",
-            "description": "The last dropped event. For ``hold_cancelled`` it's the event that ended the hold; for\n``hold_recheck_failed`` it's the state at the end of the hold, built from the cache."
+            "description": "The last dropped event. For ``hold_cancelled`` it's the event that ended the hold; for\n``hold_recheck_failed`` it's the state at the end of the hold, built from the cache; for\n``hold_entity_missing`` it's the event that started the hold."
           }
         },
         "type": "object",

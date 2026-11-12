@@ -54,7 +54,8 @@ A typical write row takes about 460 bytes. An app making 1,000 writes a day keep
 | `queue_full` | `mode="queued"` and the queue was full. |
 | `backpressure` | `backpressure="drop_newest"` and every bus dispatch slot was in use (see [backpressure](bus/backpressure.md)). |
 | `hold_cancelled` | A `duration=` hold ended early because the entity left the matching state. The row records the event that ended it. |
-| `hold_recheck_failed` | A `duration=` hold ran out, but the state no longer matched when Hassette checked it again. That happens when the state changed without an event Hassette saw, or when the entity is gone from the cache. |
+| `hold_recheck_failed` | A `duration=` hold ran out, but the state no longer matched when Hassette checked it again. That happens when the state changed without an event Hassette saw. The row records the end-of-hold state, built from the cache. |
+| `hold_entity_missing` | A `duration=` hold ran out, but the entity was gone from Hassette's state cache. The row records the event that started the hold. |
 
 Only events the listener could have handled count. An event for another entity on a glob subscription, or one the default change check drops (an attribute-only update on `on_state_change`), records nothing, so an empty `--misses` doesn't mean the listener saw no events. See [which filters count](bus/filtering.md#near-misses). A `where=` predicate that raises records an error execution, not a miss. Framework listeners record nothing.
 

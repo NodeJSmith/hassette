@@ -218,8 +218,9 @@ class DurationHoldManager:
         (the immediate-fire path passes the remaining hold time). ``is_synthetic`` says ``event`` was built from
         the cached state (the immediate-fire path).
 
-        A failed recheck is a ``hold_recheck_failed`` near-miss. It records the event built from the state at fire
-        time, or ``event`` itself when the entity is missing from the cache and there is no state to build one from.
+        A failed recheck is a ``hold_recheck_failed`` near-miss that records the event built from the state at fire
+        time. An entity missing from the cache is a ``hold_entity_missing`` near-miss that records ``event`` itself,
+        since there is no state to build one from.
         """
 
         async def on_duration_fire() -> None:
@@ -232,7 +233,7 @@ class DurationHoldManager:
                         entity_id,
                     )
                     if report is not None:
-                        report("hold_recheck_failed", event, is_synthetic=is_synthetic)
+                        report("hold_entity_missing", event, is_synthetic=is_synthetic)
                     return
                 recheck_event = self.make_synthetic_event(entity_id, current_state)
                 matched = self.hold_matches(listener, recheck_event)

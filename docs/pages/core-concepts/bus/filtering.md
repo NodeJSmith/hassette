@@ -265,7 +265,7 @@ A row names its filter by the filter's summary, such as `→ open` or `from on`.
 
 When motion is detected in a bright hall, the row reads `is_dark` rather than `<callable>`.
 
-A `where=` predicate that raises records an error run, not a miss. A `duration=` listener also records a miss when its hold ends early (`hold_cancelled`) or when the state no longer matches as the hold runs out (`hold_recheck_failed`). The second happens when the state changed without an event Hassette saw, or when the entity is gone from Hassette's state cache.
+A `where=` predicate that raises records an error run, not a miss. A `duration=` listener also records a miss when its hold ends early (`hold_cancelled`) or when the state no longer matches as the hold runs out (`hold_recheck_failed`), or when the entity is gone from Hassette's state cache as it runs out (`hold_entity_missing`). The second happens when the state changed without an event Hassette saw.
 
 A `duration=` listener's `changed_to` is still a filter, so each event that leaves the matching state records a `filter` row. When that event also ends an active hold, it records a `hold_cancelled` row too: one event, two rows, each true.
 

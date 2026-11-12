@@ -115,6 +115,7 @@ ListenerMissReason = Literal[
     "backpressure",
     "hold_cancelled",
     "hold_recheck_failed",
+    "hold_entity_missing",
 ]
 """Why an event that reached an app listener didn't run its handler. ``filter``: a ``where``, ``changed_from``,
 ``changed_to`` or caller-passed ``changed=`` filter rejected it. ``throttled``: inside the throttle window.
@@ -122,6 +123,6 @@ ListenerMissReason = Literal[
 fired. ``busy``: a ``single`` listener was still running. ``queue_full``: a ``queued`` listener's queue was full.
 ``backpressure``: dispatch was saturated and the listener uses ``drop_newest``. ``hold_cancelled``: the entity left
 the target state during a ``duration`` hold. ``hold_recheck_failed``: at the end of the hold the cached state no
-longer matched, or the entity was missing from the cache."""
+longer matched. ``hold_entity_missing``: at the end of the hold the entity was missing from the cache."""
 
 OpenListenerMissReason = Annotated[ListenerMissReason | UnknownValue, LenientValue("ListenerMissReason")]

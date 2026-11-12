@@ -210,7 +210,8 @@ class ListenerMiss(BaseModel):
     """When the last of them was dropped."""
     trigger: ExecutionTrigger
     """The last dropped event. For ``hold_cancelled`` it's the event that ended the hold; for
-    ``hold_recheck_failed`` it's the state at the end of the hold, built from the cache."""
+    ``hold_recheck_failed`` it's the state at the end of the hold, built from the cache; for
+    ``hold_entity_missing`` it's the event that started the hold."""
 
 
 class ActivityFeedEntry(BaseModel):

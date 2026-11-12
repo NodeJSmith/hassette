@@ -11,7 +11,8 @@ CREATE TABLE listener_misses (
     hour_ts            REAL NOT NULL,
     reason             TEXT NOT NULL
         CHECK (reason IN ('filter', 'throttled', 'debounce_superseded', 'once_spent', 'busy', 'queue_full',
-                          'backpressure', 'hold_cancelled', 'hold_recheck_failed')),
+                          'backpressure', 'hold_cancelled', 'hold_recheck_failed',
+                          'hold_entity_missing')),
     filter             TEXT NOT NULL DEFAULT '',
     count              INTEGER NOT NULL,
     first_ts           REAL NOT NULL,
