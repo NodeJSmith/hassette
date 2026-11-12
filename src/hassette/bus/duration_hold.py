@@ -2,10 +2,10 @@
 
 import time
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.bus.listeners import EntityWatch, Listener, Subscription
+from hassette.bus.listeners import MATCHED, EntityWatch, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.events.base import AnyEvent
 from hassette.types import Topic
@@ -16,6 +16,10 @@ if TYPE_CHECKING:
     from hassette import TaskBucket
     from hassette.core.command_executor import CommandExecutor
     from hassette.events.hass.raw import HassStateDict
+
+
+_R = TypeVar("_R")
+"""``evaluate_predicate``'s predicate result: ``bool`` for ``matches`` and hold predicates, ``int`` for ``evaluate``."""
 
 
 class DurationHoldManager:
@@ -99,8 +103,8 @@ class DurationHoldManager:
         return self.evaluate_predicate(listener, event, hold_pred if hold_pred is not None else listener.matches)
 
     def evaluate_predicate(
-        self, listener: Listener, event: "AnyEvent", predicate: "Callable[[AnyEvent], bool]"
-    ) -> bool | None:
+        self, listener: Listener, event: "AnyEvent", predicate: "Callable[[AnyEvent], _R]"
+    ) -> _R | None:
         """Run ``predicate`` against ``event``; a raise is recorded and returns None, a non-match."""
         predicate_start = time.time()
         try:
@@ -132,7 +136,12 @@ class DurationHoldManager:
 
         try:
             synthetic_event = self.make_synthetic_event(entity_id, current_state)
-            if not self.evaluate_predicate(listener, synthetic_event, listener.matches):
+            result = self.evaluate_predicate(listener, synthetic_event, listener.evaluate)
+            if result is None:
+                return
+            if result != MATCHED:
+                # Synthetic events skip BusService._match_listeners, so the filter near-miss is reported here.
+                listener.report_filter_rejection(result, synthetic_event, is_synthetic=True)
                 return
 
             invoke_fn = build_tracked_invoke_fn(

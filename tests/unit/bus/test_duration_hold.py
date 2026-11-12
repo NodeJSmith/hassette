@@ -142,6 +142,23 @@ async def run_immediate_fire(manager: DurationHoldManager, listener: Listener) -
     await manager.immediate_fire_task(listener, listener.entity_watch)
 
 
+def immediate_listener_with_report(
+    cached_state: str, **listener_kwargs: Any
+) -> tuple[DurationHoldManager, Listener, MagicMock]:
+    """Build a manager caching light.kitchen at ``cached_state`` and an ``immediate=True`` light.kitchen listener
+    whose drop reporter is a ``MagicMock``; return ``(manager, listener, report)``.
+
+    For the immediate-fire near-miss tests, which vary only the listener's ``once``/``where`` and the cached state.
+    """
+    manager = make_manager(state=make_state_dict("light.kitchen", cached_state), executor=make_mock_executor())
+    listener = create_listener(
+        topic="hass.event.state_changed.light.kitchen", entity_id="light.kitchen", immediate=True, **listener_kwargs
+    )
+    report = MagicMock()
+    listener.invoker.report_drop = report
+    return manager, listener, report
+
+
 async def fire_mock_timer(mock_timer: MagicMock) -> None:
     """Invoke the on_fire callback captured by mock_timer.start (``mock_timer.start.call_args[0][0]``).
 
@@ -248,17 +265,8 @@ class TestImmediateFireTask:
 
     async def test_dropped_immediate_fire_is_reported_as_synthetic(self) -> None:
         """An immediate fire the invoker drops reports the cached-state event as synthetic (spec 147 D7)."""
-        state = make_state_dict("light.kitchen", "on")
-        manager = make_manager(state=state, executor=make_mock_executor())
-        listener = create_listener(
-            topic="hass.event.state_changed.light.kitchen",
-            entity_id="light.kitchen",
-            immediate=True,
-            once=True,
-        )
+        manager, listener, report = immediate_listener_with_report("on", once=True)
         listener.invoker.mark_fired()
-        report = MagicMock()
-        listener.invoker.report_drop = report
 
         await run_immediate_fire(manager, listener)
 
@@ -285,6 +293,32 @@ class TestImmediateFireTask:
         await run_immediate_fire(manager, listener)
 
         executor.execute.assert_not_called()
+
+    async def test_filter_rejection_is_reported_as_synthetic_filter_miss(self) -> None:
+        """A cached state a filter rejects is a ``filter`` near-miss naming that filter (spec 151)."""
+        manager, listener, report = immediate_listener_with_report("off", where=lambda _ev: False)
+
+        await run_immediate_fire(manager, listener)
+
+        report.assert_called_once()
+        (reason, event), kwargs = report.call_args
+        assert reason == "filter"
+        assert event.payload.data.new_state["state"] == "off"
+        assert kwargs == {"filter_index": 0, "is_synthetic": True}
+
+    async def test_raising_filter_is_not_a_near_miss(self) -> None:
+        """A raising predicate on the immediate-fire path is a predicate failure, not a near-miss."""
+
+        def boom(_ev: object) -> bool:
+            raise ValueError("filter boom")
+
+        manager, listener, report = immediate_listener_with_report("off", where=boom)
+
+        await run_immediate_fire(manager, listener)
+
+        report.assert_not_called()
+        assert isinstance(manager.record_predicate_failure, MagicMock)
+        manager.record_predicate_failure.assert_called_once()
 
 
 class TestDecrementTimersActive:

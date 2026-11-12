@@ -450,8 +450,7 @@ class BusService(Service):
                     chosen[listener.listener_id] = (route, listener)
                     continue
                 rejected.add(listener.listener_id)
-                if result >= 0 and (report := listener.invoker.report_drop) is not None:
-                    report("filter", event, filter_index=result)
+                listener.report_filter_rejection(result, event)
 
         return chosen
 

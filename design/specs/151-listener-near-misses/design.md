@@ -211,3 +211,7 @@ New pieces and their homes:
 - `CLI` old → new rendering is one helper, `fmt_value_change` in `cli/formatters.py`, shared by `hassette log`'s trigger summary and the miss table.
 - Ship-time challenge Finding 3 (user's choice): a submit `TimeoutError` or `sqlite3.OperationalError` merges the batch back into the entry map instead of dropping it, folding into any entry recorded since the swap (that newer entry keeps its last event). The shutdown flush passes `final=True`, which counts such a failure as a loss, since no later flush would write a merged-back batch. `MAX_FLUSH_RETRIES` (3, the execution flusher's bound) caps consecutive merge-backs, so a database that stays read-only or full reaches the failure counter. A merge-back logs its own unpaced WARNING (at most three per episode), so it never suppresses the paced loss WARNING.
 - Comb minor findings 2 (duplicated facts: the 10% limit, failed flush, migration chain) were left as is: cosmetic, and each restatement is consistent.
+
+## Addendum
+
+- 2026-11-12 (PR #4013 review): an `immediate=True` listener whose cached state a filter rejects records a `filter` near-miss with `is_synthetic=True`. Synthetic events never pass through `BusService._match_listeners`, so `DurationHoldManager.immediate_fire_task` reports it itself; both sites decode the `Listener.evaluate` result through `Listener.report_filter_rejection`. The miss table's Hour column shows local minutes, so a half-hour-offset zone reads `05:30`, not `05:00`.

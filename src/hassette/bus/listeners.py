@@ -678,6 +678,14 @@ class Listener:
         """Whether the event passes ``scope`` and every filter. Raises if a predicate raises (see ``evaluate``)."""
         return self.evaluate(ev) == MATCHED
 
+    def report_filter_rejection(self, result: int, ev: "AnyEvent", *, is_synthetic: bool = False) -> None:
+        """Report an ``evaluate`` result that names a rejecting filter as a ``filter`` near-miss.
+
+        ``MATCHED`` and ``OUT_OF_SCOPE`` report nothing: a scope rejection is not a near-miss.
+        """
+        if result >= 0 and (report := self.invoker.report_drop) is not None:
+            report("filter", ev, filter_index=result, is_synthetic=is_synthetic)
+
     def __repr__(self) -> str:
         return f"Listener<{self.identity.owner_id} - {self.identity.handler_short_name}>"
 
