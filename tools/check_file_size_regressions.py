@@ -2,7 +2,7 @@
 """CI gate: fail if a PR made an already-oversized file bigger, or added a brand-new oversized one.
 
 Complements house-lint's HSL102 check, which is informational in CI (`continue-on-error: true`,
-tracks the full backlog of ~20 files already over the 800-line threshold). This script is the
+tracks the full backlog of files already over the 800-line threshold). This script is the
 "new code" counterpart -- see check_duplicate_code.py's --gate-new-code mode for the same idea
 applied to copy-pasted code instead of file size. Only files this PR's own commits actually
 touched are in scope; an untouched file that happens to still be over threshold is pre-existing

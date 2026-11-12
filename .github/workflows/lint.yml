@@ -389,17 +389,11 @@ jobs:
               # enough that running it twice per PR (once here, once inside the regressions
               # script below) costs nothing worth optimizing away.
               #
-              # Deliberately NOT `--select HSL102`: narrowing selection disables every other
-              # rule, and house-lint's always-on HSL900 then flags every `# house-lint:
-              # ignore[HSL002]`-style pragma elsewhere in the repo as an "unused suppression
-              # for disabled rule" — noise unrelated to file size. Running the full configured
-              # rule set keeps those pragmas valid; today that set has zero real findings
-              # outside HSL102, so this job's output is still file-size-only in practice.
-              #
-              # Informational only (continue-on-error) — tracks the ~20-file backlog without
-              # blocking. The "new file-size regressions" step below is what actually gates PRs.
+              # Informational only (continue-on-error) — tracks the backlog of files already over
+              # the threshold without blocking. The "new file-size regressions" step below is what
+              # actually gates PRs.
               continue-on-error: true
-              run: uv run house-lint check
+              run: uv run house-lint check --select HSL102
 
             - name: Check for new file-size regressions
               # Only meaningful on a PR — there's no "other side" to diff against on a direct
