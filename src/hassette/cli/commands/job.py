@@ -28,8 +28,8 @@ JOB_EXECUTION_COLUMNS: list[Column] = [
 
 #: schedule_status -> schedule_status_reason -> display text, for combinations that override
 #: the default per-status text below. ``None`` reason keys are handled by the plain
-#: _SCHEDULE_STATUS_TEXT fallback in _next_run_display().
-_SCHEDULE_STATUS_REASON_TEXT: dict[tuple[ScheduleStatus, ScheduleStatusReason], str] = {
+#: SCHEDULE_STATUS_TEXT fallback in next_run_display().
+SCHEDULE_STATUS_REASON_TEXT: dict[tuple[ScheduleStatus, ScheduleStatusReason], str] = {
     (ScheduleStatus.SCHEDULED, ScheduleStatusReason.LEGACY_UNKNOWN): "Legacy status unknown.",
     (ScheduleStatus.COMPLETED, ScheduleStatusReason.TRIGGER_ERROR): "Schedule stopped after trigger error.",
 }
@@ -37,7 +37,7 @@ _SCHEDULE_STATUS_REASON_TEXT: dict[tuple[ScheduleStatus, ScheduleStatusReason], 
 #: Fallback text for a null next_run, keyed by schedule_status, when no reason override
 #: applies. "scheduled" here means live enrichment ran but returned no concrete timing. Covers
 #: every ScheduleStatus member (tested).
-_SCHEDULE_STATUS_TEXT: dict[ScheduleStatus, str] = {
+SCHEDULE_STATUS_TEXT: dict[ScheduleStatus, str] = {
     ScheduleStatus.SCHEDULED: "Timing unavailable.",
     ScheduleStatus.WAITING: "Waiting for entity time.",
     ScheduleStatus.COMPLETED: "Schedule completed.",
@@ -45,13 +45,13 @@ _SCHEDULE_STATUS_TEXT: dict[ScheduleStatus, str] = {
 }
 
 
-def _next_run_display(job: JobSummary) -> str:
+def next_run_display(job: JobSummary) -> str:
     """Status-aware display text for the Next Run column.
 
     A concrete ``next_run`` always wins (relative-time text). Otherwise the text is chosen
-    from ``schedule_status``/``schedule_status_reason`` — null timing no longer means "done";
-    it means waiting, completed, manual-only, or (for a nominally scheduled job) that live
-    timing is temporarily unavailable. Returns ``""`` only for a status this CLI doesn't know.
+    from ``schedule_status``/``schedule_status_reason``: waiting, completed, manual-only, or
+    (for a nominally scheduled job) live timing temporarily unavailable. Returns ``""`` only
+    for a status this CLI doesn't know.
     """
     if job.next_run is not None:
         return fmt_relative_time(job.next_run)
@@ -61,13 +61,12 @@ def _next_run_display(job: JobSummary) -> str:
         return ""
     # An unknown reason falls back to the status's own text, like a known reason with no override.
     if reason is not None and not isinstance(reason, UnknownValue):
-        reason_text = _SCHEDULE_STATUS_REASON_TEXT.get((status, reason))
+        reason_text = SCHEDULE_STATUS_REASON_TEXT.get((status, reason))
         if reason_text is not None:
             return reason_text
-    return _SCHEDULE_STATUS_TEXT[status]
+    return SCHEDULE_STATUS_TEXT[status]
 
 
-# JOB_LIST_COLUMNS' next_run column wires _next_run_display, defined immediately above, as its row_formatter
 JOB_LIST_COLUMNS: list[Column] = [
     Column("job_id", "ID", max_width=6),
     Column("app_key", "App", max_width=18),
@@ -80,7 +79,7 @@ JOB_LIST_COLUMNS: list[Column] = [
     Column("failed", "Fail", max_width=6),
     Column("skipped", "Skipped", max_width=7),
     Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
-    Column("next_run", "Next Run", max_width=11, row_formatter=_next_run_display),
+    Column("next_run", "Next Run", max_width=11, row_formatter=next_run_display),
 ]
 
 
