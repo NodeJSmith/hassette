@@ -54,6 +54,9 @@ class HelperClientSyncFacade(Resource):
 
         Returns:
             List of domain-specific Record instances representing stored configs.
+
+        Raises:
+            ValueError: If ``domain`` is not a supported helper domain.
         """
         return self.task_bucket.run_sync(self._helpers.list(domain))  # pyright: ignore[reportCallIssue, reportArgumentType]
 
@@ -66,6 +69,10 @@ class HelperClientSyncFacade(Resource):
 
         Returns:
             The stored record returned by Home Assistant.
+
+        Raises:
+            TypeError: If ``params`` is not exactly one of the ``Create*Params`` models (subclasses
+                are not supported).
         """
         return self.task_bucket.run_sync(self._helpers.create(params))  # pyright: ignore[reportCallIssue, reportArgumentType]
 
@@ -82,6 +89,10 @@ class HelperClientSyncFacade(Resource):
 
         Returns:
             The updated stored record.
+
+        Raises:
+            TypeError: If ``params`` is not exactly one of the ``Update*Params`` models (subclasses
+                are not supported).
         """
         return self.task_bucket.run_sync(self._helpers.update(helper_id, params))  # pyright: ignore[reportCallIssue, reportArgumentType]
 
@@ -94,6 +105,9 @@ class HelperClientSyncFacade(Resource):
                 ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
                 The two often look alike but are not guaranteed to match (renaming the entity
                 changes only the ``entity_id``); look the id up with ``list(domain)``.
+
+        Raises:
+            ValueError: If ``domain`` is not a supported helper domain.
         """
         return self.task_bucket.run_sync(self._helpers.delete(domain, helper_id))  # pyright: ignore[reportCallIssue, reportArgumentType]
 
