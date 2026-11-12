@@ -118,7 +118,7 @@ hassette listener --app garage_door
 hassette listener 42 --misses --since 1h
 ```
 
-Each row counts the events one reason dropped in one hour, with the last such event's entity and values. A `filter` row names the filter that rejected them: a row for `→ open` showing `closed → opening` means the door reported `opening`, not `open`, so `changed_to="open"` never matched. A `throttled`, `busy` or `once_spent` row points at the `throttle=`, `mode=` or `once=` setting instead. Counts are written every 30 seconds, so a drop that just happened can take that long to appear.
+Each row counts the events one reason dropped in one hour, with the last such event's entity and values. A `filter` row names the filter that rejected them: a row for `→ open` showing `closed → opening` means the door reported `opening`, not `open`, so `changed_to="open"` never matched. A `throttled`, `debounce_superseded` or `once_spent` row is usually the `throttle=`, `debounce=` or `once=` setting working as configured, even with a large count. A `busy` or `queue_full` row means events arrived while the handler was still running, which points at the `mode=` setting. A `backpressure` row means the whole bus was saturated. Counts are written every 30 seconds, so a drop that just happened can take that long to appear.
 
 **3. If the table is empty**
 

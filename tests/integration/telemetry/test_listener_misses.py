@@ -7,21 +7,25 @@ flush and storage rules (additive upsert, deleted listeners skipped, rows delete
 import time
 from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.bus.listeners import Listener
 from hassette.core import listener_miss_recorder as recorder_module
+from hassette.core.bus_service import BusService
 from hassette.core.database_service import DatabaseService
 from hassette.core.listener_miss_recorder import ListenerMissRecorder, ListenerMissRow
+from hassette.core.sync_executor import SyncExecutor
 from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.event_handling import predicates as P
 from hassette.testing import create_state_change_event
+from tests.support.factories import make_bus_service_with_mock_executor
 from tests.support.helpers import create_listener
+from tests.support.mock_hassette import make_mock_hassette
 
 from .helpers import DbFixture, commit_returning_id, insert_listener
 
@@ -161,6 +165,45 @@ class TestRecorderFlush:
 
         [row] = await fetch_misses(db_svc)
         assert (row["reason"], row["filter"], row["count"]) == ("throttled", LISTENER_MISS_NO_FILTER, 2)
+
+
+def bus_service_on(db_svc: DatabaseService, sync_executor: SyncExecutor) -> BusService:
+    """A ``BusService`` (stubbed task bucket) whose hassette writes through ``db_svc``.
+
+    This directory's ``db_hassette`` variant is sealed and has no ``sync_executor``, so it can't parent a
+    ``Resource``; this builds an unsealed mock with both instead.
+    """
+    hassette = make_mock_hassette(sealed=False)
+    hassette.sync_executor = sync_executor
+    hassette.database_service = db_svc
+    hassette.try_database_service.return_value = db_svc
+    service, _ = make_bus_service_with_mock_executor(hassette)
+    return service
+
+
+class TestBusServiceLifecycle:
+    """``BusService`` starts the periodic flush and writes pending misses on shutdown (Summary, Flush)."""
+
+    async def test_initialize_spawns_the_periodic_flush(self, db: DbFixture, sync_executor: SyncExecutor) -> None:
+        service = bus_service_on(db[0], sync_executor)
+
+        await service.on_initialize()
+
+        spawn = cast("MagicMock", service.task_bucket.spawn)
+        names = [call.kwargs.get("name") for call in spawn.call_args_list]
+        assert "bus:listener_miss_flush" in names
+
+    async def test_shutdown_writes_pending_misses(self, db: DbFixture, sync_executor: SyncExecutor) -> None:
+        db_svc, _ = db
+        listener = registered_listener(await insert_listener(db_svc))
+        service = bus_service_on(db_svc, sync_executor)
+        report = service._miss_recorder.reporter_for(listener)
+        assert report is not None
+        report("busy", create_state_change_event(entity_id=ENTITY_ID, old_value="off", new_value="on"))
+
+        await service.on_shutdown()
+
+        assert [(row["reason"], row["count"]) for row in await fetch_misses(db_svc)] == [("busy", 1)]
 
 
 class TestRead:

@@ -4,6 +4,7 @@ Spec 151: parent D4 (app tier only), D3 (filter in the key), and the Posture's f
 counted and warned about once per episode, never retried).
 """
 
+import asyncio
 import logging
 from collections.abc import Coroutine
 from typing import Any
@@ -100,6 +101,22 @@ class TestFailedFlush:
         assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 3
         assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
         assert hassette.database_service.submit.await_count == 2
+
+    async def test_cancelled_flush_counts_its_batch_and_re_raises(self, hassette: MagicMock) -> None:
+        """The periodic flush cancelled while waiting on the write queue at shutdown still counts its batch."""
+
+        def cancel_write(coro: Coroutine[Any, Any, Any]) -> None:
+            coro.close()
+            raise asyncio.CancelledError
+
+        hassette.database_service.submit = AsyncMock(side_effect=cancel_write)
+        recorder = ListenerMissRecorder(hassette)
+        recorder.record(registered(), "busy", event())
+
+        with pytest.raises(asyncio.CancelledError):
+            await recorder.flush()
+
+        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 1
 
     async def test_empty_flush_writes_nothing(self, hassette: MagicMock) -> None:
         hassette.database_service.submit = AsyncMock()

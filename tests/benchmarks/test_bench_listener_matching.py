@@ -2,7 +2,9 @@
 
 The case: an app listener on ``light.kitchen`` with ``changed_to="on"``, and an event for that entity
 turning off. The event is in the listener's scope, so the ``where`` filter is what rejects it — the path
-that records a near-miss. Compare runs of this file across commits to see what recording adds.
+that records a near-miss. The ``*_cheap_where`` cases swap the state comparison for a lambda that returns False, so the
+filter itself costs almost nothing and recording is the largest share it can be. Compare runs of this file across
+commits to see what recording adds.
 """
 
 import logging
@@ -27,15 +29,21 @@ QUIET_LOGGER = logging.getLogger("hassette.benchmarks.listener_matching")
 QUIET_LOGGER.setLevel(logging.WARNING)
 
 
-def make_bus_service(*, recording: bool = False) -> BusService:
+def reject(_event: object) -> bool:
+    """The cheapest possible ``where``: rejects every event."""
+    return False
+
+
+def make_bus_service(*, recording: bool = False, cheap: bool = False) -> BusService:
     """Build a ``BusService`` holding one rejecting app listener, without a ``Hassette`` instance.
 
     Bypasses ``Resource.__init__`` and installs only what ``_match_listeners`` touches. With ``recording``,
-    the listener reports its drops to a real ``ListenerMissRecorder``, bound the way ``BusService`` binds it.
+    the listener reports its drops to a real ``ListenerMissRecorder``, bound the way ``BusService`` binds it. With
+    ``cheap``, the state comparison is replaced by ``reject``, a ``where`` that rejects every event.
     """
     listener = create_listener(
         topic=f"hass.event.state_changed.{ENTITY_ID}",
-        where=[P.EntityMatches(ENTITY_ID), P.StateTo("on")],
+        where=[P.EntityMatches(ENTITY_ID), reject if cheap else P.StateTo("on")],
         app_key="bench_app",
         name="bench_listener",
         logger=QUIET_LOGGER,
@@ -58,6 +66,16 @@ def test_match_rejected_by_where(benchmark: BenchmarkFixture) -> None:
 def test_match_rejected_by_where_recording(benchmark: BenchmarkFixture) -> None:
     """The same pass with the drop recorded in memory, as for a registered app listener with a database."""
     run_rejected_match(benchmark, make_bus_service(recording=True))
+
+
+def test_match_rejected_by_cheap_where(benchmark: BenchmarkFixture) -> None:
+    """Match one in-scope event that a ``where`` lambda rejects, with no reporter bound."""
+    run_rejected_match(benchmark, make_bus_service(cheap=True))
+
+
+def test_match_rejected_by_cheap_where_recording(benchmark: BenchmarkFixture) -> None:
+    """The cheap-filter pass with the drop recorded in memory."""
+    run_rejected_match(benchmark, make_bus_service(recording=True, cheap=True))
 
 
 def run_rejected_match(benchmark: BenchmarkFixture, service: BusService) -> None:

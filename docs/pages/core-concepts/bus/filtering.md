@@ -267,6 +267,8 @@ When motion is detected in a bright hall, the row reads `is_dark` rather than `<
 
 A `where=` predicate that raises records an error run, not a miss. A `duration=` listener also records a miss when its hold ends early (`hold_cancelled`) or when the state no longer matches as the hold runs out (`hold_recheck_failed`). The second happens when the state changed without an event Hassette saw, or when the entity is gone from Hassette's state cache.
 
+A `duration=` listener's `changed_to` is still a filter, so each event that leaves the matching state records a `filter` row. When that event also ends an active hold, it records a `hold_cancelled` row too: one event, two rows, each true.
+
 ## Full Reference
 
 The complete `P`, `C`, and `A` lookup tables live on [Predicate Reference](predicate-reference.md).

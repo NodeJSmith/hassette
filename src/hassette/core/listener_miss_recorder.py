@@ -147,7 +147,9 @@ class ListenerMissRecorder:
 
         The entries are swapped out first, so dispatch keeps recording into a fresh map while the write runs.
         A failure loses exactly the swapped-out batch, which is counted and warned about. Never raises, except
-        ``CancelledError``.
+        ``CancelledError``: a flush cancelled mid-write (the periodic task at shutdown) counts and warns about its
+        batch as lost, then re-raises. A write the queue had already started may still commit, so that count can
+        overstate the loss; it is never retried, because the upsert is additive.
         """
         if not self.entries:
             return
@@ -156,21 +158,27 @@ class ListenerMissRecorder:
             rows = [build_row(entry) for entry in entries.values()]
             database = self.hassette.database_service
             await database.submit(TelemetryRepository(database).upsert_listener_misses(rows))
+        except asyncio.CancelledError as exc:
+            self.count_loss(len(entries), exc)
+            raise  # task cancellation must propagate
         except Exception as exc:
-            self.hassette.pipeline_counters.increment(PipelineCounter.LISTENER_MISS_FLUSH_FAILED, len(entries))
-            self.warn_loss(len(entries), exc)
+            self.count_loss(len(entries), exc)
             return
         LOGGER.debug("Flushed %d listener near-miss rollup(s)", len(rows))
 
-    def warn_loss(self, lost: int, exc: Exception) -> None:
-        """Log a WARNING for a lost batch, at most once per interval, paced like the execution queue's capacity one."""
+    def count_loss(self, lost: int, exc: BaseException) -> None:
+        """Count a lost batch and log a WARNING for it, at most once per interval.
+
+        The WARNING is paced like the execution queue's capacity one.
+        """
+        self.hassette.pipeline_counters.increment(PipelineCounter.LISTENER_MISS_FLUSH_FAILED, lost)
         now = time.monotonic()
         interval = self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
         if self.last_loss_warn_ts is not None and now - self.last_loss_warn_ts < interval:
             return
         self.last_loss_warn_ts = now
         LOGGER.warning(
-            "Failed to write %d listener near-miss rollup(s); they are dropped (counted under %s)",
+            "Failed to write %d listener near-miss rollup(s); they are not retried (counted under %s)",
             lost,
             PipelineCounter.LISTENER_MISS_FLUSH_FAILED.name,
             exc_info=exc,

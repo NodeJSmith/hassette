@@ -147,7 +147,7 @@ class DurationHoldManager:
             if entity_watch.duration is not None:
                 elapsed = self.compute_elapsed(current_state, entity_watch)
                 if elapsed >= entity_watch.duration:
-                    await self.dispatch_and_release_once(listener, synthetic_event, invoke_fn)
+                    await self.dispatch_and_release_once(listener, synthetic_event, invoke_fn, is_synthetic=True)
                 else:
                     remaining = entity_watch.duration - elapsed
                     self.logger.debug(
@@ -167,7 +167,7 @@ class DurationHoldManager:
                     )
                 return
 
-            await self.dispatch_and_release_once(listener, synthetic_event, invoke_fn)
+            await self.dispatch_and_release_once(listener, synthetic_event, invoke_fn, is_synthetic=True)
         except Exception as exc:
             self.logger.warning(
                 "immediate_fire: unexpected error for entity %s, immediate fire will not occur. owner=%s topic=%s",
@@ -178,11 +178,16 @@ class DurationHoldManager:
             )
 
     async def dispatch_and_release_once(
-        self, listener: Listener, event: "AnyEvent", invoke_fn: "Callable[[], Awaitable[None]]"
+        self,
+        listener: Listener,
+        event: "AnyEvent",
+        invoke_fn: "Callable[[], Awaitable[None]]",
+        *,
+        is_synthetic: bool,
     ) -> None:
         """Dispatch ``invoke_fn`` for ``event`` and remove a ``once`` listener afterwards, even if dispatch raises."""
         try:
-            await listener.invoker.dispatch(event, invoke_fn, self.config_resolver)
+            await listener.invoker.dispatch(event, invoke_fn, self.config_resolver, is_synthetic=is_synthetic)
         finally:
             if listener.options.once:
                 self.remove_listener(listener)
@@ -228,10 +233,11 @@ class DurationHoldManager:
                         entity_id,
                     )
                     # None means a hold predicate raised: that is recorded as an error run, not a miss.
+                    # The recheck event is rebuilt from the cached state, so it is synthetic whatever started the hold.
                     if matched is False and report is not None:
                         report("hold_recheck_failed", recheck_event, is_synthetic=True)
                     return
-                await listener.invoker.dispatch(event, invoke_fn, self.config_resolver)
+                await listener.invoker.dispatch(event, invoke_fn, self.config_resolver, is_synthetic=is_synthetic)
             finally:
                 self.decrement_timers_active()
                 if listener.options.once:

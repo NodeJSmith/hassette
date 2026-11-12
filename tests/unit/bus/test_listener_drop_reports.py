@@ -167,6 +167,20 @@ class TestHandlerInvokerDrops:
 
         assert reports.calls == [("once_spent", second, None, False)]
 
+    async def test_synthetic_event_is_reported_as_synthetic(self) -> None:
+        """An immediate-fire event dropped by the invoker keeps its synthetic origin (spec 147 D7)."""
+        listener = create_listener(once=True, task_bucket=make_task_bucket())
+        reports = bind(listener)
+        spent = make_hassette_event(data=2)
+
+        async def invoke() -> None:
+            return
+
+        await listener.invoker.dispatch(make_hassette_event(data=1), invoke, lambda: None)
+        await listener.invoker.dispatch(spent, invoke, lambda: None, is_synthetic=True)
+
+        assert reports.calls == [("once_spent", spent, None, True)]
+
     async def test_cancelled_once_listener_reports_nothing(self) -> None:
         listener = create_listener(once=True, task_bucket=make_task_bucket())
         reports = bind(listener)
@@ -193,11 +207,11 @@ class TestHandlerInvokerDrops:
         await asyncio.wait_for(started.wait(), timeout=1)
 
         refused = make_hassette_event(data=2)
-        await listener.invoker.dispatch(refused, hold, lambda: None)
+        await listener.invoker.dispatch(refused, hold, lambda: None, is_synthetic=True)
         release.set()
         await running
 
-        assert reports.calls == [("busy", refused, None, False)]
+        assert reports.calls == [("busy", refused, None, True)]
 
     async def test_queue_full(self) -> None:
         listener = create_listener(mode=ExecutionMode.QUEUED, task_bucket=make_task_bucket())
@@ -255,6 +269,27 @@ class TestRateLimiterDrops:
         await asyncio.wait_for(ran.wait(), timeout=1)
 
         assert reports.calls == [("debounce_superseded", first, None, False)]
+
+    async def test_synthetic_events_are_reported_as_synthetic(self) -> None:
+        """A synthetic event the limiter drops keeps its flag, including one held by a superseded debounce."""
+        clock = make_controlled_clock()
+        throttler = RateLimiter(task_bucket=make_task_bucket(), throttle=10.0, clock=clock)
+        debouncer = RateLimiter(task_bucket=make_task_bucket(), debounce=0.01)
+        reports = Reports()
+        throttled, superseded = make_hassette_event(data=1), make_hassette_event(data=2)
+        ran = asyncio.Event()
+
+        async def invoke() -> None:
+            ran.set()
+
+        await throttler.call(invoke, make_hassette_event(), reports)
+        await throttler.call(invoke, throttled, reports, is_synthetic=True)
+        ran.clear()
+        await debouncer.call(invoke, superseded, reports, is_synthetic=True)
+        await debouncer.call(invoke, make_hassette_event(), reports)
+        await asyncio.wait_for(ran.wait(), timeout=1)
+
+        assert reports.calls == [("throttled", throttled, None, True), ("debounce_superseded", superseded, None, True)]
 
     async def test_cancel_records_nothing(self) -> None:
         limiter = RateLimiter(task_bucket=make_task_bucket(), debounce=10.0)

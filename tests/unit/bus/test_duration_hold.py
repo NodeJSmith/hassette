@@ -246,6 +246,26 @@ class TestImmediateFireTask:
 
         remove_listener.assert_called_once_with(listener)
 
+    async def test_dropped_immediate_fire_is_reported_as_synthetic(self) -> None:
+        """An immediate fire the invoker drops reports the cached-state event as synthetic (spec 147 D7)."""
+        state = make_state_dict("light.kitchen", "on")
+        manager = make_manager(state=state, executor=make_mock_executor())
+        listener = create_listener(
+            topic="hass.event.state_changed.light.kitchen",
+            entity_id="light.kitchen",
+            immediate=True,
+            once=True,
+        )
+        listener.invoker.mark_fired()
+        report = MagicMock()
+        listener.invoker.report_drop = report
+
+        await run_immediate_fire(manager, listener)
+
+        report.assert_called_once()
+        assert report.call_args.args[0] == "once_spent"
+        assert report.call_args.kwargs == {"is_synthetic": True}
+
     async def test_does_not_dispatch_when_predicate_does_not_match(self) -> None:
         """immediate_fire_task does not dispatch when listener predicate returns False."""
         executor = make_mock_executor()

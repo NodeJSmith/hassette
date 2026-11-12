@@ -58,7 +58,7 @@ A typical write row takes about 460 bytes. An app making 1,000 writes a day keep
 
 Only events the listener could have handled count. An event for another entity on a glob subscription, or one the default change check drops (an attribute-only update on `on_state_change`), records nothing, so an empty `--misses` doesn't mean the listener saw no events. See [which filters count](bus/filtering.md#near-misses). A `where=` predicate that raises records an error execution, not a miss. Framework listeners record nothing.
 
-Counts are kept in memory and written every 30 seconds and at shutdown, so a miss can take up to 30 seconds to show, and a crash loses at most that long. A write that fails drops its batch and logs one WARNING; Hassette doesn't retry it. A restart or app reload within the hour adds to the same row. A listener's miss rows are deleted with it, so a `once=True` listener's rows go when its registration is cleaned up at the next start or reload.
+Counts are kept in memory and written every 30 seconds and at shutdown, so a miss can take up to 30 seconds to show, and a crash loses at most that long. A write that fails drops its batch and logs one WARNING; Hassette doesn't retry it. Drops for a listener that has been removed (cancelled, or deleted at a reload or restart) and drops after the final shutdown flush aren't recorded, and don't add to the flush-failure count. A restart or app reload within the hour adds to the same row. A listener's miss rows are deleted with it, so a `once=True` listener's rows go when its registration is cleaned up at the next start or reload.
 
 **Listener registrations.** Every registered bus listener is stored by name and topic in the `listeners` table. Counts appear in the Apps page stats strip.
 

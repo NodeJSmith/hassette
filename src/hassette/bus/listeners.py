@@ -307,6 +307,8 @@ class HandlerInvoker:
         event: "AnyEvent",
         invoke_fn: Callable[[], Awaitable[None]],
         config_resolver: Callable[[], float | None],
+        *,
+        is_synthetic: bool = False,
     ) -> None:
         """Apply the once-guard, rate limiter, and overlap mode around the given invoke function.
 
@@ -329,27 +331,33 @@ class HandlerInvoker:
         enforces. BusService owns it, so a listener's stall threshold follows that timeout however the
         listener was built.
 
-        ``event`` is the event ``invoke_fn`` runs for. Every step that drops it reports it to ``report_drop``.
+        ``event`` is the event ``invoke_fn`` runs for. Every step that drops it reports it to ``report_drop``, with
+        ``is_synthetic`` saying it was built from the cached state (immediate fire).
         """
         if self.options.once:
             if self.fired:
                 if self.report_drop is not None:
-                    self.report_drop("once_spent", event)
+                    self.report_drop("once_spent", event, is_synthetic=is_synthetic)
                 return
             self.mark_fired()
 
         if self.rate_limiter:
             await self.rate_limiter.call(
-                lambda: self.run_with_mode(event, invoke_fn, config_resolver), event, self.report_drop
+                lambda: self.run_with_mode(event, invoke_fn, config_resolver, is_synthetic=is_synthetic),
+                event,
+                self.report_drop,
+                is_synthetic=is_synthetic,
             )
         else:
-            await self.run_with_mode(event, invoke_fn, config_resolver)
+            await self.run_with_mode(event, invoke_fn, config_resolver, is_synthetic=is_synthetic)
 
     async def run_with_mode(
         self,
         event: "AnyEvent",
         invoke_fn: Callable[[], Awaitable[None]],
         config_resolver: Callable[[], float | None],
+        *,
+        is_synthetic: bool,
     ) -> None:
         """Apply the overlap mode guard to a single started invocation, reporting a ``busy``/``queue_full`` drop."""
         if self.options.mode is ExecutionMode.PARALLEL:
@@ -377,9 +385,9 @@ class HandlerInvoker:
         if self.report_drop is None:
             return
         if outcome is Outcome.SUPPRESSED:
-            self.report_drop("busy", event)
+            self.report_drop("busy", event, is_synthetic=is_synthetic)
         elif outcome is Outcome.DROPPED:
-            self.report_drop("queue_full", event)
+            self.report_drop("queue_full", event, is_synthetic=is_synthetic)
 
     def effective_timeout(self, config_resolver: Callable[[], float | None]) -> float | None:
         """Return the timeout enforced for one invocation, or ``None`` if it has none.
