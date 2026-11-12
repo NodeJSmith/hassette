@@ -9,7 +9,7 @@ from .api import Api
 from .app import App, AppConfig, AppSync
 from .bus import Bus
 from .config import HassetteConfig
-from .const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED, FalseySentinel
+from .const import ANY_VALUE, HASSETTE_LOGGER_NAME, MISSING_VALUE, NOT_PROVIDED, FalseySentinel
 from .conversion import (
     STATE_REGISTRY,
     TYPE_REGISTRY,
@@ -32,7 +32,7 @@ C = conditions
 D = dependencies
 P = predicates
 
-logging.getLogger("hassette").addHandler(logging.NullHandler())
+logging.getLogger(HASSETTE_LOGGER_NAME).addHandler(logging.NullHandler())
 
 __all__ = [
     "ANY_VALUE",

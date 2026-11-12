@@ -19,6 +19,7 @@ from hassette.api import Api
 from hassette.bus import Bus
 from hassette.bus.error_context import BusErrorContext
 from hassette.commands import ExecuteJob, InvokeHandler
+from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
@@ -69,11 +70,11 @@ class HassetteHarness:
         self.unused_tcp_port = unused_tcp_port
         self._components: set[str] = set()
 
-        self.logger = logging.getLogger("hassette")
+        self.logger = logging.getLogger(HASSETTE_LOGGER_NAME)
         # HarnessHassette.__init__ calls enable_basic_logging() which sets propagate=False and clears handlers.
         # We restore propagate=True afterwards so pytest's caplog fixture can capture hassette log records.
         self.hassette = HarnessHassette(config=self.config)
-        logging.getLogger("hassette").propagate = True
+        logging.getLogger(HASSETTE_LOGGER_NAME).propagate = True
         self._exit_stack = contextlib.AsyncExitStack()  # canonical cleanup registry for background-task starters
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
