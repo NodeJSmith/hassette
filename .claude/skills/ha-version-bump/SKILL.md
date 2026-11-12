@@ -1,6 +1,6 @@
 ---
 name: ha-version-bump
-description: Use when the user says "new HA version", "bump HA version", "update the HA pin", "pull the new Home Assistant release", "monthly HA bump", or when the ha-version-drift workflow has filed a drift issue. Pulls the latest Home Assistant core release, updates every pinned reference, regenerates typed models, checks the developer blog for anything that needs a manual follow-up, and prepares (but does not push) the commit.
+description: Use when the user says "new HA version", "bump HA version", "update the HA pin", "pull the new Home Assistant release", "monthly HA bump", or when the ha-version-drift workflow has filed a drift issue. Pulls the latest Home Assistant core release, updates every pinned reference, regenerates typed models, checks the HA dev canary issue and the developer blog for anything that needs a manual follow-up, and prepares (but does not push) the commit.
 ---
 
 # HA Version Bump
@@ -35,6 +35,20 @@ was removed along with the rest of its `homeassistant/home-assistant` handling �
 Phase 2). Ask whether to continue or wait for a closer look. In an unattended run there's
 no one to ask (see Phase 6's "Unattended invocation" note for how to tell you're in one)
 — stop and report this instead of guessing.
+
+Then read the HA dev canary's open issue, if there is one:
+
+```bash
+gh issue list --label ha-dev-canary --state open --json number,title,url,body,comments
+```
+
+The `ha-dev-canary` workflow runs the system suite daily against HA's `dev` image and keeps
+at most one open issue under that label. Its body and latest comment list the failing test
+IDs, the HA dev version, and the run link. That issue is the record of upstream wire
+changes since the last pin, including additive ones the developer blog never mentions.
+An empty list means the canary is green (or doesn't exist yet), so there's nothing to carry.
+
+Note each failing test ID now. Phase 4 runs them against the new pin and decides each one.
 
 ## Phase 2: Update every pinned reference
 
@@ -162,6 +176,21 @@ Its failures name what to change:
 - **An attribute-gate failure** means a hand-typed attribute is never observed. Drive it or
   allowlist it with a reason. A key HA renamed shows up here, not as a conversion failure.
 
+Then decide each failing test ID from Phase 1's canary issue by running it against the new
+pin (`timeout 300 uv run pytest <test ID> -m system -n 0`):
+- **Fails on the new pin.** The upstream change shipped in this release, so it's part of
+  this bump. Fix it here the same way as the failures above. If the fix isn't a model,
+  override, fixture or allowlist change (a wire-format change in hand-written code, say),
+  it needs a human call. In an unattended run, stop and report it under Phase 6's rules.
+- **Passes on the new pin.** The change is still `dev`-only, so carry it over. Leave the
+  canary issue open; it stays the record until the change reaches a release.
+- **Neither.** The run timed out, errored in collection or fixture setup, or skipped or
+  deselected the test. That proves nothing about the change, so carry it over and say the
+  run was inconclusive (and why) in the summary and commit body.
+
+Without Docker, nothing can be decided, so carry every finding over and say so. Either way,
+don't close the canary issue by hand. The workflow closes it on its next green run.
+
 ## Phase 5: Read the developer blog
 
 Find the date of the last version bump commit (`git log --follow -1 --format=%aI --
@@ -189,8 +218,9 @@ integration-reviewer, and wtf-reviewer pass as any other commit (`git-workflow.m
 Mandatory Code Review Before Commit). Verify any flagged enum/alias finding against the
 upstream HA source per Phase 3 before accepting it.
 
-Present a summary: version old to new, which files changed, test/lint results, blog
-findings, review findings.
+Present a summary: version old to new, which files changed, test/lint results, each
+canary finding and whether it was fixed or carried over (with the canary issue number),
+blog findings, review findings. Put the canary dispositions in the commit body too.
 
 **Unattended invocation.** This skill is also invoked from an external automated pipeline
 (`hassette-autofix`) whose fix session picks up the `size:small` tracking issues that
@@ -200,16 +230,16 @@ is sufficient on its own to put you in this mode, not a primary check with a fal
 the invoking prompt telling you this is a one-shot, non-interactive invocation, or
 `AskUserQuestion` simply not being in your available tools.
 
-In that mode: if Phase 3 or Phase 5 flagged something needing a human call (a breaking
-change, or any other judgment item), there is no one to consult — stop and report it now
-instead of committing, the same way Phase 1's year-rollover check and Phase 2's
+In that mode: if Phase 3, Phase 4's canary check, or Phase 5 flagged something needing a
+human call (a breaking change, or any other judgment item), there is no one to consult —
+stop and report it now instead of committing, the same way Phase 1's year-rollover check and Phase 2's
 dirty-checkout check already do for their own gates. Otherwise, treat a clean review as
 an implicit "yes, commit": skip straight to committing, using the summary presented
 above.
 
 Otherwise (a human is running this interactively), gate on confirmation — this applies
-even when Phase 3 or Phase 5 flagged something, since the summary above already surfaces
-it and the human can decide in the moment:
+even when Phase 3, Phase 4's canary check, or Phase 5 flagged something, since the
+summary above already surfaces it and the human can decide in the moment:
 
 ```yaml
 AskUserQuestion:
@@ -234,6 +264,11 @@ wording.
 Codegen only sees what's in `~/source/core`'s Python source. Deprecations, migration
 timelines, and "this will break in HA 2027.X" warnings live in prose, not in a diff a
 generator can produce.
+
+**Why read the dev canary issue as well as the blog?** The blog doesn't cover additive
+event changes. HA core#184957, the 2026.11 `item_id`/`run_id` change behind #3949, had no
+blog post and no `breaking-change` label. The canary catches such changes from the
+system suite itself, so its open issue lists what changed upstream since the last pin.
 
 **Why does this skill own the compose-file image tags instead of Renovate?** The first
 run (2026-08-06) hand-edited both compose files in the same commit as the codegen pin.
