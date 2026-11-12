@@ -655,7 +655,7 @@ wheels = [
 
 [[package]]
 name = "cyclopts"
-version = "5.3.0"
+version = "5.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -663,9 +663,9 @@ dependencies = [
     { name = "rich" },
     { name = "rich-rst" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/2d/0986d6f451116f8e5e1883cc4b088a22490d65f6a2e8a5a8f74d3a4cf080/cyclopts-5.3.0.tar.gz", hash = "sha256:a4ce5397b78023f238ab8cbaca9adb7e39636f34102f3080d8b62b9feca7e64d", size = 253801, upload-time = "2026-10-22T14:25:36.859Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/b2/b6d6f3a5fc8b16e274eefc5c89d8e555d5bf8d3c0e4c0a770236d9d54722/cyclopts-5.4.1.tar.gz", hash = "sha256:5872925e9a6ff3ed2344b91abe0c3593b853a647c0c17adebb0939cf6a5a8385", size = 257832, upload-time = "2026-11-11T16:27:47.943Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/99/00ce1a4e8b131b0e0a59a882311bcb9f771e7e39004bd19d988f1dddf303/cyclopts-5.3.0-py3-none-any.whl", hash = "sha256:479f92942ea286b6c132f64262d82f12b4c71d003f3d3691f572cd6ad4528bb2", size = 296696, upload-time = "2026-10-22T14:25:34.903Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/a2/f06e43bc6e032affbdd54bcd78132713a06e1d5774b29a04c0df94e57fd5/cyclopts-5.4.1-py3-none-any.whl", hash = "sha256:48a80e4e49a10f7aa0bb99211f6eeb7e4f35b0c79a797c526670522daa35d7f2", size = 300667, upload-time = "2026-11-11T16:27:46.131Z" },
 ]
 
 [[package]]
@@ -1070,7 +1070,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "anyio", specifier = ">=4.14.2" },
     { name = "croniter", specifier = ">=6.0.0" },
-    { name = "cyclopts", specifier = ">=5.3,<5.4" },
+    { name = "cyclopts", specifier = ">=5.4,<5.5" },
     { name = "deepdiff", specifier = ">=8.6.1" },
     { name = "fair-async-rlock", specifier = ">=1.0.7" },
     { name = "fastapi", specifier = ">=0.134.0" },
