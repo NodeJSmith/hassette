@@ -9,8 +9,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
-    from hassette.bus.listeners import DropReporter
-    from hassette.events.base import AnyEvent
+    from hassette.bus.delivery import Delivery
 
 LOGGER = getLogger(__name__)
 
@@ -32,7 +31,7 @@ class RateLimiter:
     Example:
         ```python
         limiter = RateLimiter(task_bucket=bucket, debounce=1.0, handler_name="my_handler")
-        await limiter.call(invoke_fn, event)  # invoke_fn is a zero-arg async closure
+        await limiter.call(run, delivery)  # run is a zero-arg async closure that runs delivery
         ```
     """
 
@@ -61,9 +60,9 @@ class RateLimiter:
         self._clock = clock or time.monotonic
 
         self._debounce_task: asyncio.Task[None] | None = None
-        self._debounce_pending: tuple[AnyEvent, DropReporter, bool] | None = None
-        """The event the pending debounce task is holding, its reporter, and whether it was built from the cached
-        state. Reported as superseded if a later event replaces it; None when nothing is pending or nothing reports."""
+        self._debounce_pending: Delivery | None = None
+        """The delivery the pending debounce task would run, reported as superseded if a later one replaces it. None
+        when nothing is pending."""
         self._throttle_last_time: float | None = None
         self._cancelled = False
 
@@ -87,49 +86,33 @@ class RateLimiter:
             self._debounce_task = None
         self._debounce_pending = None
 
-    async def call(
-        self,
-        handler: "Callable[[], Awaitable[None]]",
-        event: "AnyEvent",
-        report: "DropReporter | None" = None,
-        *,
-        is_synthetic: bool = False,
-    ) -> None:
+    async def call(self, handler: "Callable[[], Awaitable[None]]", delivery: "Delivery") -> None:
         """Call handler with rate limiting applied.
 
         Args:
-            handler: Zero-arg async callable.  ``Listener.dispatch()`` always passes a
-                closure that captures the event and error handling internally.
-            event: The event ``handler`` runs for.
-            report: Called with an event this limiter drops: ``throttled`` for one inside the throttle window,
-                ``debounce_superseded`` for a pending event a later one replaces. None records nothing.
-            is_synthetic: Whether ``event`` was built from the cached state, passed on to ``report``.
+            handler: Zero-arg async callable that runs ``delivery``. ``HandlerInvoker.dispatch()`` passes a closure
+                over the same delivery it hands in here.
+            delivery: The delivery ``handler`` runs. One this limiter drops is reported through it: ``throttled``
+                inside the throttle window, ``debounce_superseded`` when a later delivery replaces a pending one.
         """
         if self._cancelled:
             return
         if self.debounce is not None:
-            await self.debounced_call(handler, self.debounce, event, report, is_synthetic=is_synthetic)
+            await self.debounced_call(handler, self.debounce, delivery)
         elif self.throttle is not None:
-            await self.throttled_call(handler, self.throttle, event, report, is_synthetic=is_synthetic)
+            await self.throttled_call(handler, self.throttle, delivery)
         else:
             await handler()
 
     async def debounced_call(
-        self,
-        handler: "Callable[[], Awaitable[None]]",
-        debounce: float,
-        event: "AnyEvent",
-        report: "DropReporter | None",
-        *,
-        is_synthetic: bool,
+        self, handler: "Callable[[], Awaitable[None]]", debounce: float, delivery: "Delivery"
     ) -> None:
         """Debounced version of the handler call.
 
-        Expects a fresh ``handler`` callable on each call.  BusService creates a new
-        closure per dispatch that captures the current event, so the debounced handler
-        always fires with the latest event data.  Callers must not reuse the same
-        callable with updated shared state — the cancel-then-create ordering below
-        discards the previous handler entirely.
+        Expects a fresh ``handler`` callable on each call.  ``HandlerInvoker.dispatch`` creates a new
+        closure per delivery, so the debounced handler always fires with the latest event data.
+        Callers must not reuse the same callable with updated shared state — the cancel-then-create
+        ordering below discards the previous handler entirely.
         """
         # Cancel previous debounce task BEFORE spawning the replacement.  This ordering
         # is critical: the old task holds the old handler closure (with the old event),
@@ -138,8 +121,7 @@ class RateLimiter:
             LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, debounce)
             self._debounce_task.cancel()
             if self._debounce_pending is not None:
-                superseded, superseded_report, superseded_synthetic = self._debounce_pending
-                superseded_report("debounce_superseded", superseded, is_synthetic=superseded_synthetic)
+                self._debounce_pending.drop("debounce_superseded")
 
         async def delayed_call() -> None:
             try:
@@ -161,16 +143,10 @@ class RateLimiter:
         task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
         task.add_done_callback(self.clear_debounce_ref)
         self._debounce_task = task
-        self._debounce_pending = None if report is None else (event, report, is_synthetic)
+        self._debounce_pending = delivery
 
     async def throttled_call(
-        self,
-        handler: "Callable[[], Awaitable[None]]",
-        throttle: float,
-        event: "AnyEvent",
-        report: "DropReporter | None",
-        *,
-        is_synthetic: bool,
+        self, handler: "Callable[[], Awaitable[None]]", throttle: float, delivery: "Delivery"
     ) -> None:
         """Throttled version of the handler call.
 
@@ -181,8 +157,7 @@ class RateLimiter:
         now = self._clock()
         if self._throttle_last_time is not None and now - self._throttle_last_time < throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, throttle)
-            if report is not None:
-                report("throttled", event, is_synthetic=is_synthetic)
+            delivery.drop("throttled")
             return
         self._throttle_last_time = now
         await handler()

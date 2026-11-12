@@ -474,8 +474,8 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
 async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Debounced app-owned listener coalesces rapid events and routes through CommandExecutor.
 
-    This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
-    debounce delay -> execute_fn -> CommandExecutor.execute(InvokeHandler).
+    This tests the full pipeline: _dispatch -> HandlerInvoker.dispatch -> rate_limiter.call ->
+    debounce delay -> Delivery.invoke -> CommandExecutor.execute(InvokeHandler).
     """
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
@@ -498,8 +498,8 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Throttled app-owned listener fires once and drops subsequent events within the window.
 
-    This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
-    throttle check -> execute_fn -> CommandExecutor.execute(InvokeHandler).
+    This tests the full pipeline: _dispatch -> HandlerInvoker.dispatch -> rate_limiter.call ->
+    throttle check -> Delivery.invoke -> CommandExecutor.execute(InvokeHandler).
     """
     hassette = hassette_with_bus
     event_handled = asyncio.Event()

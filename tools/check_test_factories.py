@@ -53,6 +53,7 @@ SCAN_DIRS = ["tests"]
 SHARED_FACTORIES = {
     "make_scheduled_job": "tests.support.factories",
     "make_mock_executor": "tests.support.factories",
+    "make_invoking_executor": "tests.support.factories",
     "make_mock_event": "tests.support.factories",
     "make_recording_api": "tests.support.factories",
     "make_hassette_event": "tests.support.factories",
@@ -99,6 +100,7 @@ SHARED_FACTORIES = {
     "make_execution_detail_response": "tests.support.web_telemetry_helpers",
     "make_api_write": "tests.support.web_telemetry_helpers",
     "make_task_bucket": "tests.support.helpers",
+    "make_delivery": "tests.support.helpers",
     "async_noop": "tests.support.helpers",
     "noop": "tests.support.helpers",
     "make_domain_entity": "tests.unit.conftest",

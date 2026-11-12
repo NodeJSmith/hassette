@@ -7,7 +7,7 @@ from hassette.testing import wait_for
 from tests.support.helpers import create_listener, make_controlled_clock
 
 from .listener_helpers import (
-    TEST_EVENT,
+    TEST_DELIVERY,
     MockEvent,
     dispatch_values,
     invoke_handler,
@@ -70,7 +70,7 @@ class TestListenerIntegration:
         assert listener.invoker.rate_limiter is not None
         rl = listener.invoker.rate_limiter
 
-        # Simulate dispatch: rate_limiter.call(invoke_fn, event) — like _dispatch does
+        # Simulate dispatch: rate_limiter.call(invoke_fn, delivery) — like HandlerInvoker.dispatch does
         async def invoke_fn():
             await invoke_with(listener, "1")
 
@@ -80,9 +80,9 @@ class TestListenerIntegration:
         async def invoke_fn3():
             await invoke_with(listener, "3")
 
-        await rl.call(invoke_fn, TEST_EVENT)
-        await rl.call(invoke_fn2, TEST_EVENT)
-        await rl.call(invoke_fn3, TEST_EVENT)
+        await rl.call(invoke_fn, TEST_DELIVERY)
+        await rl.call(invoke_fn2, TEST_DELIVERY)
+        await rl.call(invoke_fn3, TEST_DELIVERY)
 
         await wait_for(lambda: calls == ["3"], desc="debounce fired")
 
@@ -103,14 +103,14 @@ class TestListenerIntegration:
 
             return invoke_fn
 
-        await rl.call(make_invoke(events[0]), TEST_EVENT)
-        await rl.call(make_invoke(events[1]), TEST_EVENT)
-        await rl.call(make_invoke(events[2]), TEST_EVENT)
+        await rl.call(make_invoke(events[0]), TEST_DELIVERY)
+        await rl.call(make_invoke(events[1]), TEST_DELIVERY)
+        await rl.call(make_invoke(events[2]), TEST_DELIVERY)
         assert calls == ["1"], "First call should be executed immediately"
 
         # advance the controlled clock past the throttle window before the next call
         clock.advance_to(1.2)
-        await rl.call(make_invoke(events[3]), TEST_EVENT)
+        await rl.call(make_invoke(events[3]), TEST_DELIVERY)
         assert calls == ["1", "4"], "Second call should execute after throttle period"
 
     async def test_listener_without_rate_limiting(self, bucket: TaskBucket):
@@ -144,14 +144,11 @@ class TestListenerIntegration:
 class TestListenerDispatchAndCancel:
     """Test Listener.dispatch() and Listener.cancel() — the public rate limiting API."""
 
-    async def test_dispatch_without_rate_limiter_calls_invoke_fn_directly(self, bucket: TaskBucket):
-        """dispatch() with no rate limiter calls the invoke function immediately."""
+    async def test_dispatch_without_rate_limiter_runs_the_handler_directly(self, bucket: TaskBucket):
+        """dispatch() with no rate limiter runs the handler immediately."""
         listener, calls = make_recording_listener(bucket)
 
-        async def invoke_fn():
-            await invoke_with(listener, "direct")
-
-        await listener.invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
+        await dispatch_values(listener, "direct")
         assert calls == ["direct"]
 
     async def test_dispatch_with_debounce_coalesces(self, bucket: TaskBucket):

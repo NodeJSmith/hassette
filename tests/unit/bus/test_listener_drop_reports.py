@@ -8,9 +8,12 @@ Scope vs filter (D1, D2), the filter walk (parent D5), and one reason code per c
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
+from unittest.mock import MagicMock
 
+import pytest
 from hassette_wire import BackpressurePolicy, ExecutionMode
 
 from hassette.bus.duration_timer import DurationTimer
@@ -22,8 +25,9 @@ from hassette.core.duration_hold_adapters import strip_old_state
 from hassette.event_handling import predicates as P
 from hassette.events import AnyEvent
 from hassette.testing import create_state_change_event, wait_for
-from tests.support.factories import make_hassette_event
-from tests.support.helpers import async_noop, create_listener, make_controlled_clock, make_task_bucket
+from tests.support.factories import make_hassette_event, make_invoking_executor, make_mock_executor
+from tests.support.helpers import async_noop, create_listener, make_controlled_clock, make_delivery, make_task_bucket
+from tests.unit.core._fixtures_bus_scheduler import make_bus_service
 
 ENTITY_ID = "light.kitchen"
 TOPIC = f"hass.event.state_changed.{ENTITY_ID}"
@@ -48,6 +52,14 @@ def bind(listener: Listener) -> Reports:
     reports = Reports()
     listener.invoker.report_drop = reports
     return reports
+
+
+async def dispatch_event(
+    listener: Listener, event: AnyEvent, run: Callable[[], Awaitable[None]] = async_noop, *, is_synthetic: bool = False
+) -> None:
+    """Dispatch ``event`` to ``listener`` through its invoker, with ``run`` standing in for the handler's run."""
+    delivery = make_delivery(listener, event, is_synthetic=is_synthetic)
+    await listener.invoker.dispatch(delivery, make_mock_executor(run), lambda: None)
 
 
 def state_event(old: str, new: str, entity_id: str = ENTITY_ID) -> AnyEvent:
@@ -158,8 +170,8 @@ class TestHandlerInvokerDrops:
         reports = bind(listener)
         first, second = make_hassette_event(data=1), make_hassette_event(data=2)
 
-        await listener.invoker.dispatch(first, async_noop, lambda: None)
-        await listener.invoker.dispatch(second, async_noop, lambda: None)
+        await dispatch_event(listener, first)
+        await dispatch_event(listener, second)
 
         assert reports.calls == [("once_spent", second, None, False)]
 
@@ -169,8 +181,8 @@ class TestHandlerInvokerDrops:
         reports = bind(listener)
         spent = make_hassette_event(data=2)
 
-        await listener.invoker.dispatch(make_hassette_event(data=1), async_noop, lambda: None)
-        await listener.invoker.dispatch(spent, async_noop, lambda: None, is_synthetic=True)
+        await dispatch_event(listener, make_hassette_event(data=1))
+        await dispatch_event(listener, spent, is_synthetic=True)
 
         assert reports.calls == [("once_spent", spent, None, True)]
 
@@ -182,12 +194,13 @@ class TestHandlerInvokerDrops:
         async def invoke() -> None:
             raise AssertionError("a cancelled once-listener must not run")
 
-        await listener.invoker.dispatch(make_hassette_event(), invoke, lambda: None)
+        await dispatch_event(listener, make_hassette_event(), invoke)
 
         assert reports.calls == []
         assert listener.invoker.report_drop is None
 
-    async def test_busy_single_listener(self) -> None:
+    @pytest.mark.parametrize("is_synthetic", [False, True])
+    async def test_busy_single_listener(self, is_synthetic: bool) -> None:
         listener = create_listener(mode=ExecutionMode.SINGLE, task_bucket=make_task_bucket())
         reports = bind(listener)
         started, release = asyncio.Event(), asyncio.Event()
@@ -196,15 +209,15 @@ class TestHandlerInvokerDrops:
             started.set()
             await release.wait()
 
-        running = asyncio.create_task(listener.invoker.dispatch(make_hassette_event(data=1), hold, lambda: None))
+        running = asyncio.create_task(dispatch_event(listener, make_hassette_event(data=1), hold))
         await asyncio.wait_for(started.wait(), timeout=1)
 
         refused = make_hassette_event(data=2)
-        await listener.invoker.dispatch(refused, hold, lambda: None, is_synthetic=True)
+        await dispatch_event(listener, refused, hold, is_synthetic=is_synthetic)
         release.set()
         await running
 
-        assert reports.calls == [("busy", refused, None, True)]
+        assert reports.calls == [("busy", refused, None, is_synthetic)]
 
     async def test_queue_full(self) -> None:
         listener = create_listener(mode=ExecutionMode.QUEUED, task_bucket=make_task_bucket())
@@ -216,17 +229,14 @@ class TestHandlerInvokerDrops:
             started.set()
             await release.wait()
 
-        tasks = [asyncio.create_task(listener.invoker.dispatch(make_hassette_event(), hold, lambda: None))]
+        tasks = [asyncio.create_task(dispatch_event(listener, make_hassette_event(), hold))]
         await asyncio.wait_for(started.wait(), timeout=1)
         cap = guard._cap
-        tasks += [
-            asyncio.create_task(listener.invoker.dispatch(make_hassette_event(), hold, lambda: None))
-            for _ in range(cap)
-        ]
+        tasks += [asyncio.create_task(dispatch_event(listener, make_hassette_event(), hold)) for _ in range(cap)]
         await wait_for(lambda: len(guard.pending) == cap, desc="queue filled")
 
         overflow = make_hassette_event(data="overflow")
-        await listener.invoker.dispatch(overflow, hold, lambda: None)
+        await dispatch_event(listener, overflow, hold)
         release.set()
         await asyncio.gather(*tasks)
 
@@ -237,25 +247,27 @@ class TestRateLimiterDrops:
     async def test_throttled(self) -> None:
         clock = make_controlled_clock()
         limiter = RateLimiter(task_bucket=make_task_bucket(), throttle=10.0, clock=clock)
-        reports = Reports()
+        listener = create_listener()
+        reports = bind(listener)
         first, second = make_hassette_event(data=1), make_hassette_event(data=2)
 
-        await limiter.call(async_noop, first, reports)
-        await limiter.call(async_noop, second, reports)
+        await limiter.call(async_noop, make_delivery(listener, first))
+        await limiter.call(async_noop, make_delivery(listener, second))
 
         assert reports.calls == [("throttled", second, None, False)]
 
     async def test_debounce_reports_the_superseded_event_only(self) -> None:
         limiter = RateLimiter(task_bucket=make_task_bucket(), debounce=0.01)
-        reports = Reports()
+        listener = create_listener()
+        reports = bind(listener)
         ran = asyncio.Event()
         first, second = make_hassette_event(data=1), make_hassette_event(data=2)
 
         async def invoke() -> None:
             ran.set()
 
-        await limiter.call(invoke, first, reports)
-        await limiter.call(invoke, second, reports)
+        await limiter.call(invoke, make_delivery(listener, first))
+        await limiter.call(invoke, make_delivery(listener, second))
         await asyncio.wait_for(ran.wait(), timeout=1)
 
         assert reports.calls == [("debounce_superseded", first, None, False)]
@@ -265,66 +277,89 @@ class TestRateLimiterDrops:
         clock = make_controlled_clock()
         throttler = RateLimiter(task_bucket=make_task_bucket(), throttle=10.0, clock=clock)
         debouncer = RateLimiter(task_bucket=make_task_bucket(), debounce=0.01)
-        reports = Reports()
+        listener = create_listener()
+        reports = bind(listener)
         throttled, superseded = make_hassette_event(data=1), make_hassette_event(data=2)
         ran = asyncio.Event()
 
         async def invoke() -> None:
             ran.set()
 
-        await throttler.call(invoke, make_hassette_event(), reports)
-        await throttler.call(invoke, throttled, reports, is_synthetic=True)
+        await throttler.call(invoke, make_delivery(listener))
+        await throttler.call(invoke, make_delivery(listener, throttled, is_synthetic=True))
         ran.clear()
-        await debouncer.call(invoke, superseded, reports, is_synthetic=True)
-        await debouncer.call(invoke, make_hassette_event(), reports)
+        await debouncer.call(invoke, make_delivery(listener, superseded, is_synthetic=True))
+        await debouncer.call(invoke, make_delivery(listener))
         await asyncio.wait_for(ran.wait(), timeout=1)
 
         assert reports.calls == [("throttled", throttled, None, True), ("debounce_superseded", superseded, None, True)]
 
     async def test_cancel_records_nothing(self) -> None:
         limiter = RateLimiter(task_bucket=make_task_bucket(), debounce=10.0)
-        reports = Reports()
+        listener = create_listener()
+        reports = bind(listener)
 
-        await limiter.call(async_noop, make_hassette_event(), reports)
+        await limiter.call(async_noop, make_delivery(listener))
         limiter.cancel()
 
         assert reports.calls == []
 
 
 class TestHoldCancelled:
-    def make_timer(self, on_hold_cancelled: Any) -> DurationTimer:
-        return DurationTimer(
+    def start_timer(self) -> DurationTimer:
+        timer = DurationTimer(
             task_bucket=make_task_bucket(),
             duration=60.0,
             predicates=P.StateTo("on"),
             entity_id=ENTITY_ID,
             owner_id="owner",
-            create_cancel_sub=lambda: None,  # pyright: ignore[reportArgumentType]
+            create_cancel_sub=MagicMock,
             normalize_cancel_event=strip_old_state,
-            on_hold_cancelled=on_hold_cancelled,
         )
+        timer.start(async_noop)
+        return timer
 
-    async def test_reports_the_cancelling_event_with_its_old_state(self) -> None:
-        cancelled: list[AnyEvent] = []
-        timer = self.make_timer(cancelled.append)
+    async def test_an_event_that_ends_an_active_hold_says_so(self) -> None:
+        assert self.start_timer().evaluate_cancel_event(state_event("on", "off")) is True
 
-        async def fire() -> None:
-            return
+    async def test_an_event_that_keeps_the_hold_says_no(self) -> None:
+        timer = self.start_timer()
+        assert timer.evaluate_cancel_event(state_event("off", "on")) is False
+        timer.cancel()
 
-        timer.start(fire)
-        event = state_event("on", "off")
-        timer.evaluate_cancel_event(event)
+    async def test_no_active_hold_says_no(self) -> None:
+        timer = self.start_timer()
+        timer.cancel()
+        assert timer.evaluate_cancel_event(state_event("on", "off")) is False
 
-        assert cancelled == [event]
-        assert cancelled[0].payload.data.old_state is not None
 
-    async def test_no_active_hold_reports_nothing(self) -> None:
-        cancelled: list[AnyEvent] = []
-        timer = self.make_timer(cancelled.append)
+class TestHoldCancelledThroughBusService:
+    async def test_the_cancelling_event_is_reported_against_the_held_listener(self) -> None:
+        """The live event that ends an active hold is a ``hold_cancelled`` near-miss of the held listener."""
+        svc = make_bus_service()
+        reports = Reports()
+        svc._miss_recorder = MagicMock()
+        svc._miss_recorder.reporter_for.return_value = reports
 
-        timer.evaluate_cancel_event(state_event("on", "off"))
+        svc._executor.execute = make_invoking_executor().execute
+        # The hold's cancel listener is built on the service's bucket; run its async handler as-is.
+        svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+        listener = create_listener(
+            topic=TOPIC, entity_id=ENTITY_ID, duration=60.0, where=P.StateTo("on"), hold_predicate=P.StateTo("on")
+        )
+        assert listener.entity_watch is not None
+        await svc.add_listener(listener)
 
-        assert cancelled == []
+        await svc.dispatch("hass.event.state_changed", state_event("off", "on"))
+        await wait_for(lambda: listener.entity_watch is not None and listener.entity_watch.timer.is_active, desc="hold")
+        cancelling = state_event("on", "off")
+        await svc.dispatch("hass.event.state_changed", cancelling)
+        await wait_for(lambda: "hold_cancelled" in reports.reasons, desc="hold cancelled")
+        listener.cancel()
+
+        assert [call for call in reports.calls if call[0] == "hold_cancelled"] == [
+            ("hold_cancelled", cancelling, None, False)
+        ]
 
 
 class TestBackpressure:
@@ -337,6 +372,6 @@ class TestBackpressure:
         service._last_saturation_warn_ts = time.monotonic()  # inside the warning window: no config read
         event = state_event("off", "on")
 
-        await service._spawn_dispatch_task(TOPIC, event, listener)
+        await service._spawn_dispatch_task(make_delivery(listener, event))
 
         assert reports.calls == [("backpressure", event, None, False)]

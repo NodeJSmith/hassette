@@ -14,6 +14,10 @@ The internal `Listener` dataclass composes four sub-structs:
 - `HandlerInvoker` — handler invocation, dispatch, rate limiting
 - `EntityWatch` — the entity a listener tracks (from `on_state_change`/`on_attribute_change`), plus its duration hold and timer lifecycle
 
+## Deliveries
+
+A `Delivery` (`src/hassette/bus/delivery.py`) is one event reaching one listener: listener, event, topic, and whether the event was built from the cached state. It's created where an event reaches a listener (`BusService._match_listeners`, `DurationHoldManager.immediate_fire_task`, a hold's recheck or cancel listener), and every later step takes it rather than a separate event and synthetic flag. `Delivery.invoke` runs the handler through the executor; `Delivery.drop(reason)` records a near-miss through the listener's reporter, read at drop time.
+
 ## Registration
 
 Registration is synchronous with the DB — `sub.listener.db_id` is a valid integer as soon as the awaited registration call returns.

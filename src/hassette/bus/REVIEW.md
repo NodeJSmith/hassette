@@ -38,8 +38,11 @@ predicate set, or does it re-evaluate with a different subset?
 
 ## Near-Miss Drop-Site Coverage
 Every place an event reaches an app listener and its handler doesn't run reports a
-near-miss through the listener's `invoker.report_drop` (filter, rate limiter, mode
-guard, once guard, backpressure, duration hold), with `is_synthetic` passed for
-cached-state events. Does a new drop path, or a new filter a registration method
-builds, report through the same reporter, and is it classified correctly as scope
-(not recorded) or as a caller's filter (recorded) in `Listener.create`'s `scope=`?
+near-miss with `Delivery.drop` (`src/hassette/bus/delivery.py`) on the delivery that
+carries that event (filter, rate limiter, mode guard, once guard, backpressure,
+duration hold). Does a new drop path take the delivery it was handed rather than
+rebuilding a report from a listener, an event and a synthetic flag, and when it reports
+a different event (a superseded debounce, a hold's recheck or cancelling event), does
+it build a delivery with that event's own synthetic flag? Is a new filter a
+registration method builds classified correctly as scope (not recorded) or as a
+caller's filter (recorded) in `Listener.create`'s `scope=`?

@@ -32,6 +32,8 @@ if typing.TYPE_CHECKING:
     from hassette_wire import ListenerMissReason
 
     from hassette import TaskBucket
+    from hassette.bus.delivery import Delivery
+    from hassette.core.command_executor import CommandExecutor
     from hassette.events.base import AnyEvent
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
@@ -60,7 +62,8 @@ _VERDICTS = {MATCHED: "matched", OUT_OF_SCOPE: "is out of scope"}
 class DropReporter(typing.Protocol):
     """Records one event that reached an app listener and didn't run its handler (a near-miss).
 
-    ``BusService`` binds one per app listener at registration, so a drop site allocates nothing.
+    ``BusService`` binds one per app listener at registration. Drop sites don't call it directly: they call
+    ``Delivery.drop``, which passes the delivery's event and synthetic flag.
     """
 
     def __call__(
@@ -305,16 +308,15 @@ class HandlerInvoker:
 
     async def dispatch(
         self,
-        event: "AnyEvent",
-        invoke_fn: Callable[[], Awaitable[None]],
+        delivery: "Delivery",
+        executor: "CommandExecutor",
         config_resolver: Callable[[], float | None],
-        *,
-        is_synthetic: bool = False,
     ) -> None:
-        """Apply the once-guard, rate limiter, and overlap mode around the given invoke function.
+        """Run ``delivery`` through the once-guard, rate limiter, and overlap mode.
 
         Order: once-guard → rate limiter (whether to start) → mode guard (overlap of started
-        invocations). BusService builds ``invoke_fn`` (tracked telemetry); HandlerInvoker wraps it.
+        invocations). The run itself is ``delivery.invoke(executor, config_resolver)`` (tracked telemetry).
+        ``delivery`` is for this invoker's listener.
 
         Once-guard: if ``once=True`` and the invoker has already fired, returns immediately. Safe
         without a lock — no ``await`` between check-and-set.
@@ -328,39 +330,34 @@ class HandlerInvoker:
         cancellation of the child surfaces as ``CancelledError`` inside the child only — it is swallowed
         here so the outer dispatch task does not crash.
 
-        ``config_resolver`` returns the global handler timeout, the same one ``invoke_fn``
+        ``config_resolver`` returns the global handler timeout, the same one the run
         enforces. BusService owns it, so a listener's stall threshold follows that timeout however the
         listener was built.
 
-        ``event`` is the event ``invoke_fn`` runs for. Every step that drops it reports it to ``report_drop``, with
-        ``is_synthetic`` saying it was built from the cached state (immediate fire).
+        Every step that drops the delivery reports it with ``delivery.drop``.
         """
         if self.options.once:
             if self.fired:
-                if self.report_drop is not None:
-                    self.report_drop("once_spent", event, is_synthetic=is_synthetic)
+                delivery.drop("once_spent")
                 return
             self.mark_fired()
 
         if self.rate_limiter:
-            await self.rate_limiter.call(
-                lambda: self.run_with_mode(event, invoke_fn, config_resolver, is_synthetic=is_synthetic),
-                event,
-                self.report_drop,
-                is_synthetic=is_synthetic,
-            )
+            await self.rate_limiter.call(lambda: self.run_with_mode(delivery, executor, config_resolver), delivery)
         else:
-            await self.run_with_mode(event, invoke_fn, config_resolver, is_synthetic=is_synthetic)
+            await self.run_with_mode(delivery, executor, config_resolver)
 
     async def run_with_mode(
         self,
-        event: "AnyEvent",
-        invoke_fn: Callable[[], Awaitable[None]],
+        delivery: "Delivery",
+        executor: "CommandExecutor",
         config_resolver: Callable[[], float | None],
-        *,
-        is_synthetic: bool,
     ) -> None:
         """Apply the overlap mode guard to a single started invocation, reporting a ``busy``/``queue_full`` drop."""
+
+        def invoke_fn() -> Awaitable[None]:
+            return delivery.invoke(executor, config_resolver)
+
         if self.options.mode is ExecutionMode.PARALLEL:
             try:
                 await run_parallel(
@@ -383,12 +380,10 @@ class HandlerInvoker:
             spawn_name="bus:mode_invocation",
             resolve_timeout=lambda: self.effective_timeout(config_resolver),
         )
-        if self.report_drop is None:
-            return
         if outcome is Outcome.SUPPRESSED:
-            self.report_drop("busy", event, is_synthetic=is_synthetic)
+            delivery.drop("busy")
         elif outcome is Outcome.DROPPED:
-            self.report_drop("queue_full", event, is_synthetic=is_synthetic)
+            delivery.drop("queue_full")
 
     def effective_timeout(self, config_resolver: Callable[[], float | None]) -> float | None:
         """Return the timeout enforced for one invocation, or ``None`` if it has none.
@@ -483,7 +478,6 @@ class EntityWatch:
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: Callable[[], None] | None = None,
         normalize_cancel_event: "Callable[[AnyEvent], AnyEvent] | None" = None,
-        on_hold_cancelled: "Callable[[AnyEvent], None] | None" = None,
     ) -> None:
         """Construct a DurationTimer and store it.
 
@@ -504,7 +498,6 @@ class EntityWatch:
             create_cancel_sub=create_cancel_sub,
             on_cancel=on_cancel,
             normalize_cancel_event=normalize_cancel_event,
-            on_hold_cancelled=on_hold_cancelled,
         )
 
 
@@ -678,14 +671,6 @@ class Listener:
     def matches(self, ev: "AnyEvent") -> bool:
         """Whether the event passes ``scope`` and every filter. Raises if a predicate raises (see ``evaluate``)."""
         return self.evaluate(ev) == MATCHED
-
-    def report_filter_rejection(self, result: int, ev: "AnyEvent", *, is_synthetic: bool = False) -> None:
-        """Report an ``evaluate`` result that names a rejecting filter as a ``filter`` near-miss.
-
-        ``MATCHED`` and ``OUT_OF_SCOPE`` report nothing: a scope rejection is not a near-miss.
-        """
-        if result >= 0 and (report := self.invoker.report_drop) is not None:
-            report("filter", ev, filter_index=result, is_synthetic=is_synthetic)
 
     def __repr__(self) -> str:
         return f"Listener<{self.identity.owner_id} - {self.identity.handler_short_name}>"

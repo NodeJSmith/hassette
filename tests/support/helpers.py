@@ -16,6 +16,7 @@ import pytest
 import tomli_w
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
+from hassette.bus.delivery import Delivery
 from hassette.bus.listeners import EntityWatch, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
     from hassette_wire import SourceTier
 
     from hassette.bus.bus import Bus
-    from hassette.events import HassStateDict
+    from hassette.events import AnyEvent, HassStateDict
     from hassette.execution_mode import ExecutionModeGuard
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate
 
@@ -585,6 +586,18 @@ def create_listener(
         scope=scope,
         logger=logger or getLogger("test"),
     )
+
+
+def make_delivery(
+    listener: Listener | None = None, event: "AnyEvent | None" = None, *, is_synthetic: bool = False
+) -> Delivery:
+    """Test factory: a ``Delivery`` of ``event`` to ``listener`` on the listener's own topic.
+
+    Defaults to ``create_listener()`` and a fresh ``make_hassette_event()``.
+    """
+    listener = listener if listener is not None else create_listener()
+    event = event if event is not None else make_hassette_event()
+    return Delivery(listener, event, listener.topic, is_synthetic=is_synthetic)
 
 
 async def cleanup_hassette_streams(instance: Hassette) -> None:

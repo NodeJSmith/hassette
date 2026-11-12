@@ -1,11 +1,12 @@
 """Hourly rollups of the events that reached an app listener and didn't run its handler (near-misses).
 
 ``BusService`` composes one ``ListenerMissRecorder``. Each app listener's ``HandlerInvoker`` gets a reporter
-bound to it at registration (``reporter_for``), and every drop site calls it. Recording only updates an
-in-memory entry keyed by listener, hour, reason and filter: no I/O, and the event's values aren't rendered until
-the flush. ``run_flush_loop`` is the only flusher: every ``FLUSH_INTERVAL_SECONDS`` it swaps the entries out and
-writes them as one batched upsert that adds to any row already stored for the same key, and once its stop event
-is set it flushes once more and returns, so the final flush at shutdown never overlaps a periodic one.
+bound to it at registration (``reporter_for``), and every drop site reports through it with ``Delivery.drop``.
+Recording only updates an in-memory entry keyed by listener, hour, reason and filter: no I/O, and the event's
+values aren't rendered until the flush. ``run_flush_loop`` is the only flusher: every ``FLUSH_INTERVAL_SECONDS`` it
+swaps the entries out and writes them as one batched upsert that adds to any row already stored for the same key,
+and once its stop event is set it flushes once more and returns, so the final flush at shutdown never overlaps a
+periodic one.
 
 Recording is best-effort. A failed write loses its batch, which is counted under
 ``PipelineCounter.LISTENER_MISS_FLUSH_FAILED`` with a paced WARNING; nothing is retried, so a miss is written in

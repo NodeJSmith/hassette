@@ -57,7 +57,6 @@ class DurationTimer:
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: "Callable[[], None] | None" = None,
         normalize_cancel_event: "Callable[[AnyEvent], AnyEvent] | None" = None,
-        on_hold_cancelled: "Callable[[AnyEvent], None] | None" = None,
     ) -> None:
         """Initialize the DurationTimer.
 
@@ -77,9 +76,6 @@ class DurationTimer:
             normalize_cancel_event: Strips HA-specific transition state (e.g. old_state)
                 from an event before cancel predicate evaluation. When None, the event
                 is passed through unchanged.
-            on_hold_cancelled: Optional callback invoked with the event that cancelled an active hold, as
-                ``evaluate_cancel_event`` received it (before ``normalize_cancel_event``). Used by BusService to
-                record a ``hold_cancelled`` near-miss.
         """
         self.task_bucket = task_bucket
         self.duration = duration
@@ -89,7 +85,6 @@ class DurationTimer:
         self._create_cancel_sub = create_cancel_sub
         self._on_cancel = on_cancel
         self._normalize_cancel_event = normalize_cancel_event
-        self._on_hold_cancelled = on_hold_cancelled
 
         self._task: asyncio.Task[None] | None = None
         self._cancel_sub: Subscription | None = None
@@ -222,7 +217,7 @@ class DurationTimer:
         if had_pending_task:
             self.completed.set()
 
-    def evaluate_cancel_event(self, event: "AnyEvent") -> None:
+    def evaluate_cancel_event(self, event: "AnyEvent") -> bool:
         """Evaluate whether a state-change event should cancel the timer.
 
         Re-evaluates the main listener's hold predicates (state-value predicates
@@ -240,9 +235,13 @@ class DurationTimer:
 
         Args:
             event: The new state-change event for the monitored entity.
+
+        Returns:
+            True when ``event`` ended an active hold (a ``hold_cancelled`` near-miss for the caller to report);
+            False when the entity is still in the target state or no hold was active.
         """
         if self._cancelled:
-            return
+            return False
 
         eval_event = self._normalize_cancel_event(event) if self._normalize_cancel_event is not None else event
 
@@ -253,6 +252,6 @@ class DurationTimer:
             )
             was_active = self.is_active
             self.cancel()
-            if was_active and self._on_hold_cancelled is not None:
-                self._on_hold_cancelled(event)
-        # else: entity is still in target state — timer continues
+            return was_active
+        # Entity is still in the target state: the timer continues.
+        return False

@@ -535,10 +535,31 @@ def make_recording_log_capture_handler() -> RecordingLogCaptureHandler:
     return RecordingLogCaptureHandler()
 
 
-def make_mock_executor() -> MagicMock:
-    """Build a MagicMock stand-in for a CommandExecutor with an awaitable execute()."""
+def make_mock_executor(run: "Callable[[], Awaitable[None]] | None" = None) -> MagicMock:
+    """Build a MagicMock stand-in for a CommandExecutor with an awaitable execute().
+
+    ``run``, when given, is awaited by every ``execute`` call in place of the handler, for tests that control
+    how long a run takes (hold it open, make it slow).
+    """
     executor = MagicMock()
     executor.execute = AsyncMock()
+    if run is not None:
+
+        async def execute(_cmd: InvokeHandler) -> None:
+            await run()
+
+        executor.execute.side_effect = execute
+    return executor
+
+
+def make_invoking_executor() -> MagicMock:
+    """Build a CommandExecutor stand-in whose ``execute`` runs the command's handler for its event, untracked."""
+
+    async def execute(cmd: InvokeHandler) -> None:
+        await cmd.listener.invoker.invoke(cmd.event)
+
+    executor = MagicMock()
+    executor.execute = AsyncMock(side_effect=execute)
     return executor
 
 

@@ -12,11 +12,11 @@ from hassette.bus.listeners import Listener
 from hassette.events import Event, EventPayload
 from hassette.task_bucket import TaskBucket
 from hassette.types import HandlerType
-from tests.support.factories import make_hassette_event
-from tests.support.helpers import create_listener
+from tests.support.factories import make_invoking_executor
+from tests.support.helpers import create_listener, make_delivery
 
-TEST_EVENT = make_hassette_event()
-"""The event every dispatch in this module runs for."""
+TEST_DELIVERY = make_delivery()
+"""The delivery the rate-limiter tests pass alongside their own handler closures; nothing invokes it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,13 +61,13 @@ async def invoke_with(listener: Listener, data: str) -> None:
 
 
 async def dispatch_values(listener: Listener, *values: str) -> None:
-    """Dispatch one invocation per value through the listener's rate limiter."""
+    """Dispatch one delivery per value through the listener's invoker, each carrying a mock event with that value.
+
+    The handler runs for the delivery's own event, so what it records is what was dispatched.
+    """
+    executor = make_invoking_executor()
     for value in values:
-
-        async def invoke_fn(val: str = value) -> None:
-            await invoke_with(listener, val)
-
-        await listener.invoker.dispatch(TEST_EVENT, invoke_fn, lambda: None)
+        await listener.invoker.dispatch(make_delivery(listener, mock_event(value)), executor, lambda: None)
 
 
 async def invoke_handler(bucket: TaskBucket, handler: HandlerType, data: str = "test_data") -> None:
