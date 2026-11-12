@@ -743,6 +743,9 @@ def seed_listener_misses(
     throttled events, each row keeping its last event's values the way the recorder's flush writes them.
     """
     hour_ts = ts(base_offset) - ts(base_offset) % 3600
+    # Both stay inside the hour bucket and never pass the base time, which may be early in the hour.
+    last_ts = min(hour_ts + 600.0, ts(base_offset))
+    first_ts = min(hour_ts + 30.0, last_ts)
     for reason, filter_, count, old, new in (
         ("filter", filter_summary, 14, "on", "unavailable"),
         ("throttled", LISTENER_MISS_NO_FILTER, 3, "off", "on"),
@@ -754,8 +757,8 @@ def seed_listener_misses(
                 "reason": reason,
                 "filter": filter_,
                 "count": count,
-                "first_ts": ts(base_offset + 30.0),
-                "last_ts": ts(base_offset + 600.0),
+                "first_ts": first_ts,
+                "last_ts": last_ts,
                 "trigger_topic": "hass.event.state_changed",
                 "trigger_entity_id": entity_id,
                 "trigger_old_value": old,
