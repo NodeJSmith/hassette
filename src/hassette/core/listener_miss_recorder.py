@@ -3,10 +3,11 @@
 ``BusService`` composes one ``ListenerMissRecorder``. Each app listener's ``HandlerInvoker`` gets a reporter
 bound to it at registration (``reporter_for``), and every drop site reports through it with ``Delivery.drop``.
 Recording only updates an in-memory entry keyed by listener, hour, reason and filter: no I/O, and the event's
-values aren't rendered until the flush. ``run_flush_loop`` is the only flusher: every ``FLUSH_INTERVAL_SECONDS`` it
-swaps the entries out and writes them as one batched upsert that adds to any row already stored for the same key,
-and once its stop event is set it flushes once more and returns, so the final flush at shutdown never overlaps a
-periodic one.
+values aren't rendered until the flush. While it runs, ``run_flush_loop`` is the only flusher: every
+``FLUSH_INTERVAL_SECONDS`` it swaps the entries out and writes them as one batched upsert that adds to any row
+already stored for the same key, and once its stop event is set it flushes once more and returns, so the final
+flush at shutdown never overlaps a periodic one. ``BusService.on_shutdown`` flushes directly only when no loop is
+running.
 
 Recording is best-effort. A failed write loses its batch, which is counted under
 ``PipelineCounter.LISTENER_MISS_FLUSH_FAILED`` with a paced WARNING; nothing is retried, so a miss is written in
@@ -89,7 +90,7 @@ class ListenerMissRecorder:
         self.hassette = hassette
         self.entries: dict[tuple[int, float, ListenerMissReason, int | None], MissEntry] = {}
         """Rollups since the last flush, keyed by in-memory listener id, hour, reason and filter index."""
-        self.last_loss_warn_ts: float | None = None
+        self.last_loss_warn_monotonic: float | None = None
 
     def reporter_for(self, listener: "Listener") -> "DropReporter | None":
         """The reporter to bind to ``listener``, or None for a listener whose near-misses aren't recorded.
@@ -184,9 +185,9 @@ class ListenerMissRecorder:
         self.hassette.pipeline_counters.increment(PipelineCounter.LISTENER_MISS_FLUSH_FAILED, lost)
         now = time.monotonic()
         interval = self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
-        if self.last_loss_warn_ts is not None and now - self.last_loss_warn_ts < interval:
+        if self.last_loss_warn_monotonic is not None and now - self.last_loss_warn_monotonic < interval:
             return
-        self.last_loss_warn_ts = now
+        self.last_loss_warn_monotonic = now
         LOGGER.warning(
             "Failed to write %d listener near-miss rollup(s); they are dropped (counted under %s)",
             lost,

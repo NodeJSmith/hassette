@@ -217,8 +217,8 @@ class DurationTimer:
         if had_pending_task:
             self.completed.set()
 
-    def evaluate_cancel_event(self, event: "AnyEvent") -> bool:
-        """Evaluate whether a state-change event should cancel the timer.
+    def cancel_if_left_state(self, event: "AnyEvent") -> bool:
+        """Cancel the timer if a state-change event shows the entity left the target state.
 
         Re-evaluates the main listener's hold predicates (state-value predicates
         only, excluding transition predicates like ``StateFrom``, ``StateDidChange``)

@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import BackpressurePolicy, ExecutionMode
 
+from hassette.bus.delivery import Delivery
 from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.listeners import MATCHED, OUT_OF_SCOPE, Listener
 from hassette.bus.rate_limiter import RateLimiter
@@ -25,7 +26,7 @@ from hassette.core.duration_hold_adapters import strip_old_state
 from hassette.event_handling import predicates as P
 from hassette.events import AnyEvent
 from hassette.testing import create_state_change_event, wait_for
-from tests.support.factories import make_hassette_event, make_invoking_executor, make_mock_executor
+from tests.support.factories import make_hassette_event, make_mock_executor, make_mock_invoking_executor
 from tests.support.helpers import async_noop, create_listener, make_controlled_clock, make_delivery, make_task_bucket
 from tests.unit.core._fixtures_bus_scheduler import make_bus_service
 
@@ -52,6 +53,10 @@ def bind(listener: Listener) -> Reports:
     reports = Reports()
     listener.invoker.report_drop = reports
     return reports
+
+
+async def run_noop(_delivery: Delivery) -> None:
+    """A rate-limiter ``run`` that does nothing."""
 
 
 async def dispatch_event(
@@ -251,8 +256,8 @@ class TestRateLimiterDrops:
         reports = bind(listener)
         first, second = make_hassette_event(data=1), make_hassette_event(data=2)
 
-        await limiter.call(async_noop, make_delivery(listener, first))
-        await limiter.call(async_noop, make_delivery(listener, second))
+        await limiter.call(make_delivery(listener, first), run_noop)
+        await limiter.call(make_delivery(listener, second), run_noop)
 
         assert reports.calls == [("throttled", second, None, False)]
 
@@ -263,11 +268,11 @@ class TestRateLimiterDrops:
         ran = asyncio.Event()
         first, second = make_hassette_event(data=1), make_hassette_event(data=2)
 
-        async def invoke() -> None:
+        async def invoke(_delivery: Delivery) -> None:
             ran.set()
 
-        await limiter.call(invoke, make_delivery(listener, first))
-        await limiter.call(invoke, make_delivery(listener, second))
+        await limiter.call(make_delivery(listener, first), invoke)
+        await limiter.call(make_delivery(listener, second), invoke)
         await asyncio.wait_for(ran.wait(), timeout=1)
 
         assert reports.calls == [("debounce_superseded", first, None, False)]
@@ -282,14 +287,14 @@ class TestRateLimiterDrops:
         throttled, superseded = make_hassette_event(data=1), make_hassette_event(data=2)
         ran = asyncio.Event()
 
-        async def invoke() -> None:
+        async def invoke(_delivery: Delivery) -> None:
             ran.set()
 
-        await throttler.call(invoke, make_delivery(listener))
-        await throttler.call(invoke, make_delivery(listener, throttled, is_synthetic=True))
+        await throttler.call(make_delivery(listener), invoke)
+        await throttler.call(make_delivery(listener, throttled, is_synthetic=True), invoke)
         ran.clear()
-        await debouncer.call(invoke, make_delivery(listener, superseded, is_synthetic=True))
-        await debouncer.call(invoke, make_delivery(listener))
+        await debouncer.call(make_delivery(listener, superseded, is_synthetic=True), invoke)
+        await debouncer.call(make_delivery(listener), invoke)
         await asyncio.wait_for(ran.wait(), timeout=1)
 
         assert reports.calls == [("throttled", throttled, None, True), ("debounce_superseded", superseded, None, True)]
@@ -299,7 +304,7 @@ class TestRateLimiterDrops:
         listener = create_listener()
         reports = bind(listener)
 
-        await limiter.call(async_noop, make_delivery(listener))
+        await limiter.call(make_delivery(listener), run_noop)
         limiter.cancel()
 
         assert reports.calls == []
@@ -320,17 +325,17 @@ class TestHoldCancelled:
         return timer
 
     async def test_an_event_that_ends_an_active_hold_says_so(self) -> None:
-        assert self.start_timer().evaluate_cancel_event(state_event("on", "off")) is True
+        assert self.start_timer().cancel_if_left_state(state_event("on", "off")) is True
 
     async def test_an_event_that_keeps_the_hold_says_no(self) -> None:
         timer = self.start_timer()
-        assert timer.evaluate_cancel_event(state_event("off", "on")) is False
+        assert timer.cancel_if_left_state(state_event("off", "on")) is False
         timer.cancel()
 
     async def test_no_active_hold_says_no(self) -> None:
         timer = self.start_timer()
         timer.cancel()
-        assert timer.evaluate_cancel_event(state_event("on", "off")) is False
+        assert timer.cancel_if_left_state(state_event("on", "off")) is False
 
 
 class TestHoldCancelledThroughBusService:
@@ -341,7 +346,7 @@ class TestHoldCancelledThroughBusService:
         svc._miss_recorder = MagicMock()
         svc._miss_recorder.reporter_for.return_value = reports
 
-        svc._executor.execute = make_invoking_executor().execute
+        svc._executor.execute = make_mock_invoking_executor().execute
         # The hold's cancel listener is built on the service's bucket; run its async handler as-is.
         svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
         listener = create_listener(

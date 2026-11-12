@@ -34,7 +34,8 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `make_job_registration(**kw)` — `ScheduledJobRegistration`
 - `make_invoke_handler_cmd(**kw)` — `MagicMock(spec=InvokeHandler)`
 - `make_scheduled_job(**kw)` — real `Job`, for unit/scheduler tests
-- `make_mock_executor()` — `MagicMock` with `execute = AsyncMock()`
+- `make_mock_executor(run=None)` — `MagicMock` with `execute = AsyncMock()`; `run=` is awaited by each `execute` in place of the handler
+- `make_mock_invoking_executor()` — `MagicMock` executor whose `execute` runs the command's handler for its event, untracked
 - `make_mock_listener(**kw)` — `MagicMock` stand-in for a `Listener` (invoke wiring, identity fields, registration fields)
 - `make_scheduler(**kw)` — real `Scheduler` via dynamic subclass, mocked service; params: `wire_dequeue`, `source_tier`, `app_key`
 - `make_mock_event()` — `MagicMock(spec=Event)`
@@ -68,6 +69,7 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 `tests/support/helpers.py` — misc test helpers:
 
 - `create_listener(**kw)`, `make_task_bucket()`
+- `make_delivery(listener=None, event=None, *, is_synthetic=False)` — real `Delivery` of an event to a listener on its own topic
 - `emit_change_and_wait_for_app_status(hassette, changed_paths, *app_keys, status=RUNNING, timeout=...)` —
   the hot-reload arrange-and-await sequence: wire status listeners, emit a synthetic file-change event,
   wait for every named app under one `APP_STATUS_WAIT_SECONDS` deadline. Write the config/app-file

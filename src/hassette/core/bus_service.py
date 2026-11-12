@@ -12,7 +12,7 @@ from hassette_wire import BackpressurePolicy, ExecutionStatus, LogLevel
 from hassette.bus.delivery import Delivery
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.error_context import BusErrorContext
-from hassette.bus.listeners import MATCHED, OUT_OF_SCOPE, Listener, Subscription
+from hassette.bus.listeners import MATCHED, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.duration_hold_adapters import (
@@ -129,10 +129,11 @@ class BusService(Service):
 
         self._miss_recorder = ListenerMissRecorder(hassette)
         """Near-miss rollups for app listeners; each one's reporter is bound in ``add_listener``."""
-        self._miss_flush_stop = asyncio.Event()
-        """Ends the recorder's flush loop; replaced at each initialize so a re-initialized service gets a live loop."""
+        self._miss_flush_stop: asyncio.Event | None = None
+        """Ends the recorder's flush loop; created at each initialize so a re-initialized service gets a live loop."""
         self._miss_flush_task: asyncio.Task[None] | None = None
-        """The recorder's flush loop, the only near-miss flusher; ``on_shutdown`` stops it and awaits its last flush."""
+        """The recorder's flush loop, the only near-miss flusher while it runs; ``on_shutdown`` stops it and awaits
+        its last flush, and flushes directly only when no loop is running, so the two never overlap."""
 
     @property
     def config_log_level(self) -> LogLevel:
@@ -447,8 +448,7 @@ class BusService(Service):
                     chosen[listener.listener_id] = Delivery(listener, event, route)
                     continue
                 rejected.add(listener.listener_id)
-                if result != OUT_OF_SCOPE:
-                    Delivery(listener, event, route).drop("filter", filter_index=result)
+                Delivery(listener, event, route).drop_if_filtered(result)
 
         return chosen
 
@@ -698,15 +698,17 @@ class BusService(Service):
 
         Waits for in-flight dispatches first so their drops are counted, then stops the flush loop and awaits its
         last flush; this hook's own shutdown bound caps that wait. The loop gets its own stop event rather than
-        waiting on this service's shutdown event, which is set before dispatch drains. With no live loop, it flushes
-        directly. ``DatabaseService`` shuts down after this service (a dependency shuts down after its dependents),
+        waiting on this service's shutdown event, which is set before dispatch drains. The loop is the only flusher
+        while it runs; this hook flushes directly only when no loop is running, so the two never overlap.
+        ``DatabaseService`` shuts down after this service (a dependency shuts down after its dependents),
         so the write queue is still live here.
         """
         try:
             await self.await_dispatch_idle()
         except TimeoutError:
             self.logger.debug("Dispatches still pending at shutdown; flushing the near-misses recorded so far")
-        self._miss_flush_stop.set()
+        if self._miss_flush_stop is not None:
+            self._miss_flush_stop.set()
         task = self._miss_flush_task
         if task is not None and not task.done():
             await task

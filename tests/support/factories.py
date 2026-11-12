@@ -552,7 +552,7 @@ def make_mock_executor(run: "Callable[[], Awaitable[None]] | None" = None) -> Ma
     return executor
 
 
-def make_invoking_executor() -> MagicMock:
+def make_mock_invoking_executor() -> MagicMock:
     """Build a CommandExecutor stand-in whose ``execute`` runs the command's handler for its event, untracked."""
 
     async def execute(cmd: InvokeHandler) -> None:

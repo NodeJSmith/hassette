@@ -53,7 +53,7 @@ SCAN_DIRS = ["tests"]
 SHARED_FACTORIES = {
     "make_scheduled_job": "tests.support.factories",
     "make_mock_executor": "tests.support.factories",
-    "make_invoking_executor": "tests.support.factories",
+    "make_mock_invoking_executor": "tests.support.factories",
     "make_mock_event": "tests.support.factories",
     "make_recording_api": "tests.support.factories",
     "make_hassette_event": "tests.support.factories",

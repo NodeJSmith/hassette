@@ -5,7 +5,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
 from hassette.bus.delivery import Delivery
-from hassette.bus.listeners import MATCHED, OUT_OF_SCOPE, EntityWatch, Listener, Subscription
+from hassette.bus.listeners import MATCHED, EntityWatch, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.events.base import AnyEvent
 from hassette.types import Topic
@@ -138,11 +138,11 @@ class DurationHoldManager:
             synthetic_event = self.make_synthetic_event(entity_id, current_state)
             delivery = Delivery(listener, synthetic_event, listener.topic, is_synthetic=True)
             result = self.evaluate_predicate(listener, synthetic_event, listener.evaluate)
-            if result is None or result == OUT_OF_SCOPE:
+            if result is None:
                 return
             if result != MATCHED:
                 # Synthetic events skip BusService._match_listeners, so the filter near-miss is reported here.
-                delivery.drop("filter", filter_index=result)
+                delivery.drop_if_filtered(result)
                 return
 
             if entity_watch.duration is not None:
@@ -192,7 +192,7 @@ class DurationHoldManager:
         """
         listener = delivery.listener
         entity_watch = listener.entity_watch
-        if entity_watch is None:
+        if entity_watch is None:  # only narrows the type: callers pass a delivery for a listener with a watch
             raise RuntimeError("start_duration_timer requires a listener with an entity_watch")
         entity_id = entity_watch.entity_id
 
@@ -231,9 +231,9 @@ class DurationHoldManager:
         """Create and register a cancellation listener for a duration timer.
 
         The cancellation listener monitors the same entity as ``main_listener``
-        and calls ``DurationTimer.evaluate_cancel_event()`` on each incoming
+        and calls ``DurationTimer.cancel_if_left_state()`` on each incoming
         ``state_changed`` event.  The old_state stripping and predicate
-        re-evaluation are handled inside ``evaluate_cancel_event()``. An event
+        re-evaluation are handled inside ``cancel_if_left_state()``. An event
         that ends an active hold is reported as a ``hold_cancelled`` near-miss
         of ``main_listener``, carrying the event as received (with its old_state).
 
@@ -258,7 +258,7 @@ class DurationHoldManager:
         entity_id = main_listener.entity_watch.entity_id
 
         async def cancel_handler(event: AnyEvent) -> None:
-            if duration_timer.evaluate_cancel_event(event):
+            if duration_timer.cancel_if_left_state(event):
                 Delivery(main_listener, event, main_listener.topic).drop("hold_cancelled")
 
         cancel_listener = Listener.create_cancel_listener(

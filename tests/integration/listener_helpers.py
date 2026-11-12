@@ -12,7 +12,7 @@ from hassette.bus.listeners import Listener
 from hassette.events import Event, EventPayload
 from hassette.task_bucket import TaskBucket
 from hassette.types import HandlerType
-from tests.support.factories import make_invoking_executor
+from tests.support.factories import make_mock_invoking_executor
 from tests.support.helpers import create_listener, make_delivery
 
 TEST_DELIVERY = make_delivery()
@@ -65,7 +65,7 @@ async def dispatch_values(listener: Listener, *values: str) -> None:
 
     The handler runs for the delivery's own event, so what it records is what was dispatched.
     """
-    executor = make_invoking_executor()
+    executor = make_mock_invoking_executor()
     for value in values:
         await listener.invoker.dispatch(make_delivery(listener, mock_event(value)), executor, lambda: None)
 

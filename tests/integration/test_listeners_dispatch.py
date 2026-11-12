@@ -70,19 +70,19 @@ class TestListenerIntegration:
         assert listener.invoker.rate_limiter is not None
         rl = listener.invoker.rate_limiter
 
-        # Simulate dispatch: rate_limiter.call(invoke_fn, delivery) — like HandlerInvoker.dispatch does
-        async def invoke_fn():
+        # Simulate dispatch: rate_limiter.call(delivery, invoke_fn) — like HandlerInvoker.dispatch does
+        async def invoke_fn(_delivery):
             await invoke_with(listener, "1")
 
-        async def invoke_fn2():
+        async def invoke_fn2(_delivery):
             await invoke_with(listener, "2")
 
-        async def invoke_fn3():
+        async def invoke_fn3(_delivery):
             await invoke_with(listener, "3")
 
-        await rl.call(invoke_fn, TEST_DELIVERY)
-        await rl.call(invoke_fn2, TEST_DELIVERY)
-        await rl.call(invoke_fn3, TEST_DELIVERY)
+        await rl.call(TEST_DELIVERY, invoke_fn)
+        await rl.call(TEST_DELIVERY, invoke_fn2)
+        await rl.call(TEST_DELIVERY, invoke_fn3)
 
         await wait_for(lambda: calls == ["3"], desc="debounce fired")
 
@@ -98,19 +98,19 @@ class TestListenerIntegration:
         events = ["1", "2", "3", "4"]
 
         def make_invoke(data: str):
-            async def invoke_fn():
+            async def invoke_fn(_delivery):
                 await invoke_with(listener, data)
 
             return invoke_fn
 
-        await rl.call(make_invoke(events[0]), TEST_DELIVERY)
-        await rl.call(make_invoke(events[1]), TEST_DELIVERY)
-        await rl.call(make_invoke(events[2]), TEST_DELIVERY)
+        await rl.call(TEST_DELIVERY, make_invoke(events[0]))
+        await rl.call(TEST_DELIVERY, make_invoke(events[1]))
+        await rl.call(TEST_DELIVERY, make_invoke(events[2]))
         assert calls == ["1"], "First call should be executed immediately"
 
         # advance the controlled clock past the throttle window before the next call
         clock.advance_to(1.2)
-        await rl.call(make_invoke(events[3]), TEST_DELIVERY)
+        await rl.call(TEST_DELIVERY, make_invoke(events[3]))
         assert calls == ["1", "4"], "Second call should execute after throttle period"
 
     async def test_listener_without_rate_limiting(self, bucket: TaskBucket):

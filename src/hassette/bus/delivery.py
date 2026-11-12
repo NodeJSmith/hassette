@@ -27,7 +27,9 @@ class Delivery:
     listener: "Listener"
     event: "AnyEvent"
     topic: str
-    """The route the event matched on; the listener's own topic for an event built from the cached state."""
+    """The route the event matched on; the listener's own topic for an event built from the cached state. A delivery
+    built only to report a drop (a hold's cancel or recheck) carries the listener's topic as a placeholder:
+    ``drop`` never reads it."""
     is_synthetic: bool = False
     """Whether ``event`` was built from the cached state (an immediate fire or a hold's recheck), not received live.
     Its run and its near-misses are labelled ``HASSETTE_SYNTHETIC`` (design/specs/147-execution-trigger-detail D7)."""
@@ -45,6 +47,15 @@ class Delivery:
         report = self.listener.invoker.report_drop
         if report is not None:
             report(reason, self.event, filter_index=filter_index, is_synthetic=self.is_synthetic)
+
+    def drop_if_filtered(self, result: int) -> None:
+        """Report a ``filter`` near-miss when ``result`` (from ``Listener.evaluate``) is a filter index.
+
+        ``MATCHED`` and ``OUT_OF_SCOPE`` are negative and record nothing: the first isn't a drop, the second isn't
+        a near-miss.
+        """
+        if result >= 0:
+            self.drop("filter", filter_index=result)
 
     async def invoke(self, executor: "CommandExecutor", config_resolver: Callable[[], float | None]) -> None:
         """Run the listener's handler for this event through ``executor``, which records the execution.

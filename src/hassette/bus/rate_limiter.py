@@ -31,7 +31,7 @@ class RateLimiter:
     Example:
         ```python
         limiter = RateLimiter(task_bucket=bucket, debounce=1.0, handler_name="my_handler")
-        await limiter.call(run, delivery)  # run is a zero-arg async closure that runs delivery
+        await limiter.call(delivery, run)  # run(delivery) is awaited with the delivery that actually runs
         ```
     """
 
@@ -86,37 +86,34 @@ class RateLimiter:
             self._debounce_task = None
         self._debounce_pending = None
 
-    async def call(self, handler: "Callable[[], Awaitable[None]]", delivery: "Delivery") -> None:
-        """Call handler with rate limiting applied.
+    async def call(self, delivery: "Delivery", run: "Callable[[Delivery], Awaitable[None]]") -> None:
+        """Run ``delivery`` through ``run`` with rate limiting applied.
 
         Args:
-            handler: Zero-arg async callable that runs ``delivery``. ``HandlerInvoker.dispatch()`` passes a closure
-                over the same delivery it hands in here.
-            delivery: The delivery ``handler`` runs. One this limiter drops is reported through it: ``throttled``
-                inside the throttle window, ``debounce_superseded`` when a later delivery replaces a pending one.
+            delivery: The delivery to run. One this limiter drops is reported through it: ``throttled`` inside the
+                throttle window, ``debounce_superseded`` when a later delivery replaces a pending one.
+            run: Async callable the limiter awaits with the delivery that actually runs (the pending one, for a
+                debounce), so the run and the drop report can't name different deliveries.
         """
         if self._cancelled:
             return
         if self.debounce is not None:
-            await self.debounced_call(handler, self.debounce, delivery)
+            await self.debounced_call(delivery, run, self.debounce)
         elif self.throttle is not None:
-            await self.throttled_call(handler, self.throttle, delivery)
+            await self.throttled_call(delivery, run, self.throttle)
         else:
-            await handler()
+            await run(delivery)
 
     async def debounced_call(
-        self, handler: "Callable[[], Awaitable[None]]", debounce: float, delivery: "Delivery"
+        self, delivery: "Delivery", run: "Callable[[Delivery], Awaitable[None]]", debounce: float
     ) -> None:
         """Debounced version of the handler call.
 
-        Expects a fresh ``handler`` callable on each call.  ``HandlerInvoker.dispatch`` creates a new
-        closure per delivery, so the debounced handler always fires with the latest event data.
-        Callers must not reuse the same callable with updated shared state — the cancel-then-create
-        ordering below discards the previous handler entirely.
+        Each call replaces the pending delivery, so the debounced run always fires with the latest event data.
         """
         # Cancel previous debounce task BEFORE spawning the replacement.  This ordering
-        # is critical: the old task holds the old handler closure (with the old event),
-        # and the new task will hold the new handler closure (with the latest event).
+        # is critical: the old task holds the old delivery, and the new task will hold the
+        # new delivery (with the latest event).
         if self._debounce_task and not self._debounce_task.done():
             LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, debounce)
             self._debounce_task.cancel()
@@ -138,7 +135,7 @@ class RateLimiter:
             self._debounce_pending = None
             # Handler runs outside the CancelledError catch — if the handler is cancelled
             # (e.g., during shutdown), it propagates so telemetry can record it as 'cancelled'.
-            await handler()
+            await run(delivery)
 
         task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
         task.add_done_callback(self.clear_debounce_ref)
@@ -146,7 +143,7 @@ class RateLimiter:
         self._debounce_pending = delivery
 
     async def throttled_call(
-        self, handler: "Callable[[], Awaitable[None]]", throttle: float, delivery: "Delivery"
+        self, delivery: "Delivery", run: "Callable[[Delivery], Awaitable[None]]", throttle: float
     ) -> None:
         """Throttled version of the handler call.
 
@@ -160,4 +157,4 @@ class RateLimiter:
             delivery.drop("throttled")
             return
         self._throttle_last_time = now
-        await handler()
+        await run(delivery)

@@ -343,7 +343,7 @@ class HandlerInvoker:
             self.mark_fired()
 
         if self.rate_limiter:
-            await self.rate_limiter.call(lambda: self.run_with_mode(delivery, executor, config_resolver), delivery)
+            await self.rate_limiter.call(delivery, lambda ran: self.run_with_mode(ran, executor, config_resolver))
         else:
             await self.run_with_mode(delivery, executor, config_resolver)
 

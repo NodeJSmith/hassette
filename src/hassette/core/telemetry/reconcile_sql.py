@@ -11,7 +11,10 @@ _RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
 
 LISTENER_MISS_HISTORY_SQL = "EXISTS (SELECT 1 FROM listener_misses WHERE listener_misses.listener_id = listeners.id)"
 """True when a listener has recorded near-misses. A listener that never ran but missed events still has
-history: the misses are what explain why it never ran. Every listener delete or retire decision consults it."""
+history: the misses are what explain why it never ran. Reconciliation's delete and retire queries and the
+``once=True`` reconcile cleanup consult it. Retention's parent guard uses an age-gated variant on purpose, and
+``SessionManager.cleanup_stale_once_listeners`` deliberately deletes a ``once=True`` listener that already ran
+together with its executions and misses."""
 
 
 def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:

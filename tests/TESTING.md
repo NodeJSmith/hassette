@@ -207,7 +207,15 @@ Builds a real `ScheduledJob` for unit/scheduler tests, with every field overrida
 
 ### `make_mock_executor()` — `tests/support/factories.py`
 
-Builds a `MagicMock` with `execute = AsyncMock()`, standing in for a `CommandExecutor`.
+Builds a `MagicMock` with `execute = AsyncMock()`, standing in for a `CommandExecutor`. Pass `run=` (an async callable) to have every `execute` await it in place of the handler, for tests that hold a run open or make it slow.
+
+### `make_mock_invoking_executor()` — `tests/support/factories.py`
+
+Builds a `MagicMock` executor whose `execute` runs the command's handler for its event, untracked, so a dispatched delivery really invokes the listener.
+
+### `make_delivery(listener=None, event=None, *, is_synthetic=False)` — `tests/support/helpers.py`
+
+Builds a real `Delivery` of `event` to `listener` on the listener's own topic. Defaults to `create_listener()` and a fresh `make_hassette_event()`.
 
 ### `make_mock_event()` — `tests/support/factories.py`
 
