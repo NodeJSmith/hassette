@@ -65,30 +65,33 @@ async def test_live_hass_events_parse_into_typed_payloads(ha_container: str, tmp
 
         api = instance.api
 
-        async def drive(topic: Topic, call: Callable[[], Awaitable[Any]], match: Callable[[Any], bool]) -> None:
-            await call()
+        async def arrived(topic: Topic, match: Callable[[Any], bool]) -> None:
             await wait_for(
                 lambda: any(match(event.payload.data) for event in received[topic]),
                 timeout=EVENT_TIMEOUT_SECONDS,
                 desc=f"a typed {topic.value} event",
             )
 
+        async def drive(topic: Topic, call: Callable[[], Awaitable[Any]], match: Callable[[Any], bool]) -> None:
+            await call()
+            await arrived(topic, match)
+
         await drive(
             Topic.HASS_EVENT_AUTOMATION_TRIGGERED,
             lambda: api.call_service("automation", "trigger", {"entity_id": AUTOMATION}, wait_for_ack=True),
             lambda data: data.entity_id == AUTOMATION,
         )
-        await drive(
-            Topic.HASS_EVENT_SCRIPT_STARTED,
-            lambda: api.call_service("script", "turn_on", {"entity_id": SCRIPT}, wait_for_ack=True),
-            lambda data: data.entity_id == SCRIPT,
-        )
-        # The script holds on a long delay; stop it so later tests start from an idle script.
-        await drive(
-            Topic.HASS_EVENT_CALL_SERVICE,
-            lambda: api.call_service("script", "turn_off", {"entity_id": SCRIPT}, wait_for_ack=True),
-            lambda data: (data.domain, data.service) == ("script", "turn_off"),
-        )
+        try:
+            await drive(
+                Topic.HASS_EVENT_SCRIPT_STARTED,
+                lambda: api.call_service("script", "turn_on", {"entity_id": SCRIPT}, wait_for_ack=True),
+                lambda data: data.entity_id == SCRIPT,
+            )
+        finally:
+            # The script holds on a long delay; stop it even when its typed event never arrives, so later
+            # tests start from an idle script.
+            await api.call_service("script", "turn_off", {"entity_id": SCRIPT}, wait_for_ack=True)
+        await arrived(Topic.HASS_EVENT_CALL_SERVICE, lambda data: (data.domain, data.service) == ("script", "turn_off"))
         await drive(
             Topic.HASS_EVENT_LOGBOOK_ENTRY,
             lambda: api.call_service(
