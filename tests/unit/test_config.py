@@ -560,3 +560,46 @@ def test_bundled_toml_files_have_no_log_level_entries():
             assert nested_log_level_keys == [], (
                 f"{filename} [hassette.{group_name}] contains log_level entries: {nested_log_level_keys}"
             )
+
+
+class TestNumericBounds:
+    """Timeouts, intervals, and the web API port reject out-of-range values at load."""
+
+    @pytest.mark.parametrize(
+        ("group", "field"),
+        [
+            ("websocket", "connection_timeout_seconds"),
+            ("websocket", "heartbeat_interval_seconds"),
+            ("lifecycle", "startup_timeout_seconds"),
+            ("lifecycle", "app_startup_timeout_seconds"),
+            ("lifecycle", "run_sync_timeout_seconds"),
+            ("lifecycle", "task_cancellation_timeout_seconds"),
+            ("lifecycle", "event_handler_timeout_seconds"),
+            ("lifecycle", "error_handler_timeout_seconds"),
+            ("scheduler", "behind_schedule_threshold_seconds"),
+            ("scheduler", "job_timeout_seconds"),
+        ],
+    )
+    @pytest.mark.parametrize("value", [0, -5, math.nan])
+    def test_rejects_non_positive_or_nan(self, group: str, field: str, value: float) -> None:
+        with pytest.raises(ConfigError):
+            LogLevelTestConfig(**{group: {field: value}})  # pyright: ignore[reportArgumentType]
+
+    @pytest.mark.parametrize("field", ["event_handler_timeout_seconds", "error_handler_timeout_seconds"])
+    def test_optional_timeout_rejects_infinity(self, field: str) -> None:
+        with pytest.raises(ConfigError):
+            LogLevelTestConfig(lifecycle={field: math.inf})  # pyright: ignore[reportArgumentType]
+
+    @pytest.mark.parametrize("port", [0, -1, 65536, 99999])
+    def test_port_rejects_out_of_range(self, port: int) -> None:
+        with pytest.raises(ConfigError):
+            LogLevelTestConfig(web_api={"port": port})  # pyright: ignore[reportArgumentType]
+
+    @pytest.mark.parametrize("port", [1, 65535])
+    def test_port_accepts_range_bounds(self, port: int) -> None:
+        assert LogLevelTestConfig(web_api={"port": port}).web_api.port == port  # pyright: ignore[reportArgumentType]
+
+    @pytest.mark.parametrize("toml_name", ["hassette.dev.toml", "hassette.prod.toml"])
+    def test_bundled_toml_files_validate(self, toml_name: str) -> None:
+        data = tomllib.loads(files("hassette.config").joinpath(toml_name).read_text(encoding="utf-8"))
+        LogLevelTestConfig(**data["hassette"])

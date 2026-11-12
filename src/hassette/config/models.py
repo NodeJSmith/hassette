@@ -5,6 +5,7 @@ Each class groups a logical subset of configuration fields. All inherit
 initialises them as sub-models, not independent settings roots.
 """
 
+import math
 import os
 from functools import partial
 from logging import getLogger
@@ -17,6 +18,8 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    PositiveFloat,
+    PositiveInt,
     SecretStr,
     StringConstraints,
     field_validator,
@@ -65,7 +68,7 @@ def validate_positive_or_none(value: Any) -> float | None:
     if isinstance(value, bool):
         raise ValueError("timeout must be None or a positive number")
     val = float(value)
-    if val <= 0:
+    if not math.isfinite(val) or val <= 0:
         raise ValueError("timeout must be None or a positive number")
     return val
 
@@ -184,10 +187,10 @@ class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
     ``hassette.core.websocket_service`` and ``hassette.core.websocket_io``.
     """
 
-    connection_timeout_seconds: int = Field(default=5)
+    connection_timeout_seconds: int = Field(default=5, gt=0)
     """Length of time to wait for WebSocket connection to complete. Passed to aiohttp."""
 
-    heartbeat_interval_seconds: int = Field(default=30)
+    heartbeat_interval_seconds: int = Field(default=30, gt=0)
     """Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp."""
 
 
@@ -306,11 +309,11 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
 class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     """Startup, shutdown, and per-operation timeout settings for the resource lifecycle."""
 
-    startup_timeout_seconds: int = Field(default=30)
+    startup_timeout_seconds: int = Field(default=30, gt=0)
     """Length of time each wave of Hassette resources may take to initialize and become ready before startup fails.
     Must be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap."""
 
-    app_startup_timeout_seconds: int = Field(default=20)
+    app_startup_timeout_seconds: int = Field(default=20, gt=0)
     """Length of time to wait for an app to start before giving up."""
 
     shutdown_timeout_seconds: float = Field(default=SHUTDOWN_TIMEOUT_SECONDS, gt=0)
@@ -368,10 +371,10 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     error_handler_timeout_seconds: float | None = Field(default=5.0)
     """Default timeout in seconds for error handler execution. ``None`` disables the default timeout."""
 
-    run_sync_timeout_seconds: int | float = Field(default=6)
+    run_sync_timeout_seconds: PositiveInt | PositiveFloat = Field(default=6)
     """Default timeout for synchronous function calls."""
 
-    task_cancellation_timeout_seconds: int | float = Field(default=5)
+    task_cancellation_timeout_seconds: PositiveInt | PositiveFloat = Field(default=5)
     """Length of time to wait for tasks to cancel before forcing."""
 
     @field_validator("event_handler_timeout_seconds", "error_handler_timeout_seconds", mode="before")
@@ -403,7 +406,7 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     host: str = Field(default="0.0.0.0")
     """Host to bind the web API server to."""
 
-    port: int = Field(default=DEFAULT_WEB_API_PORT)
+    port: int = Field(default=DEFAULT_WEB_API_PORT, ge=1, le=65535)
     """Port to run the web API server on."""
 
     cors_origins: tuple[str, ...] = Field(
@@ -577,7 +580,7 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
 class SchedulerConfig(ExcludeExtrasMixin, BaseModel):
     """Scheduler threshold and job-timeout settings."""
 
-    behind_schedule_threshold_seconds: int | float = Field(default=5)
+    behind_schedule_threshold_seconds: PositiveInt | PositiveFloat = Field(default=5)
     """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
 
     job_timeout_seconds: float | None = Field(default=600.0)
