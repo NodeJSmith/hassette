@@ -264,6 +264,7 @@ async def list_executions(
     return await telemetry.get_executions(kind=kind, limit=limit, since=since)
 
 
+# dup-ignore-start: FastAPI declares each route's query parameters in its own signature
 @router.get(
     "/listener/{listener_id}/executions",
     response_model=list[Execution],
@@ -307,6 +308,9 @@ async def job_executions(
 ) -> list[Execution]:
     """Execution history for a specific job."""
     return await telemetry.get_executions(job_id=job_id, limit=limit, since=since)
+
+
+# dup-ignore-end
 
 
 @router.get(
