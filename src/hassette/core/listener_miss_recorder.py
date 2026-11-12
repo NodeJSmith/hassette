@@ -18,7 +18,7 @@ import contextlib
 import logging
 import time
 import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 
 from hassette.const.misc import SECONDS_PER_HOUR
@@ -43,7 +43,7 @@ FLUSH_INTERVAL_SECONDS = 30.0
 (design/specs/151-listener-near-misses D4)."""
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class MissEntry:
     """One rollup accrued since the last flush: a listener's drops for one reason (and filter) in one hour."""
 
@@ -59,7 +59,7 @@ class MissEntry:
     """The last dropped event, summarized at flush with the executions' trigger summary."""
     is_synthetic: bool
     """Whether ``last_event`` was built from the cached state, so its origin is stored as synthetic. Follows
-    ``last_event``: each record replaces both."""
+    ``last_event``: each record replaces the entry with both updated."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,10 +131,9 @@ class ListenerMissRecorder:
                     is_synthetic=is_synthetic,
                 )
                 return
-            entry.count += 1
-            entry.last_ts = now
-            entry.last_event = event
-            entry.is_synthetic = is_synthetic
+            self.entries[key] = replace(
+                entry, count=entry.count + 1, last_ts=now, last_event=event, is_synthetic=is_synthetic
+            )
         except Exception:
             LOGGER.exception("Failed to record a near-miss for %s", listener)
 
