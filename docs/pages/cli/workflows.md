@@ -118,11 +118,11 @@ hassette listener --app garage_door
 hassette listener 42 --misses --since 1h
 ```
 
-Each row counts the events one reason dropped in one hour, with the last such event's entity and values. A `filter` row names the filter that rejected them: a row for `→ open` showing `closed → opening` means the door reported `opening`, not `open`, so `changed_to="open"` never matched. A `throttled`, `debounce_superseded` or `once_spent` row is usually the `throttle=`, `debounce=` or `once=` setting working as configured, even with a large count. A `busy` or `queue_full` row means events arrived while the handler was still running, which points at the `mode=` setting. A `backpressure` row means the whole bus was saturated. Counts are written every 30 seconds, so a drop that just happened can take that long to appear.
+Each row counts the events one reason dropped in one hour, with the last such event's entity and values. A `filter` row names the filter that rejected them: a row for `→ open` showing `closed → opening` means the door reported `opening`, not `open`, so `changed_to="open"` never matched. A `throttled`, `debounce_superseded` or `once_spent` row is usually the `throttle=`, `debounce=` or `once=` setting working as configured, even with a large count. A `busy` or `queue_full` row means events arrived while the handler was still running, which points at the `mode=` setting. A `backpressure` row means the whole bus was saturated. Counts are written about every 30 seconds, so a drop that just happened can take that long to appear.
 
 **3. If the table is empty**
 
-Nothing reached the listener's filters. Only events for the listener's own entity count, and the default change check records nothing either: `on_state_change` drops an attribute-only update without recording it (pass `changed=True` to count those). Check the entity ID and topic in step 1, then check that Home Assistant is sending the event at all, for example in its Developer Tools event listener.
+No drops are stored for this listener in that window. [Database & Telemetry](../core-concepts/database-telemetry.md#what-is-collected) lists everything an empty result can mean. The usual cause is the subscription itself: only events for the listener's own entity count, and `on_state_change` drops an attribute-only update without recording it (pass `changed=True` to count those). Check the entity ID and topic in step 1, then check that Home Assistant is sending the event at all, for example in its Developer Tools event listener. A drop from the last 30 seconds may not be written yet, so run the command again if the event just happened.
 
 ## Monitoring a Specific App
 

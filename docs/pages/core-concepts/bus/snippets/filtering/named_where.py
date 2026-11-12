@@ -7,7 +7,10 @@ def is_dark(event: RawStateChangeEvent) -> bool:
     new = event.payload.data.new_state
     if new is None:
         return False
-    return new["attributes"].get("illuminance", 0) < 10
+    lux = new["attributes"].get("illuminance")
+    if lux is None:
+        return False
+    return lux < 10
 
 
 class HallLights(App[AppConfig]):
