@@ -225,7 +225,6 @@ class AsyncCache:
 
     async def get_or_set(self, key: str, creator: Callable[[], Awaitable[T]], ttl: int | None = None) -> T:
         """Return the cached value for *key*, computing and storing it via *creator* on miss."""
-        validate_key(key)
         cached = await self.get(key, default=cast("T", MISSING))
         if cached is not MISSING:
             return cached

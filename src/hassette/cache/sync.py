@@ -137,8 +137,6 @@ class SyncCache:
 
     def get_or_set(self, key: str, creator: Callable[[], T], ttl: int | None = None) -> T:
         """Return the cached value for *key*, calling *creator* and storing its result on miss."""
-        guard_not_in_event_loop("SyncCache.get_or_set")
-        validate_key(key)
         cached = self.get(key, default=cast("T", MISSING))
         if cached is not MISSING:
             return cached
