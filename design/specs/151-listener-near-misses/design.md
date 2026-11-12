@@ -1,7 +1,7 @@
 # Design: Listener Near-Misses
 
 **Date:** 2026-11-12
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #1817
 **Parent:** design/specs/142-diagnostic-evidence/design.md
@@ -183,7 +183,7 @@ New pieces and their homes:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
