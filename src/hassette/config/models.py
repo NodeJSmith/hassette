@@ -18,6 +18,8 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    PositiveFloat,
+    PositiveInt,
     SecretStr,
     StringConstraints,
     field_validator,
@@ -369,10 +371,10 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     error_handler_timeout_seconds: float | None = Field(default=5.0)
     """Default timeout in seconds for error handler execution. ``None`` disables the default timeout."""
 
-    run_sync_timeout_seconds: int | float = Field(default=6, gt=0)
+    run_sync_timeout_seconds: PositiveInt | PositiveFloat = Field(default=6)
     """Default timeout for synchronous function calls."""
 
-    task_cancellation_timeout_seconds: int | float = Field(default=5, gt=0)
+    task_cancellation_timeout_seconds: PositiveInt | PositiveFloat = Field(default=5)
     """Length of time to wait for tasks to cancel before forcing."""
 
     @field_validator("event_handler_timeout_seconds", "error_handler_timeout_seconds", mode="before")
@@ -578,7 +580,7 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
 class SchedulerConfig(ExcludeExtrasMixin, BaseModel):
     """Scheduler threshold and job-timeout settings."""
 
-    behind_schedule_threshold_seconds: int | float = Field(default=5, gt=0)
+    behind_schedule_threshold_seconds: PositiveInt | PositiveFloat = Field(default=5)
     """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
 
     job_timeout_seconds: float | None = Field(default=600.0)
