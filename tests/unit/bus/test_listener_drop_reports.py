@@ -118,8 +118,7 @@ class TestMatchListeners:
         assert reports.calls == [("filter", event, 1, False)]
 
     def test_scope_rejection_reports_nothing(self) -> None:
-        listener = create_listener(topic=TOPIC, where=P.StateTo("on"))
-        listener.scope = P.AllOf((P.EntityMatches(ENTITY_ID),))
+        listener = create_listener(topic=TOPIC, scope=[P.EntityMatches(ENTITY_ID)], where=P.StateTo("on"))
         reports = bind(listener)
 
         service = make_matching_service((TOPIC, listener))

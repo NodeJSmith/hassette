@@ -43,7 +43,8 @@ def make_bus_service(*, recording: bool = False, cheap: bool = False) -> BusServ
     """
     listener = create_listener(
         topic=f"hass.event.state_changed.{ENTITY_ID}",
-        where=[P.EntityMatches(ENTITY_ID), reject if cheap else P.StateTo("on")],
+        scope=[P.EntityMatches(ENTITY_ID)],
+        where=reject if cheap else P.StateTo("on"),
         app_key="bench_app",
         name="bench_listener",
         logger=QUIET_LOGGER,

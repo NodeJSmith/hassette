@@ -482,6 +482,7 @@ def create_listener(
     owner_id: str = "test_owner",
     task_bucket: Any = None,
     where: "Predicate | Sequence[Predicate] | None" = None,
+    scope: "Sequence[Predicate]" = (),
     kwargs: Mapping[str, Any] | None = None,
     once: bool = False,
     debounce: float | None = None,
@@ -515,6 +516,7 @@ def create_listener(
         clock: Zero-arg callable returning the current monotonic time, forwarded to the
             RateLimiter built for debounce/throttle. Defaults to ``time.monotonic`` when
             None. Use to inject a controlled clock for deterministic throttle tests.
+        scope: Registration-built selection filters (as ``Bus`` builds them), evaluated before ``where``.
     """
     # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
@@ -580,6 +582,7 @@ def create_listener(
         invoker=invoker,
         where=where,
         entity_watch=entity_watch,
+        scope=scope,
         logger=logger or getLogger("test"),
     )
 

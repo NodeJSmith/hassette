@@ -77,6 +77,7 @@ def make_listener_with_mock_timer(
     entity_id: str = "light.kitchen",
     duration: float = 60.0,
     task_bucket: Any = None,
+    hold_predicate: Any = None,
 ) -> tuple[Listener, MagicMock, Any]:
     """Build a Listener with entity_watch set and a MagicMock attached as its timer.
 
@@ -92,6 +93,7 @@ def make_listener_with_mock_timer(
         entity_id=entity_id,
         duration=duration,
         task_bucket=task_bucket,
+        hold_predicate=hold_predicate,
     )
     assert listener.entity_watch is not None
     mock_timer = MagicMock()
@@ -609,9 +611,8 @@ class TestRecheckNearMisses:
     def arm(self, state: dict[str, Any] | None, hold_predicate: Any) -> tuple[MagicMock, Any, MagicMock]:
         """Arm a light.kitchen hold whose recheck runs ``hold_predicate``; return (mock_timer, start event, report)."""
         manager = make_manager(state=state)
-        listener, mock_timer, _bucket = make_listener_with_mock_timer()
+        listener, mock_timer, _bucket = make_listener_with_mock_timer(hold_predicate=hold_predicate)
         assert listener.entity_watch is not None
-        listener.entity_watch.hold_predicate = hold_predicate
         report = MagicMock()
         listener.invoker.report_drop = report
         start_event = make_mock_event()
