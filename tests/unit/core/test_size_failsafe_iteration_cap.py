@@ -124,9 +124,9 @@ class TestSizeFailsafeIterationCap:
         retention_service.hassette.config.database.size_failsafe_delete_batch = 2
 
         now = time.time()
-        # Framework tier (priority 1, highest): its DELETE always fails below.
+        # Framework tier (priority 2): its DELETE always fails below.
         await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
-        # App executions tier (priority 4): far more rows than the 2-iteration * 2-row cap (4)
+        # App executions tier (priority 5): far more rows than the 2-iteration * 2-row cap (4)
         # can ever drain, so it hits the iteration cap. Framework's failed attempt and blocking
         # events' empty-tier check both cost nothing against the shared budget, so app still
         # gets the full 2 iterations.

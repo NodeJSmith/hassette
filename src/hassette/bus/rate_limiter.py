@@ -116,8 +116,8 @@ class RateLimiter:
         self,
         handler: "Callable[[], Awaitable[None]]",
         debounce: float,
-        event: "AnyEvent | None" = None,
-        report: "DropReporter | None" = None,
+        event: "AnyEvent",
+        report: "DropReporter | None",
     ) -> None:
         """Debounced version of the handler call.
 
@@ -133,7 +133,7 @@ class RateLimiter:
         if self._debounce_task and not self._debounce_task.done():
             LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, debounce)
             self._debounce_task.cancel()
-            if self._debounce_report is not None and self._debounce_event is not None:
+            if self._debounce_report is not None and self._debounce_event is not None:  # set together, below
                 self._debounce_report("debounce_superseded", self._debounce_event)
 
         async def delayed_call() -> None:
@@ -163,8 +163,8 @@ class RateLimiter:
         self,
         handler: "Callable[[], Awaitable[None]]",
         throttle: float,
-        event: "AnyEvent | None" = None,
-        report: "DropReporter | None" = None,
+        event: "AnyEvent",
+        report: "DropReporter | None",
     ) -> None:
         """Throttled version of the handler call.
 
@@ -175,7 +175,7 @@ class RateLimiter:
         now = self._clock()
         if self._throttle_last_time is not None and now - self._throttle_last_time < throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, throttle)
-            if report is not None and event is not None:
+            if report is not None:
                 report("throttled", event)
             return
         self._throttle_last_time = now

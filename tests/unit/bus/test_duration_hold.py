@@ -154,7 +154,7 @@ async def fire_mock_timer(mock_timer: MagicMock) -> None:
 
 def hold_matches_with_predicate(
     hold_predicate: Callable[[object], bool], *, duration: float = 5.0
-) -> tuple[bool, MagicMock]:
+) -> tuple[bool | None, MagicMock]:
     """Build a light.kitchen duration listener with `hold_predicate` set, call hold_matches with a
     fresh mock event, and return ``(result, event)``.
 

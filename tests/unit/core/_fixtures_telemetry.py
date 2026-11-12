@@ -122,6 +122,17 @@ CREATE TABLE api_writes (
 );
 CREATE INDEX idx_aw_ts ON api_writes(sent_ts);
 
+CREATE TABLE listener_misses (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    listener_id INTEGER NOT NULL REFERENCES listeners(id) ON DELETE CASCADE,
+    hour_ts     REAL NOT NULL,
+    reason      TEXT NOT NULL,
+    filter      TEXT NOT NULL DEFAULT '',
+    count       INTEGER NOT NULL,
+    first_ts    REAL NOT NULL,
+    last_ts     REAL NOT NULL
+);
+
 CREATE TABLE app_manifests (
     id           INTEGER PRIMARY KEY,
     app_key      TEXT NOT NULL UNIQUE,

@@ -41,13 +41,7 @@ TRIGGER_COLUMNS: dict[str, str] = {
 }
 
 
-def caused_by_subquery(alias: str) -> str:
-    """The ``caused_by`` column for rows of table alias ``alias``, which carries ``trigger_context_id``.
-
-    The write whose context the row's event carries: at most one (the earliest sent), so a repeated context id
-    never duplicates rows. Uses idx_aw_context. A row with no trigger_context_id reads NULL.
-    """
-    return f"""(
+CAUSED_BY_SUBQUERY = """(
     SELECT json_object(
         'app_key', w.app_key, 'instance_name', w.instance_name, 'execution_id', w.execution_id,
         'kind', w.kind, 'operation', w.operation
@@ -57,13 +51,20 @@ def caused_by_subquery(alias: str) -> str:
     ORDER BY w.sent_ts
     LIMIT 1
 ) AS caused_by"""
+"""The ``caused_by`` column, formatted with ``alias``: the table alias of rows carrying ``trigger_context_id``.
 
+The write whose context the row's event carries: at most one (the earliest sent), so a repeated context id
+never duplicates rows. Uses idx_aw_context. A row with no trigger_context_id reads NULL.
+"""
 
 _EXECUTION_SELECT_COLUMNS = (
     "e.kind, e.listener_id, e.job_id, e.execution_start_ts, e.duration_ms, "
     "e.status, e.source_tier, e.error_type, e.error_message, e.error_traceback, "
     "e.execution_id, e.trigger_mode, e.retry_count, e.attempt_number, e.args_json, e.kwargs_json, "
-    "e.thread_leaked, " + ", ".join(f"e.{column}" for column in TRIGGER_COLUMNS) + ", " + caused_by_subquery("e")
+    "e.thread_leaked, "
+    + ", ".join(f"e.{column}" for column in TRIGGER_COLUMNS)
+    + ", "
+    + CAUSED_BY_SUBQUERY.format(alias="e")
 )
 
 _API_WRITE_COLUMNS = (

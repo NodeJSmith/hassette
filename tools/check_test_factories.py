@@ -95,6 +95,7 @@ SHARED_FACTORIES = {
     "make_listener_summary": "tests.support.web_telemetry_helpers",
     "make_execution": "tests.support.web_telemetry_helpers",
     "make_log_entry": "tests.support.web_telemetry_helpers",
+    "make_listener_miss": "tests.support.web_telemetry_helpers",
     "make_execution_detail_response": "tests.support.web_telemetry_helpers",
     "make_api_write": "tests.support.web_telemetry_helpers",
     "make_task_bucket": "tests.support.helpers",

@@ -88,7 +88,7 @@ class TestEvaluate:
             calls.append("third")
             return True
 
-        listener = create_listener(where=[P.StateTo("off"), [second, third]])
+        listener = create_listener(where=[P.StateTo("off"), P.AllOf((second, third))])
         assert listener.evaluate(state_event("off", "off")) == 1
         assert calls == ["second"], "evaluation stops at the first false filter"
 

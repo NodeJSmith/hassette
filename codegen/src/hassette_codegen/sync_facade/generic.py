@@ -94,7 +94,6 @@ from hassette.bus.sync_events import BusSyncEventShortcuts
 from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types import ComparisonCondition
 from hassette.types.types import IfExistsPolicy, WhereClause
 from hassette_wire import LogLevel
 
@@ -103,8 +102,9 @@ if typing.TYPE_CHECKING:
 
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
+    from hassette.const import FalseySentinel
     from hassette.events.base import AnyEvent
-    from hassette.types import ChangeType, HandlerType, Predicate
+    from hassette.types import ChangeType, ComparisonCondition, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
     from hassette_wire import BackpressurePolicy, ExecutionMode
 

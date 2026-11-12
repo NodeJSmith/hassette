@@ -227,6 +227,7 @@ class DurationHoldManager:
                         "duration_fire: entity %s predicate no longer matches, dropping fire",
                         entity_id,
                     )
+                    # None means a hold predicate raised: that is recorded as an error run, not a miss.
                     if matched is False and report is not None:
                         report("hold_recheck_failed", recheck_event, is_synthetic=True)
                     return

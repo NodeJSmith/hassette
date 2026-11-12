@@ -38,7 +38,9 @@ async def test_state_change_default_change_filter_is_scope(bus: "Bus") -> None:
 async def test_state_change_default_still_filters_unchanged_states(bus: "Bus") -> None:
     sub = await bus.on_state_change("light.kitchen", handler=handler, name="default_still_filters")
 
-    assert not sub.listener.matches(create_state_change_event(entity_id="light.kitchen", old_value="on", new_value="on"))
+    assert not sub.listener.matches(
+        create_state_change_event(entity_id="light.kitchen", old_value="on", new_value="on")
+    )
     assert sub.listener.matches(create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on"))
 
 

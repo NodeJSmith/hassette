@@ -45,7 +45,9 @@ _listener_id_seq = itertools.count(1)
 
 
 MATCHED = -1
-"""``Listener.evaluate`` result: the event passed the listener's scope and every filter."""
+"""``Listener.evaluate`` result: the event passed the listener's scope and every filter.
+
+Every ``evaluate`` sentinel is negative, so a result ``>= 0`` is always a filter index."""
 
 OUT_OF_SCOPE = -2
 """``Listener.evaluate`` result: the event failed the listener's scope (another entity, the default change filter)."""
@@ -651,6 +653,8 @@ class Listener:
         Raises if a predicate raises — the caller (BusService.dispatch) handles
         isolation, telemetry recording, and error-handler routing.
         """
+        if self.scope is None and not self.filters:
+            return MATCHED
         result = MATCHED
         if self.scope is not None and not self.scope(ev):
             result = OUT_OF_SCOPE

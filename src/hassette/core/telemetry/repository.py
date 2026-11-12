@@ -10,6 +10,7 @@ from hassette_wire import ScheduleStatus, ScheduleStatusReason
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry.execution_queries import TRIGGER_COLUMNS
 from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.core.telemetry.insert_params import (
     EXECUTION_INSERT_SQL,
@@ -33,19 +34,18 @@ from hassette.utils.stack_frames import encode_frames
 LOGGER = getLogger(__name__)
 
 
-_LISTENER_MISS_LAST_COLUMNS = (
-    "last_ts",
-    "trigger_topic",
-    "trigger_entity_id",
-    "trigger_old_value",
-    "trigger_new_value",
-    "trigger_context_id",
-    "trigger_parent_id",
-    "trigger_origin",
-)
+_LISTENER_MISS_LAST_COLUMNS = ("last_ts", *TRIGGER_COLUMNS)
 """``listener_misses`` columns that describe the last dropped event, replaced together by a newer rollup."""
 
-_LISTENER_MISS_COLUMNS = ("listener_id", "hour_ts", "reason", "filter", "count", "first_ts", *_LISTENER_MISS_LAST_COLUMNS)
+_LISTENER_MISS_COLUMNS = (
+    "listener_id",
+    "hour_ts",
+    "reason",
+    "filter",
+    "count",
+    "first_ts",
+    *_LISTENER_MISS_LAST_COLUMNS,
+)
 
 _LISTENER_MISS_LAST_SET = ", ".join(
     f"{column} = CASE WHEN excluded.last_ts >= last_ts THEN excluded.{column} ELSE {column} END"
@@ -70,8 +70,8 @@ if TYPE_CHECKING:
     from hassette_wire import ApiWriteOutcome
 
     from hassette.core.api_write_recorder import ApiWriteRow
-    from hassette.core.listener_miss_recorder import ListenerMissRow
     from hassette.core.database_service import DatabaseService
+    from hassette.core.listener_miss_recorder import ListenerMissRow
 
 
 class TelemetryRepository:
@@ -629,7 +629,7 @@ class TelemetryRepository:
         db = self._db_service.db
         try:
             await db.execute("BEGIN")
-            await db.executemany(_LISTENER_MISS_UPSERT_SQL, [_listener_miss_params(row) for row in rows])
+            await db.executemany(_LISTENER_MISS_UPSERT_SQL, [listener_miss_params(row) for row in rows])
             await db.commit()
         except Exception:  # any failure rolls back, then re-raises to the caller
             await db.rollback()
@@ -691,6 +691,6 @@ class TelemetryRepository:
         return dropped
 
 
-def _listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:
+def listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:
+    """The named SQL parameters of one ``listener_misses`` upsert row."""
     return {column: getattr(row, column) for column in _LISTENER_MISS_COLUMNS}
-

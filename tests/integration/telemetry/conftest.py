@@ -44,6 +44,7 @@ async def db(db_hassette: MagicMock) -> AsyncIterator[DbFixture]:
     db_hassette.session_id = session_id
     db_hassette.try_session_id.return_value = session_id
     db_hassette.database_service = db_service
+    db_hassette.try_database_service.return_value = db_service
     yield db_service, session_id
     await db_service.on_shutdown()
 

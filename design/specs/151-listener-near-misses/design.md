@@ -181,8 +181,32 @@ New pieces and their homes:
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- D3 refines parent D3 by moving the failing filter from a last-value column into the rollup key: noted here, the decision body is unedited.
+- `HandlerInvoker` passes its reporter and the event into `RateLimiter.call(handler, event, report)`, so the limiter holds no listener reference.
+- `Listener.cancel()` unbinds `report_drop`, so a cancelled `once=True` listener's in-flight dispatch records nothing and a removed listener records nothing more: no separate "fired by dispatch" flag is needed for `once_spent`.
+- Hold predicates (`hold_preds`, starting with `EntityMatches`) need no scope split: hold reasons carry no filter, so the hold predicate is evaluated whole.
+- An entry keeps a reference to the last event and summarizes it at flush with `summarize_trigger`: cheaper than extracting values on dispatch, and the same code path as executions.
+- The in-memory key uses the routing `listener_id` (unique per `Listener` object), not `db_id`, so a replaced listener sharing a `db_id` never mixes filter indexes; rows key on `db_id`.
+- The `filter` column is `NOT NULL DEFAULT ''` for non-filter reasons, because SQLite's unique index treats NULLs as distinct; the read maps `''` to None.
+- The upsert is `INSERT … SELECT … WHERE EXISTS (listener)`, so a listener deleted between record and flush skips its row instead of failing the batch on the foreign key.
+- The recorder records nothing when no `DatabaseService` is wired (`Hassette.try_database_service()` returns None), which is the test harness's bus; the repository is built per flush.
+- `_match_listeners` remembers scope rejections too (one `rejected` set alongside raises), since evaluation is deterministic per event.
+- `hold_recheck_failed` with the entity missing from the cache records the event that started the hold, since no state exists to build a fire-time event from.
+- `Listener.predicate` stays the caller's filters; `filters` is derived in `__post_init__`; `full_predicate` rebuilds the combined predicate only for the registered description, so registered descriptions are unchanged.
+- `Listener.evaluate` returns ints (`MATCHED=-1`, `OUT_OF_SCOPE=-2`, else the filter index) to keep the dispatch path allocation-free.
+- `hold_matches`/`evaluate_predicate` return None on a raising predicate so the recheck can tell a raise (an error execution, not a miss) from a mismatch.
+- CLI miss table columns: Hour (local, from `hour_ts`), Reason, Filter, Count, Last, Entity, Old → New. `fmt_hour` and `fmt_change` live in `cli/formatters.py` with the other column formatters.
+- `caused_by_subquery()` became the template constant `CAUSED_BY_SUBQUERY` (formatted with the table alias), since module-level SELECT lists are built from it at import.
+- A failed flush passes its exception to `warn_loss`, which logs it with `exc_info`; the WARNING is paced by `lifecycle.command_executor_capacity_warn_rate_limit_seconds`, like the execution queue's capacity WARNING.
+- Client-compat fixtures request `/misses` for a listener that has miss rows (`SeedIds.missed_listener_id`), falling back to any listener; the healthy seed scenario gives `plant_monitor`'s state listener an hour of rows.
+- The generated `Bus` sync facade's header imports `ComparisonCondition` and `FalseySentinel` under `TYPE_CHECKING`, since `changed`'s annotation is now a string.
+- Benchmark (`uv run nox -s benchmarks`, 20,000 rounds, same machine): before the recording code (commit 9010cef5) `test_match_rejected_by_where` had a median of 117.15 µs (mean 143.46). After it, the same pass with no reporter bound has a median of 112.12 µs (mean 128.90), and with a `ListenerMissRecorder` bound (`test_match_rejected_by_where_recording`) 117.33 µs (mean 132.15). Recording adds about 5.2 µs, 4.6% of the pass, under parent D3's 10% limit.
+- `DurationHoldManager` reads `listener.invoker.report_drop` when the hold fires rather than taking an injected reporter (the Summary says injected), because it already holds the listener and reading at fire time picks up `cancel()`'s unbinding; `DurationTimer` has no listener, so it gets the injected `on_hold_cancelled` closure, which also reads the reporter at call time.
+- `CLI` old → new rendering is one helper, `fmt_value_change` in `cli/formatters.py`, shared by `hassette log`'s trigger summary and the miss table.
+- Comb minor findings 2 (duplicated facts: the 10% limit, failed flush, migration chain) were left as is: cosmetic, and each restatement is consistent.

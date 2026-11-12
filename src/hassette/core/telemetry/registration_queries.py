@@ -5,10 +5,9 @@ from typing import TYPE_CHECKING, Any
 
 from hassette_wire import JobSummary, ListenerMiss, QuerySourceTier
 
-from hassette.core.listener_miss_recorder import NO_FILTER
-from hassette.core.telemetry.execution_queries import TRIGGER_COLUMNS, caused_by_subquery, trigger_from_row
-
+from hassette.core.telemetry.execution_queries import CAUSED_BY_SUBQUERY, TRIGGER_COLUMNS, trigger_from_row
 from hassette.core.telemetry.helpers import (
+    LISTENER_MISS_NO_FILTER,
     SQL_FAILED_STATUSES,
     SQL_KIND_HANDLER,
     SQL_KIND_JOB,
@@ -35,7 +34,7 @@ _LISTENER_MISS_SELECT_COLUMNS = (
     "m.hour_ts, m.reason, m.filter, m.count, m.first_ts, m.last_ts, "
     + ", ".join(f"m.{column}" for column in TRIGGER_COLUMNS)
     + ", "
-    + caused_by_subquery("m")
+    + CAUSED_BY_SUBQUERY.format(alias="m")
 )
 
 
@@ -341,10 +340,9 @@ def listener_miss_from_row(row: dict[str, Any]) -> ListenerMiss:
     return ListenerMiss(
         hour_ts=row["hour_ts"],
         reason=row["reason"],
-        filter=None if row["filter"] == NO_FILTER else row["filter"],
+        filter=None if row["filter"] == LISTENER_MISS_NO_FILTER else row["filter"],
         count=row["count"],
         first_ts=row["first_ts"],
         last_ts=row["last_ts"],
         trigger=trigger_from_row(row),
     )
-

@@ -661,6 +661,10 @@ def make_mock_listener(
     listener.once = False
     listener.priority = 0
     listener.predicate = None
+    listener.scope = None
+    # No scope, so the registered description is the caller's predicate, as on a real Listener.
+    # Each MagicMock has its own class, so the property stays on this mock.
+    type(listener).full_predicate = property(lambda self: self.predicate)
     listener.entity_watch = None
     return listener
 

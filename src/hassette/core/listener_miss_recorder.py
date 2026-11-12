@@ -7,7 +7,7 @@ the flush. A flush every ``FLUSH_INTERVAL_SECONDS`` (and once at shutdown) swaps
 as one batched upsert that adds to any row already stored for the same key.
 
 Recording is best-effort: a failed or dropped flush loses its batch, is counted under
-``PipelineCounter.LISTENER_MISS_FLUSH_FAILED`` and warned about once per episode, and is never retried.
+``PipelineCounter.LISTENER_MISS_FLUSH_FAILED`` with a paced WARNING, and is never retried.
 """
 
 import asyncio
@@ -19,8 +19,10 @@ from functools import partial
 
 from hassette.core.execution_record_builder import summarize_trigger
 from hassette.core.pipeline_counters import PipelineCounter
+from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.event_handling.predicates import summarize_top_level
+from hassette.types.types import APP_SOURCE_TIER
 
 if typing.TYPE_CHECKING:
     from hassette_wire import ListenerMissReason
@@ -38,10 +40,6 @@ FLUSH_INTERVAL_SECONDS = 30.0
 HOUR_SECONDS = 3600
 """Width of one rollup bucket."""
 
-NO_FILTER = ""
-"""The stored ``filter`` of a row whose reason isn't ``filter``. Not NULL, because the upsert's unique key
-includes the column and SQLite treats NULLs as distinct there."""
-
 
 @dataclass(slots=True)
 class MissEntry:
@@ -58,7 +56,8 @@ class MissEntry:
     last_event: "AnyEvent"
     """The last dropped event, summarized at flush with the executions' trigger summary."""
     is_synthetic: bool
-    """Whether ``last_event`` was built from the cached state, so its origin is stored as synthetic."""
+    """Whether ``last_event`` was built from the cached state, so its origin is stored as synthetic. Follows
+    ``last_event``: each record replaces both."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,9 +93,9 @@ class ListenerMissRecorder:
         """The reporter to bind to ``listener``, or None for a listener whose near-misses aren't recorded.
 
         Only registered app listeners record: framework listeners and ones without a ``db_id`` don't, and nothing
-        records without a database to store it in (the test harness's bus).
+        records when no ``DatabaseService`` is wired.
         """
-        if listener.identity.source_tier != "app" or listener.db_id is None:
+        if listener.identity.source_tier != APP_SOURCE_TIER or listener.db_id is None:
             return None
         if self.hassette.try_database_service() is None:
             return None
@@ -157,14 +156,14 @@ class ListenerMissRecorder:
             rows = [build_row(entry) for entry in entries.values()]
             database = self.hassette.database_service
             await database.submit(TelemetryRepository(database).upsert_listener_misses(rows))
-        except Exception:
+        except Exception as exc:
             self.hassette.pipeline_counters.increment(PipelineCounter.LISTENER_MISS_FLUSH_FAILED, len(entries))
-            self.warn_loss(len(entries))
+            self.warn_loss(len(entries), exc)
             return
         LOGGER.debug("Flushed %d listener near-miss rollup(s)", len(rows))
 
-    def warn_loss(self, lost: int) -> None:
-        """Log one WARNING per loss episode, paced like the execution write queue's capacity WARNING."""
+    def warn_loss(self, lost: int, exc: Exception) -> None:
+        """Log a WARNING for a lost batch, at most once per interval, paced like the execution queue's capacity one."""
         now = time.monotonic()
         interval = self.hassette.config.lifecycle.command_executor_capacity_warn_rate_limit_seconds
         if self.last_loss_warn_ts is not None and now - self.last_loss_warn_ts < interval:
@@ -174,7 +173,7 @@ class ListenerMissRecorder:
             "Failed to write %d listener near-miss rollup(s); they are dropped (counted under %s)",
             lost,
             PipelineCounter.LISTENER_MISS_FLUSH_FAILED.name,
-            exc_info=True,
+            exc_info=exc,
         )
 
 
@@ -183,9 +182,10 @@ def build_row(entry: MissEntry) -> ListenerMissRow:
     listener = entry.listener
     if listener.db_id is None:
         raise RuntimeError(f"near-miss recorded for unregistered listener {listener!r}")
-    filter_summary = (
-        NO_FILTER if entry.filter_index is None else summarize_top_level(listener.filters[entry.filter_index])
-    )
+    if entry.filter_index is None:
+        filter_summary = LISTENER_MISS_NO_FILTER
+    else:
+        filter_summary = summarize_top_level(listener.filters[entry.filter_index])
     trigger = summarize_trigger(entry.last_event, listener, is_synthetic=entry.is_synthetic)
     return ListenerMissRow(
         listener_id=listener.db_id,

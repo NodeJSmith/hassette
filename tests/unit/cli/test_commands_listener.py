@@ -1,6 +1,7 @@
 """Unit tests for hassette listener and listener <id> commands."""
 
 import pytest
+from hassette_wire import ExecutionTrigger
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.listener import (
@@ -8,11 +9,13 @@ from hassette.cli.commands.listener import (
     LISTENER_LIST_COLUMNS,
     cmd_listener,
 )
-from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
+from hassette.cli.formatters import fmt_change
+from tests.support.web_telemetry_helpers import make_execution, make_listener_miss, make_listener_summary
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.listener.make_client")
 LISTENER_42_EXECUTIONS_ENDPOINT = "/api/telemetry/listener/42/executions"
+LISTENER_42_MISSES_ENDPOINT = "/api/telemetry/listener/42/misses"
 
 # cmd_listener (bare — list all listeners)
 
@@ -160,3 +163,45 @@ class TestCmdListenerDetail:
     def test_invocation_columns_count_is_compact(self) -> None:
         """LISTENER_INVOCATION_COLUMNS uses at most 7 columns for 80-column fit."""
         assert len(LISTENER_INVOCATION_COLUMNS) <= 7
+
+
+class TestCmdListenerMisses:
+    @pytest.fixture
+    def listener_42_misses_client(self, cli_client_factory: CLIClientFactory) -> HassetteCLIClient:
+        """A client serving one near-miss row for listener 42."""
+        return cli_client_factory.build_with_routes(
+            [("GET", LISTENER_42_MISSES_ENDPOINT, 200, [make_listener_miss().model_dump()])]
+        )
+
+    def test_calls_misses_endpoint_with_since_and_limit(self, listener_42_misses_client: HassetteCLIClient) -> None:
+        """Listener <id> --misses fetches /misses, not /executions, and passes --since and --limit."""
+        spy = runner.spy(
+            listener_42_misses_client, cmd_listener, listener_id=42, misses=True, since=SINCE_EPOCH, limit=5
+        )
+
+        assert spy.paths == [LISTENER_42_MISSES_ENDPOINT]
+        assert spy.params_for("misses") == {"since": SINCE_EPOCH, "limit": 5}
+
+    def test_human_mode_renders_reason_filter_and_change(self, listener_42_misses_client: HassetteCLIClient) -> None:
+        output = runner.stdout(listener_42_misses_client, cmd_listener, listener_id=42, misses=True)
+
+        assert "filter" in output
+        assert "→ on" in output
+        assert "light.kitchen" in output
+        assert "off → dim" in output
+
+    def test_json_mode_outputs_the_rows(self, listener_42_misses_client: HassetteCLIClient) -> None:
+        parsed = runner.json_output(listener_42_misses_client, cmd_listener, listener_id=42, misses=True)
+
+        assert [(row["reason"], row["count"]) for row in parsed] == [("filter", 3)]
+
+    def test_without_listener_id_exits_with_usage_error(self, cli_client_factory: CLIClientFactory) -> None:
+        code, stderr = runner.usage_error(cli_client_factory.build_with_routes([]), cmd_listener, misses=True)
+
+        assert code != 0
+        assert "--misses requires a listener ID" in stderr
+
+    def test_change_column_blank_without_values(self) -> None:
+        miss = make_listener_miss(trigger=ExecutionTrigger(topic="hassette.event.custom"))
+
+        assert fmt_change(miss) == ""

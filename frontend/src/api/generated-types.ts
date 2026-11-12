@@ -697,6 +697,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/listener/{listener_id}/misses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listener Misses
+         * @description Hourly rollups of the events that reached an app listener and didn't run its handler, latest first.
+         */
+        get: operations["listener_misses_api_telemetry_listener__listener_id__misses_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/job/{job_id}/executions": {
         parameters: {
             query?: never;
@@ -2026,6 +2046,52 @@ export interface components {
         LastErrorResult: {
             /** @description The most recent error in the window. ``None`` means the lookup ran and found no error. */
             error: components["schemas"]["LastError"] | null;
+        };
+        /**
+         * ListenerMiss
+         * @description One hour of one reason an app listener dropped events that reached it, with the last such event.
+         *
+         *     Recorded only for app listeners, and only for events in the listener's scope: an event for another entity, or
+         *     the default ``changed`` filter rejecting an unchanged state, records nothing. ``count`` adds up across restarts
+         *     within the hour.
+         */
+        ListenerMiss: {
+            /**
+             * Hour Ts
+             * @description Start of the hour (Unix seconds, UTC) the drops fell in.
+             */
+            hour_ts: number;
+            /**
+             * Reason
+             * @description Why the events didn't run the handler.
+             * @enum {string}
+             */
+            reason: "filter" | "throttled" | "debounce_superseded" | "once_spent" | "busy" | "queue_full" | "backpressure" | "hold_cancelled" | "hold_recheck_failed";
+            /**
+             * Filter
+             * @description Summary of the filter that rejected the events, for ``reason='filter'``. None for every other reason.
+             */
+            filter?: string | null;
+            /**
+             * Count
+             * @description How many events were dropped for this reason (and filter) in the hour.
+             */
+            count: number;
+            /**
+             * First Ts
+             * @description When the first of them was dropped.
+             */
+            first_ts: number;
+            /**
+             * Last Ts
+             * @description When the last of them was dropped.
+             */
+            last_ts: number;
+            /**
+             * @description The last dropped event. For ``hold_cancelled`` it's the event that ended the hold; for
+             *     ``hold_recheck_failed`` it's the state at the end of the hold, built from the cache.
+             */
+            trigger: components["schemas"]["ExecutionTrigger"];
         };
         /**
          * ListenerSummary
@@ -4021,6 +4087,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Execution"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    listener_misses_api_telemetry_listener__listener_id__misses_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                since?: number | null;
+            };
+            header?: never;
+            path: {
+                listener_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListenerMiss"][];
                 };
             };
             /** @description Validation Error */

@@ -27,7 +27,7 @@ from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._factories import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._factories import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import DEFAULT_TEST_INSTANCE_NAME, TEST_SOURCE_LOCATION
-from hassette.types.enums import Topic
+from hassette.types.enums import Outcome, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 from tests.support.factories import make_hassette_event
 
@@ -671,10 +671,10 @@ class PrimedGuard(NamedTuple):
     gate: asyncio.Event
     """Release this to let the running invocation complete."""
 
-    running_task: asyncio.Task[None]
+    running_task: asyncio.Task[Outcome]
     """The task that is blocked on ``gate``."""
 
-    queued_task: asyncio.Task[None] | None
+    queued_task: asyncio.Task[Outcome] | None
     """The task parked in ``guard.pending``, or ``None`` when no queued call was requested."""
 
 
@@ -723,7 +723,7 @@ async def prime_guard(
     )
     await asyncio.wait_for(started.wait(), timeout=hang_guard_timeout)
 
-    queued_task: asyncio.Task[None] | None = None
+    queued_task: asyncio.Task[Outcome] | None = None
     if invoke_queued is not None:
         queued_task = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", lambda: None)

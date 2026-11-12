@@ -4,7 +4,7 @@ Hassette stores operational telemetry in a local SQLite database: every [bus](bu
 
 ## What Is Collected
 
-Hassette records five types of data automatically, with no configuration required.
+Hassette records six types of data automatically, with no configuration required.
 
 **Handler invocations.** Every app-tier bus listener firing produces a row in the `executions` table. Each row captures the start time, wall-clock duration, and outcome (`success`, `error`, `cancelled`, or `timed_out`). Failed executions include full exception details. Framework-tier handler invocations are filtered by default — errors and slow executions are always recorded, while routine successes are sampled at a configurable rate (see `framework_record_errors`, `framework_record_slow_ms`, and `framework_record_sample_rate` below).
 
@@ -42,6 +42,24 @@ A value wrapped in `SecretStr` is stored as `**********`, anywhere in a write's 
 
 A typical write row takes about 460 bytes. An app making 1,000 writes a day keeps about 30,000 rows under the default 30-day `retention_days`, roughly 14 MB. Long `data` adds up to about 2 KB a row.
 
+**Listener near-misses.** When an event reaches an app listener and the handler doesn't run, Hassette counts it in the `listener_misses` table. Each row covers one listener, one hour, one reason and, for `filter`, the filter that said no. It holds the count, the first and last time, and the last such event's entity, old and new value, context and origin, stored the same way as a handler row's trigger. `hassette listener <id> --misses` lists them, newest first.
+
+| Reason | What dropped the event |
+| --- | --- |
+| `filter` | A `where=` predicate, or an explicit `changed_from`, `changed_to` or `changed=`, returned `False`. The row names that filter. |
+| `throttled` | `throttle=` was still waiting out its interval. |
+| `debounce_superseded` | A newer event replaced it while `debounce=` was waiting. |
+| `once_spent` | A `once=True` listener had already fired. |
+| `busy` | `mode="single"` and the handler was still running. |
+| `queue_full` | `mode="queued"` and the queue was full. |
+| `backpressure` | `backpressure="drop_newest"` and every bus dispatch slot was in use (see [backpressure](bus/backpressure.md)). |
+| `hold_cancelled` | A `duration=` hold ended early because the entity left the matching state. The row records the event that ended it. |
+| `hold_recheck_failed` | A `duration=` hold ran out, but the state no longer matched when Hassette checked it again. That happens when the state changed without an event Hassette saw, or when the entity is gone from the cache. |
+
+Only events the listener could have handled count. An event for another entity on a glob subscription, or one the default change check drops (an attribute-only update on `on_state_change`), records nothing, so an empty `--misses` doesn't mean the listener saw no events. See [which filters count](bus/filtering.md#near-misses). A `where=` predicate that raises records an error execution, not a miss. Framework listeners record nothing.
+
+Counts are kept in memory and written every 30 seconds and at shutdown, so a miss can take up to 30 seconds to show, and a crash loses at most that long. A write that fails drops its batch and logs one WARNING; Hassette doesn't retry it. A restart or app reload within the hour adds to the same row. A listener's miss rows are deleted with it, so a `once=True` listener's rows go when its registration is cleaned up at the next start or reload.
+
 **Listener registrations.** Every registered bus listener is stored by name and topic in the `listeners` table. Counts appear in the Apps page stats strip.
 
 **Job registrations.** Every scheduled job is stored in the `scheduled_jobs` table. Counts appear alongside listener counts in the stats strip.
@@ -67,7 +85,7 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 | `shutdown_snapshot_path` | path or null | `null` | Where Hassette writes a single-file copy of the database on each clean shutdown, for backup setups that leave out the live database files. The copy is written under a temporary name and renamed into place, so the file is always complete. The Home Assistant add-on sets it so a backup taken while the add-on is stopped still holds the database. The add-on also restores this copy at start whenever the database file is missing, so deleting the database alone brings the copy back; delete both to start fresh. |
 | `retention_days` | integer | `30` | Days of app-tier execution records to retain. Records older than this value are deleted automatically. Minimum: 1. Lowering it below 30 also requires lowering `framework_retention_days` and `logging.log_retention_days` to at most the new value. |
 | `framework_retention_days` | integer | `30` | Days of framework-tier execution records to retain. Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are tracked separately from app handlers, so lowering this window trims framework history without touching app records. Must be `<= retention_days`. |
-| `max_size_mb` | float | `500` | Maximum live data in megabytes: the in-use pages of the database, not the file on disk. Free pages and the WAL don't count, so the file can sit above this value until unused pages are reclaimed. When exceeded, the oldest records are deleted in batches, in this order: persisted DEBUG log lines, then framework executions, then blocking events, then API writes, then app executions. Log lines at INFO and above are never deleted by this failsafe — only by `logging.log_retention_days`. A value of `0` disables the size limit. |
+| `max_size_mb` | float | `500` | Maximum live data in megabytes: the in-use pages of the database, not the file on disk. Free pages and the WAL don't count, so the file can sit above this value until unused pages are reclaimed. When exceeded, the oldest records are deleted in batches, in this order: persisted DEBUG log lines, then listener near-misses, then framework executions, then blocking events, then API writes, then app executions. Log lines at INFO and above are never deleted by this failsafe — only by `logging.log_retention_days`. A value of `0` disables the size limit. |
 | `framework_record_errors` | bool | `true` | Always persist framework-tier executions with any non-success status (errors, timeouts, cancellations, skips). When `false`, framework errors are sampled at the same rate as routine successes. |
 | `framework_record_slow_ms` | float or null | `100.0` | Persist framework-tier executions whose duration exceeds this threshold (in milliseconds), regardless of status. `null` disables duration-based persistence. |
 | `framework_record_sample_rate` | float | `0.0` | Fraction of routine (successful, fast) framework-tier executions to persist. `0.0` drops all routine framework executions; `1.0` persists everything. Values between 0 and 1 sample randomly. |
@@ -89,15 +107,15 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 
 Two maintenance routines run every hour in the background.
 
-Time-based retention deletes from six targets independently: framework-tier execution records older than `framework_retention_days` (default: 30), app-tier execution records older than `retention_days` (default: 30), [blocking-event](blocking-io-detection.md) records and API writes older than `retention_days`, and log records older than `logging.log_retention_days` (default: 30), with DEBUG log lines as a target of their own. Each target commits in its own batches, so a failure or a large backlog on one target does not block the others. After those deletes succeed, the same pass removes session records (one per Hassette start, including crash details) that ended more than `retention_days` ago and no longer have any execution, blocking-event or API write records pointing at them. The current session is never removed.
+Time-based retention deletes from seven targets independently: framework-tier execution records older than `framework_retention_days` (default: 30), app-tier execution records older than `retention_days` (default: 30), [blocking-event](blocking-io-detection.md) records, API writes and listener near-misses older than `retention_days`, and log records older than `logging.log_retention_days` (default: 30), with DEBUG log lines as a target of their own. Each target commits in its own batches, so a failure or a large backlog on one target does not block the others. After those deletes succeed, the same pass removes session records (one per Hassette start, including crash details) that ended more than `retention_days` ago and no longer have any execution, blocking-event or API write records pointing at them. The current session is never removed.
 
-Retired listener and job registrations are cleaned up separately, after every one of the six targets above has fully cleared its own cutoff window for the current cycle. If any target fails or leaves a backlog past the per-cycle batch cap, the registration cleanup is skipped for that cycle and retried on the next one — this prevents deleting a registration whose child execution records have not actually been fully removed yet.
+Retired listener and job registrations are cleaned up separately, after every one of the seven targets above has fully cleared its own cutoff window for the current cycle. If any target fails or leaves a backlog past the per-cycle batch cap, the registration cleanup is skipped for that cycle and retried on the next one — this prevents deleting a registration whose child execution records have not actually been fully removed yet.
 
 Registration cleanup also clears out apps removed from config, so it runs only on the same cycles. Once a removed app is no longer running, the next cycle retires its listener and job registrations. The app is dropped after everything it left behind has aged out: those registrations, its executions, its log records, its blocking events, and its API writes. The sidebar stops listing a removed app as soon as it leaves config. The Apps page does too, unless one of the app's instances is flagged as needing a Hassette restart. Its history stays in the database until it ages out: its detail page still opens from a direct link, and an app added back to config picks up whatever of its history has not aged out yet.
 
 Hassette decides which apps were removed from its own config and running apps, so a database belongs to one running Hassette process. Don't point two instances at the same `path` or `data_dir`.
 
-In the hourly cycle, size-based retention runs after time-based retention; the one-time catch-up at startup runs it first. When live data (the database's in-use pages, excluding free pages and the WAL) exceeds `max_size_mb`, the oldest records are deleted in priority order: DEBUG log lines first, then framework executions, then blocking events, then API writes, then app executions.
+In the hourly cycle, size-based retention runs after time-based retention; the one-time catch-up at startup runs it first. When live data (the database's in-use pages, excluding free pages and the WAL) exceeds `max_size_mb`, the oldest records are deleted in priority order: DEBUG log lines first, then listener near-misses, then framework executions, then blocking events, then API writes, then app executions.
 
 DEBUG log lines are stored whenever a logger runs at `DEBUG`: a `logging.*` field, an app's `log_level` or `framework_log_level`, or [debug capture](../operating/log-levels.md#debug-capture-for-one-app). They can outgrow everything else in the database, so they go first. Log lines at INFO and above are exempt from this failsafe entirely: only the time-based pass deletes them, on `logging.log_retention_days`. Without DEBUG lines the table stays small next to executions, so deleting from it would reclaim little space while destroying the records most needed to work out what filled the database in the first place.
 

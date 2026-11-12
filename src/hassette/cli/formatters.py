@@ -10,7 +10,7 @@ from collections.abc import Callable, Sequence
 from functools import wraps
 from typing import Any
 
-from hassette_wire import AppInstance, LogEntry, ResourceStatus
+from hassette_wire import AppInstance, ListenerMiss, LogEntry, ResourceStatus
 from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
@@ -211,3 +211,28 @@ def fmt_debug_capture(instances: Sequence[AppInstance]) -> str:
 def fmt_flagged(value: Any) -> str:
     """``yes`` when a nullable flag object is set, blank otherwise, so only flagged rows stand out."""
     return "yes" if value is not None else ""
+
+
+def fmt_hour(hour_ts: float) -> str:
+    """The start of a rollup hour in local time, e.g. ``2026-11-12 14:00``."""
+    local = Instant.from_timestamp(hour_ts).to_tz(SYSTEM_TZ)
+    return f"{local.year:04d}-{local.month:02d}-{local.day:02d} {local.hour:02d}:00"
+
+
+def display_value(value: str | None) -> str:
+    """A trigger value for a change: ``—`` only when there is no value, and ``""`` shown quoted."""
+    if value is None:
+        return EMPTY_VALUE
+    return '""' if value == "" else value
+
+
+def fmt_value_change(old: str | None, new: str | None) -> str | None:
+    """``old → new`` for a trigger's values, e.g. ``on → off``; None when the event carried neither."""
+    if old is None and new is None:
+        return None
+    return f"{display_value(old)} → {display_value(new)}"
+
+
+def fmt_change(miss: ListenerMiss) -> str:
+    """The last dropped event's ``old → new`` values; empty when the event carried neither."""
+    return fmt_value_change(miss.trigger.old_value, miss.trigger.new_value) or ""

@@ -4,11 +4,10 @@ from typing import Annotated, Any
 
 from cyclopts import Parameter
 from hassette_wire import Execution, ListenerMiss, ListenerSummary
-from whenever import Instant
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.formatters import fmt_duration_ms, fmt_handler_short, fmt_relative_time
+from hassette.cli.formatters import fmt_change, fmt_duration_ms, fmt_handler_short, fmt_hour, fmt_relative_time
 from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 
@@ -33,20 +32,6 @@ LISTENER_INVOCATION_COLUMNS: list[Column] = [
     Column("execution_start_ts", "When", max_width=11, formatter=fmt_relative_time),
     Column("execution_id", "Execution ID", max_width=14),
 ]
-
-
-def fmt_hour(hour_ts: float) -> str:
-    """The start of a rollup hour in local time, e.g. ``2026-11-12 14:00``."""
-    local = Instant.from_timestamp(hour_ts).to_system_tz()
-    return f"{local.year:04d}-{local.month:02d}-{local.day:02d} {local.hour:02d}:00"
-
-
-def fmt_change(miss: ListenerMiss) -> str:
-    """The last dropped event's old and new values, e.g. ``on → off``; empty when the event carried neither."""
-    old, new = miss.trigger.old_value, miss.trigger.new_value
-    if old is None and new is None:
-        return ""
-    return f"{old if old is not None else '—'} → {new if new is not None else '—'}"
 
 
 LISTENER_MISS_COLUMNS: list[Column] = [
@@ -113,4 +98,3 @@ def cmd_listener(
     )
     listeners = parse_wire_list(ListenerSummary, raw)
     render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=ctx.json_mode)
-

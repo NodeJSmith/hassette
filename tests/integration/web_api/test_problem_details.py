@@ -92,6 +92,11 @@ TELEMETRY_DATA_ROUTES = {
         "/api/telemetry/listener/1/executions",
         "/api/telemetry/listener/{listener_id}/executions",
     ),
+    "listener-misses": TelemetryRoute(
+        "get_listener_misses",
+        "/api/telemetry/listener/1/misses",
+        "/api/telemetry/listener/{listener_id}/misses",
+    ),
     "job-executions": TelemetryRoute(
         "get_executions", "/api/telemetry/job/1/executions", "/api/telemetry/job/{job_id}/executions"
     ),

@@ -7,6 +7,7 @@ from seed_scenarios.base import (
     SeedContext,
     seed_app_api_writes,
     seed_listener,
+    seed_listener_misses,
     seed_log_records,
     seed_simple_app,
     ts,
@@ -18,7 +19,7 @@ def scenario_healthy(ctx: SeedContext) -> None:
     an occasional handled error, comfortably above the 95% "good" success-rate threshold.
 
     A single minimal blocking event is included (see the comment below) so this scenario
-    still populates all 7 telemetry tables without undermining the "healthy install" narrative.
+    still populates all 8 telemetry tables without undermining the "healthy install" narrative.
     """
     # Two apps have no description, so the UI shows both the described and undescribed shape.
     apps = [
@@ -32,7 +33,7 @@ def scenario_healthy(ctx: SeedContext) -> None:
     for i, (app_key, class_name, n_errors, description) in enumerate(apps):
         base = i * APP_TIME_SPACING_SECONDS
         ctx.add_app_manifest(app_key=app_key, class_name=class_name, description=description)
-        session_id, _, _ = seed_simple_app(
+        session_id, listener_id, _ = seed_simple_app(
             ctx,
             scenario="healthy",
             app_key=app_key,
@@ -53,6 +54,15 @@ def scenario_healthy(ctx: SeedContext) -> None:
             count=3,
             n_rejected=1 if app_key == "garage_door" else 0,
         )
+        # One app's state listener has an hour of near-misses, so `--misses` and its route have rows to show.
+        if app_key == "plant_monitor":
+            seed_listener_misses(
+                ctx,
+                listener_id=listener_id,
+                base_offset=base,
+                entity_id=f"sensor.{app_key}",
+                filter_summary="→ on",
+            )
         # Second listener per app, for the "2-3 listeners" spread called for in the design doc.
         seed_listener(
             ctx,
