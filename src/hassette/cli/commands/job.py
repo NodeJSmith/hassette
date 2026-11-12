@@ -1,9 +1,6 @@
 """Job-related CLI commands: job list, execution history, and manual trigger."""
 
-from typing import Any
-
 from hassette_wire import (
-    Execution,
     JobSummary,
     JobTriggerResponse,
     ScheduleStatus,
@@ -12,19 +9,11 @@ from hassette_wire import (
 )
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
+from hassette.cli.commands.executions import render_execution_history
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
 from hassette.cli.output import Column, render_detail, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
-
-JOB_EXECUTION_COLUMNS: list[Column] = [
-    Column("status", "Status", max_width=10),
-    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
-    Column("error_type", "Error Type", max_width=20),
-    Column("error_message", "Error Message", max_width=28),
-    Column("execution_start_ts", "When", max_width=11, formatter=fmt_relative_time),
-    Column("execution_id", "Execution ID", max_width=14),
-]
 
 #: schedule_status -> schedule_status_reason -> display text, for combinations that override
 #: the default per-status text below. ``None`` reason keys are handled by the plain
@@ -100,13 +89,9 @@ def cmd_job(
     client = make_client(ctx)
 
     if job_id is not None:
-        raw: list[Any] = client.get(
-            f"/api/telemetry/job/{job_id}/executions",
-            list,
-            params=query_params(since=since, limit=limit),
+        render_execution_history(
+            client, f"/api/telemetry/job/{job_id}/executions", since=since, limit=limit, json_mode=ctx.json_mode
         )
-        executions = parse_wire_list(Execution, raw)
-        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)
         return
 
     raw = client.get_with_app_routing(

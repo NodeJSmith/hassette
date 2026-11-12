@@ -3,9 +3,10 @@
 from typing import Annotated, Any
 
 from cyclopts import Parameter
-from hassette_wire import Execution, ListenerMiss, ListenerSummary
+from hassette_wire import ListenerMiss, ListenerSummary
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
+from hassette.cli.commands.executions import render_execution_history
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import fmt_change, fmt_duration_ms, fmt_handler_short, fmt_hour, fmt_relative_time
 from hassette.cli.output import Column, render_table
@@ -22,15 +23,6 @@ LISTENER_LIST_COLUMNS: list[Column] = [
     Column("failed", "Fail", max_width=6),
     Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
     Column("last_invoked_at", "Last", max_width=9, formatter=fmt_relative_time),
-]
-
-LISTENER_INVOCATION_COLUMNS: list[Column] = [
-    Column("status", "Status", max_width=10),
-    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
-    Column("error_type", "Error Type", max_width=20),
-    Column("error_message", "Error Message", max_width=28),
-    Column("execution_start_ts", "When", max_width=11, formatter=fmt_relative_time),
-    Column("execution_id", "Execution ID", max_width=14),
 ]
 
 
@@ -79,13 +71,13 @@ def cmd_listener(
         return
 
     if listener_id is not None:
-        raw: list[Any] = client.get(
+        render_execution_history(
+            client,
             f"/api/telemetry/listener/{listener_id}/executions",
-            list,
-            params=query_params(since=since, limit=limit),
+            since=since,
+            limit=limit,
+            json_mode=ctx.json_mode,
         )
-        invocations = parse_wire_list(Execution, raw)
-        render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=ctx.json_mode)
         return
 
     raw = client.get_with_app_routing(

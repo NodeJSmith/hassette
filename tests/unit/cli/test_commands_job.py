@@ -8,7 +8,6 @@ from hassette_wire import JobTriggerResponse, ScheduleStatus, ScheduleStatusReas
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.job import (
-    JOB_EXECUTION_COLUMNS,
     JOB_LIST_COLUMNS,
     SCHEDULE_STATUS_TEXT,
     cmd_job,
@@ -234,18 +233,6 @@ class TestCmdJobDetail:
         parsed = runner.json_output(client, cmd_job, job_id=1)
         assert isinstance(parsed, list)
         assert parsed[0]["duration_ms"] == pytest.approx(15.0)
-
-    def test_execution_columns_defined(self) -> None:
-        """JOB_EXECUTION_COLUMNS includes key execution fields."""
-        field_names = [c.field for c in JOB_EXECUTION_COLUMNS]
-        assert "status" in field_names
-        assert "duration_ms" in field_names
-        assert "execution_start_ts" in field_names
-        assert "error_type" in field_names
-
-    def test_execution_columns_count_is_compact(self) -> None:
-        """JOB_EXECUTION_COLUMNS uses at most 7 columns for 80-column fit."""
-        assert len(JOB_EXECUTION_COLUMNS) <= 7
 
 
 # cmd_job_trigger (POST /api/scheduler/jobs/{id}/trigger)
