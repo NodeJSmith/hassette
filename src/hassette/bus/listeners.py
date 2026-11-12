@@ -527,9 +527,6 @@ class Listener:
     topic: str
     """Topic the listener is subscribed to."""
 
-    scope: "AllOf | None"
-    """Registration-built selection filters, evaluated first. None when the registration method built none."""
-
     predicate: "Predicate | None"
     """The caller's filters. Its top-level conjuncts are ``filters``."""
 
@@ -544,6 +541,9 @@ class Listener:
 
     entity_watch: EntityWatch | None
     """The entity this listener tracks, with its duration-hold settings and timer. None for ``on()`` listeners."""
+
+    scope: "AllOf | None" = None
+    """Registration-built selection filters, evaluated first. None when the registration method built none."""
 
     listener_id: int = field(default_factory=next_id, init=False)
     """Unique identifier for the listener instance."""
