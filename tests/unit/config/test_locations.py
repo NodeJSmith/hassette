@@ -262,6 +262,12 @@ class TestBootstrapLogLevel:
 
         assert get_log_level() == "DEBUG"
 
+    def test_matches_the_name_case_insensitively(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("HASSETTE__LOGGING__LOG_LEVEL", raising=False)
+        monkeypatch.setenv("hassette__logging__log_level", "DEBUG")
+
+        assert get_log_level() == "DEBUG"
+
     @pytest.mark.parametrize("name", ["HASSETTE__LOG_LEVEL", "HASSETTE_LOG_LEVEL", "LOG_LEVEL"])
     def test_ignores_other_spellings(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
         monkeypatch.delenv("HASSETTE__LOGGING__LOG_LEVEL", raising=False)

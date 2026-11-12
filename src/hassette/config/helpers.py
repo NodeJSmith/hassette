@@ -9,6 +9,7 @@ from typing import cast, get_args
 from hassette_wire import LogLevel
 
 from hassette import context
+from hassette.config.locations import ENV_NESTED_DELIMITER, SETTINGS_ENV_PREFIX, env_lookup
 from hassette.exceptions import HassetteNotInitializedError
 
 LOG_LEVEL_VALUES = get_args(LogLevel)
@@ -83,9 +84,10 @@ def warn_log_level_not_valid(log_level: str, fallback_value: LogLevel) -> None:
 def get_log_level() -> LogLevel:
     """Return the bootstrap log level, used before the config is loaded.
 
-    Reads ``HASSETTE__LOGGING__LOG_LEVEL``, the same variable that sets ``logging.log_level``.
+    Reads ``HASSETTE__LOGGING__LOG_LEVEL``, the same variable that sets ``logging.log_level``, matching its
+    name case-insensitively as the settings env source does.
     """
-    log_level = os.getenv("HASSETTE__LOGGING__LOG_LEVEL")
+    log_level = env_lookup(os.environ, f"{SETTINGS_ENV_PREFIX}logging{ENV_NESTED_DELIMITER}log_level")
     return coerce_log_level(log_level, "INFO")
 
 
