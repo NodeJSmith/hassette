@@ -19,7 +19,7 @@ def scenario_healthy(ctx: SeedContext) -> None:
     an occasional handled error, comfortably above the 95% "good" success-rate threshold.
 
     A single minimal blocking event is included (see the comment below) so this scenario
-    still populates all 8 telemetry tables without undermining the "healthy install" narrative.
+    still populates every telemetry table without undermining the "healthy install" narrative.
     """
     # Two apps have no description, so the UI shows both the described and undescribed shape.
     apps = [

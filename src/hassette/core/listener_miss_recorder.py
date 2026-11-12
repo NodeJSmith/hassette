@@ -21,6 +21,7 @@ import typing
 from dataclasses import dataclass
 from functools import partial
 
+from hassette.const.misc import SECONDS_PER_HOUR
 from hassette.core.execution_record_builder import summarize_trigger
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
@@ -40,9 +41,6 @@ LOGGER = logging.getLogger(__name__)
 FLUSH_INTERVAL_SECONDS = 30.0
 """How often in-memory rollups are written, and so the longest wait before a near-miss shows in a read
 (design/specs/151-listener-near-misses D4)."""
-
-HOUR_SECONDS = 3600
-"""Width of one rollup bucket."""
 
 MAX_FLUSH_RETRIES = 3
 """Consecutive flushes whose write didn't run that merge back before the next one drops and counts its batch; the
@@ -123,7 +121,7 @@ class ListenerMissRecorder:
         """Count one dropped event in its hour's entry. Never raises: recording must not affect dispatch."""
         try:
             now = time.time()
-            hour_ts = now - now % HOUR_SECONDS
+            hour_ts = now - now % SECONDS_PER_HOUR
             key = (listener.listener_id, hour_ts, reason, filter_index)
             entry = self.entries.get(key)
             if entry is None:

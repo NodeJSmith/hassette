@@ -124,9 +124,9 @@ class TestSizeFailsafeIterationCap:
         retention_service.hassette.config.database.size_failsafe_delete_batch = 2
 
         now = time.time()
-        # Framework tier (priority 2): its DELETE always fails below.
+        # Framework tier: its DELETE always fails below.
         await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
-        # App executions tier (priority 5): far more rows than the 2-iteration * 2-row cap (4)
+        # App executions tier: far more rows than the 2-iteration * 2-row cap (4)
         # can ever drain, so it hits the iteration cap. Framework's failed attempt and blocking
         # events' empty-tier check both cost nothing against the shared budget, so app still
         # gets the full 2 iterations.
@@ -186,14 +186,14 @@ class TestSizeFailsafeIterationCap:
         retention_service.hassette.config.database.size_failsafe_delete_batch = 2
 
         now = time.time()
-        # Framework tier (priority 1) and blocking events (priority 2): exactly 2 rows each —
+        # Framework tier and blocking events: exactly 2 rows each —
         # 1 productive iteration apiece, fully consuming the 2-iteration shared budget between
         # them with nothing "wasted" on an empty-tier check.
         for i in range(2):
             await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
         for i in range(2):
             await insert_blocking_event(db, now - i)
-        # App executions (priority 3): seeded so an untouched count is provable, but must never
+        # App executions: seeded so an untouched count is provable, but must never
         # be reached once the budget is spent on the two higher-priority tiers above. The log
         # records below are seeded for the same reason, but survive by exemption, not by budget.
         for i in range(5):
@@ -244,8 +244,8 @@ class TestSizeFailsafeIterationCap:
         retention_service.hassette.config.database.size_failsafe_delete_batch = 2
 
         now = time.time()
-        # Framework tier (priority 1): no rows -- the steady state a deployment settles into
-        # once its backlog is cleared. Blocking events (priority 2): exactly one batch's
+        # Framework tier: no rows -- the steady state a deployment settles into
+        # once its backlog is cleared. Blocking events: exactly one batch's
         # worth -- provable only if the single-iteration budget actually reaches it instead of
         # being spent "confirming" the already-empty framework tier.
         await insert_blocking_event(db, now - 1)
@@ -290,7 +290,7 @@ class TestSizeFailsafeIterationCap:
         # the tier's own last row, consuming the run's entire 2-iteration shared budget.
         for i in range(4):
             await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
-        # Blocking events (priority 2): the sole reason the DB stays over limit after the
+        # Blocking events: the sole reason the DB stays over limit after the
         # framework tier drains — correctly capped, since no budget remains this cycle.
         await insert_blocking_event(db, now - 1)
         await db.commit()

@@ -8,7 +8,7 @@ warned about once per episode).
 import asyncio
 import logging
 import sqlite3
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -46,10 +46,14 @@ def event(new: str = "dim"):
     return create_state_change_event(entity_id=ENTITY_ID, old_value="off", new_value=new)
 
 
-def refuse_write(coro: Coroutine[Any, Any, Any]) -> None:
-    """A ``submit`` that fails as an unavailable write queue does: the coroutine is closed, then it raises."""
-    coro.close()
-    raise RuntimeError("queue gone")
+def failing_submit(exc: BaseException) -> "Callable[[Coroutine[Any, Any, Any]], None]":
+    """A ``submit`` side effect that fails as the write queue does: the coroutine is closed, then ``exc`` raises."""
+
+    def submit(coro: Coroutine[Any, Any, Any]) -> None:
+        coro.close()
+        raise exc
+
+    return submit
 
 
 class TestReporterFor:
@@ -88,7 +92,7 @@ class TestFailedFlush:
     async def test_failed_flush_drops_the_batch_counts_it_and_warns_once_per_episode(
         self, hassette: MagicMock, caplog: pytest.LogCaptureFixture
     ) -> None:
-        hassette.database_service.submit = AsyncMock(side_effect=refuse_write)
+        hassette.database_service.submit = AsyncMock(side_effect=failing_submit(RuntimeError("queue gone")))
         recorder = ListenerMissRecorder(hassette)
         listener = registered()
 
@@ -106,12 +110,7 @@ class TestFailedFlush:
 
     async def test_cancelled_flush_counts_its_batch_and_re_raises(self, hassette: MagicMock) -> None:
         """The periodic flush cancelled while waiting on the write queue at shutdown still counts its batch."""
-
-        def cancel_write(coro: Coroutine[Any, Any, Any]) -> None:
-            coro.close()
-            raise asyncio.CancelledError
-
-        hassette.database_service.submit = AsyncMock(side_effect=cancel_write)
+        hassette.database_service.submit = AsyncMock(side_effect=failing_submit(asyncio.CancelledError()))
         recorder = ListenerMissRecorder(hassette)
         recorder.record(registered(), "busy", event())
 
@@ -147,12 +146,7 @@ class TestFailedFlush:
 
     async def test_final_flush_counts_an_unwritten_batch_as_lost(self, hassette: MagicMock) -> None:
         """The shutdown flush has no later flush to merge back into, so a timed-out write is a counted loss."""
-
-        def time_out(coro: Coroutine[Any, Any, Any]) -> None:
-            coro.close()
-            raise TimeoutError
-
-        hassette.database_service.submit = AsyncMock(side_effect=time_out)
+        hassette.database_service.submit = AsyncMock(side_effect=failing_submit(TimeoutError()))
         recorder = ListenerMissRecorder(hassette)
         recorder.record(registered(), "busy", event())
 
@@ -165,12 +159,7 @@ class TestFailedFlush:
         self, hassette: MagicMock, caplog: pytest.LogCaptureFixture
     ) -> None:
         """A write that keeps not running merges back MAX_FLUSH_RETRIES times, then drops, counts and warns."""
-
-        def time_out(coro: Coroutine[Any, Any, Any]) -> None:
-            coro.close()
-            raise TimeoutError
-
-        hassette.database_service.submit = AsyncMock(side_effect=time_out)
+        hassette.database_service.submit = AsyncMock(side_effect=failing_submit(TimeoutError()))
         recorder = ListenerMissRecorder(hassette)
         recorder.record(registered(), "busy", event())
 

@@ -20,6 +20,7 @@ from whenever import Instant
 from hassette.core.database_service import LOG_RECORD_COLUMNS
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
 from hassette.core.telemetry.insert_params import execution_insert_params, job_insert_params, listener_insert_params
 from hassette.types.types import is_framework_key
 from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
@@ -744,7 +745,7 @@ def seed_listener_misses(
     hour_ts = ts(base_offset) - ts(base_offset) % 3600
     for reason, filter_, count, old, new in (
         ("filter", filter_summary, 14, "on", "unavailable"),
-        ("throttled", "", 3, "off", "on"),
+        ("throttled", LISTENER_MISS_NO_FILTER, 3, "off", "on"),
     ):
         ctx.add_listener_miss(
             {

@@ -23,7 +23,7 @@ from hassette.event_handling import predicates as P
 from hassette.events import AnyEvent
 from hassette.testing import create_state_change_event, wait_for
 from tests.support.factories import make_hassette_event
-from tests.support.helpers import create_listener, make_controlled_clock, make_task_bucket
+from tests.support.helpers import async_noop, create_listener, make_controlled_clock, make_task_bucket
 
 ENTITY_ID = "light.kitchen"
 TOPIC = f"hass.event.state_changed.{ENTITY_ID}"
@@ -159,11 +159,8 @@ class TestHandlerInvokerDrops:
         reports = bind(listener)
         first, second = make_hassette_event(data=1), make_hassette_event(data=2)
 
-        async def invoke() -> None:
-            return
-
-        await listener.invoker.dispatch(first, invoke, lambda: None)
-        await listener.invoker.dispatch(second, invoke, lambda: None)
+        await listener.invoker.dispatch(first, async_noop, lambda: None)
+        await listener.invoker.dispatch(second, async_noop, lambda: None)
 
         assert reports.calls == [("once_spent", second, None, False)]
 
@@ -173,11 +170,8 @@ class TestHandlerInvokerDrops:
         reports = bind(listener)
         spent = make_hassette_event(data=2)
 
-        async def invoke() -> None:
-            return
-
-        await listener.invoker.dispatch(make_hassette_event(data=1), invoke, lambda: None)
-        await listener.invoker.dispatch(spent, invoke, lambda: None, is_synthetic=True)
+        await listener.invoker.dispatch(make_hassette_event(data=1), async_noop, lambda: None)
+        await listener.invoker.dispatch(spent, async_noop, lambda: None, is_synthetic=True)
 
         assert reports.calls == [("once_spent", spent, None, True)]
 
@@ -247,11 +241,8 @@ class TestRateLimiterDrops:
         reports = Reports()
         first, second = make_hassette_event(data=1), make_hassette_event(data=2)
 
-        async def invoke() -> None:
-            return
-
-        await limiter.call(invoke, first, reports)
-        await limiter.call(invoke, second, reports)
+        await limiter.call(async_noop, first, reports)
+        await limiter.call(async_noop, second, reports)
 
         assert reports.calls == [("throttled", second, None, False)]
 
@@ -295,10 +286,7 @@ class TestRateLimiterDrops:
         limiter = RateLimiter(task_bucket=make_task_bucket(), debounce=10.0)
         reports = Reports()
 
-        async def invoke() -> None:
-            return
-
-        await limiter.call(invoke, make_hassette_event(), reports)
+        await limiter.call(async_noop, make_hassette_event(), reports)
         limiter.cancel()
 
         assert reports.calls == []

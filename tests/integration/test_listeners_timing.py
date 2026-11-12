@@ -6,11 +6,9 @@ from collections.abc import Awaitable, Callable
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.task_bucket import TaskBucket
 from hassette.testing import wait_for
-from tests.support.factories import make_hassette_event
 from tests.support.helpers import make_controlled_clock, settle
 
-TEST_EVENT = make_hassette_event()
-"""The event every dispatch in this module runs for."""
+from .listener_helpers import TEST_EVENT
 
 
 def make_recording_handler_factory() -> tuple[list[str], Callable[[str], Callable[[], Awaitable[None]]]]:
