@@ -250,7 +250,7 @@ This negated field also matches a call that omits `title`, because `C.StartsWith
 
 ## Near-Misses { #near-misses }
 
-When a filter drops an event, Hassette counts it so `hassette listener <id> --misses` can show why the handler didn't run (see [Database & Telemetry](../database-telemetry.md#what-is-collected)). Only app listeners record, and only these filters count:
+When a filter drops an event, Hassette counts it so `hassette listener <id> --misses` can show why the handler didn't run. `<id>` is the `ID` column of `hassette listener --app <key>`. Each row of the output counts one reason's drops in one hour, with the last dropped event's values; [Why Didn't My Listener Run?](../../cli/workflows.md#why-didnt-my-listener-run) walks through reading it, and [Database & Telemetry](../database-telemetry.md#what-is-collected) lists every reason. Only app listeners record, and only these filters count:
 
 - Each `where=` predicate, as its own filter. A list or `P.AllOf` counts each item separately, so the row names the one that said no.
 - `changed_from`, `changed_to`, and `changed` when passed explicitly.
