@@ -251,8 +251,8 @@
       }
     ]
   },
-  "job": {
-    "JOB_EXECUTION_COLUMNS": [
+  "executions": {
+    "EXECUTION_HISTORY_COLUMNS": [
       {
         "field": "status",
         "formatter": null,
@@ -295,7 +295,9 @@
         "max_width": 14,
         "overflow": "ellipsis"
       }
-    ],
+    ]
+  },
+  "job": {
     "JOB_LIST_COLUMNS": [
       {
         "field": "job_id",
@@ -384,50 +386,6 @@
     ]
   },
   "listener": {
-    "LISTENER_INVOCATION_COLUMNS": [
-      {
-        "field": "status",
-        "formatter": null,
-        "header": "Status",
-        "max_width": 10,
-        "overflow": "ellipsis"
-      },
-      {
-        "field": "duration_ms",
-        "formatter": "fmt_duration_ms",
-        "header": "Duration",
-        "max_width": 9,
-        "overflow": "ellipsis"
-      },
-      {
-        "field": "error_type",
-        "formatter": null,
-        "header": "Error Type",
-        "max_width": 20,
-        "overflow": "ellipsis"
-      },
-      {
-        "field": "error_message",
-        "formatter": null,
-        "header": "Error Message",
-        "max_width": 28,
-        "overflow": "ellipsis"
-      },
-      {
-        "field": "execution_start_ts",
-        "formatter": "fmt_relative_time",
-        "header": "When",
-        "max_width": 11,
-        "overflow": "ellipsis"
-      },
-      {
-        "field": "execution_id",
-        "formatter": null,
-        "header": "Execution ID",
-        "max_width": 14,
-        "overflow": "ellipsis"
-      }
-    ],
     "LISTENER_LIST_COLUMNS": [
       {
         "field": "listener_id",

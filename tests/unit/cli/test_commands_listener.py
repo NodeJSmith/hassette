@@ -4,7 +4,6 @@ import pytest
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.listener import (
-    LISTENER_INVOCATION_COLUMNS,
     LISTENER_LIST_COLUMNS,
     cmd_listener,
 )
@@ -148,15 +147,3 @@ class TestCmdListenerDetail:
         parsed = runner.json_output(client, cmd_listener, listener_id=1)
         assert isinstance(parsed, list)
         assert parsed[0]["duration_ms"] == pytest.approx(20.0)
-
-    def test_invocation_columns_defined(self) -> None:
-        """LISTENER_INVOCATION_COLUMNS includes key invocation fields."""
-        field_names = [c.field for c in LISTENER_INVOCATION_COLUMNS]
-        assert "status" in field_names
-        assert "duration_ms" in field_names
-        assert "execution_start_ts" in field_names
-        assert "error_type" in field_names
-
-    def test_invocation_columns_count_is_compact(self) -> None:
-        """LISTENER_INVOCATION_COLUMNS uses at most 7 columns for 80-column fit."""
-        assert len(LISTENER_INVOCATION_COLUMNS) <= 7
