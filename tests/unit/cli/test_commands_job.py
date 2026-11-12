@@ -8,12 +8,12 @@ from hassette_wire import JobTriggerResponse, ScheduleStatus, ScheduleStatusReas
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.job import (
-    _SCHEDULE_STATUS_TEXT,
     JOB_EXECUTION_COLUMNS,
     JOB_LIST_COLUMNS,
-    _next_run_display,
+    SCHEDULE_STATUS_TEXT,
     cmd_job,
     cmd_job_trigger,
+    next_run_display,
 )
 from hassette.cli.context import CLIContext
 from tests.support.web_job_helpers import make_job_summary
@@ -129,7 +129,7 @@ class TestCmdJob:
     ) -> None:
         """A null next_run renders truthful, status-aware text instead of generic 'done'.
 
-        Exercises ``_next_run_display`` directly rather than through the rendered table —
+        Exercises ``next_run_display`` directly rather than through the rendered table —
         the table's fixed capture width can ellipsis-truncate the longer status strings,
         which is a display artifact of column width, not a correctness signal for the text
         the row_formatter produces.
@@ -138,17 +138,17 @@ class TestCmdJob:
             job_id=1, next_run=None, schedule_status=schedule_status, schedule_status_reason=schedule_status_reason
         )
 
-        assert _next_run_display(job) == expected_text
+        assert next_run_display(job) == expected_text
 
     def test_every_schedule_status_has_null_timing_text(self) -> None:
-        assert set(_SCHEDULE_STATUS_TEXT) == set(ScheduleStatus)
+        assert set(SCHEDULE_STATUS_TEXT) == set(ScheduleStatus)
 
     def test_concrete_next_run_renders_relative_time(self) -> None:
         """A concrete next_run still renders via fmt_relative_time, not status text."""
         job = make_job_summary(job_id=1, next_run=SINCE_EPOCH, schedule_status=ScheduleStatus.SCHEDULED)
 
-        assert _next_run_display(job) != ""
-        assert _next_run_display(job) not in _SCHEDULE_STATUS_TEXT.values()
+        assert next_run_display(job) != ""
+        assert next_run_display(job) not in SCHEDULE_STATUS_TEXT.values()
 
     def test_job_list_columns_defined(self) -> None:
         """JOB_LIST_COLUMNS includes key job fields."""

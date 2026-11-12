@@ -67,14 +67,18 @@ def cmd_run(
 ) -> None:
     """Start the Hassette framework server."""
     init_kwargs: dict[str, Any] = ctx.config_location_kwargs()
-    if token is not None:
-        init_kwargs["token"] = token
-    if base_url is not None:
-        init_kwargs["base_url"] = base_url
-    if verify_ssl is not None:
-        init_kwargs["verify_ssl"] = verify_ssl
-    if dev_mode is not None:
-        init_kwargs["dev_mode"] = dev_mode
+    init_kwargs.update(
+        {
+            k: v
+            for k, v in {
+                "token": token,
+                "base_url": base_url,
+                "verify_ssl": verify_ssl,
+                "dev_mode": dev_mode,
+            }.items()
+            if v is not None
+        }
+    )
     if app:
         only = split_app_keys(app)
         if not only:
