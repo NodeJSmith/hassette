@@ -5,6 +5,8 @@ homeassistant:
 demo:
 recorder:
 history:
+# tests/system/test_hass_event_payloads.py calls logbook.log to get a logbook_entry event.
+logbook:
 # Everything below `test` exists for tests/system/test_state_models.py, which needs a live entity
 # for every registered state-model domain it can get, and drives the helpers through transitions.
 input_boolean:
