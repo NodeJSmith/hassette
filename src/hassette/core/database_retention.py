@@ -318,9 +318,9 @@ class DatabaseRetentionMixin:
 
         1. Retire unretired app-tier listener/scheduled_job rows of instances not in
            ``live_instances`` (``_retire_unconfigured_instances``).
-        2. Delete retired listeners/scheduled_jobs only once ALL their child executions have
-           also aged out. This prevents orphaning recent executions whose parent row would be
-           deleted because retired_at (set at restart time) diverges from last execution time.
+        2. Delete retired listeners/scheduled_jobs only once ALL their child executions (and, for
+           listeners, near-miss rows) have also aged out. This prevents orphaning recent executions whose
+           parent row would be deleted because retired_at (set at restart time) diverges from last execution time.
            Rows retired in step 1 this cycle are not past the cutoff yet.
         3. Delete ``app_manifests`` rows of apps not in ``live_app_keys`` that nothing references
            anymore (``build_prune_removed_app_manifests_query``).
@@ -357,8 +357,13 @@ class DatabaseRetentionMixin:
                   WHERE listener_id = listeners.id
                     AND execution_start_ts >= ?
               )
+              AND NOT EXISTS (
+                  SELECT 1 FROM listener_misses
+                  WHERE listener_id = listeners.id
+                    AND last_ts >= ?
+              )
             """,
-            (cutoff, cutoff),
+            (cutoff, cutoff, cutoff),
         )
         # Same guard for scheduled_jobs.
         deleted_job_cursor = await self.db.execute(

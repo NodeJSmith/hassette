@@ -9,10 +9,34 @@ from typing import Any
 _RECONCILE_TABLES = frozenset({"listeners", "scheduled_jobs"})
 _RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
 
+LISTENER_MISS_HISTORY_SQL = "EXISTS (SELECT 1 FROM listener_misses WHERE listener_misses.listener_id = listeners.id)"
+"""True when a listener has recorded near-misses. A listener that never ran but missed events still has
+history: the misses are what explain why it never ran. Every listener delete or retire decision consults it."""
+
 
 def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:
     if table not in _RECONCILE_TABLES or history_fk not in _RECONCILE_FK_COLUMNS:
         raise ValueError(f"Refusing to build SQL for unknown identifiers: table={table!r}, history_fk={history_fk!r}")
+
+
+def history_exists_sql(table: str, history_fk: str) -> str:
+    """Build the ``EXISTS``-style predicate that says a row has history worth keeping.
+
+    Executions count for both tables. A listener's near-miss rows count too, so a removed listener
+    that never ran but recorded misses is retired instead of deleted (which would cascade away its misses).
+
+    Args:
+        table: ``"listeners"`` or ``"scheduled_jobs"``.
+        history_fk: FK column in the executions table (``"listener_id"`` or ``"job_id"``).
+
+    Returns:
+        A boolean SQL expression, parenthesized, referencing ``table.id``.
+    """
+    _assert_reconcile_identifiers(table, history_fk)
+    executions = f"EXISTS (SELECT 1 FROM executions WHERE {history_fk} = {table}.id)"
+    if table == "listeners":
+        return f"({executions} OR {LISTENER_MISS_HISTORY_SQL})"
+    return f"({executions})"
 
 
 def instance_name_clause(instance_name: str | None) -> tuple[str, dict]:
@@ -60,7 +84,7 @@ def build_delete_query(
     extra_where: str = "",
     instance_name: str | None = None,
 ) -> tuple[str, dict]:
-    """Build a DELETE query that removes rows not in ``live_ids`` without history.
+    """Build a DELETE query that removes rows not in ``live_ids`` without history (see ``history_exists_sql``).
 
     Args:
         table: Table to delete from (e.g. ``"listeners"``).
@@ -86,9 +110,7 @@ def build_delete_query(
         DELETE FROM {table}
         WHERE app_key = :app_key{extra_where}{instance_clause}
           {live_ids_clause}
-          AND NOT EXISTS (
-              SELECT 1 FROM executions WHERE {history_fk} = {table}.id
-          )
+          AND NOT {history_exists_sql(table, history_fk)}
     """
     return sql, params
 
@@ -130,9 +152,7 @@ def build_retire_query(
         WHERE app_key = :app_key{extra_where}{instance_clause}
           {live_ids_clause}
           AND retired_at IS NULL
-          AND EXISTS (
-              SELECT 1 FROM executions WHERE {history_fk} = {table}.id
-          )
+          AND {history_exists_sql(table, history_fk)}
     """
     return sql, params
 

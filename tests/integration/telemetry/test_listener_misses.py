@@ -23,7 +23,11 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.event_handling import predicates as P
 from hassette.testing import create_state_change_event, wait_for
-from tests.support.factories import make_bus_service_with_mock_executor
+from tests.support.factories import (
+    DEFAULT_TEST_APP_KEY,
+    make_bus_service_with_mock_executor,
+    make_listener_registration,
+)
 from tests.support.helpers import create_listener, make_task_bucket
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -120,6 +124,48 @@ class TestUpsert:
         await commit_returning_id(db_svc, cursor)
 
         assert await fetch_misses(db_svc) == []
+
+
+class TestReconcileKeepsMissHistory:
+    """A removed listener that never ran but recorded misses keeps them: the misses are its history."""
+
+    async def fetch_retired_at(self, db_svc: DatabaseService, listener_id: int) -> float | None:
+        cursor = await db_svc.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (listener_id,))
+        row = await cursor.fetchone()
+        assert row is not None, f"listener {listener_id} was deleted"
+        return row[0]
+
+    async def test_non_live_listener_with_only_misses_is_retired_and_keeps_them(self, db: DbFixture) -> None:
+        db_svc, _ = db
+        listener_id = await insert_listener(db_svc, app_key=DEFAULT_TEST_APP_KEY)
+        await upsert(db_svc, make_row(listener_id))
+
+        await db_svc.submit(TelemetryRepository(db_svc).reconcile_registrations(DEFAULT_TEST_APP_KEY, [], []))
+
+        assert await self.fetch_retired_at(db_svc, listener_id) is not None
+        assert [row["listener_id"] for row in await fetch_misses(db_svc)] == [listener_id]
+
+    async def test_once_listener_with_misses_survives_the_once_cleanup(self, db: DbFixture) -> None:
+        db_svc, session_id = db
+        repo = TelemetryRepository(db_svc)
+        listener_id = await db_svc.submit(repo.register_listener(make_listener_registration(once=True, name="once")))
+        await upsert(db_svc, make_row(listener_id, reason="once_spent", filter=LISTENER_MISS_NO_FILTER))
+
+        await db_svc.submit(repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=session_id))
+
+        assert await self.fetch_retired_at(db_svc, listener_id) is not None
+        assert [row["listener_id"] for row in await fetch_misses(db_svc)] == [listener_id]
+
+    async def test_non_live_listener_without_executions_or_misses_is_still_deleted(self, db: DbFixture) -> None:
+        db_svc, session_id = db
+        repo = TelemetryRepository(db_svc)
+        plain_id = await insert_listener(db_svc, app_key=DEFAULT_TEST_APP_KEY, name="plain")
+        once_id = await db_svc.submit(repo.register_listener(make_listener_registration(once=True, name="once")))
+
+        await db_svc.submit(repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=session_id))
+
+        cursor = await db_svc.db.execute("SELECT id FROM listeners WHERE id IN (?, ?)", (plain_id, once_id))
+        assert await cursor.fetchall() == []
 
 
 class TestRecorderFlush:

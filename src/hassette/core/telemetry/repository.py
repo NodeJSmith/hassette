@@ -21,6 +21,7 @@ from hassette.core.telemetry.insert_params import (
     manifest_insert_params,
 )
 from hassette.core.telemetry.reconcile_sql import (
+    LISTENER_MISS_HISTORY_SQL,
     build_clear_stale_job_timing_query,
     build_delete_query,
     build_retire_query,
@@ -446,8 +447,26 @@ class TelemetryRepository:
                           SELECT 1 FROM executions
                           WHERE listener_id = listeners.id AND session_id = :session_id
                       )
+                      AND NOT {LISTENER_MISS_HISTORY_SQL}
                     """,
                     params_once,
+                )
+                # A once=True listener with misses isn't deleted above, so retire it (once nothing in this
+                # session ran it) instead of leaving it an unretired row no reconciliation touches again.
+                await db.execute(
+                    f"""
+                    UPDATE listeners SET retired_at = :now
+                    WHERE app_key = :app_key AND once = 1
+                      AND source_tier = :source_tier{instance_clause}
+                      {live_ids_clause}
+                      AND retired_at IS NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM executions
+                          WHERE listener_id = listeners.id AND session_id = :session_id
+                      )
+                      AND {LISTENER_MISS_HISTORY_SQL}
+                    """,
+                    {**params_once, "now": now},
                 )
             else:
                 # session_id is unavailable (DB write queue backpressure at startup).
