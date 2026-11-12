@@ -184,6 +184,9 @@ pin (`timeout 300 uv run pytest <test ID> -m system -n 0`):
   it needs a human call. In an unattended run, stop and report it under Phase 6's rules.
 - **Passes on the new pin.** The change is still `dev`-only, so carry it over. Leave the
   canary issue open; it stays the record until the change reaches a release.
+- **Neither.** The run timed out, errored in collection or fixture setup, or skipped or
+  deselected the test. That proves nothing about the change, so carry it over and say the
+  run was inconclusive (and why) in the summary and commit body.
 
 Without Docker, nothing can be decided, so carry every finding over and say so. Either way,
 don't close the canary issue by hand. The workflow closes it on its next green run.
