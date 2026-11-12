@@ -7,8 +7,8 @@ Tests cover:
 - start() cancels any previous pending task
 - start() recreates the cancellation subscription when it's None
 - is_active reflects pending state correctly
-- evaluate_cancel_event with matching predicates does NOT cancel the timer
-- evaluate_cancel_event with non-matching predicates cancels the timer
+- cancel_if_left_state with matching predicates does NOT cancel the timer
+- cancel_if_left_state with non-matching predicates cancels the timer
 - cancel() removes the cancellation subscription synchronously (no task_bucket.spawn)
 - completed is set even when on_fire() raises, and the exception still propagates
 """
@@ -224,14 +224,14 @@ async def test_is_active_false_after_cancel() -> None:
     assert not timer.is_active
 
 
-async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
+async def test_cancel_if_left_state_matching_does_not_cancel() -> None:
     """Event that still matches predicates does not cancel the timer."""
     predicate = MagicMock(return_value=True)  # always matches
     timer, _, _ = start_timer(duration=0.5, predicates=predicate)
     assert timer.is_active
 
     # Trigger the cancellation handler with a matching event
-    timer.evaluate_cancel_event(make_event())
+    timer.cancel_if_left_state(make_event())
 
     # Timer should still be active — predicate matched, no cancel
     assert timer.is_active
@@ -241,27 +241,27 @@ async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
     timer.cancel()
 
 
-async def test_evaluate_cancel_event_non_matching_cancels() -> None:
+async def test_cancel_if_left_state_non_matching_cancels() -> None:
     """Event that fails predicates cancels the timer."""
     predicate = MagicMock(return_value=False)  # never matches
     timer, _, _cancel_sub = start_timer(duration=0.5, predicates=predicate)
     assert timer.is_active
 
     # Trigger the cancellation handler with a non-matching event
-    timer.evaluate_cancel_event(make_event())
+    timer.cancel_if_left_state(make_event())
 
     # Timer should be cancelled
     assert timer._cancelled
     assert not timer.is_active
 
 
-async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
+async def test_cancel_if_left_state_none_predicate_does_not_cancel() -> None:
     """When predicates is None, cancellation events are ignored (no predicate = always match)."""
     timer, _, _ = start_timer(duration=0.5, predicates=None)
     assert timer.is_active
 
-    # evaluate_cancel_event with None predicates should not cancel
-    timer.evaluate_cancel_event(make_event())
+    # cancel_if_left_state with None predicates should not cancel
+    timer.cancel_if_left_state(make_event())
 
     assert timer.is_active
     assert not timer._cancelled

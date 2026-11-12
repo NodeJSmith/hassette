@@ -79,7 +79,7 @@ XREF_MAP = {
     "Listener": "hassette.bus.listeners.Listener",
     "ListenerIdentity": "hassette.bus.listeners.ListenerIdentity",
     "ListenerOptions": "hassette.bus.listeners.ListenerOptions",
-    "HandlerInvoker": "hassette.bus.listeners.HandlerInvoker",
+    "HandlerInvoker": "hassette.bus.invoker.HandlerInvoker",
     "EntityWatch": "hassette.bus.listeners.EntityWatch",
     # Testing
     "ComponentLoadedEvent": "hassette.events.hass.hass.ComponentLoadedEvent",

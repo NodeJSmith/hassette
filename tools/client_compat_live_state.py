@@ -129,6 +129,8 @@ class SeedIds:
     """An execution that ended in error or timed out, preferring one with a traceback."""
     logged_execution_id: str | None = None
     """A UUID execution with log records linked to it."""
+    missed_listener_id: int | None = None
+    """A listener with near-miss rows, so its misses read returns rows rather than an empty list."""
     multi_app_listed: bool = False
     """Whether the database's app spine lists the multi-instance live app, so ``GET /api/apps/{app_key}``
     answers for it."""
@@ -522,6 +524,7 @@ def read_seed_ids(db_path: Path) -> SeedIds:
                 ExecutionStatus.TIMED_OUT.value,
             ),
             logged_execution_id=next((value for value in logged if is_uuid(value)), None),
+            missed_listener_id=first_value(conn, "SELECT listener_id FROM listener_misses ORDER BY id LIMIT 1"),
             multi_app_listed=first_value(conn, "SELECT 1 FROM app_manifests WHERE app_key = ?", APP_KEY_MULTI_APP)
             is not None,
         )

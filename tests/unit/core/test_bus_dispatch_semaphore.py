@@ -48,7 +48,7 @@ async def test_dispatch_bounds_concurrent_handlers() -> None:
     completed = 0
     two_running = asyncio.Event()
 
-    async def blocking_dispatch(_route, _event, _listener) -> None:
+    async def blocking_dispatch(_delivery) -> None:
         nonlocal running, peak, completed
         running += 1
         peak = max(peak, running)
@@ -90,7 +90,7 @@ async def test_dispatch_under_limit_runs_all_without_blocking() -> None:
 
     seen = 0
 
-    async def counting_dispatch(_route, _event, _listener) -> None:
+    async def counting_dispatch(_delivery) -> None:
         nonlocal seen
         seen += 1
 
@@ -108,7 +108,7 @@ async def test_slot_released_when_handler_raises() -> None:
     svc = make_bus_service(max_concurrent_dispatches=2)
     register_listeners(svc, "test.topic", 2)
 
-    async def failing_dispatch(_route, _event, _listener) -> None:
+    async def failing_dispatch(_delivery) -> None:
         raise RuntimeError("handler boom")
 
     svc._dispatch = failing_dispatch  # pyright: ignore[reportAttributeAccessIssue]
@@ -134,7 +134,7 @@ async def test_slot_released_when_handler_cancelled() -> None:
 
     svc.task_bucket.spawn = capturing_spawn
 
-    async def hanging_dispatch(_route, _event, _listener) -> None:
+    async def hanging_dispatch(_delivery) -> None:
         await gate.wait()  # never set — tasks are cancelled instead
 
     svc._dispatch = hanging_dispatch  # pyright: ignore[reportAttributeAccessIssue]
@@ -190,7 +190,7 @@ async def test_drop_newest_skips_handler_when_saturated() -> None:
 
     handler_invoked = False
 
-    async def spy_dispatch(_route, _event, _listener) -> None:
+    async def spy_dispatch(_delivery) -> None:
         nonlocal handler_invoked
         handler_invoked = True
 
@@ -234,7 +234,7 @@ async def test_drop_newest_dispatches_normally_when_not_saturated() -> None:
 
     dispatched = 0
 
-    async def counting_dispatch(_route, _event, _listener) -> None:
+    async def counting_dispatch(_delivery) -> None:
         nonlocal dispatched
         dispatched += 1
 
@@ -259,7 +259,7 @@ async def test_block_listener_blocks_then_runs_under_saturation() -> None:
 
     dispatched = asyncio.Event()
 
-    async def notifying_dispatch(_route, _event, _listener) -> None:
+    async def notifying_dispatch(_delivery) -> None:
         dispatched.set()
 
     svc._dispatch = notifying_dispatch  # pyright: ignore[reportAttributeAccessIssue]

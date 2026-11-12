@@ -141,7 +141,7 @@ async def test_reconciliation_guard_rejects_hassette(
     await db_service.db.commit()
 
     # Run reconciliation for __hassette__ — should be a no-op
-    await repository.reconcile_registrations("__hassette__", [], [], session_id=None)
+    await repository.reconcile_registrations("__hassette__", [], [])
 
     # Verify the row still exists
     cursor = await db_service.db.execute(
@@ -186,7 +186,7 @@ async def test_reconciliation_preserves_framework_actors(
     assert fw_row is not None
     framework_id = fw_row[0]
 
-    # Insert an app listener row that is NOT in live_ids → should be deleted
+    # Insert an app listener row that is NOT in live_ids → should be retired
     cursor = await db_service.db.execute(
         """
         INSERT INTO listeners (
@@ -215,15 +215,17 @@ async def test_reconciliation_preserves_framework_actors(
     await db_service.db.commit()
 
     # Reconcile the app (not framework) with empty live IDs
-    await repository.reconcile_registrations("my_app", [], [], session_id=None)
+    await repository.reconcile_registrations("my_app", [], [])
 
     # Framework row must survive
     cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (framework_id,))
     assert (await cursor.fetchone()) is not None, "Framework listener was deleted during app reconciliation"
 
-    # Stale app row must be deleted (no history)
-    cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (stale_app_id,))
-    assert (await cursor.fetchone()) is None, "Stale app listener was NOT deleted during reconciliation"
+    # Stale app row must be retired
+    cursor = await db_service.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (stale_app_id,))
+    stale_row = await cursor.fetchone()
+    assert stale_row is not None, "Stale app listener was deleted during reconciliation"
+    assert stale_row[0] is not None, "Stale app listener was NOT retired during reconciliation"
 
 
 async def test_once_true_deferred_cleanup(

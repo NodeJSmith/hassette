@@ -1,36 +1,23 @@
 import itertools
 import typing
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from logging import Logger, getLogger
-from typing import Any, cast
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
 
 from hassette.bus.duration_timer import DurationTimer
-from hassette.bus.injection import ParameterInjector
-from hassette.bus.rate_limiter import RateLimiter
-from hassette.event_handling.predicates import normalize_where
+from hassette.bus.invoker import HandlerInvoker
+from hassette.event_handling.predicates import AllOf, normalize_where
+from hassette.event_handling.predicates.combinators import flatten_all_of
 from hassette.exceptions import TaskBucketSealedError
-from hassette.execution_mode import (
-    ExecutionModeGuard,
-    describe_stall_threshold,
-    release_and_drain,
-    resolve_effective_timeout,
-    run_parallel,
-    run_through_guard,
-)
 from hassette.types.types import WhereClause
 from hassette.utils.func_utils import callable_name, callable_short_name
-from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
-    import asyncio
-
     from hassette import TaskBucket
     from hassette.events.base import AnyEvent
-    from hassette.types import AsyncHandlerType, HandlerType, Predicate
-    from hassette.types.types import BusErrorHandlerType
+    from hassette.types import HandlerType, Predicate
 
 LOGGER = getLogger(__name__)
 
@@ -39,6 +26,18 @@ LOGGER = getLogger(__name__)
 # which is assigned later at registration. itertools.count.__next__ is atomic at the C
 # level, so no lock is needed even though listeners are only ever created on the event loop.
 _listener_id_seq = itertools.count(1)
+
+
+MATCHED = -1
+"""``Listener.evaluate`` result: the event passed the listener's scope and every filter.
+
+Every ``evaluate`` sentinel is negative, so a result ``>= 0`` is always a filter index."""
+
+OUT_OF_SCOPE = -2
+"""``Listener.evaluate`` result: the event failed the listener's scope (another entity, the default change filter)."""
+
+_VERDICTS = {MATCHED: "matched", OUT_OF_SCOPE: "is out of scope"}
+"""``Listener.evaluate`` results with a fixed debug-log wording; any other result is a filter index."""
 
 
 def next_id() -> int:
@@ -155,220 +154,6 @@ class ListenerOptions:
 
 
 @dataclass(slots=True)
-class HandlerInvoker:
-    """Owns handler invocation, async wrapping, parameter injection, rate limiting, and the once-guard."""
-
-    orig_handler: "HandlerType"
-    """Original handler function provided by the user."""
-
-    async_handler: "AsyncHandlerType"
-    """Async-wrapped handler function."""
-
-    injector: ParameterInjector
-    """Parameter injector for dependency injection."""
-
-    kwargs: Mapping[str, Any] | None
-    """Keyword arguments to pass to the handler."""
-
-    error_handler: "BusErrorHandlerType | None"
-    """Optional per-listener error handler."""
-
-    app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None"
-    """Closure that resolves the app-level error handler at dispatch time."""
-
-    rate_limiter: RateLimiter | None
-    """Rate limiter for debounce/throttle. None when no rate limiting is configured."""
-
-    task_bucket: "TaskBucket"
-    """TaskBucket used to spawn the cancellable child handler task for non-parallel modes."""
-
-    guard: ExecutionModeGuard
-    """Per-listener overlap state machine. Owns the running-task reference and live counters."""
-
-    options: ListenerOptions
-    """The listener's behavioral options. Dispatch reads ``once``, ``mode`` and the timeout fields from here."""
-
-    handler_short_name: str
-    """Short handler name, captured for the stall WARNING and debug logs."""
-
-    backpressure_dropped: int = 0
-    """Count of events dropped at the dispatch acquire gate due to DROP_NEWEST backpressure.
-    Incremented only in BusService.dispatch — one writer, on the event loop, no await between
-    the locked() check and the increment. Live-only; resets on restart, never persisted."""
-
-    fired: bool = field(default=False, init=False)
-    """Guard for once=True: set before the first invocation to prevent double-fire."""
-
-    pending_done: "set[asyncio.Future[None]]" = field(default_factory=set, init=False)
-    """Unresolved per-invocation completion futures for non-parallel modes.
-
-    Each ``run_with_mode`` call (single/restart/queued) parks its outer dispatch task on a future
-    that resolves when the handler actually runs (or is dropped/released). A queued trigger accepted
-    into the deque has no live child until drain time, so its future would hang forever if the
-    listener is released first. ``release_guard`` resolves every remaining future here so those outer
-    dispatch tasks unwind and ``_dispatch_pending`` settles."""
-
-    @classmethod
-    def create(
-        cls,
-        task_bucket: "TaskBucket",
-        handler: "HandlerType",
-        kwargs: Mapping[str, Any] | None,
-        options: ListenerOptions,
-        error_handler: "BusErrorHandlerType | None" = None,
-        app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
-        clock: "Callable[[], float] | None" = None,
-    ) -> "HandlerInvoker":
-        """Construct a HandlerInvoker from a handler and options.
-
-        Builds the async wrapper, injector, and rate limiter, and keeps a reference to ``options``.
-
-        Args:
-            task_bucket: TaskBucket for async adapter and rate limiter.
-            handler: The user-supplied handler callable.
-            kwargs: Optional keyword arguments to pass to the handler.
-            options: Behavioral options (once, debounce, throttle).
-            error_handler: Optional per-listener error handler.
-            app_error_handler_resolver: Closure for app-level error handler resolution.
-            clock: Zero-arg callable returning the current monotonic time, forwarded to the
-                RateLimiter for deterministic throttle timing in tests. Defaults to
-                ``time.monotonic`` when None (see RateLimiter).
-        """
-        handler_name = callable_name(handler)
-        signature = get_typed_signature(handler)
-        async_handler = make_async_handler(handler, task_bucket)
-        injector = ParameterInjector(handler_name, signature)
-
-        rate_limiter: RateLimiter | None = None
-        if options.debounce is not None or options.throttle is not None:
-            rate_limiter = RateLimiter(
-                task_bucket=task_bucket,
-                debounce=options.debounce,
-                throttle=options.throttle,
-                handler_name=handler_name,
-                clock=clock,
-            )
-
-        return cls(
-            orig_handler=handler,
-            async_handler=async_handler,
-            injector=injector,
-            kwargs=kwargs,
-            error_handler=error_handler,
-            app_error_handler_resolver=app_error_handler_resolver,
-            rate_limiter=rate_limiter,
-            task_bucket=task_bucket,
-            guard=ExecutionModeGuard(options.mode),
-            options=options,
-            handler_short_name=callable_short_name(handler),
-        )
-
-    def mark_fired(self) -> None:
-        """Mark this once-invoker as having fired. Called by dispatch() and Listener.cancel()."""
-        self.fired = True
-
-    async def dispatch(
-        self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
-    ) -> None:
-        """Apply the once-guard, rate limiter, and overlap mode around the given invoke function.
-
-        Order: once-guard → rate limiter (whether to start) → mode guard (overlap of started
-        invocations). BusService builds ``invoke_fn`` (tracked telemetry); HandlerInvoker wraps it.
-
-        Once-guard: if ``once=True`` and the invoker has already fired, returns immediately. Safe
-        without a lock — no ``await`` between check-and-set.
-
-        Mode guard: ``parallel`` runs ``invoke_fn`` as a child task in ``task_bucket`` (the owning
-        ``Bus``'s) and awaits it through ``run_parallel``, so the owner's teardown cancels it; a sealed
-        bucket means the owner is stopping, and the invocation is skipped. For
-        ``single``/``restart``/``queued`` the guard receives a run-and-track callable that spawns a
-        fresh child task through ``task_bucket``; this method then awaits that child so the outer
-        dispatch task stays pending and remains counted by ``_dispatch_pending``. A ``restart``
-        cancellation of the child surfaces as ``CancelledError`` inside the child only — it is swallowed
-        here so the outer dispatch task does not crash.
-
-        ``config_resolver`` returns the global handler timeout, the same one ``invoke_fn``
-        enforces. BusService owns it, so a listener's stall threshold follows that timeout however the
-        listener was built.
-        """
-        if self.options.once and self.fired:
-            return
-        if self.options.once:
-            self.mark_fired()
-
-        if self.rate_limiter:
-            await self.rate_limiter.call(lambda: self.run_with_mode(invoke_fn, config_resolver))
-        else:
-            await self.run_with_mode(invoke_fn, config_resolver)
-
-    async def run_with_mode(
-        self, invoke_fn: Callable[[], Awaitable[None]], config_resolver: Callable[[], float | None]
-    ) -> None:
-        """Apply the overlap mode guard to a single started invocation."""
-        if self.options.mode is ExecutionMode.PARALLEL:
-            try:
-                await run_parallel(
-                    spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
-                    invoke=invoke_fn,
-                    spawn_name=f"bus:parallel_invocation:{self.handler_short_name}",
-                )
-            except TaskBucketSealedError:
-                LOGGER.debug(
-                    "Owner of handler '%s' is shutting down, so the invocation didn't run", self.handler_short_name
-                )
-            return
-
-        await run_through_guard(
-            guard=self.guard,
-            spawn=lambda coro, *, name: self.task_bucket.spawn(coro, name=name),
-            pending_done=self.pending_done,
-            invoke=invoke_fn,
-            warn=self.warn_stalled,
-            spawn_name="bus:mode_invocation",
-            resolve_timeout=lambda: self.effective_timeout(config_resolver),
-        )
-
-    def effective_timeout(self, config_resolver: Callable[[], float | None]) -> float | None:
-        """Return the timeout enforced for one invocation, or ``None`` if it has none.
-
-        The enforced timeout and the stall threshold both read this, so they can't disagree.
-        """
-        return resolve_effective_timeout(self.options.timeout, self.options.timeout_disabled, config_resolver)
-
-    def warn_stalled(self, threshold: float, effective_timeout: float | None) -> None:
-        """Emit the feature's stall WARNING: a non-parallel handler is still holding its guard."""
-        LOGGER.warning(
-            "Handler '%s' has held its %s execution-mode guard for over %s and is still running",
-            self.handler_short_name,
-            self.options.mode.value,
-            describe_stall_threshold(threshold, effective_timeout),
-        )
-
-    def cancel(self) -> None:
-        """Cancel any pending rate-limiter tasks."""
-        if self.rate_limiter:
-            self.rate_limiter.cancel()
-
-    async def release_guard(self) -> None:
-        """Release the execution-mode guard: cancel the in-flight task and drop queued factories.
-
-        Called when a listener is cancelled or replaced so no event/listener/app references leak.
-        ``parallel`` listeners hold no guard state, so this is a cheap no-op for them.
-
-        Queued triggers still parked in the guard's deque never spawn a child once released, so
-        their outer dispatch tasks are parked on ``done`` futures that nothing else will resolve.
-        ``release_and_drain`` resolves every remaining one so those tasks unwind and
-        ``_dispatch_pending`` settles.
-        """
-        await release_and_drain(self.guard, self.pending_done)
-
-    async def invoke(self, event: "AnyEvent") -> None:
-        """Invoke the handler with dependency injection."""
-        kwargs = self.injector.inject_parameters(event, **(self.kwargs or {}))
-        await self.async_handler(**kwargs)
-
-
-@dataclass(slots=True)
 class EntityWatch:
     """The entity a listener tracks, plus its duration-hold settings; owns the timer lifecycle.
 
@@ -449,7 +234,12 @@ class Listener:
     """A listener for events with a specific topic and handler.
 
     Composes four focused sub-structs (identity, invoker, options, entity_watch)
-    plus routing fields (topic, predicate) and minimal runtime state.
+    plus routing fields (topic, scope, predicate) and minimal runtime state.
+
+    Two predicates select events. ``scope`` holds the filters a registration method built to say which events the
+    listener is about (its entity, domain or service, and the default change filter); ``predicate`` holds the filters
+    the caller wrote (``where``, ``changed_from``, ``changed_to``, a passed ``changed=``). An event rejected by
+    ``predicate`` is a near-miss; one rejected by ``scope`` isn't.
     """
 
     logger: Logger
@@ -459,7 +249,7 @@ class Listener:
     """Topic the listener is subscribed to."""
 
     predicate: "Predicate | None"
-    """Predicate to filter events before invoking the handler."""
+    """The caller's filters. Its top-level conjuncts are ``filters``."""
 
     identity: ListenerIdentity
     """Ownership and telemetry identity fields."""
@@ -473,6 +263,9 @@ class Listener:
     entity_watch: EntityWatch | None
     """The entity this listener tracks, with its duration-hold settings and timer. None for ``on()`` listeners."""
 
+    scope: "AllOf | None" = None
+    """Registration-built selection filters, evaluated first. None when the registration method built none."""
+
     listener_id: int = field(default_factory=next_id, init=False)
     """Unique identifier for the listener instance."""
 
@@ -481,6 +274,22 @@ class Listener:
 
     db_id: int | None = field(default=None, init=False)
     """Database row ID for this listener. Set by the executor after persistence; None until then."""
+
+    filters: "tuple[Predicate, ...]" = field(default=(), init=False)
+    """``predicate``'s top-level conjuncts (nested ``AllOf``s flattened), the units a near-miss names. Derived."""
+
+    def __post_init__(self) -> None:
+        self.filters = flatten_all_of(self.predicate)
+
+    @property
+    def full_predicate(self) -> "Predicate | None":
+        """``scope`` and ``predicate`` as one predicate, for the listener's registered description."""
+        if self.scope is None:
+            return self.predicate
+        if self.predicate is None:
+            return self.scope
+        caller = self.predicate.predicates if isinstance(self.predicate, AllOf) else (self.predicate,)
+        return AllOf((*self.scope.predicates, *caller))
 
     @property
     def is_cancelled(self) -> bool:
@@ -520,6 +329,8 @@ class Listener:
         """
         self._cancelled = True
         self.invoker.mark_fired()
+        # A removed listener records no more near-misses, from in-flight dispatches or its timer.
+        self.invoker.report_drop = None
         self.invoker.cancel()
         if self.entity_watch is not None:
             self.entity_watch.cancel_timer()
@@ -541,7 +352,7 @@ class Listener:
     def config_matches(self, other: "Listener") -> bool:
         """Check whether two listeners represent the same logical configuration.
 
-        Compares handler callable, filter predicate, timing options (once, debounce,
+        Compares handler callable, scope and filter predicates, timing options (once, debounce,
         throttle, timeout, timeout_disabled, priority), the execution mode, handler kwargs,
         per-registration error handler (by identity), and entity-watch scalars.
 
@@ -561,18 +372,33 @@ class Listener:
         """
         return [name for name, comparator in _CONFIG_MATCH_FIELDS if not comparator(self, other)]
 
-    def matches(self, ev: "AnyEvent") -> bool:
-        """Check if the event matches the listener's predicate.
+    def evaluate(self, ev: "AnyEvent") -> int:
+        """Test the event against ``scope``, then each of ``filters`` in order, stopping at the first that fails.
 
-        Raises if the predicate raises — the caller (BusService.dispatch) handles
+        Each predicate runs at most once, so the result names the rejecting filter without evaluating anything twice.
+
+        Returns:
+            ``MATCHED``, ``OUT_OF_SCOPE``, or the index in ``filters`` of the filter that rejected the event.
+
+        Raises if a predicate raises — the caller (BusService.dispatch) handles
         isolation, telemetry recording, and error-handler routing.
         """
-        if self.predicate is None:
-            return True
-        matched = self.predicate(ev)
-        verdict = "matched" if matched else "did not match"
-        self.logger.debug("Listener %s %s predicate for event: %s", self, verdict, ev)
-        return matched
+        if self.scope is None and not self.filters:
+            return MATCHED
+        result = MATCHED
+        if self.scope is not None and not self.scope(ev):
+            result = OUT_OF_SCOPE
+        else:
+            for index, filter_ in enumerate(self.filters):
+                if not filter_(ev):
+                    result = index
+                    break
+        self.logger.debug("Listener %s %s for event: %s", self, _VERDICTS.get(result, "rejected by a filter"), ev)
+        return result
+
+    def matches(self, ev: "AnyEvent") -> bool:
+        """Whether the event passes ``scope`` and every filter. Raises if a predicate raises (see ``evaluate``)."""
+        return self.evaluate(ev) == MATCHED
 
     def __repr__(self) -> str:
         return f"Listener<{self.identity.owner_id} - {self.identity.handler_short_name}>"
@@ -587,8 +413,11 @@ class Listener:
         where: WhereClause = None,
         entity_watch: EntityWatch | None = None,
         logger: Logger = LOGGER,
+        scope: "Sequence[Predicate]" = (),
     ) -> "Listener":
         """Create a Listener from pre-built sub-structs.
+
+        ``scope`` takes the selection filters the registration method built; ``where`` the caller's filters.
 
         Cross-concern validation (duration + debounce incompatibility) runs
         here since it spans two sub-structs.
@@ -603,6 +432,7 @@ class Listener:
         return cls(
             logger=logger,
             topic=topic,
+            scope=AllOf(tuple(scope)) if scope else None,
             predicate=pred,
             identity=identity,
             invoker=invoker,
@@ -650,6 +480,7 @@ class Listener:
         return cls(
             logger=LOGGER,
             topic=topic,
+            scope=None,
             predicate=predicate,
             identity=identity,
             invoker=invoker,
@@ -702,6 +533,7 @@ def _entity_watches_match(a: EntityWatch | None, b: EntityWatch | None) -> bool:
 # drift out of sync on which fields they check.
 _CONFIG_MATCH_FIELDS: tuple[tuple[str, Callable[["Listener", "Listener"], bool]], ...] = (
     ("handler", lambda a, b: a.invoker.orig_handler == b.invoker.orig_handler),
+    ("scope", lambda a, b: a.scope == b.scope),
     ("predicate", lambda a, b: a.predicate == b.predicate),
     ("once", lambda a, b: a.options.once == b.options.once),
     ("debounce", lambda a, b: a.options.debounce == b.options.debounce),
@@ -715,19 +547,3 @@ _CONFIG_MATCH_FIELDS: tuple[tuple[str, Callable[["Listener", "Listener"], bool]]
     ("error_handler", lambda a, b: a.invoker.error_handler is b.invoker.error_handler),
     ("entity_watch", lambda a, b: _entity_watches_match(a.entity_watch, b.entity_watch)),
 )
-
-
-def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHandlerType":
-    """Wrap a function to ensure it is always called as an async handler.
-
-    If the function is already an async function, it will be called directly.
-    If it is a regular function, it will be run in an executor to avoid blocking the event loop.
-
-    Args:
-        fn: The function to adapt.
-        task_bucket: TaskBucket used to create the async adapter (runs sync handlers in executor).
-
-    Returns:
-        An async handler that wraps the original function.
-    """
-    return cast("AsyncHandlerType", task_bucket.make_async_adapter(fn))

@@ -28,9 +28,9 @@ __all__ = ["db", "db_service_writer", "mock_hassette_for_db", "retention_service
 
 
 class TestSizeFailsafePriority:
-    """Priority ordering per ``_FAILSAFE_TABLES``: debug log records (0) < framework executions (1)
-    < blocking events (2) < api writes (3) < app executions (4). Only DEBUG ``log_records`` rows are in
-    this chain;
+    """Priority ordering per ``_FAILSAFE_TABLES``: debug log records (0) < listener misses (1)
+    < framework executions (2) < blocking events (3) < api writes (4) < app executions (5).
+    Only DEBUG ``log_records`` rows are in this chain;
     the ``log records`` target covering INFO and above is ``failsafe_exempt`` and expires only
     through age-based retention.
     The DELETE queries filter by ``source_tier`` inside the inner SELECT (when a target declares
@@ -63,11 +63,11 @@ class TestSizeFailsafePriority:
         """The failsafe stops mid-drain as soon as the database is back under the limit.
 
         ``seed_both_tables`` inserts executions without an explicit ``source_tier``, so they
-        fall in the default 'app' tier (priority 4) — the DEBUG log tier (priority 0, its log rows
-        are INFO), the framework tier (priority 1), blocking_events (priority 2) and api_writes
-        (priority 3) are empty and each consume one end-of-priority size check before priority 4 is
-        even reached: entry check plus the four empty-tier checks (5 checks) precede the priority-4
-        batch that deletes rows.
+        fall in the default 'app' tier (priority 5) — the DEBUG log tier (priority 0, its log rows
+        are INFO), listener_misses (priority 1), the framework tier (priority 2), blocking_events
+        (priority 3) and api_writes (priority 4) are empty and each consume one end-of-priority size
+        check before priority 5 is even reached: entry check plus the five empty-tier checks (6 checks)
+        precede the priority-5 batch that deletes rows.
         """
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
@@ -78,7 +78,7 @@ class TestSizeFailsafePriority:
         async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            if calls <= 5:
+            if calls <= 6:
                 return 10.0
             return 0.0
 
@@ -165,9 +165,10 @@ class TestSizeFailsafePriority:
         async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit for the entry check and the empty DEBUG tier's end-of-tier check; under
-            # limit immediately after the first batch — confines the run to one priority-1 batch.
-            return 10.0 if calls <= 2 else 0.0
+            # Over limit for the entry check and the empty DEBUG and listener-miss tiers' end-of-tier
+            # checks; under limit immediately after the first batch — confines the run to one
+            # framework-tier batch.
+            return 10.0 if calls <= 3 else 0.0
 
         await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=mock_size)
 
@@ -195,8 +196,9 @@ class TestSizeFailsafePriority:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """When the DB stays over limit through every tier, deletion proceeds debug log records
-        -> framework executions -> blocking events -> api writes -> app executions, in that order, and stops
-        there — INFO-and-above log records are never deleted however far over the limit the DB stays.
+        -> listener misses -> framework executions -> blocking events -> api writes -> app executions,
+        in that order, and stops there — INFO-and-above log records are never deleted however far over
+        the limit the DB stays.
         """
         now = time.time()
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_FRAMEWORK)
@@ -207,6 +209,11 @@ class TestSizeFailsafePriority:
             (now - 10,),
         )
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
+        await db.execute(
+            "INSERT INTO listener_misses (listener_id, hour_ts, reason, count, first_ts, last_ts)"
+            " VALUES (1, ?, 'throttled', 1, ?, ?)",
+            (now - 3600, now - 10, now - 10),
+        )
         await db.commit()
         await db_service_writer.insert_log_records(
             [make_log_record_row(1, now - 10, "log"), make_log_record_row(2, now - 10, "debug", level="DEBUG")]
@@ -225,6 +232,8 @@ class TestSizeFailsafePriority:
                 delete_order.append("blocking events")
             elif stripped.startswith("DELETE FROM api_writes"):
                 delete_order.append("api writes")
+            elif stripped.startswith("DELETE FROM listener_misses"):
+                delete_order.append("listener misses")
             elif stripped.startswith("DELETE FROM log_records") and "DEBUG" in (args[0] if args else ()):
                 # The level filter is a bound parameter, so the DEBUG target shows in the params.
                 delete_order.append("debug log records")
@@ -244,6 +253,7 @@ class TestSizeFailsafePriority:
         unique_order = list(dict.fromkeys(delete_order))
         assert unique_order == [
             "debug log records",
+            "listener misses",
             "framework executions",
             "blocking events",
             "api writes",
@@ -253,14 +263,14 @@ class TestSizeFailsafePriority:
         assert await count_rows(db, "log_records", level="DEBUG") == 0
         assert await count_rows(db, "log_records", level="INFO") == 1
 
-    async def test_size_failsafe_blocking_events_deleted_at_priority_two(
+    async def test_size_failsafe_blocking_events_deleted_at_priority_three(
         self,
         db: aiosqlite.Connection,
         mock_hassette_for_db: MagicMock,
         retention_service: DatabaseService,
     ) -> None:
-        """blocking_events (priority 2) drains after framework executions (1) and before
-        api writes (3) and app executions (4).
+        """blocking_events (priority 3) drains after listener misses (1) and framework executions (2)
+        and before api writes (4) and app executions (5).
         """
         now = time.time()
         for i in range(3):
@@ -275,12 +285,12 @@ class TestSizeFailsafePriority:
         async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit through the entry check and the DEBUG and framework-tier passes (no rows
-            # there); under limit once blocking_events' first batch has been deleted.
-            return 10.0 if calls <= 3 else 0.0
+            # Over limit through the entry check and the DEBUG, listener-miss and framework-tier
+            # passes (no rows there); under limit once blocking_events' first batch has been deleted.
+            return 10.0 if calls <= 4 else 0.0
 
         await run_size_failsafe(retention_service, mock_hassette_for_db, live_size=mock_size)
 
-        assert await count_rows(db, "blocking_events") == 0  # drained at priority 2
+        assert await count_rows(db, "blocking_events") == 0  # drained at priority 3
 
-        assert await count_rows(db, "executions", source_tier="app") == 1  # priority 3 never reached
+        assert await count_rows(db, "executions", source_tier="app") == 1  # priority 5 never reached

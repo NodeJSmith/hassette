@@ -17,7 +17,7 @@ async def run_job_and_get_cmd(svc: SchedulerService, job: Any, **run_job_kwargs:
     Shared across the scheduler_service test files (timeout, error_handler, trigger) that all
     assert on the same "run_job dispatched an ExecuteJob" shape. Named to match the fire-then-extract
     helpers covering the same pattern elsewhere — ``invoke_and_get_cmd`` in
-    tests/unit/bus/test_invocation.py and ``execute_handler_and_get_record`` in
+    tests/unit/bus/test_delivery.py and ``execute_handler_and_get_record`` in
     test_command_executor_execution_id.py. Kept local to this file rather than promoted to
     conftest.py, which is shared write-target scope across unrelated test groups (see
     design/specs/098-dedup-core-service-tests/design.md).

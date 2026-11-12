@@ -237,7 +237,6 @@ async def test_reconciliation_excludes_framework_app_key(framework_hassette: Mag
         app_key="test_app",
         live_listener_ids=[],  # Mark app listener as stale
         live_job_ids=[],
-        session_id=hassette.session_id,
     )
 
     # Verify framework listener still exists

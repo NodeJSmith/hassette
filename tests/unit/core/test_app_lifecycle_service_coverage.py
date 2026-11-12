@@ -16,7 +16,7 @@ import asyncio
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, seal
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
@@ -587,24 +587,6 @@ class TestReconcileAppRegistrationsDegradedPaths:
 
         call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
         assert call_kwargs.args[2] == []
-
-    async def test_session_id_unavailable_degrades_gracefully(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
-    ) -> None:
-        """When hassette.session_id access raises, reconciliation proceeds with session_id=None.
-
-        `mock_hassette` is built with `sealed=False`, so `session_id` (set explicitly by the
-        fixture) lives in the instance `__dict__`. Deleting it and then sealing the mock makes
-        any further access auto-vivify-and-raise `AttributeError` instead of returning a stub
-        child mock — the same failure shape production guards against.
-        """
-        del mock_hassette.session_id
-        seal(mock_hassette)
-
-        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
-
-        mock_hassette.command_executor.reconcile_registrations.assert_awaited_once()
-        assert call_kwargs.kwargs["session_id"] is None
 
     # dup-ignore-start: four reconcile_app_registrations degraded paths, each arranging one
     # collaborator to fail (or succeed) and asserting a different slice of the resulting

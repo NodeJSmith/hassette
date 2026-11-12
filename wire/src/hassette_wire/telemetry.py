@@ -21,6 +21,7 @@ from hassette_wire.literals import (
     OpenExecutionKind,
     OpenHealthStatus,
     OpenListenerKind,
+    OpenListenerMissReason,
     SourceTier,
 )
 
@@ -183,6 +184,34 @@ class Execution(BaseModel):
     liveness check, this field reads False even though the thread outlived the asyncio deadline.
     This is a false-negative (undercounting), not a false-positive. Treat as a lower bound.
     """
+
+
+class ListenerMiss(BaseModel):
+    """One hour of one reason an app listener dropped events that reached it, with the last such event.
+
+    Recorded only for app listeners, and only for events in the listener's scope: an event for another entity, or
+    the default ``changed`` filter rejecting an unchanged state, records nothing. ``count`` adds up across restarts
+    within the hour.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    hour_ts: float
+    """Start of the hour (Unix seconds, UTC) the drops fell in."""
+    reason: OpenListenerMissReason
+    """Why the events didn't run the handler."""
+    filter: str | None = None
+    """Summary of the filter that rejected the events, for ``reason='filter'``. None for every other reason."""
+    count: int
+    """How many events were dropped for this reason (and filter) in the hour."""
+    first_ts: float
+    """When the first of them was dropped."""
+    last_ts: float
+    """When the last of them was dropped."""
+    trigger: ExecutionTrigger
+    """The last dropped event. For ``hold_cancelled`` it's the event that ended the hold; for
+    ``hold_recheck_failed`` it's the state at the end of the hold, built from the cache; for
+    ``hold_entity_missing`` it's the event that started the hold."""
 
 
 class ActivityFeedEntry(BaseModel):

@@ -52,6 +52,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.resources.shutdown_outcome",  # ShutdownOutcome, ShutdownResult referenced in lifecycle docs
         "hassette.execution_mode",  # ExecutionModeGuard, DEFAULT_QUEUE_DEPTH referenced in bus docs
         "hassette.bus.listeners",  # Subscription, Listener referenced in bus docs
+        "hassette.bus.invoker",  # HandlerInvoker referenced in internals docs
         "hassette.bus.error_context",  # BusErrorContext referenced in handler docs
         "hassette.events.hass.hass",  # RawStateChangeEvent, CallServiceEvent, ComponentLoadedEvent
         "hassette.config.classes",  # AppManifest referenced in config docs

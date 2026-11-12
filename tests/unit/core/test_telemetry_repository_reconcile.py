@@ -1,9 +1,8 @@
-"""Unit tests for TelemetryRepository reconciliation of stale, live, once=True, and per-instance registrations."""
+"""Unit tests for TelemetryRepository reconciliation: listeners are retired, never deleted; stale jobs may be."""
 
 import time
 
 import aiosqlite
-import pytest
 
 from hassette.core.telemetry.repository import (
     TelemetryRepository,
@@ -14,25 +13,28 @@ from tests.support.sql import insert_execution_row
 from .conftest import (
     ONCE_LISTENER_NAME,
     assert_job_count,
-    assert_listener_count,
     fetch_job_field,
     fetch_listener_field,
     insert_committed_execution,
-    insert_new_session,
 )
 
 
-async def test_reconcile_deletes_stale_without_history(
+async def is_retired(db: aiosqlite.Connection, listener_id: int) -> bool:
+    """True when the listener row still exists and has ``retired_at`` set (fails if it was deleted)."""
+    return await fetch_listener_field(db, listener_id, "retired_at") is not None
+
+
+async def test_reconcile_retires_stale_listener_and_deletes_stale_job_without_history(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """reconcile_registrations() deletes stale non-once listeners with no execution history."""
+    """reconcile_registrations() never deletes a listener; a stale job with no history is deleted."""
     listener_id = await telemetry_repo.register_listener(make_listener_registration())
     job_id = await telemetry_repo.register_job(make_job_registration())
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
-    await assert_listener_count(telemetry_db, listener_id, 0, "Stale listener without history should be deleted")
+    assert await is_retired(telemetry_db, listener_id), "Stale listener without history should be retired"
     await assert_job_count(telemetry_db, job_id, 0, "Stale job without history should be deleted")
 
 
@@ -61,7 +63,7 @@ async def test_reconcile_retires_stale_with_history(
     assert job_retired_at is not None, "Stale job with history should have retired_at set"
 
 
-async def test_reconcile_preserves_live_listeners(
+async def test_reconcile_leaves_live_listeners_unretired(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
@@ -73,46 +75,25 @@ async def test_reconcile_preserves_live_listeners(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [id_a], [])
 
-    await assert_listener_count(telemetry_db, id_a, 1, "Live listener should be preserved")
-    await assert_listener_count(telemetry_db, id_b, 0, "Stale listener without history should be deleted")
+    assert not await is_retired(telemetry_db, id_a), "Live listener should be left alone"
+    assert await is_retired(telemetry_db, id_b), "Stale listener should be retired"
 
 
-@pytest.mark.usefixtures("telemetry_session_id")
-async def test_reconcile_deletes_once_true_previous_session(
+async def test_reconcile_retires_non_live_once_listener(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """reconcile_registrations() deletes once=True rows from previous sessions (no current executions)."""
-    once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
-    once_id = await telemetry_repo.register_listener(once_reg)
+    """reconcile_registrations() retires a non-live once=True listener like any other.
 
-    new_session_id = await insert_new_session(telemetry_db)
+    Deleting a once=True listener that already ran is ``SessionManager.cleanup_stale_once_listeners``'s job.
+    """
+    live_id = await telemetry_repo.register_listener(make_listener_registration(topic="topic.live", name="live"))
+    once_id = await telemetry_repo.register_listener(make_listener_registration(once=True, name=ONCE_LISTENER_NAME))
 
-    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id)
+    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [live_id], [])
 
-    await assert_listener_count(telemetry_db, once_id, 0, "once=True listener from previous session should be deleted")
-
-
-# dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see .claude/rules/tests-unit-core.md).
-async def test_reconcile_preserves_once_true_with_current_executions(
-    telemetry_repo: TelemetryRepository,
-    telemetry_db: aiosqlite.Connection,
-    telemetry_session_id: int,
-) -> None:
-    """reconcile_registrations() preserves once=True rows that have current-session executions."""
-    # dup-ignore-end
-    once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
-    once_id = await telemetry_repo.register_listener(once_reg)
-
-    # Create an execution in the CURRENT session
-    await insert_committed_execution(telemetry_db, telemetry_session_id, kind="handler", listener_id=once_id)
-
-    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], session_id=telemetry_session_id)
-
-    await assert_listener_count(
-        telemetry_db, once_id, 1, "once=True listener with current-session executions should be preserved"
-    )
+    assert await is_retired(telemetry_db, once_id), "Non-live once=True listener should be retired"
+    assert not await is_retired(telemetry_db, live_id), "Live listener should be left alone"
 
 
 async def test_reconcile_empty_ids_no_crash(
@@ -196,70 +177,11 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     assert retired_at_a is None, "Live job should not be retired"
 
 
-async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
+async def test_reconcile_scopes_listener_retirement_by_instance_name(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
 ) -> None:
-    """reconcile_registrations() deletes once=True listeners not in live IDs when live_listener_ids is non-empty."""
-    live_reg = make_listener_registration(topic="topic.live", name="test_app.live")
-    live_id = await telemetry_repo.register_listener(live_reg)
-
-    once_reg = make_listener_registration(once=True, name=ONCE_LISTENER_NAME)
-    once_id = await telemetry_repo.register_listener(once_reg)
-
-    new_session_id = await insert_new_session(telemetry_db)
-
-    await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [live_id], [], session_id=new_session_id)
-
-    await assert_listener_count(
-        telemetry_db,
-        once_id,
-        0,
-        "once=True listener from previous session should be deleted (non-empty live_listener_ids branch)",
-    )
-
-    await assert_listener_count(telemetry_db, live_id, 1, "Live listener should be preserved")
-
-
-async def test_reconcile_once_true_cleanup_respects_instance_name(
-    telemetry_repo: TelemetryRepository,
-    telemetry_db: aiosqlite.Connection,
-) -> None:
-    """reconcile_registrations(instance_name=...) scopes the once=True cleanup block.
-
-    Leaves a sibling instance's once=True row untouched. This is the exact regression the
-    instance-scoped reconciliation feature exists to prevent — the once=True block bypasses
-    the builder functions and must be scoped independently.
-    """
-    once_reg_0 = make_listener_registration(instance_name="instance_0", once=True, name=ONCE_LISTENER_NAME)
-    once_id_0 = await telemetry_repo.register_listener(once_reg_0)
-
-    once_reg_1 = make_listener_registration(instance_name="instance_1", once=True, name=ONCE_LISTENER_NAME)
-    once_id_1 = await telemetry_repo.register_listener(once_reg_1)
-
-    new_session_id = await insert_new_session(telemetry_db)
-
-    await telemetry_repo.reconcile_registrations(
-        DEFAULT_TEST_APP_KEY, [], [], session_id=new_session_id, instance_name="instance_0"
-    )
-
-    await assert_listener_count(
-        telemetry_db, once_id_0, 0, "once=True listener for the target instance_name should be deleted"
-    )
-    await assert_listener_count(
-        telemetry_db, once_id_1, 1, "once=True listener for the sibling instance_name should be preserved"
-    )
-
-
-async def test_reconcile_scopes_listener_deletion_by_instance_name(
-    telemetry_repo: TelemetryRepository,
-    telemetry_db: aiosqlite.Connection,
-) -> None:
-    """reconcile_registrations(instance_name=...) scopes non-once listener deletion.
-
-    A stale sibling-instance row (without execution history) is not deleted alongside the
-    target instance.
-    """
+    """reconcile_registrations(instance_name=...) retires only the target instance's stale listeners."""
     stale_instance_0 = await telemetry_repo.register_listener(
         make_listener_registration(instance_name="instance_0", name="test_app.on_a")
     )
@@ -269,12 +191,8 @@ async def test_reconcile_scopes_listener_deletion_by_instance_name(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_name="instance_0")
 
-    await assert_listener_count(
-        telemetry_db, stale_instance_0, 0, "Stale listener for the target instance_name should be deleted"
-    )
-    await assert_listener_count(
-        telemetry_db, stale_instance_1, 1, "Sibling instance's listener should be unaffected by scoped reconciliation"
-    )
+    assert await is_retired(telemetry_db, stale_instance_0), "Stale listener for the target instance should retire"
+    assert not await is_retired(telemetry_db, stale_instance_1), "Sibling instance's listener should be untouched"
 
 
 async def test_reconcile_without_instance_name_affects_all_instances(
@@ -295,10 +213,8 @@ async def test_reconcile_without_instance_name_affects_all_instances(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
-    await assert_listener_count(telemetry_db, listener_instance_0, 0, "Stale listener for instance_0 should be deleted")
-    await assert_listener_count(
-        telemetry_db, listener_instance_1, 0, "Stale listener for instance_1 should also be deleted"
-    )
+    assert await is_retired(telemetry_db, listener_instance_0), "Stale listener for instance_0 should be retired"
+    assert await is_retired(telemetry_db, listener_instance_1), "Stale listener for instance_1 should be retired"
 
 
 async def test_reconcile_scopes_job_deletion_by_instance_name(
@@ -309,7 +225,7 @@ async def test_reconcile_scopes_job_deletion_by_instance_name(
 
     A stale sibling-instance job (without execution history) is not deleted alongside the
     target instance — the scheduled_jobs analogue of
-    test_reconcile_scopes_listener_deletion_by_instance_name.
+    test_reconcile_scopes_listener_retirement_by_instance_name.
     """
     stale_job_instance_0 = await telemetry_repo.register_job(
         make_job_registration(instance_name="instance_0", job_name="job_a")

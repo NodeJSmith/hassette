@@ -2,7 +2,7 @@
 
 Kept as a single file rather than split by concern: no shorter filename covers all three areas, and
 splitting would trade one imperfect file name for two or three others sharing the same fixtures and
-setup. A reader who searches for `persist_execution_batch`, `build_delete_query`,
+setup. A reader who searches for `persist_execution_batch`, `build_delete_stale_jobs_query`,
 or `build_retire_query` and doesn't find them by name should check this file next.
 """
 
@@ -13,7 +13,7 @@ import pytest
 from hassette_wire import ExecutionStatus
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry.reconcile_sql import build_delete_query, build_retire_query
+from hassette.core.telemetry.reconcile_sql import build_delete_stale_jobs_query, build_retire_query
 from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.factories import (
     DEFAULT_TEST_APP_KEY,
@@ -202,39 +202,37 @@ async def test_active_views_exist(telemetry_db: aiosqlite.Connection) -> None:
     assert rows == []
 
 
-@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_delete_query_includes_instance_name_clause(table: str, history_fk: str) -> None:
-    """build_delete_query() with instance_name adds the AND instance_name clause and bind param."""
-    sql, params = build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, instance_name="instance_2")
+def test_build_delete_stale_jobs_query_includes_instance_name_clause() -> None:
+    """build_delete_stale_jobs_query() with instance_name adds the AND instance_name clause and bind param."""
+    sql, params = build_delete_stale_jobs_query(DEFAULT_TEST_APP_KEY, [], instance_name="instance_2")
 
     assert "AND instance_name = :instance_name" in sql
     assert params["instance_name"] == "instance_2"
 
 
-@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_delete_query_omits_instance_name_clause_when_none(table: str, history_fk: str) -> None:
-    """build_delete_query() with instance_name=None (default) adds no clause — backward compatible."""
-    sql, params = build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk)
+def test_build_delete_stale_jobs_query_omits_instance_name_clause_when_none() -> None:
+    """build_delete_stale_jobs_query() with instance_name=None (default) adds no clause."""
+    sql, params = build_delete_stale_jobs_query(DEFAULT_TEST_APP_KEY, [])
 
     assert "instance_name" not in sql
     assert "instance_name" not in params
 
 
-@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_retire_query_includes_instance_name_clause(table: str, history_fk: str) -> None:
+@pytest.mark.parametrize("table", ["listeners", "scheduled_jobs"])
+def test_build_retire_query_includes_instance_name_clause(table: str) -> None:
     """build_retire_query() with instance_name adds the AND instance_name clause and bind param."""
     sql, params = build_retire_query(
-        table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time(), instance_name="instance_3"
+        table, DEFAULT_TEST_APP_KEY, [], time.time(), only_with_history=False, instance_name="instance_3"
     )
 
     assert "AND instance_name = :instance_name" in sql
     assert params["instance_name"] == "instance_3"
 
 
-@pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
-def test_build_retire_query_omits_instance_name_clause_when_none(table: str, history_fk: str) -> None:
-    """build_retire_query() with instance_name=None (default) adds no clause — backward compatible."""
-    sql, params = build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time())
+@pytest.mark.parametrize("table", ["listeners", "scheduled_jobs"])
+def test_build_retire_query_omits_instance_name_clause_when_none(table: str) -> None:
+    """build_retire_query() with instance_name=None (default) adds no clause."""
+    sql, params = build_retire_query(table, DEFAULT_TEST_APP_KEY, [], time.time(), only_with_history=False)
 
     assert "instance_name" not in sql
     assert "instance_name" not in params

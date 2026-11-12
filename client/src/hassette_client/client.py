@@ -22,6 +22,7 @@ from hassette_wire import (
     ExecutionKind,
     JobSummary,
     JobTriggerResponse,
+    ListenerMiss,
     ListenerSummary,
     LivenessResponse,
     LogEntry,
@@ -435,6 +436,17 @@ class HassetteClient:
         """
         path = f"/api/telemetry/listener/{path_segment(listener_id)}/executions"
         return await self._transport.request("GET", path, list[Execution], params={"limit": limit, "since": since})
+
+    async def get_listener_misses(
+        self, listener_id: int, *, limit: int | None = None, since: float | None = None
+    ) -> list[ListenerMiss]:
+        """Get one bus listener's near-misses: hourly rollups of events that reached it and didn't run it.
+
+        Raises:
+            TelemetryUnavailableError: The telemetry store couldn't be read.
+        """
+        path = f"/api/telemetry/listener/{path_segment(listener_id)}/misses"
+        return await self._transport.request("GET", path, list[ListenerMiss], params={"limit": limit, "since": since})
 
     async def get_job_executions(
         self, job_id: int, *, limit: int | None = None, since: float | None = None

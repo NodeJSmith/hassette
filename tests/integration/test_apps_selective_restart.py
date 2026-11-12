@@ -249,7 +249,7 @@ class TestPerInstanceSelectiveRestart:
         MultiInstanceApp registers no listeners/jobs of its own, so both instances' rows are
         seeded directly via CommandExecutor to give the reconciliation SQL real rows to scope
         against. After reload_instance(app_key, "beta"), alpha's rows must survive unchanged
-        while beta's stale rows (nothing "live" after its own reload) are cleaned up —
+        while beta's stale rows (nothing "live" after its own reload) are retired or deleted —
         proving the reconciliation SQL is scoped by instance_name, not just app_key.
         """
         lifecycle, executor, db_service = real_db_lifecycle
@@ -308,10 +308,12 @@ class TestPerInstanceSelectiveRestart:
         assert alpha_job_row is not None, "sibling alpha's job row must survive reload of beta"
         assert alpha_job_row["retired_at"] is None, "sibling alpha's job row must not be retired"
 
-        beta_listener_cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (beta_listener_id,))
-        assert await beta_listener_cursor.fetchone() is None, (
-            "beta's stale listener row should be cleaned up by its own reload"
+        beta_listener_cursor = await db_service.db.execute(
+            "SELECT retired_at FROM listeners WHERE id = ?", (beta_listener_id,)
         )
+        beta_listener_row = await beta_listener_cursor.fetchone()
+        assert beta_listener_row is not None, "beta's stale listener row should be retired, not deleted"
+        assert beta_listener_row["retired_at"] is not None, "beta's stale listener row should be retired by its reload"
 
         beta_job_cursor = await db_service.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (beta_job_id,))
         assert await beta_job_cursor.fetchone() is None, "beta's stale job row should be cleaned up by its own reload"

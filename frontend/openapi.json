@@ -2555,6 +2555,94 @@
         }
       }
     },
+    "/api/telemetry/listener/{listener_id}/misses": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Listener Misses",
+        "description": "Hourly rollups of the events that reached an app listener and didn't run its handler, latest first.",
+        "operationId": "listener_misses_api_telemetry_listener__listener_id__misses_get",
+        "parameters": [
+          {
+            "name": "listener_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Listener Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListenerMiss"
+                  },
+                  "title": "Response Listener Misses Api Telemetry Listener  Listener Id  Misses Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/telemetry/job/{job_id}/executions": {
       "get": {
         "tags": [
@@ -5080,6 +5168,74 @@
         ],
         "title": "LastErrorResult",
         "description": "The outcome of the last-error lookup for one app."
+      },
+      "ListenerMiss": {
+        "properties": {
+          "hour_ts": {
+            "type": "number",
+            "title": "Hour Ts",
+            "description": "Start of the hour (Unix seconds, UTC) the drops fell in."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "filter",
+              "throttled",
+              "debounce_superseded",
+              "once_spent",
+              "busy",
+              "queue_full",
+              "backpressure",
+              "hold_cancelled",
+              "hold_recheck_failed",
+              "hold_entity_missing"
+            ],
+            "title": "Reason",
+            "description": "Why the events didn't run the handler."
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filter",
+            "description": "Summary of the filter that rejected the events, for ``reason='filter'``. None for every other reason."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "How many events were dropped for this reason (and filter) in the hour."
+          },
+          "first_ts": {
+            "type": "number",
+            "title": "First Ts",
+            "description": "When the first of them was dropped."
+          },
+          "last_ts": {
+            "type": "number",
+            "title": "Last Ts",
+            "description": "When the last of them was dropped."
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/ExecutionTrigger",
+            "description": "The last dropped event. For ``hold_cancelled`` it's the event that ended the hold; for\n``hold_recheck_failed`` it's the state at the end of the hold, built from the cache; for\n``hold_entity_missing`` it's the event that started the hold."
+          }
+        },
+        "type": "object",
+        "required": [
+          "hour_ts",
+          "reason",
+          "count",
+          "first_ts",
+          "last_ts",
+          "trigger"
+        ],
+        "title": "ListenerMiss",
+        "description": "One hour of one reason an app listener dropped events that reached it, with the last such event.\n\nRecorded only for app listeners, and only for events in the listener's scope: an event for another entity, or\nthe default ``changed`` filter rejecting an unchanged state, records nothing. ``count`` adds up across restarts\nwithin the hour."
       },
       "ListenerSummary": {
         "properties": {

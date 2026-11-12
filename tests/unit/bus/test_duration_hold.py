@@ -2,7 +2,7 @@
 
 Tests cover:
 - DurationHoldManager is constructable with mock callbacks (sync)
-- immediate_fire_task calls state_reader, builds invoke_fn, dispatches (async)
+- immediate_fire_task calls state_reader, builds a synthetic delivery, dispatches (async)
 - immediate_fire_task returns early when state_reader returns None (async)
 - start_duration_timer increments duration_timers_active and starts timer
 - hold_matches delegates to hold_predicate or falls back to listener.matches
@@ -13,7 +13,7 @@ Tests cover:
 import logging
 from collections.abc import Callable
 from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import hassette.utils.date_utils as date_utils
 from hassette.bus.duration_hold import DurationHoldManager
@@ -22,8 +22,8 @@ from hassette.bus.router import Router
 from hassette.core.duration_hold_adapters import compute_elapsed, make_synthetic_state_event
 from hassette.events.hass.raw import HassStateDict
 from hassette.testing import make_state_dict
-from tests.support.factories import make_mock_executor
-from tests.support.helpers import create_listener, make_task_bucket
+from tests.support.factories import make_mock_event, make_mock_executor
+from tests.support.helpers import create_listener, make_delivery, make_task_bucket
 
 
 def make_config_resolver(value: float | None = 30.0) -> Callable[[], float | None]:
@@ -77,6 +77,7 @@ def make_listener_with_mock_timer(
     entity_id: str = "light.kitchen",
     duration: float = 60.0,
     task_bucket: Any = None,
+    hold_predicate: Any = None,
 ) -> tuple[Listener, MagicMock, Any]:
     """Build a Listener with entity_watch set and a MagicMock attached as its timer.
 
@@ -92,6 +93,7 @@ def make_listener_with_mock_timer(
         entity_id=entity_id,
         duration=duration,
         task_bucket=task_bucket,
+        hold_predicate=hold_predicate,
     )
     assert listener.entity_watch is not None
     mock_timer = MagicMock()
@@ -104,36 +106,32 @@ def arm_duration_timer(
     state: dict[str, Any] | None = None,
     duration: float = 60.0,
     remove_listener: Callable[[Listener], None] | None = None,
-) -> tuple[DurationHoldManager, MagicMock, AsyncMock]:
+) -> tuple[DurationHoldManager, MagicMock, MagicMock]:
     """Build a manager + light.kitchen duration listener and call start_duration_timer.
 
     Collapses TestStartDurationTimer's shared arrange block: every test in that class builds a
-    manager (optionally state-seeded), a listener+mock-timer pair, and an AsyncMock invoke_fn
+    manager (optionally state-seeded) with a mock executor and a listener+mock-timer pair
     before calling start_duration_timer and then asserting on duration_timers_active or
     triggering the mocked timer's on_fire callback via ``mock_timer.start.call_args[0][0]``.
-    Returns ``(manager, mock_timer, invoke_fn)``. ``remove_listener`` lets a caller override
+    Returns ``(manager, mock_timer, executor)``. ``remove_listener`` lets a caller override
     ``manager.remove_listener`` before the timer starts, for the one test that needs it.
     """
-    manager = make_manager(state=state, remove_listener=remove_listener)
+    executor = make_mock_executor()
+    manager = make_manager(state=state, remove_listener=remove_listener, executor=executor)
     listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
-    invoke_fn = AsyncMock()
-    assert listener.entity_watch is not None
-    manager.start_duration_timer(listener, "light.kitchen", listener.entity_watch, invoke_fn)
-    return manager, mock_timer, invoke_fn
+    manager.start_duration_timer(make_delivery(listener, make_mock_event()))
+    return manager, mock_timer, executor
 
 
 def arm_remaining_duration_timer(
     *, state: dict[str, Any] | None = None, duration: float = 60.0, remaining: float = 30.0
-) -> tuple[DurationHoldManager, MagicMock, AsyncMock]:
+) -> tuple[DurationHoldManager, MagicMock, MagicMock]:
     """Same as ``arm_duration_timer`` but passes ``override_duration=remaining`` to ``start_duration_timer``."""
-    manager = make_manager(state=state)
+    executor = make_mock_executor()
+    manager = make_manager(state=state, executor=executor)
     listener, mock_timer, _task_bucket = make_listener_with_mock_timer(duration=duration)
-    invoke_fn = AsyncMock()
-    assert listener.entity_watch is not None
-    manager.start_duration_timer(
-        listener, "light.kitchen", listener.entity_watch, invoke_fn, override_duration=remaining
-    )
-    return manager, mock_timer, invoke_fn
+    manager.start_duration_timer(make_delivery(listener, make_mock_event()), override_duration=remaining)
+    return manager, mock_timer, executor
 
 
 async def run_immediate_fire(manager: DurationHoldManager, listener: Listener) -> None:
@@ -142,11 +140,40 @@ async def run_immediate_fire(manager: DurationHoldManager, listener: Listener) -
     await manager.immediate_fire_task(listener, listener.entity_watch)
 
 
+def immediate_listener_with_report(
+    cached_state: str, **listener_kwargs: Any
+) -> tuple[DurationHoldManager, Listener, MagicMock]:
+    """Build a manager caching light.kitchen at ``cached_state`` and an ``immediate=True`` light.kitchen listener
+    whose drop reporter is a ``MagicMock``; return ``(manager, listener, report)``.
+
+    For the immediate-fire near-miss tests, which vary only the listener's ``once``/``where`` and the cached state.
+    """
+    manager = make_manager(state=make_state_dict("light.kitchen", cached_state), executor=make_mock_executor())
+    listener = create_listener(
+        topic="hass.event.state_changed.light.kitchen", entity_id="light.kitchen", immediate=True, **listener_kwargs
+    )
+    report = MagicMock()
+    listener.invoker.report_drop = report
+    return manager, listener, report
+
+
+def single_drop_report(report: MagicMock, reason: str, cached_state: str) -> dict[str, Any]:
+    """Assert ``report`` was called once for ``reason`` with an event whose new state is ``cached_state``.
+
+    Returns the call's keyword arguments (``filter_index``/``is_synthetic``) for the caller to check.
+    """
+    report.assert_called_once()
+    (got_reason, event), kwargs = report.call_args
+    assert got_reason == reason
+    assert event.payload.data.new_state["state"] == cached_state
+    return kwargs
+
+
 async def fire_mock_timer(mock_timer: MagicMock) -> None:
     """Invoke the on_fire callback captured by mock_timer.start (``mock_timer.start.call_args[0][0]``).
 
     Used after arm_duration_timer/arm_remaining_duration_timer to trigger the timer's fire path;
-    the caller asserts on duration_timers_active (and/or invoke_fn) afterward.
+    the caller asserts on duration_timers_active (and/or the executor) afterward.
     """
     on_fire = mock_timer.start.call_args[0][0]
     await on_fire()
@@ -154,7 +181,7 @@ async def fire_mock_timer(mock_timer: MagicMock) -> None:
 
 def hold_matches_with_predicate(
     hold_predicate: Callable[[object], bool], *, duration: float = 5.0
-) -> tuple[bool, MagicMock]:
+) -> tuple[bool | None, MagicMock]:
     """Build a light.kitchen duration listener with `hold_predicate` set, call hold_matches with a
     fresh mock event, and return ``(result, event)``.
 
@@ -246,6 +273,17 @@ class TestImmediateFireTask:
 
         remove_listener.assert_called_once_with(listener)
 
+    async def test_dropped_immediate_fire_is_reported_as_synthetic(self) -> None:
+        """An immediate fire the invoker drops reports the cached-state event as synthetic (spec 147 D7)."""
+        manager, listener, report = immediate_listener_with_report("on", once=True)
+        listener.invoker.mark_fired()
+
+        await run_immediate_fire(manager, listener)
+
+        report.assert_called_once()
+        assert report.call_args.args[0] == "once_spent"
+        assert report.call_args.kwargs == {"filter_index": None, "is_synthetic": True}
+
     async def test_does_not_dispatch_when_predicate_does_not_match(self) -> None:
         """immediate_fire_task does not dispatch when listener predicate returns False."""
         executor = make_mock_executor()
@@ -265,6 +303,28 @@ class TestImmediateFireTask:
         await run_immediate_fire(manager, listener)
 
         executor.execute.assert_not_called()
+
+    async def test_filter_rejection_is_reported_as_synthetic_filter_miss(self) -> None:
+        """A cached state a filter rejects is a ``filter`` near-miss naming that filter (spec 151)."""
+        manager, listener, report = immediate_listener_with_report("off", where=lambda _ev: False)
+
+        await run_immediate_fire(manager, listener)
+
+        assert single_drop_report(report, "filter", "off") == {"filter_index": 0, "is_synthetic": True}
+
+    async def test_raising_filter_is_not_a_near_miss(self) -> None:
+        """A raising predicate on the immediate-fire path is a predicate failure, not a near-miss."""
+
+        def boom(_ev: object) -> bool:
+            raise ValueError("filter boom")
+
+        manager, listener, report = immediate_listener_with_report("off", where=boom)
+
+        await run_immediate_fire(manager, listener)
+
+        report.assert_not_called()
+        assert isinstance(manager.record_predicate_failure, MagicMock)
+        manager.record_predicate_failure.assert_called_once()
 
 
 class TestDecrementTimersActive:
@@ -286,14 +346,14 @@ class TestDecrementTimersActive:
 class TestStartDurationTimer:
     def test_increments_duration_timers_active(self) -> None:
         """start_duration_timer increments duration_timers_active before timer fires."""
-        manager, mock_timer, _invoke_fn = arm_duration_timer(remove_listener=make_remove_listener())
+        manager, mock_timer, _executor = arm_duration_timer(remove_listener=make_remove_listener())
 
         assert manager.duration_timers_active == 1
         mock_timer.start.assert_called_once()
 
     def test_start_remaining_increments_duration_timers_active(self) -> None:
         """start_duration_timer with override_duration increments duration_timers_active."""
-        manager, mock_timer, _invoke_fn = arm_remaining_duration_timer()
+        manager, mock_timer, _executor = arm_remaining_duration_timer()
 
         assert manager.duration_timers_active == 1
         mock_timer.start.assert_called_once_with(mock_timer.start.call_args[0][0], override_duration=30.0)
@@ -301,7 +361,7 @@ class TestStartDurationTimer:
     async def test_duration_fire_decrements_timers_active(self) -> None:
         """on_duration_fire closure decrements duration_timers_active in finally block."""
         state = make_state_dict("light.kitchen", "on")
-        manager, mock_timer, _invoke_fn = arm_duration_timer(state=state)
+        manager, mock_timer, _executor = arm_duration_timer(state=state)
         assert manager.duration_timers_active == 1
 
         await fire_mock_timer(mock_timer)
@@ -310,18 +370,18 @@ class TestStartDurationTimer:
 
     async def test_duration_fire_decrements_on_early_return(self) -> None:
         """on_duration_fire decrements counter even when state_reader returns None (early return)."""
-        manager, mock_timer, invoke_fn = arm_duration_timer(state=None)
+        manager, mock_timer, executor = arm_duration_timer(state=None)
         assert manager.duration_timers_active == 1
 
         await fire_mock_timer(mock_timer)
 
         assert manager.duration_timers_active == 0
-        invoke_fn.assert_not_called()
+        executor.execute.assert_not_called()
 
     async def test_remaining_fire_decrements_timers_active(self) -> None:
         """on_duration_fire decrements counter on an override_duration timer."""
         state = make_state_dict("light.kitchen", "on")
-        manager, mock_timer, _invoke_fn = arm_remaining_duration_timer(state=state)
+        manager, mock_timer, _executor = arm_remaining_duration_timer(state=state)
         assert manager.duration_timers_active == 1
 
         await fire_mock_timer(mock_timer)
@@ -379,17 +439,17 @@ class TestHoldMatches:
 
         assert result is True
 
-    def test_raising_hold_predicate_returns_false(self) -> None:
-        """hold_matches catches a raising hold_predicate and returns False."""
+    def test_raising_hold_predicate_returns_none(self) -> None:
+        """hold_matches catches a raising hold_predicate and returns None, a non-match that isn't a near-miss."""
 
         def bad_pred(_ev: object) -> bool:
             raise ValueError("hold boom")
 
         result, _event = hold_matches_with_predicate(bad_pred)
-        assert result is False
+        assert result is None
 
-    def test_raising_listener_predicate_in_hold_matches_returns_false(self) -> None:
-        """hold_matches catches a raising listener.matches() fallback and returns False."""
+    def test_raising_listener_predicate_in_hold_matches_returns_none(self) -> None:
+        """hold_matches catches a raising listener.matches() fallback and returns None."""
         manager = make_manager()
 
         def bad_pred(_ev: object) -> bool:
@@ -412,7 +472,7 @@ class TestHoldMatches:
 
         event = MagicMock()
         result = manager.hold_matches(listener, event)
-        assert result is False
+        assert result is None
         # dup-ignore-end
 
     def test_falls_back_when_no_entity_watch(self) -> None:
@@ -547,3 +607,54 @@ class TestComputeElapsed:
         result = compute_elapsed_for(state)
         # Should be approximately 5 seconds (within 1s tolerance for test timing)
         assert 4.0 <= result <= 10.0
+
+
+class TestRecheckNearMisses:
+    """A failed fire-time recheck is a ``hold_recheck_failed`` or ``hold_entity_missing`` near-miss (spec 151)."""
+
+    def arm(self, state: dict[str, Any] | None, hold_predicate: Any) -> tuple[MagicMock, Any, MagicMock]:
+        """Arm a light.kitchen hold whose recheck runs ``hold_predicate``; return (mock_timer, start event, report)."""
+        manager = make_manager(state=state)
+        listener, mock_timer, _bucket = make_listener_with_mock_timer(hold_predicate=hold_predicate)
+        report = MagicMock()
+        listener.invoker.report_drop = report
+        start_event = make_mock_event()
+        manager.start_duration_timer(make_delivery(listener, start_event))
+        return mock_timer, start_event, report
+
+    async def test_state_no_longer_matching_reports_the_synthetic_fire_time_event(self) -> None:
+        mock_timer, _start_event, report = self.arm(make_state_dict("light.kitchen", "off"), lambda _ev: False)
+        await fire_mock_timer(mock_timer)
+
+        kwargs = single_drop_report(report, "hold_recheck_failed", "off")
+        assert kwargs == {"filter_index": None, "is_synthetic": True}
+
+    async def test_entity_missing_from_cache_reports_the_start_event(self) -> None:
+        mock_timer, start_event, report = self.arm(None, lambda _ev: True)
+        await fire_mock_timer(mock_timer)
+
+        report.assert_called_once_with("hold_entity_missing", start_event, filter_index=None, is_synthetic=False)
+
+    async def test_entity_missing_after_an_immediate_hold_reports_the_synthetic_start_event(self) -> None:
+        """A hold started by an immediate fire keeps the cached-state event's synthetic origin when it is dropped."""
+        manager, listener, report = immediate_listener_with_report("on", duration=60.0)
+        assert listener.entity_watch is not None
+        mock_timer = MagicMock()
+        listener.entity_watch._timer = mock_timer
+        await run_immediate_fire(manager, listener)
+        manager.state_reader = make_state_reader(None)
+
+        await fire_mock_timer(mock_timer)
+
+        kwargs = single_drop_report(report, "hold_entity_missing", "on")
+        assert kwargs.get("is_synthetic") is True
+        assert kwargs.get("filter_index") is None
+
+    async def test_raising_recheck_is_not_a_near_miss(self) -> None:
+        def boom(_ev: object) -> bool:
+            raise ValueError("recheck boom")
+
+        mock_timer, _start_event, report = self.arm(make_state_dict("light.kitchen", "on"), boom)
+        await fire_mock_timer(mock_timer)
+
+        report.assert_not_called()

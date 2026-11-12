@@ -7,7 +7,14 @@ from hassette_wire import CausingWrite, Execution, ExecutionDetailResponse, LogE
 import hassette.cli.output as cli_output
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.formatters import EMPTY_VALUE, fmt_duration_ms, fmt_log_author, fmt_log_message, fmt_relative_time
+from hassette.cli.formatters import (
+    EMPTY_VALUE,
+    fmt_duration_ms,
+    fmt_log_author,
+    fmt_log_message,
+    fmt_relative_time,
+    fmt_value_change,
+)
 from hassette.cli.types import AppKeyArg, AuthorArg, LevelArg, LimitArg, LogInstanceArg, SinceArg
 
 API_WRITES_TRUNCATED_MESSAGE = "{shown} API writes shown; more were omitted. Raise --limit to see them."
@@ -139,25 +146,16 @@ def execution_summary(execution: Execution) -> dict[str, Any]:
         summary["error"] = f"{execution.error_type}: {message}" if message else execution.error_type
     trigger = execution.trigger
     if trigger is not None:
-        has_change = trigger.old_value is not None or trigger.new_value is not None
-        change = f"{display_value(trigger.old_value)} → {display_value(trigger.new_value)}" if has_change else None
         summary["trigger"] = {
             "topic": trigger.topic,
             "entity": trigger.entity_id,
-            "change": change,
+            "change": fmt_value_change(trigger.old_value, trigger.new_value),
             "context_id": trigger.context_id,
             "parent_id": trigger.parent_id,
             "origin": trigger.origin,
             "caused_by": fmt_caused_by(trigger.caused_by) if trigger.caused_by is not None else None,
         }
     return summary
-
-
-def display_value(value: str | None) -> str:
-    """A trigger value for the change line: ``—`` only when there is no value, and ``""`` shown quoted."""
-    if value is None:
-        return EMPTY_VALUE
-    return '""' if value == "" else value
 
 
 def fmt_caused_by(caused_by: CausingWrite) -> str:

@@ -3,24 +3,31 @@
 import json
 from typing import Any
 
-# The reconciliation query builders interpolate ``table`` and ``history_fk`` directly into
-# f-string SQL. Today every caller passes string literals, but an allowlist keeps that
-# interpolation injection-safe if a non-literal value is ever passed in.
-_RECONCILE_TABLES = frozenset({"listeners", "scheduled_jobs"})
-_RECONCILE_FK_COLUMNS = frozenset({"listener_id", "job_id"})
+# The reconciliation query builders interpolate the table and its executions FK column directly into
+# f-string SQL. Today every caller passes string literals, but this allowlist keeps that interpolation
+# injection-safe if a non-literal value is ever passed in.
+_HISTORY_FK = {"listeners": "listener_id", "scheduled_jobs": "job_id"}
 
 
-def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:
-    if table not in _RECONCILE_TABLES or history_fk not in _RECONCILE_FK_COLUMNS:
-        raise ValueError(f"Refusing to build SQL for unknown identifiers: table={table!r}, history_fk={history_fk!r}")
+def history_exists_sql(table: str) -> str:
+    """Build the ``EXISTS`` predicate that says a row of ``table`` has execution history.
+
+    Args:
+        table: ``"listeners"`` or ``"scheduled_jobs"``.
+
+    Returns:
+        A boolean SQL expression referencing ``table.id``.
+    """
+    if table not in _HISTORY_FK:
+        raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
+    return f"EXISTS (SELECT 1 FROM executions WHERE {_HISTORY_FK[table]} = {table}.id)"
 
 
 def instance_name_clause(instance_name: str | None) -> tuple[str, dict]:
     """Build the ``AND instance_name = :instance_name`` WHERE fragment and its bind param.
 
     Single-sources the instance-scoping fragment so every reconciliation SQL path (the
-    ``build_delete_query``/``build_retire_query`` builders and the hand-written ``once=True``
-    cleanup block) applies the same clause instead of five independent, driftable copies.
+    ``build_delete_stale_jobs_query``/``build_retire_query`` builders) applies the same clause.
 
     Args:
         instance_name: The instance name to scope by, or ``None`` for no scoping.
@@ -36,9 +43,8 @@ def instance_name_clause(instance_name: str | None) -> tuple[str, dict]:
 def not_in_clause(live_ids: list[int]) -> tuple[str, dict]:
     """Build the ``AND id NOT IN (...)`` WHERE fragment and its bind params.
 
-    Single-sources the live-ID exclusion fragment shared by ``build_delete_query``,
-    ``build_retire_query``, ``build_clear_stale_job_timing_query``, and the hand-written
-    ``once=True`` cleanup block.
+    Single-sources the live-ID exclusion fragment shared by ``build_delete_stale_jobs_query``,
+    ``build_retire_query``, and ``build_clear_stale_job_timing_query``.
 
     Args:
         live_ids: IDs to exclude, bound as ``:id_0``, ``:id_1``, ...
@@ -52,29 +58,23 @@ def not_in_clause(live_ids: list[int]) -> tuple[str, dict]:
     return f"AND id NOT IN ({placeholders})", {f"id_{i}": v for i, v in enumerate(live_ids)}
 
 
-def build_delete_query(
-    table: str,
-    app_key: str,
-    live_ids: list[int],
-    history_fk: str,
-    extra_where: str = "",
-    instance_name: str | None = None,
+def build_delete_stale_jobs_query(
+    app_key: str, live_ids: list[int], instance_name: str | None = None
 ) -> tuple[str, dict]:
-    """Build a DELETE query that removes rows not in ``live_ids`` without history.
+    """Build a DELETE of the app's scheduled jobs that aren't in ``live_ids`` and have no execution history.
+
+    There is no listener counterpart: reconciliation never deletes a listener row, because near-misses for
+    it can still be buffered in memory, so the database alone can't say whether it has history.
 
     Args:
-        table: Table to delete from (e.g. ``"listeners"``).
         app_key: The app key to scope the DELETE.
         live_ids: IDs to exclude from deletion.
-        history_fk: FK column in the executions table (e.g. ``"listener_id"``).
-        extra_where: Optional additional WHERE fragment (leading ``AND`` included).
         instance_name: When provided, additionally scopes the DELETE to this instance so
             reconciling one instance does not affect sibling instances' rows.
 
     Returns:
         A ``(sql, params)`` tuple.
     """
-    _assert_reconcile_identifiers(table, history_fk)
     params: dict[str, Any] = {"app_key": app_key}
     live_ids_clause, live_ids_params = not_in_clause(live_ids)
     params.update(live_ids_params)
@@ -83,12 +83,10 @@ def build_delete_query(
     params.update(instance_params)
 
     sql = f"""
-        DELETE FROM {table}
-        WHERE app_key = :app_key{extra_where}{instance_clause}
+        DELETE FROM scheduled_jobs
+        WHERE app_key = :app_key{instance_clause}
           {live_ids_clause}
-          AND NOT EXISTS (
-              SELECT 1 FROM executions WHERE {history_fk} = {table}.id
-          )
+          AND NOT {history_exists_sql("scheduled_jobs")}
     """
     return sql, params
 
@@ -97,27 +95,28 @@ def build_retire_query(
     table: str,
     app_key: str,
     live_ids: list[int],
-    history_fk: str,
     now: float,
-    extra_where: str = "",
+    *,
+    only_with_history: bool,
     instance_name: str | None = None,
 ) -> tuple[str, dict]:
-    """Build an UPDATE query that sets ``retired_at`` for rows not in ``live_ids`` with history.
+    """Build an UPDATE that sets ``retired_at`` on the app's unretired rows that aren't in ``live_ids``.
 
     Args:
-        table: Table to update (e.g. ``"listeners"``).
+        table: Table to update (``"listeners"`` or ``"scheduled_jobs"``).
         app_key: The app key to scope the UPDATE.
         live_ids: IDs to exclude from retirement.
-        history_fk: FK column in the executions table (e.g. ``"listener_id"``).
         now: Epoch timestamp for ``retired_at``.
-        extra_where: Optional additional WHERE fragment (leading ``AND`` included).
+        only_with_history: Retire only rows with execution history. Jobs pass True, since
+            ``build_delete_stale_jobs_query`` deletes the rest; listeners pass False.
         instance_name: When provided, additionally scopes the UPDATE to this instance so
             reconciling one instance does not affect sibling instances' rows.
 
     Returns:
         A ``(sql, params)`` tuple.
     """
-    _assert_reconcile_identifiers(table, history_fk)
+    if table not in _HISTORY_FK:
+        raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
     params: dict[str, Any] = {"app_key": app_key, "now": now}
     live_ids_clause, live_ids_params = not_in_clause(live_ids)
     params.update(live_ids_params)
@@ -125,14 +124,13 @@ def build_retire_query(
     instance_clause, instance_params = instance_name_clause(instance_name)
     params.update(instance_params)
 
+    history_clause = f"AND {history_exists_sql(table)}" if only_with_history else ""
     sql = f"""
         UPDATE {table} SET retired_at = :now
-        WHERE app_key = :app_key{extra_where}{instance_clause}
+        WHERE app_key = :app_key{instance_clause}
           {live_ids_clause}
           AND retired_at IS NULL
-          AND EXISTS (
-              SELECT 1 FROM executions WHERE {history_fk} = {table}.id
-          )
+          {history_clause}
     """
     return sql, params
 
@@ -144,8 +142,8 @@ def build_retire_unconfigured_instances_query(
 
     Removed apps are never reconciled again, and reconciling a renamed instance only covers its new
     name, so this is the only thing that retires those rows. Framework registrations are
-    ``source_tier = 'framework'`` and never match. Unlike ``build_retire_query``, rows are retired
-    whether or not they have execution history. Returns the ``app_key`` and ``instance_name`` of each
+    ``source_tier = 'framework'`` and never match. Rows are retired whether or not they have
+    execution history. Returns the ``app_key`` and ``instance_name`` of each
     retired row.
 
     Args:
@@ -156,7 +154,7 @@ def build_retire_unconfigured_instances_query(
     Returns:
         A ``(sql, params)`` tuple.
     """
-    if table not in _RECONCILE_TABLES:
+    if table not in _HISTORY_FK:
         raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
     sql = f"""
         UPDATE {table} SET retired_at = :now

@@ -457,6 +457,57 @@
         "max_width": 9,
         "overflow": "ellipsis"
       }
+    ],
+    "LISTENER_MISS_COLUMNS": [
+      {
+        "field": "hour_ts",
+        "formatter": "fmt_hour",
+        "header": "Hour",
+        "max_width": 16,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "reason",
+        "formatter": null,
+        "header": "Reason",
+        "max_width": 19,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "filter",
+        "formatter": "<lambda>",
+        "header": "Filter",
+        "max_width": 28,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "count",
+        "formatter": null,
+        "header": "Count",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "last_ts",
+        "formatter": "fmt_relative_time",
+        "header": "Last",
+        "max_width": 9,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "trigger.entity_id",
+        "formatter": "<lambda>",
+        "header": "Entity",
+        "max_width": 24,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "trigger",
+        "formatter": null,
+        "header": "Old \u2192 New",
+        "max_width": 28,
+        "overflow": "ellipsis"
+      }
     ]
   },
   "log": {

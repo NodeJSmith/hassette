@@ -20,6 +20,7 @@ from whenever import Instant
 from hassette.core.database_service import LOG_RECORD_COLUMNS
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
 from hassette.core.telemetry.insert_params import execution_insert_params, job_insert_params, listener_insert_params
 from hassette.types.types import is_framework_key
 from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
@@ -110,6 +111,25 @@ _API_WRITE_COLUMNS = (
 )
 
 
+# listener_misses table columns (see migrations_sql/025.sql), excluding the autoincrement id.
+_LISTENER_MISS_COLUMNS = (
+    "listener_id",
+    "hour_ts",
+    "reason",
+    "filter",
+    "count",
+    "first_ts",
+    "last_ts",
+    "trigger_topic",
+    "trigger_entity_id",
+    "trigger_old_value",
+    "trigger_new_value",
+    "trigger_context_id",
+    "trigger_parent_id",
+    "trigger_origin",
+)
+
+
 class SeedIntegrityError(Exception):
     """Raised when a post-seed integrity check (FK check or consistency assertion) fails."""
 
@@ -153,6 +173,7 @@ _SESSION_INSERT_SQL = _build_insert_sql("sessions", _SESSION_COLUMNS, returning=
 _LOG_INSERT_SQL = _build_insert_sql("log_records", LOG_RECORD_COLUMNS)
 _BLOCKING_EVENT_INSERT_SQL = _build_insert_sql("blocking_events", _BLOCKING_EVENT_COLUMNS)
 _API_WRITE_INSERT_SQL = _build_insert_sql("api_writes", _API_WRITE_COLUMNS)
+_LISTENER_MISS_INSERT_SQL = _build_insert_sql("listener_misses", _LISTENER_MISS_COLUMNS)
 
 
 def insert_row(cursor: sqlite3.Cursor, sql: str, params: dict[str, Any]) -> int:
@@ -390,6 +411,10 @@ class SeedContext:
     def add_api_write(self, params: dict[str, Any]) -> None:
         """Insert an api_writes row; ``params`` carries every column in ``_API_WRITE_COLUMNS``."""
         insert_row(self.cursor, _API_WRITE_INSERT_SQL, params)
+
+    def add_listener_miss(self, params: dict[str, Any]) -> None:
+        """Insert a listener_misses row; ``params`` carries every column in ``_LISTENER_MISS_COLUMNS``."""
+        insert_row(self.cursor, _LISTENER_MISS_INSERT_SQL, params)
 
 
 @contextmanager
@@ -707,5 +732,39 @@ def seed_app_api_writes(
                 "context_id": None if rejected else f"{scenario}_{app_key}_ctx_{index:04d}",
                 "sent_ts": sent,
                 "resolved_ts": sent + 0.05,
+            }
+        )
+
+
+def seed_listener_misses(
+    ctx: SeedContext, *, listener_id: int, base_offset: float, entity_id: str, filter_summary: str
+) -> None:
+    """Seed one hour of near-misses for a state-change listener: rejections by ``filter_summary`` and a few
+    throttled events, each row keeping its last event's values the way the recorder's flush writes them.
+    """
+    hour_ts = ts(base_offset) - ts(base_offset) % 3600
+    # Both stay inside the hour bucket and never pass the base time, which may be early in the hour.
+    last_ts = min(hour_ts + 600.0, ts(base_offset))
+    first_ts = min(hour_ts + 30.0, last_ts)
+    for reason, filter_, count, old, new in (
+        ("filter", filter_summary, 14, "on", "unavailable"),
+        ("throttled", LISTENER_MISS_NO_FILTER, 3, "off", "on"),
+    ):
+        ctx.add_listener_miss(
+            {
+                "listener_id": listener_id,
+                "hour_ts": hour_ts,
+                "reason": reason,
+                "filter": filter_,
+                "count": count,
+                "first_ts": first_ts,
+                "last_ts": last_ts,
+                "trigger_topic": "hass.event.state_changed",
+                "trigger_entity_id": entity_id,
+                "trigger_old_value": old,
+                "trigger_new_value": new,
+                "trigger_context_id": None,
+                "trigger_parent_id": None,
+                "trigger_origin": "LOCAL",
             }
         )

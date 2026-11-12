@@ -1,16 +1,17 @@
-"""Unit tests for build_tracked_invoke_fn in hassette.bus.invocation.
+"""Unit tests for ``Delivery`` in hassette.bus.delivery.
 
 Tests cover:
 - Timeout resolution: disabled → None, per-listener → value, config default → config_resolver() return value
 - InvokeHandler construction with correct fields (listener_id read lazily from listener.db_id)
 - executor.execute is called with the constructed command
 - is_synthetic flag propagation
+- ``drop`` reporting through the listener's reporter as bound at drop time
 """
 
 from unittest.mock import MagicMock
 
+from hassette.bus.delivery import Delivery
 from hassette.bus.error_context import BusErrorContext
-from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.bus.listeners import Listener
 from hassette.commands import InvokeHandler
 from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
@@ -27,7 +28,7 @@ async def invoke_and_get_cmd(
     topic: str = "test.topic",
     is_synthetic: bool = False,
 ) -> InvokeHandler:
-    """Build and fire an invoke_fn via ``build_tracked_invoke_fn``, returning the resulting command.
+    """Build a ``Delivery`` and invoke it, returning the resulting command.
 
     Fills in sane defaults for any argument not overridden. Callers that need to inspect
     ``executor``/``config_resolver`` afterward (e.g. ``config_resolver.assert_not_called()``)
@@ -40,17 +41,9 @@ async def invoke_and_get_cmd(
 
     # dup-ignore-start: Bus-layer helper's fire-and-extract-cmd tail mirrors the BusService-level
     # dispatch tests in tests/unit/core/test_bus_service_error_handler.py and
-    # test_bus_service_timeout.py — same build_tracked_invoke_fn behavior verified at two
+    # test_bus_service_timeout.py — same Delivery.invoke behavior verified at two
     # integration points (Bus vs BusService) by design, not copy-paste.
-    invoke_fn = build_tracked_invoke_fn(
-        listener=listener,
-        event=event,
-        topic=topic,
-        executor=executor,
-        config_resolver=config_resolver,
-        is_synthetic=is_synthetic,
-    )
-    await invoke_fn()
+    await Delivery(listener, event, topic, is_synthetic=is_synthetic).invoke(executor, config_resolver)
 
     cmd = executor.execute.call_args[0][0]
     assert isinstance(cmd, InvokeHandler)
@@ -90,25 +83,18 @@ class TestTimeoutResolution:
         config_resolver.assert_called_once()
 
     async def test_config_resolver_called_lazily_at_fire_time(self) -> None:
-        """config_resolver is called when invoke_fn fires, not when build_tracked_invoke_fn is called."""
+        """config_resolver is called when the delivery is invoked, not when it is created."""
         executor = make_mock_executor()
         call_count = []
         config_resolver = MagicMock(side_effect=lambda: call_count.append(1) or 10.0)
         listener = create_listener(topic="test.topic")
-        event = make_mock_event()
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
+        delivery = Delivery(listener, make_mock_event(), "test.topic")
 
         # config_resolver not called yet
         assert len(call_count) == 0
 
-        await invoke_fn()
+        await delivery.invoke(executor, config_resolver)
 
         # config_resolver called exactly once at fire time
         assert len(call_count) == 1
@@ -133,25 +119,18 @@ class TestInvokeHandlerConstruction:
         executor = make_mock_executor()
         config_resolver = MagicMock(return_value=10.0)
         listener = create_listener(topic="test.topic")
-        event = make_mock_event()
 
-        # Built and fired inline rather than via invoke_and_get_cmd: db_id must change between
-        # building the invoke_fn and firing it, and the helper does both in one call.
-        # db_id is None at build time
+        # Built and invoked inline rather than via invoke_and_get_cmd: db_id must change between
+        # creating the delivery and invoking it, and the helper does both in one call.
+        # db_id is None at creation time
         assert listener.db_id is None
 
-        invoke_fn = build_tracked_invoke_fn(
-            listener=listener,
-            event=event,
-            topic="test.topic",
-            executor=executor,
-            config_resolver=config_resolver,
-        )
+        delivery = Delivery(listener, make_mock_event(), "test.topic")
 
-        # Set db_id after building the invoke_fn (simulates async registration completing)
+        # Set db_id after creating the delivery (simulates async registration completing)
         listener.db_id = 42
 
-        await invoke_fn()
+        await delivery.invoke(executor, config_resolver)
 
         cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
@@ -209,3 +188,30 @@ class TestErrorHandlerResolution:
         cmd = await invoke_and_get_cmd(listener=listener)
 
         assert cmd.app_level_error_handler is None
+
+
+class TestDrop:
+    def test_reports_the_event_and_its_synthetic_flag(self) -> None:
+        listener = create_listener()
+        report = MagicMock()
+        listener.invoker.report_drop = report
+        event = make_mock_event()
+
+        Delivery(listener, event, "test.topic", is_synthetic=True).drop("filter", filter_index=2)
+
+        report.assert_called_once_with("filter", event, filter_index=2, is_synthetic=True)
+
+    def test_reads_the_reporter_at_drop_time(self) -> None:
+        """A delivery made before its listener was removed records nothing once the reporter is unbound."""
+        listener = create_listener()
+        report = MagicMock()
+        listener.invoker.report_drop = report
+        delivery = Delivery(listener, make_mock_event(), "test.topic")
+
+        listener.cancel()
+        delivery.drop("busy")
+
+        report.assert_not_called()
+
+    def test_no_reporter_is_a_no_op(self) -> None:
+        Delivery(create_listener(), make_mock_event(), "test.topic").drop("throttled")
