@@ -7,7 +7,7 @@ flush and storage rules (additive upsert, deleted listeners skipped, rows delete
 import time
 from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,9 +22,9 @@ from hassette.core.telemetry.helpers import LISTENER_MISS_NO_FILTER
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.event_handling import predicates as P
-from hassette.testing import create_state_change_event
+from hassette.testing import create_state_change_event, wait_for
 from tests.support.factories import make_bus_service_with_mock_executor
-from tests.support.helpers import create_listener
+from tests.support.helpers import create_listener, make_task_bucket
 from tests.support.mock_hassette import make_mock_hassette
 
 from .helpers import DbFixture, commit_returning_id, insert_listener
@@ -168,7 +168,7 @@ class TestRecorderFlush:
 
 
 def bus_service_on(db_svc: DatabaseService, sync_executor: SyncExecutor) -> BusService:
-    """A ``BusService`` (stubbed task bucket) whose hassette writes through ``db_svc``.
+    """A ``BusService`` whose hassette writes through ``db_svc``, with a task bucket that spawns real tasks.
 
     This directory's ``db_hassette`` variant is sealed and has no ``sync_executor``, so it can't parent a
     ``Resource``; this builds an unsealed mock with both instead.
@@ -178,29 +178,55 @@ def bus_service_on(db_svc: DatabaseService, sync_executor: SyncExecutor) -> BusS
     hassette.database_service = db_svc
     hassette.try_database_service.return_value = db_svc
     service, _ = make_bus_service_with_mock_executor(hassette)
+    service.task_bucket = make_task_bucket()
     return service
 
 
 class TestBusServiceLifecycle:
-    """``BusService`` starts the periodic flush and writes pending misses on shutdown (Summary, Flush)."""
+    """``BusService`` runs the recorder's flush loop, the only flusher, and stops it at shutdown (Summary, Flush)."""
 
-    async def test_initialize_spawns_the_periodic_flush(self, db: DbFixture, sync_executor: SyncExecutor) -> None:
-        service = bus_service_on(db[0], sync_executor)
+    async def test_periodic_and_shutdown_flushes_both_write(
+        self, db: DbFixture, sync_executor: SyncExecutor, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A drop written by a periodic flush and one recorded after it both land; shutdown ends the loop."""
+        db_svc, _ = db
+        monkeypatch.setattr(recorder_module, "FLUSH_INTERVAL_SECONDS", 0.05)
+        listener = registered_listener(await insert_listener(db_svc))
+        service = bus_service_on(db_svc, sync_executor)
+        report = service._miss_recorder.reporter_for(listener)
+        assert report is not None
+        event = create_state_change_event(entity_id=ENTITY_ID, old_value="off", new_value="on")
 
         await service.on_initialize()
+        report("busy", event)
 
-        spawn = cast("MagicMock", service.task_bucket.spawn)
-        names = [call.kwargs.get("name") for call in spawn.call_args_list]
-        assert "bus:listener_miss_flush" in names
+        async def written() -> bool:
+            return bool(await fetch_misses(db_svc))
 
-    async def test_shutdown_writes_pending_misses(self, db: DbFixture, sync_executor: SyncExecutor) -> None:
+        await wait_for(written, timeout=5, desc="the periodic flush's write")
+        report("throttled", event)
+        await service.on_shutdown()
+
+        task = service._miss_flush_task
+        assert task is not None
+        assert task.done()
+        assert sorted((row["reason"], row["count"]) for row in await fetch_misses(db_svc)) == [
+            ("busy", 1),
+            ("throttled", 1),
+        ]
+
+    async def test_shutdown_mid_interval_writes_pending_misses(
+        self, db: DbFixture, sync_executor: SyncExecutor
+    ) -> None:
+        """Shutdown wakes the loop before its interval ends; its last flush writes what's pending."""
         db_svc, _ = db
         listener = registered_listener(await insert_listener(db_svc))
         service = bus_service_on(db_svc, sync_executor)
         report = service._miss_recorder.reporter_for(listener)
         assert report is not None
-        report("busy", create_state_change_event(entity_id=ENTITY_ID, old_value="off", new_value="on"))
 
+        await service.on_initialize()
+        report("busy", create_state_change_event(entity_id=ENTITY_ID, old_value="off", new_value="on"))
         await service.on_shutdown()
 
         assert [(row["reason"], row["count"]) for row in await fetch_misses(db_svc)] == [("busy", 1)]

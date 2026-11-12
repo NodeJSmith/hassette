@@ -129,6 +129,10 @@ class BusService(Service):
 
         self._miss_recorder = ListenerMissRecorder(hassette)
         """Near-miss rollups for app listeners; each one's reporter is bound in ``add_listener``."""
+        self._miss_flush_stop = asyncio.Event()
+        """Ends the recorder's flush loop; replaced at each initialize so a re-initialized service gets a live loop."""
+        self._miss_flush_task: asyncio.Task[None] | None = None
+        """The recorder's flush loop, the only near-miss flusher; ``on_shutdown`` stops it and awaits its last flush."""
 
     @property
     def config_log_level(self) -> LogLevel:
@@ -694,20 +698,31 @@ class BusService(Service):
         await self.hassette.ready_event.wait()
 
     async def on_initialize(self) -> None:
-        """Start the periodic near-miss flush."""
-        self.task_bucket.spawn(self._miss_recorder.run_flush_loop(), name="bus:listener_miss_flush")
+        """Start the near-miss flush loop."""
+        self._miss_flush_stop = asyncio.Event()
+        self._miss_flush_task = self.task_bucket.spawn(
+            self._miss_recorder.run_flush_loop(self._miss_flush_stop), name="bus:listener_miss_flush"
+        )
 
     async def on_shutdown(self) -> None:
         """Write the near-misses accrued since the last flush.
 
-        Waits for in-flight dispatches first so their drops are counted. ``DatabaseService`` shuts down after this
-        service (a dependency shuts down after its dependents), so the write queue is still live here.
+        Waits for in-flight dispatches first so their drops are counted, then stops the flush loop and awaits its
+        last flush; this hook's own shutdown bound caps that wait. The loop gets its own stop event rather than
+        waiting on this service's shutdown event, which is set before dispatch drains. With no live loop, it flushes
+        directly. ``DatabaseService`` shuts down after this service (a dependency shuts down after its dependents),
+        so the write queue is still live here.
         """
         try:
             await self.await_dispatch_idle()
         except TimeoutError:
             self.logger.debug("Dispatches still pending at shutdown; flushing the near-misses recorded so far")
-        await self._miss_recorder.flush(final=True)
+        self._miss_flush_stop.set()
+        task = self._miss_flush_task
+        if task is not None and not task.done():
+            await task
+        else:
+            await self._miss_recorder.flush()
 
     @property
     def is_dispatch_idle(self) -> bool:

@@ -1,8 +1,7 @@
-"""ListenerMissRecorder without a database: which listeners record, how entries key, and failed-flush accounting.
+"""ListenerMissRecorder without a database: which listeners record, how entries key, the flush loop, and loss.
 
-Spec 151: parent D4 (app tier only), D3 (filter in the key), and the Posture's failure handling (a write that
-provably didn't run merges back for the next flush; any other failure, or one on the final flush, is counted and
-warned about once per episode).
+Spec 151: parent D4 (app tier only), D3 (filter in the key), and the failure handling (one flush loop owns every
+write; a failed write drops its batch and is counted and warned about once per episode, with no retry).
 """
 
 import asyncio
@@ -14,7 +13,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.listener_miss_recorder import MAX_FLUSH_RETRIES, ListenerMissRecorder
+from hassette.core import listener_miss_recorder as recorder_module
+from hassette.core.listener_miss_recorder import ListenerMissRecorder
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.event_handling import predicates as P
 from hassette.testing import create_state_change_event
@@ -120,60 +120,88 @@ class TestFailedFlush:
         assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 1
 
     @pytest.mark.parametrize("error", [TimeoutError(), sqlite3.OperationalError("database is locked")])
-    async def test_unwritten_batch_merges_back_into_newer_entries(self, hassette: MagicMock, error: Exception) -> None:
-        """A write that never ran keeps its batch; an entry recorded since the swap keeps its newer last event."""
+    async def test_unwritten_batch_is_dropped_not_retried(self, hassette: MagicMock, error: Exception) -> None:
+        """A write that never ran is a counted loss too: nothing merges back for a later flush."""
+        hassette.database_service.submit = AsyncMock(side_effect=failing_submit(error))
         recorder = ListenerMissRecorder(hassette)
-        listener = registered()
-        newer = event("red")
-
-        def fail_after_new_record(coro: Coroutine[Any, Any, Any]) -> None:
-            coro.close()
-            recorder.record(listener, "busy", newer)
-            raise error
-
-        hassette.database_service.submit = AsyncMock(side_effect=fail_after_new_record)
-        recorder.record(listener, "busy", event())
-        recorder.record(listener, "throttled", event())
-        first_busy_ts = next(iter(recorder.entries.values())).first_ts
+        recorder.record(registered(), "busy", event())
+        recorder.record(registered(), "throttled", event())
 
         await recorder.flush()
 
-        by_reason = {entry.reason: entry for entry in recorder.entries.values()}
-        assert set(by_reason) == {"busy", "throttled"}
-        busy = by_reason["busy"]
-        assert (busy.count, busy.first_ts, busy.last_event) == (2, first_busy_ts, newer)
-        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 0
-
-    async def test_final_flush_counts_an_unwritten_batch_as_lost(self, hassette: MagicMock) -> None:
-        """The shutdown flush has no later flush to merge back into, so a timed-out write is a counted loss."""
-        hassette.database_service.submit = AsyncMock(side_effect=failing_submit(TimeoutError()))
-        recorder = ListenerMissRecorder(hassette)
-        recorder.record(registered(), "busy", event())
-
-        await recorder.flush(final=True)
-
         assert recorder.entries == {}
-        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 1
-
-    async def test_retries_stop_after_the_bound_and_count_the_loss(
-        self, hassette: MagicMock, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """A write that keeps not running merges back MAX_FLUSH_RETRIES times, then drops, counts and warns."""
-        hassette.database_service.submit = AsyncMock(side_effect=failing_submit(TimeoutError()))
-        recorder = ListenerMissRecorder(hassette)
-        recorder.record(registered(), "busy", event())
-
-        with caplog.at_level(logging.WARNING, logger="hassette.core.listener_miss_recorder"):
-            for _ in range(MAX_FLUSH_RETRIES):
-                await recorder.flush()
-                assert len(recorder.entries) == 1
-            await recorder.flush()
-
-        assert recorder.entries == {}
-        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 1
-        assert "they are dropped" in caplog.records[-1].getMessage()
+        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 2
 
     async def test_empty_flush_writes_nothing(self, hassette: MagicMock) -> None:
         hassette.database_service.submit = AsyncMock()
         await ListenerMissRecorder(hassette).flush()
         hassette.database_service.submit.assert_not_awaited()
+
+
+class TestFlushLoop:
+    async def test_flushes_every_interval(self, hassette: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(recorder_module, "FLUSH_INTERVAL_SECONDS", 0.01)
+        written = asyncio.Event()
+
+        async def submit(coro: Coroutine[Any, Any, Any]) -> None:
+            coro.close()
+            written.set()
+
+        hassette.database_service.submit = AsyncMock(side_effect=submit)
+        recorder = ListenerMissRecorder(hassette)
+        recorder.record(registered(), "busy", event())
+        stop = asyncio.Event()
+        loop = asyncio.create_task(recorder.run_flush_loop(stop))
+
+        await asyncio.wait_for(written.wait(), timeout=1)
+
+        assert not loop.done()
+        stop.set()
+        await asyncio.wait_for(loop, timeout=1)
+
+    async def test_stop_flushes_what_is_pending_and_returns(self, hassette: MagicMock) -> None:
+        """A stop wakes the loop mid-interval; its last flush writes everything recorded before the stop."""
+        hassette.database_service.submit = AsyncMock(side_effect=lambda coro: coro.close())
+        recorder = ListenerMissRecorder(hassette)
+        stop = asyncio.Event()
+        loop = asyncio.create_task(recorder.run_flush_loop(stop))
+        recorder.record(registered(), "busy", event())
+
+        stop.set()
+        await asyncio.wait_for(loop, timeout=1)
+
+        assert recorder.entries == {}
+        hassette.database_service.submit.assert_awaited_once()
+
+    async def test_stop_during_a_write_still_gets_a_last_flush(
+        self, hassette: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Entries recorded while a periodic write is in flight, then a stop, are written by one more flush."""
+        monkeypatch.setattr(recorder_module, "FLUSH_INTERVAL_SECONDS", 0.01)
+        writing = asyncio.Event()
+        release = asyncio.Event()
+        submits = 0
+
+        async def submit(coro: Coroutine[Any, Any, Any]) -> None:
+            nonlocal submits
+            coro.close()
+            submits += 1
+            if submits == 1:
+                writing.set()
+                await release.wait()
+
+        hassette.database_service.submit = AsyncMock(side_effect=submit)
+        recorder = ListenerMissRecorder(hassette)
+        listener = registered()
+        recorder.record(listener, "busy", event())
+        stop = asyncio.Event()
+        loop = asyncio.create_task(recorder.run_flush_loop(stop))
+        await asyncio.wait_for(writing.wait(), timeout=1)
+
+        recorder.record(listener, "throttled", event())
+        stop.set()
+        release.set()
+        await asyncio.wait_for(loop, timeout=1)
+
+        assert recorder.entries == {}
+        assert submits == 2
