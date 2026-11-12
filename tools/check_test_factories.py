@@ -61,7 +61,7 @@ SHARED_FACTORIES = {
     "make_mock_parent": "tests.support.factories",
     "make_change_set": "tests.support.factories",
     "make_test_app_manifest": "tests.support.app_manifests",
-    "make_log_record_entry": "tests.support.factories",
+    "make_log_record_entry": "tests.support.log_factories",
     "make_invoke_handler_cmd": "tests.support.factories",
     "make_mock_listener": "tests.support.factories",
     "make_scheduler": "tests.support.factories",

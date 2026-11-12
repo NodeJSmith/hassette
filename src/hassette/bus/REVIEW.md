@@ -24,7 +24,7 @@ teardown, or regress the normal unsealed drain of `_dispatch_pending` futures?
 ## Backpressure vs Execution Mode Telemetry
 `backpressure` gates at the dispatch semaphore in
 `src/hassette/core/bus_service.py`, while `mode` gates inside
-`HandlerInvoker.dispatch()` in `src/hassette/bus/listeners.py`. A `DROP_NEWEST`
+`HandlerInvoker.dispatch()` in `src/hassette/bus/invoker.py`. A `DROP_NEWEST`
 listener in `queued` mode has two independent drop paths. Do `backpressure_dropped`
 and `guard.dropped` counters both appear in `wire/src/hassette_wire/`'s
 `ListenerSummary`, or does one path lose its telemetry?

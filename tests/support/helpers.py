@@ -17,7 +17,8 @@ import tomli_w
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
 from hassette.bus.delivery import Delivery
-from hassette.bus.listeners import EntityWatch, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
+from hassette.bus.invoker import HandlerInvoker
+from hassette.bus.listeners import EntityWatch, Listener, ListenerIdentity, ListenerOptions
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent

@@ -93,7 +93,6 @@ import logging
 import threading
 import typing
 from collections.abc import Coroutine, Mapping
-from functools import partial
 from typing import Any, Unpack
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, LogLevel, ResourceStatus
@@ -112,14 +111,15 @@ from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.source_capture import capture_registration_source, capture_source_location
 
-from .entity_registration import reject_glob_only_options, warn_if_unknown_entity
-from .listeners import EntityWatch, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
+from .entity_registration import build_attr_preds, build_state_preds, reject_glob_only_options, warn_if_unknown_entity
+from .invoker import HandlerInvoker
+from .listeners import EntityWatch, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
 from .sync import BusSyncFacade
 from .wait_for_cancellations import WaitForCancellationLog
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from hassette import Hassette
     from hassette.core.bus_service import BusService
@@ -1745,83 +1745,3 @@ class Bus(Resource):
             self.bus_service.wait_for_finished()
             if not subscription.listener.is_cancelled:
                 subscription.cancel()
-
-
-def _build_preds(
-    entity_id: str,
-    *,
-    changed: "bool | ComparisonCondition | FalseySentinel",
-    changed_from: Any,
-    changed_to: Any,
-    make_did_change: "Callable[[], Predicate]",
-    make_comparison: "Callable[..., Predicate]",
-    make_from: "Callable[..., Predicate]",
-    make_to: "Callable[..., Predicate]",
-) -> "tuple[list[Predicate], list[Predicate], list[Predicate]]":
-    """Build ``(scope, filters, hold_preds)`` for a state/attribute change subscription.
-
-    ``scope`` selects the events the listener is about: the entity, plus the change filter when ``changed`` was
-    omitted (``NOT_PROVIDED`` behaves as ``True``). A ``changed`` the caller passed, ``changed_from`` and
-    ``changed_to`` go in ``filters``, so their rejections are near-misses.
-    """
-    scope: list[Predicate] = [P.EntityMatches(entity_id)]
-    filters: list[Predicate] = []
-    hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
-
-    if changed is NOT_PROVIDED:
-        scope.append(make_did_change())
-    elif changed is True:
-        filters.append(make_did_change())
-    elif changed:
-        filters.append(make_comparison(condition=changed))
-
-    if changed_from is not NOT_PROVIDED:
-        filters.append(make_from(condition=changed_from))
-
-    if changed_to is not NOT_PROVIDED:
-        changed_to_pred = make_to(condition=changed_to)
-        filters.append(changed_to_pred)
-        hold_preds.append(changed_to_pred)
-
-    return scope, filters, hold_preds
-
-
-def build_state_preds(
-    entity_id: str,
-    *,
-    changed: "bool | ComparisonCondition | FalseySentinel",
-    changed_from: Any,
-    changed_to: Any,
-) -> "tuple[list[Predicate], list[Predicate], list[Predicate]]":
-    """Return ``(scope, filters, hold_preds)`` for a state-change listener; ``hold_preds`` re-check a duration hold."""
-    return _build_preds(
-        entity_id,
-        changed=changed,
-        changed_from=changed_from,
-        changed_to=changed_to,
-        make_did_change=P.StateDidChange,
-        make_comparison=P.StateComparison,
-        make_from=P.StateFrom,
-        make_to=P.StateTo,
-    )
-
-
-def build_attr_preds(
-    entity_id: str,
-    attr: str,
-    *,
-    changed: "bool | ComparisonCondition | FalseySentinel",
-    changed_from: Any,
-    changed_to: Any,
-) -> "tuple[list[Predicate], list[Predicate], list[Predicate]]":
-    """Return ``(scope, filters, hold_preds)`` for an attribute-change listener; ``hold_preds`` re-check a hold."""
-    return _build_preds(
-        entity_id,
-        changed=changed,
-        changed_from=changed_from,
-        changed_to=changed_to,
-        make_did_change=partial(P.AttrDidChange, attr),
-        make_comparison=partial(P.AttrComparison, attr),
-        make_from=partial(P.AttrFrom, attr),
-        make_to=partial(P.AttrTo, attr),
-    )

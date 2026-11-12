@@ -253,7 +253,7 @@ class TestBusServiceLifecycle:
         report("throttled", event)
         await service.on_shutdown()
 
-        task = service._miss_flush_task
+        task = service._miss_recorder.flush_task
         assert task is not None
         assert task.done()
         assert sorted((row["reason"], row["count"]) for row in await fetch_misses(db_svc)) == [

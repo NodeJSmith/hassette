@@ -157,6 +157,18 @@ def immediate_listener_with_report(
     return manager, listener, report
 
 
+def single_drop_report(report: MagicMock, reason: str, cached_state: str) -> dict[str, Any]:
+    """Assert ``report`` was called once for ``reason`` with an event whose new state is ``cached_state``.
+
+    Returns the call's keyword arguments (``filter_index``/``is_synthetic``) for the caller to check.
+    """
+    report.assert_called_once()
+    (got_reason, event), kwargs = report.call_args
+    assert got_reason == reason
+    assert event.payload.data.new_state["state"] == cached_state
+    return kwargs
+
+
 async def fire_mock_timer(mock_timer: MagicMock) -> None:
     """Invoke the on_fire callback captured by mock_timer.start (``mock_timer.start.call_args[0][0]``).
 
@@ -298,11 +310,7 @@ class TestImmediateFireTask:
 
         await run_immediate_fire(manager, listener)
 
-        report.assert_called_once()
-        (reason, event), kwargs = report.call_args
-        assert reason == "filter"
-        assert event.payload.data.new_state["state"] == "off"
-        assert kwargs == {"filter_index": 0, "is_synthetic": True}
+        assert single_drop_report(report, "filter", "off") == {"filter_index": 0, "is_synthetic": True}
 
     async def test_raising_filter_is_not_a_near_miss(self) -> None:
         """A raising predicate on the immediate-fire path is a predicate failure, not a near-miss."""
@@ -618,10 +626,7 @@ class TestRecheckNearMisses:
         mock_timer, _start_event, report = self.arm(make_state_dict("light.kitchen", "off"), lambda _ev: False)
         await fire_mock_timer(mock_timer)
 
-        report.assert_called_once()
-        (reason, event), kwargs = report.call_args
-        assert reason == "hold_recheck_failed"
-        assert event.payload.data.new_state["state"] == "off"
+        kwargs = single_drop_report(report, "hold_recheck_failed", "off")
         assert kwargs == {"filter_index": None, "is_synthetic": True}
 
     async def test_entity_missing_from_cache_reports_the_start_event(self) -> None:
@@ -641,10 +646,7 @@ class TestRecheckNearMisses:
 
         await fire_mock_timer(mock_timer)
 
-        report.assert_called_once()
-        (reason, event), kwargs = report.call_args
-        assert reason == "hold_entity_missing"
-        assert event.payload.data.new_state["state"] == "on"
+        kwargs = single_drop_report(report, "hold_entity_missing", "on")
         assert kwargs.get("is_synthetic") is True
         assert kwargs.get("filter_index") is None
 

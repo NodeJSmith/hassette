@@ -6,8 +6,8 @@ Recording only updates an in-memory entry keyed by listener, hour, reason and fi
 values aren't rendered until the flush. While it runs, ``run_flush_loop`` is the only flusher: every
 ``FLUSH_INTERVAL_SECONDS`` it swaps the entries out and writes them as one batched upsert that adds to any row
 already stored for the same key, and once its stop event is set it flushes once more and returns, so the final
-flush at shutdown never overlaps a periodic one. ``BusService.on_shutdown`` flushes directly only when no loop is
-running.
+flush at shutdown never overlaps a periodic one. ``start`` runs the loop and ``stop`` ends it, flushing directly only
+when no loop is running. ``BusService`` calls both from its own initialize and shutdown hooks.
 
 Recording is best-effort. A failed write loses its batch, which is counted under
 ``PipelineCounter.LISTENER_MISS_FLUSH_FAILED`` with a paced WARNING; nothing is retried, so a miss is written in
@@ -33,8 +33,9 @@ from hassette.types.types import APP_SOURCE_TIER
 if typing.TYPE_CHECKING:
     from hassette_wire import ListenerMissReason
 
-    from hassette import Hassette
-    from hassette.bus.listeners import DropReporter, Listener
+    from hassette import Hassette, TaskBucket
+    from hassette.bus.invoker import DropReporter
+    from hassette.bus.listeners import Listener
     from hassette.events import AnyEvent
 
 LOGGER = logging.getLogger(__name__)
@@ -91,6 +92,28 @@ class ListenerMissRecorder:
         self.entries: dict[tuple[int, float, ListenerMissReason, int | None], MissEntry] = {}
         """Rollups since the last flush, keyed by in-memory listener id, hour, reason and filter index."""
         self.last_loss_warn_monotonic: float | None = None
+        self.flush_stop: asyncio.Event | None = None
+        """Ends the flush loop; created at each ``start`` so a re-initialized service gets a live loop."""
+        self.flush_task: asyncio.Task[None] | None = None
+        """The flush loop, the only flusher while it runs; ``stop`` ends it and awaits its last flush."""
+
+    def start(self, task_bucket: "TaskBucket") -> None:
+        """Spawn the flush loop on ``task_bucket``."""
+        self.flush_stop = asyncio.Event()
+        self.flush_task = task_bucket.spawn(self.run_flush_loop(self.flush_stop), name="bus:listener_miss_flush")
+
+    async def stop(self) -> None:
+        """Stop the flush loop and await its last flush, or flush directly when no loop is running.
+
+        Only one of the two runs, so a direct flush never overlaps the loop's.
+        """
+        if self.flush_stop is not None:
+            self.flush_stop.set()
+        task = self.flush_task
+        if task is not None and not task.done():
+            await task
+        else:
+            await self.flush()
 
     def reporter_for(self, listener: "Listener") -> "DropReporter | None":
         """The reporter to bind to ``listener``, or None for a listener whose near-misses aren't recorded.

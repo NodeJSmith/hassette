@@ -15,7 +15,7 @@ from hassette.core import database_retention
 from hassette.core.database_service import DatabaseService
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget  # pyright: ignore[reportPrivateUsage]
 from hassette.logging_ import LogPersistenceHandler
-from tests.support.factories import make_log_record
+from tests.support.log_factories import make_log_record
 
 from ._fixtures_retention import (
     SOURCE_TIER_APP,

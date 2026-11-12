@@ -15,7 +15,8 @@ import pytest
 from hassette_wire import ExecutionMode
 
 from hassette import TaskBucket
-from hassette.bus.listeners import HandlerInvoker, Listener, ListenerOptions
+from hassette.bus.invoker import HandlerInvoker
+from hassette.bus.listeners import Listener, ListenerOptions
 from hassette.types import BusErrorHandlerType, HandlerType
 from tests.support.factories import make_mock_executor
 from tests.support.helpers import create_listener, make_delivery, make_task_bucket
@@ -257,7 +258,7 @@ class TestHandlerInvokerWarnStalled:
         """The WARNING says why it fired at this threshold."""
         invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.SINGLE, timeout=300.0))
 
-        with caplog.at_level("WARNING", logger="hassette.bus.listeners"):
+        with caplog.at_level("WARNING", logger="hassette.bus.invoker"):
             invoker.warn_stalled(240.0, 300.0)
 
         assert "for over 240s (80% of its 300s timeout) and is still running" in caplog.text

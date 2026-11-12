@@ -10,7 +10,7 @@ The one-hop pointer to the shared test factories and fixtures, loaded whenever y
 
 ## Before writing a local factory (BLOCKING)
 
-Before defining a local `make_*` or `build_*` function in a test file, check `tests/support/factories.py` and `tests/support/helpers.py` for an existing factory. Also check `tests/support/web_manifest_helpers.py`, `tests/support/web_job_helpers.py`, `tests/support/web_response_helpers.py`, and `tests/support/web_telemetry_helpers.py` for web-layer factories. A name match against the shared registry is treated as a duplicate even without an import — `tools/check_test_factories.py` (pre-commit hook) flags local `def make_*`/`def build_*` definitions that shadow a shared factory name, unless annotated `# factory-local: <reason>` for a genuinely different return type or purpose.
+Before defining a local `make_*` or `build_*` function in a test file, check `tests/support/factories.py`, `tests/support/log_factories.py` and `tests/support/helpers.py` for an existing factory. Also check `tests/support/web_manifest_helpers.py`, `tests/support/web_job_helpers.py`, `tests/support/web_response_helpers.py`, and `tests/support/web_telemetry_helpers.py` for web-layer factories. A name match against the shared registry is treated as a duplicate even without an import — `tools/check_test_factories.py` (pre-commit hook) flags local `def make_*`/`def build_*` definitions that shadow a shared factory name, unless annotated `# factory-local: <reason>` for a genuinely different return type or purpose.
 
 If a matching factory exists, import it instead of redefining it. If it doesn't exist and the same shape is needed in 3+ files, add it to `factories.py` (or the appropriate `web_*_helpers.py` submodule for web-layer models) rather than letting a fourth local copy accumulate.
 
@@ -44,17 +44,20 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `make_hass_event(event_type=..., data=..., origin=...)` — `Event` carrying a `HassPayload` (Home Assistant origin)
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
 - `make_change_set(**buckets)` — `ChangeSet` from plain iterables, every unlisted bucket defaulting to empty
-- `make_log_record_entry(**kw)` — `hassette.logging_.LogRecordEntry` with every required field defaulted (distinct from the web-layer `make_log_entry()`)
 - `make_bus_service_with_mock_executor(hassette, registration_id=...)` — `(BusService, executor mock)` wired to a stubbed task bucket
 - `make_scheduler_service_with_mock_executor(hassette, registration_id=...)` — `(SchedulerService, executor mock)`, job queue stubbed too
-- `make_log_record(**kw)` — `logging.LogRecord` with keyword defaults (name, level, pathname, lineno, msg, args, exc_info)
-- `build_log_entry(record)` — `LogRecordEntry` built from a `LogRecord` with correlation attrs and formatted traceback
-- `make_recording_log_capture_handler()` — `RecordingLogCaptureHandler` for observing `LogCaptureHandler.emit()`
 - `make_execution_record(*, kind="handler", session_id=1, ...)` — `ExecutionRecord` for a handler or job execution
 - `make_sync_executor(*, max_workers=2)` — standalone `SyncExecutor` for tests that need `run_in_thread`
 - `make_app(*, cls=App, instance_name="kitchen", app_key="kitchen_lights", hassette=None, **kw)` — bare `App`/`AppSync` on an unsealed `make_mock_hassette()` (or the `hassette` passed in); extra kwargs pass through to the constructor
 - `make_probe_app(schedule_fn, *, counter=False)` — throwaway `App` subclass for single-job "did it fire?" tests with `AppTestHarness`; `schedule_fn(app)` schedules against `app.task`, which records `fired` (or `fired_count`)
 - `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — dependent `Resource`/`Service` plus its declared `depends_on` types instantiated into `hassette.children`
+
+`tests/support/log_factories.py` — log records, entries, and capture handlers:
+
+- `make_log_record_entry(**kw)` — `hassette.logging_.LogRecordEntry` with every required field defaulted (distinct from the web-layer `make_log_entry()`)
+- `make_log_record(**kw)` — `logging.LogRecord` with keyword defaults (name, level, pathname, lineno, msg, args, exc_info)
+- `build_log_entry(record)` — `LogRecordEntry` built from a `LogRecord` with correlation attrs and formatted traceback
+- `make_recording_log_capture_handler()` — `RecordingLogCaptureHandler` for observing `LogCaptureHandler.emit()`
 
 `hassette.testing` (public; defined in `src/hassette/testing/_factories.py`) — event/state builders:
 

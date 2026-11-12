@@ -1,8 +1,8 @@
 from .bus import Bus
 from .error_context import BusErrorContext
+from .invoker import HandlerInvoker
 from .listeners import (
     EntityWatch,
-    HandlerInvoker,
     Listener,
     ListenerIdentity,
     ListenerOptions,
