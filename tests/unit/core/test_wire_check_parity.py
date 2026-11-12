@@ -19,7 +19,7 @@ from hassette_wire import (
     ScheduleStatusReason,
     SourceTier,
 )
-from hassette_wire.literals import ApiWriteKind, ApiWriteOutcome, ExecutionKind
+from hassette_wire.literals import ApiWriteKind, ApiWriteOutcome, ExecutionKind, ListenerMissReason
 
 from hassette.core.migration_runner import run_migrations
 from tests.support.sql import sqlite_conn
@@ -43,6 +43,7 @@ WIRE_VOCABULARY_COLUMNS: dict[tuple[str, str], Any] = {
     ("log_records", "author"): LogAuthor,
     ("api_writes", "outcome"): ApiWriteOutcome,
     ("api_writes", "kind"): ApiWriteKind,
+    ("listener_misses", "reason"): ListenerMissReason,
 }
 
 # Constrained columns with no wire vocabulary of the same values, and why.

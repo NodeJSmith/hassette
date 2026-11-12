@@ -75,22 +75,6 @@ class AppRegistrationReconcilerMixin:
                 )
         return live_job_ids
 
-    def resolve_session_id(self, app_key: str) -> int | None:
-        """Resolve the current session ID for the once=True cleanup guard.
-
-        Returns None (degraded mode) if the session ID is unavailable — once=True
-        cleanup is skipped and deferred to the next restart.
-        """
-        try:
-            return self.hassette.session_id
-        except Exception:
-            self.logger.warning(
-                "session_id unavailable for app '%s' — reconciliation running in degraded mode; "
-                "once=True cleanup skipped (deferred to next restart)",
-                app_key,
-            )
-            return None
-
     async def reconcile_app_registrations(
         self,
         app_key: str,
@@ -116,20 +100,18 @@ class AppRegistrationReconcilerMixin:
             live_listener_ids = self.collect_live_listener_ids(app_key, instances)
             live_listener_ids = self.merge_router_listener_ids(app_key, instances, bus_service, live_listener_ids)
             live_job_ids = self.collect_live_job_ids(app_key, instances)
-            session_id = self.resolve_session_id(app_key)
 
             await self.hassette.command_executor.reconcile_registrations(
                 app_key,
                 list(live_listener_ids),
                 live_job_ids,
-                session_id=session_id,
                 instance_name=instance_name,
             )
             self.logger.debug("Post-ready reconciliation complete for app '%s'", app_key)
         except Exception:
             self.logger.warning(
                 "Post-ready reconciliation failed for app '%s' — reconciliation rolled back; "
-                "stale rows (including once=True cleanup) may remain until next restart",
+                "stale rows may remain until next restart",
                 app_key,
                 exc_info=True,
             )

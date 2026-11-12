@@ -52,6 +52,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.resources.shutdown_outcome",  # ShutdownOutcome, ShutdownResult referenced in lifecycle docs
         "hassette.execution_mode",  # ExecutionModeGuard, DEFAULT_QUEUE_DEPTH referenced in bus docs
         "hassette.bus.listeners",  # Subscription, Listener referenced in bus docs
+        "hassette.bus.invoker",  # HandlerInvoker referenced in internals docs
         "hassette.bus.error_context",  # BusErrorContext referenced in handler docs
         "hassette.events.hass.hass",  # RawStateChangeEvent, CallServiceEvent, ComponentLoadedEvent
         "hassette.config.classes",  # AppManifest referenced in config docs
@@ -125,7 +126,7 @@ def write_overview_page(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[r
         " · [hassette.config](hassette/config/index.md)\n"
         "- **Event handling** — [hassette.bus](hassette/bus/index.md)"
         " · [hassette.events](hassette/events/hass/hass.md)"
-        " · [hassette.event_handling](hassette/event_handling/predicates.md)\n"
+        " · [hassette.event_handling](hassette/event_handling/predicates/index.md)\n"
         "- **API & States** — [hassette.api](hassette/api/index.md)"
         " · [hassette.scheduler](hassette/scheduler/index.md)"
         " · [hassette.state_manager](hassette/state_manager/state_manager.md)"

@@ -45,7 +45,8 @@ from hassette.models.states import LightState
 from hassette.resources.base import Resource
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.testing.config import TEST_TOKEN
-from tests.support.factories import RecordingLogCaptureHandler, make_mock_parent
+from tests.support.factories import make_mock_parent
+from tests.support.log_factories import RecordingLogCaptureHandler
 
 if TYPE_CHECKING:
     from contextvars import Token

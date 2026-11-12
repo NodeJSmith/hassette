@@ -433,6 +433,10 @@ List listeners and invocation history.
 │ SOURCE-TIER --source-tier  Filter by telemetry source tier: 'app', 'framework', or 'all'.        │
 │                            [choices: app, framework, all]                                        │
 │ LIMIT --limit              Maximum number of results to return.                                  │
+│ --misses                   Show the listener's near-misses instead of its invocations: hourly    │
+│                            counts of events that reached it and didn't run it, by reason and     │
+│                            filter, with the last such event. Requires a listener ID. [default:   │
+│                            False]                                                                │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir PATH             Directory to read hassette.toml and .env from, and the default     │

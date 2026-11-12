@@ -15,9 +15,11 @@ import pytest
 from hassette_wire import ExecutionMode
 
 from hassette import TaskBucket
-from hassette.bus.listeners import HandlerInvoker, ListenerOptions
+from hassette.bus.invoker import HandlerInvoker
+from hassette.bus.listeners import Listener, ListenerOptions
 from hassette.types import BusErrorHandlerType, HandlerType
-from tests.support.helpers import make_task_bucket
+from tests.support.factories import make_mock_executor
+from tests.support.helpers import create_listener, make_delivery, make_task_bucket
 
 
 async def simple_handler() -> None:
@@ -124,46 +126,56 @@ class TestHandlerInvokerAppErrorHandlerResolver:
         assert invoker.app_error_handler_resolver is resolver
 
 
+async def dispatch_once(listener: Listener, executor: MagicMock) -> None:
+    """Dispatch one delivery to ``listener`` through its invoker, running it on ``executor``."""
+    await listener.invoker.dispatch(make_delivery(listener), executor, lambda: None)
+
+
 class TestHandlerInvokerDispatch:
     # These tests exercise the once-guard + invoke flow, not overlap behavior. They use
     # ``ExecutionMode.PARALLEL`` (the byte-for-byte inline pass-through) so the MagicMock task_bucket
     # is never asked to spawn a real child task. Overlap-mode dispatch is covered by the
     # ExecutionModeGuard unit tests and the bus integration tests.
-    async def test_dispatch_calls_invoke_fn(self) -> None:
-        invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.PARALLEL))
-        invoke_fn = AsyncMock()
-        await invoker.dispatch(invoke_fn, lambda: None)
-        invoke_fn.assert_awaited_once()
+    async def test_dispatch_runs_the_delivery(self) -> None:
+        listener = create_listener(mode=ExecutionMode.PARALLEL)
+        executor = make_mock_executor()
+        delivery = make_delivery(listener)
+
+        await listener.invoker.dispatch(delivery, executor, lambda: None)
+
+        executor.execute.assert_awaited_once()
+        cmd = executor.execute.await_args[0][0]
+        assert (cmd.listener, cmd.event, cmd.topic) == (listener, delivery.event, delivery.topic)
 
     async def test_dispatch_once_guard_prevents_double_fire(self) -> None:
         """Once-guard: if once=True and fired=True, dispatch is skipped."""
-        invoker = make_invoker(options=ListenerOptions(once=True, mode=ExecutionMode.PARALLEL))
-        invoke_fn = AsyncMock()
+        listener = create_listener(once=True, mode=ExecutionMode.PARALLEL)
+        executor = make_mock_executor()
 
         # First dispatch — should fire and mark fired
-        await invoker.dispatch(invoke_fn, lambda: None)
-        invoke_fn.assert_awaited_once()
+        await dispatch_once(listener, executor)
+        executor.execute.assert_awaited_once()
 
         # Second dispatch — should be skipped
-        invoke_fn.reset_mock()
-        await invoker.dispatch(invoke_fn, lambda: None)
-        invoke_fn.assert_not_awaited()
+        executor.execute.reset_mock()
+        await dispatch_once(listener, executor)
+        executor.execute.assert_not_awaited()
 
     async def test_dispatch_once_false_allows_multiple(self) -> None:
         """once=False allows multiple dispatches."""
-        invoker = make_invoker(options=ListenerOptions(once=False, mode=ExecutionMode.PARALLEL))
-        invoke_fn = AsyncMock()
-        await invoker.dispatch(invoke_fn, lambda: None)
-        await invoker.dispatch(invoke_fn, lambda: None)
-        assert invoke_fn.await_count == 2
+        listener = create_listener(once=False, mode=ExecutionMode.PARALLEL)
+        executor = make_mock_executor()
+        await dispatch_once(listener, executor)
+        await dispatch_once(listener, executor)
+        assert executor.execute.await_count == 2
 
     async def test_dispatch_skipped_when_already_fired(self) -> None:
         """If fired is True before dispatch, dispatch returns immediately."""
-        invoker = make_invoker(options=ListenerOptions(once=True))
-        invoker.mark_fired()
-        invoke_fn = AsyncMock()
-        await invoker.dispatch(invoke_fn, lambda: None)
-        invoke_fn.assert_not_awaited()
+        listener = create_listener(once=True, mode=ExecutionMode.SINGLE)
+        listener.invoker.mark_fired()
+        executor = make_mock_executor()
+        await dispatch_once(listener, executor)
+        executor.execute.assert_not_awaited()
 
 
 class TestHandlerInvokerInvoke:
@@ -217,12 +229,12 @@ class TestHandlerInvokerWarnStalled:
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
-        invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.SINGLE))
+        listener = create_listener(mode=ExecutionMode.SINGLE)
 
         async def slow_invoke() -> None:
             await asyncio.sleep(0.2)
 
-        await invoker.dispatch(slow_invoke, lambda: None)
+        await dispatch_once(listener, make_mock_executor(slow_invoke))
 
         assert warn_calls == [0.01], "warn_stalled should fire once, with the patched threshold"
 
@@ -236,12 +248,9 @@ class TestHandlerInvokerWarnStalled:
 
         monkeypatch.setattr(HandlerInvoker, "warn_stalled", spy_warn_stalled)
 
-        invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.SINGLE))
+        listener = create_listener(mode=ExecutionMode.SINGLE)
 
-        async def fast_invoke() -> None:
-            return
-
-        await invoker.dispatch(fast_invoke, lambda: None)
+        await dispatch_once(listener, make_mock_executor())
 
         assert warn_calls == []
 
@@ -249,7 +258,7 @@ class TestHandlerInvokerWarnStalled:
         """The WARNING says why it fired at this threshold."""
         invoker = make_invoker(options=ListenerOptions(mode=ExecutionMode.SINGLE, timeout=300.0))
 
-        with caplog.at_level("WARNING", logger="hassette.bus.listeners"):
+        with caplog.at_level("WARNING", logger="hassette.bus.invoker"):
             invoker.warn_stalled(240.0, 300.0)
 
         assert "for over 240s (80% of its 300s timeout) and is still running" in caplog.text

@@ -75,6 +75,7 @@ Each API route has one method. Each returns a `hassette-wire` model, or a list o
 | `get_unattributed_blocking()` | `GET /api/telemetry/blocking/unattributed` |
 | `get_executions()` | `GET /api/telemetry/executions` |
 | `get_listener_executions(listener_id)` | `GET /api/telemetry/listener/{listener_id}/executions` |
+| `get_listener_misses(listener_id)` | `GET /api/telemetry/listener/{listener_id}/misses` |
 | `get_job_executions(job_id)` | `GET /api/telemetry/job/{job_id}/executions` |
 | `get_execution(execution_id)` | `GET /api/telemetry/execution/{execution_id}` |
 | `get_telemetry_status()` | `GET /api/telemetry/status` |

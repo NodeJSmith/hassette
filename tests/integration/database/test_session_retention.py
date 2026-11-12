@@ -126,3 +126,34 @@ async def test_sessions_delete_failure_does_not_break_other_targets(
     await initialized_service._do_run_retention_cleanup()
 
     assert old_session not in await session_ids(db)
+
+
+async def test_retired_listener_waits_for_its_recent_misses_to_age_out(initialized_service: DatabaseService) -> None:
+    """A retired listener whose near-miss rows are still inside retention isn't deleted (cascade would take them)."""
+    db = initialized_service.db
+    retention_days = initialized_service.hassette.config.database.retention_days
+    old_ts = time.time() - (retention_days + 5) * SECONDS_PER_DAY
+    recent_ts = time.time() - 60
+
+    ids: list[int] = []
+    for name, last_ts in (("recent", recent_ts), ("aged", old_ts)):
+        cursor = await db.execute(
+            "INSERT INTO listeners (app_key, instance_name, name, handler_method, topic, source_location, retired_at,"
+            " source_tier) VALUES ('app', 'inst', ?, 'h', 't', 'x.py:1', ?, 'app')",
+            (name, old_ts),
+        )
+        assert cursor.lastrowid is not None
+        ids.append(cursor.lastrowid)
+        await db.execute(
+            "INSERT INTO listener_misses (listener_id, hour_ts, reason, count, first_ts, last_ts)"
+            " VALUES (?, ?, 'busy', 1, ?, ?)",
+            (cursor.lastrowid, last_ts - last_ts % 3600, last_ts, last_ts),
+        )
+    await db.commit()
+
+    await initialized_service._do_run_retention_cleanup()
+
+    cursor = await db.execute("SELECT id FROM listeners")
+    remaining = {row[0] for row in await cursor.fetchall()}
+    assert ids[0] in remaining
+    assert await count_rows(db, "listener_misses", listener_id=ids[0]) == 1

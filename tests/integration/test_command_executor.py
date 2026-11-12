@@ -535,7 +535,7 @@ async def test_reconciliation_ordering(
     """reconcile_registrations() correctly retires stale rows after re-registration.
 
     This replaces the deleted clear_registrations test and verifies the post-ready
-    reconciliation contract: stale rows (not in live_ids) are retired/deleted, while
+    reconciliation contract: stale rows (not in live_ids) are retired, while
     live rows are preserved.
     """
     db_service, session_id = initialized_db
@@ -559,7 +559,7 @@ async def test_reconciliation_ordering(
     await db_service.db.commit()
 
     # Reconcile: only id_a is live; id_b is stale but has history
-    await executor.reconcile_registrations("test_app", [id_a], [], session_id=session_id)
+    await executor.reconcile_registrations("test_app", [id_a], [])
 
     # id_a should be untouched
     cursor = await db_service.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (id_a,))
@@ -592,16 +592,16 @@ async def test_reconcile_registrations_forwards_instance_name(
         make_listener_registration(instance_name="instance_1", handler_method="test_app.on_event_sibling")
     )
 
-    # Reconcile only instance_0 with no live IDs: id_target should be deleted (stale, no
-    # history), id_sibling (a different instance) must be untouched.
+    # Reconcile only instance_0 with no live IDs: id_target should be retired (stale),
+    # id_sibling (a different instance) must be untouched.
     await executor.reconcile_registrations("test_app", [], [], instance_name="instance_0")
 
-    cursor = await db_service.db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_target,))
+    cursor = await db_service.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (id_target,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == 0, "Stale listener for the reconciled instance_name should be deleted"
+    assert row[0] is not None, "Stale listener for the reconciled instance_name should be retired"
 
-    cursor = await db_service.db.execute("SELECT COUNT(*) AS count FROM listeners WHERE id = ?", (id_sibling,))
+    cursor = await db_service.db.execute("SELECT retired_at FROM listeners WHERE id = ?", (id_sibling,))
     row = await cursor.fetchone()
     assert row is not None
-    assert row[0] == 1, "Listener for the sibling instance_name should be preserved"
+    assert row[0] is None, "Listener for the sibling instance_name should be untouched"

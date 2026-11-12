@@ -15,7 +15,7 @@ from hassette.core import database_retention
 from hassette.core.database_service import DatabaseService
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget  # pyright: ignore[reportPrivateUsage]
 from hassette.logging_ import LogPersistenceHandler
-from tests.support.factories import make_log_record
+from tests.support.log_factories import make_log_record
 
 from ._fixtures_retention import (
     SOURCE_TIER_APP,
@@ -191,9 +191,9 @@ class TestRetentionCleanup:
         now = time.time()
         old_ts = now - (10 * SECONDS_PER_DAY)
 
-        # blocking_events (priority 2) — the target forced to fail below.
+        # blocking_events (priority 3) — the target forced to fail below.
         await insert_blocking_event(db, old_ts)
-        # app executions (priority 3) — should still be deleted despite the failure above.
+        # app executions (priority 5) — should still be deleted despite the failure above.
         await insert_tiered_execution(db, old_ts, SOURCE_TIER_APP)
         await db.commit()
 

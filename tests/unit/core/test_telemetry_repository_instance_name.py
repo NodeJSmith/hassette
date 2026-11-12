@@ -8,7 +8,7 @@ from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.types.types import FRAMEWORK_APP_KEY
 from tests.support.factories import DEFAULT_TEST_APP_KEY, make_job_registration, make_listener_registration
 
-from .conftest import assert_job_count, assert_listener_count, fetch_job_field, fetch_listener_field
+from .conftest import assert_job_count, fetch_job_field, fetch_listener_field
 
 FRAMEWORK_KEY = f"{FRAMEWORK_APP_KEY}.BusService"
 
@@ -114,7 +114,11 @@ async def test_reconcile_scoped_to_a_name_leaves_sibling_rows_alone(
 
     await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [], instance_name="upstairs")
 
-    await assert_listener_count(telemetry_db, stale, 0, "The reconciled instance's stale listener should be deleted")
-    await assert_listener_count(telemetry_db, sibling, 1, "A sibling at the same index should be untouched")
+    assert await fetch_listener_field(telemetry_db, stale, "retired_at") is not None, (
+        "The reconciled instance's stale listener should be retired"
+    )
+    assert await fetch_listener_field(telemetry_db, sibling, "retired_at") is None, (
+        "A sibling at the same index should be untouched"
+    )
     await assert_job_count(telemetry_db, stale_job, 0, "The reconciled instance's stale job should be deleted")
     await assert_job_count(telemetry_db, sibling_job, 1, "A sibling job at the same index should be untouched")

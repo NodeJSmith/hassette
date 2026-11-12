@@ -17,7 +17,6 @@ from hassette.bus.sync_events import BusSyncEventShortcuts
 from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types import ComparisonCondition
 from hassette.types.types import IfExistsPolicy, WhereClause
 
 if typing.TYPE_CHECKING:
@@ -25,8 +24,9 @@ if typing.TYPE_CHECKING:
 
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
+    from hassette.const import FalseySentinel
     from hassette.events.base import AnyEvent
-    from hassette.types import ChangeType, HandlerType, Predicate
+    from hassette.types import ChangeType, ComparisonCondition, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
 
 
@@ -139,7 +139,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
         entity_id: str,
         *,
         handler: "HandlerType",
-        changed: bool | ComparisonCondition = True,
+        changed: "bool | ComparisonCondition | FalseySentinel" = NOT_PROVIDED,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: WhereClause = None,
@@ -159,7 +159,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             handler: The function to call when the event matches.
             changed: Whether to filter only events where the state changed. If a ComparisonCondition is provided, it
-                will be used to compare the old and new state values.
+                will be used to compare the old and new state values. Omitted, it behaves as ``True``, but its
+                rejections aren't recorded as near-misses; pass it explicitly to record them.
             changed_from: A value or callable that will be used to filter state changes *from* this value.
             changed_to: A value or callable that will be used to filter state changes *to* this value.
             where: Additional predicates to filter events (e.g. ValueIs) or custom callables. These will receive the
@@ -225,7 +226,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
         attr: str,
         *,
         handler: "HandlerType",
-        changed: bool | ComparisonCondition = True,
+        changed: "bool | ComparisonCondition | FalseySentinel" = NOT_PROVIDED,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: WhereClause = None,
@@ -246,7 +247,8 @@ class BusSyncFacade(BusSyncEventShortcuts):
             attr: The attribute name to filter changes on (e.g., "volume").
             handler: The function to call when the event matches.
             changed: Whether to filter only events where the attribute changed. If a ComparisonCondition is provided,
-                it will be used to compare the old and new attribute values.
+                it will be used to compare the old and new attribute values. Omitted, it behaves as ``True``, but
+                its rejections aren't recorded as near-misses; pass it explicitly to record them.
             changed_from: A value or callable that will be used to filter attribute changes *from* this value.
             changed_to: A value or callable that will be used to filter attribute changes *to* this value.
             where: Additional predicates to filter events.

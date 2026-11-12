@@ -305,8 +305,11 @@ async def run_through_guard(
     warn: Callable[[float, float | None], None],
     spawn_name: str,
     resolve_timeout: Callable[[], float | None],
-) -> None:
+) -> Outcome:
     """Route one non-parallel invocation through ``guard``, bridging completion via a future.
+
+    Returns the guard's ``Outcome``, once the invocation has ended or been dropped, so a caller can tell a
+    ``SUPPRESSED`` or ``DROPPED`` trigger from one that ran.
 
     PRECONDITION: the caller must route ``parallel`` through ``run_parallel`` — this function is
     the single/restart/queued path only. There is no guard-rail; passing a parallel guard here
@@ -363,8 +366,9 @@ async def run_through_guard(
     outcome = await guard.run(run_and_track)
     if outcome in (Outcome.SUPPRESSED, Outcome.DROPPED):
         resolve_done()
-        return
+        return outcome
     await done
+    return outcome
 
 
 async def run_parallel(

@@ -1,12 +1,14 @@
-"""Listener-related CLI commands: listener list and invocation history."""
+"""Listener-related CLI commands: listener list, invocation history and near-misses."""
 
-from typing import Any
+from typing import Annotated, Any
 
-from hassette_wire import Execution, ListenerSummary
+from cyclopts import Parameter
+from hassette_wire import ListenerMiss, ListenerSummary
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
+from hassette.cli.commands.executions import render_execution_history
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.formatters import fmt_duration_ms, fmt_handler_short, fmt_relative_time
+from hassette.cli.formatters import fmt_change, fmt_duration_ms, fmt_handler_short, fmt_hour, fmt_relative_time
 from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 
@@ -23,14 +25,21 @@ LISTENER_LIST_COLUMNS: list[Column] = [
     Column("last_invoked_at", "Last", max_width=9, formatter=fmt_relative_time),
 ]
 
-LISTENER_INVOCATION_COLUMNS: list[Column] = [
-    Column("status", "Status", max_width=10),
-    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
-    Column("error_type", "Error Type", max_width=20),
-    Column("error_message", "Error Message", max_width=28),
-    Column("execution_start_ts", "When", max_width=11, formatter=fmt_relative_time),
-    Column("execution_id", "Execution ID", max_width=14),
+
+LISTENER_MISS_COLUMNS: list[Column] = [
+    Column("hour_ts", "Hour", max_width=16, formatter=fmt_hour),
+    Column("reason", "Reason", max_width=19),
+    Column("filter", "Filter", max_width=28, formatter=lambda value: value or ""),
+    Column("count", "Count", max_width=7),
+    Column("last_ts", "Last", max_width=9, formatter=fmt_relative_time),
+    Column("trigger.entity_id", "Entity", max_width=24, formatter=lambda value: value or ""),
+    Column("trigger", "Old → New", max_width=28, row_formatter=fmt_change),
 ]
+
+MISSES_HELP = (
+    "Show the listener's near-misses instead of its invocations: hourly counts of events that reached it and "
+    "didn't run it, by reason and filter, with the last such event. Requires a listener ID."
+)
 
 
 # dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
@@ -43,20 +52,32 @@ def cmd_listener(
     source_tier: SourceTierArg = None,
     limit: LimitArg = None,
     *,
+    misses: Annotated[bool, Parameter(help=MISSES_HELP, negative=[])] = False,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     # dup-ignore-end
-    """List listeners, or show invocation history for a specific listener."""
+    """List listeners, or show invocation history (or near-misses) for a specific listener."""
     client = make_client(ctx)
 
-    if listener_id is not None:
-        raw: list[Any] = client.get(
-            f"/api/telemetry/listener/{listener_id}/executions",
+    if misses:
+        if listener_id is None:
+            client.error_usage("--misses requires a listener ID")
+        raw_misses: list[Any] = client.get(
+            f"/api/telemetry/listener/{listener_id}/misses",
             list,
             params=query_params(since=since, limit=limit),
         )
-        invocations = parse_wire_list(Execution, raw)
-        render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=ctx.json_mode)
+        render_table(parse_wire_list(ListenerMiss, raw_misses), LISTENER_MISS_COLUMNS, json_mode=ctx.json_mode)
+        return
+
+    if listener_id is not None:
+        render_execution_history(
+            client,
+            f"/api/telemetry/listener/{listener_id}/executions",
+            since=since,
+            limit=limit,
+            json_mode=ctx.json_mode,
+        )
         return
 
     raw = client.get_with_app_routing(

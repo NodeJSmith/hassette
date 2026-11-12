@@ -9,6 +9,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
+    from hassette.bus.delivery import Delivery
 
 LOGGER = getLogger(__name__)
 
@@ -30,7 +31,7 @@ class RateLimiter:
     Example:
         ```python
         limiter = RateLimiter(task_bucket=bucket, debounce=1.0, handler_name="my_handler")
-        await limiter.call(invoke_fn)  # invoke_fn is a zero-arg async closure
+        await limiter.call(delivery, run)  # run(delivery) is awaited with the delivery that actually runs
         ```
     """
 
@@ -59,6 +60,9 @@ class RateLimiter:
         self._clock = clock or time.monotonic
 
         self._debounce_task: asyncio.Task[None] | None = None
+        self._debounce_pending: Delivery | None = None
+        """The delivery the pending debounce task would run, reported as superseded if a later one replaces it. None
+        when nothing is pending."""
         self._throttle_last_time: float | None = None
         self._cancelled = False
 
@@ -66,6 +70,7 @@ class RateLimiter:
         """Done callback: clear _debounce_task if it's still the current task."""
         if self._debounce_task is task:
             self._debounce_task = None
+            self._debounce_pending = None
 
     def cancel(self) -> None:
         """Cancel any pending debounce task.
@@ -79,38 +84,41 @@ class RateLimiter:
         if self._debounce_task and not self._debounce_task.done():
             self._debounce_task.cancel()
             self._debounce_task = None
+        self._debounce_pending = None
 
-    async def call(self, handler: "Callable[[], Awaitable[None]]") -> None:
-        """Call handler with rate limiting applied.
+    async def call(self, delivery: "Delivery", run: "Callable[[Delivery], Awaitable[None]]") -> None:
+        """Run ``delivery`` through ``run`` with rate limiting applied.
 
         Args:
-            handler: Zero-arg async callable.  ``Listener.dispatch()`` always passes a
-                closure that captures the event and error handling internally.
+            delivery: The delivery to run. One this limiter drops is reported through it: ``throttled`` inside the
+                throttle window, ``debounce_superseded`` when a later delivery replaces a pending one.
+            run: Async callable the limiter awaits with the delivery that actually runs (the pending one, for a
+                debounce), so the run and the drop report can't name different deliveries.
         """
         if self._cancelled:
             return
         if self.debounce is not None:
-            await self.debounced_call(handler, self.debounce)
+            await self.debounced_call(delivery, run, self.debounce)
         elif self.throttle is not None:
-            await self.throttled_call(handler, self.throttle)
+            await self.throttled_call(delivery, run, self.throttle)
         else:
-            await handler()
+            await run(delivery)
 
-    async def debounced_call(self, handler: "Callable[[], Awaitable[None]]", debounce: float) -> None:
+    async def debounced_call(
+        self, delivery: "Delivery", run: "Callable[[Delivery], Awaitable[None]]", debounce: float
+    ) -> None:
         """Debounced version of the handler call.
 
-        Expects a fresh ``handler`` callable on each call.  BusService creates a new
-        closure per dispatch that captures the current event, so the debounced handler
-        always fires with the latest event data.  Callers must not reuse the same
-        callable with updated shared state — the cancel-then-create ordering below
-        discards the previous handler entirely.
+        Each call replaces the pending delivery, so the debounced run always fires with the latest event data.
         """
         # Cancel previous debounce task BEFORE spawning the replacement.  This ordering
-        # is critical: the old task holds the old handler closure (with the old event),
-        # and the new task will hold the new handler closure (with the latest event).
+        # is critical: the old task holds the old delivery, and the new task will hold the
+        # new delivery (with the latest event).
         if self._debounce_task and not self._debounce_task.done():
             LOGGER.debug("Debounce reset for handler=%s (window=%.1fs)", self.handler_name, debounce)
             self._debounce_task.cancel()
+            if self._debounce_pending is not None:
+                self._debounce_pending.drop("debounce_superseded")
 
         async def delayed_call() -> None:
             try:
@@ -124,15 +132,19 @@ class RateLimiter:
             # Dropping the reference keeps the next debounce reset (and cancel()) from
             # cancelling the handler mid-run; the execution mode and task bucket own it now.
             self._debounce_task = None
+            self._debounce_pending = None
             # Handler runs outside the CancelledError catch — if the handler is cancelled
             # (e.g., during shutdown), it propagates so telemetry can record it as 'cancelled'.
-            await handler()
+            await run(delivery)
 
         task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
         task.add_done_callback(self.clear_debounce_ref)
         self._debounce_task = task
+        self._debounce_pending = delivery
 
-    async def throttled_call(self, handler: "Callable[[], Awaitable[None]]", throttle: float) -> None:
+    async def throttled_call(
+        self, delivery: "Delivery", run: "Callable[[Delivery], Awaitable[None]]", throttle: float
+    ) -> None:
         """Throttled version of the handler call.
 
         At most one attempt per window. No lock needed — the check-and-set between
@@ -142,6 +154,7 @@ class RateLimiter:
         now = self._clock()
         if self._throttle_last_time is not None and now - self._throttle_last_time < throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, throttle)
+            delivery.drop("throttled")
             return
         self._throttle_last_time = now
-        await handler()
+        await run(delivery)

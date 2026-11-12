@@ -310,6 +310,10 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
         requests.append(
             FixtureRequest("listener-executions", "GET", "/api/telemetry/listener/{listener_id}/executions", listener)
         )
+        missed = {"listener_id": ids.missed_listener_id or ids.listener_id}
+        requests.append(
+            FixtureRequest("listener-misses", "GET", "/api/telemetry/listener/{listener_id}/misses", missed)
+        )
     if ids.job_id is not None:
         requests.append(
             FixtureRequest("job-executions", "GET", "/api/telemetry/job/{job_id}/executions", {"job_id": ids.job_id})

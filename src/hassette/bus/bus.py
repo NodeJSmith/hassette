@@ -93,7 +93,6 @@ import logging
 import threading
 import typing
 from collections.abc import Coroutine, Mapping
-from functools import partial
 from typing import Any, Unpack
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, LogLevel, ResourceStatus
@@ -112,14 +111,15 @@ from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.source_capture import capture_registration_source, capture_source_location
 
-from .entity_registration import reject_glob_only_options, warn_if_unknown_entity
-from .listeners import EntityWatch, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
+from .entity_registration import build_attr_preds, build_state_preds, reject_glob_only_options, warn_if_unknown_entity
+from .invoker import HandlerInvoker
+from .listeners import EntityWatch, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
 from .sync import BusSyncFacade
 from .wait_for_cancellations import WaitForCancellationLog
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from hassette import Hassette
     from hassette.core.bus_service import BusService
@@ -535,6 +535,7 @@ class Bus(Resource):
         topic: str,
         handler: "HandlerType",
         where: WhereClause = None,
+        scope: "Sequence[Predicate]" = (),
         kwargs: Mapping[str, Any] | None = None,
         once: bool = False,
         debounce: float | None = None,
@@ -639,6 +640,7 @@ class Bus(Resource):
             options=options,
             invoker=invoker,
             where=where,
+            scope=scope,
             entity_watch=entity_watch,
             logger=self.logger,
         )
@@ -651,7 +653,8 @@ class Bus(Resource):
         log_label: str,
         topic: str,
         handler: "HandlerType",
-        preds: list["Predicate"],
+        scope: list["Predicate"],
+        filters: list["Predicate"] | None = None,
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
         log_params: Mapping[str, Any] | None = None,
@@ -666,7 +669,12 @@ class Bus(Resource):
         registration_source: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Common subscription tail: log, normalize where, delegate to _on_internal()."""
+        """Common subscription tail: log, normalize where, delegate to _on_internal().
+
+        ``scope`` holds the selection filters the registration method built (entity, domain, service, the default
+        change filter); ``filters`` the caller's own filters other than ``where`` (``changed_from``, ``changed_to``,
+        a passed ``changed=``). ``where`` joins ``filters``. Only a ``filters`` rejection is a near-miss.
+        """
         if self.logger.isEnabledFor(logging.DEBUG):
             filtered = (
                 {k: v for k, v in log_params.items() if v is not None and not isinstance(v, FalseySentinel)}
@@ -682,9 +690,10 @@ class Bus(Resource):
                 callable_short_name(handler),
             )
 
+        filters = list(filters or [])
         if where is not None:
             normalized_where = where if callable(where) else P.AllOf.ensure_iterable(where)
-            preds.append(normalized_where)
+            filters.append(normalized_where)
             if hold_preds is not None:
                 hold_preds = [*hold_preds, normalized_where]
 
@@ -702,7 +711,8 @@ class Bus(Resource):
         sub = await self._on_internal(
             topic=topic,
             handler=handler,
-            where=preds,
+            scope=scope,
+            where=filters or None,
             kwargs=kwargs,
             entity_watch=entity_watch,
             name=name,
@@ -744,7 +754,7 @@ class Bus(Resource):
         entity_id: str,
         *,
         handler: "HandlerType",
-        changed: bool | ComparisonCondition = True,
+        changed: "bool | ComparisonCondition | FalseySentinel" = NOT_PROVIDED,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: WhereClause = None,
@@ -764,7 +774,8 @@ class Bus(Resource):
             entity_id: The entity ID to filter events for (e.g., "media_player.living_room_speaker").
             handler: The function to call when the event matches.
             changed: Whether to filter only events where the state changed. If a ComparisonCondition is provided, it
-                will be used to compare the old and new state values.
+                will be used to compare the old and new state values. Omitted, it behaves as ``True``, but its
+                rejections aren't recorded as near-misses; pass it explicitly to record them.
             changed_from: A value or callable that will be used to filter state changes *from* this value.
             changed_to: A value or callable that will be used to filter state changes *to* this value.
             where: Additional predicates to filter events (e.g. ValueIs) or custom callables. These will receive the
@@ -811,7 +822,7 @@ class Bus(Resource):
         _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}")
         reject_glob_only_options(entity_id, immediate=immediate, duration=duration)
 
-        preds, hold_preds = build_state_preds(
+        preds, filters, hold_preds = build_state_preds(
             entity_id, changed=changed, changed_from=changed_from, changed_to=changed_to
         )
 
@@ -823,7 +834,8 @@ class Bus(Resource):
                 log_label=f"entity '{entity_id}'",
                 topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
                 handler=handler,
-                preds=preds,
+                scope=preds,
+                filters=filters,
                 where=where,
                 kwargs=kwargs,
                 log_params={"changed": changed, "changed_from": changed_from, "changed_to": changed_to, "where": where},
@@ -848,7 +860,7 @@ class Bus(Resource):
         attr: str,
         *,
         handler: "HandlerType",
-        changed: bool | ComparisonCondition = True,
+        changed: "bool | ComparisonCondition | FalseySentinel" = NOT_PROVIDED,
         changed_from: "ChangeType" = NOT_PROVIDED,
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: WhereClause = None,
@@ -869,7 +881,8 @@ class Bus(Resource):
             attr: The attribute name to filter changes on (e.g., "volume").
             handler: The function to call when the event matches.
             changed: Whether to filter only events where the attribute changed. If a ComparisonCondition is provided,
-                it will be used to compare the old and new attribute values.
+                it will be used to compare the old and new attribute values. Omitted, it behaves as ``True``, but
+                its rejections aren't recorded as near-misses; pass it explicitly to record them.
             changed_from: A value or callable that will be used to filter attribute changes *from* this value.
             changed_to: A value or callable that will be used to filter attribute changes *to* this value.
             where: Additional predicates to filter events.
@@ -907,7 +920,7 @@ class Bus(Resource):
         _require_name(name, handler, f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}[{attr}]")
         reject_glob_only_options(entity_id, immediate=immediate, duration=duration)
 
-        if not changed:
+        if changed is not NOT_PROVIDED and not changed:
             self.logger.warning(
                 (
                     "Handler '%s' - attribute change subscription "
@@ -918,7 +931,7 @@ class Bus(Resource):
                 entity_id,
             )
 
-        preds, hold_preds = build_attr_preds(
+        preds, filters, hold_preds = build_attr_preds(
             entity_id, attr, changed=changed, changed_from=changed_from, changed_to=changed_to
         )
 
@@ -929,10 +942,11 @@ class Bus(Resource):
                 log_label=f"entity '{entity_id}' attribute '{attr}'",
                 topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
                 handler=handler,
-                preds=preds,
+                scope=preds,
+                filters=filters,
                 where=where,
                 kwargs=kwargs,
-                log_params={"changed_from": changed_from, "changed_to": changed_to, "where": where},
+                log_params={"changed": changed, "changed_from": changed_from, "changed_to": changed_to, "where": where},
                 immediate=immediate,
                 duration=duration,
                 entity_id=entity_id,
@@ -1006,7 +1020,8 @@ class Bus(Resource):
         if service is not None:
             preds.append(P.ServiceMatches(service))
 
-        self._normalize_service_where(preds, where)
+        filters: list[Predicate] = []
+        self._normalize_service_where(filters, where)
 
         source_location, registration_source = capture_registration_source()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
@@ -1015,7 +1030,8 @@ class Bus(Resource):
                 log_label="call_service",
                 topic=Topic.HASS_EVENT_CALL_SERVICE,
                 handler=handler,
-                preds=preds,
+                scope=preds,
+                filters=filters,
                 where=None,
                 kwargs=kwargs,
                 log_params={"domain": domain, "service": service, "where": where},
@@ -1071,7 +1087,7 @@ class Bus(Resource):
                 log_label="component_loaded",
                 topic=Topic.HASS_EVENT_COMPONENT_LOADED,
                 handler=handler,
-                preds=preds,
+                scope=preds,
                 where=where,
                 kwargs=kwargs,
                 log_params={"component": component, "where": where},
@@ -1132,7 +1148,7 @@ class Bus(Resource):
                 log_label="service_registered",
                 topic=Topic.HASS_EVENT_SERVICE_REGISTERED,
                 handler=handler,
-                preds=preds,
+                scope=preds,
                 where=where,
                 kwargs=kwargs,
                 log_params={"domain": domain, "service": service, "where": where},
@@ -1305,7 +1321,7 @@ class Bus(Resource):
                 log_label="hassette.service_status",
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 handler=handler,
-                preds=preds,
+                scope=preds,
                 where=where,
                 kwargs=kwargs,
                 log_params={"status": status, "where": where},
@@ -1552,7 +1568,7 @@ class Bus(Resource):
                 log_label="app_state_changed",
                 topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
                 handler=handler,
-                preds=preds,
+                scope=preds,
                 where=where,
                 kwargs=kwargs,
                 log_params={"app_key": app_key, "status": status, "where": where},
@@ -1729,76 +1745,3 @@ class Bus(Resource):
             self.bus_service.wait_for_finished()
             if not subscription.listener.is_cancelled:
                 subscription.cancel()
-
-
-def _build_preds(
-    entity_id: str,
-    *,
-    changed: "bool | ComparisonCondition",
-    changed_from: Any,
-    changed_to: Any,
-    make_did_change: "Callable[[], Predicate]",
-    make_comparison: "Callable[..., Predicate]",
-    make_from: "Callable[..., Predicate]",
-    make_to: "Callable[..., Predicate]",
-) -> "tuple[list[Predicate], list[Predicate]]":
-    """Build predicate lists for state/attribute change subscriptions."""
-    preds: list[Predicate] = [P.EntityMatches(entity_id)]
-    hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
-
-    if changed:
-        if changed is True:
-            preds.append(make_did_change())
-        else:
-            preds.append(make_comparison(condition=changed))
-
-    if changed_from is not NOT_PROVIDED:
-        preds.append(make_from(condition=changed_from))
-
-    if changed_to is not NOT_PROVIDED:
-        changed_to_pred = make_to(condition=changed_to)
-        preds.append(changed_to_pred)
-        hold_preds.append(changed_to_pred)
-
-    return preds, hold_preds
-
-
-def build_state_preds(
-    entity_id: str,
-    *,
-    changed: "bool | ComparisonCondition",
-    changed_from: Any,
-    changed_to: Any,
-) -> "tuple[list[Predicate], list[Predicate]]":
-    """Return ``(preds, hold_preds)`` for a state-change listener; ``hold_preds`` re-check a duration hold."""
-    return _build_preds(
-        entity_id,
-        changed=changed,
-        changed_from=changed_from,
-        changed_to=changed_to,
-        make_did_change=P.StateDidChange,
-        make_comparison=P.StateComparison,
-        make_from=P.StateFrom,
-        make_to=P.StateTo,
-    )
-
-
-def build_attr_preds(
-    entity_id: str,
-    attr: str,
-    *,
-    changed: "bool | ComparisonCondition",
-    changed_from: Any,
-    changed_to: Any,
-) -> "tuple[list[Predicate], list[Predicate]]":
-    """Return ``(preds, hold_preds)`` for an attribute-change listener; ``hold_preds`` re-check a duration hold."""
-    return _build_preds(
-        entity_id,
-        changed=changed,
-        changed_from=changed_from,
-        changed_to=changed_to,
-        make_did_change=partial(P.AttrDidChange, attr),
-        make_comparison=partial(P.AttrComparison, attr),
-        make_from=partial(P.AttrFrom, attr),
-        make_to=partial(P.AttrTo, attr),
-    )

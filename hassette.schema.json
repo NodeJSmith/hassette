@@ -716,12 +716,14 @@
         "startup_timeout_seconds": {
           "default": 30,
           "description": "Length of time each wave of Hassette resources may take to initialize and become ready before startup fails.\nMust be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap.",
+          "exclusiveMinimum": 0,
           "title": "Startup Timeout Seconds",
           "type": "integer"
         },
         "app_startup_timeout_seconds": {
           "default": 20,
           "description": "Length of time to wait for an app to start before giving up.",
+          "exclusiveMinimum": 0,
           "title": "App Startup Timeout Seconds",
           "type": "integer"
         },
@@ -809,30 +811,18 @@
           "title": "Error Handler Timeout Seconds"
         },
         "run_sync_timeout_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "default": 6,
+          "default": 6.0,
           "description": "Default timeout for synchronous function calls.",
-          "title": "Run Sync Timeout Seconds"
+          "exclusiveMinimum": 0,
+          "title": "Run Sync Timeout Seconds",
+          "type": "number"
         },
         "task_cancellation_timeout_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "default": 5,
+          "default": 5.0,
           "description": "Length of time to wait for tasks to cancel before forcing.",
-          "title": "Task Cancellation Timeout Seconds"
+          "exclusiveMinimum": 0,
+          "title": "Task Cancellation Timeout Seconds",
+          "type": "number"
         }
       },
       "title": "LifecycleConfig",
@@ -1125,17 +1115,11 @@
       "description": "Scheduler threshold and job-timeout settings.",
       "properties": {
         "behind_schedule_threshold_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "default": 5,
+          "default": 5.0,
           "description": "Threshold in seconds before a 'behind schedule' warning is logged for a job.",
-          "title": "Behind Schedule Threshold Seconds"
+          "exclusiveMinimum": 0,
+          "title": "Behind Schedule Threshold Seconds",
+          "type": "number"
         },
         "job_timeout_seconds": {
           "anyOf": [
@@ -1190,6 +1174,8 @@
         "port": {
           "default": 8126,
           "description": "Port to run the web API server on.",
+          "maximum": 65535,
+          "minimum": 1,
           "title": "Port",
           "type": "integer"
         },
@@ -1287,12 +1273,14 @@
         "connection_timeout_seconds": {
           "default": 5,
           "description": "Length of time to wait for WebSocket connection to complete. Passed to aiohttp.",
+          "exclusiveMinimum": 0,
           "title": "Connection Timeout Seconds",
           "type": "integer"
         },
         "heartbeat_interval_seconds": {
           "default": 30,
           "description": "Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp.",
+          "exclusiveMinimum": 0,
           "title": "Heartbeat Interval Seconds",
           "type": "integer"
         }

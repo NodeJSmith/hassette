@@ -40,24 +40,31 @@ TRIGGER_COLUMNS: dict[str, str] = {
     "trigger_origin": "origin",
 }
 
-# The write whose context fired a handler run: at most one (the earliest sent), so a repeated context id never
-# duplicates execution rows. Uses idx_aw_context. Job rows have no trigger_context_id and read NULL.
-_CAUSED_BY_SUBQUERY = """(
+
+CAUSED_BY_SUBQUERY = """(
     SELECT json_object(
         'app_key', w.app_key, 'instance_name', w.instance_name, 'execution_id', w.execution_id,
         'kind', w.kind, 'operation', w.operation
     )
     FROM api_writes w
-    WHERE w.context_id = e.trigger_context_id
+    WHERE w.context_id = {alias}.trigger_context_id
     ORDER BY w.sent_ts
     LIMIT 1
 ) AS caused_by"""
+"""The ``caused_by`` column, formatted with ``alias``: the table alias of rows carrying ``trigger_context_id``.
+
+The write whose context the row's event carries: at most one (the earliest sent), so a repeated context id
+never duplicates rows. Uses idx_aw_context. A row with no trigger_context_id reads NULL.
+"""
 
 _EXECUTION_SELECT_COLUMNS = (
     "e.kind, e.listener_id, e.job_id, e.execution_start_ts, e.duration_ms, "
     "e.status, e.source_tier, e.error_type, e.error_message, e.error_traceback, "
     "e.execution_id, e.trigger_mode, e.retry_count, e.attempt_number, e.args_json, e.kwargs_json, "
-    "e.thread_leaked, " + ", ".join(f"e.{column}" for column in TRIGGER_COLUMNS) + ", " + _CAUSED_BY_SUBQUERY
+    "e.thread_leaked, "
+    + ", ".join(f"e.{column}" for column in TRIGGER_COLUMNS)
+    + ", "
+    + CAUSED_BY_SUBQUERY.format(alias="e")
 )
 
 _API_WRITE_COLUMNS = (
@@ -362,14 +369,17 @@ def execution_from_row(row: dict[str, Any]) -> Execution:
     no value for left None, and ``caused_by`` from the row's ``caused_by`` JSON object.
     """
     base = {key: value for key, value in row.items() if key not in TRIGGER_COLUMNS and key != "caused_by"}
-    trigger = None
-    if row["kind"] == "handler":
-        caused_by = row.get("caused_by")
-        trigger = ExecutionTrigger(
-            **{field: row[column] for column, field in TRIGGER_COLUMNS.items()},
-            caused_by=CausingWrite.model_validate_json(caused_by) if caused_by is not None else None,
-        )
+    trigger = trigger_from_row(row) if row["kind"] == "handler" else None
     return Execution.model_validate({**base, "trigger": trigger})
+
+
+def trigger_from_row(row: dict[str, Any]) -> ExecutionTrigger:
+    """Build the wire ``ExecutionTrigger`` from a row's ``trigger_*`` columns and its ``caused_by`` JSON object."""
+    caused_by = row.get("caused_by")
+    return ExecutionTrigger(
+        **{field: row[column] for column, field in TRIGGER_COLUMNS.items()},
+        caused_by=CausingWrite.model_validate_json(caused_by) if caused_by is not None else None,
+    )
 
 
 def api_write_from_row(row: dict[str, Any]) -> ApiWrite:

@@ -9,7 +9,7 @@
     "customManagers also tracks each GitHub-hosted hook repo's rev in prek.toml against its tags: Renovate's built-in pre-commit manager only reads .pre-commit-config.yaml, so prek.toml pins would otherwise go stale silently.",
     "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice.",
     "Renovate runs daily and may open PRs on any run. prHourlyLimit is 0 because a run lasts minutes: the preset's 2/hour cap meant about 2 new PRs per run and a months-long queue. prConcurrentLimit still bounds how many are open at once.",
-    "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Updates with no release timestamp skip that hold (minimumReleaseAgeBehaviour timestamp-optional): Renovate has none for digest updates, which is how the SHA-pinned GitHub Actions tracking a major tag update, or for Docker images outside Docker Hub (ghcr.io/astral-sh/uv), and the default timestamp-required would hold those forever. Major updates and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the automated autofix reviewer.",
+    "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Updates with no release timestamp skip that hold (minimumReleaseAgeBehaviour timestamp-optional): Renovate has none for digest updates, which is how the SHA-pinned GitHub Actions tracking a major tag update, or for Docker images outside Docker Hub (ghcr.io/astral-sh/uv), and the default timestamp-required would hold those forever. Major updates also automerge for dev tooling only (npm devDependencies, Python dependency-groups, GitHub Actions action/workflow refs): if one breaks, CI fails and the autofix reviewer picks it up, and nothing ships to users. Majors of runtime dependencies (project.dependencies, npm dependencies), Docker images and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the automated autofix reviewer.",
     "Groups keep related bumps in one PR: prek, prek-action and every prek.toml hook rev move together; every ruff pin (dev dependency, lint.yml's standalone install) moves together so they can't drift; npm and GitHub Actions non-major updates are batched."
   ],
   "extends": ["config:recommended"],
@@ -70,6 +70,12 @@
     {
       "description": "Automerge non-major updates once the required checks pass",
       "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge major updates of dev tooling once the required checks pass; runtime dependencies and Docker images stay manual",
+      "matchUpdateTypes": ["major"],
+      "matchDepTypes": ["devDependencies", "dependency-groups", "action", "workflow"],
       "automerge": true
     },
     {

@@ -7,8 +7,14 @@ from hassette_wire import CausingWrite, Execution, ExecutionDetailResponse, LogE
 import hassette.cli.output as cli_output
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.formatters import EMPTY_VALUE, fmt_duration_ms, fmt_log_author, fmt_log_message, fmt_relative_time
-from hassette.cli.output import Column, render_detail_dict, render_table
+from hassette.cli.formatters import (
+    EMPTY_VALUE,
+    fmt_duration_ms,
+    fmt_log_author,
+    fmt_log_message,
+    fmt_relative_time,
+    fmt_value_change,
+)
 from hassette.cli.types import AppKeyArg, AuthorArg, LevelArg, LimitArg, LogInstanceArg, SinceArg
 
 API_WRITES_TRUNCATED_MESSAGE = "{shown} API writes shown; more were omitted. Raise --limit to see them."
@@ -18,25 +24,23 @@ EXECUTION_NOT_FOUND_MESSAGE = (
     "retention; retry in a few seconds."
 )
 
-# Shared log entry column definitions (used by both log and execution)
-
-LOG_COLUMNS: list[Column] = [
-    Column("timestamp", "When", formatter=fmt_relative_time),
-    Column("level", "Level"),
-    Column("author", "Author", formatter=fmt_log_author),
-    Column("app_key", "App"),
-    Column("instance_name", "Instance"),
-    Column("func_name", "Function"),
-    Column("message", "Message", wrap=True, overflow="fold", row_formatter=fmt_log_message),
+LOG_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("timestamp", "When", formatter=fmt_relative_time),
+    cli_output.Column("level", "Level"),
+    cli_output.Column("author", "Author", formatter=fmt_log_author),
+    cli_output.Column("app_key", "App"),
+    cli_output.Column("instance_name", "Instance"),
+    cli_output.Column("func_name", "Function"),
+    cli_output.Column("message", "Message", wrap=True, overflow="fold", row_formatter=fmt_log_message),
 ]
 
-EXECUTION_LOG_COLUMNS: list[Column] = [
-    Column("timestamp", "When", formatter=fmt_relative_time),
-    Column("level", "Level"),
-    Column("author", "Author", formatter=fmt_log_author),
-    Column("func_name", "Function"),
-    Column("lineno", "Line"),
-    Column("message", "Message", wrap=True, overflow="fold", row_formatter=fmt_log_message),
+EXECUTION_LOG_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("timestamp", "When", formatter=fmt_relative_time),
+    cli_output.Column("level", "Level"),
+    cli_output.Column("author", "Author", formatter=fmt_log_author),
+    cli_output.Column("func_name", "Function"),
+    cli_output.Column("lineno", "Line"),
+    cli_output.Column("message", "Message", wrap=True, overflow="fold", row_formatter=fmt_log_message),
 ]
 
 
@@ -51,13 +55,13 @@ def fmt_write_target(target: dict[str, list[str]] | None) -> str:
     return "; ".join(parts)
 
 
-API_WRITE_COLUMNS: list[Column] = [
-    Column("sent_ts", "Sent", formatter=fmt_relative_time),
-    Column("kind", "Kind"),
-    Column("operation", "Operation"),
-    Column("target", "Target", wrap=True, overflow="fold", formatter=fmt_write_target),
-    Column("outcome", "Outcome"),
-    Column("error_code", "Error"),
+API_WRITE_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("sent_ts", "Sent", formatter=fmt_relative_time),
+    cli_output.Column("kind", "Kind"),
+    cli_output.Column("operation", "Operation"),
+    cli_output.Column("target", "Target", wrap=True, overflow="fold", formatter=fmt_write_target),
+    cli_output.Column("outcome", "Outcome"),
+    cli_output.Column("error_code", "Error"),
 ]
 
 
@@ -83,7 +87,7 @@ def cmd_log(
         params=query_params(app_key=app, since=since, limit=limit, author=author, level=level),
     )
     entries = parse_wire_list(LogEntry, raw)
-    render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)
+    cli_output.render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)
 
 
 # dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
@@ -111,20 +115,20 @@ def cmd_execution(
     )
 
     if ctx.json_mode:
-        render_detail_dict(detail.model_dump(mode="json"), "Execution", json_mode=True)
+        cli_output.render_detail_dict(detail.model_dump(mode="json"), "Execution", json_mode=True)
         return
 
     if detail.execution is not None:
-        render_detail_dict(execution_summary(detail.execution), "Execution", json_mode=False)
+        cli_output.render_detail_dict(execution_summary(detail.execution), "Execution", json_mode=False)
     else:
         cli_output.stderr_console.print(EXECUTION_NOT_FOUND_MESSAGE, highlight=False)
     if detail.api_writes:
-        render_table(detail.api_writes, API_WRITE_COLUMNS, json_mode=False)
+        cli_output.render_table(detail.api_writes, API_WRITE_COLUMNS, json_mode=False)
     if detail.api_writes_truncated:
         cli_output.stderr_console.print(
             API_WRITES_TRUNCATED_MESSAGE.format(shown=len(detail.api_writes)), highlight=False
         )
-    render_table(detail.logs, EXECUTION_LOG_COLUMNS, json_mode=False)
+    cli_output.render_table(detail.logs, EXECUTION_LOG_COLUMNS, json_mode=False)
 
 
 def execution_summary(execution: Execution) -> dict[str, Any]:
@@ -142,27 +146,16 @@ def execution_summary(execution: Execution) -> dict[str, Any]:
         summary["error"] = f"{execution.error_type}: {message}" if message else execution.error_type
     trigger = execution.trigger
     if trigger is not None:
-        has_change = trigger.old_value is not None or trigger.new_value is not None
-        fields = {
+        summary["trigger"] = {
             "topic": trigger.topic,
             "entity": trigger.entity_id,
-            "change": f"{display_value(trigger.old_value)} → {display_value(trigger.new_value)}"
-            if has_change
-            else None,
+            "change": fmt_value_change(trigger.old_value, trigger.new_value),
             "context_id": trigger.context_id,
             "parent_id": trigger.parent_id,
             "origin": trigger.origin,
             "caused_by": fmt_caused_by(trigger.caused_by) if trigger.caused_by is not None else None,
         }
-        summary["trigger"] = fields
     return summary
-
-
-def display_value(value: str | None) -> str:
-    """A trigger value for the change line: ``—`` only when there is no value, and ``""`` shown quoted."""
-    if value is None:
-        return EMPTY_VALUE
-    return '""' if value == "" else value
 
 
 def fmt_caused_by(caused_by: CausingWrite) -> str:

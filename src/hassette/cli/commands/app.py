@@ -181,14 +181,14 @@ def cmd_app_source(
     cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 
-def _confirmation_prompt(action: AppAction, key: str, instance: str | None) -> str:
+def confirmation_prompt(action: AppAction, key: str, instance: str | None) -> str:
     """Return the question asked before ``action`` runs, naming the instance when one was targeted."""
     if instance is not None:
         return f"{action.capitalize()} instance {instance!r} of {key!r}?"
     return f"{action.capitalize()} app {key!r}?"
 
 
-def _action_message(action: AppAction, key: str, instance: str | None) -> str:
+def action_message(action: AppAction, key: str, instance: str | None) -> str:
     """Return the success message for a completed ``action``, naming the instance when one was targeted."""
     verb = ACTION_PAST_TENSE[action]
     if instance is not None:
@@ -209,17 +209,17 @@ def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool,
             # ever prompting when JSON output is requested.
             client.error_usage(f"--yes is required to {action} in --json mode")
         try:
-            response = input(f"{_confirmation_prompt(action, key, instance)} [y/N] ")
+            answer = input(f"{confirmation_prompt(action, key, instance)} [y/N] ")
         except EOFError:
-            response = ""
-        if response.strip().lower() != "y":
+            answer = ""
+        if answer.strip().lower() != "y":
             cli_output.stderr_console.print("Aborted.")
             sys.exit(0)
 
     result = client.post_with_instance_routing(key, action, instance)
     warn_on_instance_mismatch(key, instance, result.instance_name)
 
-    message = _action_message(action, key, instance)
+    message = action_message(action, key, instance)
     detail = {
         "app_key": result.app_key,
         "action": result.action,
@@ -296,8 +296,9 @@ def cmd_app_debug(
         # Scripts get every targeted instance's state; the human panel is a one-line summary.
         cli_output.render_detail_dict(result.model_dump(mode="json"), "Debug Capture", json_mode=True)
         return
-    message = f"Debug capture {state} for instance {instance!r} of {key!r}"
     if instance is None:
         names = ", ".join(entry.instance_name for entry in result.instances) or "none"
         message = f"Debug capture {state} for app {key!r} (instances: {names})"
+    else:
+        message = f"Debug capture {state} for instance {instance!r} of {key!r}"
     cli_output.render_detail_dict({"app_key": result.app_key, "message": message}, "Debug Capture", json_mode=False)

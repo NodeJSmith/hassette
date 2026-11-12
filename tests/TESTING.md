@@ -156,7 +156,7 @@ Similarly, `make_manifest()` in `web_manifest_helpers.py` returns `AppManifestIn
 
 ## Before Writing a New Factory
 
-1. Check `tests/support/factories.py` for an existing factory returning the type you need.
+1. Check `tests/support/factories.py` (and `tests/support/log_factories.py` for log records, entries and capture handlers) for an existing factory returning the type you need.
 2. Check `tests/support/helpers.py` for event/state builders and misc helpers.
 3. Check `tests/support/web_manifest_helpers.py`, `tests/support/web_job_helpers.py`, `tests/support/web_response_helpers.py`, and `tests/support/web_telemetry_helpers.py` for web/API response and snapshot factories.
 4. If a matching factory exists, import it — don't redefine it locally, even with a different name for the same shape.
@@ -207,7 +207,15 @@ Builds a real `ScheduledJob` for unit/scheduler tests, with every field overrida
 
 ### `make_mock_executor()` — `tests/support/factories.py`
 
-Builds a `MagicMock` with `execute = AsyncMock()`, standing in for a `CommandExecutor`.
+Builds a `MagicMock` with `execute = AsyncMock()`, standing in for a `CommandExecutor`. Pass `run=` (an async callable) to have every `execute` await it in place of the handler, for tests that hold a run open or make it slow.
+
+### `make_mock_invoking_executor()` — `tests/support/factories.py`
+
+Builds a `MagicMock` executor whose `execute` runs the command's handler for its event, untracked, so a dispatched delivery really invokes the listener.
+
+### `make_delivery(listener=None, event=None, *, is_synthetic=False)` — `tests/support/helpers.py`
+
+Builds a real `Delivery` of `event` to `listener` on the listener's own topic. Defaults to `create_listener()` and a fresh `make_hassette_event()`.
 
 ### `make_mock_event()` — `tests/support/factories.py`
 
@@ -231,7 +239,7 @@ exercise a single bucket otherwise means spelling out three meaningless `frozens
 changes = make_change_set(reload_apps={"app_a"})
 ```
 
-### `make_log_record_entry(**kwargs)` — `tests/support/factories.py`
+### `make_log_record_entry(**kwargs)` — `tests/support/log_factories.py`
 
 Builds a `hassette.logging_.LogRecordEntry` with all seven required fields defaulted to neutral placeholders
 and all six optional fields (`exc_info`, plus five correlation fields) defaulted to `None`. Every field

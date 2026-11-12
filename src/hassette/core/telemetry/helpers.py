@@ -50,6 +50,10 @@ SQL_JOB_ROW_ID_PREFIX = "'j-'"
 SQL_NO_FILTER = "1=1"
 """Always-true ``WHERE`` body used when a query has no optional filter clauses."""
 
+LISTENER_MISS_NO_FILTER = ""
+"""The stored ``listener_misses.filter`` of a row whose reason isn't ``filter``. Not NULL, because the upsert's
+unique key includes the column and SQLite treats NULLs as distinct there; reads map it back to None."""
+
 SQL_DEFAULT_LOG_VIEW = (
     "(lr.author = 'app' OR lr.level IN (" + ", ".join(f"'{name}'" for name in ERROR_AND_ABOVE_LEVEL_NAMES) + "))"
 )
@@ -68,6 +72,7 @@ query's ``WHERE`` provably implies the index's, and a bound parameter never does
 __all__ = [
     "DEFAULT_EXECUTION_LOG_LIMIT",
     "DEFAULT_LOG_RECORDS_LIMIT",
+    "LISTENER_MISS_NO_FILTER",
     "SQL_DEFAULT_LOG_VIEW",
     "SQL_FAILED_STATUSES",
     "SQL_HANDLER_ROW_ID_PREFIX",

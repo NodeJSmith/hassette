@@ -102,6 +102,28 @@ hassette execution a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 The summary at the top shows what triggered the run: the entity and the change (`off → on`) that fired the handler, which tells a wildcard or multi-entity listener's runs apart. Below it are the log entries from that invocation: your app's lines plus framework errors. Pass `--author all` to see every line. The `Function` and `Line` columns tell you exactly where in your code each message came from.
 
+## Why Didn't My Listener Run?
+
+A listener that shows 0 runs either never saw a matching event or saw events and dropped them. `--misses` tells the two apart.
+
+**1. Find the listener's ID**
+
+```bash
+hassette listener --app garage_door
+```
+
+**2. List what it dropped**
+
+```bash
+hassette listener 42 --misses --since 1h
+```
+
+Each row counts the events one reason dropped in one hour, with the last such event's entity and values. A `filter` row names the filter that rejected them: a row for `→ open` showing `closed → opening` means the door reported `opening`, not `open`, so `changed_to="open"` never matched. A `throttled`, `debounce_superseded` or `once_spent` row is usually the `throttle=`, `debounce=` or `once=` setting working as configured, even with a large count. A `busy` or `queue_full` row means events arrived while the handler was still running, which points at the `mode=` setting. A `backpressure` row means the whole bus was saturated. Counts are written about every 30 seconds, so a drop that just happened can take that long to appear.
+
+**3. If the table is empty**
+
+No drops are stored for this listener in that window. [Database & Telemetry](../core-concepts/database-telemetry.md#what-is-collected) lists everything an empty result can mean. The usual cause is the subscription itself: only events for the listener's own entity count, and `on_state_change` drops an attribute-only update without recording it (pass `changed=True` to count those). Check the entity ID and topic in step 1, then check that Home Assistant is sending the event at all, for example in its Developer Tools event listener. A drop from the last 30 seconds may not be written yet, so run the command again if the event just happened.
+
 ## Monitoring a Specific App
 
 Scope a command to one app with `--app` (`listener`, `job`, `log`, `blocking`) or with the app key argument (`app health`, `app activity`):

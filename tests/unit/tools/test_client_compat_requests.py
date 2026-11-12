@@ -1,5 +1,7 @@
 """Tests for tools/client_compat_requests.py: request paths and which requests a seeded database gets."""
 
+from dataclasses import replace
+
 import pytest
 from client_compat_live_state import SeedIds
 from client_compat_requests import UNKNOWN_EXECUTION_UUID, FixtureRequest, success_requests
@@ -41,11 +43,21 @@ def test_success_requests_skip_requests_missing_their_seed_id() -> None:
         "app-blocking",
         "app-live",
         "listener-executions",
+        "listener-misses",
         "job-executions",
         "execution",
         "execution-failed",
     }
     assert "health" in without_ids
+
+
+def test_listener_misses_prefers_a_listener_with_misses() -> None:
+    def misses_listener(ids: SeedIds) -> object:
+        [request] = [r for r in success_requests(ids) if r.name == "listener-misses"]
+        return request.params["listener_id"]
+
+    assert misses_listener(replace(ALL_IDS, missed_listener_id=99)) == 99
+    assert misses_listener(replace(ALL_IDS, missed_listener_id=None)) == ALL_IDS.listener_id
 
 
 def test_execution_detail_falls_back_to_an_unknown_uuid() -> None:

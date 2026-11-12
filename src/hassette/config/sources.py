@@ -16,8 +16,13 @@ from typing import Any
 from dotenv import dotenv_values
 from mergedeep import merge
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, DotEnvSettingsSource, EnvSettingsSource
-from pydantic_settings.sources import InitSettingsSource, TomlConfigSettingsSource
+from pydantic_settings import (
+    BaseSettings,
+    DotEnvSettingsSource,
+    EnvSettingsSource,
+    InitSettingsSource,
+    TomlConfigSettingsSource,
+)
 from pydantic_settings.sources.utils import parse_env_vars
 
 from hassette.config.build import ENVIRONMENT_SOURCE, ConfigBuild, EnvKey, TomlTable

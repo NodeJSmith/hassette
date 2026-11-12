@@ -1,4 +1,4 @@
-"""Tests for build_tracked_invoke_fn() carrying app_level_error_handler on InvokeHandler."""
+"""Tests for ``Delivery.invoke()`` carrying app_level_error_handler on InvokeHandler."""
 
 from tests.support.factories import make_mock_executor
 from tests.support.helpers import create_listener

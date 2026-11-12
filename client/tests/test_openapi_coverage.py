@@ -114,6 +114,7 @@ CALLS: dict[str, list[Callable[[HassetteClient], Awaitable[Any]]]] = {
     "get_unattributed_blocking": [lambda c: c.get_unattributed_blocking(since=1.0)],
     "get_executions": [lambda c: c.get_executions(kind="job", limit=1, since=1.0)],
     "get_listener_executions": [lambda c: c.get_listener_executions(1, limit=1, since=1.0)],
+    "get_listener_misses": [lambda c: c.get_listener_misses(1, limit=1, since=1.0)],
     "get_job_executions": [lambda c: c.get_job_executions(1, limit=1, since=1.0)],
     "get_execution": [lambda c: c.get_execution("exec-1")],
     "get_app_grid": [lambda c: c.get_app_grid(since=1.0)],
