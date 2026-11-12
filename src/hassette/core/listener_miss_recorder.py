@@ -6,12 +6,16 @@ in-memory entry keyed by listener, hour, reason and filter: no I/O, and the even
 the flush. A flush every ``FLUSH_INTERVAL_SECONDS`` (and once at shutdown) swaps the entries out and writes them
 as one batched upsert that adds to any row already stored for the same key.
 
-Recording is best-effort: a failed or dropped flush loses its batch, is counted under
-``PipelineCounter.LISTENER_MISS_FLUSH_FAILED`` with a paced WARNING, and is never retried.
+Recording is best-effort. A write that provably didn't happen (``submit`` timed out, or SQLite rolled it back with
+``OperationalError``) merges its batch back for the next flush, up to ``MAX_FLUSH_RETRIES`` flushes in a row, as the
+execution flusher retries the same failures. Any other failure, a retryable one past that bound, and a retryable one
+on the final flush at shutdown lose the batch: it is counted under ``PipelineCounter.LISTENER_MISS_FLUSH_FAILED``
+with a paced WARNING.
 """
 
 import asyncio
 import logging
+import sqlite3
 import time
 import typing
 from dataclasses import dataclass
@@ -39,6 +43,10 @@ FLUSH_INTERVAL_SECONDS = 30.0
 
 HOUR_SECONDS = 3600
 """Width of one rollup bucket."""
+
+MAX_FLUSH_RETRIES = 3
+"""Consecutive flushes whose write didn't run that merge back before the next one drops and counts its batch; the
+same bound as the execution flusher's."""
 
 
 @dataclass(slots=True)
@@ -88,6 +96,8 @@ class ListenerMissRecorder:
         self.entries: dict[tuple[int, float, ListenerMissReason, int | None], MissEntry] = {}
         """Rollups since the last flush, keyed by in-memory listener id, hour, reason and filter index."""
         self.last_loss_warn_ts: float | None = None
+        self.retries = 0
+        """Consecutive flushes merged back because their write didn't run; reset by a successful write."""
 
     def reporter_for(self, listener: "Listener") -> "DropReporter | None":
         """The reporter to bind to ``listener``, or None for a listener whose near-misses aren't recorded.
@@ -142,14 +152,17 @@ class ListenerMissRecorder:
             await asyncio.sleep(FLUSH_INTERVAL_SECONDS)
             await self.flush()
 
-    async def flush(self) -> None:
+    async def flush(self, *, final: bool = False) -> None:
         """Write every entry accrued since the last flush as one batched upsert.
 
         The entries are swapped out first, so dispatch keeps recording into a fresh map while the write runs.
-        A failure loses exactly the swapped-out batch, which is counted and warned about. Never raises, except
-        ``CancelledError``: a flush cancelled mid-write (the periodic task at shutdown) counts and warns about its
-        batch as lost, then re-raises. A write the queue had already started may still commit, so that count can
-        overstate the loss; it is never retried, because the upsert is additive.
+        A ``TimeoutError`` or ``sqlite3.OperationalError`` means nothing was written, so the batch merges back into
+        the map for the next flush. That stops after ``MAX_FLUSH_RETRIES`` in a row, and on the ``final`` flush at
+        shutdown, which has no next flush. Any other failure loses exactly the swapped-out batch, which is counted
+        and warned about. Never raises, except ``CancelledError``: a flush cancelled mid-write (the periodic task at
+        shutdown) counts and warns about its batch as lost, then re-raises. A write the queue had already started
+        may still commit, so that count can overstate the loss; a cancelled batch is never merged back, because the
+        upsert is additive.
         """
         if not self.entries:
             return
@@ -161,15 +174,46 @@ class ListenerMissRecorder:
         except asyncio.CancelledError as exc:
             self.count_loss(len(entries), exc)
             raise  # task cancellation must propagate
+        except (TimeoutError, sqlite3.OperationalError) as exc:
+            if final or self.retries >= MAX_FLUSH_RETRIES:
+                self.retries = 0
+                self.count_loss(len(entries), exc)
+                return
+            self.retries += 1
+            self.merge_back(entries)
+            LOGGER.warning(
+                "Couldn't write %d listener near-miss rollup(s); keeping them for the next flush (retry %d of %d)",
+                len(entries),
+                self.retries,
+                MAX_FLUSH_RETRIES,
+                exc_info=exc,
+            )
+            return
         except Exception as exc:
             self.count_loss(len(entries), exc)
             return
+        self.retries = 0
         LOGGER.debug("Flushed %d listener near-miss rollup(s)", len(rows))
+
+    def merge_back(self, batch: dict[tuple[int, float, "ListenerMissReason", int | None], MissEntry]) -> None:
+        """Return an unwritten batch to the map, folding it into any entry recorded for the same key since the swap.
+
+        An entry recorded since the swap is newer, so it keeps its last event and gains the batch's count and
+        earlier first time.
+        """
+        for key, old in batch.items():
+            current = self.entries.get(key)
+            if current is None:
+                self.entries[key] = old
+                continue
+            current.count += old.count
+            current.first_ts = min(current.first_ts, old.first_ts)
 
     def count_loss(self, lost: int, exc: BaseException) -> None:
         """Count a lost batch and log a WARNING for it, at most once per interval.
 
-        The WARNING is paced like the execution queue's capacity one.
+        The WARNING is paced like the execution queue's capacity one. Retry WARNINGs don't share this pacing, so
+        they never hide a loss.
         """
         self.hassette.pipeline_counters.increment(PipelineCounter.LISTENER_MISS_FLUSH_FAILED, lost)
         now = time.monotonic()
@@ -178,7 +222,7 @@ class ListenerMissRecorder:
             return
         self.last_loss_warn_ts = now
         LOGGER.warning(
-            "Failed to write %d listener near-miss rollup(s); they are not retried (counted under %s)",
+            "Failed to write %d listener near-miss rollup(s); they are dropped (counted under %s)",
             lost,
             PipelineCounter.LISTENER_MISS_FLUSH_FAILED.name,
             exc_info=exc,

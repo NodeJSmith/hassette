@@ -708,7 +708,7 @@ class BusService(Service):
             await self.await_dispatch_idle()
         except TimeoutError:
             self.logger.debug("Dispatches still pending at shutdown; flushing the near-misses recorded so far")
-        await self._miss_recorder.flush()
+        await self._miss_recorder.flush(final=True)
 
     @property
     def is_dispatch_idle(self) -> bool:

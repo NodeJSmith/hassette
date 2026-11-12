@@ -1,18 +1,20 @@
 """ListenerMissRecorder without a database: which listeners record, how entries key, and failed-flush accounting.
 
-Spec 151: parent D4 (app tier only), D3 (filter in the key), and the Posture's failure handling (a failed flush is
-counted and warned about once per episode, never retried).
+Spec 151: parent D4 (app tier only), D3 (filter in the key), and the Posture's failure handling (a write that
+provably didn't run merges back for the next flush; any other failure, or one on the final flush, is counted and
+warned about once per episode).
 """
 
 import asyncio
 import logging
+import sqlite3
 from collections.abc import Coroutine
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.listener_miss_recorder import ListenerMissRecorder
+from hassette.core.listener_miss_recorder import MAX_FLUSH_RETRIES, ListenerMissRecorder
 from hassette.core.pipeline_counters import PipelineCounter
 from hassette.event_handling import predicates as P
 from hassette.testing import create_state_change_event
@@ -117,6 +119,70 @@ class TestFailedFlush:
             await recorder.flush()
 
         assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 1
+
+    @pytest.mark.parametrize("error", [TimeoutError(), sqlite3.OperationalError("database is locked")])
+    async def test_unwritten_batch_merges_back_into_newer_entries(self, hassette: MagicMock, error: Exception) -> None:
+        """A write that never ran keeps its batch; an entry recorded since the swap keeps its newer last event."""
+        recorder = ListenerMissRecorder(hassette)
+        listener = registered()
+        newer = event("red")
+
+        def fail_after_new_record(coro: Coroutine[Any, Any, Any]) -> None:
+            coro.close()
+            recorder.record(listener, "busy", newer)
+            raise error
+
+        hassette.database_service.submit = AsyncMock(side_effect=fail_after_new_record)
+        recorder.record(listener, "busy", event())
+        recorder.record(listener, "throttled", event())
+        first_busy_ts = next(iter(recorder.entries.values())).first_ts
+
+        await recorder.flush()
+
+        by_reason = {entry.reason: entry for entry in recorder.entries.values()}
+        assert set(by_reason) == {"busy", "throttled"}
+        busy = by_reason["busy"]
+        assert (busy.count, busy.first_ts, busy.last_event) == (2, first_busy_ts, newer)
+        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 0
+
+    async def test_final_flush_counts_an_unwritten_batch_as_lost(self, hassette: MagicMock) -> None:
+        """The shutdown flush has no later flush to merge back into, so a timed-out write is a counted loss."""
+
+        def time_out(coro: Coroutine[Any, Any, Any]) -> None:
+            coro.close()
+            raise TimeoutError
+
+        hassette.database_service.submit = AsyncMock(side_effect=time_out)
+        recorder = ListenerMissRecorder(hassette)
+        recorder.record(registered(), "busy", event())
+
+        await recorder.flush(final=True)
+
+        assert recorder.entries == {}
+        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 1
+
+    async def test_retries_stop_after_the_bound_and_count_the_loss(
+        self, hassette: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A write that keeps not running merges back MAX_FLUSH_RETRIES times, then drops, counts and warns."""
+
+        def time_out(coro: Coroutine[Any, Any, Any]) -> None:
+            coro.close()
+            raise TimeoutError
+
+        hassette.database_service.submit = AsyncMock(side_effect=time_out)
+        recorder = ListenerMissRecorder(hassette)
+        recorder.record(registered(), "busy", event())
+
+        with caplog.at_level(logging.WARNING, logger="hassette.core.listener_miss_recorder"):
+            for _ in range(MAX_FLUSH_RETRIES):
+                await recorder.flush()
+                assert len(recorder.entries) == 1
+            await recorder.flush()
+
+        assert recorder.entries == {}
+        assert hassette.pipeline_counters.get(PipelineCounter.LISTENER_MISS_FLUSH_FAILED) == 1
+        assert "they are dropped" in caplog.records[-1].getMessage()
 
     async def test_empty_flush_writes_nothing(self, hassette: MagicMock) -> None:
         hassette.database_service.submit = AsyncMock()
