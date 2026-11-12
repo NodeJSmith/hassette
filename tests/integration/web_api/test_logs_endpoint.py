@@ -12,7 +12,7 @@ import uuid_utils
 from hassette.core.migration_runner import run_migrations
 from hassette.core.telemetry.summary_queries import LOG_RECORD_SELECT
 from hassette.logging_ import LogPersistenceHandler
-from tests.support.factories import make_log_record as make_stdlib_log_record
+from tests.support.log_factories import make_log_record as make_stdlib_log_record
 from tests.support.sql import sqlite_conn
 
 from .conftest import get_json, make_log_record

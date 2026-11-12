@@ -209,7 +209,8 @@ class SessionManager(Resource):
                 stale_ids,
             )
 
-            # Step 2: delete the listener rows (no FK cascade to worry about now).
+            # Step 2: delete the listener rows (no FK cascade to worry about now). Their listener_misses rows
+            # cascade away with them on purpose: a once=True listener that already ran needs no near-miss history.
             await db.execute(
                 f"DELETE FROM listeners WHERE id IN ({placeholders})",
                 stale_ids,

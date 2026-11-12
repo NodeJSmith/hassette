@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from hassette.logging_ import DEQUEUE_TIMEOUT_SECONDS, HassetteQueueListener, LogPersistenceHandler
-from tests.support.factories import make_log_record
+from tests.support.log_factories import make_log_record
 
 
 def _enqueue_returning_false(coro: Coroutine[Any, Any, Any]) -> bool:

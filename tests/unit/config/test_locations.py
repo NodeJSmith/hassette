@@ -1,5 +1,6 @@
 """Where config files are looked up, and what relative paths and ``apps.directory`` resolve to."""
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, get_args
@@ -257,14 +258,25 @@ class TestAppsDirectoryDefault:
 
 
 class TestBootstrapLogLevel:
+    @pytest.fixture(autouse=True)
+    def clear_log_level_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Remove every case variant of the log-level variable, since ``get_log_level`` matches it in any case."""
+        for name in list(os.environ):
+            if name.lower() == "hassette__logging__log_level":
+                monkeypatch.delenv(name)
+
     def test_reads_the_logging_setting(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "debug")
 
         assert get_log_level() == "DEBUG"
 
+    def test_matches_the_name_case_insensitively(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("hassette__logging__log_level", "DEBUG")
+
+        assert get_log_level() == "DEBUG"
+
     @pytest.mark.parametrize("name", ["HASSETTE__LOG_LEVEL", "HASSETTE_LOG_LEVEL", "LOG_LEVEL"])
     def test_ignores_other_spellings(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
-        monkeypatch.delenv("HASSETTE__LOGGING__LOG_LEVEL", raising=False)
         monkeypatch.setenv(name, "DEBUG")
 
         assert get_log_level() == "INFO"

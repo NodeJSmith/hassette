@@ -6,7 +6,6 @@ import hassette.cli.output as cli_output
 from hassette.cli.client import make_client, query_params, telemetry_app_path
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
-from hassette.cli.output import Column, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, SinceArg
 
 UNNAMED_INSTANCE_LABEL = "unnamed instance"
@@ -54,21 +53,21 @@ def fmt_app_frame(stall: UnattributedStall) -> str:
     return f"{frame.display_path}:{frame.lineno} in {frame.function}" if frame is not None else ""
 
 
-FINDING_COLUMNS: list[Column] = [
-    Column("app_key", "App"),
-    Column("instances", "Instances", max_width=24, row_formatter=fmt_instances),
-    Column("call_site", "Call site", max_width=44, row_formatter=fmt_call_site),
-    Column("callee", "Calls into", max_width=36, row_formatter=fmt_calls_into),
-    Column("event_count", "Count"),
-    Column("max_stall_ms", "Max", formatter=fmt_duration_ms),
-    Column("last_seen_ts", "Last seen", formatter=fmt_relative_time),
+FINDING_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("app_key", "App"),
+    cli_output.Column("instances", "Instances", max_width=24, row_formatter=fmt_instances),
+    cli_output.Column("call_site", "Call site", max_width=44, row_formatter=fmt_call_site),
+    cli_output.Column("callee", "Calls into", max_width=36, row_formatter=fmt_calls_into),
+    cli_output.Column("event_count", "Count"),
+    cli_output.Column("max_stall_ms", "Max", formatter=fmt_duration_ms),
+    cli_output.Column("last_seen_ts", "Last seen", formatter=fmt_relative_time),
 ]
 
-UNATTRIBUTED_COLUMNS: list[Column] = [
-    Column("detected_ts", "When", formatter=fmt_relative_time),
-    Column("reason", "Reason"),
-    Column("stall_duration_ms", "Stall", row_formatter=fmt_stall),
-    Column("app_frame", "App code in stack", row_formatter=fmt_app_frame),
+UNATTRIBUTED_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("detected_ts", "When", formatter=fmt_relative_time),
+    cli_output.Column("reason", "Reason"),
+    cli_output.Column("stall_duration_ms", "Stall", row_formatter=fmt_stall),
+    cli_output.Column("app_frame", "App code in stack", row_formatter=fmt_app_frame),
 ]
 
 
@@ -88,12 +87,12 @@ def cmd_blocking(
 
     if app is not None:
         params = query_params(instance_name=client.known_instance_or_none(app, instance), since=since)
-        findings = client.get(telemetry_app_path(app, "blocking"), BlockingFindingsResponse, params=params)
+        response = client.get(telemetry_app_path(app, "blocking"), BlockingFindingsResponse, params=params)
         if ctx.json_mode:
-            cli_output.render_detail(findings, json_mode=True)
+            cli_output.render_detail(response, json_mode=True)
             return
-        render_table(findings.findings, FINDING_COLUMNS, json_mode=False)
-        if findings.truncated:
+        cli_output.render_table(response.findings, FINDING_COLUMNS, json_mode=False)
+        if response.truncated:
             cli_output.stderr_console.print(TRUNCATED_NOTE, highlight=False)
         return
 
@@ -101,24 +100,24 @@ def cmd_blocking(
         client.error_usage("--instance requires --app")
 
     params = query_params(since=since)
-    findings = client.get("/api/telemetry/blocking/findings", BlockingFindingsResponse, params=params)
+    response = client.get("/api/telemetry/blocking/findings", BlockingFindingsResponse, params=params)
     unattributed = client.get("/api/telemetry/blocking/unattributed", UnattributedBlockingResponse, params=params)
 
     if ctx.json_mode:
         document = {
-            "findings": findings.model_dump(mode="json"),
+            "findings": response.model_dump(mode="json"),
             "unattributed": unattributed.model_dump(mode="json"),
         }
         cli_output.render_detail_dict(document, "Blocking", json_mode=True)
         return
 
-    render_table(findings.findings, FINDING_COLUMNS, json_mode=False)
+    cli_output.render_table(response.findings, FINDING_COLUMNS, json_mode=False)
     if unattributed.total_count:
         cli_output.stdout_console.print(
             f"\nLoop stalls credited to no app: {unattributed.total_count} "
             f"({unattributed.displaced_count} displaced, {unattributed.framework_count} framework)",
             highlight=False,
         )
-        render_table(unattributed.recent, UNATTRIBUTED_COLUMNS, json_mode=False)
-    if findings.truncated:
+        cli_output.render_table(unattributed.recent, UNATTRIBUTED_COLUMNS, json_mode=False)
+    if response.truncated:
         cli_output.stderr_console.print(TRUNCATED_NOTE, highlight=False)

@@ -1,9 +1,6 @@
 """Job-related CLI commands: job list, execution history, and manual trigger."""
 
-from typing import Any
-
 from hassette_wire import (
-    Execution,
     JobSummary,
     JobTriggerResponse,
     ScheduleStatus,
@@ -12,24 +9,16 @@ from hassette_wire import (
 )
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
+from hassette.cli.commands.executions import render_execution_history
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.formatters import fmt_duration_ms, fmt_relative_time
 from hassette.cli.output import Column, render_detail, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 
-JOB_EXECUTION_COLUMNS: list[Column] = [
-    Column("status", "Status", max_width=10),
-    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
-    Column("error_type", "Error Type", max_width=20),
-    Column("error_message", "Error Message", max_width=28),
-    Column("execution_start_ts", "When", max_width=11, formatter=fmt_relative_time),
-    Column("execution_id", "Execution ID", max_width=14),
-]
-
 #: schedule_status -> schedule_status_reason -> display text, for combinations that override
 #: the default per-status text below. ``None`` reason keys are handled by the plain
-#: _SCHEDULE_STATUS_TEXT fallback in _next_run_display().
-_SCHEDULE_STATUS_REASON_TEXT: dict[tuple[ScheduleStatus, ScheduleStatusReason], str] = {
+#: SCHEDULE_STATUS_TEXT fallback in next_run_display().
+SCHEDULE_STATUS_REASON_TEXT: dict[tuple[ScheduleStatus, ScheduleStatusReason], str] = {
     (ScheduleStatus.SCHEDULED, ScheduleStatusReason.LEGACY_UNKNOWN): "Legacy status unknown.",
     (ScheduleStatus.COMPLETED, ScheduleStatusReason.TRIGGER_ERROR): "Schedule stopped after trigger error.",
 }
@@ -37,7 +26,7 @@ _SCHEDULE_STATUS_REASON_TEXT: dict[tuple[ScheduleStatus, ScheduleStatusReason], 
 #: Fallback text for a null next_run, keyed by schedule_status, when no reason override
 #: applies. "scheduled" here means live enrichment ran but returned no concrete timing. Covers
 #: every ScheduleStatus member (tested).
-_SCHEDULE_STATUS_TEXT: dict[ScheduleStatus, str] = {
+SCHEDULE_STATUS_TEXT: dict[ScheduleStatus, str] = {
     ScheduleStatus.SCHEDULED: "Timing unavailable.",
     ScheduleStatus.WAITING: "Waiting for entity time.",
     ScheduleStatus.COMPLETED: "Schedule completed.",
@@ -45,13 +34,13 @@ _SCHEDULE_STATUS_TEXT: dict[ScheduleStatus, str] = {
 }
 
 
-def _next_run_display(job: JobSummary) -> str:
+def next_run_display(job: JobSummary) -> str:
     """Status-aware display text for the Next Run column.
 
     A concrete ``next_run`` always wins (relative-time text). Otherwise the text is chosen
-    from ``schedule_status``/``schedule_status_reason`` — null timing no longer means "done";
-    it means waiting, completed, manual-only, or (for a nominally scheduled job) that live
-    timing is temporarily unavailable. Returns ``""`` only for a status this CLI doesn't know.
+    from ``schedule_status``/``schedule_status_reason``: waiting, completed, manual-only, or
+    (for a nominally scheduled job) live timing temporarily unavailable. Returns ``""`` only
+    for a status this CLI doesn't know.
     """
     if job.next_run is not None:
         return fmt_relative_time(job.next_run)
@@ -61,13 +50,12 @@ def _next_run_display(job: JobSummary) -> str:
         return ""
     # An unknown reason falls back to the status's own text, like a known reason with no override.
     if reason is not None and not isinstance(reason, UnknownValue):
-        reason_text = _SCHEDULE_STATUS_REASON_TEXT.get((status, reason))
+        reason_text = SCHEDULE_STATUS_REASON_TEXT.get((status, reason))
         if reason_text is not None:
             return reason_text
-    return _SCHEDULE_STATUS_TEXT[status]
+    return SCHEDULE_STATUS_TEXT[status]
 
 
-# JOB_LIST_COLUMNS' next_run column wires _next_run_display, defined immediately above, as its row_formatter
 JOB_LIST_COLUMNS: list[Column] = [
     Column("job_id", "ID", max_width=6),
     Column("app_key", "App", max_width=18),
@@ -80,7 +68,7 @@ JOB_LIST_COLUMNS: list[Column] = [
     Column("failed", "Fail", max_width=6),
     Column("skipped", "Skipped", max_width=7),
     Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
-    Column("next_run", "Next Run", max_width=11, row_formatter=_next_run_display),
+    Column("next_run", "Next Run", max_width=11, row_formatter=next_run_display),
 ]
 
 
@@ -101,13 +89,9 @@ def cmd_job(
     client = make_client(ctx)
 
     if job_id is not None:
-        raw: list[Any] = client.get(
-            f"/api/telemetry/job/{job_id}/executions",
-            list,
-            params=query_params(since=since, limit=limit),
+        render_execution_history(
+            client, f"/api/telemetry/job/{job_id}/executions", since=since, limit=limit, json_mode=ctx.json_mode
         )
-        executions = parse_wire_list(Execution, raw)
-        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)
         return
 
     raw = client.get_with_app_routing(

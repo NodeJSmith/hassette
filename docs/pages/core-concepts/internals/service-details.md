@@ -65,7 +65,7 @@ Each passing listener enters a [`TaskBucket`][hassette.task_bucket.task_bucket.T
 |---|---|
 | [`ListenerIdentity`][hassette.bus.listeners.ListenerIdentity] | Ownership and telemetry fields (owner ID, app key, instance name, listener name, handler names, source location/source, source tier) |
 | [`ListenerOptions`][hassette.bus.listeners.ListenerOptions] | Behavioral timing parameters (debounce, throttle, once, timeout, timeout disablement, priority, execution mode, backpressure) |
-| [`HandlerInvoker`][hassette.bus.listeners.HandlerInvoker] | Handler invocation, dispatch, and rate limiting |
+| [`HandlerInvoker`][hassette.bus.invoker.HandlerInvoker] | Handler invocation, dispatch, and rate limiting |
 | [`EntityWatch`][hassette.bus.listeners.EntityWatch] | The entity a listener tracks, plus its duration hold and timer lifecycle |
 
 Registration is synchronous with the database. `sub.listener.db_id` is a valid integer immediately when the awaited `bus.on_*()` call returns.
@@ -283,7 +283,7 @@ flowchart TD
 
 ### Schema
 
-The database has eight tables:
+The database has nine tables:
 
 | Table | Purpose |
 |---|---|
@@ -294,6 +294,7 @@ The database has eight tables:
 | `log_records` | Captured log lines with `execution_id` linkage |
 | `blocking_events` | Detected blocking-event records from watchdog and monkeypatch tiers |
 | `api_writes` | One row per named `Api` write an app sent to Home Assistant, with how it ended |
+| `listener_misses` | Hourly counts of events that reached an app listener without running it, per listener, reason and filter |
 | `app_manifests` | Persisted app manifest metadata for dashboard and seed-database workflows |
 
 `executions` stores one row per handler or job execution outcome. Most rows correspond to actual handler/job invocations, but the table also records pre-invocation outcomes such as predicate failures and scheduler predicates that return `False` (`status='skipped'`). The `kind` column holds `'handler'` or `'job'`. `listener_id` and `job_id` are nullable foreign keys into `listeners` and `scheduled_jobs` respectively. A `CHECK` constraint enforces that exactly one is non-null per row: `CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`.

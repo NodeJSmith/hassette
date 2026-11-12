@@ -246,7 +246,7 @@ hassette app source my-app
 
 ## `hassette listener`
 
-Lists all registered event bus listeners, or shows invocation history for a specific listener. A listener is the registered subscription that connects a handler (a function in your app) to an event — see [Bus](../core-concepts/bus/index.md).
+Lists all registered event bus listeners, or shows invocation history or near-misses for a specific listener. A listener is the registered subscription that connects a handler (a function in your app) to an event — see [Bus](../core-concepts/bus/index.md).
 
 ```console
 $ hassette listener
@@ -267,6 +267,20 @@ hassette listener 10 --since 1h --limit 20
 
 The invocation table shows status, duration, error type, error message, timestamp, and execution ID for each invocation.
 
+Adding `--misses` shows the events that reached the listener but didn't run it, with one row per hour, reason, and filter:
+
+```console
+$ hassette listener 42 --misses --since 1h
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+┃ Hour             ┃ Reason    ┃ Filter ┃ Count ┃ Last    ┃ Entity            ┃ Old → New        ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+│ 2026-11-12 10:00 │ filter    │ → open │ 14    │ 3m ago  │ cover.garage_door │ closed → opening │
+│ 2026-11-12 10:00 │ throttled │        │ 3     │ 25m ago │ cover.garage_door │ opening → open   │
+└──────────────────┴───────────┴────────┴───────┴─────────┴───────────────────┴──────────────────┘
+```
+
+`Hour` is the start of the hour in local time. `Filter` names the filter that said no, for the `filter` reason. `Entity` and `Old → New` describe the last event dropped that way in that hour. [Database & Telemetry](../core-concepts/database-telemetry.md#what-is-collected) lists every reason. `--since` keeps rows whose last drop is inside the window, and `--limit` caps the row count.
+
 ### Flags
 
 | Flag                   | Description                                                    |
@@ -276,6 +290,7 @@ The invocation table shows status, duration, error type, error message, timestam
 | `--since <duration>`   | Time window for invocation counts and history.                 |
 | `--source-tier <tier>` | Filters by `app`, `framework`, or `all`.                       |
 | `--limit <n>`          | Maximum invocation records (when viewing a specific listener). |
+| `--misses`             | Shows near-misses instead of invocations. Requires a listener ID. |
 | `--json`               | Outputs as JSON.                                               |
 
 **API endpoints:**
@@ -283,6 +298,7 @@ The invocation table shows status, duration, error type, error message, timestam
 - `hassette listener` hits `GET /api/bus/listeners`
 - `hassette listener --app <key>` hits `GET /api/telemetry/app/{key}/listeners`
 - `hassette listener <id>` hits `GET /api/telemetry/listener/{id}/executions`
+- `hassette listener <id> --misses` hits `GET /api/telemetry/listener/{id}/misses`
 
 ## `hassette job`
 

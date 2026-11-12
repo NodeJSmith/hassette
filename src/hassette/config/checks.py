@@ -93,7 +93,8 @@ def find_unknown_keys(settings_cls: type[BaseSettings], build: ConfigBuild) -> l
             for dotted in unknown_toml_keys(model, json.loads(key.value or "")):
                 suggestion = suggest_toml_name(model, dotted)
                 name = f"{key.name}.{dotted}"
-                found.setdefault(name.upper(), UnknownKey(name, key.source, suggestion and f"{key.name}.{suggestion}"))
+                prefixed = f"{key.name}.{suggestion}" if suggestion else None
+                found.setdefault(name.upper(), UnknownKey(name, key.source, prefixed))
 
     for table in build.toml_tables:
         for name in unknown_toml_keys(settings_cls, table.data):

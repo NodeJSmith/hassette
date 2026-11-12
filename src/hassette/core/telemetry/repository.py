@@ -10,6 +10,7 @@ from hassette_wire import ScheduleStatus, ScheduleStatusReason
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.telemetry.execution_queries import TRIGGER_COLUMNS
 from hassette.core.telemetry.helpers import STORAGE_ERRORS
 from hassette.core.telemetry.insert_params import (
     EXECUTION_INSERT_SQL,
@@ -21,10 +22,8 @@ from hassette.core.telemetry.insert_params import (
 )
 from hassette.core.telemetry.reconcile_sql import (
     build_clear_stale_job_timing_query,
-    build_delete_query,
+    build_delete_stale_jobs_query,
     build_retire_query,
-    instance_name_clause,
-    not_in_clause,
 )
 from hassette.schemas.log_models import BlockingEvent
 from hassette.types.types import is_framework_key
@@ -32,11 +31,45 @@ from hassette.utils.stack_frames import encode_frames
 
 LOGGER = getLogger(__name__)
 
+
+_LISTENER_MISS_LAST_COLUMNS = ("last_ts", *TRIGGER_COLUMNS)
+"""``listener_misses`` columns that describe the last dropped event, replaced together by a newer rollup."""
+
+_LISTENER_MISS_COLUMNS = (
+    "listener_id",
+    "hour_ts",
+    "reason",
+    "filter",
+    "count",
+    "first_ts",
+    *_LISTENER_MISS_LAST_COLUMNS,
+)
+
+_LISTENER_MISS_LAST_SET = ", ".join(
+    f"{column} = CASE WHEN excluded.last_ts >= last_ts THEN excluded.{column} ELSE {column} END"
+    for column in _LISTENER_MISS_LAST_COLUMNS
+)
+
+# INSERT ... SELECT so a row whose listener was deleted since it was recorded inserts nothing. The SELECT's
+# WHERE also keeps SQLite from parsing ON CONFLICT as a join constraint. Every SET expression reads the stored
+# row's old values, so replacing last_ts doesn't change the CASE tests that follow it.
+_LISTENER_MISS_UPSERT_SQL = f"""
+    INSERT INTO listener_misses ({", ".join(_LISTENER_MISS_COLUMNS)})
+    SELECT {", ".join(f":{column}" for column in _LISTENER_MISS_COLUMNS)}
+    WHERE EXISTS (SELECT 1 FROM listeners WHERE id = :listener_id)
+    ON CONFLICT(listener_id, hour_ts, reason, filter) DO UPDATE SET
+        count = count + excluded.count,
+        first_ts = MIN(first_ts, excluded.first_ts),
+        {_LISTENER_MISS_LAST_SET}
+"""
+
+
 if TYPE_CHECKING:
     from hassette_wire import ApiWriteOutcome
 
     from hassette.core.api_write_recorder import ApiWriteRow
     from hassette.core.database_service import DatabaseService
+    from hassette.core.listener_miss_recorder import ListenerMissRow
 
 
 class TelemetryRepository:
@@ -335,28 +368,26 @@ class TelemetryRepository:
         live_listener_ids: list[int],
         live_job_ids: list[int],
         *,
-        session_id: int | None = None,
         instance_name: str | None = None,
     ) -> None:
         """Reconcile listener and job registrations for an app after initialization.
 
-        For non-once listeners and jobs not in the live ID sets:
-        - Rows without execution history in ``executions`` are deleted outright.
-        - Rows with history have ``retired_at`` set to the current time.
+        Every listener not in the live ID set gets ``retired_at`` set to the current time, ``once=True``
+        or not. Listener rows are never deleted here: the near-miss recorder may still hold misses for a
+        listener that hasn't flushed yet, so the database alone can't say whether it has history.
+        Retention deletes a retired listener once its executions and misses age out, and
+        ``SessionManager.cleanup_stale_once_listeners`` deletes a ``once=True`` listener that already ran.
 
-        For once=True listeners not in the live ID set and not in the current session,
-        deletes them (guarded by NOT EXISTS for current-session executions).
+        Jobs not in the live ID set are deleted when they have no execution history, and retired when
+        they do.
 
         Args:
             app_key: The app key to reconcile.
             live_listener_ids: IDs of currently active listener rows.
             live_job_ids: IDs of currently active scheduled_job rows.
-            session_id: Current session ID, used to guard once=True row deletion.
-                When None, once=True row cleanup is skipped and deferred to the next successful restart.
-            instance_name: When provided, scopes all five SQL paths (both listener queries,
-                the once=True cleanup block, and both scheduled_jobs queries) to this instance
-                so restarting one instance does not delete or retire sibling instances' rows.
-                When None (default), reconciliation is app_key-scoped only — unchanged behavior.
+            instance_name: When provided, scopes every query to this instance so restarting one
+                instance does not retire or delete sibling instances' rows. When None (default),
+                reconciliation is app_key-scoped only.
         """
         if is_framework_key(app_key):
             LOGGER.warning(
@@ -374,72 +405,17 @@ class TelemetryRepository:
             # rollback() in the except clause is a no-op.
             await db.execute("BEGIN")
 
-            sql, params = build_delete_query(
-                "listeners",
-                app_key,
-                live_listener_ids,
-                "listener_id",
-                extra_where=" AND once = 0",
-                instance_name=instance_name,
+            # Listeners are only ever retired here, never deleted: see the docstring.
+            sql, params = build_retire_query(
+                "listeners", app_key, live_listener_ids, now, only_with_history=False, instance_name=instance_name
             )
+            await db.execute(sql, params)
+
+            sql, params = build_delete_stale_jobs_query(app_key, live_job_ids, instance_name=instance_name)
             await db.execute(sql, params)
 
             sql, params = build_retire_query(
-                "listeners",
-                app_key,
-                live_listener_ids,
-                "listener_id",
-                now,
-                extra_where=" AND once = 0",
-                instance_name=instance_name,
-            )
-            await db.execute(sql, params)
-
-            if session_id is not None:
-                params_once: dict = {"app_key": app_key, "source_tier": "app", "session_id": session_id}
-                live_ids_clause, live_ids_params = not_in_clause(live_listener_ids)
-                params_once.update(live_ids_params)
-                instance_clause, instance_params = instance_name_clause(instance_name)
-                params_once.update(instance_params)
-                await db.execute(
-                    f"""
-                    DELETE FROM listeners
-                    WHERE app_key = :app_key AND once = 1
-                      AND source_tier = :source_tier{instance_clause}
-                      {live_ids_clause}
-                      AND NOT EXISTS (
-                          SELECT 1 FROM executions
-                          WHERE listener_id = listeners.id AND session_id = :session_id
-                      )
-                    """,
-                    params_once,
-                )
-            else:
-                # session_id is unavailable (DB write queue backpressure at startup).
-                # Skip once=True deletion entirely — any row that fired before reconciliation
-                # but whose execution hasn't flushed yet would be orphaned without the
-                # session-scoped NOT EXISTS guard. Defer cleanup to the next successful restart.
-                LOGGER.debug(
-                    "session_id unavailable for app '%s' — skipping once=True cleanup; deferred to next restart",
-                    app_key,
-                )
-
-            sql, params = build_delete_query(
-                "scheduled_jobs",
-                app_key,
-                live_job_ids,
-                "job_id",
-                instance_name=instance_name,
-            )
-            await db.execute(sql, params)
-
-            sql, params = build_retire_query(
-                "scheduled_jobs",
-                app_key,
-                live_job_ids,
-                "job_id",
-                now,
-                instance_name=instance_name,
+                "scheduled_jobs", app_key, live_job_ids, now, only_with_history=True, instance_name=instance_name
             )
             await db.execute(sql, params)
 
@@ -581,6 +557,25 @@ class TelemetryRepository:
                 exc_info=True,
             )
 
+    async def upsert_listener_misses(self, rows: "list[ListenerMissRow]") -> None:
+        """Add a batch of near-miss rollups to ``listener_misses``, merging into rows already stored for their key.
+
+        On a key already stored (listener, hour, reason, filter), ``count`` adds, ``first_ts`` keeps the earlier
+        time, and the last-event columns change only when this rollup's last event is at least as recent, so a
+        restart or app reload within the hour adds to its row. A row whose listener has since been deleted is
+        skipped rather than failing the batch on the foreign key. Any failure rolls the batch back and re-raises.
+        """
+        if not rows:
+            return
+        db = self._db_service.db
+        try:
+            await db.execute("BEGIN")
+            await db.executemany(_LISTENER_MISS_UPSERT_SQL, [listener_miss_params(row) for row in rows])
+            await db.commit()
+        except Exception:  # any failure rolls back, then re-raises to the caller
+            await db.rollback()
+            raise
+
     async def persist_execution_batch(self, records: list[ExecutionRecord]) -> None:
         """Write a batch of unified execution records to the executions table.
 
@@ -635,3 +630,8 @@ class TelemetryRepository:
             raise
 
         return dropped
+
+
+def listener_miss_params(row: "ListenerMissRow") -> dict[str, object]:
+    """The named SQL parameters of one ``listener_misses`` upsert row."""
+    return {column: getattr(row, column) for column in _LISTENER_MISS_COLUMNS}

@@ -15,7 +15,8 @@ from hassette.bus.listeners import Listener
 from hassette.core.bus_service import BusService
 from hassette.core.execution_record import SYNTHETIC_ORIGIN
 from hassette.testing import make_state_dict
-from tests.support.helpers import create_listener
+from tests.support.factories import make_mock_event
+from tests.support.helpers import create_listener, make_delivery
 from tests.unit.core._fixtures_bus_scheduler import make_bus_service
 
 if TYPE_CHECKING:
@@ -91,7 +92,7 @@ async def test_raising_hold_predicate_on_duration_fire_is_recorded_and_routed() 
     mock_timer = MagicMock()
     listener.entity_watch._timer = mock_timer
 
-    svc._duration_hold.start_duration_timer(listener, ENTITY_ID, listener.entity_watch, AsyncMock())
+    svc._duration_hold.start_duration_timer(make_delivery(listener, make_mock_event()))
     on_fire = mock_timer.start.call_args[0][0]
     await on_fire()
     await asyncio.sleep(0)

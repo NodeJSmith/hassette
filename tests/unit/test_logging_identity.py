@@ -33,8 +33,8 @@ from hassette.logging_ import (
     warning_author,
 )
 from hassette.utils.stack_frames import HASSETTE_PACKAGE_DIR
-from tests.support.factories import make_log_record
 from tests.support.helpers import first_json_record_containing
+from tests.support.log_factories import make_log_record
 
 USER_APP_FILE = "/home/user/apps/my_app.py"
 OWNER = LogIdentity(author="framework", app_key="owner_app", instance_name="owner_inst")

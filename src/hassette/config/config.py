@@ -1,6 +1,5 @@
 import os
 from collections.abc import Mapping
-from contextlib import suppress
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
@@ -102,7 +101,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         settings_cls: type["BaseSettings"],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,  # noqa: ARG003 - pydantic-settings fixes the signature
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003 - pydantic-settings fixes the signature
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         # dup-ignore-end
@@ -280,19 +279,16 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         return filter_paths_to_unique_existing([*base_files, *local_overlay_paths(base_files)])
 
     def get_watchable_files(self) -> set[Path]:
-        """Return a list of files to watch for changes."""
+        """Return a set of files to watch for changes."""
         files = self.env_files | self.toml_files
         files.add(self.apps.directory.resolve())
 
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
         for app_manifest in self.apps.manifests.values():
-            with suppress(FileNotFoundError):
-                files.add(app_manifest.full_path)
-                files.add(app_manifest.app_dir)
+            files.add(app_manifest.full_path)
+            files.add(app_manifest.app_dir)
 
-        files = filter_paths_to_unique_existing(files)
-
-        return files
+        return filter_paths_to_unique_existing(files)
 
     @property
     def auth_headers(self) -> dict[str, str]:
@@ -543,7 +539,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         """
         validate_app_manifests(clean_explicit_apps(self.apps))
 
-    def set_validated_app_manifests(self):
+    def set_validated_app_manifests(self) -> None:
         """Cleans up and validates the app entries written in the config, and stores them as manifests."""
         cleaned_apps_dict = clean_explicit_apps(self.apps)
         app_manifest_dict = validate_app_manifests(cleaned_apps_dict)

@@ -9,10 +9,10 @@ from typing import Any, ClassVar
 import uuid_utils
 from hassette_wire import BackpressurePolicy, ExecutionStatus, LogLevel
 
+from hassette.bus.delivery import Delivery
 from hassette.bus.duration_hold import DurationHoldManager
 from hassette.bus.error_context import BusErrorContext
-from hassette.bus.invocation import build_tracked_invoke_fn
-from hassette.bus.listeners import Listener, Subscription
+from hassette.bus.listeners import MATCHED, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.database_service import DatabaseService
 from hassette.core.duration_hold_adapters import (
@@ -24,6 +24,7 @@ from hassette.core.duration_hold_adapters import (
 from hassette.core.event_filter import EventFilter
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.execution_record_builder import summarize_trigger
+from hassette.core.listener_miss_recorder import ListenerMissRecorder
 from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
@@ -126,6 +127,9 @@ class BusService(Service):
 
         self._removal_callbacks = {}
 
+        self._miss_recorder = ListenerMissRecorder(hassette)
+        """Near-miss rollups for app listeners; each one's reporter is bound in ``add_listener``."""
+
     @property
     def config_log_level(self) -> LogLevel:
         """Return the configured log level for the bus service (``logging.bus_service``)."""
@@ -215,6 +219,7 @@ class BusService(Service):
         reg = self.build_registration(listener)
         db_id = await self._executor.register_listener(reg)
         listener.mark_registered(db_id)
+        listener.invoker.report_drop = self._miss_recorder.reporter_for(listener)
 
         # Sync: insert route — listener is routable after DB registration.
         self.router.add_route(listener.topic, listener)
@@ -234,8 +239,9 @@ class BusService(Service):
         """Build a ``ListenerRegistration`` struct from listener identity and options."""
         registration_source: str | None = listener.identity.registration_source or None
         human_description: str | None = None
-        if listener.predicate is not None:
-            human_description = summarize_top_level(listener.predicate)
+        predicate = listener.full_predicate
+        if predicate is not None:
+            human_description = summarize_top_level(predicate)
         return ListenerRegistration(
             app_key=listener.identity.app_key,
             instance_name=listener.identity.instance_name,
@@ -245,7 +251,7 @@ class BusService(Service):
             throttle=listener.options.throttle,
             once=listener.options.once,
             priority=listener.options.priority,
-            predicate_description=describe_predicate(listener.predicate) if listener.predicate else None,
+            predicate_description=describe_predicate(predicate) if predicate else None,
             human_description=human_description,
             source_location=listener.identity.source_location,
             registration_source=registration_source,
@@ -389,61 +395,67 @@ class BusService(Service):
         if not chosen:
             return
 
-        listeners_by_route = self._group_by_route(chosen)
+        deliveries_by_route = self._group_by_route(chosen)
 
         # loop over routes so we always log in order of specificity
         for route in routes:
-            listeners = listeners_by_route.get(route)
-            if not listeners:
+            deliveries = deliveries_by_route.get(route)
+            if not deliveries:
                 continue
 
-            self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(listeners))
-            for listener in listeners:
-                await self._spawn_dispatch_task(route, event, listener)
+            self.logger.debug("Dispatch fanout %s -> %s (%d listener(s))", base_topic, route, len(deliveries))
+            for delivery in deliveries:
+                await self._spawn_dispatch_task(delivery)
 
-    def _match_listeners(self, routes: list[str], event: "AnyEvent") -> dict[int, tuple[str, Listener]]:
+    def _match_listeners(self, routes: list[str], event: "AnyEvent") -> dict[int, Delivery]:
         """Resolve the listeners that match ``event`` across ``routes``.
 
         Routes first, then dedupes by "first match wins" because routes are ordered by
-        specificity (most specific -> least). A predicate that raises is recorded as a
-        failed execution via ``_record_predicate_failure`` and excluded from further routes
-        for this dispatch, but the listener itself is not removed from the router.
+        specificity (most specific -> least). A listener that rejects the event, or whose
+        predicate raises, is excluded from further routes for this dispatch, so no predicate is
+        evaluated twice for one event. A raise is recorded as a failed execution via
+        ``_record_predicate_failure``, but the listener itself is not removed from the router.
+        A rejection by one of the listener's filters (not its scope) is reported as a ``filter``
+        near-miss naming that filter.
 
         Returns:
-            A dict mapping ``listener_id`` to the ``(matched_route, listener)`` it matched on.
+            A dict mapping ``listener_id`` to the delivery of ``event`` on the route the listener matched on.
         """
-        chosen: dict[int, tuple[str, Listener]] = {}  # listener_id -> (matched_route, listener)
-        failed: set[int] = set()  # listener_ids whose predicates raised (dedup across routes)
+        chosen: dict[int, Delivery] = {}  # listener_id -> delivery on its matched route
+        rejected: set[int] = set()  # listener_ids that rejected the event or raised (dedup across routes)
 
         for route in routes:
             listeners = self.router.get_topic_listeners(route)
             for listener in listeners:
-                if listener.listener_id in chosen or listener.listener_id in failed:
+                if listener.listener_id in chosen or listener.listener_id in rejected:
                     continue
                 predicate_start = time.time()
                 try:
-                    matched = listener.matches(event)
+                    result = listener.evaluate(event)
                 except Exception as exc:
-                    failed.add(listener.listener_id)
+                    rejected.add(listener.listener_id)
                     self.logger.exception("Predicate raised for %s; skipping this listener", listener)
                     self.record_predicate_failure_safely(
                         listener, route, event, exc, predicate_start, is_synthetic=False
                     )
                     continue
-                if matched:
-                    chosen[listener.listener_id] = (route, listener)
+                if result == MATCHED:
+                    chosen[listener.listener_id] = Delivery(listener, event, route)
+                    continue
+                rejected.add(listener.listener_id)
+                Delivery(listener, event, route).drop_if_filtered(result)
 
         return chosen
 
-    def _group_by_route(self, chosen: dict[int, tuple[str, Listener]]) -> dict[str, list[Listener]]:
-        """Group matched listeners by the route they matched on, for ordered per-route logging."""
-        listeners_by_route: dict[str, list[Listener]] = defaultdict(list)
-        for route, listener in chosen.values():
-            listeners_by_route[route].append(listener)
-        return listeners_by_route
+    def _group_by_route(self, chosen: dict[int, Delivery]) -> dict[str, list[Delivery]]:
+        """Group matched deliveries by the route they matched on, for ordered per-route logging."""
+        deliveries_by_route: dict[str, list[Delivery]] = defaultdict(list)
+        for delivery in chosen.values():
+            deliveries_by_route[delivery.topic].append(delivery)
+        return deliveries_by_route
 
-    async def _spawn_dispatch_task(self, route: str, event: "AnyEvent", listener: "Listener") -> None:
-        """Acquire a dispatch slot for ``listener`` and spawn its handler task.
+    async def _spawn_dispatch_task(self, delivery: Delivery) -> None:
+        """Acquire a dispatch slot for ``delivery`` and spawn its handler task.
 
         Honors the listener's backpressure policy when the dispatch semaphore is saturated,
         and unwinds slot/pending bookkeeping by hand if the spawn itself fails.
@@ -452,6 +464,7 @@ class BusService(Service):
         # A blocked acquire stalls the dispatch loop -> serve loop -> inbound channel,
         # propagating backpressure to the WS reader. locked() exactly predicts a blocking
         # acquire here: no await separates the two, so no other task changes the count between.
+        listener = delivery.listener
         if self._dispatch_semaphore.locked():
             # Keep this call before the `await acquire()` below: the BLOCK-path test
             # `test_block_listener_blocks_then_runs_under_saturation` hooks
@@ -467,13 +480,14 @@ class BusService(Service):
                     "backpressure drop_newest: skipping event for %s",
                     listener.identity.name or listener.identity.handler_short_name,
                 )
+                delivery.drop("backpressure")
                 return  # no acquire, no spawn, no pending/idle bookkeeping
         await self._dispatch_semaphore.acquire()
 
         self._dispatch_pending += 1
         self._dispatch_idle_event.clear()
         try:
-            task = self.task_bucket.spawn(self._dispatch(route, event, listener), name="bus:dispatch_listener")
+            task = self.task_bucket.spawn(self._dispatch(delivery), name="bus:dispatch_listener")
         except BaseException:
             # Spawn failed: no task runs, so no done-callback fires. Release the slot and
             # unwind the pending bookkeeping by hand.
@@ -631,18 +645,14 @@ class BusService(Service):
                 name="bus:predicate_error_handler",
             )
 
-    async def _dispatch(self, topic: str, event: "AnyEvent", listener: "Listener") -> None:
-        """Dispatch an event to a specific listener.
+    async def _dispatch(self, delivery: Delivery) -> None:
+        """Dispatch a delivery to its listener.
 
-        Builds an invoke_fn via ``build_tracked_invoke_fn``. Duration listeners
-        delegate to ``DurationHoldManager.start_duration_timer``; non-duration
-        listeners dispatch inline with ``once`` removal in a ``finally`` block.
+        Duration listeners delegate to ``DurationHoldManager.start_duration_timer``, which re-verifies the
+        current state at fire time but dispatches this delivery, so the handler receives the event that started
+        the hold. Non-duration listeners dispatch inline with ``once`` removal in a ``finally`` block.
         """
-        # invoke_fn captures the original triggering event. Duration timer callbacks
-        # re-verify current state via hold predicates but dispatch via this invoke_fn
-        # — the handler receives the event that started the timer.
-        invoke_fn = build_tracked_invoke_fn(listener, event, topic, self._executor, self._config_resolver)
-
+        listener = delivery.listener
         if listener.entity_watch is not None and listener.entity_watch.duration is not None:
             if listener.is_cancelled:
                 return
@@ -658,12 +668,11 @@ class BusService(Service):
                 )
                 return
 
-            self._duration_hold.start_duration_timer(listener, entity_id, entity_watch, invoke_fn)
+            self._duration_hold.start_duration_timer(delivery)
             return
 
-        # Non-duration path (unchanged behavior).
         try:
-            await listener.invoker.dispatch(invoke_fn, self._config_resolver)
+            await listener.invoker.dispatch(delivery, self._executor, self._config_resolver)
         finally:
             if listener.options.once:
                 self.remove_listener(listener)
@@ -671,6 +680,26 @@ class BusService(Service):
     async def before_initialize(self) -> None:
         """Wait for Hassette's ready event before the bus service initializes."""
         await self.hassette.ready_event.wait()
+
+    async def on_initialize(self) -> None:
+        """Start the near-miss flush loop."""
+        self._miss_recorder.start(self.task_bucket)
+
+    async def on_shutdown(self) -> None:
+        """Write the near-misses accrued since the last flush.
+
+        Waits for in-flight dispatches first so their drops are counted, then stops the flush loop and awaits its
+        last flush; this hook's own shutdown bound caps that wait. The loop gets its own stop event rather than
+        waiting on this service's shutdown event, which is set before dispatch drains. ``ListenerMissRecorder.stop``
+        flushes directly only when no loop is running, so the two never overlap.
+        ``DatabaseService`` shuts down after this service (a dependency shuts down after its dependents),
+        so the write queue is still live here.
+        """
+        try:
+            await self.await_dispatch_idle()
+        except TimeoutError:
+            self.logger.debug("Dispatches still pending at shutdown; flushing the near-misses recorded so far")
+        await self._miss_recorder.stop()
 
     @property
     def is_dispatch_idle(self) -> bool:

@@ -8,7 +8,7 @@ from hassette_wire import BackpressurePolicy, ExecutionMode
 
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.summary_models import AppHealthAggregates
-from tests.support.web_telemetry_helpers import make_execution, make_listener_summary_row
+from tests.support.web_telemetry_helpers import make_execution, make_listener_miss, make_listener_summary_row
 
 from .conftest import APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json
 
@@ -264,6 +264,17 @@ class TestTelemetryExecutions:
         call_kwargs = mock_hassette.telemetry_query_service.get_executions.call_args.kwargs
         assert call_kwargs["listener_id"] == 1
 
+    async def test_listener_misses_returns_rollups(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.telemetry_query_service.get_listener_misses = AsyncMock(return_value=[make_listener_miss()])
+
+        data = await get_json(client, "/api/telemetry/listener/1/misses?since=1700000005.0&limit=10")
+
+        assert [(row["reason"], row["filter"], row["count"]) for row in data] == [("filter", "→ on", 3)]
+        assert data[0]["trigger"]["entity_id"] == "light.kitchen"
+        call = mock_hassette.telemetry_query_service.get_listener_misses.call_args
+        assert call.args == (1,)
+        assert call.kwargs == {"since": pytest.approx(1700000005.0), "limit": 10}
+
     async def test_job_executions_returns_job_executions(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(
             return_value=[make_execution(kind="job", job_id=1, execution_start_ts=MOCK_TS, duration_ms=100.0)]
@@ -337,6 +348,7 @@ class TestQueryParamForwarding:
             # ...and omitting it passes None rather than a default window.
             ("/api/telemetry/app/my_app/health", "get_app_health_aggregates", {"since": None}),
             ("/api/telemetry/listener/1/executions", "get_executions", {"since": None}),
+            ("/api/telemetry/listener/1/misses", "get_listener_misses", {"since": None}),
             ("/api/telemetry/app/my_app/activity", "get_app_recent_activity", {"since": None}),
             # limit= and source_tier= travel the same path.
             ("/api/telemetry/app/my_app/activity?limit=10", "get_app_recent_activity", {"limit": 10}),

@@ -41,6 +41,7 @@ class PipelineCounter(Enum):
     DB_WRITE_QUEUE_YIELDED_TO_SUBMIT = ("db_write_queue", "yielded_to_submit", CounterKind.LOSS)
     API_WRITE_RECORD_DROPPED = ("api_write_record", "dropped", CounterKind.LOSS)
     API_WRITE_TRACKING_EVICTED = ("api_write_tracking", "evicted", CounterKind.LOSS)
+    LISTENER_MISS_FLUSH_FAILED = ("listener_miss_flush", "failed", CounterKind.LOSS)
 
     def __init__(self, stage: str, reason: str, kind: CounterKind) -> None:
         self.stage = stage

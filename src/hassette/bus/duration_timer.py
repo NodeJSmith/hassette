@@ -217,8 +217,8 @@ class DurationTimer:
         if had_pending_task:
             self.completed.set()
 
-    def evaluate_cancel_event(self, event: "AnyEvent") -> None:
-        """Evaluate whether a state-change event should cancel the timer.
+    def cancel_if_left_state(self, event: "AnyEvent") -> bool:
+        """Cancel the timer if a state-change event shows the entity left the target state.
 
         Re-evaluates the main listener's hold predicates (state-value predicates
         only, excluding transition predicates like ``StateFrom``, ``StateDidChange``)
@@ -235,9 +235,13 @@ class DurationTimer:
 
         Args:
             event: The new state-change event for the monitored entity.
+
+        Returns:
+            True when ``event`` ended an active hold (a ``hold_cancelled`` near-miss for the caller to report);
+            False when the entity is still in the target state or no hold was active.
         """
         if self._cancelled:
-            return
+            return False
 
         eval_event = self._normalize_cancel_event(event) if self._normalize_cancel_event is not None else event
 
@@ -246,5 +250,8 @@ class DurationTimer:
                 "DurationTimer: predicates no longer match for entity=%s, cancelling timer",
                 self.entity_id,
             )
+            was_active = self.is_active
             self.cancel()
-        # else: entity is still in target state — timer continues
+            return was_active
+        # Entity is still in the target state: the timer continues.
+        return False

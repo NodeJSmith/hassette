@@ -79,6 +79,8 @@ def make_mock_hassette(
         - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
         - ``.database_service``: :class:`~unittest.mock.Mock` (the restart path enqueues a retire step on it)
+        - ``.try_database_service``: :class:`~unittest.mock.Mock` returning ``None``, so a bus built on the mock
+            records no listener near-misses; set its ``return_value`` to a real ``DatabaseService`` to record
         - ``.pipeline_counters``: a real :class:`~hassette.core.pipeline_counters.PipelineCounters`
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
         - ``.children``: ``[]``
@@ -162,6 +164,7 @@ def make_mock_hassette(
     hassette.session_id = None
     hassette.try_session_id = Mock(return_value=None)
     hassette.database_service = Mock()
+    hassette.try_database_service = Mock(return_value=None)
 
     # Telemetry drop counters — real, so counting code (synchronous) never leaves an unawaited AsyncMock call.
     hassette.pipeline_counters = PipelineCounters()

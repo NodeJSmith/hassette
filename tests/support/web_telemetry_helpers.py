@@ -13,6 +13,8 @@ from hassette_wire import (
     ExecutionMode,
     ExecutionStatus,
     ExecutionTrigger,
+    ListenerMiss,
+    ListenerMissReason,
     ListenerSummary,
     LogAuthor,
     LogEntry,
@@ -187,6 +189,32 @@ def make_execution(
         listener_id=listener_id,
         job_id=job_id,
         trigger=trigger,
+    )
+
+
+def make_listener_miss(
+    reason: ListenerMissReason = "filter",
+    filter: str | None = "→ on",
+    *,
+    count: int = 3,
+    hour_ts: float = TEST_EPOCH_B - TEST_EPOCH_B % 3600,
+    first_ts: float = TEST_EPOCH_B - 60,
+    last_ts: float = TEST_EPOCH_B,
+    trigger: ExecutionTrigger | None = None,
+) -> ListenerMiss:
+    """Build a ListenerMiss with sensible defaults: three ``light.kitchen`` events rejected by ``→ on``."""
+    return ListenerMiss(
+        hour_ts=hour_ts,
+        reason=reason,
+        filter=filter,
+        count=count,
+        first_ts=first_ts,
+        last_ts=last_ts,
+        trigger=trigger
+        if trigger is not None
+        else ExecutionTrigger(
+            topic="hass.event.state_changed", entity_id="light.kitchen", old_value="off", new_value="dim"
+        ),
     )
 
 

@@ -16,7 +16,9 @@ import pytest
 import tomli_w
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
-from hassette.bus.listeners import EntityWatch, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions
+from hassette.bus.delivery import Delivery
+from hassette.bus.invoker import HandlerInvoker
+from hassette.bus.listeners import EntityWatch, Listener, ListenerIdentity, ListenerOptions
 from hassette.config.classes import AppManifest
 from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent
@@ -27,7 +29,7 @@ from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._factories import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._factories import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import DEFAULT_TEST_INSTANCE_NAME, TEST_SOURCE_LOCATION
-from hassette.types.enums import Topic
+from hassette.types.enums import Outcome, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 from tests.support.factories import make_hassette_event
 
@@ -37,7 +39,7 @@ if TYPE_CHECKING:
     from hassette_wire import SourceTier
 
     from hassette.bus.bus import Bus
-    from hassette.events import HassStateDict
+    from hassette.events import AnyEvent, HassStateDict
     from hassette.execution_mode import ExecutionModeGuard
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate
 
@@ -482,6 +484,7 @@ def create_listener(
     owner_id: str = "test_owner",
     task_bucket: Any = None,
     where: "Predicate | Sequence[Predicate] | None" = None,
+    scope: "Sequence[Predicate]" = (),
     kwargs: Mapping[str, Any] | None = None,
     once: bool = False,
     debounce: float | None = None,
@@ -515,6 +518,7 @@ def create_listener(
         clock: Zero-arg callable returning the current monotonic time, forwarded to the
             RateLimiter built for debounce/throttle. Defaults to ``time.monotonic`` when
             None. Use to inject a controlled clock for deterministic throttle tests.
+        scope: Registration-built selection filters (as ``Bus`` builds them), evaluated before ``where``.
     """
     # duration + debounce/throttle incompatibility is validated by Listener.create() below.
     if duration is not None and not entity_id:
@@ -580,8 +584,21 @@ def create_listener(
         invoker=invoker,
         where=where,
         entity_watch=entity_watch,
+        scope=scope,
         logger=logger or getLogger("test"),
     )
+
+
+def make_delivery(
+    listener: Listener | None = None, event: "AnyEvent | None" = None, *, is_synthetic: bool = False
+) -> Delivery:
+    """Test factory: a ``Delivery`` of ``event`` to ``listener`` on the listener's own topic.
+
+    Defaults to ``create_listener()`` and a fresh ``make_hassette_event()``.
+    """
+    listener = listener if listener is not None else create_listener()
+    event = event if event is not None else make_hassette_event()
+    return Delivery(listener, event, listener.topic, is_synthetic=is_synthetic)
 
 
 async def cleanup_hassette_streams(instance: Hassette) -> None:
@@ -671,10 +688,10 @@ class PrimedGuard(NamedTuple):
     gate: asyncio.Event
     """Release this to let the running invocation complete."""
 
-    running_task: asyncio.Task[None]
+    running_task: asyncio.Task[Outcome]
     """The task that is blocked on ``gate``."""
 
-    queued_task: asyncio.Task[None] | None
+    queued_task: asyncio.Task[Outcome] | None
     """The task parked in ``guard.pending``, or ``None`` when no queued call was requested."""
 
 
@@ -723,7 +740,7 @@ async def prime_guard(
     )
     await asyncio.wait_for(started.wait(), timeout=hang_guard_timeout)
 
-    queued_task: asyncio.Task[None] | None = None
+    queued_task: asyncio.Task[Outcome] | None = None
     if invoke_queued is not None:
         queued_task = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", lambda: None)

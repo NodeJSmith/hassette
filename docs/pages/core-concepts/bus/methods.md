@@ -60,7 +60,7 @@ Fires when a Home Assistant entity's state changes. `entity_id` accepts glob pat
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `entity_id` | `str` | — | Entity ID or glob pattern to match. |
-| `changed` | `bool \| ComparisonCondition` | `True` | `True` fires only when the state value changes. `False` fires on attribute-only updates too. A [`ComparisonCondition`](filtering.md) (e.g., `C.Increased()`) compares old and new values. |
+| `changed` | `bool \| ComparisonCondition` | not set (acts as `True`) | `True` fires only when the state value changes. `False` fires on attribute-only updates too. A [`ComparisonCondition`](filtering.md) (e.g., `C.Increased()`) compares old and new values. Left unset, it filters like `True`, but the events it drops aren't recorded as [near-misses](filtering.md#near-misses); pass `changed=True` to record them. |
 | `changed_from` | `ChangeType` | not set | Filters on the previous state value. Accepts a literal (`"on"`, `True`, `20`), a callable that takes the value and returns `bool`, or a single-value `C.*` condition such as `C.IsIn` or `C.Comparison`. Two-value conditions like `C.Increased()` compare old and new values and belong in `changed`. |
 | `changed_to` | `ChangeType` | not set | Filters on the new state value. Accepts the same forms as `changed_from`. |
 | `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates applied after value filters. See [Filtering & Predicates](filtering.md). |
@@ -121,7 +121,7 @@ Fires when a specific attribute of an entity changes. `entity_id` accepts glob p
 |---|---|---|---|
 | `entity_id` | `str` | — | Entity ID or glob pattern to match. |
 | `attr` | `str` | — | Attribute name to monitor (e.g., `"volume_level"`). |
-| `changed` | `bool \| ComparisonCondition` | `True` | `True` fires only when the attribute value changes. `False` fires on any state event for the entity. |
+| `changed` | `bool \| ComparisonCondition` | not set (acts as `True`) | `True` fires only when the attribute value changes. `False` fires on any state event for the entity. Left unset, it filters like `True` without recording [near-misses](filtering.md#near-misses). |
 | `changed_from` | `ChangeType` | not set | Filters on the previous attribute value. Accepts the same forms as `on_state_change`'s `changed_from`. |
 | `changed_to` | `ChangeType` | not set | Filters on the new attribute value. Accepts the same forms as `changed_from`. |
 | `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates. |

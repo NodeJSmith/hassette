@@ -248,6 +248,27 @@ This negated field also matches a call that omits `title`, because `C.StartsWith
 
 `A.get_path` needs the full event to walk, so it only works with `where=`. `changed_to` and `changed_from` narrow the event to a single value first, leaving nothing to traverse. The example also passes `changed=False`. `geolocation.locality` is an attribute, not the main state value `changed` gates by default. Most filtering needs are met by `changed_to`, `changed_from`, and the typed predicates. `A` handles the cases they do not reach. The full accessor guide is at [Custom Extractors](custom-extractors.md).
 
+## Near-Misses { #near-misses }
+
+When a filter drops an event, Hassette counts it so `hassette listener <id> --misses` can show why the handler didn't run. `<id>` is the `ID` column of `hassette listener --app <key>`. Each row of the output counts one reason's drops in one hour, with the last dropped event's values; [Why Didn't My Listener Run?](../../cli/workflows.md#why-didnt-my-listener-run) walks through reading it, and [Database & Telemetry](../database-telemetry.md#what-is-collected) lists every reason. Only app listeners record, and only these filters count:
+
+- Each `where=` predicate, as its own filter. A list or `P.AllOf` counts each item separately, so the row names the one that said no.
+- `changed_from`, `changed_to`, and `changed` when passed explicitly.
+
+What a subscription method adds to pick its events doesn't count: the entity ID or glob, the topic, and the default change check that applies when `changed` is omitted. Those drops record nothing, so a listener on `light.*` doesn't log every other light's events.
+
+A row names its filter by the filter's summary, such as `→ open` or `from on`. A lambda has no useful name, so two lambdas in one `where=` share a row. A named function shows its own name in the row:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering/named_where.py:named_where"
+```
+
+When motion is detected in a bright hall, the row reads `is_dark` rather than `<callable>`.
+
+A `where=` predicate that raises records an error run, not a miss. A `duration=` listener also records a miss when its hold ends early (`hold_cancelled`) or when the state no longer matches as the hold runs out (`hold_recheck_failed`), or when the entity is gone from Hassette's state cache as it runs out (`hold_entity_missing`). The second happens when the state changed without an event Hassette saw.
+
+A `duration=` listener's `changed_to` is still a filter, so each event that leaves the matching state records a `filter` row. When that event also ends an active hold, it records a `hold_cancelled` row too: one event, two rows, each true.
+
 ## Full Reference
 
 The complete `P`, `C`, and `A` lookup tables live on [Predicate Reference](predicate-reference.md).

@@ -118,16 +118,16 @@ async def test_on_state_change_builds_predicates(bus: "Bus") -> None:
     )
 
     listener = subscription.listener
-    assert isinstance(listener.predicate, AllOf)
-    preds = listener.predicate.predicates
+    assert isinstance(listener.full_predicate, AllOf)
+    preds = listener.full_predicate.predicates
     assert any(isinstance(pred, EntityMatches) for pred in preds)
     assert any(isinstance(pred, StateDidChange) for pred in preds)
 
     matching_event = create_state_change_event(entity_id="sensor.kitchen", old_value="off", new_value="on")
-    assert listener.predicate(matching_event) is True
+    assert listener.full_predicate(matching_event) is True
 
     non_matching_event = create_state_change_event(entity_id="sensor.kitchen", old_value="off", new_value="off")
-    assert listener.predicate(non_matching_event) is False
+    assert listener.full_predicate(non_matching_event) is False
 
 
 async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
@@ -146,8 +146,8 @@ async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
     )
 
     listener = subscription.listener
-    assert isinstance(listener.predicate, AllOf)
-    attr_predicates = [pred for pred in listener.predicate.predicates if isinstance(pred, AttrDidChange)]
+    assert isinstance(listener.full_predicate, AllOf)
+    attr_predicates = [pred for pred in listener.full_predicate.predicates if isinstance(pred, AttrDidChange)]
     assert attr_predicates, "Expected AttrDidChange predicate to be included"
     attr_pred = attr_predicates[0]
     assert attr_pred.attr_name == "brightness"
@@ -161,7 +161,7 @@ async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
         old_attrs={"brightness": 100},
         new_attrs={"brightness": 200},
     )
-    assert listener.predicate(matching_event) is True
+    assert listener.full_predicate(matching_event) is True
 
     non_matching_event = create_state_change_event(
         entity_id="light.office",
@@ -170,7 +170,7 @@ async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
         old_attrs={"brightness": 90},
         new_attrs={"brightness": 200},
     )
-    assert listener.predicate(non_matching_event) is False
+    assert listener.full_predicate(non_matching_event) is False
 
 
 async def test_on_call_service_handles_mapping_predicates(bus: "Bus") -> None:
@@ -189,30 +189,30 @@ async def test_on_call_service_handles_mapping_predicates(bus: "Bus") -> None:
     )
 
     listener = subscription.listener
-    assert isinstance(listener.predicate, AllOf)
+    assert isinstance(listener.full_predicate, AllOf)
 
-    assert any(isinstance(pred, ServiceDataWhere) for pred in listener.predicate.predicates)
+    assert any(isinstance(pred, ServiceDataWhere) for pred in listener.full_predicate.predicates)
 
     matching_event = create_call_service_event(
         domain="light",
         service="turn_on",
         service_data={"entity_id": ["light.kitchen"], "brightness": 255},
     )
-    assert listener.predicate(matching_event) is True
+    assert listener.full_predicate(matching_event) is True
 
     wrong_entity_event = create_call_service_event(
         domain="light",
         service="turn_on",
         service_data={"entity_id": ["light.other"], "brightness": 255},
     )
-    assert listener.predicate(wrong_entity_event) is False
+    assert listener.full_predicate(wrong_entity_event) is False
 
     wrong_service_event = create_call_service_event(
         domain="light",
         service="turn_off",
         service_data={"entity_id": ["light.kitchen"], "brightness": 255},
     )
-    assert listener.predicate(wrong_service_event) is False
+    assert listener.full_predicate(wrong_service_event) is False
 
 
 async def test_once_listener_removed(hassette_with_bus: "HassetteHarness") -> None:
@@ -474,8 +474,8 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
 async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Debounced app-owned listener coalesces rapid events and routes through CommandExecutor.
 
-    This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
-    debounce delay -> execute_fn -> CommandExecutor.execute(InvokeHandler).
+    This tests the full pipeline: _dispatch -> HandlerInvoker.dispatch -> rate_limiter.call ->
+    debounce delay -> Delivery.invoke -> CommandExecutor.execute(InvokeHandler).
     """
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
@@ -498,8 +498,8 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Throttled app-owned listener fires once and drops subsequent events within the window.
 
-    This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
-    throttle check -> execute_fn -> CommandExecutor.execute(InvokeHandler).
+    This tests the full pipeline: _dispatch -> HandlerInvoker.dispatch -> rate_limiter.call ->
+    throttle check -> Delivery.invoke -> CommandExecutor.execute(InvokeHandler).
     """
     hassette = hassette_with_bus
     event_handled = asyncio.Event()

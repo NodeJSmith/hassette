@@ -49,6 +49,7 @@ _SUMMARY_TABLES = (
     "log_records",
     "blocking_events",
     "api_writes",
+    "listener_misses",
 )
 
 _DANGLING_EXECUTION_ID_QUERY = """
@@ -88,7 +89,7 @@ def _assert_no_dangling_execution_ids(conn: sqlite3.Connection, table: str) -> N
 
 
 def _collect_summary(conn: sqlite3.Connection) -> dict[str, int]:
-    """Return row counts for all 6 telemetry tables plus a distinct-app-key count."""
+    """Return row counts for every table in ``_SUMMARY_TABLES`` plus a distinct-app-key count."""
     summary = {
         table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608 — table is a static literal
         for table in _SUMMARY_TABLES
@@ -159,6 +160,7 @@ def _print_summary(scenario: str, output_path: Path, summary: dict[str, int]) ->
     print(f"  log_records:     {summary['log_records']}")
     print(f"  blocking_events: {summary['blocking_events']}")
     print(f"  api_writes:      {summary['api_writes']}")
+    print(f"  listener_misses: {summary['listener_misses']}")
 
 
 def parse_anchor(value: str) -> Instant:

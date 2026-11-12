@@ -9,9 +9,11 @@ from typing import cast, get_args
 from hassette_wire import LogLevel
 
 from hassette import context
+from hassette.config.locations import ENV_NESTED_DELIMITER, SETTINGS_ENV_PREFIX, env_lookup
 from hassette.exceptions import HassetteNotInitializedError
 
 LOG_LEVEL_VALUES = get_args(LogLevel)
+DEFAULT_LOG_LEVEL: LogLevel = "INFO"
 
 LOGGER = getLogger(__name__)
 
@@ -56,16 +58,14 @@ def is_addon_runtime() -> bool:
 
 
 def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | set[Path] | None) -> set[Path]:
-    """Filter the provided paths to only include unique existing paths.
+    """Resolve the provided paths and keep only the unique ones that exist.
 
     Args:
-        value: List of file paths as strings.
+        value: A single path, a sequence or set of paths, or None. Each path may be a ``str`` or ``Path``;
+            ``None`` and empty entries are skipped.
 
     Returns:
-        List of existing file paths as Path objects.
-
-    Raises:
-        ValueError: If any of the provided paths do not exist.
+        The resolved paths that exist. Missing paths are dropped silently.
     """
     value = [value] if isinstance(value, str | Path | None) else value
 
@@ -75,18 +75,14 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     return paths
 
 
-def warn_log_level_not_valid(log_level: str, fallback_value: LogLevel) -> None:
-    """Log a warning that `log_level` is invalid and `fallback_value` is used instead."""
-    LOGGER.warning("Log level %r is not valid, defaulting to %r", log_level, fallback_value)
-
-
 def get_log_level() -> LogLevel:
     """Return the bootstrap log level, used before the config is loaded.
 
-    Reads ``HASSETTE__LOGGING__LOG_LEVEL``, the same variable that sets ``logging.log_level``.
+    Reads ``HASSETTE__LOGGING__LOG_LEVEL``, the same variable that sets ``logging.log_level``, matching its
+    name case-insensitively as the settings env source does.
     """
-    log_level = os.getenv("HASSETTE__LOGGING__LOG_LEVEL")
-    return coerce_log_level(log_level, "INFO")
+    log_level = env_lookup(os.environ, f"{SETTINGS_ENV_PREFIX}logging{ENV_NESTED_DELIMITER}log_level")
+    return coerce_log_level(log_level, DEFAULT_LOG_LEVEL)
 
 
 def coerce_log_level(value: str | LogLevel | None, fallback: LogLevel) -> LogLevel:
@@ -103,13 +99,13 @@ def coerce_log_level(value: str | LogLevel | None, fallback: LogLevel) -> LogLev
         return fallback
 
     if not isinstance(value, str):
-        warn_log_level_not_valid(str(value), fallback)
+        LOGGER.warning("Log level %r is not valid, defaulting to %r", str(value), fallback)
         return fallback
 
     value = value.upper()
 
     if value not in LOG_LEVEL_VALUES:
-        warn_log_level_not_valid(value, fallback)
+        LOGGER.warning("Log level %r is not valid, defaulting to %r", value, fallback)
         return fallback
 
     return cast("LogLevel", value)
@@ -119,7 +115,7 @@ def log_level_default_factory(data: dict[str, LogLevel | None]) -> LogLevel:
     """Default factory for log level fields.
 
     Returns the model's own ``log_level`` field (e.g. ``LoggingConfig.log_level`` for its per-service
-    fields) from the already-validated data dictionary if present, otherwise falls back to ``"INFO"``.
+    fields) from the already-validated data dictionary if present, otherwise falls back to ``DEFAULT_LOG_LEVEL``.
 
     Args:
         data: Dictionary containing field values during model initialization.
@@ -127,4 +123,4 @@ def log_level_default_factory(data: dict[str, LogLevel | None]) -> LogLevel:
     Returns:
         The determined log level.
     """
-    return coerce_log_level(data.get("log_level"), "INFO")
+    return coerce_log_level(data.get("log_level"), DEFAULT_LOG_LEVEL)

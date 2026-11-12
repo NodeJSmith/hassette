@@ -24,7 +24,7 @@ teardown, or regress the normal unsealed drain of `_dispatch_pending` futures?
 ## Backpressure vs Execution Mode Telemetry
 `backpressure` gates at the dispatch semaphore in
 `src/hassette/core/bus_service.py`, while `mode` gates inside
-`HandlerInvoker.dispatch()` in `src/hassette/bus/listeners.py`. A `DROP_NEWEST`
+`HandlerInvoker.dispatch()` in `src/hassette/bus/invoker.py`. A `DROP_NEWEST`
 listener in `queued` mode has two independent drop paths. Do `backpressure_dropped`
 and `guard.dropped` counters both appear in `wire/src/hassette_wire/`'s
 `ListenerSummary`, or does one path lose its telemetry?
@@ -35,3 +35,14 @@ and `guard.dropped` counters both appear in `wire/src/hassette_wire/`'s
 predicates (`StateFrom`, `StateDidChange`). Does
 `src/hassette/bus/duration_timer.py`'s cancel-event evaluation use this same
 predicate set, or does it re-evaluate with a different subset?
+
+## Near-Miss Drop-Site Coverage
+Every place an event reaches an app listener and its handler doesn't run reports a
+near-miss with `Delivery.drop` (`src/hassette/bus/delivery.py`) on the delivery that
+carries that event (filter, rate limiter, mode guard, once guard, backpressure,
+duration hold). Does a new drop path take the delivery it was handed rather than
+rebuilding a report from a listener, an event and a synthetic flag, and when it reports
+a different event (a superseded debounce, a hold's recheck or cancelling event), does
+it build a delivery with that event's own synthetic flag? Is a new filter a
+registration method builds classified correctly as scope (not recorded) or as a
+caller's filter (recorded) in `Listener.create`'s `scope=`?

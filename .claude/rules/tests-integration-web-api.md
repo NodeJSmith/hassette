@@ -23,7 +23,7 @@ paths:
 - `seed_grid_apps(mock_hassette, *app_keys)` — make the app grid's DB spine return one manifest row per app key.
 - `HEALTH_PATH`, `APP_HEALTH_PATH`, `APP_GRID_PATH`, `APP_PATH`, `APPS_PATH`, `TELEMETRY_STATUS_PATH`, `CONFIG_PATH`, `AUTH_SESSION_PATH` — route paths hit by tests in more than one file; import these rather than redefining the literal locally.
 - `set_websocket_state(mock_hassette, *, connected, ever_connected)` / `set_app_status_snapshot(mock_hassette, *, running, failed)` — drive the health/system-status inputs.
-- `make_log_record(seq, **kw)` (local, deliberately — see `# factory-local:` annotation) — builds a raw log record dict for log-endpoint tests; derives `timestamp` from `seq` so ordering tests get distinct, predictable timestamps. Shadows `tests.support.factories.make_log_record`, which uses a fixed `timestamp=0.0` default and does not fit this file's ordering tests.
+- `make_log_record(seq, **kw)` (local, deliberately — see `# factory-local:` annotation) — builds a raw log record dict for log-endpoint tests; derives `timestamp` from `seq` so ordering tests get distinct, predictable timestamps. Shadows `tests.support.log_factories.make_log_record`, which uses a fixed `timestamp=0.0` default and does not fit this file's ordering tests.
 
 ## File-local helpers
 

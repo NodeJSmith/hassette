@@ -44,7 +44,15 @@ ALL_SCENARIOS = (
     "mixed-instance",
 )
 
-_TABLES = ("sessions", "listeners", "scheduled_jobs", "executions", "log_records", "blocking_events")
+_TABLES = (
+    "sessions",
+    "listeners",
+    "scheduled_jobs",
+    "executions",
+    "log_records",
+    "blocking_events",
+    "listener_misses",
+)
 
 _NON_TIMESTAMP_REAL_COLUMNS = frozenset(
     {"debounce", "throttle", "duration", "duration_ms", "stall_duration_ms", "jitter"}

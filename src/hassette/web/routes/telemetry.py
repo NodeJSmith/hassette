@@ -33,6 +33,7 @@ from hassette_wire import (
     JobSummary,
     LastError,
     LastErrorResult,
+    ListenerMiss,
     ListenerSummary,
     ProblemCode,
     TelemetryStatusResponse,
@@ -263,6 +264,7 @@ async def list_executions(
     return await telemetry.get_executions(kind=kind, limit=limit, since=since)
 
 
+# dup-ignore-start: FastAPI declares each route's query parameters in its own signature
 @router.get(
     "/listener/{listener_id}/executions",
     response_model=list[Execution],
@@ -279,6 +281,21 @@ async def listener_executions(
 
 
 @router.get(
+    "/listener/{listener_id}/misses",
+    response_model=list[ListenerMiss],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
+async def listener_misses(
+    listener_id: int,
+    telemetry: TelemetryDep,
+    limit: LimitQuery = DEFAULT_QUERY_LIMIT,
+    since: SinceQuery = None,
+) -> list[ListenerMiss]:
+    """Hourly rollups of the events that reached an app listener and didn't run its handler, latest first."""
+    return await telemetry.get_listener_misses(listener_id, limit=limit, since=since)
+
+
+@router.get(
     "/job/{job_id}/executions",
     response_model=list[Execution],
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
@@ -291,6 +308,9 @@ async def job_executions(
 ) -> list[Execution]:
     """Execution history for a specific job."""
     return await telemetry.get_executions(job_id=job_id, limit=limit, since=since)
+
+
+# dup-ignore-end
 
 
 @router.get(

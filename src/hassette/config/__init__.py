@@ -1,6 +1,6 @@
-from .classes import AppManifest
-from .config import HassetteConfig
-from .models import (
+from hassette.config.classes import AppManifest
+from hassette.config.config import HassetteConfig
+from hassette.config.models import (
     AppsConfig,
     BlockingIODetectionConfig,
     DatabaseConfig,

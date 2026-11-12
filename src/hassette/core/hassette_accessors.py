@@ -213,6 +213,13 @@ class HassetteAccessorsMixin:
             raise service_not_wired_error("DatabaseService")
         return self._database_service
 
+    def try_database_service(self) -> "DatabaseService | None":
+        """Return the DatabaseService if wired, else None — for callers that tolerate its absence.
+
+        The test harness wires a BusService without one; its near-miss recorder then records nothing.
+        """
+        return self._database_service
+
     @property
     def api_write_recorder(self) -> "ApiWriteRecorder":
         """ApiWriteRecorder instance that records app-owned ``Api`` writes."""

@@ -197,6 +197,8 @@ class TestLimitParameterValidation:
             ("/api/logs/recent", RECENT_LOGS_LIMIT_CAP + 1),
             ("/api/telemetry/listener/1/executions", 0),
             ("/api/telemetry/listener/1/executions", MAX_QUERY_LIMIT + 1),
+            ("/api/telemetry/listener/1/misses", 0),
+            ("/api/telemetry/listener/1/misses", MAX_QUERY_LIMIT + 1),
             ("/api/telemetry/job/1/executions", 0),
             ("/api/telemetry/job/1/executions", MAX_QUERY_LIMIT + 1),
         ],
@@ -210,6 +212,7 @@ class TestLimitParameterValidation:
         [
             ("/api/logs/recent", RECENT_LOGS_LIMIT_CAP),
             ("/api/telemetry/listener/1/executions", MAX_QUERY_LIMIT),
+            ("/api/telemetry/listener/1/misses", MAX_QUERY_LIMIT),
             ("/api/telemetry/job/1/executions", MAX_QUERY_LIMIT),
         ],
     )
@@ -217,5 +220,6 @@ class TestLimitParameterValidation:
         self, client: "AsyncClient", mock_hassette: MagicMock, path: str, limit: int
     ) -> None:
         mock_hassette.telemetry_query_service.get_executions = AsyncMock(return_value=[])
+        mock_hassette.telemetry_query_service.get_listener_misses = AsyncMock(return_value=[])
         response = await client.get(f"{path}?limit={limit}")
         assert response.status_code == 200

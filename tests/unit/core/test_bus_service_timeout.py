@@ -1,8 +1,8 @@
-"""Tests for build_tracked_invoke_fn() effective timeout resolution."""
+"""Tests for ``Delivery.invoke()`` effective timeout resolution at the BusService level."""
 
 from unittest.mock import MagicMock
 
-from hassette.bus.invocation import build_tracked_invoke_fn
+from hassette.bus.delivery import Delivery
 from hassette.bus.listeners import Listener
 from hassette.commands import InvokeHandler
 from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
@@ -15,7 +15,7 @@ from .conftest import make_bus_service
 async def dispatch_and_get_cmd(
     listener: Listener, *, event: MagicMock | None = None, executor: MagicMock | None = None
 ) -> InvokeHandler:
-    """Build and fire ``listener``'s invoke_fn the way BusService dispatch does, returning the InvokeHandler.
+    """Invoke a delivery to ``listener`` the way BusService dispatch does, returning the InvokeHandler.
 
     Shared by the BusService dispatch test files (timeout, error_handler), matching
     ``run_job_and_get_cmd`` in test_scheduler_service_timeout.py for the scheduler_service family.
@@ -28,10 +28,9 @@ async def dispatch_and_get_cmd(
     executor = executor if executor is not None else make_mock_executor()
 
     # dup-ignore-start: BusService-level fire-and-extract-cmd tail mirrors invoke_and_get_cmd in
-    # tests/unit/bus/test_invocation.py — same build_tracked_invoke_fn behavior verified at two
+    # tests/unit/bus/test_delivery.py — same Delivery.invoke behavior verified at two
     # integration points (Bus vs BusService) by design, not copy-paste.
-    invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS)
-    await invoke_fn()
+    await Delivery(listener, event, "test.topic").invoke(executor, lambda: TEST_CONFIG_TIMEOUT_SECONDS)
 
     cmd = executor.execute.call_args[0][0]
     assert isinstance(cmd, InvokeHandler)
@@ -74,7 +73,7 @@ class TestDispatchResolvesEffectiveTimeout:
         # We test that _dispatch calls remove_listener after once handler fires
         svc.remove_listener = MagicMock(return_value=None)
 
-        await svc._dispatch("test.topic", event, listener)
+        await svc._dispatch(Delivery(listener, event, "test.topic"))
 
         # Verify remove_listener was called for the once listener
         svc.remove_listener.assert_called_once_with(listener)

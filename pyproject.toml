@@ -36,7 +36,7 @@ classifiers = [
 dependencies = [
     "aiohttp>=3.14.4",  # PYSEC-2026-3545/3546/3547 fixed in 3.14.2/3.14.3; CVE-2026-111063/111064 in 3.14.4
     "jsonref>=1.1.0",
-    "cyclopts>=5.3,<5.4",
+    "cyclopts>=5.4,<5.5",
     "httpx2>=2.12.0",  # pydantic's continuation of httpx; starlette 1.3+ prefers it; CVE-2026-84378/-79/-80/-82 fixed in 2.11.0/2.12.0
     "aiosqlite>=0.22.1",
     "anyio>=4.14.2",  # CVE-2026-63374/-64847 fixed in 4.14.2
@@ -84,7 +84,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 dev = [
     "bcrypt>=4.0",
     "hassette-codegen",
-    "house-lint>=0.2.0",
+    "house-lint>=0.6.0",
     "libcst>=1.5.0",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
@@ -236,9 +236,10 @@ output = "coverage.xml"
 # HSL101 leaked spec-artifact tokens (AC#/FR#/NFR#/WP#/T##) in comments, docstrings, filenames
 # HSL102 files over max_lines (tracked separately in CI, see above)
 # HSL103 except-handler bindings that aren't named 'exc' or '*_exc'
+# HSL901 stale suppression pragmas (unused, for a disabled rule, or overlapping another)
 [tool.house-lint]
 include = ["src", "tests", "scripts", "tools", "codegen", "wire", "client", "docs", "examples"]
-select = ["HSL001", "HSL002", "HSL003", "HSL004", "HSL101", "HSL102", "HSL103"]
+select = ["HSL001", "HSL002", "HSL003", "HSL004", "HSL101", "HSL102", "HSL103", "HSL901"]
 
 [tool.house-lint.rules.HSL102]
 max_lines = 800

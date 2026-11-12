@@ -35,7 +35,7 @@ from tests.e2e.mock_fixtures import (
     wire_owner_resolution,
     wire_scheduler_trigger,
 )
-from tests.support.factories import RecordingLogCaptureHandler, make_recording_log_capture_handler
+from tests.support.log_factories import RecordingLogCaptureHandler, make_recording_log_capture_handler
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
