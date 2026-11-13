@@ -85,7 +85,11 @@ It suits code that needs the original strings, and debugging the raw HA payload.
 ### `get_attribute(entity_id, attribute)`
 
 Returns a single attribute value. `attribute` supports dot-path notation for nested fields
-(`"effect_list.0"`). Returns [`MISSING_VALUE`](../bus/dependency-injection.md#identity-extractors) — a falsy sentinel from `hassette.const` — when the attribute is absent, rather than raising.
+(`"effect_list.0"`). The value comes from the entity's typed attributes model.
+An attribute the model declares but HA omits returns the model default, usually `None`.
+For example, `brightness` on a light that is off returns `None`.
+An undeclared attribute HA omits, or a path step that fails, returns [`MISSING_VALUE`](../bus/dependency-injection.md#identity-extractors).
+`MISSING_VALUE` is a falsy sentinel from `hassette.const`, returned instead of raising.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -180,7 +184,8 @@ Same as `get_entity`, but returns `None` when the entity is not found.
 ### `get_states()`
 
 Retrieves all entities in a single call and returns them as a list of typed
-`BaseState` objects. States that fail to convert are skipped and logged as errors.
+`BaseState` objects. A state that fails its domain conversion comes back as a plain `BaseState`,
+with a warning logged. A state that fails even the `BaseState` conversion is skipped and logged as an error.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_states.py"
@@ -476,6 +481,12 @@ Template evaluation runs server-side, so the full HA template environment is ava
 ```
 
 The `variables` parameter keeps the template string reusable across calls with different inputs.
+Each dict key becomes a top-level template name. `variables={"entity": "sun.sun"}` renders `{{ entity }}` as `sun.sun`.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_template_variables.py"
+```
+
 `render_template` is most useful when HA already knows how to compute something complex
 (averaging across a device class, evaluating multi-sensor conditionals). Pulling all the
 raw data into Python would be wasteful.
@@ -560,13 +571,14 @@ are required.
 
 ### `get_camera_image(entity_id, timestamp=None)`
 
-Returns the camera image as `bytes`. Omitting `timestamp` returns the latest image. A
-`timestamp` argument retrieves a historical snapshot.
+Returns the latest camera image as `bytes`. Hassette forwards `timestamp` as a query parameter
+to HA's `camera_proxy` endpoint, which ignores it. HA keeps no camera image history, so every call
+returns the current frame. An app that needs past frames stores the bytes from each call.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `entity_id` | `str` | — | Camera entity ID (e.g., `"camera.front_door"`). |
-| `timestamp` | `PlainDateTime \| ZonedDateTime \| Date \| str \| None` | `None` | Snapshot time. `None` returns the latest image. |
+| `timestamp` | `PlainDateTime \| ZonedDateTime \| Date \| str \| None` | `None` | Forwarded to HA, which ignores it. |
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_camera_image.py"
