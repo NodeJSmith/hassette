@@ -102,6 +102,7 @@ def record_transitions(websocket_service: WebsocketService) -> list[tuple[Connec
 
 
 async def wait_for_state(websocket_service: WebsocketService, state: ConnectionState, desc: str) -> None:
+    """Wait until the connection reaches ``state``."""
     await wait_for(lambda: websocket_service.connection_state == state, timeout=WAIT_SECONDS, desc=desc)
 
 

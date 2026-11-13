@@ -38,6 +38,9 @@ ALLOWED_TRANSITIONS = {
 WAITING_FOR_CORE edges from design/specs/153-connection-state-owner (D6). AUTH_FAILED has no edge
 back to CONNECTING: leaving it takes a process restart."""
 
+RECV_TASK_STAND_IN_SECONDS = 10
+"""How long the sleep standing in for a live recv task runs; far longer than any gate test takes."""
+
 ALL_STATE_PAIRS = [(old, new) for old in ConnectionState for new in ConnectionState if old != new]
 
 
@@ -123,8 +126,11 @@ class TestRunningGateState:
     """The RUNNING gate enters WAITING_FOR_CORE only when it actually waits (spec 153 D6)."""
 
     @staticmethod
-    def stub_core_reads(websocket_service: WebsocketService, *core_states: str) -> list[ConnectionState]:
-        """Answer each get_config read with the next core state; return the connection state seen at each read."""
+    async def run_gate(websocket_service: WebsocketService, *core_states: str) -> list[ConnectionState]:
+        """Run the gate from CONNECTING, answering each get_config read with the next core state.
+
+        Returns the connection state seen at each read. A live sleep stands in for the recv task.
+        """
         seen: list[ConnectionState] = []
         replies = iter(core_states)
 
@@ -135,15 +141,16 @@ class TestRunningGateState:
         websocket_service.send_and_wait = AsyncMock(side_effect=read_config)  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.report_connection_status = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.store_ha_core_config = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
+        recv_task = asyncio.create_task(asyncio.sleep(RECV_TASK_STAND_IN_SECONDS))
+        try:
+            await websocket_service.wait_for_core_running(recv_task)
+        finally:
+            recv_task.cancel()
         return seen
 
     async def test_core_running_on_first_read_stays_in_connecting(self, websocket_service: WebsocketService) -> None:
-        websocket_service.set_connection_state(ConnectionState.CONNECTING)
-        self.stub_core_reads(websocket_service, "RUNNING")
-        recv_task = asyncio.create_task(asyncio.sleep(10))
-
-        await websocket_service.wait_for_core_running(recv_task)
-        recv_task.cancel()
+        await self.run_gate(websocket_service, "RUNNING")
 
         assert websocket_service.connection_state == ConnectionState.CONNECTING
 
@@ -152,13 +159,9 @@ class TestRunningGateState:
     ) -> None:
         """The core state can change mid-wait without a transition; the connection stays WAITING_FOR_CORE."""
         monkeypatch.setattr(service_module, "CORE_RUNNING_RECHECK_SECONDS", 0.01)
-        websocket_service.set_connection_state(ConnectionState.CONNECTING)
         websocket_service.logger = Mock()
-        seen = self.stub_core_reads(websocket_service, "NOT_RUNNING", "STARTING", "RUNNING")
-        recv_task = asyncio.create_task(asyncio.sleep(10))
 
-        await websocket_service.wait_for_core_running(recv_task)
-        recv_task.cancel()
+        seen = await self.run_gate(websocket_service, "NOT_RUNNING", "STARTING", "RUNNING")
 
         # The STARTING read is the second WAITING_FOR_CORE entry: no transition for the core-state change.
         assert seen == [ConnectionState.CONNECTING, ConnectionState.WAITING_FOR_CORE, ConnectionState.WAITING_FOR_CORE]
@@ -168,13 +171,8 @@ class TestRunningGateState:
     async def test_shutting_down_core_on_first_read_stays_in_connecting(
         self, websocket_service: WebsocketService
     ) -> None:
-        websocket_service.set_connection_state(ConnectionState.CONNECTING)
-        self.stub_core_reads(websocket_service, "STOPPING")
-        recv_task = asyncio.create_task(asyncio.sleep(10))
-
         with pytest.raises(reconnect_module.CoreShuttingDownError):
-            await websocket_service.wait_for_core_running(recv_task)
-        recv_task.cancel()
+            await self.run_gate(websocket_service, "STOPPING")
 
         assert websocket_service.connection_state == ConnectionState.CONNECTING
 
