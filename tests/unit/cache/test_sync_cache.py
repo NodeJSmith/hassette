@@ -33,7 +33,6 @@ async def async_cache(tmp_path: Path) -> AsyncIterator[AsyncCache]:
 @pytest.fixture
 def sync_cache(async_cache: AsyncCache) -> SyncCache:
     """The SyncCache facade of an initialized AsyncCache."""
-    assert async_cache.sync is not None
     return async_cache.sync
 
 

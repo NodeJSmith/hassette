@@ -274,6 +274,13 @@ async def test_invalidate_with_no_keys_is_a_no_op(cache: AsyncCache) -> None:
     await cache.invalidate()
 
 
+def test_sync_before_initialize_raises_runtime_error(tmp_path: Path) -> None:
+    """Reading .sync before initialize() raises the same RuntimeError as the connection properties."""
+    uninitialized = AsyncCache(tmp_path / "cache.db")
+    with pytest.raises(RuntimeError, match="not initialized"):
+        _ = uninitialized.sync
+
+
 async def test_close_closes_both_connections(cache: AsyncCache) -> None:
     """close() clears both connection references so further use raises RuntimeError."""
     await cache.close()
