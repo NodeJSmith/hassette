@@ -479,7 +479,8 @@ class Api(ApiServiceCallsMixin, ApiEntityDataMixin, Resource):
     async def get_states(self) -> list["BaseState"]:
         """Get all entities in Home Assistant, converted to their appropriate state types.
 
-        If a state fails to convert, it is skipped with an error logged. If there is no registered
+        A state that fails its domain conversion falls back to BaseState with a warning logged; one that
+        fails even the BaseState conversion is skipped with an error logged. If there is no registered
         state class for a domain, the generic BaseState is used.
 
         Returns:

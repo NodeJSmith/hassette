@@ -195,7 +195,9 @@ class ApiEntityDataMixin:
             attribute: The name of the attribute to retrieve. Can be a dot-separated path for nested attributes.
 
         Returns:
-            The value of the specified attribute, or MISSING_VALUE sentinel if the attribute does not exist.
+            The value of the specified attribute. An attribute the typed attributes model declares but HA
+            omits returns the model default (usually None); an undeclared absent attribute or a failed path
+            step returns the MISSING_VALUE sentinel.
         """
         entity = await self.get_state(entity_id)
         return get_path(attribute)(entity.attributes)
@@ -391,7 +393,8 @@ class ApiEntityDataMixin:
 
         Args:
             entity_id: The ID of the camera entity to get the image for.
-            timestamp: The timestamp for the image. If None, the latest image is returned.
+            timestamp: Forwarded to Home Assistant's ``camera_proxy`` endpoint, which ignores it; the
+                latest image is always returned.
 
         Returns:
             The camera image data.
