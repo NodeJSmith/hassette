@@ -116,6 +116,22 @@ class TestLoggingPipelineJSONRenderer:
         logger.info("author test")
         assert last_json_record(stream).get("author") == "app"
 
+    def test_extra_fields_appear_in_json_output(self) -> None:
+        """Fields passed with stdlib extra= render as JSON keys; internal record attributes don't."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="json", stream=stream)
+        logging.getLogger("hassette.test_extra_json").info("x", extra={"k": 1, "reason": "bad"})
+        parsed = last_json_record(stream)
+        assert (parsed["k"], parsed["reason"]) == (1, "bad")
+        assert not {"args", "msg", "levelno", "message", "_record"} & parsed.keys()
+
+    def test_extra_field_does_not_overwrite_event_key(self) -> None:
+        """An extra= field named like a key the pipeline already set leaves that key alone."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="json", stream=stream)
+        logging.getLogger("hassette.test_extra_json").info("x", extra={"level": "nope"})
+        assert last_json_record(stream)["level"] == "info"
+
 
 class TestEnableBasicLoggingAutoFormat:
     """TTY detection when log_format='auto'."""

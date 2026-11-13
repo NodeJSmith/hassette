@@ -22,6 +22,9 @@ from hassette_wire import LogAuthor, LogLevel
 from hassette.const import HASSETTE_LOGGER_NAME
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_processors import (
+    SEQ_ATTR,
+    WARNING_CATEGORY_ATTR,
+    WARNING_FILENAME_ATTR,
     add_execution_id,
     console_identity,
     console_renderer,
@@ -68,9 +71,6 @@ FRAMEWORK_PACKAGE_NAMES = frozenset({"hassette", "hassette_wire", "hassette_clie
 _LOG_IDENTITY_ATTR = "_hassette_log_identity"
 # Set by LogIdentityFilter on every record it resolves, so a second pass leaves the record alone.
 _IDENTITY_RESOLVED_ATTR = "_hassette_identity_resolved"
-# Record attributes _showwarning sets on captured warnings for LogIdentityFilter to read.
-WARNING_CATEGORY_ATTR = "warning_category"
-WARNING_FILENAME_ATTR = "warning_filename"
 
 LogFormat = Literal["auto", "console", "compact", "json"]
 
@@ -116,7 +116,7 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
         "author": record.author,  # pyright: ignore[reportAttributeAccessIssue]
         "execution_id": getattr(record, "execution_id", None),
         "instance_name": getattr(record, "instance_name", None),
-        "seq": getattr(record, "seq", 0),
+        "seq": getattr(record, SEQ_ATTR, 0),
     }
 
 
@@ -353,7 +353,7 @@ class CorrelationFilter(logging.Filter):
         record.execution_kind = ctx.get("execution_kind")  # pyright: ignore[reportAttributeAccessIssue]
         record.listener_id = ctx.get("listener_id")  # pyright: ignore[reportAttributeAccessIssue]
         record.job_id = ctx.get("job_id")  # pyright: ignore[reportAttributeAccessIssue]
-        record.seq = next(self._seq)  # pyright: ignore[reportAttributeAccessIssue]
+        setattr(record, SEQ_ATTR, next(self._seq))
         return True
 
 
