@@ -669,3 +669,35 @@ class TestPersistScheduleStatus:
             jitter=None,
         )
         assert job.fire_at == job.next_run
+
+
+class TestPersistScheduleStatusFailure:
+    """A failed schedule-status DB write must not stop the live schedule: the next occurrence
+    still lands on the heap and the current due fire still runs (issue #4069).
+    """
+
+    async def test_dispatch_keeps_recurring_job_scheduled_when_persist_fails(self) -> None:
+        svc = make_scheduler_service()
+        cast("MagicMock", svc._executor).mark_job_status = AsyncMock(side_effect=TimeoutError("db backlog"))
+        future_time = date_utils.now().add(seconds=60)
+
+        _trig, job = await dispatch_with_trigger(svc, next_returns=future_time, db_id=42)
+
+        assert job.schedule_status is ScheduleStatus.SCHEDULED
+        assert job.next_run == future_time.round("second")
+        cast("MagicMock", svc._job_queue).add.assert_called_once_with(job)
+        cast("AsyncMock", svc.run_job_with_guard).assert_called_once()
+        cast("MagicMock", svc.logger).exception.assert_called_once()
+
+    async def test_reschedule_job_enqueues_when_persist_fails(self) -> None:
+        svc = make_scheduler_service()
+        cast("MagicMock", svc._executor).mark_job_status = AsyncMock(side_effect=TimeoutError("db backlog"))
+        job = make_scheduled_job(db_id=7, schedule_status=ScheduleStatus.WAITING)
+        new_time = date_utils.now().add(seconds=120)
+
+        await svc.reschedule_job(job, new_time)
+
+        assert job.schedule_status is ScheduleStatus.SCHEDULED
+        assert job.next_run == new_time.round("second")
+        cast("MagicMock", svc._job_queue).add.assert_called_once_with(job)
+        cast("MagicMock", svc.logger).exception.assert_called_once()
