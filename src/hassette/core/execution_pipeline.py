@@ -133,9 +133,9 @@ async def drain_and_persist(
     prior batch's worth of records. This is acceptable for append-only
     telemetry — a large single transaction at recovery time is benign.
 
-    When the drain holds only retry batches still inside their backoff window, they are put
-    back on the queue and this call waits until the earliest ``not_before`` (or shutdown)
-    before returning, so ``serve()`` does not spin re-dequeuing them.
+    Retry batches still inside their backoff window are held back while this call waits for the
+    earliest ``not_before``, the next queue item, or shutdown, whichever comes first, and then
+    go back on the queue (see ``wait_out_backoff()``), so ``serve()`` does not spin re-dequeuing them.
 
     Args:
         executor: The owning CommandExecutor instance.
@@ -170,34 +170,52 @@ async def drain_and_persist(
         await persist_batch(executor, fresh_records)
 
     # Process each RetryableBatch separately to preserve its retry_count.
-    # Skip batches whose backoff window has not yet elapsed — re-enqueue them.
+    # Batches whose backoff window has not yet elapsed are held back and waited out below.
     now = time.monotonic()
     deferred: list[RetryableBatch] = []
     for batch in retry_batches:
         if batch.not_before > now:
-            # Backoff window still active — put it back for a later drain cycle
+            deferred.append(batch)
+            continue
+        await persist_batch(executor, batch.records, retry_count=batch.retry_count)
+
+    if deferred:
+        await wait_out_backoff(executor, deferred)
+
+
+async def wait_out_backoff(executor: "CommandExecutor", deferred: list[RetryableBatch]) -> None:
+    """Wait until the earliest deferred ``not_before``, the next queue item, or shutdown, then re-enqueue.
+
+    Re-enqueueing the deferred batches straight away would make ``serve()`` dequeue them again at
+    once and spin for the whole backoff window. Holding them off the queue while waiting on
+    ``get()`` lets any queued or newly arriving record end the wait immediately, so a deferred
+    retry never delays other telemetry. A wake-up item goes back on the queue ahead of the
+    deferred batches for the next drain to pick up; on shutdown everything is re-enqueued for
+    ``flush_queue()``.
+    """
+    delay = max(min(b.not_before for b in deferred) - time.monotonic(), 0.0)
+    get_fut = asyncio.create_task(executor._write_queue.get())
+    shutdown_fut = asyncio.create_task(executor.shutdown_event.wait())
+    try:
+        await asyncio.wait([get_fut, shutdown_fut], timeout=delay, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for fut in (get_fut, shutdown_fut):
+            fut.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await fut
+        woken_by = [get_fut.result()] if not get_fut.cancelled() and get_fut.exception() is None else []
+        for item in [*woken_by, *deferred]:
             try:
-                executor._write_queue.put_nowait(batch)
-                deferred.append(batch)
+                executor._write_queue.put_nowait(item)
             except asyncio.QueueFull:
-                drop_count = len(batch.records)
+                drop_count = len(item.records) if isinstance(item, RetryableBatch) else 1
                 executor._dropped_overflow += drop_count
                 executor.logger.error(
-                    "Write queue full while deferring retry batch (not_before not reached) "
+                    "Write queue full while re-enqueueing after a retry backoff wait "
                     "— dropping %d records (total overflow: %d)",
                     drop_count,
                     executor._dropped_overflow,
                 )
-            continue
-        await persist_batch(executor, batch.records, retry_count=batch.retry_count)
-
-    # When this drain only bounced backoff batches back onto the queue, serve() would dequeue
-    # them again immediately and spin for the whole backoff window. Wait out the earliest
-    # not_before instead, waking early on shutdown so serve() can flush without delay.
-    if deferred and not fresh_records and len(deferred) == len(retry_batches):
-        delay = max(min(b.not_before for b in deferred) - time.monotonic(), 0.0)
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(executor.shutdown_event.wait(), timeout=delay)
 
 
 async def flush_queue(executor: "CommandExecutor") -> None:

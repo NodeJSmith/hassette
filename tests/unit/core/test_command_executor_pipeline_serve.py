@@ -7,7 +7,8 @@ and flush/persist behavior. Together these three files replace the former
 
 Tests cover:
 - serve() timer-based flush (#657)
-- serve() waits out a deferred retry batch's backoff instead of spinning (#4070)
+- serve() waits out a deferred retry batch's backoff instead of spinning, without stalling
+  fresh records or shutdown (#4070)
 - record_blocking_event graceful handling when database_service is uninitialized
 - emit_completion_events warning for unowned (empty app_key) records
 """
@@ -25,6 +26,7 @@ from hassette.core import execution_pipeline
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_pipeline import _UNOWNED_WARN_RATE_LIMIT_SECS, RetryableBatch
+from hassette.core.execution_record import ExecutionRecord
 from tests.support.factories import make_execution_record
 from tests.support.helpers import make_controlled_clock
 
@@ -180,6 +182,31 @@ def count_drain_calls(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     return calls
 
 
+def signal_backoff_wait_entered(monkeypatch: pytest.MonkeyPatch) -> asyncio.Event:
+    """Wrap the real wait_out_backoff so the returned event is set the moment a backoff wait starts."""
+    real_wait = execution_pipeline.wait_out_backoff
+    entered = asyncio.Event()
+
+    async def signalling_wait(executor, deferred):
+        entered.set()
+        await real_wait(executor, deferred)
+
+    monkeypatch.setattr(execution_pipeline, "wait_out_backoff", signalling_wait)
+    return entered
+
+
+def record_db_writes(executor: CommandExecutor) -> list[tuple[float, list[ExecutionRecord]]]:
+    """Record each batch handed to the DB boundary (``database_service.submit``) with its monotonic time."""
+    writes: list[tuple[float, list[ExecutionRecord]]] = []
+
+    def persist_execution_batch(records):
+        writes.append((time.monotonic(), list(records)))
+        return MagicMock()
+
+    executor.repository.persist_execution_batch = persist_execution_batch  # pyright: ignore[reportAttributeAccessIssue]
+    return writes
+
+
 async def test_serve_waits_out_retry_backoff_instead_of_spinning(monkeypatch: pytest.MonkeyPatch):
     """A lone RetryableBatch inside its backoff window is not re-dequeued in a hot loop: serve()
     drains a bounded number of times before not_before, then persists the batch after it (#4070).
@@ -191,32 +218,62 @@ async def test_serve_waits_out_retry_backoff_instead_of_spinning(monkeypatch: py
     not_before = time.monotonic() + 0.5
     executor._write_queue.put_nowait(RetryableBatch(records=[inv], retry_count=1, not_before=not_before))
 
-    persisted_at: list[float] = []
-
-    async def fake_persist(*_args, **_kwargs):
-        persisted_at.append(time.monotonic())
-
-    monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
+    writes = record_db_writes(executor)
     drain_calls = count_drain_calls(monkeypatch)
 
     async def stop_after_persist():
         for _ in range(200):
             await asyncio.sleep(0.01)
-            if persisted_at:
+            if writes:
                 break
         executor.shutdown_event.set()
 
     await run_serve_until(executor, stop_after_persist())
 
-    assert len(persisted_at) == 1
-    assert persisted_at[0] >= not_before
+    assert len(writes) == 1
+    written_at, written = writes[0]
+    assert written_at >= not_before
+    assert written == [inv]
     early_drains = [t for t in drain_calls if t < not_before]
     assert len(early_drains) <= 3, f"serve() spun {len(early_drains)} times during the backoff window"
 
 
+async def test_serve_persists_fresh_record_during_retry_backoff(monkeypatch: pytest.MonkeyPatch):
+    """A record arriving while a deferred batch's backoff is being waited out reaches the DB
+    promptly, not after not_before: a deferred retry must not stall other telemetry.
+    """
+    executor = init_executor()
+    executor.hassette.config.database.max_flush_interval_seconds = 5.0
+
+    deferred_inv = make_invocation(listener_id=1, session_id=1)
+    not_before = time.monotonic() + 30.0
+    executor._write_queue.put_nowait(RetryableBatch(records=[deferred_inv], retry_count=1, not_before=not_before))
+
+    writes = record_db_writes(executor)
+    entered = signal_backoff_wait_entered(monkeypatch)
+    fresh_inv = make_invocation(listener_id=2, session_id=1)
+
+    async def enqueue_fresh_then_stop():
+        await asyncio.wait_for(entered.wait(), timeout=2.0)
+        executor._write_queue.put_nowait(fresh_inv)
+        for _ in range(200):
+            await asyncio.sleep(0.01)
+            if writes:
+                break
+        executor.shutdown_event.set()
+
+    await asyncio.wait_for(run_serve_until(executor, enqueue_fresh_then_stop()), timeout=5.0)
+
+    # The first DB write is the fresh record alone, well before the deferred batch's not_before;
+    # the deferred batch is then flushed at shutdown.
+    assert writes[0][1] == [fresh_inv]
+    assert writes[0][0] < not_before
+    assert writes[-1][1] == [deferred_inv]
+
+
 async def test_serve_shutdown_interrupts_retry_backoff_wait(monkeypatch: pytest.MonkeyPatch):
     """Setting shutdown_event while drain_and_persist waits out a backoff ends serve() promptly
-    and flushes the deferred batch, rather than sleeping until not_before.
+    and the shutdown flush hands the deferred batch to the DB, rather than sleeping until not_before.
     """
     executor = init_executor()
     executor.hassette.config.database.max_flush_interval_seconds = 5.0
@@ -224,19 +281,20 @@ async def test_serve_shutdown_interrupts_retry_backoff_wait(monkeypatch: pytest.
     inv = make_invocation(listener_id=1, session_id=1)
     executor._write_queue.put_nowait(RetryableBatch(records=[inv], retry_count=1, not_before=time.monotonic() + 30.0))
 
-    flush = AsyncMock()
-    monkeypatch.setattr(execution_pipeline, "flush_queue", flush)
+    writes = record_db_writes(executor)
+    entered = signal_backoff_wait_entered(monkeypatch)
 
-    async def stop_soon():
-        await asyncio.sleep(0.1)
+    async def stop_once_waiting():
+        await asyncio.wait_for(entered.wait(), timeout=2.0)
         executor.shutdown_event.set()
 
     start = time.monotonic()
-    await asyncio.wait_for(run_serve_until(executor, stop_soon()), timeout=2.0)
+    await asyncio.wait_for(run_serve_until(executor, stop_once_waiting()), timeout=2.0)
 
     assert time.monotonic() - start < 1.0
-    flush.assert_awaited_once()
-    assert not executor._write_queue.empty()  # deferred batch left for flush_queue
+    assert entered.is_set()
+    assert [records for _, records in writes] == [[inv]]
+    assert executor._write_queue.empty()
 
 
 def test_record_blocking_event_swallows_uninitialized_db() -> None:

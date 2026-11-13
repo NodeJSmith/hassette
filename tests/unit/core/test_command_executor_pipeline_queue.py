@@ -318,8 +318,8 @@ async def test_retryable_batch_future_not_before_is_requeued(monkeypatch: pytest
         persist_called = True
 
     monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
-    # An all-deferred drain waits out the backoff unless shutdown is signaled; set it so the
-    # call returns immediately instead of sleeping until the far-future not_before.
+    # A deferred batch is waited out (until not_before, a queue arrival, or shutdown); set
+    # shutdown so the call returns immediately instead of sleeping until the far-future not_before.
     executor.shutdown_event.set()
 
     await execution_pipeline.drain_and_persist(executor)
@@ -415,6 +415,7 @@ async def test_deferred_batch_dropped_when_queue_full_on_requeue():
     batch2 = RetryableBatch(records=[inv2], retry_count=1, not_before=far_future)
 
     executor._write_queue.put_nowait(batch2)  # occupies the only queue slot
+    executor.shutdown_event.set()  # end the backoff wait at once so the re-enqueue runs now
 
     await execution_pipeline.drain_and_persist(executor, first_item=batch1)
 
