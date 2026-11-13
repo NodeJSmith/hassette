@@ -384,18 +384,44 @@ jobs:
                   flags: backend,frontend
 
     tests-complete:
-        # changes is listed so a failed path filter fails this check; otherwise every job it gates would be
-        # skipped and read as passing.
+        # Every job a change needs must succeed, and every job it doesn't need must be skipped. Checking
+        # for failure or cancellation alone isn't enough: a job GitHub cancels because no runner picked
+        # it up doesn't report as cancelled here. changes is listed so a failed path filter fails this
+        # check instead of every job it gates reading as skipped.
+        # The *_WANTED conditions repeat each job's `if:`. A new job needs adding to `needs`, the env
+        # block and a `check` line, and its wanted condition must stay in step with its `if:`.
         needs: [changes, frontend, test, workspace-members, client-compat, system, combine-and-report]
         if: always()
         runs-on: ubuntu-latest
         steps:
             - name: Report result
+              env:
+                  CHANGES_RESULT: ${{ needs.changes.result }}
+                  CODE_WANTED: ${{ needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch' }}
+                  COMPAT_WANTED: ${{ needs.changes.outputs.client_compat == 'true' || github.event_name == 'workflow_dispatch' }}
+                  FRONTEND_RESULT: ${{ needs.frontend.result }}
+                  TEST_RESULT: ${{ needs.test.result }}
+                  WORKSPACE_RESULT: ${{ needs.workspace-members.result }}
+                  COMPAT_RESULT: ${{ needs.client-compat.result }}
+                  SYSTEM_RESULT: ${{ needs.system.result }}
+                  COMBINE_RESULT: ${{ needs.combine-and-report.result }}
               run: |
-                  failed="${{ contains(needs.*.result, 'failure') }}"
-                  cancelled="${{ contains(needs.*.result, 'cancelled') }}"
-                  if [[ "$failed" == "true" || "$cancelled" == "true" ]]; then
-                      echo "One or more test jobs failed or were cancelled"
-                      exit 1
-                  fi
-                  echo "All tests passed or were skipped (no relevant changes)"
+                  bad=0
+                  check() {
+                      local name=$1 wanted=$2 result=$3 expected=skipped
+                      [ "$wanted" = true ] && expected=success
+                      if [ "$result" = "$expected" ]; then
+                          echo "ok: $name $result"
+                      else
+                          echo "::error::$name was $result, expected $expected"
+                          bad=1
+                      fi
+                  }
+                  check changes true "$CHANGES_RESULT"
+                  check frontend "$CODE_WANTED" "$FRONTEND_RESULT"
+                  check test "$CODE_WANTED" "$TEST_RESULT"
+                  check workspace-members "$CODE_WANTED" "$WORKSPACE_RESULT"
+                  check client-compat "$COMPAT_WANTED" "$COMPAT_RESULT"
+                  check system "$CODE_WANTED" "$SYSTEM_RESULT"
+                  check combine-and-report "$CODE_WANTED" "$COMBINE_RESULT"
+                  exit $bad
