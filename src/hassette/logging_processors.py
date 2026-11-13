@@ -28,6 +28,28 @@ _RECORD_FIELDS = (
     "job_id",
 )
 
+# Record attributes _showwarning sets on captured warnings for LogIdentityFilter to read.
+WARNING_CATEGORY_ATTR = "warning_category"
+WARNING_FILENAME_ATTR = "warning_filename"
+# Record attribute CorrelationFilter stamps for the log_records table's ordering.
+SEQ_ATTR = "seq"
+# Record attributes that are not caller-supplied ``extra=`` fields: the stdlib's own (including the ``message``
+# and ``asctime`` that Formatter.format adds) and the ones Hassette's filters set, including the identity fields,
+# which the filters stamp as ``None`` when unset and must stay absent rather than render as null. Attributes
+# starting with an underscore (structlog's ``_logger``/``_name``/``_record``, Hassette's markers) are skipped
+# separately.
+_NON_EXTRA_RECORD_ATTRS = frozenset(
+    {
+        *logging.makeLogRecord({}).__dict__,
+        "message",
+        "asctime",
+        *_RECORD_FIELDS,
+        WARNING_CATEGORY_ATTR,
+        WARNING_FILENAME_ATTR,
+        SEQ_ATTR,
+    }
+)
+
 # Highest first, for persisted_level. The names are literal because logging.addLevelName can rename a number.
 LEVEL_FLOORS_ABOVE_DEBUG: tuple[tuple[int, LogLevel], ...] = (
     (logging.CRITICAL, "CRITICAL"),
@@ -164,15 +186,20 @@ def extract_record_fields(
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
     # dup-ignore-end
-    """Copy the attributes LogIdentityFilter and CorrelationFilter stamped on the LogRecord into the event dict.
+    """Copy the LogRecord's identity fields and a stdlib caller's ``extra=`` fields into the event dict.
 
-    Runs in ProcessorFormatter's processors list (before remove_processors_meta) where _record is available.
+    The identity fields are the ones LogIdentityFilter and CorrelationFilter stamp. An ``extra=`` field never
+    overwrites a key the event dict already has. Runs in ProcessorFormatter's processors list (before
+    remove_processors_meta) where _record is available.
     """
     record = event_dict.get("_record")
     if record:
         for key in _RECORD_FIELDS:
             val = getattr(record, key, None)
             if val is not None:
+                event_dict[key] = val
+        for key, val in record.__dict__.items():
+            if key not in _NON_EXTRA_RECORD_ATTRS and not key.startswith("_") and key not in event_dict:
                 event_dict[key] = val
     return event_dict
 
