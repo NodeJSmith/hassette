@@ -139,23 +139,18 @@ class StateRegistry:
 
         state_class = self.resolve(domain=domain)
 
-        classes = [state_class, BaseState] if state_class is not None else [BaseState]
-
-        final_idx = len(classes) - 1
-        for i, cls in enumerate(classes):
+        if state_class is not None:
             try:
-                return self.conversion_with_error_handling(cls, data, entity_id, domain)
+                return self.conversion_with_error_handling(state_class, data, entity_id, domain)
             except UnableToConvertStateError as exc:
-                if i == final_idx:
-                    raise
                 LOGGER.warning(
                     "Falling back to BaseState for entity '%s' after failure to convert to '%s': %s",
                     entity_id,
-                    cls.__name__,
+                    state_class.__name__,
                     exc.__cause__ or exc,
                 )
 
-        raise RuntimeError("Unreachable code reached in try_convert_state")
+        return self.conversion_with_error_handling(BaseState, data, entity_id, domain)
 
     @classmethod
     def register(cls, state_class: type["BaseState"], *, domain: Hashable) -> None:

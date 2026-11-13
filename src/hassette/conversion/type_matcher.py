@@ -95,9 +95,6 @@ class TypeMatcher:
             return False
 
         # Parameterized type: must satisfy outer container/protocol first
-        with suppress(TypeError):
-            if not isinstance(value, origin):
-                return False
         # If origin can't be used with isinstance, treat as non-match (forces conversion).
         if not safe_isinstance(value, origin):
             return False

@@ -129,16 +129,13 @@ def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, t
         A new container of the annotation's origin type with every element converted.
 
     Raises:
-        UnableToConvertValueError: If the origin is unsupported, the value is a string, bytes or mapping,
-            or the value cannot be coerced into it.
+        UnableToConvertValueError: If the value is a string, bytes or mapping, or cannot be coerced
+            into the annotation's container type.
     """
     origin = get_origin(tp)
     args = get_args(tp)
 
     elem_tp = args[0] if args else Any
-
-    if origin not in (list, set, frozenset):
-        raise UnableToConvertValueError(f"Unsupported iterable origin {origin!r}")
 
     # Strings and mappings are iterable, but coercing them yields characters or keys, never the intended items.
     if isinstance(value, str | bytes | Mapping):
@@ -150,17 +147,13 @@ def convert_homogeneous_iterable(converter: "AnnotationConverter", value: Any, t
         except Exception:
             raise UnableToConvertValueError(f"Expected {origin.__name__}, got {type(value).__name__}") from None
 
-    # Strict: only accept the matching concrete container at runtime
     if origin is list:
         return [converter.convert(v, elem_tp) for v in value]
 
     if origin is set:
         return {converter.convert(v, elem_tp) for v in value}
 
-    if origin is frozenset:
-        return frozenset(converter.convert(v, elem_tp) for v in value)
-
-    raise UnableToConvertValueError(f"Unsupported iterable origin: {origin!r}")
+    return frozenset(converter.convert(v, elem_tp) for v in value)
 
 
 @register_container_converter(dict)
