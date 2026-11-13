@@ -37,6 +37,22 @@ def get_format_fields(string_value: str) -> list[str]:
     return [fn for _, fn, _, _ in Formatter().parse(string_value) if fn is not None]
 
 
+def validate_error_message(error_message: str | None) -> None:
+    """Check that a converter's error message only uses the allowed format fields.
+
+    Args:
+        error_message: The custom error message to check, or None for no custom message.
+
+    Raises:
+        ValueError: If the message references a format field outside ``ALLOWED_FORMAT_FIELDS``.
+    """
+    if error_message is None:
+        return
+    invalid_fields = set(get_format_fields(error_message)) - ALLOWED_FORMAT_FIELDS
+    if invalid_fields:
+        raise ValueError(f"Invalid format fields in error_message: {invalid_fields}")
+
+
 @dataclass
 class TypeConverterEntry(Generic[T, R]):
     """Represents a type conversion function and its associated metadata."""
@@ -68,19 +84,15 @@ def register_type_converter_fn(
 
     Can be used as:
 
-        @register_type_converter
+        @register_type_converter_fn
         def convert_x(value: T) -> R: ...
 
     or:
 
-        @register_type_converter(error_message="failed to convert X")
+        @register_type_converter_fn(error_message="failed to convert X")
         def convert_x(value: T) -> R: ...
     """
-    if error_message is not None:
-        fields = get_format_fields(error_message)
-        invalid_fields = set(fields) - ALLOWED_FORMAT_FIELDS
-        if invalid_fields:
-            raise ValueError(f"Invalid format fields in error_message: {invalid_fields}")
+    validate_error_message(error_message)
 
     def decorator(func: Callable[[T], R]) -> Callable[[T], R]:
         from_type = func.__annotations__["value"]
@@ -92,11 +104,11 @@ def register_type_converter_fn(
         )
         return func
 
-    # Used as bare @register_type_converter
+    # Used as bare @register_type_converter_fn
     if fn is not None:
         return decorator(fn)
 
-    # Used as @register_type_converter(...)
+    # Used as @register_type_converter_fn(...)
     return decorator
 
 
@@ -120,11 +132,7 @@ def register_simple_type_converter(
         register_simple_type_converter(int, float, error_message="Failed to convert int to float")
         register_simple_type_converter(ZonedDateTime, str, fn=ZonedDateTime.format_iso)
     """
-    if error_message is not None:
-        fields = get_format_fields(error_message)
-        invalid_fields = set(fields) - ALLOWED_FORMAT_FIELDS
-        if invalid_fields:
-            raise ValueError(f"Invalid format fields in error_message: {invalid_fields}")
+    validate_error_message(error_message)
 
     fn = fn or (lambda x: to_type(x))  # pyright: ignore[reportCallIssue]
 
@@ -155,10 +163,10 @@ class TypeRegistry:
         cls.conversion_map[key] = type_converter
 
     def convert(self, value: Any, to_type: type[Any] | tuple[type[Any], ...]) -> Any:
-        """Convert a StateValue to a target Python type.
+        """Convert a raw value to a target Python type.
 
         Args:
-            value: The StateValue instance to convert.
+            value: The raw value to convert.
             to_type: The target Python type.
 
         Returns:
@@ -193,12 +201,12 @@ class TypeRegistry:
         if value is None:
             return value
 
-        if to_type is type(None) and value is not None:
+        if to_type is type(None):
             LOGGER.debug("Not attempting to convert %r to NoneType", value)
             raise UnableToConvertValueError(f"Cannot convert {value!r} to NoneType")
 
         # if we don't have this in our map, attempt to just convert using it as a constructor
-        if key not in self.conversion_map and to_type is not type(None):
+        if key not in self.conversion_map:
             try:
                 new_value = to_type(value)
             except Exception as exc:
@@ -255,11 +263,10 @@ class TypeRegistry:
                 print(f"{from_type.__name__} → {to_type.__name__}: {entry.func.__name__}")
             ```
         """
-        items = []
-        for (from_type, to_type), entry in self.conversion_map.items():
-            items.append((from_type, to_type, entry))
-        items.sort(key=lambda x: (x[0].__name__, x[1].__name__))
-        return items
+        return sorted(
+            ((from_type, to_type, entry) for (from_type, to_type), entry in self.conversion_map.items()),
+            key=lambda x: (x[0].__name__, x[1].__name__),
+        )
 
 
 # stdlib classes
