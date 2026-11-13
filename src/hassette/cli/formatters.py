@@ -82,24 +82,32 @@ def fmt_relative_time(value: Any) -> str:
 def _parse_timestamp(value: Any) -> float:
     """Convert an epoch number or ISO string to epoch seconds.
 
-    HA timestamps vary: UTC instant, offset, or bare local datetime. A bare datetime is read in
-    the user's terminal timezone (CLI display), not the configured Hassette timezone.
-
     Raises:
         ValueError: If a string matches none of the accepted ISO forms.
     """
     if isinstance(value, (int, float)):
         return float(value)
-    s = str(value)
+    return parse_iso_epoch(str(value))
+
+
+def parse_iso_epoch(text: str) -> float:
+    """Convert an ISO datetime string to epoch seconds.
+
+    Accepts a UTC instant, an offset datetime, or a bare local datetime. A bare datetime is read in
+    the user's terminal timezone (CLI input and display), not the configured Hassette timezone.
+
+    Raises:
+        ValueError: If ``text`` matches none of the accepted ISO forms.
+    """
     try:
-        return Instant.parse_iso(s).timestamp()
+        return Instant.parse_iso(text).timestamp()
     except ValueError:
         pass
     try:
-        return OffsetDateTime.parse_iso(s).timestamp()
+        return OffsetDateTime.parse_iso(text).timestamp()
     except ValueError:
         pass
-    return PlainDateTime.parse_iso(s).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
+    return PlainDateTime.parse_iso(text).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
 
 
 def _delta_label(seconds: float) -> str:
