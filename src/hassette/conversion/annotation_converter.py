@@ -1,6 +1,5 @@
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
-from typing import Any, ClassVar, Literal, get_args, get_origin
+from typing import Any, Literal, TypeAlias, get_args, get_origin
 
 from hassette.conversion.state_registry import convert_state_dict_to_model
 from hassette.conversion.type_matcher import TYPE_MATCHER
@@ -10,30 +9,11 @@ from hassette.exceptions import UnableToConvertValueError
 from hassette.models.states.base import BaseState
 from hassette.utils.type_utils import is_union, normalize_annotation
 
+ContainerConvertFn: TypeAlias = Callable[["AnnotationConverter", Any, Any], Any]
+"""Converts a runtime value to match a parameterized ``origin[T, ...]`` annotation."""
 
-@dataclass(frozen=True)
-class ContainerConverterEntry:
-    """How to convert a runtime value to match a parameterized origin[T,...]."""
-
-    origin: Any
-    convert: Callable[["AnnotationConverter", Any, Any], Any]
-    name: str | None = None
-
-
-class ContainerConverterRegistry:
-    """Registry mapping generic origins (list/dict/tuple/...) to conversion functions."""
-
-    map: ClassVar[dict[Any, ContainerConverterEntry]] = {}
-
-    @classmethod
-    def register(cls, entry: ContainerConverterEntry) -> None:
-        """Register ``entry`` under its origin, replacing any converter already registered for it."""
-        cls.map[entry.origin] = entry
-
-    @classmethod
-    def get(cls, origin: Any) -> ContainerConverterEntry | None:
-        """Return the converter registered for ``origin``, or None if there is none."""
-        return cls.map.get(origin)
+CONTAINER_CONVERTERS: dict[Any, ContainerConvertFn] = {}
+"""Generic origins (list/dict/tuple/...) mapped to their conversion functions."""
 
 
 class AnnotationConverter:
@@ -81,9 +61,9 @@ class AnnotationConverter:
 
         origin = get_origin(tp)
         if origin is not None:
-            entry = ContainerConverterRegistry.get(origin)
-            if entry is not None:
-                return entry.convert(self, value, tp)
+            convert_fn = CONTAINER_CONVERTERS.get(origin)
+            if convert_fn is not None:
+                return convert_fn(self, value, tp)
 
         # Special case: BaseState subclass conversion from dict
         if isinstance(tp, type) and issubclass(tp, BaseState):
@@ -108,17 +88,15 @@ def register_container_converter(*origins: Any):
         *origins: Generic origins (e.g. ``list``, ``dict``) the decorated function converts values into.
 
     Returns:
-        A decorator that registers the function with ``ContainerConverterRegistry`` and returns it unchanged.
+        A decorator that registers the function in ``CONTAINER_CONVERTERS`` and returns it unchanged.
     """
 
-    def deco(fn: Callable[["AnnotationConverter", Any, Any], Any]) -> Callable[["AnnotationConverter", Any, Any], Any]:
+    def decorator(fn: ContainerConvertFn) -> ContainerConvertFn:
         for origin in origins:
-            ContainerConverterRegistry.register(
-                ContainerConverterEntry(origin=origin, convert=fn, name=getattr(fn, "__name__", None))
-            )
+            CONTAINER_CONVERTERS[origin] = fn
         return fn
 
-    return deco
+    return decorator
 
 
 @register_container_converter(list, set, frozenset)
