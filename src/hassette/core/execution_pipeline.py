@@ -12,6 +12,7 @@ here observes.
 """
 
 import asyncio
+import contextlib
 import random
 import sqlite3
 import time
@@ -132,6 +133,10 @@ async def drain_and_persist(
     prior batch's worth of records. This is acceptable for append-only
     telemetry — a large single transaction at recovery time is benign.
 
+    When the drain holds only retry batches still inside their backoff window, they are put
+    back on the queue and this call waits until the earliest ``not_before`` (or shutdown)
+    before returning, so ``serve()`` does not spin re-dequeuing them.
+
     Args:
         executor: The owning CommandExecutor instance.
         first_item: An already-dequeued item to include as the first record.
@@ -167,11 +172,13 @@ async def drain_and_persist(
     # Process each RetryableBatch separately to preserve its retry_count.
     # Skip batches whose backoff window has not yet elapsed — re-enqueue them.
     now = time.monotonic()
+    deferred: list[RetryableBatch] = []
     for batch in retry_batches:
         if batch.not_before > now:
             # Backoff window still active — put it back for a later drain cycle
             try:
                 executor._write_queue.put_nowait(batch)
+                deferred.append(batch)
             except asyncio.QueueFull:
                 drop_count = len(batch.records)
                 executor._dropped_overflow += drop_count
@@ -183,6 +190,14 @@ async def drain_and_persist(
                 )
             continue
         await persist_batch(executor, batch.records, retry_count=batch.retry_count)
+
+    # When this drain only bounced backoff batches back onto the queue, serve() would dequeue
+    # them again immediately and spin for the whole backoff window. Wait out the earliest
+    # not_before instead, waking early on shutdown so serve() can flush without delay.
+    if deferred and not fresh_records and len(deferred) == len(retry_batches):
+        delay = max(min(b.not_before for b in deferred) - time.monotonic(), 0.0)
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(executor.shutdown_event.wait(), timeout=delay)
 
 
 async def flush_queue(executor: "CommandExecutor") -> None:

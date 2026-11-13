@@ -318,6 +318,9 @@ async def test_retryable_batch_future_not_before_is_requeued(monkeypatch: pytest
         persist_called = True
 
     monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
+    # An all-deferred drain waits out the backoff unless shutdown is signaled; set it so the
+    # call returns immediately instead of sleeping until the far-future not_before.
+    executor.shutdown_event.set()
 
     await execution_pipeline.drain_and_persist(executor)
 

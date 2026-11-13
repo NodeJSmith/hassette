@@ -7,6 +7,7 @@ and flush/persist behavior. Together these three files replace the former
 
 Tests cover:
 - serve() timer-based flush (#657)
+- serve() waits out a deferred retry batch's backoff instead of spinning (#4070)
 - record_blocking_event graceful handling when database_service is uninitialized
 - emit_completion_events warning for unowned (empty app_key) records
 """
@@ -23,7 +24,7 @@ import pytest
 from hassette.core import execution_pipeline
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.execution_pipeline import _UNOWNED_WARN_RATE_LIMIT_SECS
+from hassette.core.execution_pipeline import _UNOWNED_WARN_RATE_LIMIT_SECS, RetryableBatch
 from tests.support.factories import make_execution_record
 from tests.support.helpers import make_controlled_clock
 
@@ -164,6 +165,78 @@ async def test_serve_item_flush_drains_queue_on_arrival(monkeypatch: pytest.Monk
     await run_serve_until(executor, enqueue_then_stop())
 
     assert "item" in drain_calls
+
+
+def count_drain_calls(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Wrap the real drain_and_persist so each call's monotonic start time is recorded."""
+    real_drain = execution_pipeline.drain_and_persist
+    calls: list[float] = []
+
+    async def counting_drain(executor, first_item=None):
+        calls.append(time.monotonic())
+        await real_drain(executor, first_item=first_item)
+
+    monkeypatch.setattr(execution_pipeline, "drain_and_persist", counting_drain)
+    return calls
+
+
+async def test_serve_waits_out_retry_backoff_instead_of_spinning(monkeypatch: pytest.MonkeyPatch):
+    """A lone RetryableBatch inside its backoff window is not re-dequeued in a hot loop: serve()
+    drains a bounded number of times before not_before, then persists the batch after it (#4070).
+    """
+    executor = init_executor()
+    executor.hassette.config.database.max_flush_interval_seconds = 5.0
+
+    inv = make_invocation(listener_id=1, session_id=1)
+    not_before = time.monotonic() + 0.5
+    executor._write_queue.put_nowait(RetryableBatch(records=[inv], retry_count=1, not_before=not_before))
+
+    persisted_at: list[float] = []
+
+    async def fake_persist(*_args, **_kwargs):
+        persisted_at.append(time.monotonic())
+
+    monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
+    drain_calls = count_drain_calls(monkeypatch)
+
+    async def stop_after_persist():
+        for _ in range(200):
+            await asyncio.sleep(0.01)
+            if persisted_at:
+                break
+        executor.shutdown_event.set()
+
+    await run_serve_until(executor, stop_after_persist())
+
+    assert len(persisted_at) == 1
+    assert persisted_at[0] >= not_before
+    early_drains = [t for t in drain_calls if t < not_before]
+    assert len(early_drains) <= 3, f"serve() spun {len(early_drains)} times during the backoff window"
+
+
+async def test_serve_shutdown_interrupts_retry_backoff_wait(monkeypatch: pytest.MonkeyPatch):
+    """Setting shutdown_event while drain_and_persist waits out a backoff ends serve() promptly
+    and flushes the deferred batch, rather than sleeping until not_before.
+    """
+    executor = init_executor()
+    executor.hassette.config.database.max_flush_interval_seconds = 5.0
+
+    inv = make_invocation(listener_id=1, session_id=1)
+    executor._write_queue.put_nowait(RetryableBatch(records=[inv], retry_count=1, not_before=time.monotonic() + 30.0))
+
+    flush = AsyncMock()
+    monkeypatch.setattr(execution_pipeline, "flush_queue", flush)
+
+    async def stop_soon():
+        await asyncio.sleep(0.1)
+        executor.shutdown_event.set()
+
+    start = time.monotonic()
+    await asyncio.wait_for(run_serve_until(executor, stop_soon()), timeout=2.0)
+
+    assert time.monotonic() - start < 1.0
+    flush.assert_awaited_once()
+    assert not executor._write_queue.empty()  # deferred batch left for flush_queue
 
 
 def test_record_blocking_event_swallows_uninitialized_db() -> None:
