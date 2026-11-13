@@ -29,6 +29,9 @@ from hassette.config.config import HassetteConfig
 from hassette.utils.net_utils import format_host, is_loopback_host, substitute_host
 from hassette.web.auth.tokens import web_api_token_path
 
+ALLOWED_SCHEMES = ("http", "https")
+"""URL schemes an explicit ``server_url`` may use."""
+
 SERVER_SCOPE_QUALIFIER = "this machine's instance"
 """What a ``scope="server"`` source's qualifier has to say beyond naming the setting.
 
@@ -165,7 +168,7 @@ def _resolve_explicit_target(raw_url: str, *, verify_ssl: bool) -> ServerTarget:
 
     if not yurl.scheme:
         raise ServerUrlSchemeRequiredError(f"server_url must include a scheme (http:// or https://), got: {cleaned}")
-    if yurl.scheme not in ("http", "https"):
+    if yurl.scheme not in ALLOWED_SCHEMES:
         raise ServerUrlSchemeRequiredError(
             f"server_url scheme must be http:// or https://, got {yurl.scheme!r} in: {cleaned}"
         )
@@ -191,8 +194,7 @@ def _resolve_explicit_target(raw_url: str, *, verify_ssl: bool) -> ServerTarget:
 def _resolve_derived_target(config: HassetteConfig, *, verify_ssl: bool) -> ServerTarget:
     """Derive the connect target from the server's own bind settings.
 
-    Must stay byte-identical to today's ``f"http://{host}:{port}"`` construction — this is the
-    zero-config local path, and ``TestBaseUrl``'s four existing tests pin it.
+    Zero-config local path: always ``http://{host}:{port}`` built from the server's own bind settings.
     """
     host = format_host(config.web_api.host)
     port = config.web_api.port
@@ -231,20 +233,12 @@ def resolve_server_target(
 def _format_source(setting: str, qualifier: str) -> str:
     """Render a credential source as ``<setting> (<qualifier>)``.
 
-    The shape is load-bearing: sources are spliced mid-sentence into an auth-failure message,
-    so they have to read the same way whichever resolver produced them. Going through one
-    formatter makes that a function signature rather than a convention a new resolver has to
-    remember from :class:`ResolvedCredential`'s docstring.
+    Every resolver must build its source through this function, because sources are spliced
+    mid-sentence into the auth-failure message and have to read the same way.
 
     Args:
-        setting: The bare identifier an operator would set — a flag, a config key, or a path
-            template. Matches the corresponding :class:`CredentialSource` ``name``.
-        qualifier: Whatever the setting name alone leaves out, phrased to read inside the
-            parentheses. There is no single kind: a file-backed source passes the concrete
-            path it read, a config field passes ``"or <ENV_VAR>"`` so the alternative spelling
-            is discoverable, and a server-scoped source additionally says that the value
-            describes this machine's instance. Pick whichever of those a reader would need to
-            tell this source apart from the others in the chain.
+        setting: The flag, config key, or path template; matches the :class:`CredentialSource` ``name``.
+        qualifier: What the setting name leaves out, e.g. the path read or the env var alternative.
     """
     return f"{setting} ({qualifier})"
 
@@ -266,6 +260,14 @@ def _ensure_header_safe(value: str, source: str) -> ResolvedCredential:
     return ResolvedCredential(token=value, source=source)
 
 
+def _credential_from(value: str, source: str) -> ResolvedCredential | None:
+    """Strip ``value``; blank means no credential, otherwise header-check it as coming from ``source``."""
+    stripped = value.strip()
+    if not stripped:
+        return None
+    return _ensure_header_safe(stripped, source)
+
+
 def _resolve_token_file_flag(inputs: CredentialInputs) -> ResolvedCredential | None:
     """``--token-file``. Missing/unreadable raises.
 
@@ -276,12 +278,10 @@ def _resolve_token_file_flag(inputs: CredentialInputs) -> ResolvedCredential | N
     if path is None:
         return None
     try:
-        content = path.read_text(encoding="utf-8").strip()
+        content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise CredentialResolutionError(f"--token-file could not be read: {path} ({exc})") from exc
-    if not content:
-        return None
-    return _ensure_header_safe(content, _format_source(SOURCE_TOKEN_FILE_FLAG, str(path)))
+    return _credential_from(content, _format_source(SOURCE_TOKEN_FILE_FLAG, str(path)))
 
 
 def _read_token_file(path: Path, source: str) -> ResolvedCredential | None:
@@ -292,12 +292,10 @@ def _read_token_file(path: Path, source: str) -> ResolvedCredential | None:
     which raises instead.
     """
     try:
-        content = path.read_text(encoding="utf-8").strip()
+        content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return None
-    if not content:
-        return None
-    return _ensure_header_safe(content, source)
+    return _credential_from(content, source)
 
 
 def _resolve_cli_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -316,10 +314,7 @@ def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredentia
     token = inputs.config.cli.auth_token
     if token is None:
         return None
-    value = token.get_secret_value().strip()
-    if not value:
-        return None
-    return _ensure_header_safe(value, _format_source(SOURCE_CLI_AUTH_TOKEN, f"or {CLI_AUTH_TOKEN_ENV}"))
+    return _credential_from(token.get_secret_value(), _format_source(SOURCE_CLI_AUTH_TOKEN, f"or {CLI_AUTH_TOKEN_ENV}"))
 
 
 def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -331,11 +326,8 @@ def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential 
     token = inputs.config.web_api.auth_token
     if token is None:
         return None
-    value = token.get_secret_value().strip()
-    if not value:
-        return None
-    return _ensure_header_safe(
-        value,
+    return _credential_from(
+        token.get_secret_value(),
         _format_source(SOURCE_WEB_API_AUTH_TOKEN, f"or {WEB_API_AUTH_TOKEN_ENV} — {SERVER_SCOPE_QUALIFIER}"),
     )
 
