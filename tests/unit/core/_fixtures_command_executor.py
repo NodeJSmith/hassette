@@ -100,6 +100,7 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     executor.logger = MagicMock()
     executor._unique_name = "CommandExecutor.test"
     executor.ready_event = asyncio.Event()
+    executor.shutdown_event = asyncio.Event()
     executor._ready_reason = None
     return executor
 
