@@ -110,6 +110,11 @@ class SchedulerDispatchMixin:
         timing. No-op for a job with no ``db_id`` yet — an unregistered or
         degraded-registration job has no row to update.
 
+        Best-effort: a failed write (DB backlog timeout, closed write queue, SQL error) is
+        logged and swallowed. The in-memory schedule decides whether the job fires; the row is
+        telemetry for the degraded view, so a stale row is preferable to a job that never
+        re-enqueues or a skipped due fire.
+
         Args:
             job: The job whose current schedule status should be persisted.
         """
@@ -120,14 +125,17 @@ class SchedulerDispatchMixin:
             next_run = job.next_run.timestamp()
             fire_at = job.fire_at.timestamp()
             jitter = job.jitter
-        await self._executor.mark_job_status(
-            job.db_id,
-            job.schedule_status,
-            job.schedule_status_reason,
-            next_run=next_run,
-            fire_at=fire_at,
-            jitter=jitter,
-        )
+        try:
+            await self._executor.mark_job_status(
+                job.db_id,
+                job.schedule_status,
+                job.schedule_status_reason,
+                next_run=next_run,
+                fire_at=fire_at,
+                jitter=jitter,
+            )
+        except Exception:
+            self.logger.exception("Failed to persist schedule status for job %s; the live schedule continues", job)
 
     async def dispatch_and_log(self, job: "Job") -> None:
         """Dispatch a job and log its execution.
