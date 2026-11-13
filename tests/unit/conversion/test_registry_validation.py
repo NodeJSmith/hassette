@@ -86,7 +86,7 @@ class TestStateRegistryValidation:
         registrations for the same domain can never coexist in the catalog dict —
         the second assignment overwrites the first. This is the intended override
         mechanism (see design.md Key Decision #7), and it also means the
-        duplicate-domain warning path in validation.py's _validate_state_registry
+        duplicate-domain warning path in validation.py's validate_state_registry
         can no longer be triggered: there is only ever one entry per domain.
         """
 

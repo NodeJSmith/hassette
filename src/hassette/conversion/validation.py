@@ -19,6 +19,9 @@ from hassette.models.states.base import BaseState
 
 LOGGER = getLogger(__name__)
 
+STATE_REGISTRY_NAME = "STATE_REGISTRY"
+TYPE_REGISTRY_NAME = "TYPE_REGISTRY"
+
 
 @dataclass(frozen=True)
 class RegistryValidationIssue:
@@ -37,7 +40,7 @@ class RegistryValidationIssue:
     message: str
 
 
-def _issue(registry_name: str, message: str) -> RegistryValidationIssue:
+def issue(registry_name: str, message: str) -> RegistryValidationIssue:
     """Build an error-severity ``RegistryValidationIssue`` for the given registry."""
     return RegistryValidationIssue(registry=registry_name, severity="error", message=message)
 
@@ -69,25 +72,24 @@ def validate_registries(
     """
     issues: list[RegistryValidationIssue] = []
 
-    issues.extend(_validate_state_registry(state_registry))
-    issues.extend(_validate_type_registry(type_registry))
+    issues.extend(validate_state_registry(state_registry))
+    issues.extend(validate_type_registry(type_registry))
 
-    _apply_mode(issues, strict=strict)
+    apply_mode(issues, strict=strict)
     return issues
 
 
-def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryValidationIssue]:
+def validate_state_registry(state_registry: StateRegistry) -> list[RegistryValidationIssue]:
     """Run all STATE_REGISTRY checks and return the collected issues."""
     issues: list[RegistryValidationIssue] = []
-    registry_name = "STATE_REGISTRY"
 
     entries = dict(state_registry.registry)
 
     if not entries:
         issues.append(
-            _issue(
-                registry_name,
-                "STATE_REGISTRY is empty — models package may not be imported. "
+            issue(
+                STATE_REGISTRY_NAME,
+                f"{STATE_REGISTRY_NAME} is empty — models package may not be imported. "
                 "Ensure hassette.models.states is imported before wire_services().",
             )
         )
@@ -101,8 +103,8 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
 
         if not is_subclass:
             issues.append(
-                _issue(
-                    registry_name,
+                issue(
+                    STATE_REGISTRY_NAME,
                     f"Registry entry for key {key!r} is not a BaseState subclass: "
                     f"{cls!r}. Only BaseState subclasses may be registered.",
                 )
@@ -110,8 +112,8 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
 
         if not isinstance(key, StateKey) or key.domain is None:
             issues.append(
-                _issue(
-                    registry_name,
+                issue(
+                    STATE_REGISTRY_NAME,
                     f"Registry entry for key {key!r} has a None domain. "
                     "Every registered state class must have a non-None domain.",
                 )
@@ -120,18 +122,17 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
     return issues
 
 
-def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidationIssue]:
+def validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidationIssue]:
     """Run all TYPE_REGISTRY checks and return the collected issues."""
     issues: list[RegistryValidationIssue] = []
-    registry_name = "TYPE_REGISTRY"
 
     entries = dict(type_registry.conversion_map)
 
     if not entries:
         issues.append(
-            _issue(
-                registry_name,
-                "TYPE_REGISTRY is empty — conversion module may not have loaded. "
+            issue(
+                TYPE_REGISTRY_NAME,
+                f"{TYPE_REGISTRY_NAME} is empty — conversion module may not have loaded. "
                 "Ensure hassette.conversion is imported before wire_services().",
             )
         )
@@ -140,8 +141,8 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
     for (from_type, to_type), entry in entries.items():
         if not callable(entry.func):
             issues.append(
-                _issue(
-                    registry_name,
+                issue(
+                    TYPE_REGISTRY_NAME,
                     f"TypeConverterEntry for ({from_type!r} → {to_type!r}) has a non-callable "
                     f"func: {entry.func!r}. Every converter must be callable.",
                 )
@@ -149,8 +150,8 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
 
         if not isinstance(from_type, type):
             issues.append(
-                _issue(
-                    registry_name,
+                issue(
+                    TYPE_REGISTRY_NAME,
                     f"TypeConverterEntry has invalid from_type={from_type!r} "
                     f"(type: {type(from_type).__name__}). from_type must be a Python type.",
                 )
@@ -158,8 +159,8 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
 
         if not isinstance(to_type, type):
             issues.append(
-                _issue(
-                    registry_name,
+                issue(
+                    TYPE_REGISTRY_NAME,
                     f"TypeConverterEntry has invalid to_type={to_type!r} "
                     f"(type: {type(to_type).__name__}). to_type must be a Python type.",
                 )
@@ -170,8 +171,8 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
         )
         if not error_types_ok:
             issues.append(
-                _issue(
-                    registry_name,
+                issue(
+                    TYPE_REGISTRY_NAME,
                     f"TypeConverterEntry for ({from_type!r} → {to_type!r}) has invalid "
                     f"error_types={entry.error_types!r}. Must be a tuple of BaseException subclasses.",
                 )
@@ -180,7 +181,7 @@ def _validate_type_registry(type_registry: TypeRegistry) -> list[RegistryValidat
     return issues
 
 
-def _apply_mode(issues: list[RegistryValidationIssue], *, strict: bool) -> None:
+def apply_mode(issues: list[RegistryValidationIssue], *, strict: bool) -> None:
     """Log or raise based on issues and mode."""
     if not issues:
         LOGGER.debug("Registry validation: OK")
@@ -188,8 +189,8 @@ def _apply_mode(issues: list[RegistryValidationIssue], *, strict: bool) -> None:
 
     error_issues = [i for i in issues if i.severity == "error"]
 
-    for issue in issues:
-        LOGGER.warning("[%s] %s: %s", issue.severity.upper(), issue.registry, issue.message)
+    for found in issues:
+        LOGGER.warning("[%s] %s: %s", found.severity.upper(), found.registry, found.message)
 
     if strict and error_issues:
         raise RegistryValidationError(issues)

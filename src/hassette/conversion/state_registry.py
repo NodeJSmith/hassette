@@ -19,12 +19,8 @@ from hassette.models.states.catalog import (
     _STATE_CATALOG,
     resolve,
 )
-from hassette.models.states.catalog import (
-    StateKey as StateKey,
-)
-from hassette.models.states.catalog import (
-    register_state_converter as register_state_converter,
-)
+from hassette.models.states.catalog import StateKey as StateKey
+from hassette.models.states.catalog import register_state_converter as register_state_converter
 from hassette.models.states.sensor_shapes import (
     DateSensorState,
     EnumSensorState,
@@ -71,7 +67,7 @@ class StateRegistry:
 
     @property
     def registry(self) -> "dict[StateKey, type[BaseState]]":
-        """Read accessor over the catalog leaf dict — for validation.py and other readers."""
+        """Read-only view of the state catalog dict."""
         return _STATE_CATALOG
 
     def get_entity_id(self, data: "HassStateDict", entity_id: str | None = None) -> str:
@@ -251,11 +247,11 @@ class StateRegistry:
 
     def values(self) -> "Iterator[type[BaseState]]":
         """Return an iterator over the registered state classes."""
-        return (state_class for state_class in _STATE_CATALOG.values())
+        return iter(_STATE_CATALOG.values())
 
     def keys(self) -> "Iterator[StateKey]":
         """Return an iterator over the registered state keys."""
-        return (key for key in _STATE_CATALOG)
+        return iter(_STATE_CATALOG)
 
 
 STATE_REGISTRY = StateRegistry()
