@@ -59,6 +59,14 @@ connection. Does every site that cancels the recv task on purpose (cleanup,
 shutdown) set `_recv_task` to `None` first? A site that cancels while the task is
 still attached turns a deliberate teardown into a spurious DISCONNECTED transition.
 
+## Connection State Has One Writer
+`WebsocketService.set_connection_state` in `src/hassette/core/websocket_service.py` is the only
+writer of `_connection_state` under `src/` after `__init__`; it latches ever-connected, clears the
+connected event and generation, and checks the edge against `WS_VALID_TRANSITIONS`. Does new code
+(including `src/hassette/testing/`) assign `_connection_state` directly, skipping all three? And
+does a new state or edge land in `WS_VALID_TRANSITIONS` and the test table `ALLOWED_TRANSITIONS`
+together?
+
 ## Needs-Restart Flag Sourcing
 `AppRegistry.resolve_instance_info()` in `src/hassette/core/app_registry.py` is the one reader of an
 instance entry and its needs-restart record combined; a flagged name can outlive its entry.

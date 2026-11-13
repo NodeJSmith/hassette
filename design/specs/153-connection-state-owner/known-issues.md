@@ -38,7 +38,7 @@ Issue:
 `set_connection_state` is the only writer of `_connection_state` under `src/` after `__init__` (D9), but the attribute is a plain field. A future direct write under `src/` would skip the ever-connected latch, the connected-event and generation clear, and the transition check, and nothing would fail.
 
 Why deferred:
-The rule holds today and has never been broken, and HA core's `set_state` enforces nothing either. Per encode-lessons, a mechanism waits until the instruction fails. The user accepted it as a rare-case limitation at the ship-time challenge.
+The rule holds today and has never been broken, and HA core's `set_state` enforces nothing either. Review checks it through the "Connection State Has One Writer" question in `src/hassette/core/REVIEW.md`. Per encode-lessons, a mechanism waits until the instruction fails. The user accepted it as a rare-case limitation at the ship-time challenge.
 
 Recommended follow-up:
 If a direct `src/` writer ever lands, add a test that greps `src/` for `_connection_state\s*=` and allows only `__init__` and `set_connection_state`.
