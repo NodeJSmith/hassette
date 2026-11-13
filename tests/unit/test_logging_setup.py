@@ -125,6 +125,15 @@ class TestLoggingPipelineJSONRenderer:
         assert (parsed["k"], parsed["reason"]) == (1, "bad")
         assert not {"args", "msg", "levelno", "message", "_record"} & parsed.keys()
 
+    def test_unset_identity_fields_stay_absent_from_json_output(self) -> None:
+        """Identity fields the filters stamp as None outside an app context don't render as null."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="json", stream=stream)
+        logging.getLogger("hassette.test_extra_json").info("x", extra={"k": None})
+        parsed = last_json_record(stream)
+        assert parsed["k"] is None
+        assert not {"app_key", "instance_name", "execution_kind", "listener_id", "job_id"} & parsed.keys()
+
     def test_extra_field_does_not_overwrite_event_key(self) -> None:
         """An extra= field named like a key the pipeline already set leaves that key alone."""
         stream = StringIO()

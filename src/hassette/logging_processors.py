@@ -34,13 +34,16 @@ WARNING_FILENAME_ATTR = "warning_filename"
 # Record attribute CorrelationFilter stamps for the log_records table's ordering.
 SEQ_ATTR = "seq"
 # Record attributes that are not caller-supplied ``extra=`` fields: the stdlib's own (including the ``message``
-# and ``asctime`` that Formatter.format adds) and the internal ones Hassette's filters set. Attributes starting
-# with an underscore (structlog's ``_logger``/``_name``/``_record``, Hassette's markers) are skipped separately.
+# and ``asctime`` that Formatter.format adds) and the ones Hassette's filters set, including the identity fields,
+# which the filters stamp as ``None`` when unset and must stay absent rather than render as null. Attributes
+# starting with an underscore (structlog's ``_logger``/``_name``/``_record``, Hassette's markers) are skipped
+# separately.
 _NON_EXTRA_RECORD_ATTRS = frozenset(
     {
         *logging.makeLogRecord({}).__dict__,
         "message",
         "asctime",
+        *_RECORD_FIELDS,
         WARNING_CATEGORY_ATTR,
         WARNING_FILENAME_ATTR,
         SEQ_ATTR,
