@@ -12,7 +12,7 @@ A typical test creates a harness, simulates an event, and asserts on the API cal
 
 The `async with` block initializes the app (running `on_initialize`), then tears it down on exit. `simulate_state_change` publishes an event through the bus and waits for all handlers to finish. `api_recorder.assert_called` verifies the app called the expected service.
 
-The `MotionLights` app used throughout this page declares `motion_entity` as a required config field, so every example passes a `config` dict that sets it. Every example also sets `instance_name`, which each app instance needs (see [Instance Names](../core-concepts/apps/configuration.md#instance-names)). [Testing Configuration Errors](#testing-configuration-errors) shows what happens when it is missing.
+The `MotionLights` app used throughout this page declares `motion_entity` and `light_entity` as required config fields, so every example passes a `config` dict that sets both. Every example also sets `instance_name`, which each app instance needs (see [Instance Names](../core-concepts/apps/configuration.md#instance-names)). [Testing Configuration Errors](#testing-configuration-errors) shows what happens when it is missing.
 
 The sections below cover each piece of this pattern in detail.
 
@@ -250,8 +250,9 @@ detail.
 ## Asserting API Calls
 
 `harness.api_recorder` exposes a `RecordingApi` that records the write calls
-the app makes through `self.api`: `turn_on`, `turn_off`, `call_service`,
-`set_state`, `fire_event`, and the `self.api.helpers` create/update/delete
+the app makes through `self.api`: `turn_on`, `turn_off`, `toggle`,
+`call_service`, `notify`, `set_state`, `fire_event`, and the
+`self.api.helpers` create/update/delete
 methods for Home Assistant helper entities (`input_boolean`, `counter`, and so
 on — see [Managing Helpers](../core-concepts/api/managing-helpers.md)).
 Reads such as `get_state` and `self.api.helpers.list()` record nothing.
