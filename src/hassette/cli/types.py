@@ -1,17 +1,19 @@
 """Shared CLI flag types and converters for hassette commands."""
 
 import re
+from collections.abc import Callable
 from typing import Annotated, Literal
 
 from cyclopts import Parameter
 from hassette_wire import QueryAuthor
-from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
-from hassette.cli.formatters import now_epoch
+from hassette.cli.formatters import now_epoch, parse_iso_epoch
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
+_RELATIVE_EXAMPLES = "1h, 7d, 30m, 2w, 30s"
+
 SINCE_HELP = (
-    "Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute "
+    f"Filter by time. Accepts relative ({_RELATIVE_EXAMPLES}) or absolute "
     "(2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use local time."
 )
 
@@ -30,8 +32,16 @@ _ISO_UTC_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 _ISO_NAIVE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
 _DATE_ONLY_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+# The regexes gate which shapes --since accepts; a value can match one and still fail to parse (2026-13-45).
+_ABSOLUTE_PARSERS: tuple[tuple[re.Pattern[str], Callable[[str], float]], ...] = (
+    (_ISO_UTC_PATTERN, parse_iso_epoch),
+    (_ISO_WITH_OFFSET_PATTERN, parse_iso_epoch),
+    (_ISO_NAIVE_PATTERN, parse_iso_epoch),
+    (_DATE_ONLY_PATTERN, lambda v: parse_iso_epoch(v + "T00:00:00")),
+)
+
 _INVALID_FORMATS_HINT = (
-    "Accepted formats: relative (1h, 7d, 30m, 2w, 30s) or "
+    f"Accepted formats: relative ({_RELATIVE_EXAMPLES}) or "
     "absolute (2026-05-22, 2026-05-22T14:00:00, 2026-05-22T18:00:00Z, "
     "2026-05-22T14:00:00-04:00). Compound durations (1h30m) and "
     "month/year units are not supported."
@@ -52,35 +62,13 @@ def convert_since(value: str) -> float:
         unit = match.group(2)
         return now_epoch() - n * _RELATIVE_MULTIPLIERS[unit]
 
-    if _ISO_UTC_PATTERN.match(value):
+    for pattern, parse in _ABSOLUTE_PARSERS:
+        if not pattern.match(value):
+            continue
         try:
-            return Instant.parse_iso(value).timestamp()
+            return parse(value)
         except ValueError:
-            pass
-
-    if _ISO_WITH_OFFSET_PATTERN.match(value):
-        try:
-            return OffsetDateTime.parse_iso(value).timestamp()
-        except ValueError:
-            pass
-
-    if _ISO_NAIVE_PATTERN.match(value):
-        try:
-            # CLI input: user's terminal timezone, not the configured Hassette timezone
-            return PlainDateTime.parse_iso(value).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
-        except ValueError:
-            pass
-
-    if _DATE_ONLY_PATTERN.match(value):
-        try:
-            # CLI input: user's terminal timezone, not the configured Hassette timezone
-            return (
-                PlainDateTime.parse_iso(value + "T00:00:00")
-                .assume_tz(SYSTEM_TZ, disambiguation="compatible")
-                .timestamp()
-            )
-        except ValueError:
-            pass
+            continue
 
     raise ValueError(f"Invalid --since value: {value!r}. {_INVALID_FORMATS_HINT}")
 
@@ -130,16 +118,10 @@ InstanceArg = Annotated[
     ),
 ]
 
-# Log entries carry no instance filter server-side, so ``log --instance`` only exists to turn a
-# habitual ``--instance`` into a clear usage error. Hidden so --help and completions don't
-# advertise a filter that doesn't work.
+# Hidden: log entries have no server-side instance filter; this flag only turns `--instance` into a usage error.
 LogInstanceArg = Annotated[str | None, Parameter(name=["--instance"], show=False)]
 
-# Separate from InstanceArg (not just a differently-worded help string): the read commands
-# InstanceArg serves (health, activity) filter via --app, so --instance "requires --app". The
-# action commands this serves (start/stop/reload) always take a required positional <key>
-# instead and never accept --app, so that requirement doesn't apply — hence the different help
-# text rather than reusing InstanceArg's.
+# Action commands take a positional key and no `--app`, so `--instance` doesn't require `--app`.
 InstanceActionArg = Annotated[
     str | None,
     Parameter(
