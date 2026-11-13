@@ -10,7 +10,7 @@ The two most common operations are reading state and calling a service.
 --8<-- "pages/core-concepts/api/snippets/api_overview_usage.py"
 ```
 
-`get_state()` fetches the entity from Home Assistant over the network. It returns a typed state object with `.value` and `.attributes` (domain-specific fields). `.value` holds the state converted to a domain-specific type, such as `True`/`False` for lights and switches. [States](../states/index.md) covers the conversion rules. `call_service()` sends a service call via WebSocket.
+`get_state()` fetches the entity from Home Assistant over the network. It returns a typed state object with `.value` and `.attributes` (domain-specific fields). `.value` holds the state converted to a domain-specific type, such as `True`/`False` for lights and switches. [States](../states/index.md) covers the conversion rules. `call_service()` sends a service call via WebSocket, here `light.turn_on` targeting one entity. [Calling Services](methods.md#calling-services) covers targets, service data, and responses.
 
 ## API vs StateManager
 
